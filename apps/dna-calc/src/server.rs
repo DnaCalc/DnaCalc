@@ -162,6 +162,19 @@ impl Server {
                 Request::UsedArea(sheet) => Ok(Reply::UsedArea(
                     self.book.used_area(sheet.id()).map(Area::of),
                 )),
+                Request::ResolveReference { anchor, text } => {
+                    let at = cell(anchor)?;
+                    let resolved = match self.book.host().resolve_reference_text(at, text.trim()) {
+                        calc_host::ReferenceTarget::Area(area) => Ok(Area::of(area)),
+                        calc_host::ReferenceTarget::Invalid => Err(format!(
+                            "{text:?} is not a valid address, range or reference name"
+                        )),
+                        calc_host::ReferenceTarget::NotModelled => Err(format!(
+                            "The reference {text:?} is not modelled; use an explicit sheet address or range"
+                        )),
+                    };
+                    Ok(Reply::ResolvedReference(resolved))
+                }
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::Atlas => {
                     let census = self.book.census();
@@ -279,9 +292,12 @@ impl Server {
             recalc: None,
             note: None,
             elapsed_ms,
-            selection: selection
-                .active
-                .map(|at| (Key::of(at), selection.areas.first().copied().map(Area::of))),
+            selection: selection.active.map(|at| {
+                (
+                    Key::of(at),
+                    selection.areas.iter().copied().map(Area::of).collect(),
+                )
+            }),
             summary: self.summary(),
         }
     }
@@ -295,7 +311,100 @@ impl Server {
     }
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
-        let intent = host_intent(intent)?;
+        let intent = match intent {
+            Intent::Navigate {
+                nav,
+                extend,
+                page_height,
+            } => {
+                let selection = self.book.session().selection();
+                let at = selection.active.ok_or("no active cell")?;
+                if matches!(
+                    nav,
+                    crate::grid::selection::Navigation::Column
+                        | crate::grid::selection::Navigation::Row
+                ) && selection.areas.len() > 1
+                {
+                    return Ok(self.done(false,Some("Axis expansion for disjoint selections is not modelled; select one rectangle".to_owned()),0.0));
+                }
+                if extend
+                    && selection.areas.first().is_some_and(|area| {
+                        (at.row() != area.first().row() && at.row() != area.last().row())
+                            || (at.column() != area.first().column()
+                                && at.column() != area.last().column())
+                    })
+                {
+                    return Ok(self.done(false,Some("Range extension from an interior active cell awaits Excel measurement; select an anchor corner first".to_owned()),0.0));
+                }
+                let host = self.book.host();
+                if matches!(
+                    nav,
+                    crate::grid::selection::Navigation::All
+                        | crate::grid::selection::Navigation::Column
+                        | crate::grid::selection::Navigation::Row
+                ) && host
+                    .model()
+                    .definitions()
+                    .tables()
+                    .iter()
+                    .any(|table| table.area.contains(at))
+                {
+                    return Ok(self.done(false,Some("Table selection stages are not modelled; use the name box to select an explicit range".to_owned()),0.0));
+                }
+                let occupied = if matches!(
+                    nav,
+                    crate::grid::selection::Navigation::Edge(_)
+                        | crate::grid::selection::Navigation::All
+                ) {
+                    host.occupied_areas(at.sheet())
+                } else {
+                    Vec::new()
+                };
+                let mut used = if matches!(nav, crate::grid::selection::Navigation::UsedEnd) {
+                    host.used_area(at.sheet())
+                } else {
+                    None
+                };
+                if matches!(nav, crate::grid::selection::Navigation::UsedEnd) {
+                    for (key, _) in host
+                        .model()
+                        .definitions()
+                        .cell_formats()
+                        .filter(|(key, _)| key.sheet() == at.sheet())
+                    {
+                        used = Some(match used {
+                            None => GridArea::cell(key),
+                            Some(area) => GridArea::new(
+                                CellKey::new(
+                                    at.sheet(),
+                                    area.first().row().min(key.row()),
+                                    area.first().column().min(key.column()),
+                                )
+                                .expect("bounded format"),
+                                CellKey::new(
+                                    at.sheet(),
+                                    area.last().row().max(key.row()),
+                                    area.last().column().max(key.column()),
+                                )
+                                .expect("bounded format"),
+                            )
+                            .expect("one sheet"),
+                        });
+                    }
+                }
+                let metrics = crate::grid::sheet_metrics(host.sheet_geometry(at.sheet()).as_ref());
+                SkinIntent::Select(crate::grid::selection::navigate(
+                    selection,
+                    nav,
+                    extend,
+                    &metrics,
+                    f64::from(page_height),
+                    &occupied,
+                    used,
+                ))
+            }
+            other => host_intent(other)?,
+        };
         // What a warning or information rule says about an entry, worked out before it is taken.
         let note = match &intent {
             SkinIntent::EnterCell { at, text } => {
@@ -530,9 +639,16 @@ fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
             at: cell(at)?,
             text,
         },
-        Intent::Clear { area: a } => SkinIntent::Edit {
-            edits: vec![CellEdit::Clear { area: area(a)? }],
+        Intent::EnterSelection { text } => SkinIntent::EnterSelection { text },
+        Intent::Clear { areas } => SkinIntent::Edit {
+            edits: areas
+                .into_iter()
+                .map(|a| Ok(CellEdit::Clear { area: area(a)? }))
+                .collect::<Result<_, String>>()?,
         },
+        Intent::Navigate { .. } => {
+            return Err("navigation requires the workbook selection".to_owned());
+        }
         Intent::EditAxis {
             sheet,
             rows,
@@ -577,9 +693,9 @@ fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
                 ),
             )],
         },
-        Intent::Select { active, area: a } => SkinIntent::Select(Selection {
+        Intent::Select { active, areas } => SkinIntent::Select(Selection {
             active: Some(cell(active)?),
-            areas: vec![area(a)?],
+            areas: areas.into_iter().map(area).collect::<Result<_, _>>()?,
         }),
     })
 }

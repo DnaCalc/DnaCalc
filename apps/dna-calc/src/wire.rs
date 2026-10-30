@@ -80,8 +80,16 @@ pub enum Intent {
         at: Key,
         text: String,
     },
+    EnterSelection {
+        text: String,
+    },
     Clear {
-        area: Area,
+        areas: Vec<Area>,
+    },
+    Navigate {
+        nav: crate::grid::selection::Navigation,
+        extend: bool,
+        page_height: u32,
     },
     /// Inserts (`insert`) or deletes `count` rows (`rows`) or columns from `start`.
     EditAxis {
@@ -111,7 +119,7 @@ pub enum Intent {
     },
     Select {
         active: Key,
-        area: Area,
+        areas: Vec<Area>,
     },
 }
 
@@ -151,6 +159,10 @@ pub enum Request {
     /// A sheet's sizes, as the grid lays it out.
     Geometry(Sheet),
     UsedArea(Sheet),
+    ResolveReference {
+        anchor: Key,
+        text: String,
+    },
     /// The sheet's charts, drawn.
     Charts(Sheet),
     /// The cell's data validation: its rule and, for a list, its items.
@@ -228,7 +240,7 @@ pub struct Outcome {
     /// How long the server took, in milliseconds.
     pub elapsed_ms: f64,
     /// The session's selection after the intent: its active cell and first area.
-    pub selection: Option<(Key, Option<Area>)>,
+    pub selection: Option<(Key, Vec<Area>)>,
     /// For an entry the session took: what a warning or information rule of the cell said about
     /// it (the rule's kind, and its title and message), as Excel would ask or tell.
     pub note: Option<(String, String)>,
@@ -351,6 +363,7 @@ pub enum Reply {
     Subscribed,
     Geometry(Geometry),
     UsedArea(Option<Area>),
+    ResolvedReference(Result<Area, String>),
     Charts(Vec<Chart>),
     Validation(Option<Validation>),
     Atlas(Atlas),

@@ -413,6 +413,38 @@ impl HostState {
             .collect()
     }
 
+    /// Sparse occupied rectangles for navigation, including published spills and unloaded cells.
+    /// Formula text occupies its cell even when its calculated result is an empty string.
+    pub fn occupied_areas(&self, sheet: SheetId) -> Vec<GridArea> {
+        let mut areas: Vec<_> = self
+            .input_cells(sheet)
+            .into_iter()
+            .map(GridArea::cell)
+            .collect();
+        let definitions = self.model.definitions();
+        let full = GridArea::full_sheet(sheet);
+        areas.extend(definitions.arrays_meeting(full).map(|array| array.area()));
+        areas.extend(
+            definitions
+                .data_tables()
+                .iter()
+                .map(|table| table.area())
+                .filter(|area| area.sheet() == sheet),
+        );
+        areas.extend(
+            definitions
+                .unloaded_in(full)
+                .map(|(at, _)| GridArea::cell(at)),
+        );
+        areas.extend(
+            self.engine
+                .spills()
+                .filter(|spill| spill.anchor().sheet() == sheet)
+                .map(|spill| spill.area()),
+        );
+        areas
+    }
+
     /// The cells of `sheet` that hold a formula as [`HostState::holds_formula`] counts them (a
     /// formula input, a legacy array's cells, a data table's cells), in cell order, read without
     /// projecting them (dc-gf0: the ledger's rows).
@@ -469,6 +501,15 @@ impl HostState {
     /// holds them (a structural edit adjusts their references).
     pub fn defined_names(&self) -> &[calc_doc_model::DefinedName] {
         self.model.definitions().names()
+    }
+
+    /// Address, range and name lookup through the existing engine snapshot catalogue.
+    pub fn resolve_reference_text(
+        &self,
+        at: CellKey,
+        text: &str,
+    ) -> calc_fml::reference::TextReference {
+        calc_engine::resolve_reference_text(&self.model, at, text)
     }
 
     /// The row heights, column widths and hidden rows and columns of `sheet`: as the file stated

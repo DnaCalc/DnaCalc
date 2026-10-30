@@ -125,6 +125,7 @@ fn focus(selector: &str) {
 /// The application.
 pub fn app() -> impl IntoView {
     let controller = Controller::new();
+    controller.install_input_queue();
     let registry = registry();
     let active_skin: RwSignal<Option<String>> = RwSignal::new(None);
     let assist = controller.assist;
@@ -221,24 +222,14 @@ pub fn app() -> impl IntoView {
         let (row, col) = controller.active.get();
         name_box.set(cells::address(row, col));
     });
-    let go_to = move |text: String| match cells::parse_address(&text) {
-        Some((row, col)) => {
-            if let Some(sheet) = controller.sheet.get_untracked()
-                && let Ok(at) = calc_host::value::CellKey::new(sheet, row, col)
-            {
-                controller.navigate_to(at, move |accepted| {
-                    let (row, col) = controller.active.get_untracked();
-                    name_box.set(cells::address(row, col));
-                    if accepted {
-                        grid::focus_grid();
-                    }
-                });
+    let go_to = move |text: String| {
+        controller.go_to_text(text, move |accepted| {
+            let (row, col) = controller.active.get_untracked();
+            name_box.set(cells::address(row, col));
+            if accepted {
+                grid::focus_grid();
             }
-        }
-        None => controller.status.set(crate::controller::Status {
-            text: format!("{text:?} is not a cell address such as B3"),
-            refused: true,
-        }),
+        })
     };
 
     let bar_key = Callback::new(move |ev| controller.editor_key(ev, assist));
@@ -282,6 +273,7 @@ pub fn app() -> impl IntoView {
                     <button
                         type="button"
                         data-dnacalc=format!("skin-{id}")
+                        disabled=move || controller.input_pending()
                         aria-pressed=pressed
                         title=format!("{title} (Alt+{slot})")
                         on:click=move |_| {
@@ -361,6 +353,7 @@ pub fn app() -> impl IntoView {
             return;
         }
         if ev.alt_key()
+            && !controller.input_pending()
             && !ctrl
             && let Ok(slot) = ev.key().parse::<u8>()
             && switch_skin(active_skin, &registry_for_keys, slot).is_some()
@@ -450,7 +443,7 @@ pub fn app() -> impl IntoView {
     };
 
     view! {
-        <div class="dc-app" data-dnacalc="app" on:keydown=on_app_key>
+        <div class="dc-app" data-dnacalc="app" inert=move || controller.replacing.get().then_some("") on:keydown=on_app_key>
             <header class="dc-mast">
                 <strong>"DNA Calc"</strong>
                 <span class="dc-doc" data-dnacalc="document">{document_line}</span>

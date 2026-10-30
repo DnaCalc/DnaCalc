@@ -47,7 +47,8 @@ pub use template::{template_key, template_key_of_chars};
 pub use transform::{
     EditAxis, StructuralEdit, convert_notation, transform_formula, transform_name,
 };
-pub(crate) use text::bind_text;
+pub use text::bind_text;
+pub use calc_func::TextReference;
 
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode};
 

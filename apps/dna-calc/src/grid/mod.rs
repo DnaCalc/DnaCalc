@@ -42,13 +42,8 @@ use geometry::{
 use leptos::prelude::*;
 use render_plan::build_render_plan;
 use selection::{
-    GridExtent, KeyChord, NavAction, SheetAction, next_active, resolve_action, sheet_keymap,
-    typed_char,
+    GridExtent, KeyChord, NavAction, SheetAction, resolve_action, sheet_keymap, typed_char,
 };
-
-/// Rows and columns the extent reaches past the used area and the view, so there is room to type.
-const MARGIN_ROWS: u32 = 50;
-const MARGIN_COLS: u32 = 10;
 
 /// The subscribed area is the view rounded out to blocks of this many rows and columns, so small
 /// scrolls do not move the interest.
@@ -157,18 +152,12 @@ pub fn interest_area(
 /// The rows and columns the grid scrolls over: the used area, the active cell and the view, with a
 /// margin past each.
 pub fn extent(
-    used: Option<GridArea>,
-    active: (u32, u32),
-    m: &GridMetrics,
-    v: &Viewport,
+    _used: Option<GridArea>,
+    _active: (u32, u32),
+    _m: &GridMetrics,
+    _v: &Viewport,
 ) -> GridExtent {
-    let (used_rows, used_cols) =
-        used.map_or((0, 0), |area| (area.last().row(), area.last().column()));
-    let view_rows = ((v.scroll_y + v.height) / m.row_height).ceil().max(0.0) as u32;
-    let view_cols = ((v.scroll_x + v.width) / m.col_width).ceil().max(0.0) as u32;
-    let rows = used_rows.max(active.0).max(view_rows) + MARGIN_ROWS;
-    let cols = used_cols.max(active.1).max(view_cols) + MARGIN_COLS;
-    GridExtent::new(rows.min(1_048_576), cols.min(16_384))
+    GridExtent::new(MAX_ROW, MAX_COLUMN)
 }
 
 fn grid_view(controller: Controller) -> impl IntoView {
@@ -227,7 +216,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let list_open = RwSignal::new(false);
     // Whether a press on a cell is being dragged to extend the selection.
     let dragging = StoredValue::new(false);
+    let pointer_down = StoredValue::new(false);
     let point_drag = StoredValue::new(false);
+    let drag_pointer = StoredValue::new(None::<(f64, f64)>);
+    let drag_timer = StoredValue::new(None::<IntervalHandle>);
 
     let grid_extent = Memo::new(move |_| {
         extent(
@@ -288,6 +280,14 @@ fn grid_view(controller: Controller) -> impl IntoView {
         )
     });
 
+    let scales = move || {
+        let m = metrics.get_untracked();
+        let v = viewport.get_untracked();
+        (
+            viewport::ScrollScale::new(m.header_w + m.col_start(MAX_COLUMN + 1), v.width),
+            viewport::ScrollScale::new(m.header_h + m.row_start(MAX_ROW + 1), v.height),
+        )
+    };
     // The view's size follows the scroller's.
     let measure = move || {
         if let Some(element) = scroller.get_untracked() {
@@ -299,9 +299,13 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 f64::from(element.scroll_left()),
                 f64::from(element.scroll_top()),
             );
+            let m = metrics.get_untracked();
+            let scale_x =
+                viewport::ScrollScale::new(m.header_w + m.col_start(MAX_COLUMN + 1), width);
+            let scale_y = viewport::ScrollScale::new(m.header_h + m.row_start(MAX_ROW + 1), height);
             let next = Viewport {
-                scroll_x,
-                scroll_y,
+                scroll_x: scale_x.logical(scroll_x),
+                scroll_y: scale_y.logical(scroll_y),
                 width,
                 height,
             };
@@ -339,19 +343,30 @@ fn grid_view(controller: Controller) -> impl IntoView {
             v.height,
             v.scroll_y,
         );
-        if x != v.scroll_x {
-            element.set_scroll_left(x as i32);
-        }
-        if y != v.scroll_y {
-            element.set_scroll_top(y as i32);
+        let (sx, sy) = scales();
+        if x != v.scroll_x || y != v.scroll_y {
+            element.scroll_to_with_x_and_y(sx.physical(x).round(), sy.physical(y).round());
         }
         measure();
     };
     // However the active cell moves (keys, the name box, an undo), it is brought into view.
     Effect::new(move |_| {
+        metrics.track();
+        controller.editing.track();
         let (row, col) = controller.active.get();
         if scroller.get().is_some() {
+            measure();
             reveal(row, col);
+            request_animation_frame(move || {
+                if scroller.try_get_untracked().flatten().is_none()
+                    || metrics.try_get_untracked().is_none()
+                    || controller.active.try_get_untracked() != Some((row, col))
+                {
+                    return;
+                }
+                measure();
+                reveal(row, col);
+            });
         }
     });
     // The formula tools and result disclosure can resize the workspace without a window
@@ -394,14 +409,36 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
     };
     let move_to = move |row: u32, col: u32| controller.select(row, col);
-    let go = move |action: NavAction| {
-        let next = next_active(
-            controller.active.get_untracked(),
-            action,
-            grid_extent.get_untracked(),
-        );
-        move_to(next.0, next.1);
+    let nav_to = move |nav: selection::Navigation, extend: bool| {
+        let old_view = viewport.get_untracked();
+        let page_height = (old_view.height / zoom.get_untracked()) as u32;
+        controller.navigate_then(nav, extend, page_height, move |outcome| {
+            if !outcome.accepted
+                || outcome.selection.is_none()
+                || scroller.try_get_untracked().flatten().is_none()
+                || metrics.try_get_untracked().is_none()
+            {
+                return;
+            }
+            if let selection::Navigation::Page { down } = nav {
+                let m = metrics.get_untracked();
+                let distance = (old_view.height - m.header_h).max(m.row_height);
+                if let Some(element) = scroller.get_untracked() {
+                    let (sx, sy) = scales();
+                    element.scroll_to_with_x_and_y(
+                        sx.physical(old_view.scroll_x),
+                        sy.physical(old_view.scroll_y + if down { distance } else { -distance }),
+                    );
+                    measure();
+                }
+            }
+            if extend {
+                let (row, col) = controller.corner.get_untracked();
+                reveal(row, col);
+            }
+        });
     };
+    let go = move |action: NavAction| nav_to(selection::Navigation::Step(action), false);
     let on_keydown = move |ev: leptos::ev::KeyboardEvent| {
         if ev.is_composing() || ev.key_code() == 229 {
             return;
@@ -489,15 +526,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
             note.set(String::new());
             match action {
                 SheetAction::Move(nav) => go(nav),
-                SheetAction::Extend(nav) => {
-                    let corner = next_active(
-                        controller.corner.get_untracked(),
-                        nav,
-                        grid_extent.get_untracked(),
-                    );
-                    controller.extend(corner);
-                    reveal(corner.0, corner.1);
-                }
+                SheetAction::Extend(nav) => nav_to(selection::Navigation::Step(nav), true),
+                SheetAction::Navigate(nav, extend) => nav_to(nav, extend),
                 SheetAction::BeginEdit => controller.begin_edit(EditOrigin::Cell, None),
                 SheetAction::Clear => controller.clear_active(),
                 SheetAction::Cancel => {}
@@ -530,12 +560,84 @@ fn grid_view(controller: Controller) -> impl IntoView {
             y,
         ))
     };
-    let press = move |target: HitTarget, shift: bool| {
+    let stop_drag = move || {
+        pointer_down.set_value(false);
+        dragging.set_value(false);
+        point_drag.set_value(false);
+        drag_pointer.set_value(None);
+        drag_timer.update_value(|timer| {
+            if let Some(timer) = timer.take() {
+                timer.clear();
+            }
+        });
+    };
+    let drag_tick = move || {
+        if (!dragging.get_value() && !point_drag.get_value()) || document().hidden() {
+            return;
+        }
+        let Some((x, y)) = drag_pointer.get_value() else {
+            return;
+        };
+        let (Some(element), Some(layer)) = (scroller.get_untracked(), layer.get_untracked()) else {
+            return;
+        };
+        let rect = layer.get_bounding_client_rect();
+        let (x, y) = (x - rect.left(), y - rect.top());
+        let m = metrics.get_untracked();
+        let v = viewport.get_untracked();
+        let dx = if x < m.header_w {
+            -(m.header_w - x).min(m.col_width * 3.0)
+        } else if x >= v.width {
+            (x - v.width + 1.0).min(m.col_width * 3.0)
+        } else {
+            0.0
+        };
+        let dy = if y < m.header_h {
+            -(m.header_h - y).min(m.row_height * 3.0)
+        } else if y >= v.height {
+            (y - v.height + 1.0).min(m.row_height * 3.0)
+        } else {
+            0.0
+        };
+        if dx == 0.0 && dy == 0.0 {
+            return;
+        }
+        let (sx, sy) = scales();
+        element.scroll_to_with_x_and_y(sx.physical(v.scroll_x + dx), sy.physical(v.scroll_y + dy));
+        measure();
+        if let HitTarget::Cell { row, col } = hit_test(
+            &m,
+            &viewport.get_untracked(),
+            MAX_ROW,
+            MAX_COLUMN,
+            x.clamp(m.header_w + 1.0, (v.width - 1.0).max(m.header_w + 1.0)),
+            y.clamp(m.header_h + 1.0, (v.height - 1.0).max(m.header_h + 1.0)),
+        ) {
+            if point_drag.get_value() {
+                controller.point_at(row, col, true);
+            } else {
+                controller.extend((row, col));
+            }
+        }
+    };
+    let start_drag = move || {
+        if drag_timer.get_value().is_none() {
+            drag_timer.set_value(
+                set_interval_with_handle(drag_tick, std::time::Duration::from_millis(60)).ok(),
+            );
+        }
+    };
+    on_cleanup(stop_drag);
+    let press = move |target: HitTarget, shift: bool, ctrl: bool| {
         match target {
+            HitTarget::Cell { row, col } if ctrl => controller.toggle_cell(row, col),
             HitTarget::Cell { row, col } if shift => controller.extend((row, col)),
             HitTarget::Cell { row, col } => {
                 move_to(row, col);
-                dragging.set_value(true);
+                if pointer_down.get_value() {
+                    dragging.set_value(true);
+                    start_drag();
+                }
             }
             HitTarget::ColumnHeader { col } if shift => {
                 controller.select_range((1, controller.active.get_untracked().1), (MAX_ROW, col))
@@ -550,6 +652,34 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
         focus_grid();
     };
+    let semantic_press = move |target: HitTarget, shift: bool, ctrl: bool| {
+        if controller.assist.composing.get_untracked()
+            || scroller.try_get_untracked().flatten().is_none()
+        {
+            return;
+        }
+        if let HitTarget::Cell { row, col } = target
+            && controller.point_at(row, col, shift)
+        {
+            if pointer_down.get_value() {
+                point_drag.set_value(true);
+                start_drag();
+            }
+            return;
+        }
+        // An ordinary cell press enters the draft first; rejection keeps focus and source.
+        if controller.editing.get_untracked().is_some() {
+            controller.commit_edit(move |accepted| {
+                if accepted {
+                    press(target, shift, ctrl);
+                } else {
+                    controller.focus_editor();
+                }
+            });
+        } else {
+            press(target, shift, ctrl);
+        }
+    };
     let on_mousedown = move |ev: leptos::ev::MouseEvent| {
         if ev.button() != 0 {
             return;
@@ -563,30 +693,24 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
         ev.prevent_default();
         note.set(String::new());
+        drag_pointer.set_value(Some((f64::from(ev.client_x()), f64::from(ev.client_y()))));
         let shift = ev.shift_key();
+        let ctrl = ev.ctrl_key() || ev.meta_key();
         if controller.assist.composing.get_untracked() {
             return;
         }
-        if let HitTarget::Cell { row, col } = target
-            && controller.point_at(row, col, shift)
-        {
-            point_drag.set_value(true);
-            return;
-        }
-        // An ordinary cell press enters the draft first; rejection keeps focus and source.
-        if controller.editing.get_untracked().is_some() {
-            controller.commit_edit(move |accepted| {
-                if accepted {
-                    press(target, shift);
-                } else {
-                    controller.focus_editor();
-                }
-            });
-        } else {
-            press(target, shift);
-        }
+        pointer_down.set_value(true);
+        controller.after_input(move || semantic_press(target, shift, ctrl));
     };
+
     let on_mousemove = move |ev: leptos::ev::MouseEvent| {
+        if pointer_down.get_value() || dragging.get_value() || point_drag.get_value() {
+            drag_pointer.set_value(Some((f64::from(ev.client_x()), f64::from(ev.client_y()))));
+            if ev.buttons() & 1 == 0 {
+                stop_drag();
+                return;
+            }
+        }
         if point_drag.get_value() {
             if ev.buttons() & 1 == 0 {
                 point_drag.set_value(false);
@@ -605,6 +729,14 @@ fn grid_view(controller: Controller) -> impl IntoView {
             controller.extend((row, col));
         }
     };
+    let drag_move = window_event_listener(leptos::ev::mousemove, on_mousemove);
+    let drag_up = window_event_listener(leptos::ev::mouseup, move |_| stop_drag());
+    let drag_blur = window_event_listener(leptos::ev::blur, move |_| stop_drag());
+    on_cleanup(move || {
+        drag_move.remove();
+        drag_up.remove();
+        drag_blur.remove();
+    });
     let on_dblclick = move |ev: leptos::ev::MouseEvent| {
         if controller.editing.get_untracked().is_some() {
             return;
@@ -709,8 +841,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
     // A bounded semantic window over the same render plan, including empty cells. Visual
     // geometry stays out of the accessibility tree; no second workbook projection is made.
     let semantic_cells = move || {
-        let active = controller.active.get();
-        let corner = controller.corner.get();
+        let selected_areas = controller.areas.get();
+        let sheet = controller.sheet.get();
         plan.with(|plan| {
             let values: std::collections::BTreeMap<_, _> = plan
                 .cells
@@ -725,8 +857,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     let address = cells::address(at.0, at.1);
                     let label = values.get(&at).map_or_else(|| format!("{address}, empty"), |cell|
                         format!("{address}, {}, {}", cell.text, cell.provenance.name()));
-                    let selected = at.0 >= active.0.min(corner.0) && at.0 <= active.0.max(corner.0)
-                        && at.1 >= active.1.min(corner.1) && at.1 <= active.1.max(corner.1);
+                    let selected = sheet.and_then(|sheet| CellKey::new(sheet,at.0,at.1).ok()).is_some_and(|key| selected_areas.iter().any(|area| area.contains(key)));
                     view! { <span role="gridcell" id=format!("dc-grid-cell-{}-{}", at.0, at.1)
                         aria-colindex=at.1.to_string() aria-selected=selected.to_string()
                         aria-label=label>{address}</span> }
@@ -737,16 +868,13 @@ fn grid_view(controller: Controller) -> impl IntoView {
         })
     };
     let headers_view = move || {
-        let (row, col) = controller.active.get();
-        let (corner_row, corner_col) = controller.corner.get();
-        let rows = row.min(corner_row)..=row.max(corner_row);
-        let cols = col.min(corner_col)..=col.max(corner_col);
+        let areas = controller.areas.get();
         plan.with(|plan| {
             let columns = plan
                 .col_headers
                 .iter()
                 .map(|header| {
-                    let class = if cols.contains(&header.col) { "dc-head dc-on" } else { "dc-head" };
+                    let class = if areas.iter().any(|area| (area.first().column()..=area.last().column()).contains(&header.col)) { "dc-head dc-on" } else { "dc-head" };
                     view! { <div class=class aria-hidden="true" data-dnacalc="column-header" data-column=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
                 })
                 .collect_view();
@@ -754,7 +882,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .row_headers
                 .iter()
                 .map(|header| {
-                    let class = if rows.contains(&header.row) { "dc-head dc-on" } else { "dc-head" };
+                    let class = if areas.iter().any(|area| (area.first().row()..=area.last().row()).contains(&header.row)) { "dc-head dc-on" } else { "dc-head" };
                     view! { <div class=class aria-hidden="true" data-dnacalc="row-header" data-row=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
                 })
                 .collect_view();
@@ -767,12 +895,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
     // The selected range, clipped to what a rectangle in the layer can hold.
     let selection_view = move || {
-        let area = controller.selected_area()?;
-        if area.cell_count() == 1 {
-            return None;
-        }
+        let areas = controller.areas.get();
         let m = metrics.get();
         let v = viewport.get();
+        areas.into_iter().map(|area| {
         let (first, last) = (area.first(), area.last());
         let top_left = cell_rect(&m, &v, first.row(), first.column());
         let bottom_right = cell_rect(&m, &v, last.row(), last.column());
@@ -791,9 +917,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
             px((x1 - x0).max(0.0)),
             px((y1 - y0).max(0.0))
         );
-        Some(
-            view! { <div class="dc-selection" data-dnacalc="selection" data-area=label use:css=style></div> },
-        )
+        view! { <div class="dc-selection" data-dnacalc="selection" data-area=label use:css=style></div> }
+        }).collect_view()
     };
     let active_view = move || {
         let rect = active_rect();
@@ -998,14 +1123,14 @@ fn grid_view(controller: Controller) -> impl IntoView {
         )
     };
     let space_width = move || {
-        let m = metrics.get();
-        let extent = grid_extent.get();
-        px(m.header_w + m.col_start(extent.cols) + m.width(extent.cols))
+        metrics.track();
+        viewport.track();
+        px(scales().0.surface)
     };
     let space_height = move || {
-        let m = metrics.get();
-        let extent = grid_extent.get();
-        px(m.header_h + m.row_start(extent.rows) + m.height(extent.rows))
+        metrics.track();
+        viewport.track();
+        px(scales().1.surface)
     };
     // The gridlines: one line after each visible column and row.
     let gridlines = move || {
@@ -1059,11 +1184,20 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 tabindex="0"
                 node_ref=scroller
                 on:scroll=move |_| measure()
+                on:wheel=move |ev: leptos::ev::WheelEvent| {
+                    let (sx,sy) = scales();
+                    if sx.logical(1.0) > 1.0 || sy.logical(1.0) > 1.0 {
+                        ev.prevent_default();
+                        if let Some(element) = scroller.get_untracked() {
+                            let v=viewport.get_untracked();
+                            let factor=if ev.delta_mode()==1 {metrics.get_untracked().row_height} else if ev.delta_mode()==2 {v.height} else {1.0};
+                            element.scroll_to_with_x_and_y(sx.physical(v.scroll_x+ev.delta_x()*factor),sy.physical(v.scroll_y+ev.delta_y()*factor));
+                        }
+                    }
+                }
                 on:keydown=on_keydown
                 on:mousedown=on_mousedown
                 on:dblclick=on_dblclick
-                on:mousemove=on_mousemove
-                on:mouseup=move |_| { dragging.set_value(false); point_drag.set_value(false); }
             >
                 <div class="dc-sr-only" role="rowgroup">{semantic_cells}</div>
                 <span class="dc-sr-only" id="dc-grid-keyboard">"Arrow keys move cells. F2 edits. F6 leaves the worksheet; Shift+F6 returns to the formula bar."</span>
@@ -1159,7 +1293,7 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn the_extent_reaches_past_the_used_area_the_active_cell_and_the_view() {
+    fn the_extent_reaches_the_physical_excel_limits_without_materializing_axes() {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let sheet = ids.issue().unwrap();
         let m = GridMetrics::default();
@@ -1170,16 +1304,19 @@ mod tests {
             height: 440.0,
         };
         let blank = extent(None, (1, 1), &m, &v);
-        assert_eq!(blank, GridExtent::new(20 + MARGIN_ROWS, 10 + MARGIN_COLS));
+        assert_eq!(blank, GridExtent::new(MAX_ROW, MAX_COLUMN));
         let used = GridArea::new(
             CellKey::new(sheet, 1, 1).unwrap(),
             CellKey::new(sheet, 500, 30).unwrap(),
         )
         .unwrap();
-        assert_eq!(extent(Some(used), (1, 1), &m, &v), GridExtent::new(550, 40));
+        assert_eq!(
+            extent(Some(used), (1, 1), &m, &v),
+            GridExtent::new(MAX_ROW, MAX_COLUMN)
+        );
         assert_eq!(
             extent(Some(used), (900, 2), &m, &v),
-            GridExtent::new(950, 40)
+            GridExtent::new(MAX_ROW, MAX_COLUMN)
         );
     }
 }

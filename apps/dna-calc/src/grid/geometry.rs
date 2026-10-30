@@ -89,6 +89,50 @@ impl Sizes {
         }
     }
 
+    fn visible(&self, default: f64, index: u32, forward: bool, limit: u32) -> u32 {
+        let start = index.clamp(1, limit);
+        if default <= 0.0 {
+            let visible: Vec<_> = self
+                .sized
+                .iter()
+                .filter(|&&(at, size)| at <= limit && size > 0.0)
+                .map(|&(at, _)| at)
+                .collect();
+            return if forward {
+                visible
+                    .iter()
+                    .copied()
+                    .find(|&at| at >= start)
+                    .or_else(|| visible.last().copied())
+            } else {
+                visible
+                    .iter()
+                    .rev()
+                    .copied()
+                    .find(|&at| at <= start)
+                    .or_else(|| visible.first().copied())
+            }
+            .unwrap_or(start);
+        }
+        let search = |mut at: u32, forward: bool| {
+            while self.size(default, at) == 0.0 {
+                let next = if forward {
+                    at.saturating_add(1).min(limit)
+                } else {
+                    at.saturating_sub(1).max(1)
+                };
+                if next == at {
+                    return None;
+                }
+                at = next;
+            }
+            Some(at)
+        };
+        search(start, forward)
+            .or_else(|| search(start, !forward))
+            .unwrap_or(start)
+    }
+
     /// The content offset of band `index`'s near edge (band 1 starts at 0).
     fn start(&self, default: f64, index: u32) -> f64 {
         let before = self.sized.partition_point(|&(at, _)| at < index);
@@ -195,6 +239,21 @@ impl GridMetrics {
     /// The content offset of column `col`'s left edge (column 1 at 0).
     pub fn col_start(&self, col: u32) -> f64 {
         self.cols.start(self.col_width, col)
+    }
+
+    /// A visible band at or beyond `index`, inspecting only stored exceptions.
+    pub fn visible_row(&self, index: u32, forward: bool, limit: u32) -> u32 {
+        self.rows.visible(self.row_height, index, forward, limit)
+    }
+
+    pub fn visible_col(&self, index: u32, forward: bool, limit: u32) -> u32 {
+        self.cols.visible(self.col_width, index, forward, limit)
+    }
+
+    pub fn row_at(&self, offset: f64, limit: u32) -> u32 {
+        self.rows
+            .band_at(self.row_height, offset.max(0.0), limit)
+            .unwrap_or(limit)
     }
 }
 

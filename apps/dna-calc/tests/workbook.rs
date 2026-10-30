@@ -12,6 +12,159 @@ use dna_calc::controller::{Controller, EditOrigin};
 use dna_calc::workbook::{Workbook, host_options};
 use leptos::prelude::*;
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_4__navigation_range_entry_and_refusal_use_the_worker_message_route() {
+    use dna_calc::{
+        server::{Server, answer_text},
+        wire::{self, Area, FromServer, Intent, Key, Reply, Request, ToServer},
+    };
+    let mut server = Server::new();
+    let sheet = server.book().sheets()[0].id;
+    let cell = |row, col| CellKey::new(sheet, row, col).unwrap();
+    let area = GridArea::new(cell(1, 2), cell(3, 2)).unwrap();
+    let send = |server: &mut Server, intent| {
+        let text = wire::encode(&ToServer {
+            id: 1,
+            request: Request::Intent(intent),
+        });
+        let (answer, _) = answer_text(server, &text, None);
+        let FromServer::Reply {
+            reply: Reply::Done { outcome, .. },
+            ..
+        } = wire::decode(&answer).unwrap()
+        else {
+            panic!("unexpected reply {answer}")
+        };
+        outcome
+    };
+    let refused = send(
+        &mut server,
+        Intent::EnterSelection {
+            text: "9".to_owned(),
+        },
+    );
+    assert!(!refused.accepted && !refused.committed);
+    assert_eq!(shown(server.book(), cell(1, 1)).text, "");
+    for (row, text) in [(1, "2"), (2, "3"), (3, "4")] {
+        assert!(
+            send(
+                &mut server,
+                Intent::EnterCell {
+                    at: Key::of(cell(row, 1)),
+                    text: text.to_owned()
+                }
+            )
+            .accepted
+        );
+    }
+    assert!(
+        send(
+            &mut server,
+            Intent::Select {
+                active: Key::of(cell(1, 2)),
+                areas: vec![Area::of(area)]
+            }
+        )
+        .accepted
+    );
+    let filled = send(
+        &mut server,
+        Intent::EnterSelection {
+            text: "=A1*10+$A$1".to_owned(),
+        },
+    );
+    assert!(filled.accepted && filled.committed);
+    for (row, value) in [(1, "22"), (2, "32"), (3, "42")] {
+        let cell = shown(server.book(), cell(row, 2));
+        assert_eq!(cell.text, value);
+        assert_eq!(cell.provenance, Provenance::Calculated);
+    }
+    let moved = send(
+        &mut server,
+        Intent::Navigate {
+            nav: dna_calc::grid::selection::Navigation::Walk {
+                horizontal: false,
+                reverse: false,
+            },
+            extend: false,
+            page_height: 400,
+        },
+    );
+    assert_eq!(
+        moved.selection,
+        Some((Key::of(cell(2, 2)), vec![Area::of(area)]))
+    );
+    assert!(send(&mut server, Intent::Undo).accepted);
+    for row in 1..=3 {
+        assert_eq!(shown(server.book(), cell(row, 2)).text, "");
+    }
+    assert!(send(&mut server, Intent::Redo).accepted);
+    assert_eq!(shown(server.book(), cell(3, 2)).text, "42");
+    let whole = GridArea::new(cell(1, 2), cell(calc_host::value::MAX_ROWS, 2)).unwrap();
+    assert!(
+        send(
+            &mut server,
+            Intent::Select {
+                active: Key::of(cell(1, 2)),
+                areas: vec![Area::of(whole)]
+            }
+        )
+        .accepted
+    );
+    let refused = send(
+        &mut server,
+        Intent::EnterSelection {
+            text: "9".to_owned(),
+        },
+    );
+    assert!(!refused.accepted && !refused.committed);
+    assert_eq!(shown(server.book(), cell(3, 2)).text, "42");
+
+    let opened = server.handle(
+        Request::Open {
+            name: "data-validation.xlsx".to_owned(),
+        },
+        Some(
+            include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx")
+                .to_vec(),
+        ),
+    );
+    assert!(opened.reply.is_ok());
+    let sheet = server.book().sheets()[0].id;
+    let first = CellKey::new(sheet, 1, 1).unwrap();
+    let second = CellKey::new(sheet, 1, 2).unwrap();
+    let before = [
+        shown(server.book(), first).text,
+        shown(server.book(), second).text,
+    ];
+    let range = GridArea::new(first, second).unwrap();
+    assert!(
+        send(
+            &mut server,
+            Intent::Select {
+                active: Key::of(first),
+                areas: vec![Area::of(range)]
+            }
+        )
+        .accepted
+    );
+    let refused = send(
+        &mut server,
+        Intent::EnterSelection {
+            text: "not-in-list".to_owned(),
+        },
+    );
+    assert!(!refused.accepted && !refused.committed);
+    assert_eq!(
+        [
+            shown(server.book(), first).text,
+            shown(server.book(), second).text
+        ],
+        before
+    );
+}
+
 /// calc-doc's D1 fixture, which Excel saved: dynamic arrays, legacy arrays, names and a table.
 fn fixture() -> Vec<u8> {
     include_bytes!("../../../crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx").to_vec()
