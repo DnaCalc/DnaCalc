@@ -13,6 +13,10 @@
 //!   intersection operator `@x` is written `_xlfn.SINGLE(x)`, except at the top of the formula,
 //!   where it is dropped and the formula is stored as an ordinary one (Excel's legacy formulas
 //!   intersect implicitly);
+//! - a function named where a LAMBDA value is taken (`GROUPBY(A1:A3,B1:B3,SUM)`, `=SUM` alone) is
+//!   written `_xleta.` before its name and no other prefix (`_xleta.STDEV.S`, `_xleta.CONCAT`),
+//!   and is no array (dc-h9u, Excel 16.0.20527 through COM on 2026-10-30, 11 formulas entered
+//!   through `Range.Formula2` and saved);
 //! - a name that already carries a file prefix (`_xlfn.`, `_xlpm.`) is left as written.
 //!
 //! Dynamic array: Excel stores an entered formula as a dynamic-array formula when the formula
@@ -154,7 +158,7 @@ fn has_prefix(name: &str) -> bool {
     let lower = name.get(..5).map(str::to_ascii_lowercase);
     matches!(
         lower.as_deref(),
-        Some("_xlfn" | "_xlpm" | "_xlop" | "_xlws" | "_xlud")
+        Some("_xlfn" | "_xlpm" | "_xlop" | "_xlws" | "_xlud" | "_xlet")
     )
 }
 
@@ -235,6 +239,20 @@ impl Walk<'_> {
                 {
                     self.insert(token.span().start, "_xlpm.");
                     return multi(parameter);
+                }
+                if token.kind() == TokenKind::Identifier
+                    && tokens.len() == 1
+                    && !is_cell(token.text())
+                    && !token.text().eq_ignore_ascii_case("TRUE")
+                    && !token.text().eq_ignore_ascii_case("FALSE")
+                    && function(token.text()).is_some()
+                    && !self
+                        .names
+                        .iter()
+                        .any(|name| name.name.eq_ignore_ascii_case(token.text()))
+                {
+                    self.insert(token.span().start, "_xleta.");
+                    return multi(false);
                 }
                 multi(self.name_is_multi(token.text()))
             }
