@@ -921,6 +921,7 @@ const ONECALC_CASES: &[Case] = &[
                 "help-description",
                 "Use this function to add the values in cells.",
             ),
+            Check::Text("help-source", "Source: Microsoft"),
         ],
     },
     Case {
