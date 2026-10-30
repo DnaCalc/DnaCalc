@@ -335,6 +335,56 @@ pub fn app() -> impl IntoView {
                     <option value="automatic">"Automatic"</option>
                     <option value="manual">"Manual"</option>
                 </select>
+                <label class="dc-iterate" title="Calculate circular references iteratively">
+                    <input
+                        type="checkbox"
+                        data-dnacalc="iterate"
+                        prop:checked=move || controller.iteration().0
+                        on:change=move |ev| {
+                            let (_, count, change) = controller.iteration();
+                            controller.set_iteration(event_target_checked(&ev), count, change)
+                        }
+                    />
+                    "Iterate"
+                </label>
+                <input
+                    type="number"
+                    class="dc-iterations"
+                    data-dnacalc="max-iterations"
+                    aria-label="Maximum iterations"
+                    title="Maximum iterations"
+                    min="1"
+                    max="32767"
+                    prop:value=move || controller.iteration().1.to_string()
+                    on:change=move |ev| {
+                        let (on, _, change) = controller.iteration();
+                        if let Ok(count) = event_target_value(&ev).trim().parse::<u32>()
+                            && (1..=32767).contains(&count)
+                        {
+                            controller.set_iteration(on, count, change)
+                        }
+                    }
+                />
+                <input
+                    type="text"
+                    class="dc-max-change"
+                    data-dnacalc="max-change"
+                    aria-label="Maximum change"
+                    title="Maximum change"
+                    prop:value=move || controller.iteration().2.to_string()
+                    on:change=move |ev| {
+                        let (on, count, _) = controller.iteration();
+                        if let Ok(change) = event_target_value(&ev).trim().parse::<f64>()
+                            && change.is_finite()
+                            && change >= 0.0
+                        {
+                            controller.set_iteration(on, count, change)
+                        }
+                    }
+                />
+                <span class="dc-circular" data-dnacalc="circular">
+                    {move || controller.circular_warning().unwrap_or_default()}
+                </span>
                 <nav class="dc-skins" aria-label="Skins">{skin_buttons}</nav>
             </header>
             <div class="dc-bar">

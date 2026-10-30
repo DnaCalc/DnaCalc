@@ -527,6 +527,7 @@ impl ModelRoot {
         let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
         // The defined names' formulas the batch sets, as the names will read.
         let mut names: Option<Vec<crate::DefinedName>> = None;
+        let mut iteration: Option<crate::definitions::IterationSettings> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetCell { at, input } => {
@@ -587,6 +588,7 @@ impl ModelRoot {
                         (None, None) => return Err(ApplyError::UnknownName { operation }),
                     }
                 }
+                WorkbookOp::SetIteration(settings) => iteration = Some(*settings),
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),
                 WorkbookOp::EditSkinLayout(edit) => {
@@ -634,8 +636,14 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if !formats.is_empty() || names.is_some() {
+        if !formats.is_empty()
+            || names.is_some()
+            || iteration.is_some_and(|settings| settings != definitions.iteration())
+        {
             let mut next = Definitions::clone(&definitions);
+            if let Some(settings) = iteration {
+                next = next.with_iteration(settings);
+            }
             for (at, format) in formats {
                 next = next.with_format_of(at, format);
             }

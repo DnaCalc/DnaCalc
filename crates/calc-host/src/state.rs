@@ -40,7 +40,9 @@ pub struct HostOptions {
 /// `calcPr` iteration settings (`iterate`, `iterateCount`, `iterateDelta`) into the model, and
 /// [`calc_engine::begin_recalc`] applies them (L3, dc-m3u): with iteration on, the formulas on a
 /// cycle are calculated in passes up to `max_iterations` until no value changes by `max_change`
-/// or more; with it off, each formula on a cycle is refused. The date system is the one the
+/// or more; with it off, each formula on a cycle, and each that reads one, keeps what its cell
+/// held by the circular-reference rule (dc-y2o.1, [`calc_engine::Calculation::held_by_circular_rule`]).
+/// The date system is the one the
 /// package's `workbookPr` declares (`date1904`), which every evaluation reads its serial dates in.
 /// Whatever the package declares, every result is published at full precision whatever its
 /// number format displays: precision as displayed is not applied (no bead owns it yet; the engine
@@ -49,7 +51,8 @@ pub struct HostOptions {
 pub struct RecalcContext {
     /// Serial dates count in the 1904 date system; `false`: the 1900 date system.
     pub date1904: bool,
-    /// Circular references are calculated iteratively; `false`: they are refused.
+    /// Circular references are calculated iteratively; `false`: their formulas keep what their
+    /// cells held, by the circular-reference rule.
     pub iteration: bool,
     /// The most passes an iterating recalculation runs (`calcPr`'s `iterateCount`; Excel's
     /// default, 100, when the package declares none).
@@ -195,6 +198,13 @@ impl HostState {
     /// commands and projections carry, and its name.
     pub fn sheets(&self) -> &[SheetEntry] {
         self.model.sheets()
+    }
+
+    /// The formula cells the last published recalculation found on a circular reference, in
+    /// cell order (dc-y2o.1, [`calc_engine::EngineState::circular_cells`]): what an application
+    /// warns of, as Excel's status bar does. Empty when there is none.
+    pub fn circular_cells(&self) -> Vec<CellKey> {
+        self.engine.circular_cells()
     }
 
     /// The environment a cell entry is read in ([`crate::interpret_entry_in`]) and every

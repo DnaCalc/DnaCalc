@@ -105,8 +105,11 @@ fn defined_names(
 
 /// The workbook part rewritten: with `fullCalcOnLoad="1"` on its `calcPr` when `full_calc` (which
 /// asks the application that opens the package to recalculate every formula; whether Excel does
-/// is measured, tests/fixtures/d1/excel-open.json), set on the `calcPr` the part holds, its other
-/// attributes kept, or a new `calcPr` at the place the schema gives it; and with `names` applied
+/// is measured, tests/fixtures/d1/excel-open.json), and with `iteration`'s settings when it is
+/// given (dc-y2o.2: `iterate="1"` when on, `iterateCount` and `iterateDelta` when they are not
+/// Excel's defaults of 100 and 0.001, each attribute left out otherwise, as Excel writes them), set
+/// on the `calcPr` the part holds, its other attributes kept, or a new `calcPr` at the place the
+/// schema gives it; and with `names` applied
 /// to its `definedNames`: each removed name's hidden, workbook-scoped `definedName` left out (and
 /// the element with it when nothing else remains in it), and each added name appended as a hidden,
 /// workbook-scoped `definedName`, in a new `definedNames` at the place the schema gives it when
@@ -116,6 +119,7 @@ fn defined_names(
 pub(super) fn workbook(
     xml: &XmlPart,
     full_calc: bool,
+    iteration: Option<calc_doc_model::IterationSettings>,
     names: &NameChanges,
 ) -> Result<Vec<u8>, SaveRefusal> {
     let source = xml.bytes();
@@ -294,22 +298,50 @@ pub(super) fn workbook(
             None => {}
         }
     }
+    let mut calc_attributes: Vec<(&str, Option<String>)> = Vec::new();
     if full_calc {
+        calc_attributes.push(("fullCalcOnLoad", Some("1".to_owned())));
+    }
+    if let Some(settings) = iteration {
+        let default = calc_doc_model::IterationSettings::EXCEL_DEFAULT;
+        calc_attributes.push(("iterate", settings.enabled().then(|| "1".to_owned())));
+        calc_attributes.push((
+            "iterateCount",
+            (settings.max_iterations() != default.max_iterations())
+                .then(|| settings.max_iterations().to_string()),
+        ));
+        calc_attributes.push((
+            "iterateDelta",
+            (settings.max_change().to_bits() != default.max_change().to_bits())
+                .then(|| super::text::number(settings.max_change())),
+        ));
+    }
+    if !calc_attributes.is_empty() {
+        let attributes: Vec<(&str, Option<&str>)> = calc_attributes
+            .iter()
+            .map(|(name, value)| (*name, value.as_deref()))
+            .collect();
         match calc_pr {
             Some(span) => {
                 let tag = RawTag::parse(&source[span.0..span.1]);
                 let empty = tag.is_empty();
-                changes.push((
-                    span,
-                    1,
-                    tag.rebuilt(&[("fullCalcOnLoad", Some("1"))], empty),
-                ));
+                changes.push((span, 1, tag.rebuilt(&attributes, empty)));
             }
             None => {
                 let at = insert_calc_at.expect("set when the document element ends");
                 let mut element = b"<".to_vec();
                 element.extend_from_slice(&prefix);
-                element.extend_from_slice(br#"calcPr fullCalcOnLoad="1"/>"#);
+                element.extend_from_slice(b"calcPr");
+                for (name, value) in &attributes {
+                    if let Some(value) = value {
+                        element.push(b' ');
+                        element.extend_from_slice(name.as_bytes());
+                        element.extend_from_slice(b"=\"");
+                        element.extend_from_slice(value.as_bytes());
+                        element.push(b'"');
+                    }
+                }
+                element.extend_from_slice(b"/>");
                 changes.push(((at, at), 1, element));
             }
         }

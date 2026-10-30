@@ -232,6 +232,9 @@ pub enum EncodeError {
     /// The operation at this index sets a defined name's formula, which wire version 1 has no
     /// form for.
     NameFormula { operation: usize },
+    /// The operation at this index sets the iterative-calculation settings, which wire version 1
+    /// has no form for.
+    Iteration { operation: usize },
 }
 
 impl fmt::Display for EncodeError {
@@ -254,6 +257,10 @@ impl fmt::Display for EncodeError {
             EncodeError::NameFormula { operation } => write!(
                 f,
                 "operation {operation} sets a defined name's formula, which wire version 1 has no form for"
+            ),
+            EncodeError::Iteration { operation } => write!(
+                f,
+                "operation {operation} sets the iterative-calculation settings, which wire version 1 has no form for"
             ),
         }
     }
@@ -279,6 +286,9 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         }
         if matches!(operation, WorkbookOp::SetNameFormula { .. }) {
             return Err(EncodeError::NameFormula { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetIteration(_)) {
+            return Err(EncodeError::Iteration { operation: index });
         }
         operations.push(WireOp::from_op(operation, root, &mut claimed)?);
     }

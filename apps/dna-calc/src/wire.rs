@@ -102,6 +102,13 @@ pub enum Intent {
     SetCalcMode {
         manual: bool,
     },
+    /// Sets the workbook's iterative-calculation settings (dc-y2o.2), one undo step: the maximum
+    /// change as its binary64 bits.
+    SetIteration {
+        enabled: bool,
+        max_iterations: u32,
+        max_change_bits: u64,
+    },
     Select {
         active: Key,
         area: Area,
@@ -186,6 +193,15 @@ pub struct Summary {
     pub manual: bool,
     /// The session's authored revision, which advances with every committed change.
     pub revision: u64,
+    /// The workbook's iterative-calculation settings (dc-y2o.2): on or off, the most iterations
+    /// and the maximum change.
+    pub iteration: bool,
+    pub max_iterations: u32,
+    pub max_change: f64,
+    /// The formula cells the last recalculation found on a circular reference (dc-y2o.1), the
+    /// first of them and how many, which the status line warns of.
+    pub circular: Option<Key>,
+    pub circular_count: usize,
 }
 
 impl dna_onecalc::display::SheetNames for Summary {
