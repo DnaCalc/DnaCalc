@@ -1,0 +1,11 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "NA",
+  "selection": "cargo xtask witness pin: of 1 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "readings": [
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-extended-nullary-20260929/answers/answers-na.json"}
+  ],
+  "witnesses": [
+    {"args":[],"expected_bits":"error:NA","id":"w111extended-2026092903-NA-00000","reading":"r0"}
+  ]
+}

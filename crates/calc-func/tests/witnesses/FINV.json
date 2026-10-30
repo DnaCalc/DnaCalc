@@ -1,0 +1,42 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "FINV",
+  "selection": "cargo xtask witness pin: of 32 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "readings": [
+    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/FINV.jsonl"}
+  ],
+  "witnesses": [
+    {"args":["0x3f689374bc6a7efa","0x3ff0000000000000","0x4028000000000000"],"calc_func":"0x402b79e141bdda33","expected_bits":"0x402b79e141bdda34","id":"oc17","reading":"r0"},
+    {"args":["0x3f689374bc6a7efa","0x4000000000000000","0x4014000000000000"],"calc_func":"0x4037084adac4b5d8","expected_bits":"0x4037084adac4b5d9","id":"oc1","reading":"r0"},
+    {"args":["0x3f689374bc6a7efa","0x4010000000000000","0x4022000000000000"],"calc_func":"0x40227d5c571ad76a","expected_bits":"0x40227d5c571ad768","id":"oc9","reading":"r0"},
+    {"args":["0x3f689374bc6a7efa","0x401c000000000000","0x4008000000000000"],"calc_func":"0x404f67e7e5e02acb","expected_bits":"0x404f67e7e5e02ad1","id":"oc25","reading":"r0"},
+    {"args":["0x3f947ae147ae147b","0x3ff0000000000000","0x4028000000000000"],"calc_func":"0x401cc0419943517e","expected_bits":"0x401cc0419943517f","id":"oc18","reading":"r0"},
+    {"args":["0x3f947ae147ae147b","0x4000000000000000","0x4014000000000000"],"expected_bits":"0x4022e8a7ef8726c2","id":"oc2","reading":"r0"},
+    {"args":["0x3f947ae147ae147b","0x4010000000000000","0x4022000000000000"],"calc_func":"0x4014691e949ea248","expected_bits":"0x4014691e949ea246","id":"oc10","reading":"r0"},
+    {"args":["0x3f947ae147ae147b","0x401c000000000000","0x4008000000000000"],"calc_func":"0x40311c3b811edbe3","expected_bits":"0x40311c3b811edbe7","id":"oc26","reading":"r0"},
+    {"args":["0x3fb1eb851eb851ec","0x3ff0000000000000","0x4028000000000000"],"calc_func":"0x400fa5981b55d3d2","expected_bits":"0x400fa5981b55d3cf","id":"oc19","reading":"r0"},
+    {"args":["0x3fb1eb851eb851ec","0x4000000000000000","0x4014000000000000"],"calc_func":"0x4012f887a494b57c","expected_bits":"0x4012f887a494b57a","id":"oc3","reading":"r0"},
+    {"args":["0x3fb1eb851eb851ec","0x4010000000000000","0x4022000000000000"],"calc_func":"0x4009480e31cae47b","expected_bits":"0x4009480e31cae47e","id":"oc11","reading":"r0"},
+    {"args":["0x3fb1eb851eb851ec","0x401c000000000000","0x4008000000000000"],"calc_func":"0x401bb01322a0fe20","expected_bits":"0x401bb01322a0fe26","id":"oc27","reading":"r0"},
+    {"args":["0x3fc3333333333333","0x3ff0000000000000","0x4028000000000000"],"calc_func":"0x4002ec27be3fec3b","expected_bits":"0x4002ec27be3fec36","id":"oc20","reading":"r0"},
+    {"args":["0x3fc3333333333333","0x4000000000000000","0x4014000000000000"],"calc_func":"0x4006b75e8f92d61b","expected_bits":"0x4006b75e8f92d61a","id":"oc4","reading":"r0"},
+    {"args":["0x3fc3333333333333","0x4010000000000000","0x4022000000000000"],"calc_func":"0x4001976609bc133f","expected_bits":"0x4001976609bc133d","id":"oc12","reading":"r0"},
+    {"args":["0x3fc3333333333333","0x401c000000000000","0x4008000000000000"],"calc_func":"0x400e69280893091d","expected_bits":"0x400e69280893091f","id":"oc28","reading":"r0"},
+    {"args":["0x3fd3333333333333","0x3ff0000000000000","0x4028000000000000"],"calc_func":"0x3ff2c6077c0014f9","expected_bits":"0x3ff2c6077c0014f5","id":"oc21","reading":"r0"},
+    {"args":["0x3fd3333333333333","0x4000000000000000","0x4014000000000000"],"expected_bits":"0x3ff8beeba7b1552b","id":"oc5","reading":"r0"},
+    {"args":["0x3fd3333333333333","0x4010000000000000","0x4022000000000000"],"calc_func":"0x3ff6e644f3a0eb27","expected_bits":"0x3ff6e644f3a0eb26","id":"oc13","reading":"r0"},
+    {"args":["0x3fd3333333333333","0x401c000000000000","0x4008000000000000"],"calc_func":"0x4000510f2252a658","expected_bits":"0x4000510f2252a65b","id":"oc29","reading":"r0"},
+    {"args":["0x3fe3333333333333","0x3ff0000000000000","0x4028000000000000"],"calc_func":"0x3fd291254ec3d4f1","expected_bits":"0x3fd291254ec3d4fb","id":"oc22","reading":"r0"},
+    {"args":["0x3fe3333333333333","0x4000000000000000","0x4014000000000000"],"calc_func":"0x3fe222e1b2a58cfb","expected_bits":"0x3fe222e1b2a58cf9","id":"oc6","reading":"r0"},
+    {"args":["0x3fe3333333333333","0x4010000000000000","0x4022000000000000"],"calc_func":"0x3fe702742d54f784","expected_bits":"0x3fe702742d54f782","id":"oc14","reading":"r0"},
+    {"args":["0x3fe3333333333333","0x401c000000000000","0x4008000000000000"],"calc_func":"0x3fec4cf84f7b2960","expected_bits":"0x3fec4cf84f7b2961","id":"oc30","reading":"r0"},
+    {"args":["0x3feb333333333333","0x3ff0000000000000","0x4028000000000000"],"calc_func":"0x3fa31ea8bd825587","expected_bits":"0x3fa31ea8bd82558d","id":"oc23","reading":"r0"},
+    {"args":["0x3feb333333333333","0x4000000000000000","0x4014000000000000"],"calc_func":"0x3fc57e5447b85739","expected_bits":"0x3fc57e5447b85738","id":"oc7","reading":"r0"},
+    {"args":["0x3feb333333333333","0x4010000000000000","0x4022000000000000"],"calc_func":"0x3fd5398e7f5c69ff","expected_bits":"0x3fd5398e7f5c6a01","id":"oc15","reading":"r0"},
+    {"args":["0x3feb333333333333","0x401c000000000000","0x4008000000000000"],"calc_func":"0x3fda4cec22501924","expected_bits":"0x3fda4cec22501926","id":"oc31","reading":"r0"},
+    {"args":["0x3fef0a3d70a3d70a","0x3ff0000000000000","0x4028000000000000"],"calc_func":"0x3f5828d69628518e","expected_bits":"0x3f5828d6962851b7","id":"oc24","reading":"r0"},
+    {"args":["0x3fef0a3d70a3d70a","0x4000000000000000","0x4014000000000000"],"calc_func":"0x3f9f6189c452be60","expected_bits":"0x3f9f6189c452be72","id":"oc8","reading":"r0"},
+    {"args":["0x3fef0a3d70a3d70a","0x4010000000000000","0x4022000000000000"],"calc_func":"0x3fbfd64559ae4a9c","expected_bits":"0x3fbfd64559ae4aac","id":"oc16","reading":"r0"},
+    {"args":["0x3fef0a3d70a3d70a","0x401c000000000000","0x4008000000000000"],"calc_func":"0x3fc77788e3df0ae9","expected_bits":"0x3fc77788e3df0af3","id":"oc32","reading":"r0"}
+  ]
+}

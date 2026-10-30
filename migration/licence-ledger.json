@@ -3139,6 +3139,1416 @@
    "surveyed_bytes": 95439
   },
   {
+   "path": "crates/calc-func/tests/witnesses.rs",
+   "class": "own-work",
+   "reason": "written here (dc-ymjf.2): the portable test that judges the pinned witness sets"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ABS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ACCRINT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ACCRINTM.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ACOS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ACOSH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ACOT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ACOTH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ADDRESS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/AND.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ASIN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ASINH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ATAN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ATANH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/AVEDEV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/AVERAGE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/AVERAGEA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BAHTTEXT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BASE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BESSELI.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BESSELJ.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BESSELK.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BETA.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BETADIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BETAINV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BIN2DEC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BIN2HEX.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BIN2OCT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BINOM.DIST.RANGE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BINOM.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BINOM.INV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BITAND.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BITLSHIFT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BITOR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BITRSHIFT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/BITXOR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CEILING.MATH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CEILING.PRECISE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CEILING.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CHIDIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CHIINV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CHISQ.DIST.RT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CHISQ.INV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CHISQ.TEST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COMBIN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COMBINA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COMPLEX.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CONVERT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COSH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COTH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COUNT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COUNTA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COUPDAYBS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COUPDAYS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COUPDAYSNC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COUPNCD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COUPNUM.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/COUPPCD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CRITBINOM.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CSC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CSCH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/CUMPRINC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DATE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DAY.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DAYS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DAYS360.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DB.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DDB.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DEC2BIN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DEC2HEX.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DEC2OCT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DECIMAL.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DEGREES.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DELTA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DEVSQ.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DISC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DOLLARDE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DOLLARFR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/DURATION.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/EDATE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/EFFECT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/EOMONTH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ERF.PRECISE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ERFC.PRECISE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ERFC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ERROR.TYPE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/EVEN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/EXP.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/EXPON.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/EXPONDIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/F.DIST.RT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/F.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/F.TEST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FACT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FACTDOUBLE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FALSE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FDIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FINV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FISHER.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FIXED.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FLOOR.MATH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FLOOR.PRECISE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FLOOR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FORECAST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/FV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GAMMA.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GAMMA.INV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GAMMA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GAMMADIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GAMMALN.PRECISE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GAMMALN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GAUSS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GCD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GEOMEAN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GESTEP.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/GROWTH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/HARMEAN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/HEX2BIN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/HEX2DEC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/HEX2OCT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/HOUR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/HYPGEOM.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/HYPGEOMDIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IFS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMABS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMAGINARY.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMARGUMENT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMCONJUGATE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMCOS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMCOSH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMCOT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMCSC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMCSCH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMDIV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMLN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMLOG10.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMLOG2.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMPRODUCT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMREAL.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMSECH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMSIN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMSINH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMSQRT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMSUB.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMSUM.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IMTAN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/INT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/INTERCEPT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/INTRATE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IPMT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/IRR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISBLANK.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISERR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISERROR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISEVEN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISLOGICAL.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISNA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISNONTEXT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISNUMBER.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISO.CEILING.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISODD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISOWEEKNUM.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISREF.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ISTEXT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/KURT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/LCM.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/LN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/LOG.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/LOG10.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/LOGEST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/LOGNORM.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/LOGNORMDIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MAX.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MAXA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MDURATION.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MEDIAN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MIN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MINA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MINUTE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MINVERSE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MOD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MONTH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MROUND.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/N.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NEGBINOM.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NEGBINOMDIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NETWORKDAYS.INTL.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NETWORKDAYS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NOMINAL.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NORM.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NORM.S.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NORMDIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NOT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NPER.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/NPV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/OCT2BIN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/OCT2DEC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/OCT2HEX.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ODD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/OR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PDURATION.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PERMUT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PERMUTATIONA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PHI.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PI.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PMT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/POISSON.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/POWER.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PPMT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PRICE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PRICEDISC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PRICEMAT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PRODUCT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/PV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/QUOTIENT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/RADIANS.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/RATE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/RECEIVED.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ROUND.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ROUNDDOWN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/ROUNDUP.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/RRI.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SEC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SECH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SECOND.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SIGN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SIN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SINH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SKEW.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SLN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SLOPE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SQRT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SQRTPI.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/STANDARDIZE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/STDEV.P.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/STDEV.S.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/STDEV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/STDEVA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/STDEVP.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/STDEVPA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SUM.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SUMSQ.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SWITCH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/SYD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/T.DIST.RT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/T.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TAN.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TANH.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TBILLEQ.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TBILLPRICE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TBILLYIELD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TDIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TIME.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TINV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TREND.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TRUE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TRUNC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/TYPE.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/VAR.P.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/VAR.S.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/VAR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/VARA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/VARP.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/VARPA.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/VDB.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/WEEKDAY.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/WEEKNUM.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/WEIBULL.DIST.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/WORKDAY.INTL.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/WORKDAY.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/XNPV.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/XOR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/YEAR.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/YEARFRAC.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/YIELD.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/YIELDMAT.json",
+   "class": "own-work",
+   "reason": "Excel readings (black-box Value2 measurement by OxFunc's smart-fuzzer runners and by cargo xtask witness read), selected by cargo xtask witness pin with calc-func's own results on rows it does not match (dc-ymjf.2)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/index.rs",
+   "class": "own-work",
+   "reason": "written by cargo xtask witness pin (dc-ymjf.2): the list of pinned witness sets the test embeds"
+  },
+  {
+   "path": "crates/calc-func/witness-differences.tsv",
+   "class": "own-work",
+   "reason": "written by cargo xtask witness judge (dc-ymjf.2): inputs Excel read differently in two readings"
+  },
+  {
+   "path": "crates/calc-func/witness-status.tsv",
+   "class": "own-work",
+   "reason": "written by cargo xtask witness judge (dc-ymjf.2): calc-func's per-function status on the witness banks"
+  },
+  {
    "path": "crates/calc-value/Cargo.toml",
    "class": "own-work",
    "reason": "project metadata",
@@ -3267,6 +4677,26 @@
    "reason": "project metadata",
    "surveyed_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
    "surveyed_bytes": 0
+  },
+  {
+   "path": "platform/calc-oracle-excel/src/witness.rs",
+   "class": "own-work",
+   "reason": "written here (dc-ymjf.3): the bulk Value2 witness mode of the one Excel adapter"
+  },
+  {
+   "path": "platform/calc-oracle-excel/worker/witness-worker.ps1",
+   "class": "own-work",
+   "reason": "written here (dc-ymjf.3): the witness worker, which reuses the capture worker's functions"
+  },
+  {
+   "path": "tools/calc-verdict/src/witness.rs",
+   "class": "own-work",
+   "reason": "written here (dc-ymjf.2): the WitnessSet codec of witness readings and the ODR-FN-005 severity classes of a calculated result against one"
+  },
+  {
+   "path": "tools/xtask/src/witness.rs",
+   "class": "own-work",
+   "reason": "written here (dc-ymjf.2, dc-ymjf.3): cargo xtask witness judge, pin and read"
   }
  ]
 }

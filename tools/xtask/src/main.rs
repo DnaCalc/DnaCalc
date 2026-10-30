@@ -26,6 +26,13 @@
 //! [--write]` recomputes the acquisition labels of `migration/evidence/oxfunc-smart-fuzzer.json`
 //! and prints how the record differs or writes them into it (`evidence_labels.rs`).
 //!
+//! `cargo xtask witness judge [--func F] [--bank pinned|full]` judges calc-func function by
+//! function, bit for bit, on Excel's readings (the pinned sets under `crates/calc-func/tests/witnesses`
+//! or every bank of the evidence repository) and rewrites `crates/calc-func/witness-status.tsv`;
+//! `cargo xtask witness pin` writes the pinned sets from the full banks, and `cargo xtask witness
+//! read --func F` takes new readings of a pinned set's rows on this host's Excel (`witness.rs`,
+//! dc-ymjf.2 and dc-ymjf.3).
+//!
 //! `cargo xtask verdict --capture <file> --results <file> --evaluations <file> --out <file>
 //! [--evidence <record>] [--exact-target <excel build>,<channel>,<compatibility>,<numeric
 //! environment>]` judges a canonical CaptureRecord, result set and evaluation record through
@@ -116,6 +123,9 @@ mod rust_source;
 mod site;
 mod text;
 mod verdict;
+// The witness command reads Excel through calc-oracle-excel, like the capture command.
+#[cfg(not(target_arch = "wasm32"))]
+mod witness;
 mod words;
 
 use std::process::ExitCode;
@@ -133,6 +143,8 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "app" => app::run(rest),
         Some((command, rest)) if command == "onecalc" => app::run_onecalc(rest),
         Some((command, rest)) if command == "site" => site::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "witness" => witness::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "capture" => capture::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
@@ -166,6 +178,8 @@ fn main() -> ExitCode {
             usages.push(fidelity::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(collation::USAGE);
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(witness::USAGE);
             eprintln!(
                 "xtask: unknown or missing command {args:?}\n{}",
                 usages.join("\n")

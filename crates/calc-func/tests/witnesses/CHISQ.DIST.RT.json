@@ -1,0 +1,16 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "CHISQ.DIST.RT",
+  "selection": "cargo xtask witness pin: of 6 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "readings": [
+    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/CHISQ.DIST.RT.jsonl"}
+  ],
+  "witnesses": [
+    {"args":["0x3fd0000000000000","0x3ff0000000000000"],"expected_bits":"0x3fe3bf143b9aa712","id":"oc6","reading":"r0"},
+    {"args":["0x3fe0000000000000","0x4000000000000000"],"expected_bits":"0x3fe8ebef9eac820b","id":"oc1","reading":"r0"},
+    {"args":["0x3ff0000000000000","0x4024000000000000"],"expected_bits":"0x3feffe970c1ff154","id":"oc2","reading":"r0"},
+    {"args":["0x4004000000000000","0x4010000000000000"],"expected_bits":"0x3fe4a0db3e0fa35a","id":"oc3","reading":"r0"},
+    {"args":["0x4014000000000000","0x4018000000000000"],"calc_func":"0x3fe166eac37b5a30","expected_bits":"0x3fe166eac37b5a2f","id":"oc4","reading":"r0"},
+    {"args":["0x4024000000000000","0x4020000000000000"],"expected_bits":"0x3fd0f62f41b2db4b","id":"oc5","reading":"r0"}
+  ]
+}

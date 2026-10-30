@@ -85,7 +85,7 @@ There are four dispositions. Each is checked by section 4.
 
 | Group (files) | Tests | Disposition |
 |---|---|---|
-| W111 live and typed replays, `tests/w111_*.rs` (35 files). They replay committed Excel answers from `docs/function-lane/evidence/w111-broad-20260929/`: 26 families and about 1.0 M rows, 320 MB. | 170 | **Port: J1, J2, J3.** These are Excel readings (build 20430) that DnaCalc does not hold; only 5 × 111 rows were imported. They port as oracle rows recaptured through the one capture route (section 2.3). |
+| W111 live and typed replays, `tests/w111_*.rs` (35 files). They replay committed Excel answers from `docs/function-lane/evidence/w111-broad-20260929/`: 26 families and about 1.0 M rows, 320 MB. | 170 | **Port: J1, J2, J3.** These are Excel readings (build 20430) that DnaCalc does not hold; only 5 × 111 rows were imported. They are imported as witness readings with their build (section 2.3, item 4); formula-level checks port as catalogue rows. |
 | Dated Excel parity, `tests/*_excel_parity_20260929.rs` (db/ddb/vdb, syd, sln, bitwise, aggregate prepared, depreciation padding). Value2 bit patterns read from Excel. | 38 | **Port: J4.** Recapture as catalogue rows; the bit patterns become the check on the capture. |
 | Numeric kernels carried with their code: financial, bond, coupon, cash flow, distributions, regression, Bessel, conversion, trigonometric and hyperbolic, combinatorics, x87/`excel_numeric`, gammaln (108 files). | 559 | **Covered** by the 422 inline tests in `calc-func/src/ported/` and the dcj9k_* catalogue sheets. About 137 were not carried: mostly `*_meta_*` arity and volatility tests (covered by `cfunc_m1_1__catalogue_consistency`) and seam-shaped calls. J2 and J4 check the difference per file. |
 | Math functions absorbed into the catalogue without their tests: ABS (22), binary/unary numeric (20), PI (7), ROUND/MROUND/INT/TRUNC/ROUNDUP/ROUNDDOWN, MOD, ODD/EVEN/ISEVEN, SIGN, QUOTIENT, MEDIAN, MODE.SNGL. | 84 | **Port: J2** for the cases cfunc_m3_2 (rounding and integer rows) lacks. Expect most to be covered. |
@@ -237,10 +237,21 @@ There are four dispositions. Each is checked by section 4.
    - An omitted argument is written as an empty argument (`F(,x)`). An empty-cell argument is a
      reference to an empty cell.
    - This is one extension of the one generator, not a second generator.
-4. **Recapture, do not import.** The W111 evidence was taken by the retired smart-fuzzer runner
-   (Excel build 20430). Its rows say *which* inputs matter. The values that count come from a
-   fresh capture through calc-oracle-excel, so there stays one capture lineage. Where the old bit
-   pattern and the new capture differ, the batch records the Excel build of each.
+4. **Import the readings, keep their environment.** OxFunc's captured answers (W111, the oracle
+   cache and the W109 banks, in the evidence repository OxFunc-Evidence) are Excel readings and
+   part of the project's Excel record (owner, 2026-10-30). They are imported as they were read,
+   each with the Excel build, platform, bitness and CPU its capture recorded (all on one Windows
+   host with an AMD Ryzen 7 4800H; builds 19929 to 20430, or unknown where the capture did not
+   say). A reading is taken as valid across Excel builds by default: the record is not rechecked
+   row by row on every build. `cargo xtask witness judge` detects conflicts instead: when two
+   readings of the same function and inputs disagree under different builds or platforms, it
+   reports a version or platform difference with both readings kept
+   (`crates/calc-func/witness-differences.tsv`), never overwriting one with the other, and the
+   difference is followed by a targeted recheck of that function on the builds and platforms at
+   hand, recorded the same way. New readings and rechecks come through calc-oracle-excel's bulk
+   witness mode, so new captures stay in one capture lineage. The catalogue rows of J1 to J3 are
+   still added where a function needs a formula-level check (argument coercion, references,
+   arrays), which the bit-pattern banks do not exercise.
 5. **Contract tests** assert DnaCalc's own interfaces, not Excel values, and need no citation.
    A legacy test that mixes the two is split. RANDBETWEEN with a provider at 0 giving the bottom
    is a contract test; `RANDBETWEEN(1.5,1.2)` giving `#NUM!` becomes an oracle row.

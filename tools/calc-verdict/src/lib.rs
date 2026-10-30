@@ -27,6 +27,10 @@
 //! - [`file_cache_replay`]: a version 2 live capture judged against the file-cache reading of the
 //!   package Excel saved during it, and [`MissingCapture`], the typed answer for a capture
 //!   artifact path whose capture has not been taken.
+//! - [`WitnessSet`] and [`Severity`]: Excel's readings of one function on given arguments (OxFunc's
+//!   WitnessSet rows, with the environment of each reading), and OxFunc's ODR-FN-005 classing of a
+//!   calculated result against one, which `cargo xtask witness judge` and calc-func's pinned
+//!   witness test both use.
 //! - [`sha256_hex`]: the content hash a version 2 record names its packages and its capture
 //!   worker by.
 //!
@@ -46,6 +50,7 @@ mod session;
 mod sha256;
 mod typed;
 mod verdict;
+mod witness;
 
 /// The value model the comparisons are typed over, and the numeric mode that selects an Exact
 /// target.
@@ -75,6 +80,10 @@ pub use verdict::{
     CaptureFailureCounts, CellVerdict, Certainty, Counts, OutsideResult, REPORT_FORMAT,
     REPORT_VERSION, StaleSource, Strata, UncertifiedReason, Verdict, VerdictPolicy, VerdictReport,
     judge,
+};
+pub use witness::{
+    ReadingSource, Severity, WITNESS_SET_FORMAT, WitnessRow, WitnessSet, decode_argument,
+    decode_result, encode_result, result_index, select_result,
 };
 
 use std::fmt;
