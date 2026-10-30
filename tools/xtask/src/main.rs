@@ -15,9 +15,11 @@
 //! and both app cores were built and had their test harness run on each required target, from a
 //! clean tree unless `--allow-dirty` (`ci_audit.rs`).
 //!
-//! `cargo xtask check [--wasm]` builds the workspace and runs `cargo test` for every package,
-//! printing one summary line per package; with `--wasm` it also runs the portable packages' tests
-//! in headless Chrome and Firefox (`check.rs`).
+//! `cargo xtask check [--all]` is the per-commit check: the word scan over new text, the
+//! provenance marker scan, the workspace build and one `cargo test` over the touched packages and
+//! their dependents (`check.rs`). `cargo xtask sweep` runs the slow and structural validation on
+//! purpose: the architecture checks, the licence ledger, the dependency ceiling, the wasm tests in
+//! headless Chrome and Firefox and xtask's acceptance suite (`sweep.rs`).
 //!
 //! `cargo xtask evidence verify [--all | --sample N] [--seed S]` and `cargo xtask evidence restore
 //! <dir> [--sample N] [--seed S]` run the evidence repository's own `archive-evidence.py` over the
@@ -123,6 +125,7 @@ mod owners;
 mod pending;
 mod rust_source;
 mod site;
+mod sweep;
 mod text;
 mod verdict;
 mod words;
@@ -134,6 +137,7 @@ fn main() -> ExitCode {
     match args.split_first() {
         Some((command, rest)) if command == "accept" => accept::run(rest),
         Some((command, rest)) if command == "check" => check::run(rest),
+        Some((command, rest)) if command == "sweep" => sweep::run(rest),
         Some((command, rest)) if command == "ci" => ci::run(rest),
         Some((command, rest)) if command == "ci-audit" => ci_audit::run(rest),
         Some((command, rest)) if command == "evidence" => evidence::run(rest),
@@ -157,6 +161,7 @@ fn main() -> ExitCode {
             let mut usages = vec![
                 accept::USAGE,
                 check::USAGE,
+                sweep::USAGE,
                 ci::USAGE,
                 ci_audit::USAGE,
                 evidence::USAGE,

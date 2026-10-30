@@ -4,12 +4,13 @@
 //! Both cases drive the xtask binary this test build compiled (`CARGO_BIN_EXE_xtask`), the binary
 //! `cargo xtask` runs, as `ci <job>` and `ci-audit ...`, the commands the CI jobs run, against a
 //! copy of this checkout's working tree built as the infra-m0.3 cases build theirs
-//! (`acceptance/infra_m0_3.rs`), with one added portable fixture package, `xtask-ci-matrix-fixture`
-//! at `tools/ci-matrix-fixture` (from `tests/fixtures/ci_matrix/`). Its `matrix` test target holds
-//! one native test, which writes a marker file named after a nonce the case compiles into it, and
-//! one wasm test, which prints that nonce and the user agent of the browser that executed it. Its
-//! `acceptance` target holds a test that fails, and leaves a marker, if a CI package run ever runs
-//! it. Both cases share one copy, so its `target/` is reused.
+//! (`acceptance/infra_m0_3.rs`), with two added portable fixture packages from
+//! `tests/fixtures/ci_matrix/`. `xtask-ci-matrix-fixture` at `tools/ci-matrix-fixture`: its
+//! `matrix` test target holds one native test, which writes a marker file named after a nonce the
+//! case compiles into it, and one wasm test, which prints that nonce and the user agent of the
+//! browser that executed it; its `acceptance` target holds a test that fails, and leaves a marker,
+//! if a CI package run ever runs it. `xtask-ci-zero-fixture` at `tools/ci-zero-fixture` holds no
+//! test at all. Both cases share one copy, so its `target/` is reused.
 //!
 //! What is compared, independently of the CI manifest's own flags: the packages and app cores
 //! `cargo metadata` reports in the copy; the kept cargo transcripts, re-read here (each package's
@@ -18,11 +19,13 @@
 //! marker files; the copy's own `git status`; and the workflow file `.github/workflows/ci.yml`,
 //! parsed here.
 //!
-//! What the product packages show today, and what the cases say about it: each is built and its
-//! test harness runs, natively running 0 tests (`zero_tests`, never passed); on wasm,
-//! wasm-bindgen-test-runner reports `no tests to run!` for each of their modules and starts no
-//! browser. Only the fixture packages' tests run in Chrome and Firefox. `platform_matrix` prints
-//! this as `ACCEPT-NOTE` lines, so the runner's receipt carries it.
+//! What the packages show, and what the cases say about it: each is built and its test harness
+//! runs; a package whose tests ran is `passed`, and one that ran 0 tests is `zero_tests`, never
+//! passed. On wasm the product packages' tests run in Chrome and Firefox under the runner's banner;
+//! for the zero-test fixture wasm-bindgen-test-runner reports `no tests to run!` and starts no
+//! browser, which is the package-browser pair the audit must report as such (no product package is
+//! a zero-test package any more). `platform_matrix` prints what it observed as `ACCEPT-NOTE` lines,
+//! so the runner's receipt carries it.
 //!
 //! Without wasm-bindgen-test-runner on PATH and both drivers (each named by its variable or on
 //! PATH), neither case can run its wasm half: each prints `ACCEPT-NOT-RUN` with the reason.
@@ -40,6 +43,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const BEAD: &str = "infra-m0.2";
 const PACKAGE: &str = "xtask-ci-matrix-fixture";
+/// The fixture package without any test.
+const ZERO_PACKAGE: &str = "xtask-ci-zero-fixture";
 const COPY: &str = "infra_m0_2_ci";
 const BROWSER_FIXTURE: &str = "dnacalc-ci-browser-fixture";
 
@@ -53,6 +58,18 @@ static MATRIX_FIXTURE: Fixture = Fixture {
         ("matrix.rs", "tests/matrix.rs"),
         ("acceptance.rs", "tests/acceptance.rs"),
         ("acceptance.json", "acceptance.json"),
+    ],
+};
+
+/// A portable package with no test, natively or on wasm: the zero-test package-browser pairs.
+static ZERO_FIXTURE: Fixture = Fixture {
+    package: ZERO_PACKAGE,
+    dir: "tools/ci-zero-fixture",
+    source: "ci_matrix",
+    files: &[
+        ("zero.toml", "Cargo.toml"),
+        ("zero_lib.rs", "src/lib.rs"),
+        ("zero_acceptance.json", "acceptance.json"),
     ],
 };
 
@@ -170,7 +187,7 @@ struct Matrix {
 
 impl Matrix {
     fn new(evidence: &mut Evidence) -> Matrix {
-        let copy = WorkspaceCopy::with_fixture(COPY, &MATRIX_FIXTURE, evidence);
+        let copy = WorkspaceCopy::with_fixtures(COPY, &MATRIX_FIXTURE, &[&ZERO_FIXTURE], evidence);
         let markers = copy.base.join("ci-matrix-markers");
         super::remove_tree(&markers).unwrap_or_else(|e| panic!("{e}"));
         let nonce = nonce();
@@ -478,14 +495,27 @@ pub fn platform_matrix() {
         .filter(|m| m.dir.starts_with("apps/"))
         .map(|m| m.name.as_str())
         .collect();
+    // The packages under apps/ are this checkout's: the two application cores and the packages
+    // they share.
+    let packages = super::workspace_packages();
+    let expected_cores: BTreeSet<&str> = packages
+        .iter()
+        .filter(|(_, dir)| dir.starts_with("apps/"))
+        .map(|(name, _)| name.as_str())
+        .collect();
     evidence.expect(
-        app_cores == BTreeSet::from(["dna-calc", "dna-onecalc"])
+        app_cores == expected_cores
+            && ["dna-calc", "dna-onecalc"]
+                .iter()
+                .all(|core| app_cores.contains(core))
             && app_cores
                 .iter()
                 .all(|core| portable.iter().any(|m| m.name == *core))
-            && portable.iter().any(|m| m.name == PACKAGE),
+            && [PACKAGE, ZERO_PACKAGE]
+                .iter()
+                .all(|fixture| portable.iter().any(|m| m.name == *fixture)),
         format!(
-            "cargo metadata in the copy: {} portable packages ({:?}), app cores {app_cores:?} under apps/, both portable, and the fixture among them",
+            "cargo metadata in the copy: {} portable packages ({:?}), the packages {app_cores:?} under apps/ (expected {expected_cores:?}, dna-calc and dna-onecalc among them), all portable, and both fixtures among them",
             portable.len(),
             portable.iter().map(|m| m.name.as_str()).collect::<Vec<_>>()
         ),
@@ -871,12 +901,17 @@ pub fn platform_matrix() {
         })
         .map(|(browser, package)| format!("{package}@{browser}"))
         .collect();
+    let zero_pairs: Vec<&str> = wasm_no_browser
+        .iter()
+        .filter(|(_, package)| package == ZERO_PACKAGE)
+        .map(|(browser, _)| *browser)
+        .collect();
     evidence.expect(
-        !wasm_no_browser.is_empty() && unsaid.is_empty(),
+        zero_pairs.len() == BROWSERS.len() && unsaid.is_empty(),
         format!(
-            "03-ci-audit: for each of the {} package-browser pairs whose transcript shows no browser started, the AUDIT wasm line says zero_tests with 0 tests run and that wasm-bindgen-test-runner reported `no tests to run!` and started no browser (pairs it does not say this for: {unsaid:?}); e.g. {:?}",
+            "03-ci-audit: for each of the {} package-browser pairs whose transcript shows no browser started ({ZERO_PACKAGE} in {zero_pairs:?} among them), the AUDIT wasm line says zero_tests with 0 tests run and that wasm-bindgen-test-runner reported `no tests to run!` and started no browser (pairs it does not say this for: {unsaid:?}); e.g. {:?}",
             wasm_no_browser.len(),
-            audit_line("dna-calc")
+            audit_line(ZERO_PACKAGE)
         ),
     );
     let all_three = format!("{host},{other},wasm");

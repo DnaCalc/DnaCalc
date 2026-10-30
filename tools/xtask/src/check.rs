@@ -1,48 +1,42 @@
-//! `cargo xtask check [--wasm]`: the per-commit check on this host.
+//! `cargo xtask check [--all]`: the per-commit check on this host, meant to take minutes on a warm
+//! tree.
 //!
-//! It first runs the five architecture checks `cargo xtask accept` runs (`arch::run_all`:
-//! dependencies, os-imports, wasm-refusal, tree-reference-tokens and word-scan), one line each
-//! with its findings, so a lane sees a layering, portability or wording finding before it pushes,
-//! and the provenance scan beside them (`licence.rs`: every calc-func and calc-value file has a
-//! licence-ledger entry, and no marker of a removed source reappears in code).
-//! Then it builds the workspace (`cargo build --workspace`), then runs `cargo test -p <package>` for
-//! every workspace member, one after the other, and prints one line per package: `passed` with
-//! the test count, `zero tests` when its harnesses ran no test, or `failed` with the tail of its
-//! log. xtask itself runs only its binary and library unit tests (`--bins`, plus `--lib` when it
-//! has a library): its acceptance target builds lane clones and is run through `cargo xtask
-//! accept`. With `--wasm` it then runs `cargo xtask ci wasm`, which tests the portable packages
-//! under wasm-bindgen-test-runner in headless Chrome and Firefox (`ci.rs`), and prints one line per
-//! portable package from that job's record: the tests each browser ran of those marked for the
-//! browsers, the native-only tests grouped by their `Native-only:` reason, and the tests that are
-//! neither (which fail the wasm job).
+//! In order:
+//! - the word scan over new text only (`words::check_new`: the lines the working tree adds to the
+//!   docs, AGENTS.md, README.md and the tracker since `HEAD` met `origin/master`, and the messages
+//!   of the commits not pushed yet), so pushed text never fails it;
+//! - the provenance marker scan (`licence::check_markers`: no marker of a removed third-party or
+//!   Microsoft source reappears in code);
+//! - `cargo build --workspace`;
+//! - one `cargo test --no-fail-fast` over the touched packages and every workspace package that
+//!   depends on one of them (dev-dependencies included). A package is touched when a file under its
+//!   directory changed since `HEAD` met `origin/master` (committed, staged, unstaged or untracked);
+//!   a change to the workspace's own `Cargo.toml` or `Cargo.lock` touches every package. With
+//!   `--all` every package is tested. xtask's acceptance suite needs the `acceptance` feature, so a
+//!   plain test run leaves it out; `cargo xtask sweep` runs it.
+//!
+//! The architecture checks, the licence ledger's completeness, the wasm run in the browsers and
+//! the acceptance suite are not part of this check: `cargo xtask sweep` runs them on purpose, at a
+//! milestone or on a schedule.
 //!
 //! Every cargo it starts uses `target/xtask-accept`, like `accept` and `ci`, so it never rebuilds
-//! the running xtask binary. Logs go to `target/check/<package>.log` (the architecture checks' cargo
-//! logs to `target/check/arch/`). The exit code is 1 when an architecture check, the build, any
-//! package or the wasm run failed, 2 for a usage error, and 0 otherwise.
+//! the running xtask binary. Logs go to `target/check/`. The exit code is 1 when a scan, the build
+//! or a test failed, 2 for a usage error, and 0 otherwise.
 
-use crate::arch;
-use crate::cargo::{self, Member, Workspace};
+use crate::cargo::{self, Resolved, Workspace};
 use crate::ci;
 use crate::licence;
-use serde_json::Value;
+use crate::words;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 use std::process::{Command, ExitCode};
+use std::time::Instant;
 
-pub const USAGE: &str = "usage: cargo xtask check [--wasm]";
-
-/// This tool's own package, whose acceptance target is left out of the check.
-const SELF_PACKAGE: &str = "xtask";
+pub const USAGE: &str = "usage: cargo xtask check [--all]";
 
 /// How many log lines a failure prints.
-const FAILURE_TAIL: usize = 40;
-
-enum Status {
-    Passed,
-    ZeroTests,
-    Failed,
-}
+const FAILURE_TAIL: usize = 60;
 
 /// Runs `command` from the workspace root with both output streams written to `log`; returns the
 /// exit code (`None` when killed) and the output.
@@ -72,101 +66,82 @@ fn tail(text: &str, lines: usize) -> String {
     all[all.len().saturating_sub(lines)..].join("\n")
 }
 
-/// The test command for one package.
-fn test_command(ws: &Workspace, member: &Member) -> Command {
-    let mut command = cargo_command(ws, "test");
-    command.args(["--no-fail-fast", "-p", &member.name]);
-    if member.name == SELF_PACKAGE {
-        command.arg("--bins");
-        if member
-            .targets
+/// The paths (relative to the root, `/` separators) changed since `base`: committed after it,
+/// staged, unstaged or untracked.
+pub fn changed_paths(root: &Path, base: &str) -> Result<BTreeSet<String>, String> {
+    let mut paths = BTreeSet::new();
+    let diff = cargo::git(root, &["diff", "--name-only", "-z", base])?;
+    let untracked = cargo::git(root, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+    for path in diff.split('\0').chain(untracked.split('\0')) {
+        if !path.is_empty() {
+            paths.insert(path.replace('\\', "/"));
+        }
+    }
+    Ok(paths)
+}
+
+/// The packages a change to `paths` touches: the member whose directory holds each path (the
+/// deepest one), or every member for the workspace's own `Cargo.toml` and `Cargo.lock`.
+pub fn touched_packages(ws: &Workspace, paths: &BTreeSet<String>) -> BTreeSet<String> {
+    let dirs: Vec<(String, &str)> = ws
+        .members
+        .iter()
+        .map(|member| (ws.rel(&member.dir), member.name.as_str()))
+        .collect();
+    let mut touched = BTreeSet::new();
+    for path in paths {
+        if path == "Cargo.toml" || path == "Cargo.lock" {
+            touched.extend(ws.members.iter().map(|member| member.name.clone()));
+            continue;
+        }
+        if let Some((_, name)) = dirs
             .iter()
-            .any(|target| target.kinds.iter().any(|kind| kind == "lib"))
+            .filter(|(dir, _)| path.starts_with(&format!("{dir}/")))
+            .max_by_key(|(dir, _)| dir.len())
         {
-            command.arg("--lib");
+            touched.insert((*name).to_owned());
         }
     }
-    command
+    touched
 }
 
-/// Tests one package and prints its line; returns whether it failed.
-fn check_package(ws: &Workspace, member: &Member, log_dir: &Path) -> bool {
-    let log = log_dir.join(format!("{}.log", member.name));
-    println!("CHECK running cargo test -p {}", member.name);
-    let (code, text) = match run_logged(ws, test_command(ws, member), &log) {
-        Ok(result) => result,
-        Err(e) => {
-            println!("CHECK failed {}: {e}", member.name);
-            return true;
+/// `touched` and every workspace member whose resolved dependency closure (normal, build and dev
+/// edges) holds one of them.
+fn with_dependents(
+    ws: &Workspace,
+    resolved: &Resolved,
+    touched: &BTreeSet<String>,
+) -> BTreeSet<String> {
+    let mut packages = touched.clone();
+    for member in &ws.members {
+        let closure = resolved.reach(&member.id, |_| true, false);
+        if closure.iter().any(|name| touched.contains(name)) {
+            packages.insert(member.name.clone());
         }
-    };
-    let (mut passed, mut failed, mut ignored, mut harnesses) = (0, 0, 0, 0);
-    for counts in text.lines().filter_map(ci::result_counts) {
-        harnesses += 1;
-        passed += counts.passed;
-        failed += counts.failed;
-        ignored += counts.ignored;
     }
-    let status = if code != Some(0) || failed > 0 {
-        Status::Failed
-    } else if passed == 0 {
-        Status::ZeroTests
-    } else {
-        Status::Passed
-    };
-    let counts = format!(
-        "{passed} passed, {failed} failed, {ignored} ignored in {harnesses} harnesses; log {}",
-        ws.rel(&log)
+    packages
+}
+
+fn print_result(name: &str, passed: bool, summary: &str, findings: &[String]) {
+    println!(
+        "CHECK {} {name}: {summary}",
+        if passed { "passed" } else { "failed" }
     );
-    match status {
-        Status::Passed => println!("CHECK passed {}: {counts}", member.name),
-        Status::ZeroTests => println!("CHECK zero tests {}: {counts}", member.name),
-        Status::Failed => {
-            println!(
-                "CHECK failed {}: cargo exited with {code:?}; {counts}",
-                member.name
-            );
-            println!("{}", tail(&text, FAILURE_TAIL));
-        }
-    }
-    matches!(status, Status::Failed)
-}
-
-/// One line per portable package from the wasm job's record: where its tests run.
-fn print_browser_coverage(ws: &Workspace) {
-    let path = ws
-        .root
-        .join("target")
-        .join("ci")
-        .join("wasm")
-        .join(ci::MANIFEST_FILE);
-    let record: Option<Value> = fs::read_to_string(&path)
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok());
-    let Some(record) = record else {
-        println!("CHECK wasm coverage: no readable record at {}", ws.rel(&path));
-        return;
-    };
-    for package in record["packages"].as_array().into_iter().flatten() {
-        println!(
-            "CHECK wasm {}: {}",
-            package["package"].as_str().unwrap_or("?"),
-            package["coverage"]["summary"]
-                .as_str()
-                .unwrap_or("the record holds no coverage")
-        );
+    for finding in findings {
+        println!("  {finding}");
     }
 }
 
 pub fn run(raw: &[String]) -> ExitCode {
-    let wasm = match raw {
+    let all = match raw {
         [] => false,
-        [flag] if flag == "--wasm" => true,
+        [flag] if flag == "--all" => true,
         _ => {
             eprintln!("xtask check: unknown arguments {raw:?}\n{USAGE}");
             return ExitCode::from(2);
         }
     };
+    let started = Instant::now();
     let ws = match std::env::current_dir()
         .map_err(|e| format!("no current directory: {e}"))
         .and_then(|cwd| Workspace::load(&cwd))
@@ -182,37 +157,18 @@ pub fn run(raw: &[String]) -> ExitCode {
         eprintln!("xtask check: cannot create {}: {e}", log_dir.display());
         return ExitCode::from(1);
     }
-
     let mut failed: Vec<String> = Vec::new();
-    println!("CHECK running the architecture checks");
-    let checks = arch::run_all(&ws, &log_dir.join("arch"));
-    let architecture = checks.len();
-    for check in checks {
-        println!(
-            "CHECK {} architecture {}: {}",
-            if check.passed { "passed" } else { "failed" },
-            check.name,
-            check.summary
+
+    for result in [words::check_new(&ws.root), licence::check_markers(&ws.root)] {
+        print_result(
+            result.name,
+            result.passed,
+            &result.summary,
+            &result.findings,
         );
-        for finding in &check.findings {
-            println!("  {finding}");
+        if !result.passed {
+            failed.push(result.name.to_owned());
         }
-        if !check.passed {
-            failed.push(format!("architecture {}", check.name));
-        }
-    }
-    let provenance = licence::check(&ws.root);
-    println!(
-        "CHECK {} {}: {}",
-        if provenance.passed { "passed" } else { "failed" },
-        provenance.name,
-        provenance.summary
-    );
-    for finding in &provenance.findings {
-        println!("  {finding}");
-    }
-    if !provenance.passed {
-        failed.push(provenance.name.to_owned());
     }
 
     println!("CHECK running cargo build --workspace");
@@ -234,40 +190,154 @@ pub fn run(raw: &[String]) -> ExitCode {
         }
     }
 
-    for member in &ws.members {
-        if check_package(&ws, member, &log_dir) {
-            failed.push(member.name.clone());
+    // The packages to test.
+    let packages: BTreeSet<String> = if all {
+        println!("CHECK testing every package (--all)");
+        ws.members
+            .iter()
+            .map(|member| member.name.clone())
+            .collect()
+    } else {
+        let (base, how) = words::new_text_base(&ws.root);
+        let touched = match changed_paths(&ws.root, &base) {
+            Ok(paths) => {
+                let touched = touched_packages(&ws, &paths);
+                println!(
+                    "CHECK {} changed paths since {how}; touched packages {touched:?}",
+                    paths.len()
+                );
+                touched
+            }
+            Err(e) => {
+                println!("CHECK failed changes: {e}");
+                failed.push("changes".to_owned());
+                BTreeSet::new()
+            }
+        };
+        if touched.is_empty() {
+            touched
+        } else {
+            let host = cargo::rustc_version().map(|(host, _)| host);
+            match host.and_then(|host| Resolved::load(&ws, &host)) {
+                Ok(resolved) => with_dependents(&ws, &resolved, &touched),
+                Err(e) => {
+                    println!("CHECK failed dependents: {e}");
+                    failed.push("dependents".to_owned());
+                    touched
+                }
+            }
+        }
+    };
+
+    let mut tested = String::from("no package touched, so no tests");
+    if !packages.is_empty() {
+        let shown: Vec<&str> = packages.iter().map(String::as_str).collect();
+        println!(
+            "CHECK running one cargo test over {} packages: {}",
+            shown.len(),
+            shown.join(", ")
+        );
+        let log = log_dir.join("test.log");
+        let mut test = cargo_command(&ws, "test");
+        test.arg("--no-fail-fast");
+        for package in &packages {
+            test.args(["-p", package]);
+        }
+        match run_logged(&ws, test, &log) {
+            Ok((code, text)) => {
+                let (mut passed, mut failures, mut ignored, mut harnesses) = (0, 0, 0, 0);
+                for counts in text.lines().filter_map(ci::result_counts) {
+                    harnesses += 1;
+                    passed += counts.passed;
+                    failures += counts.failed;
+                    ignored += counts.ignored;
+                }
+                let counts = format!(
+                    "{passed} passed, {failures} failed, {ignored} ignored in {harnesses} harnesses of {} packages; log {}",
+                    packages.len(),
+                    ws.rel(&log)
+                );
+                if code == Some(0) && failures == 0 {
+                    println!("CHECK passed tests: {counts}");
+                    tested = format!("tests of {} packages", packages.len());
+                } else {
+                    println!("CHECK failed tests: cargo exited with {code:?}; {counts}");
+                    let failing: Vec<&str> = text
+                        .lines()
+                        .filter(|line| line.trim_end().ends_with("... FAILED"))
+                        .collect();
+                    for line in &failing {
+                        println!("  {}", line.trim());
+                    }
+                    println!("{}", tail(&text, FAILURE_TAIL));
+                    failed.push("tests".to_owned());
+                }
+            }
+            Err(e) => {
+                println!("CHECK failed tests: {e}");
+                failed.push("tests".to_owned());
+            }
         }
     }
 
-    let mut wasm_failed = false;
-    if wasm {
-        println!("CHECK running cargo xtask ci wasm");
-        wasm_failed = ci::run(&["wasm".to_owned()]) != ExitCode::SUCCESS;
-        print_browser_coverage(&ws);
+    let took = started.elapsed().as_secs();
+    if failed.is_empty() {
         println!(
-            "CHECK {} wasm: record target/ci/wasm",
-            if wasm_failed { "failed" } else { "passed" }
-        );
-    }
-
-    if failed.is_empty() && !wasm_failed {
-        println!(
-            "CHECK RESULT passed: {architecture} architecture checks, the provenance scan, build and {} packages{}",
-            ws.members.len(),
-            if wasm {
-                ", and wasm in Chrome and Firefox"
-            } else {
-                ""
-            }
+            "CHECK RESULT passed: the new-text word scan, the provenance markers, the build and {tested} ({} min {} s)",
+            took / 60,
+            took % 60
         );
         ExitCode::SUCCESS
     } else {
-        let mut what = failed;
-        if wasm_failed {
-            what.push("wasm".to_owned());
-        }
-        println!("CHECK RESULT failed: {}", what.join(", "));
+        println!(
+            "CHECK RESULT failed: {} ({} min {} s)",
+            failed.join(", "),
+            took / 60,
+            took % 60
+        );
         ExitCode::from(1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cargo::Member;
+    use std::path::PathBuf;
+
+    fn member(name: &str, dir: &str) -> Member {
+        Member {
+            name: name.to_owned(),
+            id: name.to_owned(),
+            dir: PathBuf::from(format!("/w/{dir}")),
+            portability: Some("portable".to_owned()),
+            targets: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_path_touches_the_package_whose_directory_holds_it() {
+        let ws = Workspace {
+            root: PathBuf::from("/w"),
+            members: vec![
+                member("calc-func", "crates/calc-func"),
+                member("xtask", "tools/xtask"),
+            ],
+        };
+        let paths = |list: &[&str]| -> BTreeSet<String> {
+            list.iter().map(|path| (*path).to_owned()).collect()
+        };
+        assert_eq!(
+            touched_packages(&ws, &paths(&["crates/calc-func/src/lib.rs", "docs/a.md"])),
+            BTreeSet::from(["calc-func".to_owned()])
+        );
+        assert_eq!(
+            touched_packages(&ws, &paths(&["crates/calc-funcs/x.rs", "AGENTS.md"])),
+            BTreeSet::new()
+        );
+        assert_eq!(
+            touched_packages(&ws, &paths(&["Cargo.lock"])),
+            BTreeSet::from(["calc-func".to_owned(), "xtask".to_owned()])
+        );
     }
 }

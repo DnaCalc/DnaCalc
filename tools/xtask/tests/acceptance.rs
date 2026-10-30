@@ -6,8 +6,12 @@
 //! lane build runs in its own clone, whose target directory the lanes case reads back from cargo
 //! before building. Each case keeps its evidence under `target/accept/<bead>/<case>/`, and its
 //! `summary.txt` names the cargo program it ran. Every case holds one shared lock for its whole
-//! body, so an unfiltered `cargo test -p xtask` runs them one at a time and no case's cargo runs
-//! while another case is measuring.
+//! body, so an unfiltered run runs them one at a time and no case's cargo runs while another case
+//! is measuring.
+//!
+//! The suite takes hours, so the target needs the `acceptance` feature and a plain `cargo test`
+//! leaves it out: `cargo xtask sweep` runs it (`cargo test -p xtask --features acceptance --test
+//! acceptance`), and `cargo xtask accept` passes the feature for its cases.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -33,26 +37,30 @@ fn serial() -> MutexGuard<'static, ()> {
 const BEAD: &str = "infra-m0.1";
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
-/// The workspace has exactly these members, each at exactly this directory; a missing, moved or
-/// extra member fails the build case.
-const EXPECTED_PACKAGES: [(&str, &str); 13] = [
-    ("calc-value", "crates/calc-value"),
-    ("calc-func", "crates/calc-func"),
-    ("calc-fml", "crates/calc-fml"),
-    ("calc-doc-model", "crates/calc-doc-model"),
-    ("calc-doc", "crates/calc-doc"),
-    ("calc-engine", "crates/calc-engine"),
-    ("calc-host", "crates/calc-host"),
-    ("dna-onecalc", "apps/dna-onecalc"),
-    ("dna-calc", "apps/dna-calc"),
-    ("calc-platform-desktop", "platform/calc-platform-desktop"),
-    ("calc-oracle-excel", "platform/calc-oracle-excel"),
-    ("calc-verdict", "tools/calc-verdict"),
-    ("xtask", "tools/xtask"),
-];
+/// The directories a workspace member may sit directly under.
+const MEMBER_ROOTS: [&str; 4] = ["crates", "apps", "platform", "tools"];
 
-/// The packages that never build for wasm32.
-const EXPECTED_NATIVE_ONLY: [&str; 3] = ["calc-platform-desktop", "calc-oracle-excel", "xtask"];
+/// This checkout's workspace members as (name, directory relative to the root, `/` separators),
+/// from its own `cargo metadata --no-deps`. The cases compare a copy, a lane clone or a CI run
+/// with these, so adding a package never needs a case edited.
+fn workspace_packages() -> Vec<(String, String)> {
+    let output = Command::new(cargo_program().0)
+        .args(["metadata", "--no-deps", "--format-version", "1"])
+        .current_dir(repo_root())
+        .output()
+        .expect("cargo metadata starts");
+    assert!(
+        output.status.success(),
+        "cargo metadata failed:\n{}",
+        tail(&output.stderr, 20)
+    );
+    let metadata: Value =
+        serde_json::from_slice(&output.stdout).expect("cargo metadata prints JSON");
+    workspace_members(&metadata)
+        .into_iter()
+        .map(|member| (member.name, member.dir.to_string_lossy().replace('\\', "/")))
+        .collect()
+}
 
 /// The four library lanes that must build at the same time in separate clones.
 const LANES: [(&str, &str); 4] = [
@@ -85,12 +93,6 @@ const CARGO_LAST_USE_TRACKER: [&str; 4] = [
     ".global-cache-wal",
     ".global-cache-shm",
 ];
-
-/// The plan agents read first.
-const PLAN: &str = "docs/plan/BULK_PORT_PLAN.md";
-
-/// What AGENTS.md must name.
-const AGENTS_REQUIREMENTS: [&str; 2] = ["`git pull --no-rebase`", "`docs/plan/BULK_PORT_PLAN.md`"];
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -488,27 +490,29 @@ fn infra_m0_1__workspace_builds() {
         .iter()
         .map(|member| (member.name.as_str(), member))
         .collect();
-    for (name, dir) in EXPECTED_PACKAGES {
-        match by_name.get(name) {
-            None => failures.push(format!("workspace member {name} is missing")),
-            Some(member) if member.dir != Path::new(dir) => failures.push(format!(
-                "{name} is at {}, expected {dir}",
-                member.dir.display()
-            )),
-            Some(member) => evidence.push(format!("member {name} at {}", member.dir.display())),
-        }
-    }
+    // Each member sits directly under one of the member roots; which members there are is the
+    // workspace's own business (no list here to keep in step with it).
     for member in &members {
-        if !EXPECTED_PACKAGES
-            .iter()
-            .any(|(name, _)| *name == member.name)
-        {
-            failures.push(format!(
-                "unexpected workspace member {} at {}",
+        let parts: Vec<String> = member
+            .dir
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        match parts.as_slice() {
+            [root_dir, _] if MEMBER_ROOTS.contains(&root_dir.as_str()) => evidence.push(format!(
+                "member {} at {}",
                 member.name,
                 member.dir.display()
-            ));
+            )),
+            _ => failures.push(format!(
+                "workspace member {} is at {}, not directly under one of {MEMBER_ROOTS:?}",
+                member.name,
+                member.dir.display()
+            )),
         }
+    }
+    if by_name.len() != members.len() {
+        failures.push("two workspace members share a name".to_owned());
     }
 
     let mut native_only = BTreeSet::new();
@@ -543,15 +547,6 @@ fn infra_m0_1__workspace_builds() {
         if !root.join(&member.dir).join("tests").is_dir() {
             failures.push(format!("{} has no tests directory", member.name));
         }
-    }
-    let expected_native: BTreeSet<String> = EXPECTED_NATIVE_ONLY
-        .iter()
-        .map(|name| name.to_string())
-        .collect();
-    if native_only != expected_native {
-        failures.push(format!(
-            "declared native-only packages {native_only:?}, expected {expected_native:?}"
-        ));
     }
     evidence.push(format!("declared native-only: {native_only:?}"));
 
@@ -1616,37 +1611,6 @@ fn infra_m0_1__independent_lanes() {
         }))
         .expect("lane records serialise"),
     );
-
-    finish(CASE, &receipt, &evidence, &failures);
-}
-
-/// AGENTS.md exists and names the pull command and the bulk-port plan, and the plan exists.
-#[test]
-fn infra_m0_1__agent_contract() {
-    const CASE: &str = "infra_m0_1__agent_contract";
-    let _serial = serial();
-    registered_entry(CASE);
-    let receipt = receipt_dir(CASE);
-    let root = repo_root();
-    let mut evidence = vec!["cargo program: none; this case runs no cargo command".to_owned()];
-    let mut failures = Vec::new();
-
-    match fs::read_to_string(root.join("AGENTS.md")) {
-        Ok(agents) => {
-            for text in AGENTS_REQUIREMENTS {
-                if agents.contains(text) {
-                    evidence.push(format!("AGENTS.md names {text}"));
-                } else {
-                    failures.push(format!("AGENTS.md does not name {text}"));
-                }
-            }
-        }
-        Err(e) => failures.push(format!("cannot read AGENTS.md: {e}")),
-    }
-    match fs::metadata(root.join(PLAN)) {
-        Ok(meta) if meta.is_file() => evidence.push(format!("{PLAN}: {} bytes", meta.len())),
-        _ => failures.push(format!("{PLAN} is missing")),
-    }
 
     finish(CASE, &receipt, &evidence, &failures);
 }

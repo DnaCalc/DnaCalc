@@ -398,10 +398,8 @@ fn first_difference(found: &str, expected: &str) -> String {
 /// metadata, the member manifests and the LICENSE bytes against `expected`.
 fn check(root: &Path, expected: &str, label: &str, evidence: &mut Evidence) -> Vec<Finding> {
     let mut findings = Vec::new();
-    let members: BTreeSet<&str> = super::EXPECTED_PACKAGES
-        .iter()
-        .map(|(name, _)| *name)
-        .collect();
+    let packages = super::workspace_packages();
+    let members: BTreeSet<&str> = packages.iter().map(|(name, _)| name.as_str()).collect();
     let fixture: BTreeSet<&str> = [FIXTURE_PACKAGE].into();
     for (workspace, manifest, wanted) in [
         ("workspace", "Cargo.toml", &members),
@@ -788,10 +786,8 @@ pub fn workspace_license() {
     }
 
     // The licenses job still passes and sees every member's license.
-    let members: BTreeSet<&str> = super::EXPECTED_PACKAGES
-        .iter()
-        .map(|(name, _)| *name)
-        .collect();
+    let packages = super::workspace_packages();
+    let members: BTreeSet<&str> = packages.iter().map(|(name, _)| name.as_str()).collect();
     licenses_job(&members, &mut evidence);
 
     evidence.finish();
