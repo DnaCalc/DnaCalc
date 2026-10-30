@@ -111,6 +111,10 @@ fn validate_probability_open_unit(p: f64) -> Result<(), WorksheetErrorCode> {
     Ok(())
 }
 
+/// The tail of the inverse standard normal by the rational approximations of
+/// M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal Distribution",
+/// Applied Statistics 37(3), 1988, pp. 477-484 (PPND16): the published coefficients of its
+/// tail approximations evaluated in `sqrt(-ln p)`.
 fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
     const C: [f64; 8] = [
         1.423_437_110_749_683_6,

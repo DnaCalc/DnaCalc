@@ -42,6 +42,7 @@ impl core::fmt::Debug for Ext80 {
     }
 }
 
+/// PC=64, round-to-nearest-even, all exceptions masked (Excel's control word, as measured).
 pub(crate) const CW_PC64_RN: u16 = 0x133F;
 /// PC=53 (double), round-to-nearest-even, all exceptions masked.
 pub(crate) const CW_PC53_RN: u16 = 0x123F;

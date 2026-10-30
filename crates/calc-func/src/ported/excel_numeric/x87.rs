@@ -1,6 +1,29 @@
+//! x87 hardware backend: the x87 instructions themselves, on x86_64.
+//!
+//! # What this is
+//! The double-rounded binary operations (`add`, `sub`, `mul`, `div`, `recip`: one x87
+//! operation at precision 64, then a binary64 store), the ATAN graphs, and [`raw`], the
+//! single x87 instructions over 80-bit extended values that `super::Fpu`'s hardware backend
+//! runs. The behaviour each one reproduces was established by black-box measurement against
+//! live Excel (W108, W109, W111, dc-6qki); the instructions are the public x87 ISA (Intel SDM).
+//! The exponential and logarithm chains live in `super::nt_chains`.
+//!
+//! # Why the hardware instruction, not a software model
+//! The values `F2XM1`, `FYL2X`, `FPATAN`, `FSIN`, `FCOS` and `FPTAN` produce are CPU microcode,
+//! accurate to under about 0.58 units of the 64-bit significand, not one clean rounding. On the
+//! hardest inputs Excel follows the microcode's bit, so running the instruction is what makes
+//! the result exact. The software x87 (`super::soft87`) rounds these instructions exactly; its
+//! tests measure how often that changes a binary64 result.
+//!
+//! # Containment
+//! With `super::nt_chains`, this is the only place in the crate that emits x87 assembly. Every
+//! public entry point in [`super`] dispatches here on `x86_64` and to the software x87 elsewhere.
 
 use core::arch::asm;
 
+/// PC=64, RC=nearest-even, all six exceptions masked: the control word under which Excel's
+/// results were measured to be reproduced (precision 64 matched 36 of 36 hard cases, precision
+/// 53 matched 4 of 32).
 const CW_CORE: u16 = 0x133F;
 
 /// Public ISA FPATAN operation, selected by W111 black-box complex-argument
@@ -56,8 +79,6 @@ pub(super) fn atan_reduced(x: f64) -> f64 {
     }
     result.copysign(x)
 }
-
-// Restricted historical implementation removed (dc-96l.7).
 
 /// `RN53(RN64(a * b))` — one x87 `FMUL` at PC=64 then a `binary64` store: the
 /// **double-rounded** product. Excel forms `POWER`'s `|y|·ln x` this way; a plain
@@ -212,6 +233,7 @@ pub(super) fn recip(x: f64) -> f64 {
 pub(super) mod raw {
     use core::arch::asm;
 
+    /// PC=64, round-to-nearest-even, all exceptions masked (Excel's measured control word).
     pub const CW_PC64_RN: u16 = 0x133F;
     /// PC=53 (double), round-to-nearest-even, all exceptions masked.
     pub const CW_PC53_RN: u16 = 0x123F;
@@ -536,7 +558,7 @@ pub(super) mod raw {
 
     /// [`ext_prem1`] that also returns the low three quotient bits the ISA
     /// leaves in the status flags (bit0 = Q0 from C1, bit1 = Q1 from C3,
-    /// bit2 = Q2 from C0) — the parity the legacy CRT trig chains use for the
+    /// bit2 = Q2 from C0) — the parity the trig chains use for the
     /// `sin(x) = (-1)^Q sin(r)` sign fixup after reducing by π.
     pub fn ext_prem1_quo(x: &Ext80, modulus: &Ext80, cw: u16) -> (Ext80, u8) {
         let mut out = Ext80([0u8; 10]);
@@ -632,70 +654,6 @@ pub(super) mod raw {
 mod tests {
     use super::*;
 
-    /// Full offline regression: every EXP/LN witness harvested from live Excel
-    /// (see the module docs for provenance). x87 must reproduce Excel bit-for-bit.
-    ///
-    /// Host-CPU note: the ~1-in-30 hardest near-midpoint rows are `F2XM1`/`FYL2X`
-    /// microcode-bound, so this pins Excel-parity *for the reference x86-64 host*
-    /// (AMD Zen2). A failure on a different x87 microcode is the documented
-    /// CPU-dependence caveat, not a regression in this code.
-    const GROUND_TRUTH: &str = include_str!("x87_excel_ground_truth.tsv");
-
-    fn parse(hex: &str) -> u64 {
-        u64::from_str_radix(hex, 16).expect("hex")
-    }
-
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn matches_live_excel_bit_for_bit() {
-        let (mut n, mut bad) = (0u32, Vec::new());
-        for line in GROUND_TRUTH.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let mut it = line.split('\t');
-            let func = it.next().unwrap();
-            let xb = parse(it.next().unwrap());
-            let exb = parse(it.next().unwrap());
-            let x = f64::from_bits(xb);
-            let got = match func {
-                "EXP" => exp(x),
-                "LN" => ln(x),
-                _ => continue,
-            }
-            .to_bits();
-            n += 1;
-            if got != exb && bad.len() < 20 {
-                bad.push(format!(
-                    "{} x={:016x}: got {:016x} want {:016x}",
-                    func, xb, got, exb
-                ));
-            } else if got != exb {
-                bad.push("...".into());
-            }
-        }
-        assert!(n >= 200, "expected the full corpus, saw {n} rows");
-        assert!(
-            bad.is_empty(),
-            "{} mismatches:\n{}",
-            bad.len(),
-            bad.join("\n")
-        );
-    }
-
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn spot_values() {
-        // exp(0)=1, exp(1)=E (both exact-agreeing with Excel and CR here).
-        assert_eq!(exp(0.0).to_bits(), 1.0f64.to_bits());
-        assert_eq!(exp(1.0).to_bits(), std::f64::consts::E.to_bits());
-        // ln(1)=+0 (sign of zero), ln(E)=1, log10(1000)=3.
-        assert_eq!(ln(1.0).to_bits(), 0.0f64.to_bits());
-        assert_eq!(ln(std::f64::consts::E), 1.0);
-        assert_eq!(log10(1000.0), 3.0);
-    }
-
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn double_rounded_mul_and_recip() {
@@ -714,11 +672,10 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn control_word_is_restored() {
-        // A benign x87 op after our calls must see the caller's CW again; we
-        // can at least confirm repeated calls stay stable and don't drift.
-        let a = exp(2.0);
-        let _ = ln(10.0);
-        let b = exp(2.0);
+        // Repeated calls stay stable and do not drift.
+        let a = atan(2.0);
+        let _ = mul(10.0, 3.0);
+        let b = atan(2.0);
         assert_eq!(a.to_bits(), b.to_bits());
     }
 }
