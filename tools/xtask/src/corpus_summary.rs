@@ -4,12 +4,18 @@
 //! The headline follows the owner's ruling of 2026-10-23: a refused formula is a failure in
 //! every statistic. Over all formula cells of a workbook's capture inventory,
 //!
-//! - pass is a cell whose verdict is `matched` (calculated, and equal to Excel's value);
-//! - fail is every other cell: `mismatched`, refused (`not_modeled`, a typed not-modelled
-//!   result), and failed or missing (`failed`, `missing`, `stale`, `file_cached`, `unproven`,
-//!   `not_run`, each counted by name);
+//! - pass is a cell whose verdict is `matched` (calculated, and equal to Excel's value) and whose
+//!   calculation read only the workbook's own inputs;
+//! - external links is a matched cell whose calculation read values another workbook's link caches
+//!   in the file hold, directly or through the formulas it read (`external_links` in
+//!   `triage.json`, dc-ylr): calculated, but from the file's cache of the other book, so it is
+//!   neither a pass nor a fail and is reported apart beside them;
+//! - fail is every other cell: `mismatched` (a mismatch that read link caches included), refused
+//!   (`not_modeled`, a typed not-modelled result), and failed or missing (`failed`, `missing`,
+//!   `stale`, `file_cached`, `unproven`, `not_run`, each counted by name);
 //!
-//! and the pass rate is pass over all formula cells. No rate over calculated cells is given.
+//! so formula cells = pass + external links + fail, and the pass rate is pass over all formula
+//! cells. No rate over calculated cells is given.
 //!
 //! A workbook that could not be compared at all (it could not be read or captured, or `cargo
 //! xtask compare` refused it or ended abnormally) is listed with its stage and reason, counted
@@ -92,6 +98,9 @@ impl CauseCount {
 pub(crate) struct Counts {
     pub(crate) formula_cells: u64,
     pub(crate) pass: u64,
+    /// Matched cells whose calculation read another workbook's link caches: neither pass nor
+    /// fail (dc-ylr).
+    pub(crate) external_links: u64,
     pub(crate) mismatched: u64,
     pub(crate) refused: u64,
     pub(crate) failed_or_missing: u64,
@@ -107,6 +116,7 @@ impl Counts {
     fn add(&mut self, other: &Counts) {
         self.formula_cells += other.formula_cells;
         self.pass += other.pass;
+        self.external_links += other.external_links;
         self.mismatched += other.mismatched;
         self.refused += other.refused;
         self.failed_or_missing += other.failed_or_missing;
@@ -256,6 +266,10 @@ pub(crate) fn read_triage(triage: &Value) -> Result<Compared, String> {
         let verdict = text(cell, "verdict")?;
         counts.formula_cells += 1;
         match bucket(&verdict) {
+            Bucket::Pass if cell["external_links"].as_bool() == Some(true) => {
+                counts.external_links += 1;
+                continue;
+            }
             Bucket::Pass => {
                 counts.pass += 1;
                 continue;
@@ -441,6 +455,7 @@ impl Summary {
             json!({
                 "formula_cells": counts.formula_cells,
                 "pass": counts.pass,
+                "external_links": counts.external_links,
                 "fail": counts.fail(),
                 "mismatched": counts.mismatched,
                 "refused": counts.refused,
@@ -520,7 +535,7 @@ impl Summary {
         json!({
             "format": "dnacalc-corpus-summary",
             "version": 1,
-            "rule": "pass = matched Excel; fail = mismatched + refused (not modelled) + failed or missing; the pass rate is pass over all formula cells (owner ruling 2026-10-23)",
+            "rule": "pass = matched Excel from the workbook's own inputs; external_links = matched Excel from values another workbook's link caches hold (neither pass nor fail, dc-ylr); fail = mismatched + refused (not modelled) + failed or missing; the pass rate is pass over all formula cells (owner ruling 2026-10-23)",
             "run": self.run,
             "totals": {
                 "workbooks": totals.workbooks,
@@ -552,7 +567,7 @@ impl Summary {
         line(&mut out, "");
         line(
             &mut out,
-            "Pass = matched Excel. Fail = mismatched + refused (not modelled) + failed or missing. The pass rate is pass over all formula cells (owner ruling 2026-10-23).",
+            "Pass = matched Excel from the workbook's own inputs. External links = matched Excel from values another workbook's link caches hold, counted apart (neither pass nor fail, dc-ylr). Fail = mismatched + refused (not modelled) + failed or missing. The pass rate is pass over all formula cells (owner ruling 2026-10-23).",
         );
         line(&mut out, "");
         if let Some(run) = self.run.as_object() {
@@ -578,9 +593,10 @@ impl Summary {
         line(
             &mut out,
             &format!(
-                "- formula cells (compared workbooks): {}; pass {}; fail {} (mismatched {}, refused {}, failed or missing {})",
+                "- formula cells (compared workbooks): {}; pass {}; external links {}; fail {} (mismatched {}, refused {}, failed or missing {})",
                 c.formula_cells,
                 c.pass,
+                c.external_links,
                 c.fail(),
                 c.mismatched,
                 c.refused,
@@ -632,11 +648,11 @@ impl Summary {
         line(&mut out, "");
         line(
             &mut out,
-            "| Workbook | Formula cells | Pass | Fail | Mismatched | Refused | Failed or missing | Pass rate | Open s | Recalc s | Judge s |",
+            "| Workbook | Formula cells | Pass | External links | Fail | Mismatched | Refused | Failed or missing | Pass rate | Open s | Recalc s | Judge s |",
         );
         line(
             &mut out,
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         );
         let mut not_compared = Vec::new();
         for workbook in &self.workbooks {
@@ -651,10 +667,11 @@ impl Summary {
                     line(
                         &mut out,
                         &format!(
-                            "| {}{failure} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                            "| {}{failure} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
                             workbook.name,
                             c.formula_cells,
                             c.pass,
+                            c.external_links,
                             c.fail(),
                             c.mismatched,
                             c.refused,
@@ -670,7 +687,7 @@ impl Summary {
                     line(
                         &mut out,
                         &format!(
-                            "| {} (not compared) | - | - | - | - | - | - | - | - | - | - |",
+                            "| {} (not compared) | - | - | - | - | - | - | - | - | - | - | - |",
                             workbook.name
                         ),
                     );
@@ -681,9 +698,10 @@ impl Summary {
         line(
             &mut out,
             &format!(
-                "| **Total** | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                "| **Total** | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
                 c.formula_cells,
                 c.pass,
+                c.external_links,
                 c.fail(),
                 c.mismatched,
                 c.refused,

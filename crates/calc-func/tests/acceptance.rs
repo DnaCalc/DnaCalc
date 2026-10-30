@@ -2614,6 +2614,7 @@ fn published_in(
                         tick: row.tick,
                         revision: AUTHORED_REVISION,
                         context: context.clone(),
+                        external_links: false,
                     },
                     Some(value.clone()),
                 ),
@@ -16192,6 +16193,7 @@ fn lookup_published(run: &[&Rows]) -> (ResultSet, EvaluationRecord) {
                             tick: row.tick,
                             revision: AUTHORED_REVISION,
                             context: context.clone(),
+                            external_links: false,
                         },
                         Some(value.clone()),
                     )
@@ -22014,6 +22016,7 @@ fn information_documents(info: &InfoRows) -> (ResultSet, EvaluationRecord) {
                     tick: row.tick,
                     revision: AUTHORED_REVISION,
                     context: context.clone(),
+                    external_links: false,
                 },
                 Some(value.clone()),
             ),

@@ -235,6 +235,7 @@ pub fn unprefixed_file_spelling_gives_name() -> Vec<String> {
                         tick: calculation.tick().get(),
                         revision: calculation.revision().get(),
                         context: context.clone(),
+                        external_links: calculation.reads_external_links(),
                     },
                     Some(value.clone()),
                 )
