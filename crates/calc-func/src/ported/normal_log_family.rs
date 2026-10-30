@@ -2,11 +2,10 @@
 //!
 //! Sources, kept (owner, 2026-10-30): the tail of the inverse standard normal uses the rational
 //! approximations of M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal
-//! Distribution", Applied Statistics 37(3), 1988, pp. 477-484 (PPND16); `branch190_j` is the
-//! statement-190 series of A. R. DiDonato and A. H. Morris Jr., ACM TOMS Algorithm 654 (1986),
-//! as distributed in scipy's cdflib. The rest is our own.
+//! Distribution", Applied Statistics 37(3), 1988, pp. 477-484 (PPND16).
+//! The rest is our own.
 
-use crate::ported::normal_dist_common::{erf_approx, phi_kernel, stored_normal_z, FRAC_1_SQRT_2_BITS, GAM1_HALF_H_BITS, GAUSS_TINY_MAX_BITS};
+use crate::ported::normal_dist_common::{erf_approx, phi_kernel, stored_normal_z, FRAC_1_SQRT_2_BITS, GAUSS_TINY_MAX_BITS};
 use crate::ported::special_dist_family::erfc_precise_kernel;
 use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::crt_log;
@@ -23,42 +22,11 @@ fn flush_subnormal(value: f64) -> f64 {
     }
 }
 
-/// TOMS 654 branch-190 `j` series at `a = 1/2`, binary64 arithmetic.
-fn branch190_j(x: f64) -> f64 {
-    let a = 0.5;
-    let mut an = 3.0;
-    let mut c = x;
-    let mut sum = x / (a + 3.0);
-    let tolerance = (3.0 * 5e-15) / (a + 1.0);
-    for _ in 0..200 {
-        an += 1.0;
-        c = -(c * (x / an));
-        let term = c / (a + an);
-        sum += term;
-        if term.abs() <= tolerance {
-            break;
-        }
-    }
-    let inner_poly = (sum / 6.0 - 0.5 / (a + 2.0)) * x + 1.0 / (a + 1.0);
-    a * x * inner_poly
-}
-
-/// Tiny-direct GAUSS (G-A400 dataflow): reuse stored `z` as `w`, `g = 1+h`,
-/// inner `0.5+(0.5-j)`, `(w*g)*inner`, then `0.5 * product`. Identified on
-/// the 14 separator inputs (2026-08-21, stored-z class 14/14). The Ext80
-/// continuous series of the racer is collapsed here to binary64; j is
-/// negligible on the deep-tiny separators and first visible near 1e-15.
+/// Inclusive tiny GAUSS uses its stored native normal argument and the shared
+/// ERF body, followed by exact halving. This matches all 3,158 recorded tiny rows.
 fn gauss_tiny_direct(x: f64) -> f64 {
     let z = stored_normal_z(x);
-    if z == 0.0 {
-        return 0.0;
-    }
-    let xx = z * z;
-    let j = branch190_j(xx);
-    let g = 1.0 + f64::from_bits(GAM1_HALF_H_BITS);
-    let inner = 0.5 + (0.5 - j);
-    let product = (z * g) * inner;
-    let mut y = 0.5 * product;
+    let mut y = 0.5 * erf_approx(z);
     if x.is_sign_negative() {
         y = -y;
     }
@@ -90,7 +58,7 @@ pub fn identified_std_normal_cdf(x: f64) -> f64 {
 }
 
 /// GAUSS is NORMSDIST's graph minus 0.5 on the ordinary route
-/// (`abs(x) > 1e-15`). Inclusive tiny-direct uses stored-z branch 190.
+/// (`abs(x) > 1e-15`). Inclusive tiny-direct uses the stored-z ERF route.
 pub fn identified_gauss(x: f64) -> f64 {
     if x == 0.0 {
         return 0.0;

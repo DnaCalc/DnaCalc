@@ -27,6 +27,17 @@ pub fn phi_kernel(x: f64) -> f64 {
 }
 
 pub fn erf_approx(x: f64) -> f64 {
+    if x.abs() < 1.0e-8 {
+        // In this measured linear regime, the recorded answers distinguish two
+        // PC64 operations with binary64 stores: (x * numerator) / denominator.
+        // The global coefficient pair was identified from arithmetic constraints
+        // and checked against all 248,904 recorded tiny ERF.PRECISE inputs.
+        // Both stores matter; direct binary64 multiply or divide loses matches.
+        use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
+        const NUMERATOR: f64 = f64::from_bits(0x3ff1_df5e_70c7_956b);
+        const DENOMINATOR: f64 = f64::from_bits(0x3fef_ada1_5778_ece6);
+        return excel_x87_div(excel_x87_mul(x, NUMERATOR), DENOMINATOR);
+    }
     libm::erf(x)
 }
 
@@ -36,10 +47,6 @@ pub const FRAC_1_SQRT_2_BITS: u64 = 0x3fe6a09e667f3bcd;
 /// Inclusive tiny-direct GAUSS predicate: `abs(x) <= 1e-15` is the odd
 /// stored-z route; the successor double is the ordinary G-F3 wrapper.
 pub const GAUSS_TINY_MAX_BITS: u64 = 0x3cd203af9ee75616;
-
-/// Per-op binary64 `gam1(1/2)` return `h`, Agent A 2026-08-21, two independent
-/// reproductions. `g = 1+h` is formed in the tiny body.
-pub const GAM1_HALF_H_BITS: u64 = 0x3fc06eba8214db6b;
 
 /// Native-multiply stored-z route for the distinct tiny GAUSS branch.
 /// W111 independently distinguishes the ordinary normal-CDF wrapper's staged

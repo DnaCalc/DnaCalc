@@ -358,3 +358,19 @@ fn lognormal_uses_its_internal_logarithm() {
     exact(call("LOGNORM.DIST", vec![x.clone(), n(0.0), n(1.0), b(true)]), expected);
     exact(call("LOGNORMDIST", vec![x, n(0.0), n(1.0)]), expected);
 }
+
+/// Recorded tiny ERF rows independently distinguish the multiply and divide stores.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn tiny_erf_stores_both_rational_operations() {
+    for (input, expected) in [
+        (0x3d70_5e80_0000_0000, 0x3d72_7879_0ff4_a4d4),
+        (0x3d73_5c29_021a_4811, 0x3d75_d86d_8b33_b7f4),
+    ] {
+        exact(call("ERF.PRECISE", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        exact(call("ERF", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+    }
+    // gauss-discovery-00059: the tiny wrapper uses the same ERF calculation.
+    exact(call("GAUSS", vec![n(f64::from_bits(0x005f_e189_b32b_8147))]),
+        f64::from_bits(0x0049_6ff7_0f27_3fff));
+}
