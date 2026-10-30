@@ -2897,6 +2897,21 @@
    "surveyed_bytes": 3725
   },
   {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dc96l3_bessel.txt",
+   "class": "own-work",
+   "reason": "written here (dc-96l.3): formulas chosen to measure Excel, one per row of the catalogue oracle"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dc96l3_discrete.txt",
+   "class": "own-work",
+   "reason": "written here (dc-96l.3): formulas chosen to measure Excel, one per row of the catalogue oracle"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dc96l3_x87.txt",
+   "class": "own-work",
+   "reason": "written here (dc-96l.3): formulas chosen to measure Excel, one per row of the catalogue oracle"
+  },
+  {
    "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcb1l_language.txt",
    "class": "own-work",
    "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
