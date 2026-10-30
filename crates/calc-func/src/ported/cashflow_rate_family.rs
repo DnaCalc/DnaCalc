@@ -480,8 +480,42 @@ where
     Ok(rate)
 }
 
+/// Two-period cashflows have a single pole in q = 1 + rate. The recorded
+/// rows favor a q-space secant fixpoint, including the final subtraction.
+/// Equal residuals use the analytic Newton step, including an initial guess of
+/// zero. A bounded solve keeps nonconvergence as the worksheet numeric error.
+fn irr_two_cashflows(cashflows: &[f64], guess: f64) -> Result<f64, WorksheetErrorCode> {
+    let mut current = 1.0 + guess;
+    let mut previous = 1.0;
+    let mut previous_value = periodic_npv_with_t0(0.0, cashflows)?;
+    for _ in 0..20 {
+        let rate = current - 1.0;
+        let value = periodic_npv_with_t0(rate, cashflows)?;
+        let step = if value == previous_value {
+            let derivative = periodic_npv_derivative(rate, cashflows)?;
+            if derivative == 0.0 {
+                return Err(WorksheetErrorCode::Num);
+            }
+            value / derivative
+        } else {
+            value * (current - previous) / (value - previous_value)
+        };
+        let next = current - step;
+        if next.to_bits() == current.to_bits() {
+            return Ok(next - 1.0);
+        }
+        previous = current;
+        previous_value = value;
+        current = next;
+    }
+    Err(WorksheetErrorCode::Num)
+}
+
 pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, WorksheetErrorCode> {
     validate_cashflows(cashflows)?;
+    if cashflows.len() == 2 {
+        return irr_two_cashflows(cashflows, guess.unwrap_or(0.1));
+    }
     let root = bounded_rate_solve(
         guess.unwrap_or(0.1),
         |rate| periodic_npv_with_t0(rate, cashflows),

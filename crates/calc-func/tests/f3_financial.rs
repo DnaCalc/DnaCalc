@@ -313,3 +313,16 @@ fn pmt_uses_recorded_exponential_and_timing_stores() {
     exact(call("PMT", vec![n(f64::from_bits(0x3e70000000000000)), n(f64::from_bits(0x4018000000000000)), n(f64::from_bits(0x3ff0000000000000)), n(f64::from_bits(0x0000000000000000)), n(f64::from_bits(0x0000000000000000))]), f64::from_bits(0xbfc55555a000003d));
     exact(call("PMT", vec![n(f64::from_bits(0x3e70000000000000)), n(f64::from_bits(0x4018000000000000)), n(f64::from_bits(0x3ff0000000000001)), n(f64::from_bits(0x0000000000000000)), n(f64::from_bits(0x0000000000000000))]), f64::from_bits(0xbfc55555a000003f));
 }
+
+/// Recorded d00-m46 distinguishes q-space publication; irr-B-g0.0 needs
+/// the equal-residual Newton step when the initial secant points coincide.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn irr_two_cashflows_publish_the_q_fixpoint() {
+    exact(call("IRR", vec![
+        col(&[f64::from_bits(0xc08f_2800_0000_0000), f64::from_bits(0x4091_3c00_0000_0000)]),
+        n(f64::from_bits(0x3fba_f7b8_1ab4_40bd)),
+    ]), f64::from_bits(0x3fbb_37b8_1ab4_40c0));
+    exact(call("IRR", vec![col(&[-1000.0, 1210.0]), n(0.0)]),
+        f64::from_bits(0x3fca_e147_ae14_7ae0));
+}
