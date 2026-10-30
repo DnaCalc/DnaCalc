@@ -184,7 +184,7 @@ fn binary_with<F: Fpu>(op: fn(&Ext80, &Ext80, u16) -> Ext80, a: f64, b: f64) -> 
     F::store(&op(&load(a), &load(b), CW), CW)
 }
 
-/// The `fFSIN` chain: `FPREM1(x, FLDPI)`, `FSIN`, the `(-1)^Q` sign.
+/// The SIN chain: `FPREM1(x, FLDPI)`, `FSIN`, the `(-1)^Q` sign.
 fn sin_with<F: Fpu>(x: f64) -> f64 {
     let (r, q) = F::prem1_quo(&load(x), &ext_pi(), CW);
     let mut s = F::sin(&r, CW);
@@ -194,7 +194,7 @@ fn sin_with<F: Fpu>(x: f64) -> f64 {
     F::store(&s, CW)
 }
 
-/// The `fFCOS` chain (see [`excel_cos`]).
+/// The COS chain (see [`excel_cos`]).
 fn cos_with<F: Fpu>(x: f64) -> f64 {
     let minus_one = ext_chs(&ext_one(), CW);
     let pi_half = F::scale(&ext_pi(), &minus_one, CW); // exact halving
@@ -220,7 +220,7 @@ fn cos_with<F: Fpu>(x: f64) -> f64 {
     F::store(&v, CW)
 }
 
-/// The `fFTAN` chain: `FPREM1(x, FLDPI/2)`, `FPTAN`, and `-1/tan(r)` on odd quadrants.
+/// The TAN chain: `FPREM1(x, FLDPI/2)`, `FPTAN`, and `-1/tan(r)` on odd quadrants.
 fn tan_with<F: Fpu>(x: f64) -> f64 {
     let minus_one = ext_chs(&ext_one(), CW);
     let pi_half = F::scale(&ext_pi(), &minus_one, CW);
@@ -424,7 +424,7 @@ pub(crate) fn excel_pow_chain(base: f64, exp: f64) -> f64 {
 }
 
 /// Excel `SIN` — bit-exact to 64-bit Excel on `x86_64` (W109 G4-01, validated
-/// 1020/1020 live rows incl. held-out, build 20131): the legacy CRT `fFSIN`
+/// 1020/1020 live rows incl. held-out, build 20131): the SIN
 /// chain — `FPREM1(x, FLDPI)` (the 64-bit ROM π, NOT the hardware's internal
 /// 66-bit reduction), `FSIN` on the residue, `(-1)^Q` parity fixup from the
 /// quotient low bit. This is the source of Excel's large-argument trig
@@ -454,7 +454,7 @@ pub(crate) fn excel_cos(x: f64) -> f64 {
     cos_with::<Native>(x)
 }
 
-/// Excel `TAN` — bit-exact on `x86_64` (W109 G4-01, 1020/1020): the `fFTAN`
+/// Excel `TAN` — bit-exact on `x86_64` (W109 G4-01, 1020/1020): the TAN
 /// π/2-quadrant chain — `FPREM1(x, FLDPI/2)`, `FPTAN` on the residue, and on
 /// odd quadrants `-1/tan(r)` with the reciprocal taken in EXTENDED before the
 /// single binary64 store.
@@ -1145,7 +1145,7 @@ mod tests {
         for &(xb, want) in cos_rows {
             check(&format!("COS {xb:016x}"), cos(f64::from_bits(xb)), want);
         }
-        // fFCOS small-argument shortcut: strictly below 2^-26 -> exactly 1.0;
+        // COS small-argument shortcut: strictly below 2^-26 -> exactly 1.0;
         // 2^-26 itself takes the FCOS chain (1 - ulp).
         let t = f64::from_bits(0x3E50000000000000);
         check("COS below 2^-26", cos(f64::from_bits(t.to_bits() - 1)), 1.0f64.to_bits());

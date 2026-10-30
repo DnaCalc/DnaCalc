@@ -328,11 +328,11 @@ fn gratio_gam1(a: f64) -> f64 {
 // probes: 32-bit SSE2 rounds one-sided HIGH, x87 and x64-AMD are CR here).
 // Corpus effect at the series call site: +26/306 training, +3/111 held-out
 // b20 (fractional-a normalizer noise caps the held-out margin).
-// Implementation: the x87 fFEXP chain with a chopping binary64 store (dc-8dg:
+// Implementation: the x87 exponential with a chopping binary64 store (`excel_exp_rz`) (dc-8dg:
 // one chain on every target; off x86_64 the software x87 runs it).
 
 pub fn exp_rd(x: f64) -> f64 {
-    // W109 F2XM1 identification: the series-site chop is RZ53 of the x87 fFEXP
+    // W109 F2XM1 identification: the series-site chop is RZ53 of the x87 exponential
     // chain (the hardware on x86_64, the software x87 elsewhere).
     crate::ported::excel_numeric::excel_exp_rz(x)
 }
@@ -2546,6 +2546,4 @@ mod tests {
         assert_eq!(regularized_gamma_p(2.5, 0.0), 0.0);
         assert_eq!(regularized_gamma_q(2.5, 0.0), 1.0);
     }
-
-    // Restricted historical implementation removed (dc-96l.7).
 }

@@ -3,7 +3,7 @@ use crate::value::WorksheetErrorCode;
 
 pub fn sec_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     ExcelRealPolicy::CIRCULAR_TRIG.check_arg(n)?;
-    // W109 G4-01: SEC = RN53(RN64(1/cos)) over the RAW fFCOS chain (the
+    // W109 G4-01: SEC = RN53(RN64(1/cos)) over the RAW COS chain (the
     // published-COS small-argument 1.0 shortcut composes identically here:
     // recip-dr of 1-ulp ties back to exactly 1.0).
     Ok(crate::ported::excel_numeric::excel_x87_recip(

@@ -1,8 +1,44 @@
-//! Historical DLL-derived implementation notes removed (dc-96l.7).
+//! The Windows runtime's `log`, `log10`, `exp`, `sin`, `cos`, `sinh`, `cosh`, `atan2` and `hypot`
+//! in portable Rust (dc-twc): the bits the `f64` methods give under MSVC on x86_64 on a CPU with
+//! FMA3, on every target. The tests below compare each with the runtime by calling it.
 //!
-//! The tables are AOCL-LibM's (https://github.com/amd/aocl-libm-ose, src/isa/avx2/gas/
-//! log_fma3.S, log10_fma3.S and src/isa/include/exp_tables.h at master, 2026-10-25), under its
-//! licence: Copyright (C) 2008-2022 Advanced Micro Devices, Inc. All rights reserved.
+//! # Sources
+//! `exp`, `sin`, `cos`, `sinh`, `cosh`, `atan2` and `hypot` are translations of AMD's win-libm,
+//! the x64 Windows math library sources AMD published under the MIT licence
+//! (https://github.com/amd/win-libm at 6121d02; Copyright (c) 2002-2019 Advanced Micro Devices,
+//! Inc.; notice in `deploy/notices/ported.txt`):
+//! - `exp`: `exp.asm`, its FMA3 path (`n = trunc(x*64/ln2)`, the two-part reduction by ln2/64,
+//!   the Horner polynomial 1/720 to 1/2), with `two_to_jby64_table.asm` and
+//!   `two_to_jby64_head_tail_table.asm`;
+//! - `sin`, `cos`: `sin.asm` and `cos.asm`, their FMA3 paths, with `Lsincos_array.asm`, and
+//!   `remainder_piby2_forFMA3.asm`: the Boldo-Daumas-Li reduction below 2e7 and the general
+//!   reduction (a 192-bit product with a window of `L2_by_pi_bits.asm`) from there;
+//! - `sinh`, `cosh`: `sinh.c` and `cosh.c`, with `splitexp` from `libm_inlines.h`;
+//! - `atan2`: `atan2.c`;
+//! - `hypot`: `hypot.c` in its `FAST_BUT_GREATER_THAN_ONE_ULP` configuration.
+//!
+//! Every table in this file for these functions equals win-libm's value for value (checked,
+//! dc-96l). `log` and `log10` are AMD's AOCL-LibM `log_fma3.S` and `log10_fma3.S` (Tang's
+//! table-driven logarithm) with their tables, under AOCL-LibM's BSD-3-Clause licence below.
+//!
+//! # Measured
+//! What no source says was established by calling the runtime: that it runs these FMA3 paths and
+//! the `hypot` configuration above (the tests below: every port equals the runtime on 1,000,000
+//! arguments per region), and which multiply-adds of the C routines `sinh`, `cosh`, `atan2` and
+//! `splitexp` are fused, which is a compiler's choice. For the fused placement every possible
+//! contraction of the C was made a switch and flipped one at a time against the runtime
+//! (dc-96l.3, 2026-10-30; 1,000,000 arguments in each of three regions per function, then
+//! 20,000,000 more per region for the switches the first pass could not tell apart). The
+//! placement below differed from the runtime on none of the 9,000,000 arguments; 25 of the 65
+//! alternatives were refuted by the runtime; the other 40 never change a result on those
+//! arguments (some exactly, such as a product by 256, some because the term is far below the
+//! last place), so they cannot be told apart by measurement and do not change any result seen.
+//! None of this code was read from the runtime itself.
+//!
+//! A CPU without FMA3 makes the runtime take other code paths, which are not these.
+//!
+//! The `log` and `log10` tables are AOCL-LibM's (https://github.com/amd/aocl-libm-ose,
+//! src/isa/avx2/gas/log_fma3.S and log10_fma3.S at master, 2026-10-25), under its licence: Copyright (C) 2008-2022 Advanced Micro Devices, Inc. All rights reserved.
 //! Redistribution and use in source and binary forms, with or without modification, are
 //! permitted provided that the following conditions are met: 1. Redistributions of source code
 //! must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -81,7 +117,7 @@ fn log_table_r(mant: u64, index_bits: u64) -> (f64, usize) {
     ((f - y) * d(LOG_F_INV[index]), index)
 }
 
-/// `r + r^2/2 + ... + r^6/6` as the FMA3 bodies form it.
+/// `r + r^2/2 + ... + r^6/6` as `log_fma3.S` forms it.
 fn log_poly(r: f64) -> f64 {
     let r2 = r * r;
     let t3 = r.mul_add(d(0x3fc5555555555555), d(0x3fc999999999999a)); // r/6 + 1/5
@@ -157,9 +193,585 @@ pub(crate) fn crt_log10(x: f64) -> f64 {
     lead + (d(LOG10_TAIL[index]) + tail)
 }
 
-// Restricted historical implementations removed (dc-96l.7).
+/// `e^x` as the runtime's FMA3 `exp` gives it.
+pub(crate) fn crt_exp(x: f64) -> f64 {
+    let ux = x.to_bits();
+    let ax = ux & !SIGN;
+    if ax >= INF {
+        if ux == INF {
+            return x;
+        }
+        if ux == INF | SIGN {
+            return 0.0;
+        }
+        return d(ux | QNAN_BIT);
+    }
+    let max_arg = d(0x40862e42fefa39ef);
+    if !(x <= max_arg && x >= d(0xc0874046dfefd9d0)) {
+        if x > max_arg {
+            return f64::INFINITY;
+        }
+        return if x >= d(0xc0874910d52d3051) { d(1) } else { 0.0 };
+    }
+    if ax <= 0x3e50_0000_0000_0000 {
+        return 1.0 + x;
+    }
+    let t = x * d(0x40571547652b82fe); // 64/ln2
+    let n_d = t.trunc();
+    let n = t as i32;
+    let head = n_d.mul_add(d(0xbf862e42fefa0000), x);
+    let r = n_d * d(0xbd1cf79abc9e3b39) + head;
+    let j = (n & 0x3f) as usize;
+    let m = n >> 6;
+    let mut p = r.mul_add(d(0x3f56c16c16c16c17), d(0x3f81111111111111)); // 1/720, 1/120
+    p = r.mul_add(p, d(0x3fa5555555555555)); // 1/24
+    p = r.mul_add(p, d(0x3fc5555555555555)); // 1/6
+    p = r.mul_add(p, d(0x3fe0000000000000)); // 1/2
+    let q = (r * r).mul_add(p, r);
+    let f = (q * d(EXP_2_JBY64[j]) + d(EXP_2_JBY64_TAIL[j])) + d(EXP_2_JBY64_HEAD[j]);
+    if m > -1022 || (m == -1022 && f >= 1.0) {
+        return d(f.to_bits().wrapping_add(((m as u32) as u64) << 52));
+    }
+    f * d(1u64 << (((m + 1074) as u32) & 63))
+}
 
-// ---- Published AOCL-LibM tables ----
+// ---- sin and cos (win-libm sin.asm, cos.asm, remainder_piby2_forFMA3.asm) ----
+
+/// The sine polynomial's coefficients S0..S5 (of r^3, r^5, ...).
+const SIN_C: [u64; 6] = [
+    0xbfc5555555555555, 0x3f81111111110bb3, 0xbf2a01a019e83e5c,
+    0x3ec71de3796cde01, 0xbe5ae600b42fdfa7, 0x3de5e0b2f9a43bb8,
+];
+/// The cosine polynomial's coefficients C0..C5 (of r^4, r^6, ...).
+const COS_C: [u64; 6] = [
+    0x3fa5555555555555, 0xbf56c16c16c16967, 0x3efa01a019f4ec91,
+    0xbe927e4fa17f667b, 0x3e21eeb690382eec, 0xbda907db47258aa7,
+];
+const PI_BY_4: u64 = 0x3fe921fb54442d18;
+const TWO_POW_M13: u64 = 0x3f20000000000000;
+const TWO_POW_M27: u64 = 0x3e40000000000000;
+/// From 2e7 on the reduction is the Payne-Hanek routine.
+const LARGE: u64 = 0x417312d000000000;
+
+/// `S1 + x2*(S2 + ... + x2*S5)`, the four steps both sine forms share.
+fn sin_poly(x2: f64) -> f64 {
+    let mut p = x2.mul_add(d(SIN_C[5]), d(SIN_C[4]));
+    p = x2.mul_add(p, d(SIN_C[3]));
+    p = x2.mul_add(p, d(SIN_C[2]));
+    x2.mul_add(p, d(SIN_C[1]))
+}
+
+/// `C0 + x2*(C1 + ... + x2*C5)`.
+fn cos_poly(x2: f64) -> f64 {
+    let mut p = x2.mul_add(d(COS_C[5]), d(COS_C[4]));
+    p = x2.mul_add(p, d(COS_C[3]));
+    p = x2.mul_add(p, d(COS_C[2]));
+    p = x2.mul_add(p, d(COS_C[1]));
+    x2.mul_add(p, d(COS_C[0]))
+}
+
+/// The sine of a reduced argument `r + rr`, `|r| <= pi/4`.
+fn sin_reduced(r: f64, rr: f64) -> f64 {
+    let x2 = r * r;
+    let p = sin_poly(x2);
+    let x3 = r * x2;
+    let mut t = (rr * 0.5) - x3 * p;
+    t = x2 * t - rr;
+    t = (-x3).mul_add(d(SIN_C[0]), t);
+    r - t
+}
+
+/// The cosine of a reduced argument `r + rr`, `|r| <= pi/4`.
+fn cos_reduced(r: f64, rr: f64) -> f64 {
+    let x2 = r * r;
+    let half = x2 * 0.5;
+    let t = 1.0 - half;
+    let mut w = (1.0 - t) - half;
+    w = (-r).mul_add(rr, w);
+    let x4 = x2 * x2;
+    x4.mul_add(cos_poly(x2), w) + t
+}
+
+/// The reduction by pi/2 for `pi/4 <= x < 2e7` (x positive): win-libm's
+/// `__remainder_piby2_fma3_bdl` (Boldo, Daumas and Li, IEEE Trans. Comp. 58(8), 2009), `r + rr`
+/// and the quadrant.
+fn reduce_medium(x: f64) -> (f64, f64, u32) {
+    const SHIFT: u64 = 0x4338000000000000;
+    let npi2 = x.mul_add(d(0x3fe45f306dc9c883), d(SHIFT)) - d(SHIFT);
+    let region = npi2 as i32 as u32;
+    let piby2_1 = d(0x3ff921fb54442d18);
+    let piby2_1tail = d(0x3c91a62633145c00);
+    let rhead = (-npi2).mul_add(piby2_1, x);
+    let rtail = npi2 * piby2_1tail;
+    let product_error = npi2.mul_add(piby2_1tail, -rtail);
+    let r1 = rhead - rtail;
+    let e1 = (rhead - r1) - rtail;
+    let r = (-npi2).mul_add(piby2_1tail, rhead);
+    let e2 = ((r1 - r) + e1) - product_error;
+    let rr = (-npi2).mul_add(d(0x397b839a252049c0), e2);
+    (r, rr, region & 3)
+}
+
+/// The bits of 2/pi the general reduction reads, as bytes, least significant first: win-libm's
+/// `__L_2_by_pi_bits` (`L2_by_pi_bits.asm`, 158 bytes) and two zero bytes of padding.
+#[rustfmt::skip]
+const EIGHT_BY_PI: [u8; 160] = [
+    0xe0, 0xf1, 0x1b, 0xc1, 0x0c, 0x58, 0x21, 0x74, 0x35, 0x7e, 0xc4, 0x7e, 0xed, 0xaf, 0xa9, 0x4b,
+    0x4a, 0x29, 0xde, 0xe7, 0x1c, 0xf4, 0xec, 0xc5, 0x97, 0xaf, 0x1f, 0xeb, 0x9e, 0xd4, 0xb5, 0xa8,
+    0x7f, 0x79, 0x9a, 0xfd, 0x18, 0x3d, 0xdd, 0x26, 0x2c, 0x9f, 0x3c, 0xfb, 0xd9, 0xb4, 0x7d, 0xb4,
+    0x29, 0x68, 0x2d, 0x46, 0xbc, 0xbc, 0x3f, 0x60, 0x16, 0x78, 0xff, 0x5f, 0xe2, 0x7f, 0xec, 0xa0,
+    0xe4, 0xf7, 0x2e, 0x7e, 0x11, 0x72, 0xd2, 0xe7, 0x4c, 0x0d, 0xe6, 0x58, 0x47, 0xe6, 0x04, 0xf9,
+    0x7d, 0xd1, 0x9a, 0xc0, 0x71, 0xa6, 0x13, 0x12, 0xed, 0xba, 0xd4, 0xd7, 0x08, 0xa2, 0xfb, 0x9c,
+    0xa6, 0xc4, 0x72, 0xac, 0x77, 0xf8, 0x73, 0x48, 0x46, 0x27, 0xa8, 0xbb, 0x24, 0x19, 0x80, 0x4b,
+    0x37, 0x09, 0xe9, 0xb8, 0x91, 0xdc, 0x86, 0x15, 0xef, 0x7a, 0xaf, 0x8e, 0x45, 0xf9, 0x07, 0x41,
+    0x0e, 0xf1, 0x64, 0x56, 0x8a, 0x6d, 0x03, 0x77, 0xd3, 0xd4, 0x47, 0x5f, 0x9d, 0xf0, 0xa7, 0x54,
+    0x10, 0x39, 0xb9, 0x0d, 0xe6, 0x8b, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+fn load_u64(offset: usize) -> u64 {
+    let mut b = [0u8; 8];
+    b.copy_from_slice(&EIGHT_BY_PI[offset..offset + 8]);
+    u64::from_le_bytes(b)
+}
+
+/// The general reduction for `2e7 <= x` (x positive, finite): win-libm's
+/// `__remainder_piby2_fma3`, a 192-bit product of the significand with a window of the bits.
+fn reduce_large(x: f64) -> (f64, f64, u32) {
+    let ux = x.to_bits();
+    let e = (ux >> 52).wrapping_sub(1023);
+    let off = 0x86usize.wrapping_sub((e >> 3) as usize);
+    let m = (ux << 12 >> 12) | (1 << 52);
+    let a = load_u64(off);
+    let b_lo = load_u64(off + 8);
+    let b_hi = load_u64(off + 16);
+    let p1 = (a as u128) * (m as u128);
+    let mut r8 = p1 as u64;
+    let p2 = (b_lo as u128) * (m as u128) + (p1 >> 64);
+    let mut r9 = p2 as u64;
+    let mut r10 = ((p2 >> 64) as u64).wrapping_add(b_hi.wrapping_mul(m));
+    let e7 = e & 7;
+    let cl = (54 - e7) as u32;
+    let carry = (r10 >> (cl - 1)) & 1;
+    let mut region = r10 >> cl;
+    let mut sign = 0u64;
+    if carry == 1 {
+        r10 = !r10;
+        r9 = !r9;
+        r8 = !r8;
+        sign = 0x8000_0000_0000_0000;
+    }
+    region = (region + carry) & 3;
+    let cl = (e7 + 10) as u32;
+    r10 = (r10 << cl) >> cl;
+    let mut exponent = (e7 as i64) + 10 - 64;
+    if r10 == 0 {
+        r10 = r9;
+        r9 = r8;
+        r8 = 0;
+        exponent -= 64;
+    }
+    let top = 63 - r10.leading_zeros() as i64;
+    exponent += top;
+    let shift = top - 52;
+    if shift < 0 {
+        let s = (-shift) as u32;
+        let carry_bits = r9 >> ((64 - s) & 63);
+        r10 = (r10 << s) | carry_bits;
+        r9 = (r9 << s) | (r8 >> ((64 - s) & 63));
+    } else if shift > 0 {
+        let s = shift as u32;
+        let low = r10 << ((64 - s) & 63);
+        r10 >>= s;
+        r9 = (r9 >> s) | low;
+    }
+    exponent += 1023;
+    let hi_bits = (r10 & !(1u64 << 52)) | sign | ((exponent as u64) << 52);
+    let hi = d(hi_bits);
+    let top9 = 63 - r9.leading_zeros() as i64;
+    let s = (64 - top9) as u32 & 63;
+    let lo_mant = (r9 << s) >> 12;
+    let lo_exp = exponent - (64 - top9 + 52);
+    let lo = d(lo_mant | sign | ((lo_exp as u64) << 52));
+    let piby2 = d(0x3ff921fb54442d18);
+    let piby2_h = d(0x3ff921fb50000000);
+    let piby2_t = d(0x3e5110b460000000);
+    let hi_head = d(hi_bits & 0xffff_ffff_f800_0000);
+    let hi_tail = hi - hi_head;
+    let product = hi * piby2;
+    let mut t = hi_head * piby2_h - product;
+    t = hi_tail.mul_add(piby2_h, t);
+    t = hi_head.mul_add(piby2_t, t);
+    t = hi_tail.mul_add(piby2_t, t);
+    let u = hi.mul_add(d(0x3c91a62633145c06), lo * piby2);
+    t += u;
+    let r = product + t;
+    let rr = (product - r) + t;
+    (r, rr, region as u32)
+}
+
+/// `sin(x)` as the runtime's FMA3 `sin` gives it.
+pub(crate) fn crt_sin(x: f64) -> f64 {
+    let ux = x.to_bits();
+    let ax = ux & !SIGN;
+    if ax >= PI_BY_4 {
+        if ax >= INF {
+            return if x.is_nan() { d(ux | QNAN_BIT) } else { f64::NAN };
+        }
+        let (r, rr, region) = if ax >= LARGE { reduce_large(d(ax)) } else { reduce_medium(d(ax)) };
+        let v = if region & 1 == 1 { cos_reduced(r, rr) } else { sin_reduced(r, rr) };
+        let flip = if region & 2 != 0 { SIGN } else { 0 };
+        return d(v.to_bits() ^ (flip ^ (ux & SIGN)));
+    }
+    if ax >= TWO_POW_M13 {
+        let x2 = x * x;
+        let p = x2.mul_add(sin_poly(x2), d(SIN_C[0]));
+        return (x * x2).mul_add(p, x);
+    }
+    if ax >= TWO_POW_M27 {
+        let x3 = (x * x) * x;
+        return (-x3).mul_add(d(0x3fc5555555555555), x);
+    }
+    x
+}
+
+/// `cos(x)` as the runtime's FMA3 `cos` gives it.
+pub(crate) fn crt_cos(x: f64) -> f64 {
+    let ux = x.to_bits();
+    let ax = ux & !SIGN;
+    if ax > PI_BY_4 {
+        if ax >= INF {
+            return if x.is_nan() { d(ux | QNAN_BIT) } else { f64::NAN };
+        }
+        let (r, rr, region) = if ax >= LARGE { reduce_large(d(ax)) } else { reduce_medium(d(ax)) };
+        let v = if region & 1 == 1 { sin_reduced(r, rr) } else { cos_reduced(r, rr) };
+        let flip = if (region + 1) & 2 != 0 { SIGN } else { 0 };
+        return d(v.to_bits() ^ flip);
+    }
+    if ax >= TWO_POW_M13 {
+        let x2 = x * x;
+        let p = x2.mul_add(cos_poly(x2), -0.5);
+        return x2.mul_add(p, 1.0);
+    }
+    if ax >= TWO_POW_M27 {
+        return (-(x * 0.5)).mul_add(x, 1.0);
+    }
+    1.0
+}
+
+// ---- sinh and cosh (win-libm sinh.c, cosh.c and splitexp; the fused multiply-adds where
+// measurement against the runtime puts them, see the module docs) ----
+
+/// `splitexp(x, 1.0, 32/ln2, ln2/32 lead, ln2/32 trail)`: `e^x = 2^m (z1 + z2)`.
+fn splitexp(x: f64) -> (i32, f64, f64) {
+    let r = x * d(0x40471547652b82fe); // 32/ln2
+    let n = if r > 0.0 { (r + 0.5) as i32 } else { (r - 0.5) as i32 };
+    let j = (n & 0x1f) as usize;
+    let nd = n as f64;
+    let r1 = (-d(0x3f962e42fe000000)).mul_add(nd, x);
+    let m = (n - j as i32) / 32;
+    let r2 = (-n) as f64 * d(0x3dcf473de6af278e);
+    let r = 1.0f64.mul_add(r2, r1);
+    let mut p = r.mul_add(d(0x3f56c1728d739765), d(0x3f811115b7aa905e));
+    p = r.mul_add(p, d(0x3fa5555555545d4e));
+    p = r.mul_add(p, d(0x3fc5555555548f7c));
+    p = r.mul_add(p, 0.5);
+    let q = (r * r).mul_add(p, r2) + r1;
+    let (f1, f2) = (d(EXP2_JBY32_LEAD[j]), d(EXP2_JBY32_TRAIL[j]));
+    (m, f1, (f2 + f1).mul_add(q, f2))
+}
+
+/// `(z1 + z2) * 2^(m-1)`, scaled in two steps outside the normal exponent range.
+fn half_scaled(m: i32, z: f64) -> f64 {
+    let m = m - 1;
+    if (-1022..=1023).contains(&m) {
+        return z * d(((m + 1023) as u64) << 52);
+    }
+    let m1 = m / 2;
+    let m2 = m - m1;
+    (z * d(((m1 + 1023) as u64) << 52)) * d(((m2 + 1023) as u64) << 52)
+}
+
+/// The sinh(dy) and cosh(dy) polynomials of the fractional part `dy` (`dy2 = dy*dy`): `sdy`
+/// without its `dy^3` factor and `cdy` without its `dy2` factor.
+fn sinh_cosh_polys(dy2: f64) -> (f64, f64) {
+    let mut s = dy2.mul_add(d(0x3d6b4125921ea08b), d(0x3de611cb2bdcb7be));
+    for c in [0x3e5ae6460fbe61c0u64, 0x3ec71de3a4e13e7d, 0x3f2a01a01a01ee80, 0x3f811111111110fd, 0x3fc5555555555555] {
+        s = dy2.mul_add(s, d(c));
+    }
+    let mut c = dy2.mul_add(d(0x3da9984b7f63fcd7), d(0x3e21ee56385b7b20));
+    for k in [0x3e927e5069f1cb55u64, 0x3efa01a019079011, 0x3f56c16c16c212e5, 0x3fa5555555555502, 0x3fe0000000000000] {
+        c = dy2.mul_add(c, d(k));
+    }
+    (s, c)
+}
+
+/// `sinh(x)` as the runtime's FMA3 `sinh` gives it.
+pub(crate) fn crt_sinh(x: f64) -> f64 {
+    let ux = x.to_bits();
+    let aux = ux & !SIGN;
+    if aux < 0x3e30_0000_0000_0000 {
+        return x;
+    }
+    if aux >= INF {
+        return if aux == INF { x } else { d(ux | QNAN_BIT) };
+    }
+    let negative = aux != ux;
+    let y = d(aux);
+    let z = if y >= d(0x408633ce8fb9f87e) {
+        f64::INFINITY
+    } else if y >= d(0x40420fd21b95825f) {
+        let (m, z1, z2) = splitexp(y);
+        half_scaled(m, z2 + z1)
+    } else {
+        let ind = y as i32 as usize;
+        let dy = y - ind as f64;
+        let dy2 = dy * dy;
+        let (sp, cp) = sinh_cosh_polys(dy2);
+        let cdy = cp * dy2;
+        let dy3 = dy2 * dy;
+        let sdy1 = d(dy.to_bits() & 0xffff_ffff_f800_0000);
+        let sdy2 = dy3.mul_add(sp, dy - sdy1);
+        let (st, ct, cl, sl) = (d(SINH_TAIL[ind]), d(COSH_TAIL[ind]), d(COSH_LEAD[ind]), d(SINH_LEAD[ind]));
+        let mut t = sdy2.mul_add(ct, st * cdy);
+        t = sdy1.mul_add(ct, t);
+        let mut u = t + st;
+        u = sdy2.mul_add(cl, u);
+        u = cdy.mul_add(sl, u);
+        u = sdy1.mul_add(cl, u);
+        u + sl
+    };
+    if negative { -z } else { z }
+}
+
+/// `cosh(x)` as the runtime's FMA3 `cosh` gives it.
+pub(crate) fn crt_cosh(x: f64) -> f64 {
+    let ux = x.to_bits();
+    let aux = ux & !SIGN;
+    if aux < 0x3e30_0000_0000_0000 {
+        return 1.0;
+    }
+    if aux >= INF {
+        return if aux == INF { f64::INFINITY } else { d(ux | QNAN_BIT) };
+    }
+    let y = d(aux);
+    if y >= d(0x408633ce8fb9f87e) {
+        return f64::INFINITY;
+    }
+    if y >= 20.0 {
+        let (m, z1, z2) = splitexp(y);
+        return half_scaled(m, z2 + z1);
+    }
+    let ind = y as i32 as usize;
+    let dy = y - ind as f64;
+    let dy2 = dy * dy;
+    let (sp, cp) = sinh_cosh_polys(dy2);
+    let sdy = sp * (dy2 * dy);
+    let cdy = cp * dy2;
+    let (ct, cl, st, sl) = (d(COSH_TAIL[ind]), d(COSH_LEAD[ind]), d(SINH_TAIL[ind]), d(SINH_LEAD[ind]));
+    let mut t = cdy.mul_add(ct, st * sdy);
+    t = dy.mul_add(st, t);
+    let mut u = t + ct;
+    u = cdy.mul_add(cl, u);
+    u = sdy.mul_add(sl, u);
+    u = dy.mul_add(sl, u);
+    u + cl
+}
+
+// ---- atan2 (win-libm atan2.c; fused multiply-adds as measured) and hypot (win-libm hypot.c,
+// FAST_BUT_GREATER_THAN_ONE_ULP: a scaled sqrt(x*x + y*y)) ----
+
+/// `scaleUpDouble1024`: the bits of `x * 2^1024`.
+fn scale_up_1024(ux: u64) -> u64 {
+    if ux & INF == 0 {
+        let y = d(ux | 0x4010_0000_0000_0000);
+        let y = if ux & SIGN != 0 { y + 4.0 } else { y - 4.0 };
+        return y.to_bits();
+    }
+    ux.wrapping_add(0x4000_0000_0000_0000)
+}
+
+/// `scaleDownDouble`: the bits of `x * 2^-k`, rounded into the subnormal range.
+fn scale_down(ux: u64, k: i32) -> u64 {
+    let sign = ux & SIGN;
+    let ax = ux & !SIGN;
+    let n = ((ax & INF) >> 52) as i32 - k;
+    let y = if n > 0 {
+        (ax & !INF) | ((n as u64) << 52)
+    } else {
+        let y = (ax & !INF) | 0x0010_0000_0000_0000;
+        let shift = 1 - n;
+        if shift > 53 {
+            0
+        } else {
+            let y = y >> (shift - 1);
+            (y >> 1) + (y & 1)
+        }
+    };
+    y | sign
+}
+
+/// `atan2(y, x)` as the runtime's FMA3 `atan2` gives it.
+pub(crate) fn crt_atan2(y: f64, x: f64) -> f64 {
+    let (mut ux, mut uy) = (x.to_bits(), y.to_bits());
+    let (aux, auy) = (ux & !SIGN, uy & !SIGN);
+    let mut xexp = ((ux >> 52) & 0x7ff) as i32;
+    let mut yexp = ((uy >> 52) & 0x7ff) as i32;
+    let (xneg, yneg) = (ux & SIGN != 0, uy & SIGN != 0);
+    let pi = d(0x400921fb54442d18);
+    let piby2 = d(0x3ff921fb54442d18);
+    if aux > INF {
+        return d(ux | QNAN_BIT);
+    }
+    if auy > INF {
+        return d(uy | QNAN_BIT);
+    }
+    if auy == 0 {
+        return if xneg { if yneg { -pi } else { pi } } else { y };
+    }
+    if aux == 0 {
+        return if yneg { -piby2 } else { piby2 };
+    }
+    let (mut x, mut y) = (x, y);
+    if xexp < 1021 && yexp < 1021 {
+        ux = scale_up_1024(ux);
+        uy = scale_up_1024(uy);
+        x = d(ux);
+        y = d(uy);
+        xexp = ((ux >> 52) & 0x7ff) as i32;
+        yexp = ((uy >> 52) & 0x7ff) as i32;
+    }
+    let diffexp = yexp - xexp;
+    if diffexp > 56 {
+        return if yneg { -piby2 } else { piby2 };
+    }
+    if diffexp < -28 && !xneg {
+        if diffexp < -1074 {
+            return if yneg { -0.0 } else { 0.0 };
+        }
+        if diffexp < -1022 {
+            let q = (d(0x4630_0000_0000_0000) * y) / x; // 2^100 * y / x
+            return d(scale_down(q.to_bits(), 100));
+        }
+        return y / x;
+    }
+    if diffexp < -56 && xneg {
+        return if yneg { -pi } else { pi };
+    }
+    if auy == INF && aux == INF {
+        return match (xneg, yneg) {
+            (true, true) => d(0xc002d97c7f3321d2),
+            (true, false) => d(0x4002d97c7f3321d2),
+            (false, true) => d(0xbfe921fb54442d18),
+            (false, false) => d(0x3fe921fb54442d18),
+        };
+    }
+    let (mut u, mut v) = (if xneg { -x } else { x }, if yneg { -y } else { y });
+    let swap = v > u;
+    if swap {
+        std::mem::swap(&mut u, &mut v);
+    }
+    let vbyu = v / u;
+    let (mut q1, mut q2);
+    if vbyu > 0.0625 {
+        let index = vbyu.mul_add(256.0, 0.5) as i32;
+        q1 = d(ATAN_JBY256_LEAD[(index - 16) as usize]);
+        let tail = d(ATAN_JBY256_TAIL[(index - 16) as usize]);
+        let c = index as f64 * d(0x3f70000000000000);
+        // scaleDouble_2(., -m) for u's exponent m.
+        let neg_m = 0x3ff - ((u.to_bits() >> 52) & 0x7ff) as i32;
+        let e1 = neg_m / 2;
+        let e2 = neg_m - e1;
+        let s1 = d(((e1 + 1023) as u64) << 52);
+        let s2 = d(((e2 + 1023) as u64) << 52);
+        let us = (s1 * u) * s2;
+        let vs = (s1 * v) * s2;
+        let u1 = d(us.to_bits() & 0xffff_ffff_f800_0000);
+        let mut num = (-u1).mul_add(c, vs);
+        num = (-c).mul_add(us - u1, num);
+        let den = vs.mul_add(c, us);
+        let r = num / den;
+        let s = r * r;
+        let p = (-s).mul_add(d(0x3fc99992b9802d7d), d(0x3fd5555555550877)) * s;
+        q2 = (-r).mul_add(p, r + tail);
+    } else if 1e-8 > vbyu {
+        q1 = 0.0;
+        q2 = vbyu;
+    } else {
+        let s = vbyu * vbyu;
+        let u1 = d(u.to_bits() & 0xffff_ffff_0000_0000);
+        let vu1 = d(vbyu.to_bits() & 0xffff_ffff_0000_0000);
+        let u2 = u - u1;
+        let mut w = (-u1).mul_add(vu1, v);
+        w = (-vu1).mul_add(u2, w);
+        let vu2 = vbyu - vu1;
+        w = (-u).mul_add(vu2, w);
+        let mut p = (-s).mul_add(d(0x3fb70c3192d751c2), d(0x3fbc718839b8c4eb));
+        for c in [0x3fc2492482bd6be1u64, 0x3fc99999999643a3, 0x3fd5555555555538] {
+            p = (-s).mul_add(p, d(c));
+        }
+        q1 = 0.0;
+        q2 = (-(s * vbyu)).mul_add(p, w / u) + vbyu;
+    }
+    if swap {
+        q1 = d(0x3ff921fb54442d18) - q1;
+        q2 = d(0x3c91a62633145c07) - q2;
+    }
+    if xneg {
+        q1 = d(0x400921fb50000000) - q1;
+        q2 = d(0x3e6110b4611a6263) - q2;
+    }
+    let q = q1 + q2;
+    if yneg { -q } else { q }
+}
+
+/// `hypot(x, y)` as the runtime's `hypot` gives it.
+pub(crate) fn crt_hypot(x: f64, y: f64) -> f64 {
+    let (ax, ay) = (x.to_bits() & !SIGN, y.to_bits() & !SIGN);
+    let (ex, ey) = (ax >> 52, ay >> 52);
+    if ex == 0x7ff {
+        if ax & MANT == 0 || (ey == 0x7ff && ay & MANT == 0) {
+            return f64::INFINITY;
+        }
+        return x * x + y * y;
+    }
+    if ey == 0x7ff {
+        if ay & MANT == 0 {
+            return f64::INFINITY;
+        }
+        return x * x + y * y;
+    }
+    if ax == 0 {
+        return d(ay);
+    }
+    if ay == 0 {
+        return d(ax);
+    }
+    if ((ex as i32 - ey as i32) + 54) as u32 > 108 {
+        return d(ax) + d(ay);
+    }
+    let (mut a, mut b) = (d(ax), d(ay));
+    let mut scale = 0i32;
+    if ex > 0x5f3 || ey > 0x5f3 {
+        a = d(ax.wrapping_add(0xda80_0000_0000_0000));
+        b = d(ay.wrapping_add(0xda80_0000_0000_0000));
+        scale = 600;
+    } else if ex < 0x20b || ey < 0x20b {
+        // Times 2^600; a subnormal through (bits + 601*2^52) - 2^-422.
+        let up = |bits: u64, e: u64| {
+            if e == 0 { d(bits + 0x2590_0000_0000_0000) + d(0xa590_0000_0000_0000) } else { d(bits + 0x2580_0000_0000_0000) }
+        };
+        a = up(ax, ex);
+        b = up(ay, ey);
+        scale = -600;
+    }
+    let mut r = (a * a + b * b).sqrt();
+    if scale != 0 {
+        r *= d(((scale + 1023) as u64) << 52);
+    }
+    r
+}
+
+// ---- Tables: log and log10 from AOCL-LibM; exp, sinh, cosh, splitexp and atan2 equal to win-libm's ----
 
 #[rustfmt::skip]
 const LOG_LEAD: [u64; 257] = [

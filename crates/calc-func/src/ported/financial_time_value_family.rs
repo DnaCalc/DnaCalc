@@ -247,7 +247,7 @@ pub fn pmt(
         return Err(FinancialError::Num);
     }
     // W109 G6-01 (2026-07-23, multi-agent workflow): the transcendental substrate is
-    // the x87 chain (Excel's PMT `exp` is fFEXP, proven 234/234; `expm1` is the internal
+    // the x87 chain (Excel's PMT `exp` is the x87 exponential `excel_exp`, matched 234/234; `expm1` is the internal
     // x87 double-rounded Kahan), and the combine is the live-Excel-pinned **quotient-first,
     // ·rate LAST** SSE2 op-graph `pmt = RN(RN(RN(num/em)/tf)·r)` — NOT the former
     // reciprocal-multiply product order. `log1p` stays correctly-rounded (proven CR via the

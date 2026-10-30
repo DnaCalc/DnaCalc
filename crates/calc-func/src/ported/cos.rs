@@ -1,6 +1,6 @@
 use crate::value::WorksheetErrorCode;
 
-/// W109 G4-01: the fFCOS π/2-quadrant chain with the |x| < 2^-26 -> 1.0
+/// W109 G4-01: the COS π/2-quadrant chain with the |x| < 2^-26 -> 1.0
 /// shortcut (see `excel_numeric::excel_cos`).
 pub fn cos_kernel(n: f64) -> f64 {
     crate::ported::excel_numeric::excel_cos(n)

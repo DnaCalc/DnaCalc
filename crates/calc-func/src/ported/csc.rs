@@ -3,7 +3,7 @@ use crate::value::WorksheetErrorCode;
 
 pub fn csc_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     ExcelRealPolicy::CIRCULAR_TRIG.check_arg(n)?;
-    // W109 G4-01: CSC = RN53(RN64(1/SIN)) over the published fFSIN chain.
+    // W109 G4-01: CSC = RN53(RN64(1/SIN)) over the published SIN chain.
     let sin = crate::ported::excel_numeric::excel_sin(n);
     if sin == 0.0 {
         return Err(WorksheetErrorCode::Div0);

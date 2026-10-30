@@ -13,7 +13,7 @@ const INV_SQRT_2PI: f64 = f64::from_bits(0x3fd9884533d43651);
 /// ```text
 /// sq  = RN53(RN64(x·x))            (x87 double-rounded square)
 /// t   = -(sq/2)                    (exact halving + negation)
-/// e   = EXP(t)                     (the identified x87 fFEXP chain)
+/// e   = EXP(t)                     (the x87 exponential, `excel_exp`)
 /// v   = RN53(RN64(e · RN(1/sqrt(2π))))
 /// PHI = +0.0 if |v| < DBL_MIN      (live-pinned publication flush;
 ///        normal values publish unchanged — boundary probed at bit level)

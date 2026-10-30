@@ -2,7 +2,7 @@ use crate::ported::real_policy::ExcelRealPolicy;
 use crate::value::WorksheetErrorCode;
 
 pub fn exp_kernel(n: f64) -> f64 {
-    // Excel's EXP is the legacy x87 CRT chain, not the platform `exp`; the
+    // Excel's EXP is the x87 chain, not the platform `exp`; the
     // backend reproduces it bit-for-bit on x86_64. See `crate::ported::excel_numeric`.
     crate::ported::excel_numeric::excel_exp(n)
 }

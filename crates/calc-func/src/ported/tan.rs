@@ -1,6 +1,6 @@
 use crate::value::WorksheetErrorCode;
 
-/// W109 G4-01: the fFTAN π/2-quadrant chain (see `excel_numeric::excel_tan`).
+/// W109 G4-01: the TAN π/2-quadrant chain (see `excel_numeric::excel_tan`).
 pub fn tan_kernel(n: f64) -> f64 {
     crate::ported::excel_numeric::excel_tan(n)
 }

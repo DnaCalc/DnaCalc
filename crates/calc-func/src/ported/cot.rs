@@ -3,7 +3,7 @@ use crate::value::WorksheetErrorCode;
 
 pub fn cot_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     ExcelRealPolicy::CIRCULAR_TRIG.check_arg(n)?;
-    // W109 G4-01: COT = RN53(RN64(1/TAN)) over the published fFTAN chain
+    // W109 G4-01: COT = RN53(RN64(1/TAN)) over the published TAN chain
     // (the double-rounded x87 reciprocal, unique surviving staging).
     let tan = crate::ported::excel_numeric::excel_tan(n);
     if tan == 0.0 {

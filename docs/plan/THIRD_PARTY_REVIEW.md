@@ -25,7 +25,10 @@ decide.
 
 | Source | Where | Licence | Duty in a binary release |
 |---|---|---|---|
-| AMD AOCL-LibM (log, log10, exp tables; sinh, cosh, atan2 and their tables) | `calc-func/src/ported/excel_numeric/crt_libm.rs` | BSD-3-Clause, (C) 2008-2022 AMD | Reproduce the copyright, the conditions and the disclaimer (clause 2). The text is in crt_libm.rs lines 23-39 |
+| AMD AOCL-LibM (log, log10 and their tables) | `calc-func/src/ported/excel_numeric/crt_libm.rs` | BSD-3-Clause, (C) 2008-2022 AMD | Reproduce the copyright, the conditions and the disclaimer (clause 2). The text is in crt_libm.rs's header |
+| AMD win-libm (exp, sin, cos and their reductions, sinh, cosh, atan2, hypot; dc-96l, 2026-10-30) | `excel_numeric/crt_libm.rs` | MIT, (c) 2002-2019 AMD | The copyright line and the MIT permission notice |
+| Arm optimized-routines `exp`, `log` and their data (re-sourced from the glibc port, dc-96l) | `excel_numeric/mod.rs` (`exp_portable`, `log_portable`), `excel_numeric/tables.rs` | as `pow` below | as `pow` below |
+| ExcelFinancialFunctions (Luca Bolognese), bond and odd-period bond routines (dc-96l) | `ported/bond_core_family.rs`, `ported/odd_bond_family.rs` | Apache-2.0 | The licence text, the copyright line and a statement that the files were changed |
 | Arm optimized-routines `pow` (pow.c, pow_log_data.c at 0b5e3775) | `excel_numeric/crt_pow.rs` | MIT OR Apache-2.0 WITH LLVM-exception; we take MIT | The copyright line and the MIT permission notice (upstream LICENSE, fetched 2026-10-29) |
 | Unicode Character Database 15.0.0 (combining marks table; CaseFolding.txt's simple and full folds, dc-cpr) | `calc-fml/src/syntax/combining_marks.rs`, `calc-value/src/case_folding.rs` | Unicode License V3 | The Unicode copyright and permission notice |
 | fdlibm `e_lgamma_r.c`: six constants (w1 to w6) and the tail's Horner form | `excel_numeric/gammaln.rs` | Sun Microsystems: "provided that this notice is preserved" | Keep the Sun notice. Six constants may not need it; carrying it costs nothing |
@@ -47,6 +50,15 @@ decide.
   icons, drawn here (`apps/dna-calc/src/grid/icons.rs`).
 
 ## 3. Problems the owner must rule on before the first public binary
+
+**Status 2026-10-30 (dc-96l, licence lane):** row 3's chains are isolated in
+`excel_numeric/nt_chains.rs` for the clean-room replacement (dc-96l.3); row 5 is resolved: the
+code is AMD's MIT win-libm and Arm's MIT optimized-routines, and what no source says (the
+configurations, the fused multiply-adds of sinh, cosh and atan2) was measured against the
+runtime; row 8 was wrong (PMT, IPMT and PPMT do reach the port) and is resolved by re-sourcing to
+Arm's MIT copy of the same code, checked equal table for table; row 4's text is marked as
+Microsoft's in help.rs, with sources in `migration/help-text-sources.tsv`; row 7 carries a credit
+to Wichura; row 9's comparison functions are removed (dc-96l.4).
 
 These do not fit an MIT release as they stand. A notice cannot fix the first five. Each is in the
 shipped wasm unless the row says otherwise.

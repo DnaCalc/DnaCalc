@@ -1,9 +1,19 @@
 //! Function help: a one-line description of each named function, as signature help and a
 //! function-help panel show it beside [`crate::FunctionCallTarget::signature_help`].
 //!
-//! The descriptions are ported from OxFunc's registry help seed
-//! (`crates/oxfunc_core/src/registry_help_seed.rs` at OxFunc 6fca3518, its `short_description` of
-//! each `FUNC.<NAME>` entry), with the seed's pointers to a video removed. The table is keyed by
+//! **The descriptions are Microsoft's text, not ours.** Each is the one-line summary Microsoft
+//! publishes for the function on its support site, in the lists "Excel functions (by category)"
+//! (<https://support.microsoft.com/en-us/office/excel-functions-by-category-5f91f4e9-7b42-46d2-9bd1-63f26a86c0eb>)
+//! and "Excel functions (alphabetical)"
+//! (<https://support.microsoft.com/en-us/office/excel-functions-alphabetical-b3944572-255d-4efb-bb96-c6d90033e188>);
+//! each function's own article is linked from those lists. Copyright Microsoft Corporation. That
+//! site is under Microsoft's Terms of Use, which grant no licence to republish its text, so this
+//! table must not be published until dc-96l.5 settles it or replaces it with our own words. The
+//! one exception is `OP_IMPLICIT_INTERSECTION`, which is our own. They reached this table through
+//! Foundation's 2026-02-28 catalogue harvest, OxFunc's function catalogue and OxFunc's registry
+//! help seed (`crates/oxfunc_core/src/registry_help_seed.rs` at OxFunc 6fca3518, its
+//! `short_description` of each `FUNC.<NAME>` entry), with the seed's pointers to a video removed.
+//! `migration/help-text-sources.tsv` gives each function's list page and article URL. The table is keyed by
 //! the function's spelling and held in byte order, so a lookup is a binary search. A function
 //! the table does not describe has no description; the table is help text only and says nothing
 //! about whether calc-func implements a function, which is the catalogue's to say.

@@ -280,7 +280,7 @@ fn period(c: Ctx) -> Result<Period, BondCoreEvalError> {
 ///   **binary exponentiation** (square-and-multiply, plain `f64` multiply). Rust's
 ///   `f64::powf` uses `exp·ln` even for integers, so on-coupon PRICE drifts 1–2 ULP
 ///   without this. Held-out validated 25/25 across 5 live-Excel bonds (build 20131).
-/// * **Fractional exponent** (off-coupon) → the legacy CRT `pow` chain
+/// * **Fractional exponent** (off-coupon) → the `pow` chain
 ///   `exp(RN53(RN64(exp·ln base)))` via the x87 `ln`/`mul`/`exp`, i.e.
 ///   [`crate::ported::excel_numeric::excel_pow_chain`] — NOT the platform `f64::powf`. The two
 ///   agree on the vast majority of inputs but diverge ±1 ULP on the Actual/360 (basis 2)
