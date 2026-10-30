@@ -64,8 +64,10 @@ runtime; row 8 was wrong (PMT, IPMT and PPMT do reach the port) and is resolved 
 Arm's MIT copy of the same code, checked equal table for table; row 4 is settled by the owner
 (2026-10-30): Microsoft's official descriptions stay as the function metadata, attributed to
 Microsoft with each function's support-article URL (`migration/help-text-sources.tsv`), with our
-own line beside each, and a notice in `deploy/notices/ported.txt`; row 7 carries a credit
-to Wichura; row 9's comparison functions are removed (dc-96l.4).
+own line beside each, and a notice in `deploy/notices/ported.txt`; row 6 is kept: gratio and bratio
+stay, with a source comment naming DiDonato and Morris, ACM TOMS 654 and 708, via scipy's cdflib
+(owner, 2026-10-30); row 7 is kept: AS 241 stays, with a source comment naming Wichura, Applied
+Statistics 1988 (owner, 2026-10-30); row 9's comparison functions are removed (dc-96l.4).
 
 These do not fit an MIT release as they stand. A notice cannot fix the first five. Each is in the
 shipped wasm unless the row says otherwise.

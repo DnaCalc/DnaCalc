@@ -1,3 +1,11 @@
+//! The normal, lognormal and related inverse kernels.
+//!
+//! Sources, kept (owner, 2026-10-30): the tail of the inverse standard normal uses the rational
+//! approximations of M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal
+//! Distribution", Applied Statistics 37(3), 1988, pp. 477-484 (PPND16); `branch190_j` is the
+//! statement-190 series of A. R. DiDonato and A. H. Morris Jr., ACM TOMS Algorithm 654 (1986),
+//! as distributed in scipy's cdflib. The rest is our own.
+
 use crate::ported::normal_dist_common::{erf_approx, phi_kernel, stored_normal_z, FRAC_1_SQRT_2_BITS, GAM1_HALF_H_BITS, GAUSS_TINY_MAX_BITS};
 use crate::ported::special_dist_family::erfc_precise_kernel;
 use crate::value::WorksheetErrorCode;

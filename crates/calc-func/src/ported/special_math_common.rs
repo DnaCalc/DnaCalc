@@ -45,6 +45,11 @@ pub fn gamma(z: f64) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
+// SOURCE: A. R. DiDonato and A. H. Morris Jr., "Computation of the incomplete gamma function
+// ratios and their inverse", ACM Transactions on Mathematical Software 12(4), 1986, Algorithm
+// 654 (gratio, NSWC library), as distributed in scipy's cdflib (scipy v0.14, DCDFLIB by Brown,
+// Lovato and Russell). Translated from that Fortran into Rust; kept (owner, 2026-10-30).
+//
 // GRATIO: faithful port of the DCDFLIB / NSWC incomplete-gamma-ratio kernel
 // (TOMS 654, DiDonato & Morris; Alfred H. Morris Jr.), transcribed from the
 // scipy v0.14 cdflib Fortran sources via the validated Python reference at
@@ -878,6 +883,11 @@ pub fn regularized_gamma_q(a: f64, x: f64) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
+// SOURCE: A. R. DiDonato and A. H. Morris Jr., "Algorithm 708: Significant digit computation of
+// the incomplete beta function ratios", ACM Transactions on Mathematical Software 18(3), 1992
+// (bratio, NSWC library), as distributed in scipy's cdflib (scipy v0.14, DCDFLIB by Brown,
+// Lovato and Russell). Translated from that Fortran into Rust; kept (owner, 2026-10-30).
+//
 // BRATIO: faithful port of the DCDFLIB / NSWC incomplete-beta-ratio kernel
 // (TOMS 708, DiDonato & Morris), transcribed op-for-op from the validated
 // Python reference at smart-fuzzer/work/w109/G3-01-dist/agentA_bratio.py, which

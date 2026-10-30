@@ -2174,9 +2174,9 @@
     }
    ],
    "cleanup": {
-    "action": "decide",
-    "bead": "dc-96l.3",
-    "how": "AS 241: keep with a credit (published coefficients, own evaluation code) unless the owner wants RSS permission; branch190_j follows the gratio decision"
+    "action": "keep",
+    "bead": "dc-96l",
+    "how": "kept by the owner (2026-10-30) with a source comment: DiDonato and Morris, ACM TOMS 654/708 via scipy cdflib; Wichura, AS 241"
    },
    "surveyed_blob": "d90dd1221f34c34e9f1e3006c0e18d06d649eb4f",
    "surveyed_bytes": 18817,
@@ -2454,9 +2454,9 @@
     }
    ],
    "cleanup": {
-    "action": "decide",
-    "bead": "dc-96l.3",
-    "how": "delete old_nr_gamma_p/q (dc-96l.4). For gratio/bratio the owner decides: (a) rely on the public-domain status of the NSWC/DCDFLIB code and credit DiDonato and Morris, (b) ask ACM for a licence, or (c) a clean-room implementation from the two papers' mathematics, re-measured against Excel (Excel's own code is this algorithm, so (c) is the most work)"
+    "action": "keep",
+    "bead": "dc-96l",
+    "how": "kept by the owner (2026-10-30) with a source comment: DiDonato and Morris, ACM TOMS 654/708 via scipy cdflib; Wichura, AS 241"
    },
    "surveyed_blob": "168264dd57e5717898022b079d91cbb4d07464c6",
    "surveyed_bytes": 82249,
