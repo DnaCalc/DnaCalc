@@ -38,8 +38,15 @@
 //!   its read of Calc!A1:A2 was shown (7.75 and 9.25), both values' bits, an ulp distance of 1 and
 //!   agreement to 15 significant digits: the triage reached through the evaluations the read
 //!   observer kept;
-//! - a version 2 capture naming the 1904 date system, and a version 1 capture of a package that
-//!   declares it (which the host does not apply), must class the calculated cells context;
+//! - a version 2 capture naming the 1904 date system must class the calculated cells context;
+//! - a version 1 capture of a package that declares the 1904 date system, with a cell
+//!   `DATE(1904,1,2)` added at Calc!C1 (hand-derived: serial 1 in the 1904 date system, where
+//!   serial 0 is 1904-01-01; 1463 in the 1900 one), must be calculated under the declared system:
+//!   the run names date1904 true, records no declared context it does not apply, prints no line
+//!   saying so, and classes A1 to A3 and C1 plainly matched. The host applies the date system the
+//!   package declares (calc-host's `RecalcContext`), so no package makes a run leave it unapplied;
+//!   that path is `cargo xtask compare`'s unit test `a_declared_context_the_run_does_not_apply_is_context`
+//!   and the declared-key tests beside it (`cargo test -p xtask --bins`);
 //! - a variant with a circular reference (Calc!C1 = C1+1) and iteration off: since dc-m3u the
 //!   engine refuses the formula on the cycle, not the recalculation, so C1 must be a typed
 //!   not-modelled root (no Excel value is authored for it: the capture leaves it unobserved) and
@@ -137,6 +144,17 @@ const HAND_DERIVED: [(&str, u32, u32, &str, &str); 5] = [
     ("Calc", 3, 1, "n", "17"),
     ("Calc", 1, 2, "e", "#NAME?"),
     ("Calc", 2, 2, "e", "#NAME?"),
+];
+
+/// [`HAND_DERIVED`] plus Calc!C1 = `DATE(1904,1,2)` in a package declaring the 1904 date system:
+/// serial 1 there (serial 0 is 1904-01-01), where the 1900 date system would give 1463.
+const DECLARED_1904: [(&str, u32, u32, &str, &str); 6] = [
+    ("Calc", 1, 1, "n", "7.75"),
+    ("Calc", 2, 1, "n", "9.25"),
+    ("Calc", 3, 1, "n", "17"),
+    ("Calc", 1, 2, "e", "#NAME?"),
+    ("Calc", 2, 2, "e", "#NAME?"),
+    ("Calc", 1, 3, "n", "1"),
 ];
 
 /// [`HAND_DERIVED`] with A3's expectation one ulp above 17: authored to differ from what SUM
@@ -704,15 +722,15 @@ pub(super) fn every_cell_classified() {
             "version 2 capture naming date1904=true: classes {classes:?}"
         ));
     }
-    // A version 1 capture of a package declaring the 1904 date system, which the host does not
-    // apply: judge has no captured context to compare, and the triage classes the calculated
-    // cells context under the declaration, matched or not.
+    // A version 1 capture of a package declaring the 1904 date system: the host applies the
+    // declared system, so the run names date1904 true, records no declared context left
+    // unapplied, and C1 = DATE(1904,1,2) matches its 1904 serial, 1 (1463 under the 1900 system).
     let declared = package_with(
         &inputs_sheet(""),
-        &calc_sheet(""),
+        &calc_sheet(r#"<c r="C1"><f>DATE(1904,1,2)</f></c>"#),
         r#"<workbookPr date1904="1"/>"#,
     );
-    let declared_text = authored_capture(&declared, &HAND_DERIVED, &[]);
+    let declared_text = authored_capture(&declared, &DECLARED_1904, &[]);
     if let Some((out, output)) = compared(
         "compare-context-declared",
         &declared,
@@ -721,32 +739,33 @@ pub(super) fn every_cell_classified() {
         &mut failures,
     ) {
         let triage = super::read_json(&out.join("triage.json"));
+        let report = super::read_json(&out.join("report.json"));
         every_cell_once(
             &triage,
             &serde_json::from_str(&declared_text).unwrap(),
             &mut failures,
         );
         let classes = triaged(&triage);
-        let key = "date1904: package declares true, run applies false (the version 1 capture names no context)";
-        let expected = [
-            format!("Calc!A1 matched context {key} workbook"),
-            format!("Calc!A2 matched context {key} workbook"),
-            format!("Calc!A3 matched context {key} workbook"),
-            CLASSES_B[0].to_owned(),
-            CLASSES_B[1].to_owned(),
-        ];
+        let mut expected: Vec<String> =
+            CLASSES_CALCULATED.iter().map(|c| (*c).to_owned()).collect();
+        expected.push("Calc!C1 matched matched matched -".to_owned());
+        let applied = CalculationContext::without_iteration(true, false).fingerprint();
         let stdout = String::from_utf8_lossy(&output.stdout);
         if classes != expected
-            || triage["run"]["declared_context_not_applied"] != key
-            || !stdout.contains("the package declares a context the run does not apply")
+            || triage["run"]["context"] != applied
+            || !triage["run"]["declared_context_not_applied"].is_null()
+            || stdout.contains("the package declares a context the run does not apply")
+            || counts(&report)[..4] != [6, 4, 4, 0]
         {
             failures.push(format!(
-                "the declared-context run's cells are classed {classes:?} (expected {expected:?}), its run member is {}, and its summary is\n{stdout}",
-                triage["run"]
+                "the declared-context run's cells are classed {classes:?} (expected {expected:?}), its run member is {} (expected context {applied} and no declared context left unapplied), its report counts are {:?} (expected 6 formula cells, 4 calculated, 4 matched, 0 mismatched), and its summary is\n{stdout}",
+                triage["run"],
+                counts(&report)
             ));
         }
         evidence.push(format!(
-            "version 1 capture of a package declaring date1904: classes {classes:?}"
+            "version 1 capture of a package declaring date1904, C1 = DATE(1904,1,2) expected 1: run context {}, classes {classes:?}",
+            triage["run"]["context"]
         ));
     }
 

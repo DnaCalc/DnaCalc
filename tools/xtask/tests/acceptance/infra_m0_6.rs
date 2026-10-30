@@ -658,8 +658,10 @@ fn text<'a>(value: &'a Value, what: &str) -> &'a str {
 
 /// infra_m0_6__restore_roundtrip: the evidence checkout is clean at the pinned commit, which is
 /// GitHub's master; the pinned tree holds one blob of the manifest's gzip size per manifest row
-/// and the manifest's bytes hash to the recorded SHA-256; the local originals equal manifest.tsv
-/// plus excluded.tsv by path and size; and `cargo xtask evidence restore` of a random sample of at
+/// and the manifest's bytes hash to the recorded SHA-256; each path the record lists as removed
+/// from the archive was a manifest row at its recorded size before the commit that removed it and
+/// is in neither table at the pin; the local originals equal manifest.tsv plus excluded.tsv plus
+/// those removed paths by path and size; and `cargo xtask evidence restore` of a random sample of at
 /// least 100 manifest paths, run from a legacy root that holds the evidence checkout and no
 /// originals, writes files byte-identical to the originals.
 pub fn restore_roundtrip() {
@@ -839,16 +841,87 @@ pub fn restore_roundtrip() {
         ),
     );
 
-    // The local originals against the pinned inventory, by path and size.
-    let pinned = pinned_inventory(&manifest, &excluded);
+    // The paths the record says were removed from the archive (the licence cleanup): each was a row
+    // of manifest.tsv, at the recorded size, in the parent of the commit that removed it, which is
+    // the pin or one of its ancestors; none is in either table at the pin.
+    let removal = &record["removed"];
+    let removing = text(&removal["commit"], "removed.commit").to_owned();
+    let removed: BTreeMap<String, u64> = removal["paths"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{RECORD}: removed.paths is not a list"))
+        .iter()
+        .map(|row| {
+            let path = text(&row["path"], "removed.paths[].path").to_owned();
+            let size = row["raw_bytes"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("{RECORD}: {path} has no raw_bytes"));
+            (path, size)
+        })
+        .collect();
+    let removed_bytes: u64 = removed.values().sum();
+    evidence.expect(
+        removal["files"] == json!(removed.len()) && removal["raw_bytes"] == json!(removed_bytes),
+        format!(
+            "removed lists the recorded {} files of {} bytes ({} of {removed_bytes})",
+            removal["files"],
+            removal["raw_bytes"],
+            removed.len()
+        ),
+    );
+    let ancestor = git_text(
+        checkout,
+        &[],
+        &["merge-base", "--is-ancestor", &removing, &pin],
+    );
+    evidence.expect(
+        ancestor.is_ok(),
+        format!("the removing commit {removing} is the pin or one of its ancestors ({ancestor:?})"),
+    );
+    match pinned_table(checkout, &format!("{removing}^"), "manifest.tsv") {
+        Ok(before) => {
+            let listed: BTreeMap<String, u64> = removed
+                .keys()
+                .filter_map(|path| {
+                    before
+                        .rows
+                        .get(path)
+                        .map(|row| (path.clone(), size_of(row, 0, path)))
+                })
+                .collect();
+            evidence.expect(
+                listed == removed,
+                format!(
+                    "manifest.tsv at {removing}^ lists each removed path at its recorded size: {}",
+                    differences(&removed, &listed, "there")
+                ),
+            );
+        }
+        Err(e) => evidence.expect(
+            false,
+            format!("manifest.tsv at {removing}^ is readable: {e}"),
+        ),
+    }
+    let still: Vec<&String> = removed
+        .keys()
+        .filter(|path| manifest.rows.contains_key(*path) || excluded.rows.contains_key(*path))
+        .collect();
+    evidence.expect(
+        still.is_empty(),
+        format!("no removed path is in manifest.tsv or excluded.tsv at the pin ({still:?})"),
+    );
+
+    // The local originals against the pinned inventory and the removed paths, by path and size.
+    let mut pinned = pinned_inventory(&manifest, &excluded);
+    let pinned_paths = pinned.len();
+    pinned.extend(removed.clone());
     let local = local_inventory(&inputs.originals).unwrap_or_else(|e| panic!("{e}"));
     let local_bytes: u64 = local.values().sum();
     evidence.expect(
         local == pinned,
         format!(
-            "the local originals ({} files, {local_bytes} bytes) equal manifest.tsv plus excluded.tsv ({} paths) by path and size: {}",
+            "the local originals ({} files, {local_bytes} bytes) equal manifest.tsv plus excluded.tsv ({pinned_paths} paths) plus the {} removed paths by path and size: {}",
             local.len(),
-            pinned.len(),
+            removed.len(),
             differences(&pinned, &local, "locally")
         ),
     );
@@ -1576,7 +1649,9 @@ pub fn unknown_metadata() {
         }),
         json!({
             "entry": "runs/w108a-reference-hunt/",
-            "files": 58,
+            // 58 inventory paths before dc-96l.4 removed 9 of them from the archive (the record's
+            // `removed` paths under this folder).
+            "files": 49,
             "reading": "path only",
             "label": "unknown",
             "excel_build": null,

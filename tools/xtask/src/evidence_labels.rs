@@ -528,7 +528,7 @@ fn pinned_paths(git: &Legacy, pin: &str, name: &str) -> Result<Vec<String>, Stri
 }
 
 /// The order in which the record's object keys are written; keys not listed follow in name order.
-const KEY_ORDER: [&str; 78] = [
+const KEY_ORDER: [&str; 79] = [
     // the record
     "format",
     "bead",
@@ -536,6 +536,7 @@ const KEY_ORDER: [&str; 78] = [
     "evidence_repository",
     "manifest",
     "excluded",
+    "removed",
     "layout",
     "labels_rule",
     "path_only",

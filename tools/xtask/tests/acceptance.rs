@@ -34,8 +34,9 @@ const BEAD: &str = "infra-m0.1";
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
 /// The workspace has exactly these members, each at exactly this directory; a missing, moved or
-/// extra member fails the build case.
-const EXPECTED_PACKAGES: [(&str, &str); 13] = [
+/// extra member fails the build case. `apps/` holds the two application cores and dna-strand, the
+/// design tokens both apps load (dc-xib).
+const EXPECTED_PACKAGES: [(&str, &str); 14] = [
     ("calc-value", "crates/calc-value"),
     ("calc-func", "crates/calc-func"),
     ("calc-fml", "crates/calc-fml"),
@@ -45,6 +46,7 @@ const EXPECTED_PACKAGES: [(&str, &str); 13] = [
     ("calc-host", "crates/calc-host"),
     ("dna-onecalc", "apps/dna-onecalc"),
     ("dna-calc", "apps/dna-calc"),
+    ("dna-strand", "apps/dna-strand"),
     ("calc-platform-desktop", "platform/calc-platform-desktop"),
     ("calc-oracle-excel", "platform/calc-oracle-excel"),
     ("calc-verdict", "tools/calc-verdict"),

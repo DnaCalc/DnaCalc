@@ -1,0 +1,11 @@
+# Copied as tools/ci-zero-fixture/Cargo.toml into a copy of the workspace by the infra-m0.2 cases,
+# which also add the package to that copy's workspace members. It never enters the real workspace.
+[package]
+name = "xtask-ci-zero-fixture"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "The portable zero-test fixture package of the infra-m0.2 cases, present only in a copy of the workspace."
+
+[package.metadata.dnacalc]
+portability = "portable"
