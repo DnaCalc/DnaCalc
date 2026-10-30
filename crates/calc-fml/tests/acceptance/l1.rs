@@ -373,10 +373,11 @@ mod arrays {
     fn legacy_formulas_refuse_unmeasured_places() {
         let mut book = data();
         // XLOOKUP's lookup array and CHISQ.TEST's ranges, which this row used before, were
-        // measured by L3 (dc-m3u) and dc-10y and lift; COUNTIF's range, which takes only a
-        // reference, is not measured (Excel refuses to enter the formula).
+        // measured by L3 (dc-m3u) and dc-10y and lift; COUNTIFS's range, which takes only a
+        // reference, is not measured (Excel refuses to enter the formula). COUNTIF's lifts an
+        // array of references (dc-b1l).
         let outcome = book
-            .eval_in(FormulaForm::Legacy, "=COUNTIF(A1:A3*1,1)", "I2")
+            .eval_in(FormulaForm::Legacy, "=COUNTIFS(A1:A3*1,1)", "I2")
             .unwrap();
         assert!(
             matches!(outcome, Err(EvalFault::AreaAsValue { .. })),
@@ -526,15 +527,24 @@ mod references {
             book.dynamic("=OFFSET(A1,0,0,2,1)"),
             numbers(&[&[101.0], &[201.0]])
         );
-        // Lifted, OFFSET gives references, which are not modelled (Excel: =OFFSET(A1,{0;1},0) is
-        // #VALUE! in a cell, yet =SUM(OFFSET(A1,{0;1;2},0)) is 6).
+        // Lifted, OFFSET gives an array of references (dc-b1l; Excel: =OFFSET(A1,{0;1},0) is
+        // #VALUE! in each cell it spills to, which calc-engine shows, yet
+        // =SUM(OFFSET(A1,{0;1;2},0)) adds the cells).
         let lifted = book
             .eval_in(FormulaForm::Dynamic, "=OFFSET(A1,{0;1},0)", "Z100")
             .unwrap();
+        let Ok(lifted) = lifted else {
+            panic!("{lifted:?}");
+        };
+        let array = lifted.as_array().expect("an array");
+        assert_eq!(array.shape().rows, 2);
         assert!(
-            matches!(lifted, Err(EvalFault::NotModelled { .. })),
+            array
+                .iter_row_major()
+                .all(|element| element.as_reference().is_some()),
             "{lifted:?}"
         );
+        assert_eq!(book.dynamic("=SUM(OFFSET(A1,{0;1},0))"), n(302.0));
         // In a legacy formula OFFSET's result is intersected.
         assert_eq!(book.legacy_at("=OFFSET(A1,0,0,3,1)", "Z2"), n(201.0));
     }

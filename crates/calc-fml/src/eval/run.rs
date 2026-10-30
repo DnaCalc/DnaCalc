@@ -247,10 +247,11 @@ struct Run<'a, 'r> {
 }
 
 fn not_modelled(construct: &'static str) -> EvalFault {
-    EvalFault::NotModelled {
-        construct,
-        owner: "dc-10y",
-    }
+    not_modelled_by(construct, "dc-10y")
+}
+
+fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
+    EvalFault::NotModelled { construct, owner }
 }
 
 impl Run<'_, '_> {
@@ -497,11 +498,37 @@ impl Run<'_, '_> {
     ) -> Result<(), EvalFault> {
         let start = self.stack.len() - argc;
         let mut lifted = false;
+        let form = self.instance.plan.form;
         for index in 0..argc {
-            let value = std::mem::replace(&mut self.stack[start + index], CalcValue::missing());
+            let mut value = std::mem::replace(&mut self.stack[start + index], CalcValue::missing());
+            // dc-b1l: a legacy formula gives a function that does not run once per reference of
+            // an array of references its first reference.
+            if form == FormulaForm::Legacy
+                && reference_array(&value)
+                && !lifts_over_references(target, form)
+            {
+                value = value
+                    .as_array()
+                    .and_then(|array| array.get(0, 0))
+                    .cloned()
+                    .expect("a non-empty array");
+            }
             let admitted = self.admit(target, index, value, admission)?;
-            lifted |= is_lifted(target, index, &admitted);
+            lifted |= is_lifted(target, self.instance.plan.form, index, &admitted);
             self.stack[start + index] = admitted;
+        }
+        for index in 0..argc {
+            let value = &self.stack[start + index];
+            if reference_array(value)
+                && target.0.parameter_class(index) != Some(ParameterClass::Value)
+                && !lifts_over_references(target, form)
+                && !TAKES_REFERENCE_ARRAYS.contains(&target.0.spelling())
+            {
+                return Err(not_modelled_by(
+                    "an array of references given to a function whose handling of one is not measured",
+                    "dc-b1l",
+                ));
+            }
         }
         let mut arguments = std::mem::take(&mut *self.arguments);
         arguments.clear();
@@ -627,8 +654,11 @@ impl Run<'_, '_> {
         synthetic: bool,
     ) -> Result<CalcValue, EvalFault> {
         let lifted: Vec<usize> = (0..arguments.len())
-            .filter(|index| is_lifted(target, *index, &arguments[*index]))
+            .filter(|index| is_lifted(target, self.instance.plan.form, *index, &arguments[*index]))
             .collect();
+        // dc-b1l: a call run once per reference of an array of references gives values, not
+        // references (Excel 16.0.20527: `=INDEX(OFFSET(A1,{0;1},0,2),1,1)` spills 1|2).
+        let over_references = lifted.iter().any(|index| reference_array(&arguments[*index]));
         let shape = lift::shape(
             lifted
                 .iter()
@@ -643,6 +673,22 @@ impl Run<'_, '_> {
                 for index in &lifted {
                     let array = arguments[*index].as_array().expect("a lifted array");
                     match lift::element(array, row, col) {
+                        // dc-b1l: a reference of an array of references where one value is taken
+                        // is #VALUE! (`=TEXT(OFFSET(A1,{0;1},0),"0.0")`, `OFFSET(...)*1`), except
+                        // for the functions that run once per reference, which read its value
+                        // (`=T(OFFSET(C1,{0;1},0))` spills x and empty text).
+                        Some(value)
+                            if matches!(value.core_ref(), CoreRef::Reference(_))
+                                && target.0.parameter_class(*index)
+                                    == Some(ParameterClass::Value) =>
+                        {
+                            if lifts_over_references(target, self.instance.plan.form) {
+                                element[*index] =
+                                    self.admit_value(value.clone(), Admission::Lift)?;
+                            } else {
+                                held = held.or(Some(CalcValue::error(WorksheetErrorCode::Value)));
+                            }
+                        }
                         Some(value) => match held_array_element(target, self.instance.plan.form, value) {
                             None => element[*index] = value.clone(),
                             Some(Ok(first)) => element[*index] = first,
@@ -660,6 +706,13 @@ impl Run<'_, '_> {
                     continue;
                 }
                 let value = self.eager(target, &element, synthetic)?;
+                let value = match value.core_ref() {
+                    CoreRef::Reference(reference) if over_references => match reference.areas() {
+                        [area] if area.cell_count() == 1 => self.reader.value_of(reference)?,
+                        _ => CalcValue::error(WorksheetErrorCode::Value),
+                    },
+                    _ => value,
+                };
                 cells.push(lifted_element(value)?);
             }
         }
@@ -705,7 +758,7 @@ impl Run<'_, '_> {
             .block(first_block)
             .and_then(|value| self.admit(target, 0, value, admission));
         if let Ok(value) = &first
-            && is_lifted(target, 0, value)
+            && is_lifted(target, self.instance.plan.form, 0, value)
         {
             let mut arguments = Vec::with_capacity(argc);
             arguments.push(value.clone());
@@ -992,10 +1045,53 @@ fn plan_address(instance: &FormulaInstance) -> usize {
 }
 
 /// Whether argument `index` of `target`, as admitted, is lifted over: an array at a parameter
-/// that takes one value.
-fn is_lifted(target: Target, index: usize, value: &CalcValue) -> bool {
-    target.0.parameter_class(index) == Some(ParameterClass::Value) && lifted_array(value).is_some()
+/// that takes one value, or an array of references given to a function that lifts over one.
+fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue) -> bool {
+    (target.0.parameter_class(index) == Some(ParameterClass::Value) && lifted_array(value).is_some())
+        || (reference_array(value) && lifts_over_references(target, form))
 }
+
+/// Whether `target` runs once per reference of an array of references in a formula of `form`.
+fn lifts_over_references(target: Target, form: FormulaForm) -> bool {
+    let spelling = target.0.spelling();
+    match form {
+        FormulaForm::Legacy => LEGACY_LIFTS_OVER_REFERENCES.contains(&spelling),
+        _ => LIFTS_OVER_REFERENCES.contains(&spelling),
+    }
+}
+
+/// The functions that run once per reference of an array of references in a legacy formula
+/// (dc-b1l, the catalogue's dcb1l_language rows, Excel 16.0.20527, 2026-10-30, over 1, 2, 3 in
+/// E1:E3: `=SUM(SUBTOTAL(9,OFFSET(E1,{0;1},0,2)))` is 8, `=SUM(N(OFFSET(E1,{0;1;2},0)))` 6,
+/// `=SUM(SUMIF(OFFSET(E1,{0;1},0,2),">1"))` 7, `=SUMPRODUCT(AREAS(OFFSET(E1,{0;1},0)))` 2). Any
+/// other function given one takes its first reference (`=SUM(OFFSET(E1,{0,1,2},0))` is 1,
+/// `=ROWS(...)` 1, `=ISREF(...)` TRUE, `=SUMPRODUCT(ROW(OFFSET(E1,{0;1},0)))` 1).
+const LEGACY_LIFTS_OVER_REFERENCES: [&str; 6] = ["SUBTOTAL", "SUMIF", "COUNTIF", "AREAS", "N", "T"];
+
+/// Whether `value` is an array holding a reference: OFFSET or INDIRECT lifted over an array
+/// (dc-b1l).
+fn reference_array(value: &CalcValue) -> bool {
+    lifted_array(value).is_some_and(|array| {
+        array
+            .iter_row_major()
+            .any(|element| matches!(element.core_ref(), CoreRef::Reference(_)))
+    })
+}
+
+/// The functions that run once per reference of an array of references given where they take a
+/// reference (dc-b1l, Excel 16.0.20527 through COM, 2026-10-30: `=SUBTOTAL(9,OFFSET(A1,{0;1;2},0,2))`
+/// spills 3|5|7, `=SUMIF(OFFSET(A1,{0;1},0,3),">2")` 3|7, `=N(OFFSET(A1,{0;1;2},0))` 1|2|3, and
+/// COUNTIF, AVERAGEIF, SUMIFS, AREAS, ROW, CELL, INDEX and T likewise).
+const LIFTS_OVER_REFERENCES: [&str; 11] = [
+    "SUBTOTAL", "SUMIF", "COUNTIF", "AVERAGEIF", "SUMIFS", "AREAS", "ROW", "CELL", "INDEX", "N",
+    "T",
+];
+
+/// The functions measured to take an array of references whole (dc-b1l, 2026-10-30): SUM,
+/// AVERAGE and MAX read each reference's first cell (`=SUM(OFFSET(A1,{0;1;2},0,2))` is 6 over
+/// 1..6 in A1:A6), COUNT counts none of them and COUNTA each, ROWS counts the array's rows and
+/// ISREF is FALSE.
+const TAKES_REFERENCE_ARRAYS: [&str; 7] = ["SUM", "AVERAGE", "MAX", "COUNT", "COUNTA", "ROWS", "ISREF"];
 
 /// The first element of `array`, as one value (a blank as Empty).
 fn first_element(array: &CalcArray) -> CalcValue {
@@ -1040,9 +1136,8 @@ fn lifted_array(value: &CalcValue) -> Option<&CalcArray> {
 /// One element's result of a lifted call, as the array of results holds it.
 fn lifted_element(value: CalcValue) -> Result<CalcValue, EvalFault> {
     match value.core_ref() {
-        CoreRef::Reference(_) => Err(not_modelled(
-            "a function lifted over an array whose result is a reference",
-        )),
+        // dc-b1l: OFFSET or INDIRECT lifted over an array gives an array of references.
+        CoreRef::Reference(_) => Ok(value),
         CoreRef::Array(_) if value.callable_value().is_none() => Err(not_modelled(
             "a function lifted over an array whose result is an array",
         )),
@@ -1375,13 +1470,13 @@ mod tests {
                 Ok(CalcValue::number(4.0)),
             ),
             // An argument the evaluation cannot supply stops the call before its function runs: a
-            // range at a place of a legacy formula whose evaluation is not modelled (COUNTIF's
+            // range at a place of a legacy formula whose evaluation is not modelled (COUNTIFS's
             // range, which takes only a reference: Excel refuses to enter the formula).
             (
-                "=COUNTIF(A1:A2+1,1)",
+                "=COUNTIFS(A1:A2+1,1)",
                 three.clone(),
                 &[],
-                evaluated("=COUNTIF(A1:A2+1,1)", three.clone()),
+                evaluated("=COUNTIFS(A1:A2+1,1)", three.clone()),
             ),
             // A product below the normal range, which Excel gives as 0 (dc-b1l).
             (

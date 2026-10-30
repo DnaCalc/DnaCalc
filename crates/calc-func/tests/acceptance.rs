@@ -3662,19 +3662,21 @@ fn cfunc_m1_2__mixed_operands() {
         Ok(CalcValue::number(3.0)),
         "SUM(1, an array holding 1 and an array holding 1)"
     );
+    // A reference held in an array is read at its first cell (dc-b1l: SUM of OFFSET lifted over
+    // an array); without a cell reader the call cannot supply it.
     let held = CalcArray::from_rows(vec![vec![CalcValue::number(1.0), a1_reference()]])
         .expect("a 1-by-2 array");
     let mut given = Recorded::new(vec![CalcValue::number(1.0), CalcValue::array(held)]);
     assert_eq!(
         run(sum, &mut given, &fast),
-        Err(FunctionFault::NotImplemented {
+        Err(FunctionFault::ReferenceUnreadable {
             id: sum.id(),
-            argument: Some(1)
+            index: 1
         }),
         "SUM(1, an array holding 1 and a reference)"
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) is 3 (dc-h9u) and SUM(1, an array holding 1 and a reference) is refused naming the array"
+        "ACCEPT-NOTE: {CASE}: IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) is 3 (dc-h9u) and SUM(1, an array holding 1 and a reference) reads the reference's first cell (dc-b1l), unreadable without a cell reader"
     );
 
     // NumericMode reaches every arithmetic site. Under Exact each call that rounds is refused:
