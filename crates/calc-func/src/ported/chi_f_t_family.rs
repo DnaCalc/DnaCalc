@@ -363,7 +363,7 @@ mod tests {
             assert_eq!(rt.to_bits(), exp.to_bits(), "df=2 rt x={x}");
             let cdf = chisq_dist_kernel(x, 2.0, true).unwrap();
             let expon =
-                crate::ported::discrete_dist_family::expon_dist_kernel(x / 2.0, 1.0, true)
+                crate::ported::discrete_dist::expon_dist_kernel(x / 2.0, 1.0, true)
                     .unwrap();
             assert_eq!(cdf.to_bits(), expon.to_bits(), "df=2 cdf x={x}");
         }
@@ -378,12 +378,12 @@ mod tests {
             let x = 0.5 * f64::from(i);
             let chi4 = chisq_dist_rt_kernel(x, 4.0).unwrap();
             let pois1 =
-                crate::ported::discrete_dist_family::poisson_dist_kernel(1.0, x / 2.0, true)
+                crate::ported::discrete_dist::poisson_dist_kernel(1.0, x / 2.0, true)
                     .unwrap();
             assert_eq!(chi4.to_bits(), pois1.to_bits(), "df=4 x={x}");
             let chi6 = chisq_dist_rt_kernel(x, 6.0).unwrap();
             let pois2 =
-                crate::ported::discrete_dist_family::poisson_dist_kernel(2.0, x / 2.0, true)
+                crate::ported::discrete_dist::poisson_dist_kernel(2.0, x / 2.0, true)
                     .unwrap();
             assert_eq!(chi6.to_bits(), pois2.to_bits(), "df=6 x={x}");
         }
