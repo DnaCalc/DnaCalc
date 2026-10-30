@@ -1102,8 +1102,11 @@ fn bratio_gamln1(a: f64) -> f64 {
     const S5: f64 = 0.116165475989616e-03;
     if a >= 0.6 {
         let x = (a - 0.5) - 0.5;
+        let denominator = crate::ported::excel_numeric::excel_x87_mul_add(
+            (((S5 * x + S4) * x + S3) * x + S2) * x + S1, x, 1.0,
+        );
         let w = (((((R5 * x + R4) * x + R3) * x + R2) * x + R1) * x + R0)
-            / (((((S5 * x + S4) * x + S3) * x + S2) * x + S1) * x + 1.0);
+            / denominator;
         return x * w;
     }
     let w = ((((((P6 * a + P5) * a + P4) * a + P3) * a + P2) * a + P1) * a + P0)
@@ -2133,7 +2136,7 @@ fn bratio_grat1(a: f64, x: f64, r: f64, eps: f64) -> (f64, f64) {
     let mut an0;
     loop {
         a2nm1 = x * a2n + c * a2nm1;
-        b2nm1 = x * b2n + c * b2nm1;
+        b2nm1 = crate::ported::excel_numeric::excel_x87_mul_add(x, b2n, c * b2nm1);
         let am0 = a2nm1 / b2nm1;
         c += 1.0;
         let cma = c - a;

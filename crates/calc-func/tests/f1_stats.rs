@@ -409,6 +409,20 @@ fn small_erf_stores_both_polynomial_additions() {
     }
 }
 
+/// Recorded oc1302 and smallz-0018 extend the same rational model beyond 1e-4.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn small_erf_retains_recorded_curvature_through_the_cubic_terms() {
+    for (input, expected) in [
+        (0x3f1c_0000_0000_0000, 0x3f1f_9838_ca70_8460),
+        (0x3f83_0000_0000_0000, 0x3f85_7047_602b_fba1),
+    ] {
+        for function in ["ERF.PRECISE", "ERF"] {
+            exact(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        }
+    }
+}
+
 /// Recorded beta rows oc1582/oc640 and adjacent FDIST refinement inputs.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -424,4 +438,21 @@ fn beta_and_f_tails_keep_the_recorded_arithmetic_stores() {
         exact(call("FDIST", vec![n(f64::from_bits(x)), n(5.0), n(6.0)]),
             f64::from_bits(0x3fd9_d035_ed43_a9d5));
     }
+}
+
+/// Recorded oc162/oc2552 distinguish the carries; fcdf-discovery-162 rejects an ALNREL carry.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_normalizer_and_fraction_carry_selected_products_into_the_sum() {
+    exact(call("BETA.DIST", vec![n(0.75), n(50.0), n(0.2), b(true)]),
+        f64::from_bits(0x3e50_c82c_2ab0_a678));
+    exact(call("BETA.DIST", vec![
+        n(f64::from_bits(0x3ffb_33f9_cca7_6a46)),
+        n(f64::from_bits(0x400d_2340_d24a_6dd6)),
+        n(f64::from_bits(0x4010_8821_4494_de74)), b(true),
+        n(f64::from_bits(0xbfec_78fe_89bf_57d0)),
+        n(f64::from_bits(0x4010_2ad2_a17e_4f43)),
+    ]), f64::from_bits(0x3fe4_0a1a_47f6_ea10));
+    exact(call("F.DIST", vec![n(f64::from_bits(0x3ff5_3020_c3d3_d95f)), n(4.0), n(11.0), b(true)]),
+        f64::from_bits(0x3fe5_bb90_637b_4cd0));
 }

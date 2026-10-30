@@ -522,6 +522,14 @@ pub(crate) fn excel_x87_mul(a: f64, b: f64) -> f64 {
     }
 }
 
+/// `RN53(RN64(RN64(a * b) + c))`: carry the PC64 product into the sum,
+/// then store once to binary64. Both x87 operations use the same backend
+/// on native and portable targets, with no binary64 store between them.
+pub(crate) fn excel_x87_mul_add(a: f64, b: f64, c: f64) -> f64 {
+    let product = Native::mul(&load(a), &load(b), CW);
+    Native::store(&Native::add(&product, &load(c), CW), CW)
+}
+
 /// `RN53(RN64(a / b))` — the x87 double-rounded quotient (W109: XNPV's
 /// per-term `value / pow`). Bit-exact to 64-bit Excel on `x86_64`.
 pub(crate) fn excel_x87_div(a: f64, b: f64) -> f64 {
