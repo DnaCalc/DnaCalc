@@ -434,7 +434,9 @@ fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 }
 
 /// ASC and DBCS change character widths only under a double-byte language; under every other
-/// profile Excel gives the text as it is (Excel: ASC("ＡＢＣ") is ＡＢＣ under en-ZA).
+/// profile Excel gives the text as it is (Excel 16.0.20527 under en-ZA, the catalogue's sheet
+/// dczsn3_bytes: full-width and half-width forms, kana, CJK and Hangul are kept). Under the
+/// ja-JP, ko-KR and zh-CN profiles they are refused (bead dc-zsn.3).
 fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let (_, profile) = profile(site)?;
     if matches!(

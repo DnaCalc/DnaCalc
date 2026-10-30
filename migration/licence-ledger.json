@@ -3078,6 +3078,16 @@
    "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)"
   },
   {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dczsn2_collation.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dczsn3_bytes.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)"
+  },
+  {
    "path": "crates/calc-func/tests/fixtures/catalogue/sheet-f1_power.txt",
    "class": "own-work",
    "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",

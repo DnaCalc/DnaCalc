@@ -15,6 +15,7 @@
 use super::kit::{Grid, fail, grid, num, out, out_text, text_arg};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
+use crate::locale::LocaleId;
 use crate::ported::text_kernels as k;
 use crate::value::{
     CalcValue, CoreRef, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, WorksheetErrorCode,
@@ -30,6 +31,19 @@ fn cased(site: &Site<'_>, a: &[CalcValue], kernel: fn(&ExcelText) -> ExcelText) 
         return Err(site.not_modelled(Some(0)));
     }
     Ok(CalcValue::text(kernel(&text)))
+}
+
+/// The byte functions (LENB, LEFTB, RIGHTB, MIDB, FINDB, SEARCHB, REPLACEB) count as their
+/// character twins do (Excel 16.0.20527 under en-ZA, the catalogue's sheet dczsn3_bytes), unless
+/// the language is a double-byte one, where Excel counts a double-byte character as two bytes:
+/// refused under the ja-JP, ko-KR and zh-CN profiles (bead dc-zsn.3).
+fn single_byte(site: &Site<'_>) -> Step<()> {
+    match site.environment().and_then(|e| e.profile.as_ref()) {
+        Some(p) if matches!(p.id, LocaleId::JaJp | LocaleId::KoKr | LocaleId::ZhCn) => {
+            Err(site.not_modelled(None))
+        }
+        _ => Ok(()),
+    }
 }
 
 /// The optional count of LEFT, RIGHT, LEFTB and RIGHTB: 1 when the call does not reach it.
@@ -241,12 +255,13 @@ ported_family! {
     7 right_fn "RIGHT" (1, 2) [V "text", V "num_chars"] |s, a, sv| { right(s, a) }
     8 mid_fn "MID" (3, 3) [V "text", V "start_num", V "num_chars"] |s, a, sv| { mid(s, a) }
     9 lenb_fn "LENB" (1, 1) [V "text"] |s, a, sv| {
+        single_byte(s)?;
         let text = text_arg(s, a, 0)?;
         s.number(text.len_utf16_code_units() as f64)
     }
-    10 leftb_fn "LEFTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { left(s, a) }
-    11 rightb_fn "RIGHTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { right(s, a) }
-    12 midb_fn "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] |s, a, sv| { mid(s, a) }
+    10 leftb_fn "LEFTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { single_byte(s)?; left(s, a) }
+    11 rightb_fn "RIGHTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { single_byte(s)?; right(s, a) }
+    12 midb_fn "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] |s, a, sv| { single_byte(s)?; mid(s, a) }
     13 upper_fn "UPPER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::upper) }
     14 lower_fn "LOWER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::lower) }
     15 proper_fn "PROPER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::proper) }
@@ -269,13 +284,14 @@ ported_family! {
         Ok(CalcValue::logical(left.utf16_code_units() == right.utf16_code_units()))
     }
     20 find_fn "FIND" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { find(s, a) }
-    21 findb_fn "FINDB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { find(s, a) }
+    21 findb_fn "FINDB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { single_byte(s)?; find(s, a) }
     22 search_fn "SEARCH" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { search(s, a) }
-    23 searchb_fn "SEARCHB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { search(s, a) }
+    23 searchb_fn "SEARCHB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { single_byte(s)?; search(s, a) }
     24 replace_fn "REPLACE" (4, 4) [V "old_text", V "start_num", V "num_chars", V "new_text"] |s, a, sv| {
         replace(s, a)
     }
     25 replaceb_fn "REPLACEB" (4, 4) [V "old_text", V "start_num", V "num_bytes", V "new_text"] |s, a, sv| {
+        single_byte(s)?;
         replace(s, a)
     }
     26 substitute_fn "SUBSTITUTE" (3, 4) [V "text", V "old_text", V "new_text", V "instance_num"] |s, a, sv| {

@@ -49,8 +49,9 @@ decide.
 - **Own data:** Excel's measured outputs (`x87_excel_ground_truth.tsv`, test-only), the
   icons, drawn here (`apps/dna-calc/src/grid/icons.rs`), and the measured departures of Windows'
   text comparison from the CLDR root order (`calc-func/src/catalogue/comparison/windows_collation.rs`,
-  dc-zsn.1: about 1,500 facts, each about one code unit, one root weight or one range, measured
-  through `LCMapStringEx`; no Windows table is copied, and the order between the departures comes
+  dc-zsn.1 and dc-zsn.2: about 18,800 facts over every UTF-16 code unit, 6,400 of them the private
+  use area's, each about one code unit, one root weight or one range, measured through
+  `LCMapStringEx`; no Windows table or file is copied, and the order between the departures comes
   from the Unicode data).
 
 ## 3. Problems the owner must rule on before the first public binary

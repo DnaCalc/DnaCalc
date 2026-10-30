@@ -1,5 +1,6 @@
 //! `cargo xtask collation generate` and `cargo xtask collation verify [--count <n>] [--seed <n>]`:
-//! the tables behind calc-func's text collation and its check against Windows (bead dc-zsn.1).
+//! the tables behind calc-func's text collation and its check against Windows (beads dc-zsn.1
+//! and dc-zsn.2).
 //!
 //! Excel compares two texts (the comparison operators, XMATCH, XLOOKUP, LOOKUP, an approximate
 //! MATCH, SORT, a criterion) in two passes: its own pass over the code units up to `z`, then the
@@ -21,13 +22,21 @@
 //!   the code units covered; the Windows group each run of root primaries falls in; the root
 //!   primaries Windows orders otherwise than the root does (each placed after the primary it
 //!   follows in Windows' order); the diacritic weight Windows gives each root secondary; the
-//!   special units (the hyphen, the apostrophe, the controls); the surrogate ranges; and the
-//!   code units whose weights Windows gives otherwise than the rules derive (each with its
-//!   weights stated).
+//!   special units (the hyphen, the apostrophe, the controls); the surrogate ranges; the code
+//!   units whose weights Windows gives otherwise than the rules derive (each with its weights
+//!   stated); the composites whose keys are malformed (a 0x00 diacritic byte), each with the
+//!   decomposition `CompareStringEx` compares it as (measured in five contexts); the iteration and
+//!   prolonged-sound marks; and the primary such a mark takes after each unit, where it is not the
+//!   unit's own (measured after every code unit).
 //!
-//! A code unit outside the covered ranges (most symbol blocks, the scripts not listed, the
-//! private use area) is refused, and a text holding one is not decided. The covered ranges are
-//! those whose departures from the root order are few.
+//! Every code unit but U+0000 is covered (dc-zsn.2; dc-zsn.1 covered the scripts whose departures
+//! from the root order are few). Refused, so that a text holding one is not decided: the Hangul
+//! conjoining jamo (which Windows composes with each other), U+30A0 (which `CompareStringEx` orders
+//! before a repeated unit, against its key) and the units compared as marks alone (isolated and
+//! medial forms of Arabic marks, into which calc-func's diacritic walk is not modelled); calc-func
+//! also refuses an iteration mark after a unit whose repeat the key writes otherwise (a Han
+//! character) or after a special, where `CompareStringEx` departs from the key. The diacritic level is not read from the keys: `CompareStringEx` walks it, and
+//! calc-func's walk was measured with `verify` (see sort_key.rs).
 //!
 //! `generate` checks that the rules and the exceptions give every covered unit the weights
 //! Windows gives it, up to the order of the primary weights; `verify` draws random texts from pools
@@ -95,7 +104,7 @@ mod windows {
         NORM_IGNORECASE, U_DT_NARROW, U_DT_WIDE, U_UNICODE_CHAR_NAME, UCHAR_DECOMPOSITION_TYPE,
         u_charAge, u_charName, u_getIntPropertyValue, u_getUnicodeVersion, ucol_close,
         ucol_closeElements, ucol_getVersion, ucol_next, ucol_open, ucol_openElements,
-        unorm2_getNFDInstance, unorm2_normalize,
+        unorm2_getNFDInstance, unorm2_getNFKDInstance, unorm2_normalize,
     };
 
     // --- Windows -----------------------------------------------------------------------------
@@ -133,7 +142,8 @@ mod windows {
     }
 
     /// Excel's order of two texts: its pass over the units up to `z` (letters ignoring case), then
-    /// `CompareStringEx` with `NORM_IGNORECASE`.
+    /// `CompareStringEx` with `NORM_IGNORECASE` of the rest (measured: Excel orders `a` and U+30FC
+    /// after `ab`).
     fn excel_order(a: &[u16], b: &[u16]) -> Ordering {
         let fold = |code: u16| {
             if (0x61..=0x7A).contains(&code) {
@@ -142,35 +152,54 @@ mod windows {
                 code
             }
         };
-        let compare = || {
-            let locale = wide(LOCALE);
-            // SAFETY: the locale is NUL-terminated and each text holds its stated length.
-            let result = unsafe {
-                CompareStringEx(
-                    locale.as_ptr(),
-                    NORM_IGNORECASE,
-                    a.as_ptr(),
-                    a.len() as i32,
-                    b.as_ptr(),
-                    b.len() as i32,
-                    std::ptr::null(),
-                    std::ptr::null(),
-                    0,
-                )
-            };
-            match result {
-                1 => Ordering::Less,
-                2 => Ordering::Equal,
-                3 => Ordering::Greater,
-                _ => panic!("CompareStringEx failed"),
-            }
-        };
-        for (&x, &y) in a.iter().zip(b) {
+        for (at, (&x, &y)) in a.iter().zip(b).enumerate() {
             if x > 0x7A || y > 0x7A || fold(x) != fold(y) {
-                return compare();
+                return compare_string(&a[at..], &b[at..]);
             }
         }
         a.len().cmp(&b.len())
+    }
+
+    /// `CompareStringEx` under the locale with `NORM_IGNORECASE`.
+    fn compare_string(a: &[u16], b: &[u16]) -> Ordering {
+        let locale = wide(LOCALE);
+        // SAFETY: the locale is NUL-terminated and each text holds its stated length.
+        let result = unsafe {
+            CompareStringEx(
+                locale.as_ptr(),
+                NORM_IGNORECASE,
+                a.as_ptr(),
+                a.len() as i32,
+                b.as_ptr(),
+                b.len() as i32,
+                std::ptr::null(),
+                std::ptr::null(),
+                0,
+            )
+        };
+        match result {
+            1 => Ordering::Less,
+            2 => Ordering::Equal,
+            3 => Ordering::Greater,
+            _ => panic!("CompareStringEx failed"),
+        }
+    }
+
+    /// The kana section's lists (small, iteration, type, width) of a key's extra section, or
+    /// `None` when it has another form.
+    fn kana_lists(extra: &[u8]) -> Option<[Vec<u8>; 4]> {
+        let first = extra.iter().position(|&b| b == 0xFF)?;
+        let small = extra[..first].to_vec();
+        let rest = &extra[first + 1..];
+        let two = rest.iter().position(|&b| b == 0x02)?;
+        let iteration = rest[..two].to_vec();
+        let rest = &rest[two + 1..];
+        let second = rest.iter().position(|&b| b == 0xFF)?;
+        let kind = rest[..second].to_vec();
+        let rest = &rest[second + 1..];
+        let third = rest.iter().position(|&b| b == 0xFF)?;
+        let width = rest[..third].to_vec();
+        (third + 1 == rest.len()).then_some([small, iteration, kind, width])
     }
 
     /// A key's sections: primary, diacritic, case, extra (kana) and special.
@@ -194,6 +223,18 @@ mod windows {
         Refused,
         Mark(u8),
         Special([u8; 2]),
+        /// A unit `CompareStringEx` compares as this sequence of units (its key is malformed);
+        /// `false` when the sequence is its compatibility decomposition without the leading space.
+        Expansion(Vec<u16>, bool),
+        /// An iteration or prolonged-sound mark: the primary of the unit before it (its vowel's
+        /// when `vowel`, for a kana), with its own diacritic entry, its iteration weight in the
+        /// kana section, and its own width weight or (`None`) the width of the unit before it.
+        Iteration {
+            vowel: bool,
+            diacritic: u8,
+            iteration: u8,
+            width: Option<u8>,
+        },
         Weighted {
             /// The primary weights, each one Windows token (see [`tokens`]).
             primary: Vec<Vec<u8>>,
@@ -225,8 +266,7 @@ mod windows {
     }
 
     /// Units Windows' keys do not decide: U+0000 (Windows ignores it; Excel gives no formula a
-    /// way to make it), Hangul conjoining jamo, which compose with each other, and the Arabic
-    /// presentation forms, among which CompareStringEx departs from the keys' bytes.
+    /// way to make it) and Hangul conjoining jamo, which compose with each other.
     fn refused_block(code: u16) -> bool {
         matches!(
             code,
@@ -234,8 +274,6 @@ mod windows {
                 | 0x1100..=0x11FF
                 | 0xA960..=0xA97F
                 | 0xD7B0..=0xD7FF
-                | 0xFB50..=0xFDFF
-                | 0xFE70..=0xFEFE
         )
     }
 
@@ -340,6 +378,7 @@ mod windows {
     struct Icu {
         collator: *mut isize,
         nfd: *mut isize,
+        nfkd: *mut isize,
     }
 
     impl Icu {
@@ -358,9 +397,17 @@ mod windows {
                 status <= 0 && !nfd.is_null(),
                 "unorm2_getNFDInstance failed"
             );
+            let mut status = 0;
+            // SAFETY: the status is written.
+            let nfkd = unsafe { unorm2_getNFKDInstance(&mut status) };
+            assert!(
+                status <= 0 && !nfkd.is_null(),
+                "unorm2_getNFKDInstance failed"
+            );
             Icu {
                 collator: collator.cast(),
                 nfd: nfd.cast(),
+                nfkd: nfkd.cast(),
             }
         }
 
@@ -421,12 +468,20 @@ mod windows {
         }
 
         fn nfd(&self, code: u16) -> Vec<u16> {
+            self.normalize(self.nfd, code)
+        }
+
+        fn nfkd(&self, code: u16) -> Vec<u16> {
+            self.normalize(self.nfkd, code)
+        }
+
+        fn normalize(&self, instance: *mut isize, code: u16) -> Vec<u16> {
             let mut out = [0u16; 32];
             let mut status = 0;
             // SAFETY: one source unit; the destination holds 32.
             let n = unsafe {
                 unorm2_normalize(
-                    self.nfd.cast(),
+                    instance.cast(),
                     &code,
                     1,
                     out.as_mut_ptr(),
@@ -567,37 +622,8 @@ mod windows {
 
     // --- the model ------------------------------------------------------------------------------
 
-    /// The code units covered: the scripts and blocks whose departures from the root order are
-    /// few (measured: the exception counts `generate` prints), the characters of Windows code
-    /// page 1252 outside them (U+02C6, U+02DC, U+2122), U+FEFF, and the special units wherever
-    /// they are.
-    const COVERED: [(u16, u16); 25] = [
-        (0x0001, 0x007F),
-        (0x0080, 0x024F),
-        (0x02C6, 0x02C6),
-        (0x02DC, 0x02DC),
-        (0x0300, 0x036F),
-        (0x0370, 0x03FF),
-        (0x0400, 0x052F),
-        (0x0530, 0x058F),
-        (0x0590, 0x05FF),
-        (0x0600, 0x06FF),
-        (0x0900, 0x097F),
-        (0x0E00, 0x0E7F),
-        (0x1E00, 0x1FFF),
-        (0x2000, 0x206F),
-        (0x20A0, 0x20CF),
-        (0x2122, 0x2122),
-        (0x3000, 0x30FF),
-        (0x3400, 0x4DBF),
-        (0x4E00, 0x9FFF),
-        (0xAC00, 0xD7A3),
-        (0xD800, 0xDFFF),
-        (0xF900, 0xFAFF),
-        (0xFEFF, 0xFEFF),
-        (0xFF00, 0xFF9F),
-        (0xFFE0, 0xFFEF),
-    ];
+    /// The code units covered: every one but U+0000.
+    const COVERED: [(u16, u16); 1] = [(0x0001, 0xFFFF)];
 
     /// Windows' script bytes that hold one run of a rule's primaries (Hangul's 0xC0 to 0xEC, the
     /// low surrogates' 0xB4 to 0xB8, ...): one group each.
@@ -688,7 +714,126 @@ mod windows {
 
     pub fn generate() -> ExitCode {
         let icu = Icu::open();
-        let windows: Vec<Unit> = (0u32..=0xFFFF).map(|c| windows_unit(c as u16)).collect();
+        let mut windows: Vec<Unit> = (0u32..=0xFFFF).map(|c| windows_unit(c as u16)).collect();
+
+        // Iteration and prolonged-sound marks: a unit whose key alone is the primary FF FF and
+        // which, after KA (U+304B), repeats KA's primary or gives A's (U+3042), and which
+        // CompareStringEx does not order before a repeated `a` after `a`. Its width weight is its own
+        // unless after a narrow KA (U+FF76) it is the narrow one.
+        let first_token = |units: &[u16]| tokens(&sections(&key(units))[0]);
+        let ka_token = first_token(&[0x304B])[0].clone();
+        let a_token = first_token(&[0x3042])[0].clone();
+        let none_token = vec![0xFFu8, 0xFF];
+        for c in 1u32..=0xFFFF {
+            let c = c as u16;
+            if refused_block(c) || first_token(&[c]) != [none_token.clone()] {
+                continue;
+            }
+            let after_ka = sections(&key(&[0x304B, c]));
+            let after_narrow = sections(&key(&[0xFF76, c]));
+            let t = tokens(&after_ka[0]);
+            let vowel = match t.as_slice() {
+                [x, y] if *x == ka_token && *y == ka_token => false,
+                [x, y] if *x == ka_token && *y == a_token => true,
+                _ => continue,
+            };
+            // CompareStringEx itself must repeat the unit before it, at most with a diacritic
+            // (U+30A0 orders before a repeated `a`).
+            if compare_string(&[0x61, c], &[0x61, 0x61]) == Ordering::Less {
+                continue;
+            }
+            let (Some(lists), Some(narrow)) =
+                (kana_lists(&after_ka[3]), kana_lists(&after_narrow[3]))
+            else {
+                continue;
+            };
+            let entry =
+                |list: &[u8], at: usize, default: u8| list.get(at).copied().unwrap_or(default);
+            let own_width = entry(&lists[3], 1, 0xC5);
+            let narrow_width = entry(&narrow[3], 1, 0xC5);
+            windows[usize::from(c)] = Unit::Iteration {
+                vowel,
+                diacritic: entry(&after_ka[1], 1, 2),
+                iteration: entry(&lists[1], 1, 3),
+                width: (narrow_width == own_width).then_some(own_width),
+            };
+        }
+
+        // Units whose keys are malformed: CompareStringEx compares them as their canonical or
+        // compatibility decomposition (measured, in five contexts), or as the compatibility
+        // decomposition without its leading space.
+        for c in 1u32..=0xFFFF {
+            let c = c as u16;
+            if windows[usize::from(c)] != Unit::Refused || refused_block(c) {
+                continue;
+            }
+            let nfkd = icu.nfkd(c);
+            let mut candidates = vec![icu.nfd(c), nfkd.clone()];
+            if nfkd.first() == Some(&0x20) {
+                candidates.push(nfkd[1..].to_vec());
+            }
+            for (n, candidate) in candidates.into_iter().enumerate() {
+                if candidate.len() < 2
+                    || candidate.iter().any(|&u| {
+                        matches!(
+                            windows[usize::from(u)],
+                            Unit::Refused | Unit::Expansion(..) | Unit::Iteration { .. }
+                        )
+                    })
+                {
+                    continue;
+                }
+                let contexts: [(&[u16], &[u16]); 5] = [
+                    (&[], &[]),
+                    (&[0x62], &[0x63]),
+                    (&[0x5D0], &[0x301]),
+                    (&[0x2D], &[]),
+                    (&[0x301], &[0x61]),
+                ];
+                if contexts.iter().all(|(before, after)| {
+                    let x = [*before, &[c], *after].concat();
+                    let y = [*before, candidate.as_slice(), *after].concat();
+                    compare_string(&x, &y) == Ordering::Equal
+                }) {
+                    // One of marks alone (an isolated or medial form of Arabic marks) stays
+                    // refused: calc-func's diacritic walk does not model the runs into it.
+                    let weighted = candidate
+                        .iter()
+                        .any(|&u| matches!(windows[usize::from(u)], Unit::Weighted { .. }));
+                    if weighted {
+                        windows[usize::from(c)] = Unit::Expansion(candidate, n < 2);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // The primary an iteration mark takes after each unit of one primary (measured with
+        // U+309D, and with U+30FC for the prolonged-sound marks): that primary, but where measured
+        // otherwise. After anything else (nothing, a unit of several primaries) it is FF FF; after
+        // a special calc-func refuses it.
+        let mut repeat_after: BTreeMap<u16, Vec<u8>> = BTreeMap::new();
+        let mut vowel_after: BTreeMap<u16, Vec<u8>> = BTreeMap::new();
+        for c in 1u32..=0xFFFF {
+            let c = c as u16;
+            let own = match &windows[usize::from(c)] {
+                Unit::Weighted { primary, .. } if primary.len() == 1 => primary[0].clone(),
+                _ => continue,
+            };
+            let after = |m: u16| -> Option<Vec<u8>> {
+                let t = tokens(&sections(&key(&[c, m]))[0]);
+                (t.len() == 2).then(|| t[1].clone())
+            };
+            let (Some(repeat), Some(vowel)) = (after(0x309D), after(0x30FC)) else {
+                continue;
+            };
+            if repeat != own {
+                repeat_after.insert(c, repeat.clone());
+            }
+            if vowel != repeat {
+                vowel_after.insert(c, vowel);
+            }
+        }
         let specials: BTreeMap<u16, [u8; 2]> = windows
             .iter()
             .enumerate()
@@ -867,6 +1012,15 @@ mod windows {
                         extra.insert(w.clone());
                     }
                 }
+            }
+        }
+        for w in repeat_after
+            .values()
+            .chain(vowel_after.values())
+            .chain(std::iter::once(&none_token))
+        {
+            if !known.contains(w) {
+                extra.insert(w.clone());
             }
         }
         let mut by_group: BTreeMap<u8, Vec<u64>> = BTreeMap::new();
@@ -1057,7 +1211,7 @@ mod windows {
             }
         }
         let root_source = format!(
-            "// @generated by `cargo xtask collation generate` (bead dc-zsn.1). Do not edit by hand.\n\
+            "// @generated by `cargo xtask collation generate` (beads dc-zsn.1 and dc-zsn.2). Do not edit by hand.\n\
              //\n\
              // Unicode data only: the CLDR root collation (the Unicode Collation Algorithm's default\n\
              // order as CLDR gives it; {}), read from the ICU that Windows ships,\n\
@@ -1094,6 +1248,30 @@ mod windows {
             match unit {
                 Unit::Ignorable => exception_data.push(0),
                 Unit::Refused => exception_data.push(1),
+                Unit::Expansion(units, whole) => {
+                    exception_data.extend_from_slice(&[5, u8::from(*whole)]);
+                    varint(&mut exception_data, units.len() as u64);
+                    for u in units {
+                        varint(&mut exception_data, u64::from(*u));
+                    }
+                }
+                Unit::Iteration {
+                    vowel,
+                    diacritic,
+                    iteration,
+                    width,
+                } => {
+                    exception_data.extend_from_slice(&[
+                        6,
+                        u8::from(*vowel),
+                        *diacritic,
+                        *iteration,
+                    ]);
+                    match width {
+                        None => exception_data.push(0),
+                        Some(w) => exception_data.extend_from_slice(&[1, *w]),
+                    }
+                }
                 Unit::Mark(w) => exception_data.extend_from_slice(&[2, *w]),
                 Unit::Special([a, b]) => exception_data.extend_from_slice(&[3, *a, *b]),
                 Unit::Weighted {
@@ -1107,7 +1285,9 @@ mod windows {
                     for w in primary {
                         varint(&mut exception_data, token_id(w));
                     }
+                    varint(&mut exception_data, diacritic.len() as u64);
                     exception_data.extend_from_slice(diacritic);
+                    varint(&mut exception_data, case.len() as u64);
                     exception_data.extend_from_slice(case);
                     match kana {
                         None => exception_data.push(0),
@@ -1130,7 +1310,7 @@ mod windows {
         let mut secondary_rows: Vec<(u32, u8)> = secondary.iter().map(|(s, w)| (*s, *w)).collect();
         secondary_rows.sort();
         let windows_source = format!(
-            "// @generated by `cargo xtask collation generate` (bead dc-zsn.1). Do not edit by hand.\n\
+            "// @generated by `cargo xtask collation generate` (beads dc-zsn.1 and dc-zsn.2). Do not edit by hand.\n\
              //\n\
              // What was measured of Windows' sort keys under {LOCALE} with NORM_IGNORECASE ({}),\n\
              // through LCMapStringEx on the machine Excel was measured on: the ways Windows departs\n\
@@ -1150,9 +1330,13 @@ mod windows {
              // EXCEPTIONS is base64 of {} records ({} bytes), one for each covered code unit whose\n\
              // Windows weights the rules do not give, in code unit order: the code unit less the one\n\
              // before (a varint); a tag (0 ignorable, 1 refused, 2 a mark and its weight, 3 a special\n\
-             // and its two weights, 4 weighted: the count of its primaries and each (varints), then a\n\
-             // diacritic and a case weight for each, then 0, or 1 and its small, type and width kana\n\
-             // weights).\n\n\
+             // and its two weights, 4 weighted: the count of its primaries and each (varints), the\n\
+             // count of its diacritic entries (a varint) and each, the count of its case entries and\n\
+             // each, then 0, or 1 and its small, type and width kana weights; 5 an expansion: 1\n\
+             // for a whole decomposition (0 for one without its leading space), the count of its\n\
+             // units and each (varints), the sequence CompareStringEx compares it as; 6\n\
+             // an iteration mark: 1 for a prolonged-sound mark (the vowel), its diacritic entry, its\n\
+             // iteration weight, then 0 (the width of the unit before it), or 1 and its own width).\n\n\
              {}{}{}{}{}{}{}\
              pub(super) const EXCEPTIONS: &str = concat!(\n{});\n",
             nls_version(),
@@ -1218,6 +1402,42 @@ mod windows {
                     .collect()
             ),
             base64_lines(&exception_data),
+        );
+        // The iteration marks' primaries, as primaries of the order above.
+        let mut repeat_ranges: Vec<(u16, u16, u64)> = Vec::new();
+        for (c, w) in &repeat_after {
+            let id = token_id(w);
+            match repeat_ranges.last_mut() {
+                Some((_, last, t)) if *t == id && *last + 1 == *c => *last = *c,
+                _ => repeat_ranges.push((*c, *c, id)),
+            }
+        }
+        let windows_source = format!(
+            "{windows_source}\n\
+             // The primary an iteration or prolonged-sound mark takes (measured with U+309D and\n\
+             // U+30FC after each unit): after a unit of one primary, that primary, but for the units\n\
+             // of REPEAT (ranges, whose repeat the key writes otherwise) and, for a prolonged-sound\n\
+             // mark, of VOWEL; after nothing or a unit of several primaries, NO_REPEAT. Marks and\n\
+             // ignorable units between are passed, and so are other iteration marks.\n\n\
+             {}{}\
+             pub(super) const NO_REPEAT: u64 = 0x{:X};\n",
+            list(
+                "REPEAT",
+                "(u16, u16, u64)",
+                repeat_ranges
+                    .iter()
+                    .map(|(a, b, t)| format!("(0x{a:04X}, 0x{b:04X}, 0x{t:X})"))
+                    .collect()
+            ),
+            list(
+                "VOWEL",
+                "(u16, u64)",
+                vowel_after
+                    .iter()
+                    .map(|(c, w)| format!("(0x{c:04X}, 0x{:X})", token_id(w)))
+                    .collect()
+            ),
+            token_id(&none_token),
         );
         for (path, source) in [(ROOT_OUT, &root_source), (WINDOWS_OUT, &windows_source)] {
             if let Err(error) = std::fs::write(path, source) {
@@ -1306,12 +1526,51 @@ mod windows {
                 "surrogates",
                 [range(0xD800, 0xDFFF), range(0x61, 0x7A)].concat(),
             ),
+            (
+                "ascii and iteration marks",
+                vec![
+                    0x61, 0x62, 0x41, 0x2D, 0x301, 0x30FC, 0xFF70, 0x309D, 0x309E, 0x3005, 0x304B,
+                    0x30AB, 0xFF76, 0x6642,
+                ],
+            ),
+            (
+                "marks, specials and ignorables",
+                vec![
+                    0x61, 0x62, 0x65, 0x41, 0xE1, 0xE6, 0x301, 0x300, 0x308, 0x30F, 0x327, 0x2D,
+                    0x27, 0xAD, 0x200B, 0xE000, 0x5D0, 0x5B4, 0x3099, 0x304B,
+                ],
+            ),
+            (
+                "arabic presentation",
+                [
+                    range(0x600, 0x6FF),
+                    range(0xFB50, 0xFDFF),
+                    range(0xFE70, 0xFEFF),
+                ]
+                .concat(),
+            ),
+            (
+                "hebrew presentation",
+                [range(0x590, 0x5FF), range(0xFB1D, 0xFB4F)].concat(),
+            ),
+            (
+                "private use",
+                [
+                    range(0xE000, 0xF8FF),
+                    range(0x61, 0x7A),
+                    range(0x300, 0x36F),
+                ]
+                .concat(),
+            ),
+            ("other scripts", range(0x1000, 0x1FFF)),
+            ("yi, vai and the rest", range(0xA000, 0xABFF)),
             ("every unit", range(0x0001, 0xFFFF)),
         ];
         let mut draws = Draws(seed);
         let mut failed = false;
         for (name, pool) in &pools {
             let (mut decided, mut refused, mut wrong) = (0u32, 0u32, 0u32);
+            let mut reasons: BTreeMap<String, u32> = BTreeMap::new();
             let mut example = None;
             for _ in 0..count {
                 let text = |draws: &mut Draws| -> Vec<u16> {
@@ -1329,7 +1588,25 @@ mod windows {
                     text(&mut draws)
                 };
                 match calc_func::text_order(&a, &b) {
-                    None => refused += 1,
+                    None => {
+                        refused += 1;
+                        {
+                            for t in [&a, &b] {
+                                let units: Vec<u16> = t
+                                    .iter()
+                                    .copied()
+                                    .filter(|&u| calc_func::text_order(&[u], &[0x7C]).is_none())
+                                    .collect();
+                                if !units.is_empty() {
+                                    for u in units {
+                                        *reasons.entry(format!("unit {u:04X}")).or_default() += 1;
+                                    }
+                                } else if calc_func::text_order(t, &[0x7C]).is_none() {
+                                    *reasons.entry(format!("context {t:04X?}")).or_default() += 1;
+                                }
+                            }
+                        }
+                    }
                     Some(order) => {
                         decided += 1;
                         if order != excel_order(&a, &b) {
@@ -1342,6 +1619,26 @@ mod windows {
             println!(
                 "xtask collation: {name}: {decided} pairs decided, {refused} refused, {wrong} wrong"
             );
+            if !reasons.is_empty() {
+                let mut v: Vec<_> = reasons.iter().collect();
+                v.sort_by(|x, y| y.1.cmp(x.1));
+                let units: Vec<String> = v
+                    .iter()
+                    .filter(|(k, _)| k.starts_with("unit"))
+                    .take(40)
+                    .map(|(k, n)| format!("{}:{n}", &k[5..]))
+                    .collect();
+                let ctx: Vec<&String> = v
+                    .iter()
+                    .filter(|(k, _)| k.starts_with("context"))
+                    .take(8)
+                    .map(|(k, _)| *k)
+                    .collect();
+                println!("  refused units: {}", units.join(" "));
+                for c in ctx {
+                    println!("  {c}");
+                }
+            }
             if let Some((a, b)) = example {
                 println!("  first wrong pair: {a:04X?} / {b:04X?}");
                 failed = true;

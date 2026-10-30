@@ -301,6 +301,11 @@ $FormulaSheets += , @('dcb1l_language', 'sheet-dcb1l_language.txt')
 $FormulaSheets += , @('dczsn1_collation', 'sheet-dczsn1_collation.txt')
 # dc-fl2: the text functions over surrogates and the 32,767-unit limit.
 $FormulaSheets += , @('dcfl2_text', 'sheet-dcfl2_text.txt')
+# dc-zsn.2: text comparison over every block (symbols, private use, the other scripts,
+# combining marks the walk decides, iteration marks, decompositions).
+$FormulaSheets += , @('dczsn2_collation', 'sheet-dczsn2_collation.txt')
+# dc-zsn.3: ASC, DBCS and the byte functions under a language that is not double-byte.
+$FormulaSheets += , @('dczsn3_bytes', 'sheet-dczsn3_bytes.txt')
 # dc-h9u: the functions OxFunc has and calc-func lacked (PERCENTOF, TRIMRANGE first).
 $PrefixSections += 'prefix-h9u.txt'
 $FormulaSheets += , @('dch9u_functions', 'sheet-dch9u.txt')

@@ -19,11 +19,11 @@
 //! from 1E-146 or 1E-292 to a relative 2^-8 above it.
 //!
 //! Two texts compare as [`collation::compare`] states: Excel's own pass over ASCII, then Windows'
-//! comparison under the locale en-ZA ignoring case, over the covered scripts and blocks (dc-zsn.1).
-//! Texts with the same code units are equal. Text holding a code unit the collation does not build
-//! a sort key for (outside the covered scripts and blocks, Hangul conjoining jamo, the iteration
-//! marks) is refused as not modelled, naming the operand that holds the first one ([`Beyond`]),
-//! unless the texts are the same.
+//! comparison under the locale en-ZA ignoring case, over every code unit (dc-zsn.1, dc-zsn.2).
+//! Texts with the same code units are equal. Text the collation builds no weights for (see
+//! [`collation`]: U+0000, the Hangul conjoining jamo, U+30A0, the isolated and medial forms of
+//! Arabic marks, an iteration mark after a Han character or a special) is refused as not modelled,
+//! naming the operand that holds it ([`Beyond`]), unless the texts are the same.
 
 mod collation;
 mod root_collation;
@@ -97,7 +97,7 @@ pub(super) enum Want {
 }
 
 /// Why [`texts`] does not decide two texts: `operand` (0 for the first, 1 for the second) holds a
-/// code unit the collation builds no sort key for. The comparison operators refuse the pair as not
+/// code unit the collation builds no weights for. The comparison operators refuse the pair as not
 /// modelled, naming that operand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Beyond {
@@ -381,14 +381,18 @@ pub(crate) fn text_order(a: &[u16], b: &[u16]) -> Option<Ordering> {
 }
 
 /// A key under which texts the comparison operators hold equal always fall together, for a
-/// grouping that compares only the texts sharing a key (UNIQUE): the sort key the second pass
-/// compares (texts the first pass holds equal differ in ASCII case alone, which the key ignores),
-/// or `None` when the collation builds none for `text`.
+/// grouping that compares only the texts sharing a key (UNIQUE): the weights the second pass
+/// compares but the diacritics (texts the first pass holds equal differ in ASCII case alone,
+/// which the weights ignore), or `None` when the collation builds none for `text`.
 pub(super) fn text_bucket(text: &[u16]) -> Option<Vec<u8>> {
     if text.iter().any(|&code| sort_key::refused(code)) {
         return None;
     }
-    sort_key::sort_key(text)
+    let parts = sort_key::parts(text)?;
+    let mut key = parts.primary;
+    key.push(1);
+    key.extend_from_slice(&parts.rest);
+    Some(key)
 }
 
 /// The order of two texts as the comparison operators give it, or [`Beyond`] when either holds a
