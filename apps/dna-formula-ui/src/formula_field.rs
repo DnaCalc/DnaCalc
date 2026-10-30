@@ -10,7 +10,8 @@
 //! [`FormulaAssist::signature`] and [`FormulaAssist::help`]. Every element a person uses carries a
 //! `data-onecalc` attribute naming its role, in both applications.
 //!
-//! Moved out of DNA OneCalc's surface (D3, `src/surface.rs`), where it was ported from DnaTreeCalc's
+//! Moved out of DNA OneCalc's surface (D3, `apps/dna-onecalc/src/surface.rs`) into this library,
+//! which both apps depend on. It was ported there from DnaTreeCalc's
 //! Leptos formula skin (`src/dnacalc-formula-skin-leptos/src/lib.rs` at DnaTreeCalc c68ecaa: the
 //! editor, completion list, signature and help elements and their CSS) and DnaOneCalc's editor (at
 //! 61e3979: the highlighted overlay behind the text field from

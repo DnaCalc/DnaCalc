@@ -7,7 +7,7 @@
 // (`cargo xtask app smoke onecalc`), which reads this list.
 window.__onecalcFaults = window.__onecalcFaults || [];
 var faults = window.__onecalcFaults;
-// The theme the user chose in either app (dna_onecalc::theme), applied before the app loads.
+// The theme the user chose in either app (dna_formula_ui::theme), applied before the app loads.
 try {
   var theme = window.localStorage.getItem("dna-theme");
   if (theme) { document.documentElement.setAttribute("data-dna-theme", theme); }

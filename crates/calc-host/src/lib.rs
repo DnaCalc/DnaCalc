@@ -97,7 +97,7 @@ pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
     CachedValue, CellInput, CellText, DefinedName, FileCached, FiniteNumber, FormulaText,
-    Definitions, ModelRoot, NameScope, SheetEntry, SourcePart,
+    Definitions, IterationSettings, ModelRoot, NameScope, SheetEntry, SourcePart,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,

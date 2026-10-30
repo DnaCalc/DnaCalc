@@ -501,6 +501,12 @@ fn describe(op: &WorkbookOp) -> String {
             scope,
             formula,
         } => format!("name {name} {scope:?} {formula:?}"),
+        WorkbookOp::SetIteration(settings) => format!(
+            "iteration {} {} {:016x}",
+            settings.enabled(),
+            settings.max_iterations(),
+            settings.max_change().to_bits()
+        ),
         WorkbookOp::EditAxis(edit) => format!(
             "axis {:?} {:?} {:?} first {} count {} last {}",
             edit.sheet(),
@@ -620,6 +626,8 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         WorkbookOp::SetFormat { .. } => "op:set_format".to_owned(),
         // Nor for a name's formula (EncodeError::NameFormula).
         WorkbookOp::SetNameFormula { .. } => "op:set_name_formula".to_owned(),
+        // Nor for the iteration settings (EncodeError::Iteration).
+        WorkbookOp::SetIteration(_) => "op:set_iteration".to_owned(),
         WorkbookOp::EditAxis(edit) => {
             out.insert("op:edit_axis".to_owned());
             let axis = match edit.axis() {

@@ -45,6 +45,11 @@ pub enum CellEdit {
         /// `None` removes the name; a name the workbook does not hold is defined.
         formula: Option<String>,
     },
+    /// Sets the workbook's iterative-calculation settings
+    /// ([`calc_doc_model::WorkbookOp::SetIteration`], dc-y2o.2): Excel's "Enable iterative
+    /// calculation", "Maximum Iterations" and "Maximum Change", which the workbook saves in its
+    /// `calcPr`. The formulas on a circular reference are calculated again under them.
+    SetIteration(calc_doc_model::IterationSettings),
 }
 
 impl CellEdit {
@@ -67,6 +72,7 @@ impl CellEdit {
                 scope,
                 formula,
             },
+            CellEdit::SetIteration(settings) => WorkbookOp::SetIteration(settings),
         }
     }
 }

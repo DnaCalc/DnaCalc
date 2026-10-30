@@ -1,0 +1,33 @@
+[package]
+name = "dna-formula-ui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The formula UI both apps show: the formula field, value and result display, cell, area and refusal labels, the theme switch and the browser start."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+# Its dependency ceiling is DNA OneCalc's: calc-fml, calc-func (with its calc-value types), Strand
+# and the Leptos and web crates. calc-engine, calc-doc and calc-host are never in its closure (plan
+# section 8.7); where a label needs something a workbook knows, it asks through a trait defined
+# here (display::SheetNames) that DNA Calc implements.
+#
+# Leptos, wasm-bindgen and web-sys at the releases both apps pin (see dna-onecalc's
+# manifest): Leptos 0.8.19 on wasm-bindgen 0.2.117, web-sys 0.3.94.
+[dependencies]
+calc-fml = { path = "../../crates/calc-fml" }
+calc-func = { path = "../../crates/calc-func" }
+leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
+wasm-bindgen = "=0.2.117"
+web-sys = { version = "=0.3.94", features = ["HtmlElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Storage", "Window"] }
+
+# The theme switch's choices are checked against Strand's themes. Test-only.
+[dev-dependencies]
+dna-strand = { path = "../dna-strand" }
+
+# The tests run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, with
+# wasm-bindgen-test 0.3.67 (the pair the workspace pins). Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"

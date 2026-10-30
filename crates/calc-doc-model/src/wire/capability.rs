@@ -568,6 +568,9 @@ impl WireOp {
             WorkbookOp::SetNameFormula { .. } => {
                 unreachable!("encode_batch refuses a name's formula before it reaches here")
             }
+            WorkbookOp::SetIteration(_) => {
+                unreachable!("encode_batch refuses the iteration settings before it reaches here")
+            }
         })
     }
 
