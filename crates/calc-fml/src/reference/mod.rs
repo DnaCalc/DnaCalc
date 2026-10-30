@@ -35,7 +35,7 @@ mod transform;
 
 pub(crate) use bind::{external_operand, qualified_name};
 pub use bind::{
-    BindError, ExternalCell, ExternalOperand, NameDefinition, NameScope, ReferenceCatalog,
+    BindError, ExternalBookRef, ExternalOperand, NameDefinition, NameScope, ReferenceCatalog,
     ReferenceSite, bind_references,
 };
 pub use read::{

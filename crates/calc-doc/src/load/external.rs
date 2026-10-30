@@ -45,6 +45,13 @@ pub(crate) fn read_external_books(
         .collect()
 }
 
+/// The file name a link's relationship target names: its last part after a `/` or `\`
+/// (`file:///C:\Data\Book2.xlsx` and `../Book2.xlsx` both name `Book2.xlsx`).
+fn file_name_of(target: &str) -> Option<String> {
+    let name = target.rsplit(['/', '\\']).next()?;
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
 /// The cached book of the externalLink part `part`, or `None` when it holds none or is not read.
 fn read_book(package: &Package, part: &str) -> Option<ExternalBook> {
     let xml = read_xml(package, part).ok()?;
@@ -56,7 +63,15 @@ fn read_book(package: &Package, part: &str) -> Option<ExternalBook> {
     loop {
         match events.next().ok()? {
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "externalBook") => {
-                book = Some(read_external_book(&mut events)?);
+                let id = super::relationship_attribute(&element, "id").map(str::to_owned);
+                let file_name = id.and_then(|id| {
+                    let relationships = package.relationships_of(Some(part))?;
+                    let item = relationships.items().iter().find(|item| item.id == id)?;
+                    file_name_of(&item.target)
+                });
+                let mut read = read_external_book(&mut events)?;
+                read.file_name = file_name;
+                book = Some(read);
             }
             Some(XmlEvent::Start(_)) => events.skip().ok()?,
             Some(XmlEvent::Text(_)) => {}
@@ -118,15 +133,22 @@ fn read_external_book(events: &mut Events<'_>) -> Option<ExternalBook> {
         .into_iter()
         .enumerate()
         .map(|(index, name)| {
-            let (refresh_error, cells) = data.remove(&index).unwrap_or_default();
+            let held = data.remove(&index);
+            let cached = held.is_some();
+            let (refresh_error, cells) = held.unwrap_or_default();
             ExternalSheet {
                 name,
+                id: None,
+                cached,
                 refresh_error,
                 cells,
             }
         })
         .collect();
-    Some(ExternalBook { sheets })
+    Some(ExternalBook {
+        file_name: None,
+        sheets,
+    })
 }
 
 /// The cells of the `sheetData` whose start tag was just read, by row and column.

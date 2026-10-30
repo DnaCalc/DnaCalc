@@ -221,6 +221,10 @@ impl HostFacts for ReaderCells<'_, '_> {
         self.shared.reader.borrow_mut().host_facts()?.caller()
     }
 
+    fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
+        self.shared.reader.borrow_mut().host_facts().is_some_and(|host| host.is_external_sheet(sheet))
+    }
+
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
         self.shared.reader.borrow_mut().host_facts()?.is_formula(cell)
     }

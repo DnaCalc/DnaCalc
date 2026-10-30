@@ -998,7 +998,7 @@ pub fn load(
         defined_names,
         external_references,
     } = read_workbook(package, &workbook)?;
-    let external_books =
+    let mut external_books =
         external::read_external_books(package, &workbook, &external_references);
     let shared_strings = match workbook_part_of(package, &workbook, SHARED_STRINGS)? {
         Some(part) => strings::shared_strings(package, &part)?,
@@ -1082,6 +1082,15 @@ pub fn load(
                 return Err(error);
             }
         }
+    }
+    // dc-ylr: each sheet of another workbook a link caches gets an ID of its own, by which a
+    // reference to it names it; one that cannot be issued leaves the sheet without (refused).
+    for sheet in external_books
+        .iter_mut()
+        .flatten()
+        .flat_map(|book| book.sheets.iter_mut())
+    {
+        sheet.id = sheet_ids.issue().ok();
     }
     let named: Vec<(SheetId, &SheetName)> = declared
         .iter()

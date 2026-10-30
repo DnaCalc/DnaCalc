@@ -79,35 +79,36 @@ pub trait ReferenceCatalog {
         None
     }
 
-    /// Cell (`row`, `column`) of sheet `sheet` (the name as written, matched as Excel matches
-    /// sheet names) of the book a file's formula numbers `book` (`[1]Sheet1!A1` names book 1), as
-    /// the workbook's link to that book caches it (dc-ylr). The default, not modelled, refuses
-    /// every external reference.
-    fn external_cell(&self, book: u32, sheet: &str, row: u32, column: u32) -> ExternalCell {
-        let _ = (book, sheet, row, column);
-        ExternalCell::NotModelled
+    /// The sheet `sheet` (the name as written, matched as Excel matches sheet names) of the book
+    /// `book` names, as the workbook's link to that book caches it (dc-ylr): the sheet ID by which
+    /// a reference to its cells names them, which the reader of the workbook's cells reads from
+    /// the link's cache. The default, `None`, refuses every external reference as not modelled.
+    fn external_sheet(&self, book: &ExternalBookRef, sheet: &str) -> Option<SheetId> {
+        let _ = (book, sheet);
+        None
     }
 }
 
-/// A cell of another workbook as the formula's workbook caches it ([`ReferenceCatalog::external_cell`]).
-#[derive(Clone, Debug, PartialEq)]
-pub enum ExternalCell {
-    /// The value the link caches for the cell.
-    Value(calc_func::value::CalcValue),
-    /// The link's cache of the sheet is marked as not refreshed and holds nothing for the cell:
-    /// Excel's #REF!.
-    RefError,
-    /// No cache says what the cell holds.
-    NotModelled,
+/// How a formula names another workbook (dc-ylr).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ExternalBookRef {
+    /// By the number a file's formula writes (`[1]Sheet1!A1` names the workbook's first link).
+    Number(u32),
+    /// By its file name, as a typed formula writes it (`[Book2.xlsx]Sheet1!A1`, or with the
+    /// folder before it, `'C:\Data\[Book2.xlsx]Sheet1'!A1`): the link whose target has that
+    /// file name.
+    File(String),
 }
 
-/// An external reference as a file's formula writes it (`[1]Sheet1!A1`, `'[1]My Sheet'!A1:B2`):
-/// the book's number, the sheet's name and the cells' shape (dc-ylr).
+/// A reference to another workbook (`[1]Sheet1!A1`, `'[1]My Sheet'!A1:B2`,
+/// `[Book2.xlsx]Sheet1!A1`): the book, the sheet's name and the cells' shape, and whether it
+/// belongs to a defined name's formula, whose relative references wrap at the grid's edge (dc-ylr).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ExternalOperand {
-    pub book: u32,
+    pub book: ExternalBookRef,
     pub sheet: String,
     pub shape: ReferenceShape,
+    pub wrapped: bool,
 }
 
 /// The external reference `node` writes, read in `notation` for a formula anchored at `anchor`: a
@@ -123,7 +124,7 @@ pub(crate) fn external_operand(
         ReferenceNotation::A1 => notation::a1(token.text(), anchor.cell().row(), anchor.cell().column()),
         ReferenceNotation::R1C1 => notation::r1c1(token.text()),
     };
-    let qualified = |node: &SyntaxNode| -> Option<(u32, String, Spelled)> {
+    let qualified = |node: &SyntaxNode| -> Option<(ExternalBookRef, String, Spelled)> {
         if node.kind() != SyntaxKind::QualifiedReferenceExpr {
             return None;
         }
@@ -135,11 +136,16 @@ pub(crate) fn external_operand(
             TokenKind::QuotedIdentifier => unquote(qualifier.text()),
             _ => return None,
         };
-        let (book, sheet) = text.strip_prefix('[')?.split_once(']')?;
-        let book: u32 = book.parse().ok()?;
-        if sheet.is_empty() || sheet.contains(':') || book == 0 {
+        let (folder, rest) = text.split_once('[')?;
+        let (book, sheet) = rest.split_once(']')?;
+        if sheet.is_empty() || sheet.contains(':') || book.is_empty() {
             return None;
         }
+        let book = match book.parse::<u32>() {
+            Ok(0) => return None,
+            Ok(number) if folder.is_empty() => ExternalBookRef::Number(number),
+            _ => ExternalBookRef::File(book.to_owned()),
+        };
         let spelled = spell(only_token(node.child_nodes().next()?)?)?;
         Some((book, sheet.to_owned(), spelled))
     };
@@ -172,7 +178,12 @@ pub(crate) fn external_operand(
         }
         _ => return None,
     };
-    Some(ExternalOperand { book, sheet, shape })
+    Some(ExternalOperand {
+        book,
+        sheet,
+        shape,
+        wrapped: false,
+    })
 }
 
 /// Where a defined name is looked up from.

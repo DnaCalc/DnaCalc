@@ -265,6 +265,13 @@ fn isformula(
         CoreRef::Reference(reference) => reference.areas()[0].first(),
         _ => return Site::finish(Err(site.not_modelled(Some(0)))),
     };
+    // dc-ylr: Excel gives ISFORMULA of a reference to a closed workbook #N/A.
+    if services
+        .host()
+        .is_some_and(|host| host.is_external_sheet(cell.sheet()))
+    {
+        return Site::finish(Ok(CalcValue::error(WorksheetErrorCode::NA)));
+    }
     let known = services.host().and_then(|host| host.is_formula(cell));
     Site::finish(
         known

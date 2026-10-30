@@ -1269,11 +1269,19 @@ impl<'c> Lowering<'c> {
         let span = node.span();
         match self.sites.remove(&span) {
             None => Ok(false),
-            // dc-ylr: a reference to another workbook as a file's formula writes it reads the
-            // values the workbook's link to that book caches, when the formula runs.
-            Some((Err(BindError::ExternalWorkbook), _)) if !self.in_name => {
-                match external_operand(node, self.notation, self.anchor) {
-                    Some(operand) => {
+            // dc-ylr: a reference to another workbook is a reference to the sheet the workbook's
+            // link to that book caches, placed when the formula runs. A defined name's is bound
+            // as a file stores it, relative to A1 of the formula's sheet, and wraps when placed.
+            Some((Err(BindError::ExternalWorkbook), _)) => {
+                let (notation, anchor) = if self.in_name {
+                    let a1 = CellKey::new(self.anchor.sheet(), 1, 1).expect("A1 lies on the grid");
+                    (ReferenceNotation::A1, FormulaAnchor::new(a1))
+                } else {
+                    (self.notation, self.anchor)
+                };
+                match external_operand(node, notation, anchor) {
+                    Some(mut operand) => {
+                        operand.wrapped = self.in_name;
                         self.blocks[block].push(Instruction::External(self.externals.len()));
                         self.externals.push(operand);
                         Ok(true)

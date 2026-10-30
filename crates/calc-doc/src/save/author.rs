@@ -5,7 +5,7 @@
 
 use super::array_metadata;
 use super::diff::{SheetChanges, sheet_changes};
-use super::file_form::{FileForm, file_form};
+use super::file_form::{FileForm, file_form_with_links};
 use super::manifest::{self, NewManifest};
 use super::parts::{self, NameChanges, NewRelationship};
 use super::reader::Reader;
@@ -184,13 +184,14 @@ fn file_forms(
     sheet_part: &str,
     changes: &SheetChanges,
     names: &[DefinedName],
+    links: &[(u32, String)],
 ) -> Result<BTreeMap<(u32, u32), FileForm>, SaveRefusal> {
     let mut forms = BTreeMap::new();
     for (&(row, column), input) in changes {
         let Some(CellInput::Formula(formula)) = input else {
             continue;
         };
-        let form = file_form(formula, names).map_err(|error| SaveRefusal::FormulaFileForm {
+        let form = file_form_with_links(formula, names, links).map_err(|error| SaveRefusal::FormulaFileForm {
             part: sheet_part.to_owned(),
             row,
             column,
@@ -400,6 +401,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 sheet.part().name(),
                 changes,
                 model.definitions().names(),
+                &model.definitions().external_file_names(),
             )?);
         }
         // The spills the save writes, by sheet: each array formula's area, by anchor, as

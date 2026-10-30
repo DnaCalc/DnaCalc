@@ -344,29 +344,25 @@ fn three_d_references_reach_the_functions_that_take_them() {
     ));
 }
 
-/// External references are refused where no link caches their cells: a book named by its file name
-/// at compile, a book a file's formula numbers (`[1]`) when it runs against a catalogue that
+/// External references are refused where no link caches their sheet: a book a file's formula
+/// numbers (`[1]`) or a typed formula names by its file name, when it runs against a catalogue that
 /// caches no link (dc-ylr), and INDIRECT's text.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn external_references_are_refused() {
     let mut book = Book::new();
-    assert_eq!(
-        book.eval(FormulaForm::Legacy, "=[1]Ja!A1", "B1"),
-        Ok(Err(EvalFault::NotModelled {
-            construct: "a reference to another workbook whose cells no link of this workbook caches",
-            owner: "dc-ylr",
-        }))
-    );
-    for formula in ["=SUM('[Book2.xlsx]Ja'!A1:B2)", "=[Book2.xlsx]Ja!A1+1"] {
-        assert!(
-            matches!(
-                book.refusal(formula, "B1"),
-                CompileError::Reference {
-                    error: BindError::ExternalWorkbook,
-                    ..
-                }
-            ),
+    for formula in [
+        "=[1]Ja!A1",
+        "=SUM('[Book2.xlsx]Ja'!A1:B2)",
+        "=[Book2.xlsx]Ja!A1+1",
+        r"=SUM('C:\Data\[Book2.xlsx]Ja'!A1:B2)",
+    ] {
+        assert_eq!(
+            book.eval(FormulaForm::Legacy, formula, "B1"),
+            Ok(Err(EvalFault::NotModelled {
+                construct: "a reference to another workbook whose sheet no link of this workbook caches",
+                owner: "dc-ylr",
+            })),
             "{formula}"
         );
     }

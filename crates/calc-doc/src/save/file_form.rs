@@ -17,7 +17,12 @@
 //!   written `_xleta.` before its name and no other prefix (`_xleta.STDEV.S`, `_xleta.CONCAT`),
 //!   and is no array (dc-h9u, Excel 16.0.20527 through COM on 2026-10-30, 11 formulas entered
 //!   through `Range.Formula2` and saved);
-//! - a name that already carries a file prefix (`_xlfn.`, `_xlpm.`) is left as written.
+//! - a name that already carries a file prefix (`_xlfn.`, `_xlpm.`) is left as written;
+//! - a reference to another workbook named by its file name, with or without its folder
+//!   (`[Book2.xlsx]Sheet1!A1`, `'C:\Data\[Book2.xlsx]Sheet1'!A1`), is written by the number of
+//!   the workbook's link to that file (`[1]Sheet1!A1`), as Excel 16.0.20527 stores a formula typed
+//!   so (dc-ylr, 2026-10-30), when such a link exists ([`file_form_with_links`]); otherwise it is
+//!   left as written.
 //!
 //! Dynamic array: Excel stores an entered formula as a dynamic-array formula when the formula
 //! could give more than one value: when its value is a multi-cell reference or an array (a range,
@@ -113,6 +118,9 @@ struct Shape {
 
 struct Walk<'n> {
     names: &'n [DefinedName],
+    /// The workbook's links to other workbooks: each link's number and its target's file name in
+    /// upper case (dc-ylr).
+    links: &'n [(u32, String)],
     /// Edits of the `=`-prefixed source, as (start, end, replacement) in UTF-16 code units.
     edits: Vec<(usize, usize, String)>,
     dynamic: bool,
@@ -187,6 +195,55 @@ impl Walk<'_> {
         self.edits.push((at, at, text.to_owned()));
     }
 
+    /// dc-ylr: the qualifier of `node` written with the number of the workbook's link to the
+    /// book it names by file name (`[Book2.xlsx]Sheet1` as `[1]Sheet1`, a folder before it
+    /// dropped); quoted when the sheet's name needs it, as Excel writes `'[1]My Sheet'!A1`.
+    fn number_external_book(&mut self, node: &SyntaxNode) {
+        let Some(SyntaxChild::Token(qualifier)) = node.children().first() else {
+            return;
+        };
+        let (quoted, text) = match qualifier.kind() {
+            TokenKind::BracketedQualifier => (false, qualifier.text().to_owned()),
+            TokenKind::QuotedIdentifier => {
+                let inner = qualifier.text();
+                let inner = inner
+                    .strip_prefix('\'')
+                    .and_then(|t| t.strip_suffix('\''))
+                    .unwrap_or(inner);
+                (true, inner.to_owned())
+            }
+            _ => return,
+        };
+        let Some((folder, rest)) = text.split_once('[') else {
+            return;
+        };
+        let Some((book, sheet)) = rest.split_once(']') else {
+            return;
+        };
+        if sheet.is_empty() || (folder.is_empty() && book.parse::<u32>().is_ok()) {
+            return;
+        }
+        let wanted = book.to_uppercase();
+        let Some(&(number, _)) = self.links.iter().find(|(_, name)| *name == wanted) else {
+            return;
+        };
+        let plain = sheet
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_')
+            && sheet.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.');
+        let written = if plain {
+            // A quoted name doubles its quotes; a plain one holds none.
+            format!("[{number}]{sheet}")
+        } else if quoted {
+            format!("'[{number}]{sheet}'")
+        } else {
+            format!("'[{number}]{}'", sheet.replace('\'', "''"))
+        };
+        let span = qualifier.span();
+        self.edits.push((span.start, span.end(), written));
+    }
+
     fn name_is_multi(&self, text: &str) -> bool {
         if text.eq_ignore_ascii_case("TRUE") || text.eq_ignore_ascii_case("FALSE") {
             return false;
@@ -257,6 +314,9 @@ impl Walk<'_> {
                 multi(self.name_is_multi(token.text()))
             }
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
+                if node.kind() == SyntaxKind::QualifiedReferenceExpr {
+                    self.number_external_book(node);
+                }
                 let mut shape = Shape::default();
                 for child in node.child_nodes() {
                     shape = self.walk(child, depth + 1)?;
@@ -607,6 +667,21 @@ impl Walk<'_> {
 /// and whether Excel stores it as a dynamic array. `names` are the workbook's defined names,
 /// which tell a constant name from one that may hold several values.
 pub fn file_form(formula: &FormulaText, names: &[DefinedName]) -> Result<FileForm, FileFormError> {
+    file_form_with_links(formula, names, &[])
+}
+
+/// [`file_form`] in a workbook with links to other workbooks, `links` giving each link's number
+/// and the file name of the book it targets (dc-ylr): a reference naming such a book by file name
+/// is written by the link's number.
+pub fn file_form_with_links(
+    formula: &FormulaText,
+    names: &[DefinedName],
+    links: &[(u32, String)],
+) -> Result<FileForm, FileFormError> {
+    let links: Vec<(u32, String)> = links
+        .iter()
+        .map(|(number, name)| (*number, name.to_uppercase()))
+        .collect();
     let units = formula.text().utf16_code_units();
     let text = String::from_utf16(units).map_err(|_| FileFormError::Unreadable)?;
     let source = format!("={text}");
@@ -616,6 +691,7 @@ pub fn file_form(formula: &FormulaText, names: &[DefinedName]) -> Result<FileFor
     }
     let mut walk = Walk {
         names,
+        links: &links,
         edits: Vec::new(),
         dynamic: false,
         scopes: Vec::new(),

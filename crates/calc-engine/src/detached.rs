@@ -153,6 +153,10 @@ impl HostFacts for Placed<'_> {
         Some(self.at)
     }
 
+    fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
+        self.cells.host_facts().is_some_and(|host| host.is_external_sheet(sheet))
+    }
+
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
         self.cells.host_facts()?.is_formula(cell)
     }

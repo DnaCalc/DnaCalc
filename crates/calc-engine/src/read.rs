@@ -11,16 +11,16 @@
 use crate::result::{Calculation, FormulaResult};
 use crate::spill::{Spill, SpillIndex};
 use crate::state::EngineState;
-use calc_doc_model::{CellInput, ModelRoot, NameScope, RowHidden};
+use calc_doc_model::{CellInput, ExternalSheet, ModelRoot, NameScope, RowHidden};
 use calc_fml::reference::{
-    CellRead, CellRun, ExternalCell, NameDefinition, ReadContractError, NameScope as FmlNameScope, ReferenceReader, SpillExtent, TableInfo,
+    CellRead, CellRun, ExternalBookRef, NameDefinition, ReadContractError, NameScope as FmlNameScope, ReferenceReader, SpillExtent, TableInfo,
     TableLookup,
 };
 use calc_fml::{
     CalcEnvironment, EvalFault, EvaluationReport, ExecutedCall, HostFacts, ReferenceCatalog,
     ResolvedReference, SubtotalExclusions,
 };
-use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId};
+use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId, WorksheetErrorCode};
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
@@ -273,27 +273,22 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
         !self.0.definitions().macro_enabled()
     }
 
-    /// A cell of another workbook as the snapshot's link to it caches it (dc-ylr): the cached
-    /// value; #REF! for a cell the cache of a sheet whose link was not refreshed does not hold;
-    /// otherwise, and for a book or sheet no link caches, not modelled. The sheet name is matched
-    /// without regard to case, as a sheet name of the workbook is.
-    fn external_cell(&self, book: u32, sheet: &str, row: u32, column: u32) -> ExternalCell {
-        let Some(book) = self.0.definitions().external_book(book) else {
-            return ExternalCell::NotModelled;
+    /// The sheet of another workbook the snapshot's link to it caches (dc-ylr): the ID the load
+    /// issued it. The book is the link `[N]` numbers or, named by file name, the first link whose
+    /// target has that name; the sheet name is matched without regard to case, as a sheet name of
+    /// the workbook is.
+    fn external_sheet(&self, book: &ExternalBookRef, sheet: &str) -> Option<SheetId> {
+        let definitions = self.0.definitions();
+        let number = match book {
+            ExternalBookRef::Number(number) => *number,
+            ExternalBookRef::File(name) => definitions.external_book_named(name)?,
         };
+        let book = definitions.external_book(number)?;
         let wanted: Vec<char> = sheet.chars().flat_map(char::to_uppercase).collect();
-        let Some(held) = book
-            .sheets
+        book.sheets
             .iter()
-            .find(|held| held.name.chars().flat_map(char::to_uppercase).eq(wanted.iter().copied()))
-        else {
-            return ExternalCell::NotModelled;
-        };
-        match held.cells.get(&(row, column)) {
-            Some(value) => ExternalCell::Value(value.to_value()),
-            None if held.refresh_error => ExternalCell::RefError,
-            None => ExternalCell::NotModelled,
-        }
+            .find(|held| held.name.chars().flat_map(char::to_uppercase).eq(wanted.iter().copied()))?
+            .id
     }
 }
 
@@ -862,8 +857,70 @@ impl<'a> WorkbookReader<'a> {
     }
 }
 
+impl<'a> WorkbookReader<'a> {
+    /// The sheet of another workbook that `sheet` names, when it names one (dc-ylr).
+    fn external_sheet(&self, sheet: SheetId) -> Option<&'a ExternalSheet> {
+        let view = self.view;
+        view.inputs.definitions().external_sheet(sheet)
+    }
+
+    /// Reports the cells of `area` on the sheet of another workbook `held` (dc-ylr), as the
+    /// link's cache gives them: a cached cell's value; a cell it does not hold is blank where the
+    /// cache holds the sheet's data, #REF! where that data is marked as not refreshed, and
+    /// unsupplied where the cache holds no data for the sheet. The read marks the result as
+    /// reading link caches.
+    fn read_external(
+        &mut self,
+        held: &ExternalSheet,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
+        self.external.set(true);
+        let (first, last) = (area.first(), area.last());
+        let width = u64::from(area.column_count());
+        let ref_error = [CalcValue::error(WorksheetErrorCode::Ref)];
+        let gap = |count: u64, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>| {
+            if count == 0 {
+                return ControlFlow::Continue(());
+            }
+            if !held.cached {
+                return sink(CellRun::Missing(count));
+            }
+            if !held.refresh_error {
+                return sink(CellRun::Blank(count));
+            }
+            for _ in 0..count {
+                sink(CellRun::Values(&ref_error))?;
+            }
+            ControlFlow::Continue(())
+        };
+        let mut next = 0u64;
+        for (&(row, column), cached) in held
+            .cells
+            .range((first.row(), first.column())..=(last.row(), last.column()))
+        {
+            if column < first.column() || column > last.column() {
+                continue;
+            }
+            let index =
+                u64::from(row - first.row()) * width + u64::from(column - first.column());
+            if gap(index - next, sink).is_break() {
+                return;
+            }
+            if sink(CellRun::Values(&[cached.to_value()])).is_break() {
+                return;
+            }
+            next = index + 1;
+        }
+        let _ = gap(area.cell_count() - next, sink);
+    }
+}
+
 impl ReferenceReader for WorkbookReader<'_> {
     fn read_cell(&mut self, at: CellKey) -> Result<CellRead, ReadContractError> {
+        if self.external_sheet(at.sheet()).is_some() {
+            return calc_fml::reference::read_cell_by_area(self, at);
+        }
         Ok(match self.single(at) {
             Some(Single::Formula(value)) => CellRead::Value(value.clone()),
             Some(Single::Literal(value)) => CellRead::Value(value),
@@ -873,6 +930,9 @@ impl ReferenceReader for WorkbookReader<'_> {
     }
 
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+        if let Some(held) = self.external_sheet(area.sheet()) {
+            return self.read_external(held, area, sink);
+        }
         let total = area.cell_count();
         let inputs = self.view.inputs;
         // One cell that holds an input (most reads; dc-10d9): its value, read straight from its
@@ -977,6 +1037,10 @@ impl ReferenceReader for WorkbookReader<'_> {
 /// The workbook's facts an evaluation may ask about (calc-func's HostFacts): which cells hold
 /// formulas and their text, and the sheets. The formula being evaluated is the caller's to say.
 impl HostFacts for WorkbookReader<'_> {
+    fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
+        self.external_sheet(sheet).is_some()
+    }
+
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
         Some(matches!(
             self.view.inputs.cell(cell),

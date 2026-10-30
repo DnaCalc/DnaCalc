@@ -2184,6 +2184,10 @@ impl calc_fml::HostFacts for Observed<'_, '_> {
         Some(self.formula)
     }
 
+    fn is_external_sheet(&mut self, sheet: calc_value::SheetId) -> bool {
+        self.cells.host_facts().is_some_and(|host| host.is_external_sheet(sheet))
+    }
+
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
         self.cells.host_facts()?.is_formula(cell)
     }

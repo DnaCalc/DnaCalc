@@ -267,8 +267,8 @@ enum Instruction {
     /// value is taken (`GROUPBY(A2:A9,B2:B9,SUM)`, which a file stores as `_xleta.SUM`), which a
     /// call of it calls with the arguments it is given (dc-h9u).
     Function(Target),
-    /// Pushes the value of the plan's external reference `.0` (dc-ylr): the values the workbook's
-    /// link caches for its cells, one value for one cell and an array for several.
+    /// Pushes the plan's external reference `.0` (dc-ylr): a reference to the cells of the sheet
+    /// the workbook's link to the other book caches.
     External(usize),
     /// Runs block `.0`, a defined name's formula, in a frame of its own and pushes its value.
     Name(usize),

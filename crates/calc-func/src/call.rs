@@ -111,6 +111,15 @@ pub enum TextReference {
 /// 6fca3518). Every method has a default that supplies nothing, and a call that needs a fact the
 /// host does not supply is refused as not modelled.
 pub trait HostFacts {
+    /// Whether `sheet` is a sheet of another workbook, read from the workbook's link to it
+    /// (dc-ylr): Excel 16.0.20527 (2026-10-30, the other book closed) gives SUMIF, COUNTIF,
+    /// SUMIFS, COUNTIFS, AVERAGEIF and OFFSET #VALUE! for a reference to it, and CELL, ISFORMULA
+    /// and FORMULATEXT #N/A. The default says no sheet is.
+    fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
+        let _ = sheet;
+        false
+    }
+
     /// The cell whose formula is being evaluated.
     fn caller(&mut self) -> Option<CellKey> {
         None
