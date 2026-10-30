@@ -1766,45 +1766,6 @@
    "status_2026_10_30": "The NT-derived chains moved to nt_chains.rs (DnaCalc 7ade800). exp_portable/log_portable/specialcase are re-sourced to Arm optimized-routines math/exp.c and log.c (MIT, the same author's code as the glibc copy; checked to be the same code on the path without FMA). excel_expm1/excel_log1p are our own on those kernels. The trig chains are named by function, not by the CRT labels. What remains: own work (black-box) and Arm (MIT, notice in deploy/notices/ported.txt)."
   },
   {
-   "path": "crates/calc-func/src/ported/excel_numeric/nt_chains.rs",
-   "class": "microsoft-derived",
-   "parts": [
-    {
-     "class": "microsoft-derived",
-     "kind": "nt-source",
-     "source": "microsoft-nt-crt",
-     "symbols": [
-      "exp2_tail",
-      "exp_with",
-      "ln_with",
-      "log10_with",
-      "pow_direct_with",
-      "root_with",
-      "binom_pmf_exp_with",
-      "hard::exp",
-      "hard::pow_direct",
-      "hard::ln",
-      "hard::log10",
-      "excel_exp",
-      "excel_exp_rz",
-      "excel_log",
-      "excel_log10",
-      "excel_pow_x87_direct",
-      "excel_root_x87",
-      "excel_binom_pmf_exp"
-     ],
-     "what": "the exponential and logarithm chains written after reading the NT CRT source, moved here from mod.rs and x87.rs behind a documented interface",
-     "shipped": "yes"
-    }
-   ],
-   "reason": "split out of mod.rs and x87.rs (DnaCalc 7ade800) so that a clean-room implementation replaces this file alone",
-   "cleanup": {
-    "action": "replace",
-    "bead": "dc-96l.3",
-    "how": "clean-room implementation of the interface in the module docs, judged by tests outside this file"
-   }
-  },
-  {
    "path": "crates/calc-func/src/ported/excel_numeric/soft87.rs",
    "class": "own-work",
    "parts": [
@@ -1942,6 +1903,19 @@
    "surveyed_blob": "014448eb227a6de83c1ad43eb6611eb86805e158",
    "surveyed_bytes": 37412,
    "status_2026_10_30": "The NT-derived chains (exp, ln, log10, pow_direct, fyl2x_fn) moved to nt_chains.rs; the control-word citations removed and the value stated as measured. What remains: the double-rounded operations, the ATAN graphs and the single-instruction wrappers (black-box and public ISA)."
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/x87_chains.rs",
+   "class": "own-work",
+   "reason": "written here clean-room (dc-96l.3) from Intel's documented x87 instruction set and Excel measurement",
+   "parts": [
+    {
+     "class": "own-work",
+     "kind": "published",
+     "what": "Intel SDM vol. 1 ch. 8 and vol. 2 (FLDL2E, FLDLN2, FLDLG2, FRNDINT, F2XM1, FSCALE, FYL2X, FDIV, FST) and IEEE 754; the sequences 2^(x log2 e) and constant*log2 x; the reciprocal for negative exponents, measured against the 136 EXP witnesses"
+    }
+   ],
+   "note": "dc-96l.3 clean-room replacement: written without reading the replaced file or its history"
   },
   {
    "path": "crates/calc-func/src/ported/excel_numeric/x87_excel_ground_truth.tsv",
