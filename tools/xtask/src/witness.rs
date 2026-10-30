@@ -427,6 +427,41 @@ fn recovered_selection(row: &Value, probes: &[Value]) -> Option<(usize, usize)> 
     selected
 }
 
+/// GROWTH/TREND return the shape of new_x. A flat legacy vector loses its
+/// orientation, but a batch selecting several rows in one column supplies it.
+/// Require a single predictor and consistent selections; never inspect answers.
+fn prediction_column_inputs(function: &str, probes: &[Value]) -> BTreeSet<String> {
+    if !matches!(function, "GROWTH" | "TREND") {
+        return BTreeSet::new();
+    }
+    let mut layouts: BTreeMap<String, (bool, bool)> = BTreeMap::new();
+    for probe in probes {
+        let Some(args) = probe["args"].as_array() else { continue };
+        let flat = |i: usize| args.get(i).and_then(Value::as_array)
+            .filter(|cells| !cells.is_empty() && cells.iter().all(|v| !v.is_array()));
+        let (Some(y), Some(x), Some(new_x)) = (flat(0), flat(1), flat(2)) else { continue };
+        if y.len() < 2 || y.len() != x.len() || new_x.len() < 2 {
+            continue;
+        }
+        let Some((row, col)) = probe.as_object().and_then(calc_verdict::result_index) else { continue };
+        let flags = layouts.entry(Value::Array(args.clone()).to_string()).or_default();
+        flags.0 |= row > 1 && row <= new_x.len() && col == 1;
+        flags.1 |= col != 1 || row == 0 || row > new_x.len();
+    }
+    layouts.into_iter().filter_map(|(args, (column, conflict))| {
+        (column && !conflict).then_some(args)
+    }).collect()
+}
+
+fn restore_prediction_column(args: &mut Value, columns: &BTreeSet<String>) -> bool {
+    if !columns.contains(&args.to_string()) {
+        return false;
+    }
+    let Some(cells) = args[2].as_array() else { return false };
+    args[2] = Value::Array(cells.iter().map(|cell| Value::Array(vec![cell.clone()])).collect());
+    true
+}
+
 fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>), String> {
     let mut banks = Banks {
         sources: Vec::new(),
@@ -539,7 +574,8 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             continue;
         }
         let probes = batch_selections(checkout, rel);
-        let (mut selections, mut hex_repairs) = (0, 0);
+        let columns = prediction_column_inputs(&function, &probes);
+        let (mut selections, mut hex_repairs, mut column_repairs) = (0, 0, 0);
         banks.files_read += 1;
         let env = doc.get("capture_provenance").and_then(|p| p.get("environment"));
         banks.sources.push(Source {
@@ -559,10 +595,13 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 selected
             });
             let mut args = Value::Array(args.clone());
+            column_repairs += usize::from(restore_prediction_column(&mut args, &columns));
             normalize_bank_hex(&mut args);
             let mut normalized_expected = Value::String(expected.to_owned());
             normalize_bank_hex(&mut normalized_expected);
-            hex_repairs += usize::from(args != row["args"] || normalized_expected != row["expected_bits"]);
+            let mut original_args = row["args"].clone();
+            normalize_bank_hex(&mut original_args);
+            hex_repairs += usize::from(original_args != row["args"] || normalized_expected != row["expected_bits"]);
             banks.readings.push(Reading {
                 function: function.clone(),
                 id: row["id"].as_str().map_or_else(|| format!("row{i}"), str::to_owned),
@@ -572,12 +611,12 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 source,
             });
         }
-        if selections > 0 || hex_repairs > 0 {
-            banks.import_notes.push(format!("{rel}: recovered {selections} result selections from batch probes; normalized duplicated hex prefixes in {hex_repairs} rows"));
+        if selections > 0 || hex_repairs > 0 || column_repairs > 0 {
+            banks.import_notes.push(format!("{rel}: recovered {selections} result selections and {column_repairs} prediction-column layouts from batch probes; normalized duplicated hex prefixes in {hex_repairs} rows"));
         }
-        if selections > 0 {
+        if selections > 0 || column_repairs > 0 {
             banks.sources[source].env.source.push_str(&format!(
-                "; result selection: {CHECKOUT} {}", batch_path(rel).unwrap()
+                "; result selection/layout: {CHECKOUT} {}", batch_path(rel).unwrap()
             ));
         }
     }
@@ -1628,6 +1667,25 @@ mod tests {
         assert_eq!(recovered_selection(&row, &[probe.clone(), conflicting]), None);
         row["args"][0][0][0] = serde_json::json!("0x4000000000000000");
         assert_eq!(recovered_selection(&row, &[probe]), None);
+    }
+
+    #[test]
+    fn prediction_columns_require_matching_inputs_and_consistent_batch_selections() {
+        let args = serde_json::json!([["y1", "y2"], ["x1", "x2"], ["n1", "n2"], true]);
+        let first = serde_json::json!({"id": "first", "args": args, "result_index": [1, 1]});
+        let second = serde_json::json!({"id": "second", "args": args, "result_index": [2, 1]});
+        let columns = prediction_column_inputs("GROWTH", &[first.clone(), second.clone()]);
+        let mut restored = args.clone();
+        assert!(restore_prediction_column(&mut restored, &columns));
+        assert_eq!(restored, serde_json::json!([["y1", "y2"], ["x1", "x2"], [["n1"], ["n2"]], true]));
+        let mut other = args.clone();
+        other[2][0] = serde_json::json!("other input");
+        assert!(!restore_prediction_column(&mut other, &columns));
+        assert!(prediction_column_inputs("GROWTH", &[first.clone()]).is_empty());
+        assert!(prediction_column_inputs("LOGEST", &[second.clone()]).is_empty());
+        let mut contradictory = second.clone();
+        contradictory["result_index"] = serde_json::json!([1, 2]);
+        assert!(prediction_column_inputs("GROWTH", &[first, second, contradictory]).is_empty());
     }
 
     #[test]
