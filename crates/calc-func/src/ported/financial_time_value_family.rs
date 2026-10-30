@@ -263,7 +263,14 @@ pub fn pmt(
     let inv_factor = 1.0 + em; // v = (1+r)^-n
     let tf = timing.factor(periodic_rate); // 1 + r·type
     let numerator = present_value + future_value * inv_factor;
-    let result = excel_x87_div(numerator / em, tf) * periodic_rate;
+    let quotient = excel_x87_div(numerator / em, tf);
+    // The recorded discount arm stores the final product from PC64; the growth arm
+    // retains the native product, which the negative-rate control distinguishes.
+    let result = if neg_log < 0.0 {
+        excel_x87_mul(quotient, periodic_rate)
+    } else {
+        quotient * periodic_rate
+    };
     if result.is_finite() {
         Ok(result)
     } else {

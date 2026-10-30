@@ -305,10 +305,15 @@ fn gamma_density_uses_the_exact_shape_one_normalizer() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn mod_reports_a_subnormal_remainder_as_num() {
+    // W111 discriminator 24222: the raw remainder underflows before sign adjustment.
+    error(call("MOD", vec![
+        n(f64::from_bits(0x0014_c742_6ee3_166b)),
+        n(f64::from_bits(0x8014_0ff4_c89d_5c9a)),
+    ]), Num);
     error(call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0000)), n(f64::from_bits(0x8010_0000_0000_0001))]), Num);
     error(call("MOD", vec![n(f64::from_bits(1)), n(0.0)]), Div0);
     exact(call("MOD", vec![n(f64::from_bits(1)), n(0.1)]), 0.0);
-    // A subnormal intermediate can lead to a normal, valid sign-adjusted remainder.
+    // A binary-power divisor preserves a tiny intermediate with a normal final remainder.
     exact(call("MOD", vec![n(f64::from_bits(0x0020800000000000)), n(f64::from_bits(0x8020000000000000))]), f64::from_bits(0x801f_0000_0000_0000));
 }
 

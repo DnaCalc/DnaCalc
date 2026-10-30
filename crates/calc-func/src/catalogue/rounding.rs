@@ -403,6 +403,13 @@ fn modulo(
             return Err(Exit::Error(WorksheetErrorCode::Num));
         }
         let remainder = number % divisor;
+        // The recorded banks distinguish reduction by a binary power from a general
+        // divisor: only the latter reports a tiny intermediate remainder as #NUM!,
+        // even when the following sign adjustment would produce a normal value.
+        let binary_divisor = divisor.abs().to_bits() & 0x000f_ffff_ffff_ffff == 0;
+        if remainder.is_subnormal() && !binary_divisor {
+            return Err(Exit::Error(WorksheetErrorCode::Num));
+        }
         let result = if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
             let adjusted = site.add(remainder, divisor)?;
             // A remainder the divisor absorbs is 0 (dc-bd5: MOD(-5,9.99999999999999E+307) is 0

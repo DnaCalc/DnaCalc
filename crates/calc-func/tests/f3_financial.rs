@@ -302,6 +302,14 @@ fn irr_polishes_cashflows_with_a_small_nonzero_derivative() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn pmt_uses_recorded_exponential_and_timing_stores() {
+    // oc1134: the discount arm stores the final PC64 product.
+    exact(call("PMT", vec![
+        n(f64::from_bits(0x3eb6_b288_9103_0aed)), n(256.0), n(1.0),
+    ]), f64::from_bits(0xbf70_00b6_4c87_af22));
+    // oc30542: the growth arm retains the native product.
+    exact(call("PMT", vec![
+        n(f64::from_bits(0xbee8_ffdb_60af_1ab5)), n(192.0), n(1.0), n(-1000.0), n(1.0),
+    ]), f64::from_bits(0x4014_d624_c57a_7851));
     exact(call("PMT", vec![n(f64::from_bits(0x3e70000000000000)), n(f64::from_bits(0x4018000000000000)), n(f64::from_bits(0x3ff0000000000000)), n(f64::from_bits(0x0000000000000000)), n(f64::from_bits(0x0000000000000000))]), f64::from_bits(0xbfc55555a000003d));
     exact(call("PMT", vec![n(f64::from_bits(0x3e70000000000000)), n(f64::from_bits(0x4018000000000000)), n(f64::from_bits(0x3ff0000000000001)), n(f64::from_bits(0x0000000000000000)), n(f64::from_bits(0x0000000000000000))]), f64::from_bits(0xbfc55555a000003f));
 }
