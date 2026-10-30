@@ -2547,6 +2547,14 @@ fn array_outcome(
         .as_array()
         .filter(|_| value.callable_value().is_none())
         .cloned();
+    // A boxed array (dc-h9u: INDEX of a GROUPBY result's cell) shows its first element and spills
+    // nothing (Excel 16.0.20527: `=INDEX(GROUPBY(k,v,LAMBDA(x,x)),1,2)` shows the group's first
+    // value).
+    if let Some(boxed) = array.as_ref().filter(|array| array.is_boxed()) {
+        return Ok(SpillOutcome::Scalar(shown(
+            boxed.get(0, 0).expect("a non-empty array"),
+        )));
+    }
     match role {
         ArrayRole::Cell => Ok(SpillOutcome::Scalar(value)),
         ArrayRole::LegacyCell => Ok(SpillOutcome::Scalar(match &array {
@@ -2585,13 +2593,9 @@ fn array_outcome(
     }
 }
 
-/// A value as a cell shows it: a blank as 0.
+/// A value as a cell shows it ([`spill::shown`]).
 fn shown(value: &CalcValue) -> CalcValue {
-    if value.is_empty() || value.is_missing() {
-        CalcValue::number(0.0)
-    } else {
-        value.clone()
-    }
+    spill::shown(value)
 }
 
 /// Whether a spill over `extent` from `anchor` collides.

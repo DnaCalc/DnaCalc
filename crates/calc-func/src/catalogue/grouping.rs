@@ -22,8 +22,9 @@
 //! - `filter_array`: a column of the rows' flags; none true is #VALUE!.
 //! - Each aggregate is the function called with the group's values as a column; a function that
 //!   takes two arguments (PERCENTOF) also receives every filtered row's values (PIVOTBY: those its
-//!   `relative_to` names). A result that is an array is #VALUE! in its cell. With several
-//!   functions, a header row names them, and each pairs with a value column (or every function
+//!   `relative_to` names). A result that is an array stays in its cell as an array (dc-h9u, Excel
+//!   16.0.20527, 2026-10-30: the spilled cell shows #VALUE!, SUM and COUNT of the result count
+//!   its elements, INDEX of the cell gives the array). With several functions, a header row names them, and each pairs with a value column (or every function
 //!   with the one value column).
 //! - Row fields and values of different heights, and a function that is not one, are #VALUE!.
 //! - PIVOTBY lays the column fields' groups out across, sorted likewise, with a `Total` column; a
@@ -37,8 +38,10 @@
 //!   too) adds a subtotal after each group of the first k fields for each k below n, labelled by
 //!   those fields with the rest blank, and labels the grand total `Grand Total` (`Total` at depth
 //!   1); a negative depth puts each total before what it totals. A column subtotal's header shows
-//!   its fields at their levels and is blank below. Column subtotals with several value columns
-//!   are not modelled.
+//!   its fields at their levels and is blank below. With several value columns and one function,
+//!   a column subtotal's columns are blank, as the `Total` columns are; with several functions
+//!   they are not (measured 2026-10-30, 10 calls with two column fields and two value columns,
+//!   depths 2 and -2).
 
 use super::comparison::{self, Want};
 use super::kit::{fail, grid};
@@ -296,7 +299,8 @@ fn column(values: Vec<CalcValue>) -> CalcValue {
 }
 
 /// One aggregate: `f` called with the values of `column_index` of `rows`, and, when `f` takes two
-/// arguments, those of `relative`; an array result is #VALUE!.
+/// arguments, those of `relative`; an array result is kept as the cell's value, a reference
+/// result is #VALUE!.
 fn aggregate(
     site: &Site<'_>,
     sv: &mut EvalServices<'_>,
@@ -324,7 +328,8 @@ fn aggregate(
         return Ok(CalcValue::error(W::Calc));
     }
     Ok(match result.core_ref() {
-        CoreRef::Array(_) | CoreRef::Reference(_) => CalcValue::error(W::Value),
+        CoreRef::Array(array) => CalcValue::array(array.clone()),
+        CoreRef::Reference(_) => CalcValue::error(W::Value),
         CoreRef::Missing => CalcValue::empty(),
         _ => result,
     })
@@ -565,6 +570,8 @@ struct Line {
     labels: Vec<CalcValue>,
     members: Vec<usize>,
     grand: bool,
+    /// A subtotal of a run of groups (not the grand total).
+    subtotal: bool,
 }
 
 /// The lines of an axis whose sorted `groups` have `fields` fields, at total depth `depth`: the
@@ -585,6 +592,7 @@ fn lines(
         labels,
         members: all.to_vec(),
         grand: true,
+        subtotal: false,
     };
     let mut out = Vec::new();
     subtotalled(site, groups, 0, levels, before, fields, &mut out)?;
@@ -613,6 +621,7 @@ fn subtotalled(
                 labels: g.0.clone(),
                 members: g.1.clone(),
                 grand: false,
+                subtotal: false,
             });
         }
         return Ok(());
@@ -630,6 +639,7 @@ fn subtotalled(
             labels,
             members: run.iter().flat_map(|g| g.1.iter().copied()).collect(),
             grand: false,
+            subtotal: true,
         };
         if before {
             out.push(subtotal);
@@ -662,10 +672,6 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
         if depth.unsigned_abs() > 1 && depth.unsigned_abs() as usize > fields {
             return fail(W::Value);
         }
-    }
-    if col_depth.unsigned_abs() > 1 && values.cols > 1 {
-        // Column subtotals beside several value columns are not measured.
-        return Err(site.not_modelled(Some(7)));
     }
     if !(0..=4).contains(&relative_to) {
         return fail(W::Value);
@@ -704,7 +710,8 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
     let mut out: Vec<Vec<CalcValue>> = Vec::new();
     // Column layout: the column lines, each with np value columns.
     let columns = lines(site, &col_groups, kc, col_depth, &rows)?;
-    let blank_totals = values.cols > 1;
+    // With several value columns and one function, the total and subtotal columns are blank.
+    let blank_totals = values.cols > 1 && functions.len() == 1;
     // Header rows.
     if show {
         for level in 0..kc {
@@ -756,7 +763,7 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
             let col_members = &column.members;
             let members = intersect(row_members, col_members);
             for &(v, f) in &pairs {
-                if column.grand && blank_totals {
+                if (column.grand || column.subtotal) && blank_totals {
                     row.push(text(""));
                     continue;
                 }

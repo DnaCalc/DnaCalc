@@ -376,6 +376,12 @@ fn type_of(
     let site = Site::new(TYPE, services);
     let argument = &arguments[0];
     let step = match argument.core_ref() {
+        // A boxed array (dc-h9u) is typed by its first element: Excel 16.0.20527 gives
+        // TYPE(INDEX(GROUPBY(k,v,LAMBDA(x,x)),1,2)) 1.
+        CoreRef::Array(array) if array.is_boxed() => type_code(
+            &site,
+            array.get(0, 0).expect("a non-empty array"),
+        ),
         CoreRef::Array(_) => Ok(64.0),
         CoreRef::Reference(reference) if reference.area_count() > 1 => Ok(16.0),
         CoreRef::Reference(reference) => match one_cell(reference) {

@@ -118,11 +118,18 @@ impl ArrayShape {
 }
 
 /// A non-empty rectangular array of values in row-major order. Its cells are shared, immutable,
-/// behind an `Arc`.
+/// behind an `Arc`. A cell may itself hold an array: GROUPBY and PIVOTBY keep a LAMBDA's array
+/// result in its cell (dc-h9u).
+///
+/// A boxed array ([`CalcArray::boxed`]) is an array taken out of such a cell (INDEX of the cell):
+/// Excel 16.0.20527 (2026-10-30) shows its first element and spills nothing, takes its first
+/// element where one value is taken (`=INDEX(g,1,2)*10` is 10, TYPE gives the first element's
+/// type) and the whole array where an array is taken (ROWS, SUM, VSTACK).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CalcArray {
     shape: ArrayShape,
     cells: Arc<[CalcValue]>,
+    boxed: bool,
 }
 
 impl CalcArray {
@@ -135,6 +142,7 @@ impl CalcArray {
         Some(CalcArray {
             shape,
             cells: cells.into(),
+            boxed: false,
         })
     }
 
@@ -143,6 +151,7 @@ impl CalcArray {
         CalcArray {
             shape: ArrayShape { rows: 1, cols: 1 },
             cells: Arc::from([value]),
+            boxed: false,
         }
     }
 
@@ -166,6 +175,24 @@ impl CalcArray {
 
     pub const fn shape(&self) -> ArrayShape {
         self.shape
+    }
+
+    /// This array as taken out of an array's cell (see the type's documentation).
+    pub fn boxed(mut self) -> Self {
+        self.boxed = true;
+        self
+    }
+
+    /// Whether this array was taken out of an array's cell (see the type's documentation).
+    pub const fn is_boxed(&self) -> bool {
+        self.boxed
+    }
+
+    /// Whether a cell of this array holds an array (dc-h9u).
+    pub fn holds_arrays(&self) -> bool {
+        self.cells
+            .iter()
+            .any(|cell| matches!(cell.core_ref(), CoreRef::Array(_)) && cell.callable_value().is_none())
     }
 
     pub fn cell_count(&self) -> usize {

@@ -1659,6 +1659,12 @@ fn select(array: &CalcArray, row: u64, column: u64) -> CalcValue {
             .expect("an element of the array");
         return match value.core_ref() {
             CoreRef::Missing => CalcValue::empty(),
+            // An array a cell of the array holds (a GROUPBY result's, dc-h9u) is given boxed:
+            // Excel 16.0.20527 shows `=INDEX(GROUPBY(k,v,LAMBDA(x,x)),1,2)` as the group's first
+            // value and counts the whole group in ROWS and SUM of it.
+            CoreRef::Array(held) if value.callable_value().is_none() => {
+                CalcValue::array(held.clone().boxed())
+            }
             _ => value.clone(),
         };
     }

@@ -547,8 +547,14 @@ impl Walk<'_> {
         // array) is the case where it returns a whole row or column (measured:
         // XLOOKUP(11,A1:A3,B1:B3) is ordinary).
         let lookup_range = upper == "XLOOKUP" && shapes.get(1).is_some_and(|shape| shape.multi);
+        // GROUPBY, PIVOTBY and TRIMRANGE take ranges as they are: their measured position flags
+        // only repeat that the call alone is a dynamic array, and Excel 16.0.20527 stores
+        // ROWS(GROUPBY(C1:C6,D1:D6,SUM)), ROWS(PIVOTBY(...)) and ROWS(TRIMRANGE(C1:C20)) as
+        // ordinary formulas (dc-h9u, 2026-10-30).
+        let takes_ranges = matches!(upper.as_str(), "GROUPBY" | "PIVOTBY" | "TRIMRANGE");
         for (position, shape) in shapes.iter().enumerate() {
             if !shape.multi
+                || takes_ranges
                 || entry.positions.is_empty()
                 || (literal_index && position == 0)
                 || (lookup_range && position == 2)

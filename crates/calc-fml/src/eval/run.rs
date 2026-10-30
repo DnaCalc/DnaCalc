@@ -447,6 +447,13 @@ impl Run<'_, '_> {
 
     /// `value` admitted where one value is taken; see [`Run::admit`].
     fn admit_value(&self, value: CalcValue, admission: Admission) -> Result<CalcValue, EvalFault> {
+        // A boxed array (dc-h9u) gives its first element where one value is taken.
+        if let CoreRef::Array(array) = value.core_ref()
+            && array.is_boxed()
+            && value.callable_value().is_none()
+        {
+            return Ok(first_element(array));
+        }
         match value.core_ref() {
             CoreRef::Reference(reference) => {
                 if let [area] = reference.areas()
@@ -543,7 +550,6 @@ impl Run<'_, '_> {
             catalog,
             anchor: self.instance.anchor,
             resolved: Vec::new(),
-            external: false,
         });
         let result = {
             let mut cells = ReaderCells::new(self.reader);
@@ -560,20 +566,11 @@ impl Run<'_, '_> {
             )
         };
         self.calls.push(scratch);
-        let external = text.as_ref().is_some_and(|text| text.external);
         for area in text.map(|text| text.resolved).unwrap_or_default() {
             self.show_resolved(target, area);
         }
         self.show_call(target, synthetic);
-        match result {
-            // Reference text naming another workbook: external references are refused as not
-            // modelled, by the work package that owns them.
-            Err(_) if external => Err(EvalFault::NotModelled {
-                construct: "reference text naming another workbook (an external reference)",
-                owner: "dc-10y",
-            }),
-            result => result.map_err(|fault| self.function_fault(fault)),
-        }
+        result.map_err(|fault| self.function_fault(fault))
     }
 
     /// Runs the eager entry `target` once on `arguments`, of which at least one is a LAMBDA value,
@@ -642,15 +639,24 @@ impl Run<'_, '_> {
         for row in 0..shape.rows {
             for col in 0..shape.cols {
                 let mut short = false;
+                let mut held = None;
                 for index in &lifted {
                     let array = arguments[*index].as_array().expect("a lifted array");
                     match lift::element(array, row, col) {
-                        Some(value) => element[*index] = value.clone(),
+                        Some(value) => match held_array_element(target, self.instance.plan.form, value) {
+                            None => element[*index] = value.clone(),
+                            Some(Ok(first)) => element[*index] = first,
+                            Some(Err(error)) => held = held.or(Some(error)),
+                        },
                         None => short = true,
                     }
                 }
                 if short {
                     cells.push(CalcValue::error(WorksheetErrorCode::NA));
+                    continue;
+                }
+                if let Some(error) = held {
+                    cells.push(error);
                     continue;
                 }
                 let value = self.eager(target, &element, synthetic)?;
@@ -777,16 +783,25 @@ impl Run<'_, '_> {
         for row in 0..shape.rows {
             for col in 0..shape.cols {
                 let mut short = false;
+                let mut held = None;
                 for (index, argument) in arguments.iter().enumerate() {
                     if let Some(array) = lifted_array(argument) {
                         match lift::element(array, row, col) {
-                            Some(value) => element[index] = value.clone(),
+                            Some(value) => match held_array_element(target, self.instance.plan.form, value) {
+                                None => element[index] = value.clone(),
+                                Some(Ok(first)) => element[index] = first,
+                                Some(Err(error)) => held = held.or(Some(error)),
+                            },
                             None => short = true,
                         }
                     }
                 }
                 if short {
                     cells.push(CalcValue::error(WorksheetErrorCode::NA));
+                    continue;
+                }
+                if let Some(error) = held {
+                    cells.push(error);
                     continue;
                 }
                 let value = self.lazy_once(target, &element)?;
@@ -982,6 +997,38 @@ fn is_lifted(target: Target, index: usize, value: &CalcValue) -> bool {
     target.0.parameter_class(index) == Some(ParameterClass::Value) && lifted_array(value).is_some()
 }
 
+/// The first element of `array`, as one value (a blank as Empty).
+fn first_element(array: &CalcArray) -> CalcValue {
+    let value = array.get(0, 0).expect("a non-empty array");
+    match value.core_ref() {
+        CoreRef::Missing => CalcValue::empty(),
+        _ => value.clone(),
+    }
+}
+
+/// The element a call lifted over an array is given for an element that is itself an array
+/// (a GROUPBY result's cell, dc-h9u): in a dynamic-array formula an operator gives #VALUE! there
+/// (Excel 16.0.20527: `=GROUPBY(k,v,LAMBDA(x,{7,8}),0,0)*2` is #VALUE! in each such cell); a
+/// function, and an operator in a legacy formula, take the held array's first element
+/// (`=ISNUMBER(GROUPBY(...))` is TRUE there, legacy `=INDEX(GROUPBY(k,v,LAMBDA(x,x))*2,1,2)` is 2);
+/// `None` for any other element, which is given as it is.
+fn held_array_element(
+    target: Target,
+    form: FormulaForm,
+    value: &CalcValue,
+) -> Option<Result<CalcValue, CalcValue>> {
+    let CoreRef::Array(held) = value.core_ref() else {
+        return None;
+    };
+    if value.callable_value().is_some() {
+        return None;
+    }
+    Some(match (target.0.notation(), form) {
+        (calc_func::Notation::Call, _) | (_, FormulaForm::Legacy) => Ok(first_element(held)),
+        _ => Err(CalcValue::error(WorksheetErrorCode::Value)),
+    })
+}
+
 /// The array `value` is, when it is a plain array (not a LAMBDA value).
 fn lifted_array(value: &CalcValue) -> Option<&CalcArray> {
     if value.callable_value().is_some() {
@@ -1011,8 +1058,6 @@ struct TextBinding<'c> {
     catalog: &'c dyn ReferenceCatalog,
     anchor: FormulaAnchor,
     resolved: Vec<GridArea>,
-    /// The text named another workbook.
-    external: bool,
 }
 
 impl ReferenceText for TextBinding<'_> {
@@ -1026,8 +1071,11 @@ impl ReferenceText for TextBinding<'_> {
         if let TextReference::Area(area) = bound {
             self.resolved.push(area);
         }
+        // dc-ylr: text naming another workbook names a closed one, whose cells INDIRECT does not
+        // read: Excel 16.0.20527 gives INDIRECT("'C:\dir\[src.xlsx]Sheet1'!A1") #REF! with that
+        // workbook closed (2026-10-30).
         if bound == TextReference::NotModelled && names_another_workbook(text) {
-            self.external = true;
+            return TextReference::Invalid;
         }
         bound
     }
