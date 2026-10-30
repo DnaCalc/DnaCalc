@@ -622,6 +622,13 @@ ported_family! {
         run(s, a, sv, k::eval_vstack_prepared)
     }
     11 hstack_fn "HSTACK" (1, 254) [R "array1", R "array2"] |s, a, sv| {
+        // dc-h9u: a row of functions, as GROUPBY and PIVOTBY take them
+        // (`GROUPBY(A2:A9,B2:B9,HSTACK(SUM,MAX))`, Excel 16.0.20527).
+        if a.iter().all(|v| v.callable_value().is_some()) {
+            return CalcArray::from_rows(vec![a.to_vec()])
+                .map(CalcValue::array)
+                .ok_or_else(|| s.not_modelled(None));
+        }
         run(s, a, sv, k::eval_hstack_prepared)
     }
     12 tocol_fn "TOCOL" (1, 3) [R "array", V "ignore", V "scan_by_column"] |s, a, sv| {

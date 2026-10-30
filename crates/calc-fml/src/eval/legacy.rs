@@ -243,6 +243,48 @@ const ARRAY: &[(&str, &[usize])] = &[
 /// before the range, where the `*` operand of `=ROWS(A1:A3*1)` lifts.
 const SINGLE: &[(&str, &[usize])] = &[("FIELDVALUE", ALL)];
 
+/// The array parameters that lift wherever the call is, an array place included (dc-h9u). Measured
+/// in Excel 16.0.20527 through COM on 2026-10-30, `Range.Formula` entry in rows 1 to 36 over
+/// A101:A103 = 1, 2, 3 and E101:E103 = East, West, East, `Range.Formula2` read back: Excel wrote no
+/// `@` in `=ROWS(GROUPBY(E101:E103&"",A101:A103*1,SUM))` (3),
+/// `=ROWS(GROUPBY(E101:E103,A101:A103,SUM,,,,A101:A103>1))` (3),
+/// `=SUMPRODUCT(GROUPBY(E101:E103,A101:A103*1,SUM,,0))` (6) or
+/// `=ROWS(PIVOTBY(E101:E103&"",D101:D103&"",A101:A103*1,SUM,,,,,,A101:A103>1))` (4), and the
+/// catalogue oracle's `=ROWS(GROUPBY(...,{1;2;3;4;5;6}>2))` rows give the filtered groups.
+const NESTED_ARRAY: &[(&str, &[usize])] = &[("GROUPBY", &[0, 1, 6]), ("PIVOTBY", &[0, 1, 2, 9])];
+
+/// The parameters whose range expression a legacy formula intersects wherever the call is, an
+/// array place included, while an array there lifts (dc-o9r). Measured as [`NESTED_ARRAY`] says:
+/// `=SUMPRODUCT(TRANSPOSE(A101:A103*1))` is written back `=SUMPRODUCT(TRANSPOSE(@A101:A103*1))`,
+/// #VALUE!, and `=ROWS(TRANSPOSE(A101:A103*1))` likewise, while `=SUMPRODUCT(TRANSPOSE({1,2,3}*1))`
+/// keeps no `@`, 6, and `=ROWS(TRANSPOSE({1,2,3}*1))` is 3.
+const AGGREGATE_ANYWHERE: &[(&str, &[usize])] = &[("TRANSPOSE", &[0])];
+
+/// The parameters at which a legacy formula intersects an argument whose value is a reference
+/// (Excel writes `@` before it), outside an array place or (`true`) everywhere (dc-o9r, dc-b1l).
+/// Measured as [`NESTED_ARRAY`] says: `=TRANSPOSE(A101:A103)` is written back
+/// `=@TRANSPOSE(@A101:A103)` and gives #VALUE!, and `=ROWS(TRANSPOSE(A101:A103))`,
+/// `=SUMPRODUCT(TRANSPOSE(A101:A103))`, `=SUM(TRANSPOSE(OFFSET(A101,0,0,3,1)))`,
+/// `=SUM(TRANSPOSE(Rng))`, `=INDEX(TRANSPOSE(D101:D103),1,3)` and
+/// `=HLOOKUP("b",TRANSPOSE(D101:D103),1,FALSE)` each take `@` before the reference, #VALUE! below
+/// it; `=TYPE(A101:A103)` is `=TYPE(@A101:A103)`, 16, and `TYPE(@OFFSET(A101,0,0,3,1))`,
+/// `TYPE(@Rng)`, `TYPE(@A:A)` (1, in row 3) likewise, while `=SUMPRODUCT(TYPE(A101:A103))` keeps
+/// no `@`, 64, and `=ROWS(TYPE(A101:A103))` is 1. `=TRANSPOSE({1,2,3})` and `=TYPE((A101,A102))`
+/// (a union) take no `@` before the argument.
+const REFERENCE_INTERSECTED: &[(&str, usize, bool)] = &[("TRANSPOSE", 0, true), ("TYPE", 0, false)];
+
+/// Whether a legacy formula intersects a reference given as argument `index` of a call of
+/// `spelling` made at `place` (see [`REFERENCE_INTERSECTED`]).
+pub(super) fn intersects_reference(place: Place, spelling: &str, index: usize) -> bool {
+    REFERENCE_INTERSECTED
+        .iter()
+        .any(|(name, position, everywhere)| {
+            name.eq_ignore_ascii_case(spelling)
+                && *position == index
+                && (*everywhere || place != Place::Array)
+        })
+}
+
 /// Every parameter of a function.
 const ALL: &[usize] = &[usize::MAX];
 
@@ -294,7 +336,11 @@ impl Place {
             Some(ParameterClass::Value) if listed(SINGLE, spelling, index) => Place::Value,
             Some(ParameterClass::Value) => self,
             Some(ParameterClass::ValueOrReference | ParameterClass::Reference) | None => {
-                if listed(ARRAY, spelling, index) {
+                if listed(NESTED_ARRAY, spelling, index) {
+                    Place::Array
+                } else if listed(AGGREGATE_ANYWHERE, spelling, index) {
+                    Place::Aggregate
+                } else if listed(ARRAY, spelling, index) {
                     match self {
                         Place::Value | Place::Aggregate => Place::Array,
                         _ => Place::Unknown,
@@ -353,5 +399,15 @@ mod tests {
         // dc-b1l: FIELDVALUE's value parameters are intersected below ROWS's array place.
         assert_eq!(array.argument("FIELDVALUE", 0, v, false), Place::Value);
         assert_eq!(array.argument("FIELDVALUE", 1, v, false), Place::Value);
+        // dc-h9u: GROUPBY's filter lifts below ROWS's array place; dc-o9r: TRANSPOSE's range
+        // expression is intersected there, and TRANSPOSE's and TYPE's references as measured.
+        let reference = Some(ParameterClass::Reference);
+        assert_eq!(array.argument("GROUPBY", 6, reference, false), Place::Array);
+        assert_eq!(array.argument("PIVOTBY", 9, reference, false), Place::Array);
+        assert_eq!(array.argument("TRANSPOSE", 0, r, false), Place::Aggregate);
+        assert!(intersects_reference(Place::Array, "TRANSPOSE", 0));
+        assert!(intersects_reference(Place::Value, "TYPE", 0));
+        assert!(!intersects_reference(Place::Array, "TYPE", 0));
+        assert!(!intersects_reference(Place::Value, "SUM", 0));
     }
 }

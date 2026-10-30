@@ -21,14 +21,16 @@ use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcValue, CallableArityShape, CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, ReferenceLike,
-    WorksheetErrorCode,
+    CalcArray, CalcValue, CallableArityShape, CellKey, CoreRef, GridArea, MAX_COLUMNS, MAX_ROWS,
+    ReferenceLike, WorksheetErrorCode,
 };
+use std::ops::ControlFlow;
 
 const CODE: u16 = 40;
 
 const OFFSET: FunctionId = FunctionId::new(CODE, 1);
 const ISOMITTED: FunctionId = FunctionId::new(CODE, 2);
+const TRIMRANGE: FunctionId = FunctionId::new(CODE, 3);
 
 pub(super) const FAMILY: Family = Family {
     code: CODE,
@@ -56,6 +58,19 @@ pub(super) const FAMILY: Family = Family {
             parameters: &[Parameter::value("argument")],
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(isomitted),
+        },
+        CatalogueEntry {
+            id: TRIMRANGE,
+            spelling: "TRIMRANGE",
+            notation: Notation::Call,
+            arity: CallableArityShape::range(1, 3),
+            parameters: &[
+                Parameter::value_or_reference("range"),
+                Parameter::value("trim_rows"),
+                Parameter::value("trim_cols"),
+            ],
+            demand: ArgumentDemand::Eager,
+            kernel: Kernel::Eager(trimrange),
         },
     ],
 };
@@ -125,6 +140,129 @@ fn span(start: i64, size: i64) -> (i64, i64) {
     } else {
         (start + size + 1, start)
     }
+}
+
+/// TRIMRANGE(range, [trim_rows], [trim_cols]) (dc-h9u): the reference to `range` without its
+/// leading and trailing blank rows and columns. Each trim argument, truncated, is 0 (none), 1
+/// (leading), 2 (trailing) or 3 (both, the default); any other is #VALUE!. A blank cell is one
+/// with no value (empty text is a value). A range with no value is #REF!. The trim references
+/// `A1:.B9` (trailing), `A1.:B9` (leading) and `A1.:.B9` (both) call it with both arguments the
+/// same (calc-fml).
+fn trimrange(
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+) -> Result<CalcValue, FunctionFault> {
+    let site = Site::new(TRIMRANGE, services);
+    let step = (|| {
+        site.scalar_operands(&arguments[1..])?;
+        let mode = |index: usize| -> Step<u8> {
+            match arguments.get(index) {
+                None => Ok(3),
+                Some(value) if value.is_missing() => Ok(3),
+                // Only 0 to 3 exactly: 2.9 is #VALUE! (Excel 16.0.20527).
+                Some(value) => match site.number_argument(index, value)? {
+                    n if (0.0..=3.0).contains(&n) && n.fract() == 0.0 => Ok(n as u8),
+                    _ => Err(Exit::Error(WorksheetErrorCode::Value)),
+                },
+            }
+        };
+        let (rows, cols) = (mode(1)?, mode(2)?);
+        if let CoreRef::Array(array) = arguments[0].core_ref() {
+            return Ok(Err(trim_array(array, rows, cols)));
+        }
+        let Some(reference) = arguments[0].as_reference() else {
+            return Err(Exit::Error(WorksheetErrorCode::Value));
+        };
+        let [area] = reference.areas() else {
+            return Err(Exit::Error(WorksheetErrorCode::Value));
+        };
+        Ok(Ok((*area, rows, cols)))
+    })();
+    let (area, rows, cols) = match step {
+        Ok(Ok(found)) => found,
+        Ok(Err(trimmed)) => return Site::finish(trimmed),
+        Err(exit) => return Site::finish(Err(exit)),
+    };
+    // The rows and columns of the cells that hold a value.
+    let mut bounds: Option<(u32, u32, u32, u32)> = None;
+    let read = match services.cells() {
+        Some(cells) => cells.read_area(area, &mut |key, value| {
+            if !matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
+                let (r, c) = (key.row(), key.column());
+                bounds = Some(match bounds {
+                    None => (r, r, c, c),
+                    Some((t, b, l, rt)) => (t.min(r), b.max(r), l.min(c), rt.max(c)),
+                });
+            }
+            ControlFlow::Continue(())
+        }),
+        None => Err(crate::call::Unreadable),
+    };
+    if read.is_err() {
+        return Err(FunctionFault::ReferenceUnreadable {
+            id: TRIMRANGE,
+            index: 0,
+        });
+    }
+    let Some((top, bottom, left, right)) = bounds else {
+        return Site::finish(Err(Exit::Error(WorksheetErrorCode::Ref)));
+    };
+    let (first, last) = (area.first(), area.last());
+    let keep = |mode: u8, low: u32, high: u32, min: u32, max: u32| -> (u32, u32) {
+        let lead = matches!(mode, 1 | 3);
+        let trail = matches!(mode, 2 | 3);
+        (if lead { min } else { low }, if trail { max } else { high })
+    };
+    let (r0, r1) = keep(rows, first.row(), last.row(), top, bottom);
+    let (c0, c1) = keep(cols, first.column(), last.column(), left, right);
+    let sheet = area.sheet();
+    let corner = |row: u32, column: u32| CellKey::new(sheet, row, column).expect("inside the area");
+    let trimmed = GridArea::new(corner(r0, c0), corner(r1, c1)).expect("one sheet");
+    Site::finish(Ok(CalcValue::reference(ReferenceLike::area(trimmed))))
+}
+
+/// TRIMRANGE of an array: its leading and trailing rows and columns with no value left out, as
+/// a range's are (Excel 16.0.20527: `ROWS(TRIMRANGE({1,2},1))` is 1); an array with no value is
+/// #REF!.
+fn trim_array(array: &CalcArray, rows: u8, cols: u8) -> Step<CalcValue> {
+    let shape = array.shape();
+    let held = |r: usize, c: usize| {
+        array
+            .get(r, c)
+            .is_some_and(|v| !matches!(v.core_ref(), CoreRef::Empty | CoreRef::Missing))
+    };
+    let row_held: Vec<usize> = (0..shape.rows)
+        .filter(|&r| (0..shape.cols).any(|c| held(r, c)))
+        .collect();
+    let col_held: Vec<usize> = (0..shape.cols)
+        .filter(|&c| (0..shape.rows).any(|r| held(r, c)))
+        .collect();
+    let (Some(&top), Some(&bottom), Some(&left), Some(&right)) = (
+        row_held.first(),
+        row_held.last(),
+        col_held.first(),
+        col_held.last(),
+    ) else {
+        return Err(Exit::Error(WorksheetErrorCode::Ref));
+    };
+    let span = |mode: u8, low: usize, high: usize, first: usize, last: usize| {
+        (
+            if matches!(mode, 1 | 3) { first } else { low },
+            if matches!(mode, 2 | 3) { last } else { high },
+        )
+    };
+    let (r0, r1) = span(rows, 0, shape.rows - 1, top, bottom);
+    let (c0, c1) = span(cols, 0, shape.cols - 1, left, right);
+    let out: Vec<Vec<CalcValue>> = (r0..=r1)
+        .map(|r| {
+            (c0..=c1)
+                .map(|c| array.get(r, c).cloned().unwrap_or_else(CalcValue::empty))
+                .collect()
+        })
+        .collect();
+    Ok(CalcValue::array(
+        CalcArray::from_rows(out).expect("a rectangular array"),
+    ))
 }
 
 /// ISOMITTED(argument): TRUE when the argument is omitted, as a LAMBDA parameter its call did not

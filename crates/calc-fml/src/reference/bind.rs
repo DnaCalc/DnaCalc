@@ -249,7 +249,7 @@ impl Binder<'_> {
                 SyntaxKind::IdentifierExpr | SyntaxKind::NumberLiteralExpr => {
                     only_token(node).and_then(|token| self.alone(&Qualifier::Unqualified, token))
                 }
-                SyntaxKind::RangeExpr => {
+                SyntaxKind::RangeExpr | SyntaxKind::TrimRangeExpr => {
                     if !self.range(node) {
                         visit_children(node, &mut pending);
                     }

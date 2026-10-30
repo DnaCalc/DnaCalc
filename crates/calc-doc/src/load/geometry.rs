@@ -16,6 +16,18 @@ pub struct ColumnSpan {
     /// The width, in characters; `None` when the element states none.
     pub width: Option<f64>,
     pub hidden: bool,
+    /// `customWidth`: the span's width is its own rather than the sheet's default (dc-uar:
+    /// CELL("width") reports it).
+    pub custom_width: bool,
+}
+
+/// What a worksheet's first window (`<sheetView>`) shows as the file states it (dc-uar): its top
+/// left cell (`topLeftCell`) and its active cell (the `activeCell` of the selection in the active
+/// pane), each as (row, column). INFO("origin") and CELL without a reference read them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SheetView {
+    pub top_left: Option<(u32, u32)>,
+    pub active_cell: Option<(u32, u32)>,
 }
 
 /// One row's `ht` and `hidden`.
@@ -90,6 +102,7 @@ impl SheetGeometry {
             last,
             width: number(element, "width"),
             hidden: super::manifest::is_true(element.attribute("hidden")),
+            custom_width: super::manifest::is_true(element.attribute("customWidth")),
         });
     }
 
@@ -205,6 +218,7 @@ impl SheetGeometry {
                         last,
                         width: source.width,
                         hidden: false,
+                        custom_width: source.custom_width,
                     });
                 }
                 columns.sort_by_key(|span| span.first);

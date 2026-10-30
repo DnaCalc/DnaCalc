@@ -348,6 +348,37 @@ impl Walk<'_> {
                 multi(true)
             }
             SyntaxKind::CallExpr => self.call(node, depth),
+            // A trim reference (dc-h9u) as Excel 16.0.20527 saves it: `C1:.C20` as
+            // `_xlfn._TRO_TRAILING(C1:C20)`, `C1.:C20` as `_xlfn._TRO_LEADING(C1:C20)` and
+            // `C1.:.C20` as `_xlfn._TRO_ALL(C1:C20)`.
+            SyntaxKind::TrimRangeExpr => {
+                let tokens: Vec<&calc_fml::syntax::Token> = node
+                    .children()
+                    .iter()
+                    .filter_map(|child| match child {
+                        SyntaxChild::Token(token) => Some(token),
+                        SyntaxChild::Node(_) => None,
+                    })
+                    .collect();
+                let operator: String = tokens.iter().map(|token| token.text()).collect();
+                let function = match operator.as_str() {
+                    ".:" => "_xlfn._TRO_LEADING(",
+                    ":." => "_xlfn._TRO_TRAILING(",
+                    ".:." => "_xlfn._TRO_ALL(",
+                    _ => return Err(FileFormError::Unreadable),
+                };
+                let (Some(first), Some(last)) = (tokens.first(), tokens.last()) else {
+                    return Err(FileFormError::Unreadable);
+                };
+                self.insert(node.span().start, function);
+                for child in node.child_nodes() {
+                    self.walk(child, depth + 1)?;
+                }
+                self.edits
+                    .push((first.span().start, last.span().end(), ":".to_owned()));
+                self.insert(node.span().end(), ")");
+                multi(true)
+            }
             SyntaxKind::ArgumentList => {
                 for argument in arguments(node) {
                     self.walk(argument, depth + 1)?;

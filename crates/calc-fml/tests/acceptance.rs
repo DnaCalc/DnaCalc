@@ -162,6 +162,7 @@ fn kind_name(kind: SyntaxKind) -> &'static str {
         SyntaxKind::PostfixExpr => "Postfix",
         SyntaxKind::GroupingExpr => "Group",
         SyntaxKind::RangeExpr => "Range",
+        SyntaxKind::TrimRangeExpr => "TrimRange",
         SyntaxKind::IntersectionExpr => "Intersect",
         SyntaxKind::UnionExpr => "Union",
         SyntaxKind::OmittedArgExpr => "Omitted",
@@ -418,25 +419,12 @@ fn record_kinds(
 // ---------------------------------------------------------------------------------------------
 // cfml_m1_1__lossless_roundtrip
 
-/// Excel trim references, which this grammar does not parse: the formula, the trim operator the
-/// one unsupported-syntax diagnostic must span, and the expression shape around it. Each still
-/// reprints exactly.
-const TRIM_REFERENCES: &[(&str, &str, &str)] = &[
-    (
-        "=SUM(A1.:B10)",
-        ".:",
-        "Call(SUM Args(( Unsupported(Id(A1) . : Id(B10)) )))",
-    ),
-    (
-        "=SUM(A1:.B10)",
-        ":.",
-        "Call(SUM Args(( Unsupported(Id(A1) : . Id(B10)) )))",
-    ),
-    (
-        "=SUM(A1.:.B10)",
-        ".:.",
-        "Call(SUM Args(( Unsupported(Id(A1) . : . Id(B10)) )))",
-    ),
+/// Excel trim references (dc-h9u): the formula and the expression shape it parses to, a trim
+/// range node between its two operands. Each reprints exactly with no diagnostic.
+const TRIM_REFERENCES: &[(&str, &str)] = &[
+    ("=SUM(A1.:B10)", "Call(SUM Args(( TrimRange(Id(A1) . : Id(B10)) )))"),
+    ("=SUM(A1:.B10)", "Call(SUM Args(( TrimRange(Id(A1) : . Id(B10)) )))"),
+    ("=SUM(A1.:.B10)", "Call(SUM Args(( TrimRange(Id(A1) . : . Id(B10)) )))"),
 ];
 
 /// Well-formed formulas: each reprints exactly, parses without diagnostics and has the expression
@@ -598,34 +586,11 @@ fn cfml_m1_1__lossless_roundtrip() {
         assert_eq!(utf16_slice(&units, found.span), quoted, "{source:?}");
     }
 
-    // Trim references reprint exactly and get one unsupported-syntax diagnostic naming them,
-    // spanning exactly the trim operator.
-    for (source, operator, expected) in TRIM_REFERENCES {
+    // Trim references reprint exactly and parse with no diagnostic as trim range nodes.
+    for (source, expected) in TRIM_REFERENCES {
         let tree = parse_formula(source);
         check_lossless(source, &tree);
-        let units: Vec<u16> = source.encode_utf16().collect();
-        assert_eq!(
-            tree.diagnostics().len(),
-            1,
-            "{source:?}: {:?}",
-            tree.diagnostics()
-        );
-        let diagnostic = &tree.diagnostics()[0];
-        assert_eq!(
-            diagnostic.kind,
-            SyntaxDiagnosticKind::UnsupportedSyntax,
-            "{source:?}"
-        );
-        assert!(
-            diagnostic.message.contains("trim references"),
-            "{source:?}: {}",
-            diagnostic.message
-        );
-        assert_eq!(
-            utf16_slice(&units, diagnostic.span),
-            *operator,
-            "{source:?}"
-        );
+        assert!(tree.diagnostics().is_empty(), "{source:?}: {:?}", tree.diagnostics());
         assert_eq!(expression_shape(&tree), *expected, "{source:?}");
     }
 
@@ -749,7 +714,7 @@ fn cfml_m1_1__lossless_roundtrip() {
     );
 
     note!(
-        "ACCEPT-NOTE: cfml_m1_1__lossless_roundtrip: {} well-formed and {} malformed or incomplete formulas plus {} error-literal formulas reprinted exactly with UTF-16 spans tiling the input; {} trim-reference formulas reprinted exactly with one unsupported-syntax diagnostic each; {} node kinds and {} token kinds exercised",
+        "ACCEPT-NOTE: cfml_m1_1__lossless_roundtrip: {} well-formed and {} malformed or incomplete formulas plus {} error-literal formulas reprinted exactly with UTF-16 spans tiling the input; {} trim-reference formulas reprinted exactly as trim ranges; {} node kinds and {} token kinds exercised",
         WELL_FORMED.len(),
         INCOMPLETE.len(),
         spellings.len() * 2,
@@ -1785,11 +1750,9 @@ fn cfml_m1_2__provider_reads() {
         ]
     );
     // Syntax the parser refused is one refused site, and the references inside it are not bound:
-    // neither Sheet1!A1 nor B10 of the trim range, nor A1 under the member selector. C1 binds.
-    for (formula, refused, after) in [
-        ("=SUM(Sheet1!A1.:B10)+C1", "Sheet1!A1.:B10", "C1"),
-        ("=(A1).Value+C1", "(A1).Value", "C1"),
-    ] {
+    // not A1 under the member selector. C1 binds. (A trim reference, `Sheet1!A1.:B10`, parses
+    // since dc-h9u and binds as its range.)
+    for (formula, refused, after) in [("=(A1).Value+C1", "(A1).Value", "C1")] {
         let tree = parse_formula(formula);
         let kinds: Vec<SyntaxDiagnosticKind> = tree
             .diagnostics()
@@ -2542,7 +2505,7 @@ fn cfml_m1_3__reuse_plan() {
         ("=SUM({1,2;3})", "syntax"),
         ("=NOSUCH(1)", "unknown function"),
         ("=IF(1)", "arity"),
-        ("=1234567890123456", "number literal"),
+        ("=1E400", "number literal"),
     ];
     for (formula, expected) in refusals {
         let refusal = compile(

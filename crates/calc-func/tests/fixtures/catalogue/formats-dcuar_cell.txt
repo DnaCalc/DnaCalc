@@ -1,0 +1,236 @@
+# dc-uar: number format codes whose CELL("format"), CELL("color") and CELL("parentheses") the dcuar_cell
+# sheet reads, each on a cell holding 1.5: custom codes (code:) and built-in formats by ID (id:).
+id:0
+id:1
+id:2
+id:3
+id:4
+id:9
+id:10
+id:11
+id:12
+id:13
+id:14
+id:15
+id:16
+id:17
+id:18
+id:19
+id:20
+id:21
+id:22
+id:37
+id:38
+id:39
+id:40
+id:45
+id:46
+id:47
+id:48
+id:49
+code:General
+code:0
+code:0.00
+code:#,##0
+code:#,##0.00
+code:$#,##0_);($#,##0)
+code:$#,##0_);[Red]($#,##0)
+code:$#,##0.00_);($#,##0.00)
+code:$#,##0.00_);[Red]($#,##0.00)
+code:0%
+code:0.00%
+code:0.00E+00
+code:# ?/?
+code:# ??/??
+code:m/d/yy
+code:d-mmm-yy
+code:d-mmm
+code:mmm-yy
+code:h:mm AM/PM
+code:h:mm:ss AM/PM
+code:h:mm
+code:h:mm:ss
+code:m/d/yy h:mm
+code:@
+code:0;[Red]-0
+code:0.000
+code:#,##0;-#,##0
+code:0_);(0)
+code:(0)
+code:yyyy-mm-dd
+code:[$-409]mmmm d, yyyy
+code:General;[Red]-General
+code:0.0E+0
+code:##0.0E+0
+code:[Blue]0
+code:0;(0)
+code:#,##0.000
+code:"$"#,##0
+code:R #,##0.00
+code:dd/mm/yyyy
+code:mm:ss
+code:[h]:mm:ss
+code:0.0%
+code:#,##0_);[Red](#,##0)
+code:0.00;[Red]0.00
+code:_(* #,##0_);_(* (#,##0);_(* "-"_);_(@_)
+code:_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)
+code:ddd
+code:mmmm
+code:yyyy
+code:0.0000000000
+code:#,##0.0000000000000
+code:0.00;-0.00;0.00;@
+code:[Red]0
+code:0;0;0
+code:"x"0
+code:0"x"
+code:#
+code:#.#
+code:0.##
+code:mmmm d, yyyy
+code:mmm d, yyyy
+code:mmm/d/yy
+code:m d yy
+code:d/m/yy
+code:d m
+code:m-yy
+code:mm/yyyy
+code:m/yy
+code:d/m h:mm
+code:h:mm d/m/yy
+code:mmm-dd-yyyy
+code:yy/m
+code:yyyy-mm
+code:dd
+code:mm
+code:m
+code:ddd d mmm
+code:dddd d mmmm yyyy
+code:h AM/PM
+code:hh:mm:ss
+code:h:mm A/P
+code:h:mm:ss A/P
+code:hh:mm AM/PM
+code:[$-409]h:mm AM/PM
+code:mm:ss.0
+code:[mm]:ss
+code:[h]:mm
+code:h:mm;@
+code:m/d/yy;@
+code:d-mmm-yy;@
+code:e
+code:ggg e
+code:R 0
+code:R#,##0.00;[Red]-R#,##0.00
+code:#,##0.00 R
+code:"R"0
+code:[$R-1C09]#,##0.00
+code:[$$-409]#,##0.00
+code:0.000%
+code:0E+00
+code:0.00_);[Red](0.00)
+code:0.00;;
+code:0.00\%
+code:#,##0.00_ ;[Red]-#,##0.00\ 
+code:0;-0;;@
+code:#,##0;(#,##0)
+code:(#,##0);(#,##0)
+code:0.00;(0.00)
+code:[Red]0;[Blue]-0
+code:0;[Color10]-0
+code:0;-0;[Red]0
+code:[<100]0;0.00
+code:0.0000000000000000000000000000000
+code:R* #,##0.00
+code:?
+code:0 %
+code:#,##0,
+code:#,##0.0,,
+code:0.00 "R"
+code:0.00 Z\AR
+code:[$-1C09]0.00
+code:R0.0E+0
+code:R0%
+code:[$-409]d-mmm-yy
+code:[$-409]m/d/yy
+code:[$-409]mmm-yy
+code:[$-409]h:mm
+code:[$-409]h:mm:ss
+code:[$-409]d/m
+code:[$-409]0.00
+code:[$-1C09]d-mmm-yy
+code:[$-1C09]mmmm d, yyyy
+code:[$-1C09]h:mm
+code:[Red]m/d/yy
+code:m/d/yy;[Red]m/d/yy
+code:"x"d-mmm
+code:\d m/d
+code:d\-mmm
+code:dd/mm/yy hh:mm
+code:yyyy/m/d h:mm
+code:h:mm:ss;@
+code:[$-F400]h:mm
+code:0.00%;[Red]-0.00%
+code:0%;(0%)
+code:(0%)
+code:0.00E+00;[Red]-0.00E+00
+code:R 0;[Red](R 0)
+code:General;(General)
+code:(General)
+code:0.0_)
+code:0.0_(
+code:_(0.0_)
+code:#,##0.000_);[Red]\(#,##0.000\)
+code:\(0\)
+code:"("0")"
+code:0.0%_)
+code:%0
+code:0%0
+code:0.%
+code:0E-0
+code:##0.0E+0;[Red]-##0.0E+0
+code:0;[Red]0;0
+code:;[Red]0
+code:0.0;
+code:[Black]0;[White]-0
+code:[Green]#,##0;[Red]-#,##0
+code:0.0 R;-0.0 R
+code:R
+code:"R "
+code:mm/dd
+code:d/m
+code:m/d
+code:dd/mm
+code:yy
+code:mmm
+code:d
+code:dddd
+code:mmm d
+code:d mmmm yyyy
+code:mmmm yyyy
+code:yyyy/mm/dd
+code:h
+code:hh:mm
+code:mm/dd/yyyy
+code:m/d/yyyy h:mm:ss
+code:h:mm:ss.0
+code:[$-F800]dddd, mmmm dd, yyyy
+code:[$-F400]h:mm:ss AM/PM
+code:0.00_)
+code:#,##0.00 [$EUR]
+code:$0
+code:$0.00
+code:0.00$
+code:[$$-409]0.00
+code:[$R-1C09]0.00
+code:"R"#,##0
+code:#,##0%
+code:"R"0%
+code:0.00 "$"
+code:"R"0.0E+0
+code:R0
+code:$#,##0
+code:[$R-1C09] #,##0.00;[$R-1C09] -#,##0.00
+code:h AM/PM;@
+code:[$-409]h:mm:ss AM/PM

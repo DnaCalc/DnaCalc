@@ -356,10 +356,11 @@ fn odd(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) -
 /// TYPE: 1 for a number or a blank cell, 2 for text (empty text included), 4 for a logical, 16
 /// for an error and 64 for an array; Microsoft's page lists all but the blank cell. A reference to
 /// one cell gives the type of the cell's value, and a reference of several areas is 16. A reference
-/// to one area of several cells is refused as not modelled: Excel loads it in a legacy formula
-/// with `@`, whose implicit intersection calc-fml evaluates (dc-m3u), and its result in a
-/// dynamic-array formula is unknown (dc-m3u). Compound data (128) is not modelled: a callable
-/// is refused. #BLOCKED!
+/// to one area of several cells is 64, as an array: Excel 16.0.20527 gives 64 for the
+/// dynamic-array formulas `=TYPE(A101:A103)` and `=TYPE(A101:B101)` and for the legacy
+/// `=SUMPRODUCT(TYPE(A101:A103))` (dc-b1l, through COM, 2026-10-30); elsewhere a legacy formula
+/// intersects it first (`=TYPE(@A101:A103)`, calc-fml). Compound data (128) is not modelled: a
+/// callable is refused. #BLOCKED!
 /// and #CONNECT! are refused (see [`known`]).
 fn type_of(
     arguments: &[CalcValue],
@@ -374,7 +375,7 @@ fn type_of(
             Some(area) => {
                 referenced(&site, area, services).and_then(|value| type_code(&site, &value))
             }
-            None => Err(site.not_modelled(Some(0))),
+            None => Ok(64.0),
         },
         _ => type_code(&site, argument),
     };

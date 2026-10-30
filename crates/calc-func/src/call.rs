@@ -12,6 +12,7 @@ use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, P
 use crate::locale::CalcEnvironment;
 use crate::value::{CalcValue, CellKey, CoreRef, GridArea, NumericMode, SheetId, WorksheetErrorCode};
 use std::fmt;
+use std::sync::Arc;
 use std::ops::ControlFlow;
 
 /// The arguments of one call. The caller produces each value when the call interface asks for
@@ -150,6 +151,129 @@ pub trait HostFacts {
     fn sheet_count(&mut self) -> Option<u32> {
         None
     }
+
+    /// The host's facts about the workbook's file, formats and views and about the application
+    /// ([`WorkbookFacts`]), which CELL and INFO read (dc-uar).
+    fn workbook_facts(&mut self) -> Option<Arc<dyn WorkbookFacts>> {
+        None
+    }
+}
+
+/// Facts about the workbook that only its host holds, beyond the cells' values: the file it was
+/// opened from, each cell's format, the columns' widths, the sheets' views, the calculation mode
+/// and the application (dc-uar). CELL reads the first four, INFO the rest. Every method has a
+/// default that supplies nothing, and a call that needs a fact the host does not supply is refused
+/// as not modelled. The host gives one snapshot per recalculation, shared by the threads that
+/// evaluate it.
+pub trait WorkbookFacts: Send + Sync + fmt::Debug {
+    /// The format of `cell`: its number format code, horizontal alignment and whether it is
+    /// locked.
+    fn cell_format(&self, cell: CellKey) -> Option<CellFormatFacts> {
+        let _ = cell;
+        None
+    }
+
+    /// The width of `column` (1-based) of `sheet` as Excel shows it.
+    fn column_width(&self, sheet: SheetId, column: u32) -> Option<ColumnWidth> {
+        let _ = (sheet, column);
+        None
+    }
+
+    /// The workbook's file: its folder and file name.
+    fn file(&self) -> Option<WorkbookFile> {
+        None
+    }
+
+    /// The active cell of the workbook's active sheet, which CELL without a reference reads.
+    fn active_cell(&self) -> Option<CellKey> {
+        None
+    }
+
+    /// The top left cell of `sheet`'s window, which INFO("origin") reads.
+    fn top_left_cell(&self, sheet: SheetId) -> Option<CellKey> {
+        let _ = sheet;
+        None
+    }
+
+    /// The calculation mode, which INFO("recalc") reads.
+    fn calculation_mode(&self) -> Option<CalculationMode> {
+        None
+    }
+
+    /// The facts about the application and its platform that INFO reads.
+    fn application(&self) -> Option<ApplicationFacts> {
+        None
+    }
+}
+
+/// A cell's format as CELL reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CellFormatFacts {
+    /// The number format code, as the file writes it (`General`, `0.00`, ...).
+    pub number_format: String,
+    /// The built-in number format ID the cell's format names, when the workbook does not declare
+    /// that ID itself: the locale-dependent ones (14, 22) class by the locale's own code.
+    pub builtin: Option<u32>,
+    pub horizontal: HorizontalAlignment,
+    /// Whether the cell is locked (protection's `locked`, which is true unless a format clears
+    /// it).
+    pub locked: bool,
+}
+
+/// A cell format's horizontal alignment (`<alignment horizontal>`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HorizontalAlignment {
+    General,
+    Left,
+    Center,
+    Right,
+    Fill,
+    Justify,
+    CenterContinuous,
+    Distributed,
+}
+
+/// A column's width as Excel shows it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ColumnWidth {
+    /// The width in characters of the default font's widest digit, as Excel's column width
+    /// shows it (8.43 for the default column of a Calibri or Aptos Narrow 11 workbook); 0 for a
+    /// hidden column.
+    pub characters: f64,
+    /// Whether the column has the sheet's default width (no width of its own).
+    pub default: bool,
+}
+
+/// The workbook's file as CELL("filename") and a reference to another sheet name it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkbookFile {
+    /// The folder the file was opened from, with its trailing separator; `None` for a workbook
+    /// never saved, whose file name CELL("filename") gives as empty text.
+    pub folder: Option<String>,
+    /// The file name (`Book1.xlsx`), or a never-saved workbook's name (`Book1`).
+    pub name: String,
+}
+
+/// The calculation mode INFO("recalc") reports.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CalculationMode {
+    Automatic,
+    AutomaticExceptTables,
+    Manual,
+}
+
+/// The facts about the application and its platform that INFO reads; a `None` field refuses its
+/// type as not modelled.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ApplicationFacts {
+    /// INFO("release"): the application's version (`16.0`).
+    pub release: Option<String>,
+    /// INFO("osversion"): the operating system (`Windows (64-bit) NT 10.00`).
+    pub os_version: Option<String>,
+    /// INFO("system"): `pcdos` on Windows, `mac` on a Mac.
+    pub system: Option<String>,
+    /// INFO("directory"): the current folder, with its trailing separator.
+    pub directory: Option<String>,
 }
 
 /// Calls LAMBDA values, as MAP, REDUCE, SCAN, BYROW, BYCOL and MAKEARRAY call the LAMBDA they

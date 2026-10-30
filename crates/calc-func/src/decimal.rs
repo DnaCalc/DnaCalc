@@ -315,6 +315,24 @@ impl ExactDecimal {
         ExactDecimal::binary(x)
     }
 
+    /// How TRUNC, ROUND, ROUNDUP and ROUNDDOWN read a finite number (dc-bd5): [`ExactDecimal::read`]
+    /// rounded to 15 significant digits, a half away from zero, with whether that rounding changed
+    /// it. Excel 16.0.20430 (cfunc_m3_2's capture): ROUND(2.6749999999999994,2) is 2.68,
+    /// TRUNC(2.9999999999999996) is 3, TRUNC(-4503599627370495.5) is -4503599627370500 and
+    /// ROUND(9007199254740992,0) is 9007199254740990.
+    pub(crate) fn fifteen(x: f64) -> (ExactDecimal, bool) {
+        let read = ExactDecimal::read(x);
+        let length = i32::try_from(read.coefficient.digits().len()).expect("a digit count");
+        let excess = length - i32::try_from(SHOWN_DIGITS).expect("15");
+        if excess <= 0 {
+            return (read, false);
+        }
+        match read.round_at(read.exponent + excess, Direction::Nearest) {
+            Some(rounded) => (rounded, true),
+            None => (read, false),
+        }
+    }
+
     /// The exact value of a finite binary64, whatever decimal it shows. Zero of either sign is +0.
     pub(crate) fn binary(x: f64) -> ExactDecimal {
         let negative = x < 0.0;
@@ -391,23 +409,6 @@ impl ExactDecimal {
             exponent: position,
         })
     }
-}
-
-/// The integer quotient of the magnitudes of two decimals, toward zero.
-#[derive(Debug)]
-pub(crate) struct Division {
-    pub(crate) quotient: Natural,
-}
-
-/// The integer division of the magnitudes of two decimals, the divisor not zero.
-pub(crate) fn divide(dividend: &ExactDecimal, divisor: &ExactDecimal) -> Division {
-    let exponent = dividend.exponent.min(divisor.exponent);
-    let mut scaled_dividend = dividend.coefficient.clone();
-    scaled_dividend.times_pow10(dividend.exponent.abs_diff(exponent));
-    let mut scaled_divisor = divisor.coefficient.clone();
-    scaled_divisor.times_pow10(divisor.exponent.abs_diff(exponent));
-    let (quotient, _remainder) = scaled_dividend.div_rem(&scaled_divisor);
-    Division { quotient }
 }
 
 /// The integer part of a binary64, toward zero, found from its bits: exact on every target.

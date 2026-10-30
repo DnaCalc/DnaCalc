@@ -58,6 +58,7 @@ mod command;
 pub mod conditional;
 mod copy;
 mod entry;
+mod facts;
 mod history;
 mod project;
 mod recalc;

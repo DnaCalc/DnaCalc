@@ -85,6 +85,9 @@ pub fn step(
                     return HostProgress::Current;
                 }
             }
+            // dc-uar: the facts CELL and INFO read, as of this revision.
+            let facts = host.workbook_facts();
+            host.engine.set_workbook_facts(Some(facts));
             match calc_engine::begin_recalc(
                 &mut host.engine,
                 &host.model,

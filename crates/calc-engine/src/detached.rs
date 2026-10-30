@@ -176,4 +176,8 @@ impl HostFacts for Placed<'_> {
     fn sheet_count(&mut self) -> Option<u32> {
         self.cells.host_facts()?.sheet_count()
     }
+
+    fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_fml::WorkbookFacts>> {
+        self.cells.host_facts()?.workbook_facts()
+    }
 }

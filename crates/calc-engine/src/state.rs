@@ -402,6 +402,10 @@ pub struct EngineState {
     /// profile and clock (calc-func's CalcEnvironment). `None` refuses the date, time and
     /// number-format functions.
     pub(crate) environment: Option<CalcEnvironment>,
+    /// The host's facts about the workbook's file, formats and views and the application, which
+    /// CELL and INFO read (dc-uar): one snapshot the host gives before each recalculation
+    /// ([`EngineState::set_workbook_facts`]). `None` refuses what they would supply.
+    pub(crate) workbook_facts: Option<Arc<dyn calc_fml::WorkbookFacts>>,
     /// The formulas the last published recalculation found on a cycle (L3, dc-m3u), and with
     /// iteration off those that read one (dc-10y); every recalculation calculates them again, as
     /// Excel calculates such a cell whenever it calculates (it saves each with `ca="1"`).
@@ -474,6 +478,7 @@ impl EngineState {
             random_seed: 0,
             templates: HashMap::new(),
             environment: None,
+            workbook_facts: None,
             cycle_members: BTreeSet::new(),
             tables_deferred: false,
             spill_epoch: 0,
@@ -741,9 +746,17 @@ impl EngineState {
         let mut state = EngineState::new(inputs);
         state.last_tick = self.last_tick;
         state.environment = self.environment.clone();
+        state.workbook_facts = self.workbook_facts.clone();
         state.random_seed = self.random_seed;
         state.tables_deferred = self.tables_deferred;
         state
+    }
+
+    /// Sets the host's facts about the workbook's file, formats and views and the application
+    /// that CELL and INFO read (dc-uar). Nothing is made pending: those functions are volatile,
+    /// so every recalculation calculates them and reads the facts set last.
+    pub fn set_workbook_facts(&mut self, facts: Option<Arc<dyn calc_fml::WorkbookFacts>>) {
+        self.workbook_facts = facts;
     }
 
     pub fn set_environment(&mut self, environment: Option<CalcEnvironment>) {

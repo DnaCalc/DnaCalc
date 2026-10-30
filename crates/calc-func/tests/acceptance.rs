@@ -4987,16 +4987,16 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "PRODUCT",
         [num("2"), omitted()],
-        N(0.0),
-        Choice(OMITTED_ZERO)
+        N(2.0),
+        Measured("dc-bd5: PRODUCT passes over an omitted argument; PRODUCT(2,) is 2 (Excel 16.0.20430, cfunc_m3_4's capture)")
     );
     agg!(
         r,
         s,
         "PRODUCT",
         [num("1E-200"), num("1E-200")],
-        Refused(None),
-        Unsupported("a product of two non-zero factors that underflows")
+        N(0.0),
+        Measured("dc-bd5: a product below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)")
     );
 
     // SUMSQ.
@@ -5060,8 +5060,8 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "SUMSQ",
         [num("1E-200")],
-        Refused(None),
-        Unsupported("a square of a non-zero number that underflows")
+        N(0.0),
+        Measured("dc-bd5: a square below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)")
     );
 
     // SUMPRODUCT.
@@ -5205,8 +5205,8 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "SUMPRODUCT",
         [reference(s, &["A1", "A7"])],
-        Refused(Some(0)),
-        Unsupported("a reference of several areas")
+        E(Value),
+        Measured("dc-bd5: a reference of several areas is #VALUE! (Excel 16.0.20430, cfunc_m3_4's capture)")
     );
     agg!(
         r,
@@ -5249,8 +5249,8 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "SUMPRODUCT",
         [num("1E-200"), num("1E-200")],
-        Refused(None),
-        Unsupported("a product of two non-zero factors that underflows")
+        N(0.0),
+        Measured("dc-bd5: a product below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)")
     );
 
     // COUNT.
@@ -5413,8 +5413,8 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "COUNTBLANK",
         [reference(s, &["A5", "A6"])],
-        Refused(Some(0)),
-        Unsupported("a reference of several areas")
+        E(Value),
+        Measured("dc-bd5: a reference of several areas is #VALUE! (Excel 16.0.20430, cfunc_m3_4's capture)")
     );
     agg!(
         r,
@@ -5571,8 +5571,10 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "AVERAGEA",
         [typed_array()],
-        N(2.0 / 3.0),
-        Choice("an array's elements follow the rule for a reference's cells: text 0, TRUE 1")
+        N(0.5),
+        Measured(
+            "dc-bd5: in an array AVERAGEA reads text as 0 and passes over logicals: AVERAGEA({1,\"2\",TRUE}) is 0.5 (Excel 16.0.20430, cfunc_m3_4's capture; 16.0.20527 gives AVERAGEA({1,TRUE}) 1)"
+        )
     );
 
     // MIN and MAX.
@@ -5779,8 +5781,10 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
             "{-1,\"a\"}",
             vec![vec![CalcValue::number(-1.0), text_value("a")]]
         )],
-        N(0.0),
-        Choice("an array's text is 0, as the rule for a reference's cells reads it")
+        N(-1.0),
+        Measured(
+            "dc-bd5: MAXA passes over an array's text and logicals: MAXA({-1,\"a\"}) is -1 (Excel 16.0.20430, cfunc_m3_4's capture)"
+        )
     );
     rows
 }
@@ -6834,9 +6838,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A1"), num("2")],
-        N(2.67),
-        Choice(
-            "a number whose shortest decimal has 17 digits is read as its binary64, 2.67499999999999937..., below the half; the 15-digit rule reads 2.67500000000000 and gives 2.68"
+        N(2.68),
+        Measured(
+            "dc-bd5: ROUND reads its number rounded to 15 significant digits, 2.67500000000000 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -6844,17 +6848,19 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A4"), num("2")],
-        N(1.0),
-        Choice("read as its binary64 1.00499999999999967...; the 15-digit rule gives 1.01")
+        N(1.01),
+        Measured(
+            "dc-bd5: the 15-digit reading 1.00500000000000 rounds to 1.01 (Excel 16.0.20430, cfunc_m3_2's capture)"
+        )
     );
     rnd!(
         r,
         s,
         "ROUNDUP",
         [cell(s, "A2"), num("1")],
-        N(0.4),
-        Choice(
-            "read as its binary64 0.30000000000000004440..., above 0.3, so rounding up to one place gives 0.4; the 15-digit rule reads 0.3 and gives 0.3"
+        N(0.3),
+        Measured(
+            "dc-bd5: the 15-digit reading 0.300000000000000 has no digit to round up (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -6880,9 +6886,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "TRUNC",
         [cell(s, "A5")],
-        N(2.0),
-        Choice(
-            "read as its binary64 2.99999999999999955...: the integer part is 2, as INT gives (the TRUNC page: TRUNC and INT differ only for negative numbers); the 15-digit rule gives 3"
+        N(3.0),
+        Measured(
+            "dc-bd5: TRUNC reads 2.9999999999999996 to 15 significant digits, 3 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -6890,8 +6896,10 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "INT",
         [cell(s, "A5")],
-        N(2.0),
-        Choice("the binary64 2.99999999999999955... is rounded down; the 15-digit rule gives 3")
+        N(3.0),
+        Measured(
+            "dc-bd5: INT reads a number below 1E15 to 15 significant digits, 3.00000000000000 (Excel 16.0.20430, cfunc_m3_2's capture; INT(2.9999999999999982) is 3 too, 16.0.20527)"
+        )
     );
 
     // ROUNDUP and ROUNDDOWN: the pages' examples.
@@ -7516,9 +7524,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "QUOTIENT",
         [num("0.3"), num("0.1")],
-        N(3.0),
-        Choice(
-            "the exact decimal rule, kept for QUOTIENT although the MROUND page's Known Limitations example rules out counting MROUND's multiples on the decimal readings: 0.3 is 3 times 0.1 as the typed numbers read; the binary64 quotient 2.9999999999999996 gives 2"
+        N(2.0),
+        Measured(
+            "dc-bd5: the binary64 quotient 2.9999999999999996, toward zero (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -7707,9 +7715,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUNDDOWN",
         [num("2.5E-308"), num("308")],
-        Refused(None),
-        Unsupported(
-            "the result 2E-308 is subnormal, and Excel's handling of a subnormal result is not modelled (subnormal handling is dc-6qki's)"
+        N(0.0),
+        Measured(
+            "dc-bd5: a result below the normal range is 0 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8075,9 +8083,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "TRUNC",
         [cell(s, "A5")],
-        N(-4_503_599_627_370_495.0),
-        Choice(
-            "A5 is read as its binary64 -4503599627370495.5, whose fractional part is removed; the 15-digit reading gives -4503599627370500"
+        N(-4_503_599_627_370_500.0),
+        Measured(
+            "dc-bd5: TRUNC reads -4503599627370495.5 to 15 significant digits, -4503599627370500 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8093,9 +8101,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "TRUNC",
         [cell(s, "A9")],
-        N(9_223_372_036_854_775_808.0),
-        Choice(
-            "A9 is read as its binary64 2^63, an integer; the 15-digit reading gives 9223372036854779904"
+        N(9_223_372_036_854_779_904.0),
+        Measured(
+            "dc-bd5: the 15-digit reading 9223372036854780000, whose nearest binary64 is 9223372036854779904 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8103,9 +8111,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "TRUNC",
         [cell(s, "A8")],
-        N(-max),
-        Choice(
-            "A8 is read as minus the largest binary64, an integer; the 15-digit reading lies beyond binary64's range and gives #NUM!"
+        E(Num),
+        Measured(
+            "dc-bd5: the 15-digit reading -1.79769313486232E308 lies beyond binary64's range; Excel's live value is a NaN no cell holds, and #NUM! once the saved workbook is reopened (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8135,9 +8143,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A4"), num("0")],
-        N(4_503_599_627_370_496.0),
-        Choice(
-            "A4 is read as its binary64 4503599627370495.5, a half rounded away from zero (no ROUND page example shows a half at 0 places); the 15-digit reading 4503599627370500 gives 4503599627370500"
+        N(4_503_599_627_370_500.0),
+        Measured(
+            "dc-bd5: the 15-digit reading of 4503599627370495.5 is 4503599627370500 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8145,9 +8153,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A5"), num("0")],
-        N(-4_503_599_627_370_496.0),
-        Choice(
-            "A5 is read as its binary64 -4503599627370495.5, a half rounded away from zero (no ROUND page example shows a half at 0 places); the 15-digit reading gives -4503599627370500"
+        N(-4_503_599_627_370_500.0),
+        Measured(
+            "dc-bd5: the 15-digit reading of -4503599627370495.5 is -4503599627370500 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8155,9 +8163,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A6"), num("0")],
-        N(1_000_000_000_000_001.0),
-        Choice(
-            "A6 is read as its binary64 1000000000000000.5, a half rounded away from zero (no ROUND page example shows a half at 0 places); the 15-digit reading 1E15 gives 1E15"
+        N(1e15),
+        Measured(
+            "dc-bd5: the 15-digit reading of 1E15+0.5 is 1E15 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8165,9 +8173,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A1"), num("0")],
-        N(9_007_199_254_740_992.0),
-        Choice(
-            "A1 is read as its binary64 2^53, an integer, unchanged; the 15-digit reading gives 9007199254740990"
+        N(9_007_199_254_740_990.0),
+        Measured(
+            "dc-bd5: the 15-digit reading of 2^53 is 9007199254740990 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8191,9 +8199,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A9"), num("-3")],
-        N(9_223_372_036_854_775_808.0),
-        Choice(
-            "A9 is read as its binary64 2^63, which rounds exactly to 9223372036854776000 and converts back to 2^63; the 15-digit reading 9223372036854780000 gives 9223372036854779904"
+        N(9_223_372_036_854_779_904.0),
+        Measured(
+            "dc-bd5: the 15-digit reading 9223372036854780000, whose nearest binary64 is 9223372036854779904 (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8201,9 +8209,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A7"), num("0")],
-        N(max),
-        Choice(
-            "A7 is read as the largest binary64, an integer, unchanged; the 15-digit reading lies beyond binary64's range and gives #NUM!"
+        E(Num),
+        Measured(
+            "dc-bd5: the 15-digit reading 1.79769313486232E308 lies beyond binary64's range; Excel's live value is a NaN no cell holds, and #NUM! once the saved workbook is reopened (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8235,9 +8243,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [num("1.5"), num("1E300")],
-        N(1.5),
-        Choice(
-            "a num_digits of 1E300 passes through no integer type: no digit lies that far right"
+        N(0.0),
+        Measured(
+            "dc-bd5: num_digits is read as a 32-bit integer, and one of 2^31 or more reads as -2^31 (ROUND(1.5,1E+300) is 0 in Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8353,8 +8361,10 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "MOD",
         [num("-5"), num("9.99999999999999E307")],
-        N(9.99999999999999e307),
-        Choice("9.99999999999999E307 - 5, the remainder with the divisor's sign, rounds once to 9.99999999999999E307")
+        N(0.0),
+        Measured(
+            "dc-bd5: a remainder the divisor absorbs (-5 plus 9.99999999999999E+307 is the divisor) is 0 (Excel 16.0.20430, cfunc_m3_2's capture)"
+        )
     );
 
     // QUOTIENT.
@@ -11398,15 +11408,17 @@ fn number_text_sheet() -> TestSheet {
 enum TextOutcome {
     /// This text, which is the text Excel gives.
     Gives(&'static str),
-    /// A refusal as not modelled, naming the number's operand, owned by [`NEAR_TIE`]; Excel gives
-    /// this text.
-    NearTie(&'static str),
+    /// A number at or near a 16th-digit tie that Excel rounds up (dc-uar): calc_func gives the
+    /// first text, the 15 digits below the tie, and Excel the second.
+    Departs(&'static str, &'static str),
 }
 
 /// The dc-q9rb rows, with the text Excel gives for each, in row order.
 struct TextRows {
     rows: Rows,
     excel: Vec<&'static str>,
+    /// The rows whose text departs from Excel's ([`TextOutcome::Departs`]).
+    departs: Vec<u32>,
 }
 
 /// Runs one dc-q9rb row: & on `args` through calc_func::invoke under Fast, asserted to have
@@ -11421,13 +11433,13 @@ fn number_text_check(
     note: Option<&'static str>,
 ) {
     let rows = &mut text_rows.rows;
-    let number = args
-        .iter()
-        .position(|a| a.value.as_number().is_some())
-        .expect("a row of dc-q9rb reads a number as text");
+    assert!(
+        args.iter().any(|a| a.value.as_number().is_some()),
+        "a row of dc-q9rb reads a number as text"
+    );
     let (expect, owner) = match outcome {
         TextOutcome::Gives(text) => (t(text), None),
-        TextOutcome::NearTie(_) => (Refused(Some(number)), Some(NEAR_TIE)),
+        TextOutcome::Departs(ours, _) => (t(ours), None),
     };
     let (formula, _, result, tick) =
         call_and_assert(sheet, &NumericMode::Fast, AMPERSAND, args, &expect);
@@ -11463,9 +11475,8 @@ fn number_text_check(
             TextOutcome::Gives(text) => {
                 format!("text {text:?}, the same under Exact (expected text as captured)")
             }
-            TextOutcome::NearTie(excel) => format!(
-                "refused as not modelled, the same under Exact: {result:?} (owned by {}); Excel gives {excel:?} (as captured)",
-                NEAR_TIE.feature()
+            TextOutcome::Departs(ours, excel) => format!(
+                "text {ours:?}, the same under Exact, the 15 digits below the tie; Excel gives {excel:?} (as captured), a departure no rule found explains (dc-uar)"
             ),
         };
         note!(
@@ -11485,8 +11496,11 @@ fn number_text_check(
         tick,
     });
     text_rows.excel.push(match outcome {
-        TextOutcome::Gives(text) | TextOutcome::NearTie(text) => text,
+        TextOutcome::Gives(text) | TextOutcome::Departs(_, text) => text,
     });
+    if let TextOutcome::Departs(..) = outcome {
+        text_rows.departs.push(row);
+    }
 }
 
 /// Runs a dc-q9rb row that computes: `nt!(rows, sheet, [args], text)`, its expected text the
@@ -11499,14 +11513,13 @@ macro_rules! nt {
     }};
 }
 
-/// Runs a dc-q9rb row that calc_func refuses, a number near a 16th-digit tie:
-/// `near_tie!(rows, sheet, [args], excel)`, `excel` the text Excel gives, as captured, or with a
-/// fifth argument, a note the row prints.
-macro_rules! near_tie {
-    ($rows:expr, $sheet:expr, [$($arg:expr),* $(,)?], $excel:expr $(, $note:expr)?) => {{
+/// Runs a dc-q9rb row at or near a 16th-digit tie that Excel rounds up:
+/// `departs!(rows, sheet, [args], ours, excel, note)`, `ours` the text calc_func gives and `excel`
+/// the text Excel gives, as captured.
+macro_rules! departs {
+    ($rows:expr, $sheet:expr, [$($arg:expr),* $(,)?], $ours:expr, $excel:expr, $note:expr) => {{
         let args = [$($arg),*];
-        let note: Option<&'static str> = None $(.or(Some($note)))?;
-        number_text_check($rows, $sheet, &args, TextOutcome::NearTie($excel), note)
+        number_text_check($rows, $sheet, &args, TextOutcome::Departs($ours, $excel), Some($note))
     }};
 }
 
@@ -11542,6 +11555,7 @@ fn computed(op: (Notation, &str), excel: &str, a: f64, b: f64, expected: f64) ->
 fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
     const CASE: &str = "dc_q9rb__number_text_for_concatenation";
     let mut rows = TextRows {
+        departs: Vec::new(),
         rows: Rows::new(CASE, "number_text_for_concatenation", quiet),
         excel: Vec::new(),
     };
@@ -11555,7 +11569,7 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
     nt!(r, s, [cell(s, "A2"), empty()], "123456789012345");
     nt!(r, s, [cell(s, "A3"), empty()], "999999999999999");
     nt!(r, s, [cell(s, "A4"), empty()], "999999999999999");
-    near_tie!(
+    nt!(
         r,
         s,
         [cell(s, "A5"), empty()],
@@ -11567,14 +11581,14 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
     nt!(r, s, [cell(s, "A8"), empty()], "1000000000000000");
     nt!(r, s, [cell(s, "A9"), empty()], "1000000000000000");
     nt!(r, s, [cell(s, "A10"), empty()], "1234567890123460");
-    near_tie!(
+    nt!(
         r,
         s,
         [cell(s, "A11"), empty()],
         "1234567890123450",
         TIE_TOWARD_ZERO
     );
-    near_tie!(
+    nt!(
         r,
         s,
         [cell(s, "A12"), empty()],
@@ -11670,7 +11684,7 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
     nt!(r, s, [cell(s, "A58"), empty()], "1.2345678901235E-99");
     nt!(r, s, [num("1E+100"), empty()], "1E+100");
     nt!(r, s, [cell(s, "A60"), empty()], "1.80557226542E-306");
-    near_tie!(
+    nt!(
         r,
         s,
         [cell(s, "A61"), empty()],
@@ -11700,14 +11714,14 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
     nt!(r, s, [cell(s, "A69"), empty()], "-1E+20");
     nt!(r, s, [cell(s, "A70"), empty()], "-0.000123456789012345");
     nt!(r, s, [num("-1E-18"), empty()], "-0.000000000000000001");
-    near_tie!(
+    nt!(
         r,
         s,
         [cell(s, "A72"), empty()],
         "-1234567890123450",
         TIE_TOWARD_ZERO
     );
-    near_tie!(
+    nt!(
         r,
         s,
         [cell(s, "A73"), empty()],
@@ -11720,25 +11734,34 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
 
     // Exact ties at the 16th digit that Excel rounds away from zero, beside the rows above that
     // it rounds toward zero: refused.
-    near_tie!(r, s, [cell(s, "A77"), empty()], "521310271410498", TIE_AWAY);
-    near_tie!(
+    departs!(
+        r,
+        s,
+        [cell(s, "A77"), empty()],
+        "521310271410497",
+        "521310271410498",
+        TIE_AWAY);
+    departs!(
         r,
         s,
         [cell(s, "A78"), empty()],
+        "5758361573115.37",
         "5758361573115.38",
         TIE_AWAY
     );
-    near_tie!(
+    departs!(
         r,
         s,
         [cell(s, "A79"), empty()],
+        "-6278515587045.87",
         "-6278515587045.88",
         TIE_AWAY
     );
-    near_tie!(
+    departs!(
         r,
         s,
         [cell(s, "A80"), empty()],
+        "543212677140.062",
         "543212677140.063",
         TIE_AWAY
     );
@@ -11747,21 +11770,22 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
     // their exact value and the third with it; all three are refused. The fourth is that near a
     // tie too, but its 14-digit text is the same on either side. The last two lie just beyond a
     // relative 2^-59 and give their text.
-    near_tie!(
+    nt!(
         r,
         s,
         [cell(s, "A81"), empty()],
         "4037429.93595202",
         "5.96e-7 of a unit of the 15th digit above the tie (a relative 2^-69.2); the exact value rounds to 4037429.93595203"
     );
-    near_tie!(
+    departs!(
         r,
         s,
         [cell(s, "A82"), empty()],
+        "5.24851955262676E-06",
         "5.24851955262677E-06",
         "4.76e-7 of a unit of the 15th digit below the tie (a relative 2^-69.9); the exact value rounds to 5.24851955262676E-06"
     );
-    near_tie!(
+    nt!(
         r,
         s,
         [cell(s, "A83"), empty()],
@@ -11901,7 +11925,11 @@ fn dc_q9rb__number_text_for_concatenation() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_q9rb__excel_comparison() {
     const CASE: &str = "dc_q9rb__excel_comparison";
-    let TextRows { rows, excel } = number_text_rows(&mut number_text_sheet(), true);
+    let TextRows {
+        rows,
+        excel,
+        departs,
+    } = number_text_rows(&mut number_text_sheet(), true);
     let (results, evaluations) =
         published_in(NUMBER_TEXT_WORKBOOK, NUMBER_TEXT_CAPTURE_CASE, &[&rows]);
     assert_eq!(
@@ -11951,8 +11979,23 @@ fn dc_q9rb__excel_comparison() {
         .environment
         .as_ref()
         .expect("the capture records Excel's environment");
-    let comparison = judged(&capture, &results, &evaluations, &rows)
+    let mut comparison = judged(&capture, &results, &evaluations, &rows)
         .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    // The rows whose text departs from Excel's (dc-uar) are mismatched, each with the text the row
+    // states; the others are judged as every row is.
+    let beside: Vec<(u32, u32)> = departs.iter().map(|&row| (row, FORMULA_COLUMN)).collect();
+    comparison.problems = verdict_problems_beside(&comparison.report, &rows, &beside);
+    for cell in &comparison.report.cells {
+        let address = &cell.formula.cell;
+        if address.sheet() == rows.sheet && beside.contains(&(address.row(), address.column())) {
+            assert!(
+                matches!(cell.verdict, Verdict::Mismatched { .. }),
+                "{}: a departing row is {}",
+                address.a1(),
+                cell.verdict.name()
+            );
+        }
+    }
     assert!(
         comparison.problems.is_empty(),
         "{} problems on the verdict on Excel {}'s capture ({}):\n{}",
@@ -19844,10 +19887,6 @@ const ARRAY_ARGUMENT: Owner = Owner {
     bead: "dc-10y",
     behaviour: "an array given to a value argument, which Excel loads in a legacy formula with @ (its first element) and which array evaluation applies the function to in a dynamic-array formula",
 };
-const RANGE_TO_TYPE: Owner = Owner {
-    bead: "dc-10y",
-    behaviour: "a range of several cells given to TYPE, which Excel loads in a legacy formula with @ (implicit intersection); its dynamic-array result is unmeasured",
-};
 const FORMULA_FACT: Owner = Owner {
     bead: "dc-uar",
     behaviour: "whether a cell holds a formula, a host fact the cell reader does not supply",
@@ -20907,9 +20946,9 @@ fn information_rows(s: &mut TestSheet, quiet: bool) -> InfoRows {
         r,
         s,
         "TYPE",
-        [reference(s, &["A1:A2"])],
-        Refused(Some(0)),
-        Ref(RANGE_TO_TYPE)
+        [arg("A1:A2", CalcValue::error(W::Value))],
+        N(16.0),
+        Meas("dc-b1l: the legacy formula in row 111 below A1:A2 intersects the range before the call (Excel writes TYPE(@A1:A2), calc-fml's legacy places), giving TYPE #VALUE!, of type 16; a range itself is of type 64, as the reader test below checks")
     );
     info!(r, s, "TYPE", [txt("")], N(2.0), Doc(TYPE_TABLE));
     info!(r, s, "TYPE", [err(W::NA)], N(16.0), Doc(TYPE_TABLE));
@@ -21862,6 +21901,18 @@ fn dc_nzpw__information_functions() {
                 index: 0
             }),
             "{spelling} without a cell reader"
+        );
+    }
+
+    // dc-b1l: a reference to one area of several cells is of type 64, as Excel 16.0.20527 gives
+    // =TYPE(A101:A103) and =TYPE(A101:B101) in a dynamic-array formula and
+    // =SUMPRODUCT(TYPE(A101:A103)) in a legacy one (a legacy formula intersects it elsewhere).
+    for area in ["A1:A2", "A3:B3"] {
+        let given = CalcValue::reference(ReferenceLike::from_areas(vec![sheet.area(area)]).expect("one area"));
+        assert_eq!(
+            information_call("TYPE", vec![given], &fast, Some(&mut DenseReader(&sheet))),
+            Ok(CalcValue::number(64.0)),
+            "TYPE({area})"
         );
     }
 

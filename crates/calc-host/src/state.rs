@@ -121,6 +121,11 @@ pub struct HostState {
     /// ([`HostState::sheet_geometry`], [`HostState::number_format`]) and what a save moves the
     /// package's rows and columns by.
     pub(crate) axis_edits: Vec<calc_doc_model::AxisEdit>,
+    /// The file the workbook was opened from ([`HostState::set_file`]); `None` refuses what
+    /// CELL reads of it.
+    pub(crate) file: Option<calc_fml::WorkbookFile>,
+    /// The application's facts INFO reads ([`HostState::set_application`]).
+    pub(crate) application: Option<calc_fml::ApplicationFacts>,
 }
 
 impl HostState {
@@ -160,6 +165,8 @@ impl HostState {
             calculate_requested: false,
             clock: None,
             axis_edits: Vec::new(),
+            file: None,
+            application: None,
         };
         // The package's date system, the options' locale profile, and no clock until one is set:
         // NOW, TODAY and a date read without a year are refused.
@@ -470,21 +477,7 @@ impl HostState {
     /// inserted and deleted since: an inserted cell's source is the cell before the inserted band
     /// ([`calc_doc_model::source_position`]); `None` for one inserted at the start of an axis.
     pub(crate) fn opened_position(&self, at: CellKey) -> Option<(u32, u32)> {
-        let (mut row, mut column) = (at.row(), at.column());
-        for edit in self
-            .axis_edits
-            .iter()
-            .rev()
-            .filter(|edit| edit.sheet() == at.sheet())
-        {
-            match edit.axis() {
-                calc_doc_model::Axis::Rows => row = calc_doc_model::source_position(*edit, row)?,
-                calc_doc_model::Axis::Columns => {
-                    column = calc_doc_model::source_position(*edit, column)?
-                }
-            }
-        }
-        Some((row, column))
+        crate::facts::opened_position(&self.axis_edits, at)
     }
 
     /// The number format code of the cell at `at`: the code of the cell format the file gave the

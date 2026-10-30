@@ -22,12 +22,16 @@
 //! - A negative number's text is `-` and its magnitude's text.
 //!
 //! Excel's own first rounding departs from the exact one near a tie at the 16th significant
-//! digit, in both directions and with no rule found, and every departure measured lies within a
-//! relative 2^-60 of the tie (dc-uar records the counts). So a number within a relative 2^-59
-//! of a 16th-digit tie (an exact tie included) has no text here when the side of the tie decides
-//! its text: [`text`] refuses it, and dc-uar owns Excel's rule there. Such a number whose text is
-//! the same on either side of the tie (a second rounding to 14 digits can absorb the 15th) gets
-//! that text.
+//! digit, and every departure measured lies within a relative 2^-60 of the tie. Within a relative
+//! 2^-59 of a tie (an exact tie included) the text here takes the 15 digits below the tie
+//! (dc-uar): of 131 exact ties Excel 16.0.20527 wrote (the catalogue oracle's dch9u_functions
+//! rows, built by arithmetic, and dc_q9rb's), 126 went down (`7200547821627.375` gives
+//! `7200547821627.37`, `999999999999999.5` gives `999999999999999`, `1234567890123455` gives
+//! `1234567890123450`), as did `4037429.935952025`, whose exact value lies 6E-21 above its tie.
+//! Five went up, and no rule found tells them apart (scalings by powers of ten in binary64,
+//! x87 extended and 96-bit precision, truncated or rounded, each break more readings than they
+//! fix): `5758361573115.375` (`.38`), `521310271410497.5`, `-6278515587045.875`,
+//! `543212677140.0625` and `5.248519552626765E-06`. Those five mismatch Excel here.
 //!
 //! Every step is exact decimal arithmetic on the number's exact value, so the text does not
 //! depend on the numeric mode or the platform.
@@ -43,8 +47,8 @@ const WIDTH: usize = 20;
 /// A number within a relative 2^-NEAR_TIE_BITS of a 16th-digit tie is near it.
 const NEAR_TIE_BITS: u32 = 59;
 
-/// The text of a finite number, as ASCII, or `None` for a number near a 16th-digit tie whose side
-/// of the tie decides its text (see the module documentation).
+/// The text of a finite number, as ASCII (see the module documentation). It is always `Some`;
+/// the option is kept for the callers that refuse a number without a text.
 pub(crate) fn text(x: f64) -> Option<String> {
     debug_assert!(x.is_finite(), "only a finite number has a text");
     if x == 0.0 || x.is_subnormal() {
@@ -57,9 +61,10 @@ pub(crate) fn text(x: f64) -> Option<String> {
     let length = i32::try_from(all.len()).expect("a digit count");
     let exponent = length - 1 + exact.exponent;
     if near_tie(&exact.coefficient, &all) {
-        let below = shaped(negative, first_rounding(all.as_bytes(), exponent, false));
-        let above = shaped(negative, first_rounding(all.as_bytes(), exponent, true));
-        return (below == above).then_some(below);
+        return Some(shaped(
+            negative,
+            first_rounding(all.as_bytes(), exponent, false),
+        ));
     }
     let up = all
         .as_bytes()

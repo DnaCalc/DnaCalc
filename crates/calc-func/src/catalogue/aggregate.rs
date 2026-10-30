@@ -20,9 +20,9 @@
 //! follow their own rules, which their kernels' docs state: the counts never return an error of
 //! their arguments, and SUMPRODUCT reads direct text as 0 and an omitted argument as #VALUE!.
 //!
-//! An array or a reference held inside an array is not modelled and is refused, and so is a
-//! product of two non-zero factors that underflows, because Excel's handling of an underflow is
-//! not modelled.
+//! An array or a reference held inside an array is not modelled and is refused. A product below
+//! binary64's normal range is 0, as Excel gives it (dc-bd5: PRODUCT(1E-200,1E-200),
+//! SUMSQ(1E-200) and SUMPRODUCT(1E-200,1E-200) are 0 in Excel 16.0.20430).
 
 use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
 use crate::call::{CellReader, EagerKernel, EvalServices, FunctionFault, Unreadable};
@@ -62,6 +62,7 @@ const ARRAYS: &[Parameter] = &[
     Parameter::value_or_reference("array2"),
 ];
 const RANGE: &[Parameter] = &[Parameter::reference("range")];
+
 
 /// An eager named call that takes 1 to 255 arguments, the last parameter repeating.
 const fn aggregate(
@@ -135,7 +136,7 @@ fn sum(
 /// Reads the direct arguments through worksheet number coercion, in order, and stops at the first
 /// that is an error or that coercion stops on. Their numbers are not used: the fold reads them
 /// again in the reading order.
-fn direct_first(site: &Site<'_>, arguments: &[CalcValue]) -> Step<()> {
+pub(super) fn direct_first(site: &Site<'_>, arguments: &[CalcValue]) -> Step<()> {
     for (index, argument) in arguments.iter().enumerate() {
         if !matches!(
             argument.core_ref(),
@@ -147,12 +148,19 @@ fn direct_first(site: &Site<'_>, arguments: &[CalcValue]) -> Step<()> {
     Ok(())
 }
 
-/// PRODUCT: the numbers multiplied from 1, or 0 when there is none.
+/// PRODUCT: the numbers multiplied from 1, or 0 when there is none. An omitted argument is passed
+/// over (dc-bd5: PRODUCT(2,) is 2 in Excel 16.0.20430, where SUM and the others read it as 0).
 fn product(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(PRODUCT, services);
+    let given: Vec<CalcValue> = arguments
+        .iter()
+        .filter(|argument| !argument.is_missing())
+        .cloned()
+        .collect();
+    let arguments = given.as_slice();
     let mut running: Option<f64> = None;
     let read = each_number(&site, arguments, services, Held::Numbers, &mut |n| {
         running = Some(times(&site, running.unwrap_or(1.0), n)?);
@@ -189,7 +197,7 @@ fn averagea(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    mean(AVERAGEA, Held::Values, arguments, services)
+    mean(AVERAGEA, Held::AverageValues, arguments, services)
 }
 
 fn mean(
@@ -296,11 +304,18 @@ fn counts_as_number(
             },
             Ok(Numeric::Number(_)) => Ok(true),
             Err(Stop::Error(_)) => Ok(false),
-            Err(stop) => Err(site.stop(stop, Some(index))),
+            // Text coercion alone does not read (a date without a year, dc-bd5: COUNT("1/2") is
+            // 1): read as VALUE reads it under the call's environment.
+            Err(Stop::NotModelled) => match site.read_text(index, value) {
+                Ok(Some(_)) => Ok(true),
+                Ok(None) => Err(site.not_modelled(Some(index))),
+                Err(Exit::Error(_)) => Ok(false),
+                Err(exit) => Err(exit),
+            },
         },
         (_, CoreRef::Array(_) | CoreRef::Reference(_)) => Err(site.not_modelled(Some(index))),
         (_, CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_))
-        | (Origin::Held, CoreRef::Empty | CoreRef::Missing) => Ok(false),
+        | (Origin::Held | Origin::Element, CoreRef::Empty | CoreRef::Missing) => Ok(false),
     }
 }
 
@@ -316,7 +331,7 @@ fn counta(
     let read = each_value(&site, arguments, services, &mut |index, origin, value| {
         match (origin, value.core_ref()) {
             (_, CoreRef::Number(n)) => finite(&site, index, n)?,
-            (Origin::Held, CoreRef::Empty | CoreRef::Missing) => return Ok(()),
+            (Origin::Held | Origin::Element, CoreRef::Empty | CoreRef::Missing) => return Ok(()),
             (_, CoreRef::Array(_) | CoreRef::Reference(_)) => {
                 return Err(site.not_modelled(Some(index)));
             }
@@ -342,7 +357,7 @@ fn finite(site: &Site<'_>, index: usize, n: f64) -> Step<()> {
 /// area's size less the cells the reader visits with any other value, so the cost follows the
 /// reader's visits and not the area's size, and a blank cell the reader visits as Empty counts
 /// as blank. A reader that visits more such cells than the area holds breaks its contract and
-/// cannot supply the area. A reference of several areas is not modelled.
+/// cannot supply the area. A reference of several areas is #VALUE! (dc-bd5: COUNTBLANK((A5,A6))).
 fn countblank(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -363,7 +378,7 @@ fn blanks(
         }));
     };
     let [area] = reference.areas() else {
-        return Err(site.not_modelled(Some(0)));
+        return Err(Exit::Error(WorksheetErrorCode::Value));
     };
     let cells = reader(site, services, 0)?;
     let mut held = 0u64;
@@ -390,7 +405,7 @@ fn blanks(
 /// from 0, in row-major order. An entry that is not a number is 0, and an error entry is the
 /// result. A scalar argument is a 1-by-1 array; an omitted one is #VALUE!. Arguments of different
 /// shapes are #VALUE!, decided after every argument is read, so an error in any argument comes
-/// first. A reference of several areas is not modelled.
+/// first. A reference of several areas is #VALUE! (dc-bd5: SUMPRODUCT((A1,A7))).
 ///
 /// An entry whose factors are all 0 has the product +0, which adds nothing to the total (a zero
 /// total's sign aside, which the published +0 removes), so only the entries where some argument
@@ -461,7 +476,7 @@ fn factor(
     match argument.core_ref() {
         CoreRef::Reference(reference) => {
             let [area] = reference.areas() else {
-                return Err(site.not_modelled(Some(index)));
+                return Err(Exit::Error(WorksheetErrorCode::Value));
             };
             let (first, columns) = (area.first(), u64::from(area.column_count()));
             let cells = reader(site, services, index)?;
@@ -513,12 +528,12 @@ fn factor(
     }
 }
 
-/// `a * b` at an arithmetic site. Two non-zero factors whose product underflows to 0 or to a
-/// subnormal are refused, because Excel's handling of an underflow is not modelled.
+/// `a * b` at an arithmetic site; a product below binary64's normal range is 0, as Excel flushes
+/// it (dc-bd5).
 fn times(site: &Site<'_>, a: f64, b: f64) -> Step<f64> {
     let product = site.multiply(a, b)?;
-    if a != 0.0 && b != 0.0 && (product == 0.0 || product.is_subnormal()) {
-        Err(site.not_modelled(None))
+    if product.is_subnormal() {
+        Ok(0.0)
     } else {
         Ok(product)
     }
@@ -529,8 +544,10 @@ fn times(site: &Site<'_>, a: f64, b: f64) -> Step<f64> {
 pub(super) enum Origin {
     /// A direct argument.
     Direct,
-    /// A cell of a reference argument or an element of an array argument.
+    /// A cell of a reference argument.
     Held,
+    /// An element of an array argument.
+    Element,
 }
 
 /// How an aggregate reads the values that a reference or an array holds.
@@ -538,8 +555,13 @@ pub(super) enum Origin {
 pub(super) enum Held {
     /// Numbers only: text, logicals and blank cells are skipped.
     Numbers,
-    /// The A-suffixed rule: text is 0, TRUE is 1 and FALSE is 0; blank cells are skipped.
+    /// The A-suffixed rule: in a reference, text is 0, TRUE is 1 and FALSE is 0; blank cells are
+    /// skipped. In an array text and logicals are skipped (dc-bd5: Excel 16.0.20527 gives
+    /// MAXA({-1,"a"}) -1, MINA({1,TRUE}) 1, STDEVA({1,"a",3}) 1.414... and VARA({1,TRUE,3}) 2).
     Values,
+    /// AVERAGEA's rule: [`Held::Values`], except that text in an array is 0 (dc-bd5: Excel
+    /// 16.0.20527 gives AVERAGEA({1,"2",TRUE}) and AVERAGEA({1,"a"}) 0.5, AVERAGEA({1,TRUE}) 1).
+    AverageValues,
 }
 
 /// The number that `value`, of argument `index`, gives an aggregate that reads held values by
@@ -558,8 +580,12 @@ pub(super) fn number_of(
     match (held, value.core_ref()) {
         (_, CoreRef::Number(n)) => site.argument(index, coerce::operand(n)).map(Some),
         (_, CoreRef::Error(code)) => Err(Exit::Error(code)),
-        (Held::Values, CoreRef::Text(_)) => Ok(Some(0.0)),
-        (Held::Values, CoreRef::Logical(b)) => Ok(Some(if b { 1.0 } else { 0.0 })),
+        (Held::AverageValues, CoreRef::Text(_)) => Ok(Some(0.0)),
+        (Held::Values, CoreRef::Text(_)) if origin == Origin::Held => Ok(Some(0.0)),
+        (Held::Values | Held::AverageValues, CoreRef::Logical(b)) if origin == Origin::Held => {
+            Ok(Some(if b { 1.0 } else { 0.0 }))
+        }
+        (Held::Values | Held::AverageValues, CoreRef::Text(_) | CoreRef::Logical(_)) => Ok(None),
         (Held::Numbers, CoreRef::Text(_) | CoreRef::Logical(_))
         | (_, CoreRef::Empty | CoreRef::Missing) => Ok(None),
         (_, CoreRef::Array(_) | CoreRef::Reference(_)) => Err(site.not_modelled(Some(index))),
@@ -604,7 +630,7 @@ pub(super) fn each_value(
             }
             CoreRef::Array(array) => {
                 for element in array.iter_row_major() {
-                    visit(index, Origin::Held, element)?;
+                    visit(index, Origin::Element, element)?;
                 }
             }
             _ => visit(index, Origin::Direct, argument)?,

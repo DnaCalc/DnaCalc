@@ -47,7 +47,7 @@ pub use chart::{
 };
 pub use error::{CellError, LoadError};
 pub use validation::Validation;
-pub use geometry::{ColumnSpan, RowFormat, SheetGeometry};
+pub use geometry::{ColumnSpan, RowFormat, SheetGeometry, SheetView};
 pub use manifest::LayoutWarning;
 
 use crate::OpenedDocument;
@@ -108,6 +108,7 @@ pub struct LoadedSheet {
     formulas: BTreeMap<(u32, u32), FormulaRecord>,
     value_caches: BTreeMap<(u32, u32), FileCached>,
     geometry: SheetGeometry,
+    view: SheetView,
     conditional_formats: Arc<[ConditionalFormat]>,
     macro_sheet: bool,
     validations: Arc<[Validation]>,
@@ -141,6 +142,12 @@ impl LoadedSheet {
     /// them (dc-09v).
     pub fn geometry(&self) -> &SheetGeometry {
         &self.geometry
+    }
+
+    /// The top left and active cells of the sheet's first window as the file states them
+    /// (dc-uar).
+    pub fn view(&self) -> SheetView {
+        self.view
     }
 
     /// What the file cached for the cell at `row` and `column` when the model holds no input for
@@ -280,6 +287,8 @@ pub struct LoadedWorkbook {
     theme_colors: Arc<[String]>,
     date_system: DateSystem,
     calc_mode: CalcMode,
+    /// The sheet `<workbookView activeTab>` names (dc-uar).
+    active_sheet: Option<SheetId>,
     defined_names_not_loaded: usize,
     manifest: ManifestState,
     layout_warnings: Vec<LayoutWarning>,
@@ -300,6 +309,11 @@ impl LoadedWorkbook {
     /// Each sheet's records, in workbook order, as the model's sheets are.
     pub fn sheets(&self) -> &[LoadedSheet] {
         &self.sheets
+    }
+
+    /// The sheets' records, shared (dc-uar: a host's snapshot of the workbook facts holds them).
+    pub fn shared_sheets(&self) -> Arc<[LoadedSheet]> {
+        Arc::clone(&self.sheets)
     }
 
     pub fn sheet(&self, id: SheetId) -> Option<&LoadedSheet> {
@@ -332,6 +346,12 @@ impl LoadedWorkbook {
     /// The calculation mode the workbook part's `calcPr` names.
     pub fn calc_mode(&self) -> CalcMode {
         self.calc_mode
+    }
+
+    /// The active sheet: the one the first `<workbookView>`'s `activeTab` names (the first sheet
+    /// when it names none), `None` when it names no sheet of the workbook (dc-uar).
+    pub fn active_sheet(&self) -> Option<SheetId> {
+        self.active_sheet
     }
 
     /// The number of defined names (`definedName` elements) the workbook part holds that are not
@@ -617,6 +637,8 @@ struct WorkbookPart {
     sheets: Vec<DeclaredSheet>,
     date_system: DateSystem,
     calc_mode: CalcMode,
+    /// The first `workbookView`'s `activeTab`, 0 when it states none.
+    active_tab: usize,
     /// `calcPr`'s `iterate`, `iterateCount` and `iterateDelta`.
     iteration: IterationSettings,
     /// Its `definedName` elements, in order.
@@ -652,6 +674,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     let mut keys = BTreeSet::new();
     let mut date_system = None;
     let mut calc_mode = CalcMode::Automatic;
+    let mut active_tab: Option<usize> = None;
     let mut iteration = IterationSettings::EXCEL_DEFAULT;
     let mut defined_names = Vec::new();
     loop {
@@ -675,6 +698,27 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                     return Err(events.invalid("a workbookPr whose date1904 is not a boolean"));
                 }
             });
+            continue;
+        }
+        if element.name.is(MAIN_NAMESPACE, "bookViews") {
+            loop {
+                match events.next()? {
+                    Some(XmlEvent::Start(view)) if view.name.is(MAIN_NAMESPACE, "workbookView") => {
+                        if active_tab.is_none() {
+                            active_tab = Some(
+                                view.attribute("activeTab")
+                                    .and_then(|text| text.trim().parse::<usize>().ok())
+                                    .unwrap_or(0),
+                            );
+                        }
+                        events.skip()?;
+                    }
+                    Some(XmlEvent::Start(_)) => events.skip()?,
+                    Some(XmlEvent::Text(_)) => {}
+                    Some(XmlEvent::End(_)) => break,
+                    None => return Err(events.invalid("the part ends inside bookViews")),
+                }
+            }
             continue;
         }
         if element.name.is(MAIN_NAMESPACE, "calcPr") {
@@ -823,6 +867,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
         sheets: declared,
         date_system: date_system.unwrap_or(DateSystem::Date1900),
         calc_mode,
+        active_tab: active_tab.unwrap_or(0),
         iteration,
         defined_names,
     })
@@ -922,6 +967,7 @@ pub fn load(
         sheets: declared,
         date_system,
         calc_mode,
+        active_tab,
         iteration,
         defined_names,
     } = read_workbook(package, &workbook)?;
@@ -995,6 +1041,7 @@ pub fn load(
                     formulas: loaded.formulas,
                     value_caches: loaded.value_caches,
                     geometry: loaded.geometry,
+                    view: loaded.view,
                     conditional_formats: loaded.conditional_formats.into(),
                     macro_sheet: declared.macro_sheet,
                     validations: loaded.validations.into(),
@@ -1097,6 +1144,7 @@ pub fn load(
         theme_colors: theme_colors.into(),
         date_system,
         calc_mode,
+        active_sheet: issued.get(active_tab).copied(),
         defined_names_not_loaded: defined_names.len() - layout.locators_resolved,
         manifest: layout.state,
         layout_warnings: layout.warnings,

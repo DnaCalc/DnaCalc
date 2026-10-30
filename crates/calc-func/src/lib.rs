@@ -31,8 +31,10 @@ mod ported;
 mod value_text;
 
 pub use call::{
-    CallAbandoned, CallableInvoker, CellReader, EvalServices, HostFacts, FunctionCallScratch, FunctionFault, PreparedArguments, RandomSource,
-    ReferenceText, SubtotalExclusions, TextReference, Unreadable, invoke,
+    ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
+    ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts,
+    PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference, Unreadable,
+    WorkbookFacts, WorkbookFile, invoke,
 };
 pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,

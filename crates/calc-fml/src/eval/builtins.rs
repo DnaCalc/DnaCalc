@@ -6,10 +6,13 @@
 //!
 //! The list is the 518 `built_in_function` entries of the Excel Functions Handbook's
 //! `data/functions` (snapshot oxfunc-libctx-v1, OxFunc 473efa3), upper case, sorted, and FIELDVALUE,
-//! which the handbook does not list (dc-b1l: Excel 16.0 knows it, `_xlfn.FIELDVALUE`).
+//! which the handbook does not list (dc-b1l: Excel 16.0 knows it, `_xlfn.FIELDVALUE`), less JIS
+//! and EUROCONVERT (dc-h9u: Excel 16.0.20527 on Windows gives `=JIS("abc")` and
+//! `=EUROCONVERT(1,"DEM","EUR")` #NAME?: JIS is not in Excel for Windows, and EUROCONVERT is the
+//! Euro Currency Tools add-in's, which a workbook reaches as an add-in function).
 
 /// The built-in function names, upper case, sorted for binary search.
-const NAMES: [&str; 519] = [
+const NAMES: [&str; 517] = [
     "ABS",
     "ACCRINT",
     "ACCRINTM",
@@ -166,7 +169,6 @@ const NAMES: [&str; 519] = [
     "ERFC",
     "ERFC.PRECISE",
     "ERROR.TYPE",
-    "EUROCONVERT",
     "EVEN",
     "EXACT",
     "EXP",
@@ -279,7 +281,6 @@ const NAMES: [&str; 519] = [
     "ISPMT",
     "ISREF",
     "ISTEXT",
-    "JIS",
     "KURT",
     "LAMBDA",
     "LARGE",

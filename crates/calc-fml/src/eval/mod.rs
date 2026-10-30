@@ -232,6 +232,10 @@ enum Instruction {
     Union(usize),
     /// Pops a value and pushes the one value implicit intersection takes of it (`@`).
     Implicit,
+    /// Pops a value and pushes, for a reference of one area, the cell implicit intersection takes
+    /// of it (#VALUE! when there is none), and any other value as it is: the `@` a legacy formula
+    /// writes before a reference given to TYPE or TRANSPOSE (`legacy::intersects_reference`).
+    ImplicitReference,
     /// Pops a reference to one cell and pushes the reference to the range spilled from it (`#`).
     Spill,
     /// Pushes local `.0` of the current frame: a LET name or a LAMBDA parameter.
@@ -249,6 +253,10 @@ enum Instruction {
     /// Pops `argc` arguments and the value beneath them, which must be a LAMBDA value, and pushes
     /// the result of calling it.
     Invoke { argc: usize },
+    /// Pushes the function value of the catalogue entry `.0`: a function named where a LAMBDA
+    /// value is taken (`GROUPBY(A2:A9,B2:B9,SUM)`, which a file stores as `_xleta.SUM`), which a
+    /// call of it calls with the arguments it is given (dc-h9u).
+    Function(Target),
     /// Runs block `.0`, a defined name's formula, in a frame of its own and pushes its value.
     Name(usize),
     /// Pushes a copy of the value `.0` places below the top of the stack (0 is the top).

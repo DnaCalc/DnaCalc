@@ -341,12 +341,10 @@ impl Parser {
                 self.parse_range_tail(range, stack)
             }
             Resume::TrimRight { left, tokens } => {
-                let trim = self.unsupported(
-                    Some(left),
-                    tokens,
-                    Some(node),
-                    "unsupported syntax: trim references (the `.:`, `:.` and `.:.` range operators) are not in the grammar this parser accepts",
-                );
+                let mut children = vec![SyntaxChild::Node(left)];
+                children.extend(tokens.into_iter().map(SyntaxChild::Token));
+                children.push(SyntaxChild::Node(node));
+                let trim = SyntaxNode::new(SyntaxKind::TrimRangeExpr, children);
                 self.parse_range_tail(trim, stack)
             }
             Resume::PostfixFirst => self.parse_postfix_from(node, stack),
@@ -1484,69 +1482,30 @@ mod tests {
             .unwrap()
     }
 
-    /// Each trim-reference form gets exactly one unsupported-syntax diagnostic naming trim
-    /// references, spanning the trim operator; its operands stay references, `A1.` is never
-    /// lexed as a name, no range node is built over the trim operator, and the text reprints.
+    /// Each trim-reference form parses as a trim-range node (dc-h9u) with no diagnostic: its
+    /// operands stay references, the operator's tokens sit between them, `A1.` is never lexed as
+    /// a name, no range node is built over the trim operator, and the text reprints.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn trim_references_are_refused_as_unsupported_syntax() {
-        for (formula, operator, argument) in [
-            (
-                "=SUM(A1.:B10)",
-                ".:",
-                "UnsupportedExpr(IdentifierExpr(A1) . : IdentifierExpr(B10))",
-            ),
-            (
-                "=SUM(A1:.B10)",
-                ":.",
-                "UnsupportedExpr(IdentifierExpr(A1) : . IdentifierExpr(B10))",
-            ),
+    fn trim_references_parse_as_trim_ranges() {
+        for (formula, argument) in [
+            ("=SUM(A1.:B10)", "TrimRangeExpr(IdentifierExpr(A1) . : IdentifierExpr(B10))"),
+            ("=SUM(A1:.B10)", "TrimRangeExpr(IdentifierExpr(A1) : . IdentifierExpr(B10))"),
             (
                 "=SUM(A1.:.B10)",
-                ".:.",
-                "UnsupportedExpr(IdentifierExpr(A1) . : . IdentifierExpr(B10))",
+                "TrimRangeExpr(IdentifierExpr(A1) . : . IdentifierExpr(B10))",
             ),
-            (
-                "=SUM(A:.A)",
-                ":.",
-                "UnsupportedExpr(IdentifierExpr(A) : . IdentifierExpr(A))",
-            ),
-            (
-                "=SUM(1:.3)",
-                ":.",
-                "UnsupportedExpr(NumberLiteralExpr(1) : . NumberLiteralExpr(3))",
-            ),
-            (
-                "=SUM(1.:3)",
-                ".:",
-                "UnsupportedExpr(NumberLiteralExpr(1) . : NumberLiteralExpr(3))",
-            ),
+            ("=SUM(A:.A)", "TrimRangeExpr(IdentifierExpr(A) : . IdentifierExpr(A))"),
+            ("=SUM(1:.3)", "TrimRangeExpr(NumberLiteralExpr(1) : . NumberLiteralExpr(3))"),
+            ("=SUM(1.:3)", "TrimRangeExpr(NumberLiteralExpr(1) . : NumberLiteralExpr(3))"),
             (
                 "=SUM(Sheet1!A1.:B10)",
-                ".:",
-                "UnsupportedExpr(QualifiedReferenceExpr(Sheet1 ! IdentifierExpr(A1)) . : IdentifierExpr(B10))",
+                "TrimRangeExpr(QualifiedReferenceExpr(Sheet1 ! IdentifierExpr(A1)) . : IdentifierExpr(B10))",
             ),
         ] {
             let tree = parse_formula(formula);
             assert_eq!(tree.source_text(), formula);
-            assert_eq!(
-                tree.diagnostics().len(),
-                1,
-                "{formula}: {:?}",
-                tree.diagnostics()
-            );
-            let diagnostic = &tree.diagnostics()[0];
-            assert_eq!(
-                diagnostic.kind,
-                SyntaxDiagnosticKind::UnsupportedSyntax,
-                "{formula}"
-            );
-            assert!(
-                diagnostic.message.contains("trim references"),
-                "{formula}: {}",
-                diagnostic.message
-            );
-            assert_eq!(covered(formula, diagnostic.span), operator, "{formula}");
+            assert!(tree.diagnostics().is_empty(), "{formula}: {:?}", tree.diagnostics());
             assert_eq!(shape(first_argument(&tree)), argument, "{formula}");
             assert!(
                 !contains_kind(tree.root(), SyntaxKind::RangeExpr),

@@ -50,3 +50,8 @@ pub use syntax::parse_formula;
 pub use calc_func::locale::{CalcEnvironment, DateSystem, FormatProfile};
 pub use calc_func::read_number_text;
 pub use calc_func::{HostFacts, RandomSource, SubtotalExclusions};
+/// The host's workbook facts CELL and INFO read ([`HostFacts::workbook_facts`], dc-uar).
+pub use calc_func::{
+    ApplicationFacts, CalculationMode, CellFormatFacts, ColumnWidth, HorizontalAlignment,
+    WorkbookFacts, WorkbookFile,
+};

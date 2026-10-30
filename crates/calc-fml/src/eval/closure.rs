@@ -48,3 +48,33 @@ impl Closure {
             .and_then(|callable| callable.handle().as_any().downcast_ref::<Closure>())
     }
 }
+
+/// A function value (dc-h9u): a catalogue function named where a LAMBDA value is taken, which a
+/// call of it calls eagerly with the arguments it is given. Its worksheet face is #CALC!, as a
+/// LAMBDA's is.
+#[derive(Debug)]
+pub(super) struct FunctionValue {
+    pub(super) target: super::Target,
+}
+
+impl OpaqueCallable for FunctionValue {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl FunctionValue {
+    /// The function as a value, with the arity of its catalogue entry.
+    pub(super) fn into_value(self) -> CalcValue {
+        let arity = self.target.0.arity();
+        let spelling = self.target.0.spelling().to_owned();
+        CalcValue::callable(CallableValue::new(arity, &spelling, Arc::new(self)))
+    }
+
+    /// The function value behind `value`, when it is one.
+    pub(super) fn of(value: &CalcValue) -> Option<&FunctionValue> {
+        value
+            .callable_value()
+            .and_then(|callable| callable.handle().as_any().downcast_ref::<FunctionValue>())
+    }
+}

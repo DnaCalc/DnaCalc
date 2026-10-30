@@ -24,6 +24,7 @@
 //! and letters that are format tokens elsewhere (`B`, `e`, `g`, `A/P`) are not modelled and refuse
 //! the call.
 
+pub(crate) mod cell_info;
 mod datetime;
 mod names;
 
