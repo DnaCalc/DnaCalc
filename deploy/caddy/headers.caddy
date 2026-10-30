@@ -21,6 +21,8 @@
 	}
 	@pages path / /index.html /build.json /LICENSE /THIRD-PARTY-NOTICES.txt
 	header @pages Cache-Control "no-cache"
+	@text path /LICENSE /THIRD-PARTY-NOTICES.txt
+	header @text Content-Type "text/plain; charset=utf-8"
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 	encode zstd gzip

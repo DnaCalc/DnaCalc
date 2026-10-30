@@ -41,6 +41,27 @@ here. Read `AGENTS.md` first; it is the contract. Then read the bead of your wor
 | 9 | Pivot tables | dc-8wp | yes | After 4 and 5. |
 | 10 | Performance | dc-dxm, dc-u5c | no | After the first public publish. |
 
+## First steps for the next session (state at 2026-10-30)
+
+1. Run `cargo xtask sweep` once on a clean tree (never run in full since it was introduced) and
+   `cargo xtask corpus --oracle --no-capture` for the figures after the per-section capture split
+   and the circular-rule count.
+2. Try the new capture flow live: add a row to one catalogue sheet, regenerate,
+   `cargo xtask capture --pending --list`, then `cargo xtask capture --pending` (its first run
+   against Excel), and commit what it writes.
+3. dc-ymjf.2: the witness judge and 278 pinned sets are committed in the `DnaCalc-lic` clone
+   (f9f5453, merge 81aa23d) but not pushed. That clone is in the middle of a merge with master:
+   conflicts in `tools/xtask/Cargo.toml`, `tools/xtask/src/main.rs` and `tools/calc-verdict`
+   (the per-section capture and sweep changes landed meanwhile). Resolve keeping both sides,
+   make `cargo xtask check` pass there, push.
+   Then open root-cause beads for the IRR hang (`IRR({-1000, 1000-e, tiny}, guess)` never
+   returns), and the ERF.PRECISE, MINVERSE and GAMMA.DIST mismatches; the full-bank comparison
+   with OxFunc's ledger is in that clone's `target/witness/full-vs-oxfunc.tsv`.
+4. Recheck the Intel/AMD EXP and LN differences on one Excel build (the July runs used Intel
+   build 18429 and AMD build 20131), and record the result in the handbook's F19 data.
+5. Use a commit-message file name unique to your lane; agents sharing one file overwrote each
+   other's messages.
+
 Kept by the coordinator or the owner, not a work set: the licence history rewrite (dc-96l.7,
 force pushes), each publish to dnacalc.com (dc-ysl), and archiving legacy repositories.
 
