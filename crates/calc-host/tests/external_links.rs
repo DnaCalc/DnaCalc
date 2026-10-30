@@ -64,7 +64,8 @@ fn package() -> Vec<u8> {
     ])
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_ylr__external_references_read_the_links_cached_values() {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(package()));
     let mut host = HostState::open(
