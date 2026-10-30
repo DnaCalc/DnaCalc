@@ -414,7 +414,7 @@ version = "0.1.0"
 dependencies = [
  "calc-func",
  "calc-host",
- "dna-onecalc",
+ "dna-formula-ui",
  "js-sys",
  "leptos",
  "serde",
@@ -426,11 +426,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dna-formula-ui"
+version = "0.1.0"
+dependencies = [
+ "calc-fml",
+ "calc-func",
+ "dna-strand",
+ "leptos",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
 name = "dna-onecalc"
 version = "0.1.0"
 dependencies = [
  "calc-fml",
  "calc-func",
+ "dna-formula-ui",
  "js-sys",
  "leptos",
  "serde_json",

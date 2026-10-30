@@ -42,13 +42,18 @@
 //!   So the formulas on a cycle the order finds are evaluated like any other, and those whose
 //!   evaluations wait on each other, or read one of them, are left uncalculated (dc-10y, `keep`):
 //!   one entered since its last result is published as 0, one this engine calculated before keeps
-//!   that value, and any other (a value only the file stored, which this engine never calculated)
-//!   is published as a typed refusal. Every recalculation calculates them again, as Excel does
-//!   (it saves each with `ca="1"`). The other formulas are calculated.
+//!   that value, and one it never calculated keeps the value the file stored, or an empty text
+//!   when the file stored none (dc-y2o.1, Excel 16.0.20527 2026-10-30, tests/fixtures/dc_y2o).
+//!   Each is published as the circular-reference rule's value, marked so
+//!   ([`Calculation::held_by_circular_rule`]) that a comparison counts it apart from a calculated
+//!   pass. Every recalculation calculates them again, as Excel does (it saves each with
+//!   `ca="1"`). The other formulas are calculated.
 //! - **Iteration on.** The formulas of the order are evaluated in passes, each formula on a cycle
 //!   reading the value the other formulas on it had at the end of the last pass, or, once
 //!   evaluated in this pass, their new value (the members of a cycle in cell order: Excel
-//!   evaluates A1 before B1, A5 before A6 and B5 before C5). After each pass the change of every
+//!   evaluates A1 before B1, A5 before A6 and B5 before C5, and the sheets by name, letter case
+//!   ignored, whatever the order the formulas were entered in, the saved calc chain, the tab order
+//!   or the sheet IDs; dc-86f, Excel 16.0.20527 2026-10-30, tests/fixtures/dc_86f). After each pass the change of every
 //!   formula on a cycle is measured: the recalculation stops after the first pass in which no
 //!   value changed by the maximum change or more, or after the maximum number of passes. Excel
 //!   16.0 (2026-10-23, 100 iterations, maximum change 0.001) added 200 to A1 `=B1+1` and B1
@@ -1583,7 +1588,7 @@ fn schedule(
                 .collect();
             match order_map(state, &placed) {
                 Ok(order) => acyclic(order),
-                Err(_) => order_with_cycles(state, &placed),
+                Err(_) => order_with_cycles(state, inputs, &placed),
             }
         }
     }
@@ -1596,6 +1601,7 @@ fn schedule(
 /// components that are cycles (more than one node, or a node that reads itself).
 fn order_with_cycles(
     state: &EngineState,
+    inputs: &ModelRoot,
     readers_of: &BTreeMap<NodeId, Vec<NodeId>>,
 ) -> Scheduled {
     let nodes: Vec<NodeId> = readers_of.keys().copied().collect();
@@ -1642,7 +1648,9 @@ fn order_with_cycles(
     let mut order = Vec::with_capacity(nodes.len());
     while let Some((_, comp)) = ready.pop_first() {
         let mut held: Vec<NodeId> = members[comp].iter().map(|index| nodes[*index]).collect();
-        held.sort_by_key(|node| live_anchor(state, *node));
+        if held.len() > 1 {
+            sort_members(state, inputs, &mut held);
+        }
         order.extend(held);
         for reader in &readers[comp] {
             waiting[*reader] -= 1;
@@ -1653,6 +1661,38 @@ fn order_with_cycles(
     }
     debug_assert_eq!(order.len(), nodes.len(), "the components form no cycle");
     Scheduled { order, cyclic }
+}
+
+/// Sorts the members of a cycle into the order Excel evaluates them in (dc-86f, Excel 16.0.20527,
+/// 2026-10-30, tests/fixtures/dc_86f): their sheets by name, letter case ignored (a sheet named
+/// b before one named C, and A before b, whatever their tab order, sheet IDs or the order they
+/// were made in), then by row, then by column. The order the formulas were entered in and the
+/// order of the file's saved calc chain play no part. Names that fold equal keep their workbook
+/// order.
+fn sort_members(state: &EngineState, inputs: &ModelRoot, members: &mut [NodeId]) {
+    let mut sheets: Vec<(String, usize, calc_value::SheetId)> = inputs
+        .sheets()
+        .iter()
+        .enumerate()
+        .map(|(position, sheet)| {
+            let name = sheet.name().text().to_string_lossy();
+            (calc_value::fold_workbook_name(&name), position, sheet.id())
+        })
+        .collect();
+    sheets.sort();
+    let rank: BTreeMap<calc_value::SheetId, usize> = sheets
+        .iter()
+        .enumerate()
+        .map(|(rank, (_, _, id))| (*id, rank))
+        .collect();
+    members.sort_by_key(|member| {
+        let at = live_anchor(state, *member);
+        (
+            rank.get(&at.sheet()).copied().unwrap_or(usize::MAX),
+            at.row(),
+            at.column(),
+        )
+    });
 }
 
 /// The strongly connected component of each vertex of `edges` (vertex `i` reaches each of
@@ -1827,7 +1867,7 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
             work.waiting.clear();
             if work.iteration.enabled() {
                 let mut stuck = stuck;
-                stuck.sort_by_key(|member| live_anchor(state, *member));
+                sort_members(state, inputs, &mut stuck);
                 work.add_cyclic(state, stuck.iter().copied());
                 work.ready.extend(stuck);
             } else {
@@ -1934,32 +1974,50 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
 }
 
 /// Leaves `node` uncalculated, as Excel leaves a formula on a circular reference, or one that reads
-/// such a formula, while iterative calculation is off (dc-10y; see the module documentation): it
-/// joins the formulas every recalculation calculates again, and its cell keeps what it holds. A
-/// formula entered since its last result shows 0, published as this recalculation's; one this
-/// engine calculated before keeps that result, with the calculation that gave it; any other (a
-/// value the file stored, which this engine never calculated, a refusal, a result that spilled)
-/// is refused as not modelled.
+/// such a formula, while iterative calculation is off (dc-10y, dc-y2o.1; see the module
+/// documentation): it joins the formulas every recalculation calculates again, and its cell keeps
+/// what it holds, published as the circular-reference rule's value
+/// ([`Calculation::held_by_circular_rule`]) by this recalculation. A formula entered since its last
+/// result shows 0; one this engine calculated before keeps that value; one it never calculated
+/// keeps the value the file stored for it, and an empty text when the file stored none (Excel
+/// 16.0.20527, 2026-10-30, tests/fixtures/dc_y2o: stored 77 and 55, 999 in a reader, "abc", #N/A
+/// stay after a full rebuild, and a formula stored without a value holds an empty text, which
+/// Excel saves as `t="str"`). A formula whose result spilled, or the anchor of a legacy array
+/// formula over several cells that this engine has not calculated, is refused as not modelled.
 fn keep(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: NodeId) {
     work.kept.insert(node);
     work.add_cyclic(state, [node]);
     let at = live_anchor(state, node);
+    let rule = work.calculation.clone().with_circular_rule();
     let held = if state.entered.contains(&node) {
-        Some(FormulaResult::Calculated {
-            value: CalcValue::number(0.0),
-            calculation: work.calculation.clone(),
-        })
+        Some((CalcValue::number(0.0), rule))
     } else if state.spills.get(at).is_some() {
         None
     } else {
         match state.result(at) {
-            Some(result @ FormulaResult::Calculated { .. }) => Some(result.clone()),
-            _ => None,
+            Some(FormulaResult::Calculated { value, calculation }) => {
+                let rule = if calculation.reads_external_links() {
+                    rule.with_external_links()
+                } else {
+                    rule
+                };
+                Some((value.clone(), rule))
+            }
+            Some(FormulaResult::NotModeled { .. }) => None,
+            _ if inputs
+                .definitions()
+                .array(at)
+                .is_some_and(|array| array.area().cell_count() > 1) =>
+            {
+                None
+            }
+            Some(FormulaResult::FileCached(cache)) => Some((cache.value().to_value(), rule)),
+            None => Some((CalcValue::text(calc_value::ExcelText::from_utf16_code_units(Vec::new())), rule)),
         }
     };
     let done = match held {
-        Some(result) => Done {
-            result,
+        Some((value, calculation)) => Done {
+            result: FormulaResult::Calculated { value, calculation },
             spill: None,
             dynamic: Vec::new(),
         },
@@ -1968,12 +2026,13 @@ fn keep(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: No
     stage(state, inputs, work, node, done);
 }
 
-/// The refusal of a formula on a circular reference while iterative calculation is off: Excel
-/// leaves each such cell at its previous value, which this engine did not calculate.
+/// The refusal of a formula on a circular reference while iterative calculation is off whose held
+/// value this engine does not model: one whose result spilled, or a legacy array formula over
+/// several cells it never calculated.
 fn circular() -> NotModeled {
     NotModeled::Evaluation(EvalFault::NotModelled {
-        construct: "a circular reference with iterative calculation off (Excel keeps each cell's previous value)",
-        owner: "dc-10y",
+        construct: "a spilled or multi-cell array formula on a circular reference with iterative calculation off",
+        owner: "dc-y2o",
     })
 }
 
@@ -2017,7 +2076,7 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
                     waiters.retain(|waiter| waiter != member);
                 }
             }
-            chain.sort_by_key(|member| live_anchor(state, *member));
+            sort_members(state, inputs, &mut chain);
             if work.iteration.enabled() {
                 // Evaluated again in cell order, as the members of a cycle the order found are.
                 work.add_cyclic(state, chain.iter().copied());

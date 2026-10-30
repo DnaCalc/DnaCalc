@@ -48,7 +48,8 @@
 //!    failure, and the run carries on.
 //! 5. **The summary.** `<out>/summary.md` and `<out>/summary.json` (`corpus_summary.rs`): per
 //!    workbook and in total, pass (matched Excel), external links (matched from another
-//!    workbook's link caches, apart from pass and fail) and fail (mismatched + refused + failed or
+//!    workbook's link caches, apart from pass and fail), circular rule (matched with the value a
+//!    formula on a circular reference keeps with iteration off, apart from pass and fail) and fail (mismatched + refused + failed or
 //!    missing) over all formula cells, the pass rate over all formula cells, the wall times of open,
 //!    recalculation, projection and judging, and the failures grouped by root cause across the
 //!    corpus. A workbook that could not be read, captured or compared is listed as not compared,
@@ -747,10 +748,11 @@ fn run_corpus(args: &Args) -> u8 {
             Ok(compared) => {
                 let c = &compared.counts;
                 println!(
-                    "xtask corpus:   formula cells {}; pass {}; external links {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {}); pass rate {}{}",
+                    "xtask corpus:   formula cells {}; pass {}; external links {}; circular rule {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {}); pass rate {}{}",
                     c.formula_cells,
                     c.pass,
                     c.external_links,
+                    c.circular_rule,
                     c.awaiting_capture,
                     c.fail(),
                     c.mismatched,
@@ -812,13 +814,14 @@ fn run_corpus(args: &Args) -> u8 {
     let totals = summary.totals();
     let c = &totals.counts;
     println!(
-        "xtask corpus: {} workbooks ({} compared, {} not compared); formula cells {}; pass {}; external links {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {}); pass rate over all formula cells {}",
+        "xtask corpus: {} workbooks ({} compared, {} not compared); formula cells {}; pass {}; external links {}; circular rule {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {}); pass rate over all formula cells {}",
         totals.workbooks,
         totals.compared,
         totals.not_compared,
         c.formula_cells,
         c.pass,
         c.external_links,
+        c.circular_rule,
         c.awaiting_capture,
         c.fail(),
         c.mismatched,

@@ -101,7 +101,7 @@ pub static APPS: [App; 2] = [
         page: "apps/dna-onecalc/web/index.html",
         scripts: &[],
         styles: &[
-            "apps/dna-onecalc/web/css/formula-field.css",
+            "apps/dna-formula-ui/web/css/formula-field.css",
             "apps/dna-onecalc/web/css/surface.css",
         ],
         default_out: "target/onecalc-bundle",
@@ -119,7 +119,7 @@ pub static APPS: [App; 2] = [
         page: "apps/dna-calc/web/index.html",
         scripts: &["apps/dna-calc/web/worker.js"],
         styles: &[
-            "apps/dna-onecalc/web/css/formula-field.css",
+            "apps/dna-formula-ui/web/css/formula-field.css",
             "apps/dna-calc/web/css/shell.css",
             "apps/dna-calc/web/css/grid.css",
             "apps/dna-calc/web/css/notebook.css",

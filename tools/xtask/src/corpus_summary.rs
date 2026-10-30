@@ -10,7 +10,13 @@
 //!   in the file hold, directly or through the formulas it read (`external_links` in
 //!   `triage.json`, dc-ylr): calculated, but from the file's cache of the other book, so it is
 //!   neither a pass nor a fail and is reported apart beside them;
-//! - fail is every other cell: `mismatched` (a mismatch that read link caches included), refused
+//! - circular rule is a matched cell whose value is the one the circular-reference rule holds
+//!   with iteration off (`circular_rule` in `triage.json`, dc-y2o.1): the formula is on a circular
+//!   reference, or reads one, and keeps what its cell held, as Excel keeps it, without being
+//!   evaluated, so it is neither a pass nor a fail and is reported apart beside them (a cell that
+//!   is both is counted here);
+//! - fail is every other cell: `mismatched` (a mismatch that read link caches, or of a value the
+//!   circular rule held, included), refused
 //!   (`not_modeled`, a typed not-modelled result), and failed or missing (`failed`, `missing`,
 //!   `stale`, `file_cached`, `unproven`, `not_run`, each counted by name);
 //! - awaiting capture is a formula cell of an oracle workbook (or of a section of one) that has no
@@ -18,8 +24,9 @@
 //!   neither a pass nor a fail, and `cargo xtask capture --pending` takes its capture. Such cells
 //!   are counted from the workbook's package;
 //!
-//! so formula cells = pass + external links + awaiting capture + fail, and the pass rate is pass
-//! over all formula cells, awaiting ones included. No rate over calculated cells is given.
+//! so formula cells = pass + external links + circular rule + awaiting capture + fail, and the
+//! pass rate is pass over all formula cells, awaiting ones included. No rate over calculated
+//! cells is given.
 //!
 //! A workbook that could not be compared at all (it could not be read or captured, or `cargo
 //! xtask compare` refused it or ended abnormally) is listed with its stage and reason, counted
@@ -105,6 +112,9 @@ pub(crate) struct Counts {
     /// Matched cells whose calculation read another workbook's link caches: neither pass nor
     /// fail (dc-ylr).
     pub(crate) external_links: u64,
+    /// Matched cells whose value the circular-reference rule held with iteration off: neither
+    /// pass nor fail (dc-y2o.1).
+    pub(crate) circular_rule: u64,
     /// Formula cells with no committed capture of their current content: neither pass nor fail.
     pub(crate) awaiting_capture: u64,
     pub(crate) mismatched: u64,
@@ -123,6 +133,7 @@ impl Counts {
         self.formula_cells += other.formula_cells;
         self.pass += other.pass;
         self.external_links += other.external_links;
+        self.circular_rule += other.circular_rule;
         self.awaiting_capture += other.awaiting_capture;
         self.mismatched += other.mismatched;
         self.refused += other.refused;
@@ -293,6 +304,10 @@ pub(crate) fn read_triage(triage: &Value) -> Result<Compared, String> {
         let verdict = text(cell, "verdict")?;
         counts.formula_cells += 1;
         match bucket(&verdict) {
+            Bucket::Pass if cell["circular_rule"].as_bool() == Some(true) => {
+                counts.circular_rule += 1;
+                continue;
+            }
             Bucket::Pass if cell["external_links"].as_bool() == Some(true) => {
                 counts.external_links += 1;
                 continue;
@@ -483,6 +498,7 @@ impl Summary {
                 "formula_cells": counts.formula_cells,
                 "pass": counts.pass,
                 "external_links": counts.external_links,
+                "circular_rule": counts.circular_rule,
                 "awaiting_capture": counts.awaiting_capture,
                 "fail": counts.fail(),
                 "mismatched": counts.mismatched,
@@ -563,7 +579,7 @@ impl Summary {
         json!({
             "format": "dnacalc-corpus-summary",
             "version": 1,
-            "rule": "pass = matched Excel from the workbook's own inputs; external_links = matched Excel from values another workbook's link caches hold (neither pass nor fail, dc-ylr); awaiting_capture = formula cells of an oracle workbook or section with no committed capture of its current content (neither pass nor fail; cargo xtask capture --pending takes them); fail = mismatched + refused (not modelled) + failed or missing; the pass rate is pass over all formula cells, awaiting ones included (owner ruling 2026-10-23)",
+            "rule": "pass = matched Excel from the workbook's own inputs; external_links = matched Excel from values another workbook's link caches hold (neither pass nor fail, dc-ylr); circular_rule = matched Excel with the value the circular-reference rule holds with iteration off (neither pass nor fail, dc-y2o.1); awaiting_capture = formula cells of an oracle workbook or section with no committed capture of its current content (neither pass nor fail; cargo xtask capture --pending takes them); fail = mismatched + refused (not modelled) + failed or missing; the pass rate is pass over all formula cells, awaiting ones included (owner ruling 2026-10-23)",
             "run": self.run,
             "totals": {
                 "workbooks": totals.workbooks,
@@ -595,7 +611,7 @@ impl Summary {
         line(&mut out, "");
         line(
             &mut out,
-            "Pass = matched Excel from the workbook's own inputs. External links = matched Excel from values another workbook's link caches hold, counted apart (neither pass nor fail, dc-ylr). Awaiting capture = formula cells of an oracle workbook or section with no committed capture of its current content, counted apart (neither pass nor fail; `cargo xtask capture --pending` takes them). Fail = mismatched + refused (not modelled) + failed or missing. The pass rate is pass over all formula cells, awaiting ones included (owner ruling 2026-10-23).",
+            "Pass = matched Excel from the workbook's own inputs. External links = matched Excel from values another workbook's link caches hold, counted apart (neither pass nor fail, dc-ylr). Circular rule = matched Excel with the value a formula on a circular reference, or one reading it, keeps with iteration off, counted apart (neither pass nor fail, dc-y2o.1). Awaiting capture = formula cells of an oracle workbook or section with no committed capture of its current content, counted apart (neither pass nor fail; `cargo xtask capture --pending` takes them). Fail = mismatched + refused (not modelled) + failed or missing. The pass rate is pass over all formula cells, awaiting ones included (owner ruling 2026-10-23).",
         );
         line(&mut out, "");
         if let Some(run) = self.run.as_object() {
@@ -621,10 +637,11 @@ impl Summary {
         line(
             &mut out,
             &format!(
-                "- formula cells (compared workbooks): {}; pass {}; external links {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {})",
+                "- formula cells (compared workbooks): {}; pass {}; external links {}; circular rule {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {})",
                 c.formula_cells,
                 c.pass,
                 c.external_links,
+                c.circular_rule,
                 c.awaiting_capture,
                 c.fail(),
                 c.mismatched,
@@ -677,11 +694,11 @@ impl Summary {
         line(&mut out, "");
         line(
             &mut out,
-            "| Workbook | Formula cells | Pass | External links | Awaiting capture | Fail | Mismatched | Refused | Failed or missing | Pass rate | Open s | Recalc s | Judge s |",
+            "| Workbook | Formula cells | Pass | External links | Circular rule | Awaiting capture | Fail | Mismatched | Refused | Failed or missing | Pass rate | Open s | Recalc s | Judge s |",
         );
         line(
             &mut out,
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         );
         let mut not_compared = Vec::new();
         for workbook in &self.workbooks {
@@ -696,11 +713,12 @@ impl Summary {
                     line(
                         &mut out,
                         &format!(
-                            "| {}{failure} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                            "| {}{failure} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
                             workbook.name,
                             c.formula_cells,
                             c.pass,
                             c.external_links,
+                            c.circular_rule,
                             c.awaiting_capture,
                             c.fail(),
                             c.mismatched,
@@ -717,7 +735,7 @@ impl Summary {
                     line(
                         &mut out,
                         &format!(
-                            "| {} (not compared) | - | - | - | - | - | - | - | - | - | - | - | - |",
+                            "| {} (not compared) | - | - | - | - | - | - | - | - | - | - | - | - | - |",
                             workbook.name
                         ),
                     );
@@ -728,10 +746,11 @@ impl Summary {
         line(
             &mut out,
             &format!(
-                "| **Total** | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                "| **Total** | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
                 c.formula_cells,
                 c.pass,
                 c.external_links,
+                c.circular_rule,
                 c.awaiting_capture,
                 c.fail(),
                 c.mismatched,

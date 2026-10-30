@@ -11,11 +11,11 @@ portability = "portable"
 
 # DNA Calc reaches the workbook only through calc-host (plan section 1.3: skins never depend on
 # engine internals; tools/xtask/architecture.json forbids calc-engine as a direct dependency). The
-# formula bar is DNA OneCalc's formula field (dna-onecalc's formula_field module), shared rather
-# than copied, with its value display (dna-onecalc's result module); dna-onecalc's own closure
-# stays free of calc-engine and calc-host.
+# formula bar, the value and result display, the cell, area and refusal labels, the theme switch and
+# the browser start are dna-formula-ui's, which DNA OneCalc shows too; DNA Calc never depends on
+# the dna-onecalc app (plan section 8.7).
 #
-# The skins are Leptos in client-side rendering mode, at the releases DNA OneCalc pins (see its
+# The skins are Leptos in client-side rendering mode, at the releases DNA OneCalc and dna-formula-ui pin (see its
 # manifest): Leptos 0.8.19 on wasm-bindgen 0.2.117, web-sys and js-sys 0.3.94. The views compile
 # on every target and run only in a browser.
 [dependencies]
@@ -23,9 +23,9 @@ calc-host = { path = "../../crates/calc-host" }
 # The one number-format renderer (calc-func's cell_text, which TEXT renders with), for cells' number
 # formats (dc-09v).
 calc-func = { path = "../../crates/calc-func" }
-dna-onecalc = { path = "../dna-onecalc" }
+dna-formula-ui = { path = "../dna-formula-ui" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
-# The browser entry's start function (src/bin/dna-calc-web.rs) and the panic hook (src/web.rs).
+# The browser entry's start function (src/bin/dna-calc-web.rs) and the worker (src/worker.rs).
 wasm-bindgen = "=0.2.117"
 # Reading an opened file's bytes (a File's ArrayBuffer promise).
 wasm-bindgen-futures = "=0.4.67"

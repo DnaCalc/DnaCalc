@@ -381,7 +381,10 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     let mut out = Changes::default();
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
-    if !cells_changed && layout.is_none() && !names_changed {
+    // The iterative-calculation settings an edit changed (dc-y2o.2), written to the `calcPr`.
+    let iteration = Some(model.definitions().iteration())
+        .filter(|settings| *settings != base.definitions().iteration());
+    if !cells_changed && layout.is_none() && !names_changed && iteration.is_none() {
         return Ok(out);
     }
     let mut chain = None;
@@ -723,11 +726,11 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             out.rewritten.insert(part, content);
         }
     }
-    if full_calc || !names.is_empty() {
+    if full_calc || iteration.is_some() || !names.is_empty() {
         let workbook = read_part(package, workbook_part)?;
         out.rewritten.insert(
             workbook_part.clone(),
-            parts::workbook(&workbook, full_calc, &names)?,
+            parts::workbook(&workbook, full_calc, iteration, &names)?,
         );
     }
 

@@ -606,6 +606,22 @@ impl EngineState {
         self.by_anchor.len()
     }
 
+    /// The formula cells the last published recalculation found on a circular reference, in
+    /// cell order (dc-y2o.1): those on a cycle of their references (`=IF(C1>5,I1+1,7)` in I1
+    /// too, whose evaluation need not meet itself), those on a cycle only their evaluations met,
+    /// and with iteration off those that read one, which keep their values by the
+    /// circular-reference rule. A host warns of a circular reference while this is not empty.
+    pub fn circular_cells(&self) -> Vec<CellKey> {
+        let mut cells: Vec<CellKey> = self
+            .cycle_members
+            .iter()
+            .filter(|node| self.node(**node).is_some())
+            .map(|node| crate::recalc::live_anchor(self, *node))
+            .collect();
+        cells.sort();
+        cells
+    }
+
     /// The published result of the formula cell `at`.
     pub fn result(&self, at: CellKey) -> Option<&FormulaResult> {
         match self.node_at(at) {

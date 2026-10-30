@@ -37,6 +37,10 @@ pub struct Calculation {
     /// it read (dc-ylr): it is calculated, from inputs that are the file's cache of the other
     /// book rather than live ones.
     external_links: bool,
+    /// The result is the value the circular-reference rule holds (dc-y2o.1): with iteration off,
+    /// a formula on a circular reference, or one that reads such a formula, is not evaluated and
+    /// keeps what its cell held, as Excel keeps it. The value is the rule's, not an evaluation's.
+    circular_rule: bool,
 }
 
 impl Calculation {
@@ -46,7 +50,22 @@ impl Calculation {
             tick,
             mode: Arc::new(mode),
             external_links: false,
+            circular_rule: false,
         }
+    }
+
+    /// This calculation, marked as the circular-reference rule's (dc-y2o.1).
+    pub(crate) fn with_circular_rule(mut self) -> Self {
+        self.circular_rule = true;
+        self
+    }
+
+    /// Whether the value is the one the circular-reference rule holds with iteration off
+    /// (dc-y2o.1): the formula is on a circular reference, or reads one, and was not evaluated; it
+    /// shows what its cell held (the value this engine last calculated for it, else the value
+    /// the file stored, else an empty text), or 0 when it was entered since its last result.
+    pub fn held_by_circular_rule(&self) -> bool {
+        self.circular_rule
     }
 
     /// This calculation, marked as reading values another workbook's link caches.

@@ -94,7 +94,10 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
-            CellEdit::Axis(_) | CellEdit::SetFormat { .. } | CellEdit::SetName { .. } => continue,
+            CellEdit::Axis(_)
+            | CellEdit::SetFormat { .. }
+            | CellEdit::SetName { .. }
+            | CellEdit::SetIteration(_) => continue,
         };
         if !areas.contains(&area) {
             areas.push(area);
@@ -109,7 +112,8 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
 /// arrays' areas that held an input set to it again (re-authoring an array clears its area, a
 /// value blocking a dynamic array's spill included), then each cell format an edit sets returned to
 /// the one the cell held, and each defined name an edit sets to the formula it held (the formulas
-/// that use it are among the cells the edits set, so they are set again). Refused when an edit
+/// that use it are among the cells the edits set, so they are set again), and the iteration
+/// settings to those the workbook held when an edit sets them (dc-y2o.2). Refused when an edit
 /// touches an unloaded cell, whose content no edit authors.
 pub(crate) fn inverse(
     model: &Arc<ModelRoot>,
@@ -198,6 +202,12 @@ pub(crate) fn inverse(
                 formula: held.map(|held| held.formula.clone()),
             });
         }
+    }
+    if edits
+        .iter()
+        .any(|edit| matches!(edit, CellEdit::SetIteration(_)))
+    {
+        inverse.push(CellEdit::SetIteration(definitions.iteration()));
     }
     Ok(Inverse::Edits(inverse))
 }

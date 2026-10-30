@@ -1,7 +1,7 @@
 //! The DNA Calc shell: the mast with the document's name and the file commands (New, Open, Save),
 //! the edit and calculation commands (Undo, Redo, Calculate, the calculation mode), the skin
-//! switcher, the formula bar (the name box and DNA OneCalc's formula field), the active skin, the
-//! sheet tabs, and the status line with the active cell's provenance.
+//! switcher, the formula bar (the name box and the formula field DNA OneCalc shows too), the active
+//! skin, the sheet tabs, and the status line with the active cell's provenance.
 //!
 //! Every element a person uses carries a `data-dnacalc` attribute naming its role; the browser
 //! smoke test (`cargo xtask app smoke calc`) drives the page through them.
@@ -25,7 +25,7 @@ use crate::notebook::NotebookSkin;
 use crate::skin::{SkinContext, SkinRegistry, SkinResolution, resolve_active_skin, switch_skin};
 use crate::tree::TreeSkin;
 
-use dna_onecalc::formula_field::FormulaAssist;
+use dna_formula_ui::formula_field::FormulaAssist;
 use leptos::prelude::*;
 use std::sync::Arc;
 
@@ -292,10 +292,10 @@ pub fn app() -> impl IntoView {
                     class="dc-theme"
                     data-dnacalc="theme"
                     aria-label="Theme"
-                    on:change=move |ev| dna_onecalc::theme::set(&event_target_value(&ev))
-                    prop:value=dna_onecalc::theme::current()
+                    on:change=move |ev| dna_formula_ui::theme::set(&event_target_value(&ev))
+                    prop:value=dna_formula_ui::theme::current()
                 >
-                    {dna_onecalc::theme::CHOICES
+                    {dna_formula_ui::theme::CHOICES
                         .iter()
                         .map(|(id, label)| view! { <option value=*id>{*label}</option> })
                         .collect_view()}
@@ -335,6 +335,56 @@ pub fn app() -> impl IntoView {
                     <option value="automatic">"Automatic"</option>
                     <option value="manual">"Manual"</option>
                 </select>
+                <label class="dc-iterate" title="Calculate circular references iteratively">
+                    <input
+                        type="checkbox"
+                        data-dnacalc="iterate"
+                        prop:checked=move || controller.iteration().0
+                        on:change=move |ev| {
+                            let (_, count, change) = controller.iteration();
+                            controller.set_iteration(event_target_checked(&ev), count, change)
+                        }
+                    />
+                    "Iterate"
+                </label>
+                <input
+                    type="number"
+                    class="dc-iterations"
+                    data-dnacalc="max-iterations"
+                    aria-label="Maximum iterations"
+                    title="Maximum iterations"
+                    min="1"
+                    max="32767"
+                    prop:value=move || controller.iteration().1.to_string()
+                    on:change=move |ev| {
+                        let (on, _, change) = controller.iteration();
+                        if let Ok(count) = event_target_value(&ev).trim().parse::<u32>()
+                            && (1..=32767).contains(&count)
+                        {
+                            controller.set_iteration(on, count, change)
+                        }
+                    }
+                />
+                <input
+                    type="text"
+                    class="dc-max-change"
+                    data-dnacalc="max-change"
+                    aria-label="Maximum change"
+                    title="Maximum change"
+                    prop:value=move || controller.iteration().2.to_string()
+                    on:change=move |ev| {
+                        let (on, count, _) = controller.iteration();
+                        if let Ok(change) = event_target_value(&ev).trim().parse::<f64>()
+                            && change.is_finite()
+                            && change >= 0.0
+                        {
+                            controller.set_iteration(on, count, change)
+                        }
+                    }
+                />
+                <span class="dc-circular" data-dnacalc="circular">
+                    {move || controller.circular_warning().unwrap_or_default()}
+                </span>
                 <nav class="dc-skins" aria-label="Skins">{skin_buttons}</nav>
             </header>
             <div class="dc-bar">
