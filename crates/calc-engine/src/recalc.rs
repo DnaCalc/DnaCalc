@@ -2388,6 +2388,11 @@ fn evaluate_with(
         };
         (outcome, observed.stopped)
     };
+    let calculation = if instance.plan().reads_external_links() || cells.read_external_links() {
+        calculation.with_external_links()
+    } else {
+        calculation
+    };
     local.read_batch = cells.into_batch();
     local.scratch = scratch;
     let kept_read = local.kept_read.get();

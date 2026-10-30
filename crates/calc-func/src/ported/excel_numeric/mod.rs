@@ -4,7 +4,7 @@
 //! The public entry points ([`excel_exp`], [`excel_log`], [`excel_log10`], the powers, the
 //! trigonometric chains and the x87 double-rounded operations) are **bit-exact to 64-bit
 //! Microsoft Excel** on `x86_64`, where they run x87 instructions (control word `0x133F`,
-//! precision 64, as measured). The exponential and logarithm chains are in [`nt_chains`]
+//! precision 64, as measured). The exponential and logarithm chains are in [`x87_chains`]
 //! behind a documented interface (under licence review, dc-96l). Each sequence is written once
 //! over the [`Fpu`] trait; on other targets
 //! (wasm32) it runs on [`soft87`], the x87 in software (dc-8dg). The software x87 is exact for
@@ -75,10 +75,10 @@ mod x87;
 /// run, in portable Rust, for the targets without the hardware.
 mod soft87;
 
-/// Excel's exponential and logarithm chains, behind the interface its module docs describe;
-/// replaced clean-room under dc-96l.3.
-mod nt_chains;
-pub(crate) use nt_chains::{
+/// Excel's exponential and logarithm chains on the x87, behind the interface its module docs
+/// describe: written clean-room under dc-96l.3 from Intel's documented instruction set.
+mod x87_chains;
+pub(crate) use x87_chains::{
     excel_binom_pmf_exp, excel_exp, excel_exp_rz, excel_log, excel_log10, excel_pow_x87_direct,
     excel_root_x87,
 };
@@ -826,7 +826,7 @@ pub(crate) fn excel_sqrt_staged(x: f64) -> f64 {
     Native::store(&Native::sqrt(&load(x), CW), CW)
 }
 
-/// Shared by this module's tests and `nt_chains`' tests.
+/// Shared by this module's tests.
 #[cfg(test)]
 mod test_support {
     /// A xorshift generator for the random comparisons.
@@ -856,6 +856,14 @@ mod test_support {
 /// unit of the 64-bit significand, and that unit decides the binary64 rounding. These rows
 /// were harvested as the hardest near-midpoint LN inputs; on random inputs the LN chains
 /// differ 3 times in 200,000.
+/// The EXP witnesses where the clean-room chain ([`x87_chains`], dc-96l.3) gives the binary64
+/// neighbour of Excel's result, on the hardware and the software x87 alike (an interim
+/// difference the owner accepted on 2026-10-30; the remaining sequence detail is dc-j9k's).
+#[cfg(test)]
+const EXP_WITNESSES_THE_CLEAN_ROOM_CHAIN_ROUNDS_THE_OTHER_WAY: [u64; 4] = [
+    0x3fe4a631cec5f8da, 0x3ff1f4e8c801c7ce, 0x400381fcca4a56ce, 0xbff5a2abdfff61bf,
+];
+
 #[cfg(test)]
 const LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY: [u64; 18] = [
     0x0d45fbbe4b0e7d55, 0x0dbe4e3a44304ad6, 0x11f544676cf1bf2f, 0x1eb393c13e56f40a,
@@ -974,9 +982,10 @@ mod tests {
 
     /// Excel's EXP and LN through the interface the rest of the crate calls
     /// ([`excel_exp`], [`excel_log`]) against every witness harvested from live Excel
-    /// (`x87_excel_ground_truth.tsv`). On the x87 hardware every row matches (measured on the
-    /// reference x86-64 host, AMD Zen2; the hardest rows depend on the CPU's `F2XM1`/`FYL2X`).
-    /// On the software x87 every EXP row matches and the LN rows match except
+    /// (`x87_excel_ground_truth.tsv`). Every EXP row matches except
+    /// [`EXP_WITNESSES_THE_CLEAN_ROOM_CHAIN_ROUNDS_THE_OTHER_WAY`], each one unit of the last place
+    /// away, on both backends. On the x87 hardware every LN row matches (the hardest rows depend
+    /// on the CPU's `FYL2X`); on the software x87 the LN rows match except
     /// [`LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY`], each one unit of the last place
     /// away; on x86_64 each of those is shown to be a hardware `FYL2X` result that differs from
     /// the exactly rounded one.
@@ -986,6 +995,7 @@ mod tests {
         const GROUND_TRUTH: &str = include_str!("x87_excel_ground_truth.tsv");
         let software = cfg!(not(all(target_arch = "x86_64", not(feature = "soft-x87"))));
         let (mut exp_rows, mut ln_rows, mut ln_differ) = (0u32, 0u32, Vec::new());
+        let mut exp_differ = Vec::new();
         for line in GROUND_TRUTH.lines().map(str::trim).filter(|l| !l.is_empty()) {
             let mut it = line.split('\t');
             let func = it.next().unwrap();
@@ -994,7 +1004,11 @@ mod tests {
             match func {
                 "EXP" => {
                     exp_rows += 1;
-                    assert_eq!(excel_exp(x).to_bits(), want, "EXP x={:016x}", x.to_bits());
+                    let got = excel_exp(x).to_bits();
+                    if got != want {
+                        assert_eq!(got.abs_diff(want), 1, "EXP x={:016x}", x.to_bits());
+                        exp_differ.push(x.to_bits());
+                    }
                 }
                 "LN" => {
                     ln_rows += 1;
@@ -1009,6 +1023,7 @@ mod tests {
             }
         }
         assert_eq!((exp_rows, ln_rows), (136, 113));
+        assert_eq!(exp_differ, EXP_WITNESSES_THE_CLEAN_ROOM_CHAIN_ROUNDS_THE_OTHER_WAY);
         if software {
             assert_eq!(ln_differ, LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY);
         }
@@ -1199,3 +1214,4 @@ mod tests {
         assert!(excel_exp(f64::NAN).is_nan());
     }
 }
+

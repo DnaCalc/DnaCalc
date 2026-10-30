@@ -1,7 +1,8 @@
 //! The engineering family fragment ported from OxFunc (functions/ at 6fca3518): the radix
 //! conversions (BIN2DEC to OCT2HEX), the bit functions, the complex-number functions (COMPLEX and
 //! the IM functions), the Bessel functions, DELTA, GESTEP and CONVERT. The kernels are OxFunc's
-//! ([`crate::ported`]).
+//! ([`crate::ported`]), except the Bessel functions' ([`crate::ported::bessel`], written clean-room
+//! under dc-96l.3).
 //!
 //! The radix functions refuse a logical argument with #VALUE! and an empty one with #N/A, as
 //! OxFunc's engineering argument rule does, and check an explicit places argument before the
@@ -236,10 +237,10 @@ ported_family! {
         let product = zs.iter().fold(ParsedComplex::new(1.0, 0.0, None), |acc, z| acc.mul(*z));
         complex_text(Ok(product), &zs)
     }
-    60 besseli "BESSELI" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel_convert_family::besseli_kernel) }
-    61 besselj "BESSELJ" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel_convert_family::besselj_kernel) }
-    62 besselk "BESSELK" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel_convert_family::besselk_kernel) }
-    63 bessely "BESSELY" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel_convert_family::bessely_kernel) }
+    60 besseli "BESSELI" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besseli_kernel) }
+    61 besselj "BESSELJ" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besselj_kernel) }
+    62 besselk "BESSELK" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besselk_kernel) }
+    63 bessely "BESSELY" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::bessely_kernel) }
     70 delta "DELTA" (1, 2) [V "number1", V "number2"] |s, a, sv| {
         let x = num(s, a, 0)?;
         let y = if given(a, 1) { num(s, a, 1)? } else { 0.0 };

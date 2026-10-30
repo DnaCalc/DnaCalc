@@ -35,8 +35,8 @@ use calc_engine::{
     ReadObserver, RecalcFailure, RecalcProgress, SheetSpan, StartError, Unobserved, ValueChange,
     ValueDelta, WorkBudget, begin_recalc, commit_edit, finish, prepare_edit, step,
 };
-use calc_fml::reference::{BindError, CellRun};
-use calc_fml::{CompileError, CompiledPlan, EvalFault, ExecutedCall};
+use calc_fml::reference::CellRun;
+use calc_fml::{CompiledPlan, EvalFault, ExecutedCall};
 use calc_verdict::{
     CaptureRecord, CellAddress, Evaluation as VerdictEvaluation, EvaluationRecord,
     InstrumentRecord, InstrumentedEvaluation, ResultSet, Verdict, VerdictPolicy, VerdictReport,
@@ -2332,10 +2332,12 @@ fn ceng_m1_2__wrong_cache_not_pass() {
         refusal(&state, c(5, 1), 1, 3),
         NotModeled::Evaluation(EvalFault::MissingInput { cell: c(4, 1) })
     );
+    // dc-ylr: an external reference reads the values the workbook's link caches; this model
+    // holds no link, so the formula is refused when it runs.
     assert!(matches!(
         refusal(&state, c(6, 1), 1, 3),
-        NotModeled::Compile(CompileError::Reference {
-            error: BindError::ExternalWorkbook,
+        NotModeled::Evaluation(EvalFault::NotModelled {
+            owner: "dc-ylr",
             ..
         })
     ));

@@ -30,8 +30,15 @@
 //!   cell no row reaches is blank. With several value columns each column group takes one column
 //!   per value, and the `Total` columns are blank. `relative_to` names what a two-argument
 //!   function's second argument holds: 0 the column's rows (the default), 1 and 3 the row's, 2
-//!   every row, 4 the column's (3 and 4 measured with one field each). Subtotals across several
-//!   row or column fields (depth 2) are not modelled in PIVOTBY.
+//!   every row, 4 the column's (3 and 4 measured with one field each). With several functions the
+//!   `Total` columns are not blank.
+//! - PIVOTBY's depths (measured 2026-10-30, 15 calls with two and three row fields and two column
+//!   fields): depth n (up to the number of fields; a larger one is #VALUE!, and 2 with one field
+//!   too) adds a subtotal after each group of the first k fields for each k below n, labelled by
+//!   those fields with the rest blank, and labels the grand total `Grand Total` (`Total` at depth
+//!   1); a negative depth puts each total before what it totals. A column subtotal's header shows
+//!   its fields at their levels and is blank below. Column subtotals with several value columns
+//!   are not modelled.
 
 use super::comparison::{self, Want};
 use super::kit::{fail, grid};
@@ -552,6 +559,90 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
     result(out)
 }
 
+/// One row or column of a PIVOTBY result along an axis: its labels (one per field), the rows it
+/// aggregates, and whether it is the grand total.
+struct Line {
+    labels: Vec<CalcValue>,
+    members: Vec<usize>,
+    grand: bool,
+}
+
+/// The lines of an axis whose sorted `groups` have `fields` fields, at total depth `depth`: the
+/// groups, a subtotal after (before, for a negative depth) each run of groups sharing their first
+/// k fields for each k below the depth, and the grand total over `all`.
+fn lines(
+    site: &Site<'_>,
+    groups: &[(Vec<CalcValue>, Vec<usize>, Vec<CalcValue>)],
+    fields: usize,
+    depth: i64,
+    all: &[usize],
+) -> Step<Vec<Line>> {
+    let levels = depth.unsigned_abs() as usize;
+    let before = depth < 0;
+    let mut labels = vec![text(""); fields.max(1)];
+    labels[0] = text(if levels >= 2 { "Grand Total" } else { "Total" });
+    let grand = Line {
+        labels,
+        members: all.to_vec(),
+        grand: true,
+    };
+    let mut out = Vec::new();
+    subtotalled(site, groups, 0, levels, before, fields, &mut out)?;
+    match depth {
+        d if d > 0 => out.push(grand),
+        d if d < 0 => out.insert(0, grand),
+        _ => {}
+    }
+    Ok(out)
+}
+
+/// The lines of `groups`, which share their first `level` fields, with a subtotal for each run of
+/// them sharing field `level` while `level + 1` is below `levels`.
+fn subtotalled(
+    site: &Site<'_>,
+    groups: &[(Vec<CalcValue>, Vec<usize>, Vec<CalcValue>)],
+    level: usize,
+    levels: usize,
+    before: bool,
+    fields: usize,
+    out: &mut Vec<Line>,
+) -> Step<()> {
+    if level + 1 >= levels {
+        for g in groups {
+            out.push(Line {
+                labels: g.0.clone(),
+                members: g.1.clone(),
+                grand: false,
+            });
+        }
+        return Ok(());
+    }
+    let mut at = 0;
+    while at < groups.len() {
+        let mut end = at + 1;
+        while end < groups.len() && same(site, &groups[end].0[level], &groups[at].0[level])? {
+            end += 1;
+        }
+        let run = &groups[at..end];
+        let mut labels = vec![text(""); fields];
+        labels[..=level].clone_from_slice(&run[0].0[..=level]);
+        let subtotal = Line {
+            labels,
+            members: run.iter().flat_map(|g| g.1.iter().copied()).collect(),
+            grand: false,
+        };
+        if before {
+            out.push(subtotal);
+            subtotalled(site, run, level + 1, levels, before, fields, out)?;
+        } else {
+            subtotalled(site, run, level + 1, levels, before, fields, out)?;
+            out.push(subtotal);
+        }
+        at = end;
+    }
+    Ok(())
+}
+
 fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let row_fields = table(site, a, 0, sv)?;
     let col_fields = table(site, a, 1, sv)?;
@@ -567,14 +658,14 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
     let col_entries = sort_entries(site, a, 8)?;
     let relative_to = whole(site, a, 10)?.unwrap_or(0);
     let (kr, kc) = (row_fields.cols, col_fields.cols);
-    for (depth, fields, index) in [(row_depth, kr, 5), (col_depth, kc, 7)] {
-        if depth.abs() == 2 && fields >= 2 {
-            // Subtotals across several fields of PIVOTBY are not measured.
-            return Err(site.not_modelled(Some(index)));
-        }
-        if !(-1..=1).contains(&depth) {
+    for (depth, fields) in [(row_depth, kr), (col_depth, kc)] {
+        if depth.unsigned_abs() > 1 && depth.unsigned_abs() as usize > fields {
             return fail(W::Value);
         }
+    }
+    if col_depth.unsigned_abs() > 1 && values.cols > 1 {
+        // Column subtotals beside several value columns are not measured.
+        return Err(site.not_modelled(Some(7)));
     }
     if !(0..=4).contains(&relative_to) {
         return fail(W::Value);
@@ -611,14 +702,9 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
         }
     };
     let mut out: Vec<Vec<CalcValue>> = Vec::new();
-    // Column layout: each column group, then the total, each with np value columns.
-    let mut columns: Vec<Option<usize>> = col_groups.iter().enumerate().map(|(i, _)| Some(i)).collect();
-    match col_depth {
-        d if d > 0 => columns.push(None),
-        d if d < 0 => columns.insert(0, None),
-        _ => {}
-    }
-    let blank_totals = np > 1;
+    // Column layout: the column lines, each with np value columns.
+    let columns = lines(site, &col_groups, kc, col_depth, &rows)?;
+    let blank_totals = values.cols > 1;
     // Header rows.
     if show {
         for level in 0..kc {
@@ -636,11 +722,7 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
         let mut header = vec![text(""); kr];
         for column in &columns {
             for _ in 0..np {
-                header.push(match column {
-                    Some(i) => col_groups[*i].0[level].clone(),
-                    None if level == 0 => text("Total"),
-                    None => text(""),
-                });
+                header.push(column.labels[level].clone());
             }
         }
         out.push(header);
@@ -671,13 +753,10 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
     let body = |site: &Site<'_>, sv: &mut EvalServices<'_>, label: Vec<CalcValue>, row_members: &[usize]| -> Step<Vec<CalcValue>> {
         let mut row = label;
         for column in &columns {
-            let col_members: Vec<usize> = match column {
-                Some(i) => col_groups[*i].1.clone(),
-                None => rows.clone(),
-            };
-            let members = intersect(row_members, &col_members);
+            let col_members = &column.members;
+            let members = intersect(row_members, col_members);
             for &(v, f) in &pairs {
-                if column.is_none() && blank_totals {
+                if column.grand && blank_totals {
                     row.push(text(""));
                     continue;
                 }
@@ -685,25 +764,14 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
                     row.push(text(""));
                     continue;
                 }
-                let rel = relative(row_members, &col_members);
+                let rel = relative(row_members, col_members);
                 row.push(aggregate(site, sv, &functions[f], &values, v, &members, &rel)?);
             }
         }
         Ok(row)
     };
-    let total_label = |kr: usize| {
-        let mut label = vec![text(""); kr];
-        label[0] = text("Total");
-        label
-    };
-    if row_depth < 0 {
-        out.push(body(site, sv, total_label(kr), &rows)?);
-    }
-    for g in &row_groups {
-        out.push(body(site, sv, g.0.clone(), &g.1)?);
-    }
-    if row_depth > 0 {
-        out.push(body(site, sv, total_label(kr), &rows)?);
+    for line in lines(site, &row_groups, kr, row_depth, &rows)? {
+        out.push(body(site, sv, line.labels, &line.members)?);
     }
     for row in &mut out {
         for cell in row.iter_mut() {
