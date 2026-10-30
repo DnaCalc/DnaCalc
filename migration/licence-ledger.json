@@ -432,6 +432,16 @@
    "surveyed_bytes": 14651
   },
   {
+   "path": "crates/calc-func/src/catalogue/group_pivot.rs",
+   "class": "own-work",
+   "reason": "PERCENTOF (dc-h9u), written from Excel 16.0.20527 measurements; no third-party code"
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/grouping.rs",
+   "class": "own-work",
+   "reason": "GROUPBY and PIVOTBY (dc-h9u), written from Excel 16.0.20527 measurements (60 calls); no third-party code"
+  },
+  {
    "path": "crates/calc-func/src/catalogue/host_facts.rs",
    "class": "own-work",
    "reason": "ported from this project's legacy repositories or written here",
@@ -726,6 +736,11 @@
    "note": "the _xlfn prefix table, checked against a package Excel saves",
    "surveyed_blob": "70b5143fcd4b598ef9c20ca1ab84de0baa2fcbbe",
    "surveyed_bytes": 20734
+  },
+  {
+   "path": "crates/calc-func/src/format/cell_info.rs",
+   "class": "own-work",
+   "reason": "CELL's format classes (dc-uar), written from Excel 16.0.20527 measurements of 219 number formats; no third-party code"
   },
   {
    "path": "crates/calc-func/src/format/datetime.rs",
@@ -2879,6 +2894,11 @@
    "surveyed_bytes": 289
   },
   {
+   "path": "crates/calc-func/tests/fixtures/catalogue/formats-dcuar_cell.txt",
+   "class": "own-work",
+   "reason": "oracle rows (number format codes) of the catalogue oracle, dc-uar"
+  },
+  {
    "path": "crates/calc-func/tests/fixtures/catalogue/oracle.xlsx",
    "class": "own-work",
    "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
@@ -2914,6 +2934,11 @@
    "surveyed_bytes": 2570
   },
   {
+   "path": "crates/calc-func/tests/fixtures/catalogue/prefix-h9u.txt",
+   "class": "own-work",
+   "reason": "oracle prefix rows of the catalogue oracle, dc-h9u"
+  },
+  {
    "path": "crates/calc-func/tests/fixtures/catalogue/prefix-l1.txt",
    "class": "own-work",
    "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
@@ -2933,6 +2958,11 @@
    "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
    "surveyed_blob": "fa1f0b2befb8e184d61f547a16710c6edeb4f121",
    "surveyed_bytes": 3612
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dch9u.txt",
+   "class": "own-work",
+   "reason": "oracle formulas of the catalogue oracle, dc-h9u and dc-bd5"
   },
   {
    "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_annuity.txt",
@@ -2975,6 +3005,11 @@
    "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
    "surveyed_blob": "07785691e726ec1dbb36d1cc4705e23943413be3",
    "surveyed_bytes": 98467
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcuar_cell.txt",
+   "class": "own-work",
+   "reason": "oracle formulas of the catalogue oracle, dc-uar"
   },
   {
    "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcuar_text.txt",

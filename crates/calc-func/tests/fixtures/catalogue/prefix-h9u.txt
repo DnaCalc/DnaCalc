@@ -1,0 +1,5 @@
+# dc-h9u: functions OxFunc has and calc-func lacked. One call per function.
+PERCENTOF(Data!A1,Data!A1:A3)
+TRIMRANGE(Data!A1:A5)
+GROUPBY({"a";"b";"a"},{1;2;3},1)
+PIVOTBY({"a";"b";"a"},{"x";"x";"y"},{1;2;3},1)

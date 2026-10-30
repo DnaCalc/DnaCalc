@@ -320,11 +320,30 @@ fn checked_capture(oracle: &Oracle) -> CaptureRecord {
         oracle.name,
         session.tool
     );
+    // A cell that names the file Excel opened (CELL("filename"), dc-uar) reads another path once
+    // the saved copy is reopened from another folder: that reopen difference is expected.
+    let names_file = |failure: &calc_verdict::CaptureFailure| {
+        failure.stage == "reopen"
+            && failure.cell.as_ref().is_some_and(|cell| {
+                capture.formulas.iter().any(|formula| {
+                    formula.cell == *cell
+                        && formula
+                            .formula
+                            .as_deref()
+                            .is_some_and(|text| text.contains("CELL(\"filename\""))
+                })
+            })
+    };
+    let failures: Vec<_> = session
+        .failures
+        .iter()
+        .filter(|failure| !names_file(failure))
+        .collect();
     assert!(
-        session.failures.is_empty(),
+        failures.is_empty(),
         "{}: capture failures: {:?}",
         oracle.name,
-        session.failures
+        failures
     );
     let saved_hash = format!("sha256:{}", sha256_hex(oracle.saved));
     assert_eq!(

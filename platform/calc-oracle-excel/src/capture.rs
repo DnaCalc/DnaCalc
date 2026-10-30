@@ -541,6 +541,15 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
             format!("{:016x}", clock.to_bits()),
         ));
     }
+    // dc-uar: the file Excel opened, as its full name, which CELL("filename") and a reference to
+    // another sheet in CELL("address") name.
+    if let Some(environment) = record.environment.as_mut() {
+        let opened = std::path::absolute(&input_copy).unwrap_or_else(|_| input_copy.clone());
+        environment.settings.push((
+            "workbook_path".to_owned(),
+            opened.to_string_lossy().replace('/', "\\"),
+        ));
+    }
     let encoded = record.encode().map_err(|e| CaptureError::Result {
         message: e.to_string(),
     })?;

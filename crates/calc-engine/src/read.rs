@@ -1006,6 +1006,10 @@ impl HostFacts for WorkbookReader<'_> {
     fn sheet_count(&mut self) -> Option<u32> {
         u32::try_from(self.view.inputs.sheets().len()).ok()
     }
+
+    fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_fml::WorkbookFacts>> {
+        self.view.state.workbook_facts.clone()
+    }
 }
 
 /// Reports the cells of indexes `from..to`, which hold no input: blank, except those `overlays`

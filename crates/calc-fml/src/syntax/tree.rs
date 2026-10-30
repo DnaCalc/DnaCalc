@@ -49,6 +49,9 @@ pub enum SyntaxKind {
     GroupingExpr,
     /// The range operator `:`.
     RangeExpr,
+    /// A trim reference (dc-h9u): `A1:.B9` (trailing), `A1.:B9` (leading) or `A1.:.B9` (both),
+    /// its two operands and the operator's tokens between them; TRIMRANGE of the range.
+    TrimRangeExpr,
     /// The intersection operator, whitespace between two references; its whitespace tokens
     /// are children of the node, not trivia.
     IntersectionExpr,

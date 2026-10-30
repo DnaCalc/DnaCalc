@@ -261,6 +261,8 @@ impl Geometry {
                     last,
                     width,
                     hidden,
+                    // The wire carries no customWidth flag; a skin lays out by the width alone.
+                    custom_width: width.is_some(),
                 })
                 .collect(),
             rows: self

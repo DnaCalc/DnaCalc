@@ -34,7 +34,7 @@ impl FilePrefix {
 
 /// Each named function of the catalogue by its spelling, in byte order of the spelling (checked
 /// below, since the lookup is a binary search), with the prefix a file writes before it.
-const FILE_PREFIXES: [(&str, FilePrefix); 495] = [
+const FILE_PREFIXES: [(&str, FilePrefix); 499] = [
     ("ABS", FilePrefix::Bare),
     ("ACCRINT", FilePrefix::Bare),
     ("ACCRINTM", FilePrefix::Bare),
@@ -227,6 +227,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 495] = [
     ("GEOMEAN", FilePrefix::Bare),
     ("GESTEP", FilePrefix::Bare),
     ("GETPIVOTDATA", FilePrefix::Bare),
+    ("GROUPBY", FilePrefix::Xlfn),
     ("GROWTH", FilePrefix::Bare),
     ("HARMEAN", FilePrefix::Bare),
     ("HEX2BIN", FilePrefix::Bare),
@@ -370,6 +371,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 495] = [
     ("PERCENTILE", FilePrefix::Bare),
     ("PERCENTILE.EXC", FilePrefix::Xlfn),
     ("PERCENTILE.INC", FilePrefix::Xlfn),
+    ("PERCENTOF", FilePrefix::Xlfn),
     ("PERCENTRANK", FilePrefix::Bare),
     ("PERCENTRANK.EXC", FilePrefix::Xlfn),
     ("PERCENTRANK.INC", FilePrefix::Xlfn),
@@ -378,6 +380,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 495] = [
     ("PHI", FilePrefix::Xlfn),
     ("PHONETIC", FilePrefix::Bare),
     ("PI", FilePrefix::Bare),
+    ("PIVOTBY", FilePrefix::Xlfn),
     ("PMT", FilePrefix::Bare),
     ("POISSON", FilePrefix::Bare),
     ("POISSON.DIST", FilePrefix::Xlfn),
@@ -491,6 +494,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 495] = [
     ("TREND", FilePrefix::Bare),
     ("TRIM", FilePrefix::Bare),
     ("TRIMMEAN", FilePrefix::Bare),
+    ("TRIMRANGE", FilePrefix::Xlfn),
     ("TRUE", FilePrefix::Bare),
     ("TRUNC", FilePrefix::Bare),
     ("TTEST", FilePrefix::Bare),

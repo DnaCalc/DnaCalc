@@ -7,12 +7,12 @@
 //! argument's error, or its coercion error, is the result before any domain rule applies.
 //!
 //! ABS, SIGN, INT, EVEN and ODD act on the binary64 itself: its absolute value, sign and integer
-//! parts are exact. TRUNC, ROUND, ROUNDUP and ROUNDDOWN round to a decimal position, and MOD and
-//! QUOTIENT divide; they read each number as an exact decimal ([`ExactDecimal::read`]: the decimal
-//! it shows when that has at most 15 significant digits, as a typed number does, and its exact
-//! binary64 value otherwise), compute on those decimals exactly, and convert the exact result once
-//! to the nearest binary64 at an arithmetic site. So ROUND(2.675,2) is 2.68, as the typed 2.675
-//! reads, although the binary64 of 2.675 lies below the half; and MOD(0.3,0.1) is 0.
+//! parts are exact. TRUNC, ROUND, ROUNDUP and ROUNDDOWN round to a decimal position; they read
+//! each number rounded to 15 significant digits ([`ExactDecimal::fifteen`]), compute on that
+//! decimal exactly, and convert the exact result once to the nearest binary64 at an arithmetic
+//! site. So ROUND(2.675,2) is 2.68, as the typed 2.675 reads, although the binary64 of 2.675 lies
+//! below the half, and TRUNC(2.9999999999999996) is 3 (dc-bd5). MOD and QUOTIENT divide in
+//! binary64 (QUOTIENT(0.3,0.1) is 2).
 //!
 //! CEILING and FLOOR compute in binary64: the quotient number / significance, rounded at an
 //! arithmetic site, is taken to the integer above or below it, and the significance times that
@@ -158,14 +158,34 @@ fn sign(
     })
 }
 
-/// INT: the largest integer not above the number's binary64. That equals the integer the
-/// number's decimal reading rounds down to, since an integer below 2^53 between a binary64 and a
-/// decimal that converts to it would be a nearer binary64.
+/// INT: the largest integer not above the number read to 15 significant digits
+/// ([`ExactDecimal::fifteen`]) when it is below 1E15 in magnitude, and not above its binary64
+/// otherwise (dc-bd5, Excel 16.0.20527 through COM on 2026-10-30, 109 readings:
+/// INT(2.9999999999999996) and INT(2.9999999999999982) are 3, INT(123456789012345.67) is
+/// 123456789012346, INT(-3.0000000000000004) is -3, INT(999999999999999.5) is 1E15, while
+/// INT(4503599627370495.5) is 4503599627370495).
 fn int(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    numeric(INT, arguments, services, |_, n| Ok(decimal::floor(n[0])))
+    numeric(INT, arguments, services, |site, n| {
+        let x = n[0];
+        if x.abs() >= 1e15 {
+            return Ok(decimal::floor(x));
+        }
+        match ExactDecimal::fifteen(x) {
+            (reading, true) => match reading.round_at(0, Direction::TowardZero) {
+                Some(whole) => {
+                    let whole = site.nearest(&whole)?;
+                    let read = site.nearest(&reading)?;
+                    // Toward zero, one less for a negative reading with a fraction.
+                    Ok(if read < whole { whole - 1.0 } else { whole })
+                }
+                None => site.nearest(&reading),
+            },
+            (_, false) => Ok(decimal::floor(x)),
+        }
+    })
 }
 
 /// TRUNC: ROUNDDOWN with num_digits 0 when it is omitted.
@@ -224,12 +244,23 @@ fn to_digits(site: &Site<'_>, number: f64, places: f64, direction: Direction) ->
     if number == 0.0 {
         return Ok(0.0);
     }
+    // ROUND with num_digits of 2147483647 or more is 0, where 2147483646 leaves 1.5 as it is;
+    // ROUNDUP, ROUNDDOWN and TRUNC leave it (dc-bd5: Excel 16.0.20527, ROUND(1.5,1E+300) and
+    // ROUND(1.5,2147483647) are 0, ROUNDUP(1.5,1E+300) and TRUNC(1.5,1E+300) are 1.5).
+    if direction == Direction::Nearest && places >= 2_147_483_647.0 {
+        return Ok(0.0);
+    }
     // An integer within +/-2000 after the clamp, so the conversion to i32 is exact.
     let places = decimal::truncate(places).clamp(-PLACES, PLACES) as i32;
-    match ExactDecimal::read(number).round_at(-places, direction) {
-        None => Ok(number),
-        Some(rounded) => site.nearest(&rounded),
-    }
+    let (reading, changed) = ExactDecimal::fifteen(number);
+    let result = match reading.round_at(-places, direction) {
+        None if changed => site.nearest(&reading)?,
+        None => return Ok(number),
+        Some(rounded) => site.nearest(&rounded)?,
+    };
+    // A result below the normal range is 0, as Excel gives it (dc-bd5:
+    // ROUNDDOWN(2.5E-308,308) is 0 in Excel 16.0.20430).
+    Ok(if result.is_subnormal() { 0.0 } else { result })
 }
 
 /// How CEILING and FLOOR choose a multiple of the significance.
@@ -366,7 +397,10 @@ fn modulo(
         }
         let remainder = number % divisor;
         if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
-            site.add(remainder, divisor)
+            let adjusted = site.add(remainder, divisor)?;
+            // A remainder the divisor absorbs is 0 (dc-bd5: MOD(-5,9.99999999999999E+307) is 0
+            // in Excel 16.0.20430).
+            Ok(if adjusted == divisor { 0.0 } else { adjusted })
         } else {
             Ok(remainder)
         }
@@ -377,8 +411,8 @@ fn modulo(
 /// (dc-j9k).
 const MOD_QUOTIENT_LIMIT: f64 = 1.1259e12;
 
-/// QUOTIENT: the integer part of numerator / denominator, toward zero, computed exactly on the
-/// readings. A zero denominator is #DIV/0!.
+/// QUOTIENT: the integer part of the binary64 quotient numerator / denominator, toward zero. A
+/// zero denominator is #DIV/0!.
 fn quotient(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -391,16 +425,10 @@ fn quotient(
         if numerator == 0.0 {
             return Ok(0.0);
         }
-        let (n, d) = (
-            ExactDecimal::read(numerator),
-            ExactDecimal::read(denominator),
-        );
-        let division = decimal::divide(&n, &d);
-        site.nearest(&ExactDecimal {
-            negative: n.negative != d.negative,
-            coefficient: division.quotient,
-            exponent: 0,
-        })
+        // The binary64 quotient, toward zero (dc-bd5: QUOTIENT(0.3,0.1) is 2 in Excel
+        // 16.0.20430, the quotient being 2.9999999999999996).
+        let quotient = site.divide(numerator, denominator)?;
+        Ok(decimal::truncate(quotient))
     })
 }
 

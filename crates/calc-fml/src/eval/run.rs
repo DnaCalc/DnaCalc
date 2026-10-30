@@ -363,6 +363,11 @@ impl Run<'_, '_> {
                     Ok(())
                 }
                 Instruction::Invoke { argc } => self.invoke(*argc),
+                Instruction::Function(target) => {
+                    self.stack
+                        .push(super::closure::FunctionValue { target: *target }.into_value());
+                    Ok(())
+                }
                 Instruction::Name(block) => self.name(*block),
             };
             if let Err(fault) = step {
@@ -477,7 +482,13 @@ impl Run<'_, '_> {
         arguments: &[CalcValue],
         synthetic: bool,
     ) -> Result<CalcValue, EvalFault> {
-        if arguments.iter().any(|value| value.callable_value().is_some()) {
+        // A LAMBDA or function value, or an array of them (`HSTACK(SUM,MAX)`, dc-h9u).
+        let callable = |value: &CalcValue| {
+            value.callable_value().is_some()
+                || matches!(value.core_ref(), CoreRef::Array(array)
+                    if array.iter_row_major().any(|element| element.callable_value().is_some()))
+        };
+        if arguments.iter().any(callable) {
             return self.eager_with_callables(target, arguments, synthetic);
         }
         let mut scratch = self.calls.pop().unwrap_or_default();
@@ -756,6 +767,23 @@ impl Run<'_, '_> {
     /// error Excel gives a call of something else or of the wrong number of arguments.
     fn call_closure(&mut self, callee: &CalcValue, arguments: Vec<CalcValue>) -> Result<CalcValue, EvalFault> {
         let argc = arguments.len();
+        if let Some(function) = super::closure::FunctionValue::of(callee) {
+            // A function value: its entry called with these arguments, which lift over an array
+            // given to a single-value parameter as in a dynamic-array formula (dc-h9u).
+            let target = function.target;
+            if !target.0.arity().accepts(argc) {
+                return Ok(CalcValue::error(WorksheetErrorCode::Value));
+            }
+            self.stack.extend(arguments);
+            let depth = self.stack.len() - argc;
+            match self.call(target, argc, false, false, Admission::Lift) {
+                Ok(()) => return Ok(self.stack.pop().expect("the call's result")),
+                Err(fault) => {
+                    self.stack.truncate(depth);
+                    return Err(fault);
+                }
+            }
+        }
         let Some(closure) = Closure::of(callee) else {
             // Excel 16.0, 2026-10-23: `=(A1)(2)` is #REF! and `=LET(x,1,x(2))` #VALUE!.
             return Ok(match callee.core_ref() {

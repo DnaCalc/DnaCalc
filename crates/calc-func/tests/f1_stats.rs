@@ -39,10 +39,13 @@ fn variances() {
     exact(call("VAR.P", vec![data()]), 4.0);
     close(call("VAR.S", vec![data()]), 4.571428571428571, 1e-15);
     error(call("VAR.S", vec![n(1.0)]), Div0);
-    // The A-suffixed forms read held text as 0 and held logicals as 1 and 0.
+    // In an array the A-suffixed forms pass over text and logicals, as the plain forms do
+    // (dc-bd5: Excel 16.0.20527 gives VARPA({1,TRUE,3}) 1 and STDEVPA({1,"a",3}) 1).
     let mixed = arr_values(vec![vec![n(1.0), b(true), t("x")]]);
-    close(call("VARPA", vec![mixed.clone()]), 2.0 / 9.0, 1e-15);
+    exact(call("VARPA", vec![mixed.clone()]), 0.0);
     exact(call("VARP", vec![mixed]), 0.0);
+    let measured = arr_values(vec![vec![n(1.0), b(true), n(3.0)]]);
+    exact(call("VARPA", vec![measured]), 1.0);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

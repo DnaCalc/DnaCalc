@@ -249,6 +249,10 @@ enum Instruction {
     /// Pops `argc` arguments and the value beneath them, which must be a LAMBDA value, and pushes
     /// the result of calling it.
     Invoke { argc: usize },
+    /// Pushes the function value of the catalogue entry `.0`: a function named where a LAMBDA
+    /// value is taken (`GROUPBY(A2:A9,B2:B9,SUM)`, which a file stores as `_xleta.SUM`), which a
+    /// call of it calls with the arguments it is given (dc-h9u).
+    Function(Target),
     /// Runs block `.0`, a defined name's formula, in a frame of its own and pushes its value.
     Name(usize),
     /// Pushes a copy of the value `.0` places below the top of the stack (0 is the top).

@@ -30,6 +30,8 @@ mod distributions;
 mod engineering;
 mod error_fallback;
 mod financial;
+mod group_pivot;
+mod grouping;
 mod host_facts;
 mod information;
 mod lambda_helpers;
@@ -50,7 +52,7 @@ mod text_functions;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 29] = [
+const FAMILIES: [&Family; 31] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -80,6 +82,8 @@ const FAMILIES: [&Family; 29] = [
     &bonds::FAMILY,
     &arrays::FAMILY,
     &lambda_helpers::FAMILY,
+    &group_pivot::FAMILY,
+    &grouping::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);

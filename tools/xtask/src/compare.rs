@@ -516,6 +516,43 @@ pub(crate) fn capture_clock(capture: &CaptureRecord) -> Option<f64> {
     now.is_finite().then_some(now)
 }
 
+/// A capture setting of `capture`'s environment.
+fn capture_setting<'c>(capture: &'c CaptureRecord, name: &str) -> Option<&'c str> {
+    capture
+        .environment
+        .as_ref()?
+        .settings
+        .iter()
+        .find(|(key, _)| key == name)
+        .map(|(_, value)| value.as_str())
+}
+
+/// The file Excel opened for `capture` (the setting workbook_path, its full name, dc-uar): its
+/// folder with the trailing separator and its file name. `None` when the capture records none.
+pub(crate) fn capture_file(capture: &CaptureRecord) -> Option<calc_fml::WorkbookFile> {
+    let path = capture_setting(capture, "workbook_path")?;
+    let cut = path.rfind('\\')?;
+    Some(calc_fml::WorkbookFile {
+        folder: Some(path[..=cut].to_owned()),
+        name: path[cut + 1..].to_owned(),
+    })
+}
+
+/// Excel's facts INFO reads, from `capture`'s environment (dc-uar): `release` the setting
+/// excel_version, `osversion` operating_system, and `system` `pcdos` when that names Windows and
+/// `mac` otherwise. The current folder is not recorded, so INFO("directory") stays refused.
+pub(crate) fn capture_application(capture: &CaptureRecord) -> Option<calc_fml::ApplicationFacts> {
+    let release = capture_setting(capture, "excel_version")?.to_owned();
+    let os = capture_setting(capture, "operating_system")?.to_owned();
+    let system = if os.starts_with("Windows") { "pcdos" } else { "mac" };
+    Some(calc_fml::ApplicationFacts {
+        release: Some(release),
+        os_version: Some(os),
+        system: Some(system.to_owned()),
+        directory: None,
+    })
+}
+
 /// The locale profile of a user culture with these separators ([`capture_locale`]).
 pub(crate) fn locale_profile(
     culture: &str,
@@ -639,6 +676,10 @@ fn run_workbook(
     // The clock NOW, TODAY and a date read without a year use: the one Excel's calculation read
     // (the capture's setting calculation_clock); a capture without one leaves those refused.
     host.set_clock(capture_clock(capture));
+    // dc-uar: the file Excel opened and Excel's own facts, which CELL and INFO read; a capture
+    // without them leaves those refused.
+    host.set_file(capture_file(capture));
+    host.set_application(capture_application(capture));
     let applied = host.recalc_context();
     let context = run_context(&applied);
     let declared = declared_key(capture, host.declared_date1904(), &applied);

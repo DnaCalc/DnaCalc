@@ -415,6 +415,17 @@ impl<'c> Lowering<'c> {
                         self.blocks[block].push(Instruction::Literal(Literal::Logical(false)));
                     } else if let Some(slot) = self.local(&parameter_key(text)) {
                         self.blocks[block].push(Instruction::Local(slot));
+                    } else if let Some(function) = without_prefix(text, "_xleta.") {
+                        // dc-h9u: a function named where a LAMBDA value is taken, as a file
+                        // stores it.
+                        let target = catalogue()
+                            .resolve_surface(Notation::Call, file_function(function))
+                            .map(Target)
+                            .map_err(|_| CompileError::UnknownFunction {
+                                span,
+                                spelling: text.to_owned(),
+                            })?;
+                        self.blocks[block].push(Instruction::Function(target));
                     } else {
                         let scope = NameScope::Formula(self.anchor.sheet());
                         self.defined_name(text, scope, span, block)?;
@@ -423,6 +434,13 @@ impl<'c> Lowering<'c> {
             }
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
                 if !self.reference(node, block)? {
+                    // dc-g9q: `[0]!Name`, a defined name qualified by the formula's own workbook,
+                    // as a file stores one: the name as the formula's sheet sees it.
+                    if let Some(name) = own_workbook_name(node) {
+                        let scope = NameScope::Formula(self.anchor.sheet());
+                        self.defined_name(name.text(), scope, span, block)?;
+                        return Ok(());
+                    }
                     let Some((sheet, name)) = qualified_name(node) else {
                         return Err(unsupported(span, "a sheet-qualified name", OWNER));
                     };
@@ -443,6 +461,57 @@ impl<'c> Lowering<'c> {
                 }
             }
             SyntaxKind::RangeExpr => {
+                if !self.reference(node, block)? {
+                    let mut operands = node.child_nodes();
+                    let (Some(left), Some(right)) = (operands.next(), operands.next()) else {
+                        return Err(CompileError::Syntax { span });
+                    };
+                    tasks.push(Task::Emit {
+                        block,
+                        instruction: Instruction::Range,
+                    });
+                    for operand in [right, left] {
+                        self.lower_reference_operand(operand, block, place, tasks);
+                    }
+                }
+            }
+            SyntaxKind::TrimRangeExpr => {
+                // dc-h9u: TRIMRANGE of the range, with both trim arguments 1 (`.:`, leading),
+                // 2 (`:.`, trailing) or 3 (`.:.`, both).
+                let operator: String = node
+                    .children()
+                    .iter()
+                    .filter_map(|child| match child {
+                        SyntaxChild::Token(token) => Some(token.text()),
+                        SyntaxChild::Node(_) => None,
+                    })
+                    .collect();
+                let mode = match operator.as_str() {
+                    ".:" => 1.0,
+                    ":." => 2.0,
+                    ".:." => 3.0,
+                    _ => return Err(CompileError::Syntax { span }),
+                };
+                let target = catalogue()
+                    .resolve_surface(Notation::Call, "TRIMRANGE")
+                    .map(Target)
+                    .map_err(|_| CompileError::Syntax { span })?;
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Call {
+                        target,
+                        argc: 3,
+                        retain: false,
+                        synthetic: false,
+                        admission: self.admission(place),
+                    },
+                });
+                for _ in 0..2 {
+                    tasks.push(Task::Emit {
+                        block,
+                        instruction: Instruction::Literal(Literal::Number(f64::to_bits(mode))),
+                    });
+                }
                 if !self.reference(node, block)? {
                     let mut operands = node.child_nodes();
                     let (Some(left), Some(right)) = (operands.next(), operands.next()) else {
@@ -706,6 +775,48 @@ impl<'c> Lowering<'c> {
                 tail: false,
                 block,
                 place: Place::Unknown,
+            });
+            return Ok(());
+        }
+        // dc-h9u: a trim reference as a file stores it (Excel 16.0.20527 saves `C1:.C20` as
+        // `_xlfn._TRO_TRAILING(C1:C20)`, `C1.:C20` as `_TRO_LEADING` and `C1.:.C20` as
+        // `_TRO_ALL`): TRIMRANGE of the range with both trim arguments 2, 1 or 3.
+        let trim = [("_TRO_LEADING", 1.0), ("_TRO_TRAILING", 2.0), ("_TRO_ALL", 3.0)]
+            .into_iter()
+            .find(|(name, _)| spelling.eq_ignore_ascii_case(name))
+            .map(|(_, mode)| mode);
+        if let (true, Some(mode)) = (prefixed, trim) {
+            let [operand] = arguments[..] else {
+                return Err(CompileError::Arity {
+                    span,
+                    supplied: argc,
+                });
+            };
+            let target = catalogue()
+                .resolve_surface(Notation::Call, "TRIMRANGE")
+                .map(Target)
+                .map_err(|_| CompileError::Syntax { span })?;
+            tasks.push(Task::Emit {
+                block,
+                instruction: Instruction::Call {
+                    target,
+                    argc: 3,
+                    retain: false,
+                    synthetic: false,
+                    admission: self.admission(place),
+                },
+            });
+            for _ in 0..2 {
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Literal(Literal::Number(f64::to_bits(mode))),
+                });
+            }
+            tasks.push(Task::Lower {
+                node: operand,
+                tail: false,
+                block,
+                place: place.argument("TRIMRANGE", 0, Some(ParameterClass::Reference), false),
             });
             return Ok(());
         }
@@ -1975,6 +2086,25 @@ fn unsupported(span: TextSpan, construct: &'static str, owner: &'static str) -> 
     }
 }
 
+/// The name of `[0]!Name`: a qualified operand whose qualifier is the workbook index 0, the
+/// formula's own workbook, and whose operand is a name.
+fn own_workbook_name(node: &SyntaxNode) -> Option<&Token> {
+    if node.kind() != SyntaxKind::QualifiedReferenceExpr {
+        return None;
+    }
+    let [SyntaxChild::Token(qualifier), ..] = node.children() else {
+        return None;
+    };
+    if qualifier.text() != "[0]" && qualifier.text() != "[0]!" {
+        return None;
+    }
+    let target = node.child_nodes().next()?;
+    match target.children() {
+        [SyntaxChild::Token(token)] if target.kind() == SyntaxKind::IdentifierExpr => Some(token),
+        _ => None,
+    }
+}
+
 /// The catalogue entry written as `token` in `notation`.
 fn target(notation: Notation, token: &Token) -> Result<Target, CompileError> {
     catalogue()
@@ -2097,14 +2227,21 @@ const SIGNIFICANT_DIGITS: usize = 15;
 /// A number literal's value: the binary64 nearest to its decimal (ties to even), a zero as +0. A
 /// literal above 9.99999999999999E+307, the largest number Excel lets a cell be given, is admitted
 /// up to binary64's maximum (`=1E308`); what Excel does with it in a formula is not measured.
+/// Digits after the 15th significant one are read as 0, as Excel keeps 15 (dc-uar: Excel
+/// 16.0.20527 gives `7200547821627.375&""` as `7200547821627.37` and `1234567890123455&""` as
+/// `1234567890123450`, 384 of 384 such literals in the catalogue oracle's dcuar_text rows).
 fn number(node: &SyntaxNode) -> Result<Literal, CompileError> {
     let span = node.span();
     let refused = CompileError::NumberLiteral { span };
     let text = only_token(node).map(Token::text).ok_or(refused.clone())?;
     let (digits, nonzero) = significant_digits(text);
-    if digits > SIGNIFICANT_DIGITS {
-        return Err(refused);
-    }
+    let kept;
+    let text = if digits > SIGNIFICANT_DIGITS {
+        kept = fifteen_digits(text);
+        kept.as_str()
+    } else {
+        text
+    };
     let value: f64 = text.parse().map_err(|_| refused.clone())?;
     if !value.is_finite() || value.is_subnormal() || (value == 0.0 && nonzero) {
         return Err(refused);
@@ -2112,6 +2249,24 @@ fn number(node: &SyntaxNode) -> Result<Literal, CompileError> {
     Ok(Literal::Number(
         if value == 0.0 { 0.0f64 } else { value }.to_bits(),
     ))
+}
+
+/// A number literal with the digits of its mantissa after the 15th significant one written as 0.
+fn fifteen_digits(text: &str) -> String {
+    let mut seen = 0;
+    let mut exponent = false;
+    text.chars()
+        .map(|c| {
+            if c == 'e' || c == 'E' {
+                exponent = true;
+            }
+            if exponent || !c.is_ascii_digit() || (seen == 0 && c == '0') {
+                return c;
+            }
+            seen += 1;
+            if seen > SIGNIFICANT_DIGITS { '0' } else { c }
+        })
+        .collect()
 }
 
 /// The significant digits of a number literal's mantissa (from its first to its last non-zero
@@ -2238,7 +2393,7 @@ mod tests {
             refusal("=SUM()"),
             CompileError::Arity { supplied: 0, .. }
         ));
-        for literal in ["=1234567890123456", "=1E400", "=1E-310", "=1E-400"] {
+        for literal in ["=1E400", "=1E-310", "=1E-400"] {
             assert!(
                 matches!(refusal(literal), CompileError::NumberLiteral { .. }),
                 "{literal}"

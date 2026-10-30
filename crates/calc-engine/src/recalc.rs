@@ -2207,6 +2207,10 @@ impl calc_fml::HostFacts for Observed<'_, '_> {
     fn sheet_count(&mut self) -> Option<u32> {
         self.cells.host_facts()?.sheet_count()
     }
+
+    fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_fml::WorkbookFacts>> {
+        self.cells.host_facts()?.workbook_facts()
+    }
 }
 
 /// The instrument on the evaluation route: CalcFml's evaluator reports each call it runs, each

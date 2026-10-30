@@ -133,8 +133,8 @@ function Split-Ref([string]$Ref) {
 # @(reference, formula as the file stores it), in any column but D), each written as a
 # dynamic-array formula over its one cell (cm="1", the metadata part's one cell metadata block, so
 # the workbook must be written with -DynamicArrays). Rows are written in order, each row's cells in
-# column order.
-function New-OracleSheet($Inputs, $Formulas, $Sources = @()) {
+# column order. $Before is written before sheetData (sheetViews, cols), as the schema orders it.
+function New-OracleSheet($Inputs, $Formulas, $Sources = @(), [string]$Before = '') {
     $rows = @{}
     foreach ($cell in $Inputs) {
         $place = Split-Ref $cell[0]
@@ -155,7 +155,7 @@ function New-OracleSheet($Inputs, $Formulas, $Sources = @()) {
         if (-not $rows.ContainsKey($number)) { $rows[$number] = @{} }
         $rows[$number]['D'] = '<c r="D' + $number + '"><f>' + (Get-Escaped $formula) + '</f></c>'
     }
-    $text = $Decl + '<worksheet xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><sheetData>'
+    $text = $Decl + '<worksheet xmlns="' + $Main + '" xmlns:r="' + $Rel + '">' + $Before + '<sheetData>'
     foreach ($row in ($rows.Keys | Sort-Object)) {
         $text += '<row r="' + $row + '">'
         foreach ($column in ($rows[$row].Keys | Sort-Object { $_.Length }, { $_ })) {
@@ -174,14 +174,48 @@ function New-Relationships($Relationships) {
     return $text + '</Relationships>'
 }
 
-$Styles = $Decl + '<styleSheet xmlns="' + $Main + '">' +
-    '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>' +
-    '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
-    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
-    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-    '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>' +
-    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
-    '</styleSheet>'
+# The styles part: the one font, fills and borders, and the cell formats: the default one (index 0)
+# and those a section adds with Add-CellFormat, after the custom number formats Add-NumberFormat
+# declares.
+$NumberFormats = New-Object System.Collections.ArrayList
+$CellFormats = New-Object System.Collections.ArrayList
+[void]$CellFormats.Add('<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>')
+
+# Declares the custom number format $Code (from ID 164 on) and returns its ID.
+function Add-NumberFormat([string]$Code) {
+    $id = 164 + $NumberFormats.Count
+    [void]$NumberFormats.Add('<numFmt numFmtId="' + $id + '" formatCode="' + (Get-Escaped $Code).Replace('"', '&quot;') + '"/>')
+    return $id
+}
+
+# Adds a cell format of number format $NumFmtId with the attributes $Attributes and the child
+# elements $Children (alignment, protection) and returns its index, which a cell's s names.
+function Add-CellFormat([int]$NumFmtId, [string]$Attributes = '', [string]$Children = '') {
+    $xf = '<xf numFmtId="' + $NumFmtId + '" fontId="0" fillId="0" borderId="0" xfId="0"'
+    if ($NumFmtId -ne 0) { $xf += ' applyNumberFormat="1"' }
+    $xf += $Attributes
+    if ($Children -eq '') { $xf += '/>' } else { $xf += '>' + $Children + '</xf>' }
+    [void]$CellFormats.Add($xf)
+    return $CellFormats.Count - 1
+}
+
+function Get-Styles {
+    $numFmts = ''
+    if ($NumberFormats.Count -gt 0) { $numFmts = '<numFmts count="' + $NumberFormats.Count + '">' + ($NumberFormats -join '') + '</numFmts>' }
+    return $Decl + '<styleSheet xmlns="' + $Main + '">' + $numFmts +
+        '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>' +
+        '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+        '<cellXfs count="' + $CellFormats.Count + '">' + ($CellFormats -join '') + '</cellXfs>' +
+        '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+        '</styleSheet>'
+}
+
+# A constant cell of $Cell (as New-Number and the others make it) with the cell format $Style.
+function Set-Style($Cell, [int]$Style) {
+    return @($Cell[0], ($Cell[1] -replace '^<c r="([A-Z]+[0-9]+)"', ('<c r="$1" s="' + $Style + '"')))
+}
 
 # The metadata part: one cell metadata block (a cell's cm="1") whose record names the metadata type
 # XLDAPR and its one future-metadata block, whose dynamicArrayProperties sets fDynamic, as Excel
@@ -226,7 +260,7 @@ function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
     [void]$all.Add(@('_rels/.rels', (New-Relationships @(, @('rId1', "$Rel/officeDocument", 'xl/workbook.xml')))))
     [void]$all.Add(@('xl/workbook.xml', $workbook))
     [void]$all.Add(@('xl/_rels/workbook.xml.rels', (New-Relationships $rels)))
-    [void]$all.Add(@('xl/styles.xml', $Styles))
+    [void]$all.Add(@('xl/styles.xml', (Get-Styles)))
     if ($DynamicArrays) { [void]$all.Add(@('xl/metadata.xml', $Metadata)) }
     foreach ($part in $parts) { [void]$all.Add($part) }
     Write-Package $Path $all
@@ -263,6 +297,9 @@ $FormulaSheets += , @('dcj9k_linest_stats', 'sheet-dcj9k_linest_stats.txt')
 # dc-b1l: the oracle corpus's refused cells (FIELDVALUE first).
 $PrefixSections += 'prefix-b1l.txt'
 $FormulaSheets += , @('dcb1l_language', 'sheet-dcb1l_language.txt')
+# dc-h9u: the functions OxFunc has and calc-func lacked (PERCENTOF, TRIMRANGE first).
+$PrefixSections += 'prefix-h9u.txt'
+$FormulaSheets += , @('dch9u_functions', 'sheet-dch9u.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
@@ -301,4 +338,51 @@ $sheets = @(
 foreach ($sheet in $FormulaSheets) {
     $sheets += , @($sheet[0], (New-OracleSheet @() (Get-SectionLines $sheet[1])))
 }
+
+# dc-uar: CELL's info types and INFO, on the sheet dcuar_cell. Its constant cells carry formats:
+# column A the prefix cases (alignments, kinds of value), column B the number 1.5 under each code
+# of formats-dcuar_cell.txt (each line `code:<custom code>` or `id:<built-in ID>`), column C the
+# protection cases; columns E to K the column widths; the sheet's window is saved scrolled to C5.
+# Its formulas are sheet-dcuar_cell.txt's lines, then CELL("format"), CELL("color") and
+# CELL("parentheses") of each cell of column B.
+function Get-Aligned([string]$Horizontal) {
+    return Add-CellFormat 0 ' applyAlignment="1"' ('<alignment horizontal="' + $Horizontal + '"/>')
+}
+$cellInputs = @()
+$cellInputs += , (New-Text 'A1' 'a')
+$cellInputs += , (Set-Style (New-Text 'A2' 'a') (Get-Aligned 'left'))
+$cellInputs += , (Set-Style (New-Text 'A3' 'a') (Get-Aligned 'right'))
+$cellInputs += , (Set-Style (New-Text 'A4' 'a') (Get-Aligned 'center'))
+$cellInputs += , (Set-Style (New-Text 'A5' 'a') (Get-Aligned 'fill'))
+$cellInputs += , (Set-Style (New-Text 'A6' 'a') (Get-Aligned 'justify'))
+$cellInputs += , (Set-Style (New-Text 'A7' 'a') (Get-Aligned 'centerContinuous'))
+$cellInputs += , (Set-Style (New-Text 'A8' 'a') (Get-Aligned 'distributed'))
+$cellInputs += , (Set-Style (New-Number 'A9' '5') (Get-Aligned 'right'))
+$cellInputs += , (Set-Style (New-Logical 'A10' $true) (Get-Aligned 'left'))
+$cellInputs += , (Set-Style (New-Error 'A11' '#N/A') (Get-Aligned 'center'))
+$cellInputs += , @('A12', ('<c r="A12" s="' + (Get-Aligned 'left') + '"/>'))
+$cellInputs += , (Set-Style (New-Text 'A13' '5') (Add-CellFormat 0 ' quotePrefix="1"'))
+$cellInputs += , (Set-Style (New-Text 'A14' 'a') (Add-CellFormat 49))
+$cellInputs += , (New-Text 'A15' ' ')
+$cellInputs += , (New-Number 'A16' '7')
+$cellInputs += , (Set-Style (New-Text 'A17' 'a') (Add-CellFormat 0 ' applyAlignment="1"' '<alignment horizontal="left" indent="2"/>'))
+$cellInputs += , (New-Number 'C1' '1')
+$cellInputs += , (Set-Style (New-Number 'C2' '1') (Add-CellFormat 0 ' applyProtection="1"' '<protection locked="0"/>'))
+$cellInputs += , (Set-Style (New-Number 'C3' '1') (Add-CellFormat 0 ' applyProtection="1"' '<protection hidden="1"/>'))
+$cellInputs += , (Set-Style (New-Number 'C4' '1') (Add-CellFormat 0 ' applyProtection="1"' '<protection locked="0" hidden="1"/>'))
+$cellInputs += , (Set-Style (New-Text 'C5' 'a') (Add-CellFormat 0 ' applyProtection="1"' '<protection locked="1"/>'))
+$cellCodes = Get-SectionLines 'formats-dcuar_cell.txt'
+$cellFormulas = @(Get-SectionLines 'sheet-dcuar_cell.txt')
+$number = 0
+foreach ($code in $cellCodes) {
+    $number += 1
+    if ($code.StartsWith('id:')) { $id = [int]$code.Substring(3) } else { $id = Add-NumberFormat $code.Substring(5) }
+    $cellInputs += , (Set-Style (New-Number ('B' + $number) '1.5') (Add-CellFormat $id))
+    foreach ($kind in @('format', 'color', 'parentheses')) { $cellFormulas += 'CELL("' + $kind + '",B' + $number + ')' }
+}
+$cellBefore = '<sheetViews><sheetView topLeftCell="C5" workbookViewId="0"/></sheetViews>' +
+    '<cols><col min="6" max="6" width="20.7109375" customWidth="1"/><col min="7" max="7" width="0" hidden="1" customWidth="1"/>' +
+    '<col min="8" max="8" width="9.140625"/><col min="9" max="9" width="12.7109375" customWidth="1"/>' +
+    '<col min="10" max="10" width="0.7109375" customWidth="1"/><col min="11" max="11" width="255.7109375" customWidth="1"/></cols>'
+$sheets += , @('dcuar_cell', (New-OracleSheet $cellInputs $cellFormulas @() $cellBefore))
 Write-Workbook (Join-Path $OutDir 'catalogue/oracle.xlsx') $sheets

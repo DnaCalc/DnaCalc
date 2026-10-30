@@ -19,11 +19,6 @@ use crate::value_text::{self, ReadContext, Reading, Unread};
 
 const CODE: u16 = 202;
 
-/// The refusal of a call this family does not model.
-fn refused(site: &Site<'_>) -> Step<CalcValue> {
-    Err(site.not_modelled(None))
-}
-
 /// Text argument `index` read as VALUE reads it under the call's locale profile
 /// ([`crate::value_text`]): #VALUE! for text the grammar does not read and for a value that is
 /// not text; an error is the result; refused without a profile.
@@ -587,6 +582,223 @@ fn encodeurl(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     Ok(CalcValue::text(ExcelText::from_utf16_code_units(out)))
 }
 
+/// FILTERXML (dc-uar), ported from OxFunc (web_text_xml_family.rs at 6fca3518, which used
+/// sxd-document and sxd-xpath) and fitted to Excel 16.0.20527, measured through the catalogue
+/// oracle's dcuar_text rows on 2026-10-29:
+///
+/// - XML that does not parse (trailing content, a document type declaration) and XPath that does
+///   not compile are #VALUE!; a result that is not a node set (`count(//b)`, `string(//b)`,
+///   `//b=1`), an empty node set, and a node that is neither an element nor an attribute
+///   (`//b/text()`, `//comment()`, `/`) are #VALUE!.
+/// - An element's value is its own text children, joined (`<b>x<c>y</c>z</b>` is `xz`); text of
+///   white space alone is dropped, as Excel's parser drops it. A node with no value makes the
+///   whole call #VALUE!.
+/// - Names match by namespace prefix as the document declares them (`//p:b` finds `<p:b>` where
+///   `xmlns:p` is declared), and a name without a prefix finds an element of the document's
+///   default namespace; a prefix the document does not declare is #VALUE!.
+/// - Each value reads as a cell entry would: a number (digits beyond the 15th significant one
+///   dropped, `3.14159265358979323` is 3.14159265358979), a date, a time, a percentage, a
+///   currency amount or a fraction under the call's locale profile ([`crate::value_text`]),
+///   `TRUE` or `FALSE` in any case as a logical; any other text stays text (`#N/A` too).
+/// - Several nodes give a column.
+fn filterxml(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let value = |exit| Exit::Error(exit);
+    let xml = super::kit::text(site, a, 0)?;
+    let path = super::kit::text(site, a, 1)?;
+    let declared = filterxml_namespaces(&xml);
+    // The default namespace is left out, so that a name without a prefix finds its elements.
+    let xml = filterxml_without_default_namespace(&xml);
+    for prefix in filterxml_prefixes(&path) {
+        if !declared.iter().any(|(declared, _)| *declared == prefix) {
+            return fail(WorksheetErrorCode::Value);
+        }
+    }
+    let package = sxd_document::parser::parse(&xml).map_err(|_| value(WorksheetErrorCode::Value))?;
+    let document = package.as_document();
+    let expression = sxd_xpath::Factory::new()
+        .build(&path)
+        .ok()
+        .flatten()
+        .ok_or(value(WorksheetErrorCode::Value))?;
+    let mut context = sxd_xpath::Context::new();
+    for (prefix, uri) in &declared {
+        context.set_namespace(prefix, uri);
+    }
+    let result = expression
+        .evaluate(&context, document.root())
+        .map_err(|_| value(WorksheetErrorCode::Value))?;
+    let sxd_xpath::Value::Nodeset(nodes) = result else {
+        return fail(WorksheetErrorCode::Value);
+    };
+    let nodes = nodes.document_order();
+    if nodes.is_empty() {
+        return fail(WorksheetErrorCode::Value);
+    }
+    let mut cells = Vec::with_capacity(nodes.len());
+    for node in nodes {
+        let text = match node {
+            sxd_xpath::nodeset::Node::Element(element) => element
+                .children()
+                .into_iter()
+                .filter_map(|child| child.text())
+                .map(|text| text.text())
+                .filter(|text| !text.chars().all(char::is_whitespace))
+                .collect::<String>(),
+            sxd_xpath::nodeset::Node::Attribute(attribute) => attribute.value().to_owned(),
+            _ => return fail(WorksheetErrorCode::Value),
+        };
+        if text.is_empty() {
+            return fail(WorksheetErrorCode::Value);
+        }
+        cells.push(vec![filterxml_value(site, &text)?]);
+    }
+    if cells.len() == 1 {
+        return Ok(cells.remove(0).remove(0));
+    }
+    CalcArray::from_rows(cells)
+        .map(CalcValue::array)
+        .ok_or_else(|| site.not_modelled(None))
+}
+
+/// The namespace prefixes the document declares (`xmlns:p="uri"`), with their URIs.
+fn filterxml_namespaces(xml: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut rest = xml;
+    while let Some(at) = rest.find("xmlns:") {
+        rest = &rest[at + 6..];
+        let Some(eq) = rest.find('=') else { break };
+        let prefix = rest[..eq].trim().to_owned();
+        let after = rest[eq + 1..].trim_start();
+        let Some(quote) = after.chars().next().filter(|c| *c == '"' || *c == '\'') else {
+            continue;
+        };
+        if let Some(end) = after[1..].find(quote) {
+            out.push((prefix, after[1..1 + end].to_owned()));
+        }
+    }
+    out
+}
+
+/// The XML without its default namespace declarations (`xmlns="uri"`).
+fn filterxml_without_default_namespace(xml: &str) -> String {
+    let mut out = String::with_capacity(xml.len());
+    let mut rest = xml;
+    while let Some(at) = rest.find("xmlns") {
+        let after = &rest[at + 5..];
+        let trimmed = after.trim_start();
+        if let Some(value) = trimmed.strip_prefix('=') {
+            let value = value.trim_start();
+            if let Some(quote) = value.chars().next().filter(|c| *c == '"' || *c == '\'')
+                && let Some(end) = value[1..].find(quote)
+            {
+                out.push_str(&rest[..at]);
+                rest = &value[1 + end + 1..];
+                continue;
+            }
+        }
+        out.push_str(&rest[..at + 5]);
+        rest = after;
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The namespace prefixes an XPath expression's names use (`p` of `//p:b`), outside its string
+/// literals; an axis (`child::`) is not one.
+fn filterxml_prefixes(path: &str) -> Vec<String> {
+    let chars: Vec<char> = path.chars().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\'' || c == '"' {
+            i += 1;
+            while i < chars.len() && chars[i] != c {
+                i += 1;
+            }
+            i += 1;
+            continue;
+        }
+        if c.is_alphabetic() || c == '_' {
+            let start = i;
+            while i < chars.len()
+                && (chars[i].is_alphanumeric() || matches!(chars[i], '_' | '-' | '.'))
+            {
+                i += 1;
+            }
+            if chars.get(i) == Some(&':') && chars.get(i + 1) != Some(&':') {
+                out.push(chars[start..i].iter().collect());
+            }
+            if chars.get(i) == Some(&':') && chars.get(i + 1) == Some(&':') {
+                i += 2;
+            }
+            continue;
+        }
+        i += 1;
+    }
+    out
+}
+
+/// A node's value as FILTERXML gives it, read as a cell entry would read it (see [`filterxml`]).
+fn filterxml_value(site: &Site<'_>, text: &str) -> Step<CalcValue> {
+    let trimmed = text.trim_matches(' ');
+    if trimmed.eq_ignore_ascii_case("TRUE") || trimmed.eq_ignore_ascii_case("FALSE") {
+        return Ok(CalcValue::logical(trimmed.eq_ignore_ascii_case("TRUE")));
+    }
+    let shown = crate::catalogue::kit::text_value(text);
+    match coerce::number(&crate::catalogue::kit::text_value(&fifteen_digits(trimmed))) {
+        Ok(Numeric::Number(n)) => return site.number(n),
+        Ok(Numeric::Decimal(decimal)) => {
+            if let Ok(n) = decimal.nearest() {
+                return site.number(n);
+            }
+            return Ok(shown);
+        }
+        Err(_) => {}
+    }
+    let environment = site.environment().ok_or_else(|| site.not_modelled(None))?;
+    let profile = environment
+        .profile
+        .as_ref()
+        .ok_or_else(|| site.not_modelled(None))?;
+    let context = ReadContext {
+        profile,
+        date_system: environment.date_system,
+        now: environment.now,
+    };
+    let units: Vec<u16> = text.encode_utf16().collect();
+    if units.len() > crate::value::EXCEL_TEXT_MAX_UTF16_CODE_UNITS {
+        return fail(WorksheetErrorCode::Value);
+    }
+    match value_text::read(&units, &context) {
+        Ok(reading) => site.number(reading.value()),
+        Err(Unread::Rejected) => Ok(shown),
+        Err(Unread::NotModelled) => Err(site.not_modelled(None)),
+    }
+}
+
+/// Decimal text with the digits after its 15th significant one written as 0, as a cell entry
+/// keeps 15 (`3.14159265358979323` as `3.14159265358979000`); other text unchanged.
+fn fifteen_digits(text: &str) -> String {
+    let mut seen = 0;
+    let mut in_exponent = false;
+    text.chars()
+        .map(|c| {
+            if c == 'e' || c == 'E' {
+                in_exponent = true;
+            }
+            if in_exponent || !c.is_ascii_digit() {
+                return c;
+            }
+            if seen == 0 && c == '0' {
+                return c;
+            }
+            seen += 1;
+            if seen > 15 { '0' } else { c }
+        })
+        .collect()
+}
+
 ported_family! {
     code: CODE;
     1 value_fn "VALUE" (1, 1) [V "text"] |s, a, sv| { value(s, a) }
@@ -607,6 +819,6 @@ ported_family! {
     17 regexextract_fn "REGEXEXTRACT" (2, 4) [V "text", V "pattern", V "return_mode", V "case_sensitivity"] |s, a, sv| { regexextract(s, a) }
     18 regexreplace_fn "REGEXREPLACE" (3, 5) [V "text", V "pattern", V "replacement", V "occurrence", V "case_sensitivity"] |s, a, sv| { regexreplace(s, a) }
     19 encodeurl_fn "ENCODEURL" (1, 1) [V "text"] |s, a, sv| { encodeurl(s, a) }
-    20 filterxml_fn "FILTERXML" (2, 2) [V "xml", V "xpath"] |s, a, sv| { refused(s) }
+    20 filterxml_fn "FILTERXML" (2, 2) [V "xml", V "xpath"] |s, a, sv| { filterxml(s, a) }
     21 hyperlink_fn "HYPERLINK" (1, 2) [V "link_location", V "friendly_name"] |s, a, sv| { hyperlink(s, a) }
 }

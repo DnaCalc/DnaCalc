@@ -50,6 +50,8 @@ pub(super) struct SheetLoad {
     pub(super) auto_filter: Option<(u32, u32, u32, u32)>,
     /// The rows' and columns' sizes and hidden flags (dc-09v).
     pub(super) geometry: super::geometry::SheetGeometry,
+    /// The first window's top left and active cells (dc-uar).
+    pub(super) view: super::geometry::SheetView,
     /// The sheet's conditional formats (dc-6yw).
     pub(super) conditional_formats: Vec<super::conditional::ConditionalFormat>,
     /// The sheet's data validations (dc-6yw).
@@ -810,6 +812,7 @@ pub(super) fn load_sheet(
             hidden_rows: Vec::new(),
             auto_filter: None,
             geometry: super::geometry::SheetGeometry::default(),
+            view: super::geometry::SheetView::default(),
             conditional_formats: Vec::new(),
             validations: Vec::new(),
         },
@@ -853,6 +856,9 @@ pub(super) fn load_sheet(
                 sheet.load.auto_filter = element.attribute("ref").and_then(address::area);
                 events.skip()?;
             }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetViews") => {
+                sheet.load.view = read_view(&mut events)?;
+            }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetFormatPr") => {
                 sheet.load.geometry.read_format(&element);
                 events.skip()?;
@@ -888,4 +894,52 @@ pub(super) fn load_sheet(
     load.conditional_formats =
         super::conditional::with_extensions(std::mem::take(&mut load.conditional_formats), &bars);
     Ok(load)
+}
+
+/// The top left and active cells of the first `<sheetView>` of the `<sheetViews>` element whose
+/// start tag was just read (dc-uar). The active cell is the `activeCell` of the `<selection>`
+/// of the pane `<pane activePane>` names (the top left pane when it names none); a value that is
+/// not a cell reference is passed over.
+fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, LoadError> {
+    let mut view = super::geometry::SheetView::default();
+    let mut first = true;
+    loop {
+        match events.next()? {
+            Some(XmlEvent::Start(element)) if first && element.name.is(MAIN_NAMESPACE, "sheetView") => {
+                first = false;
+                view.top_left = element.attribute("topLeftCell").and_then(address::cell);
+                let mut active_pane = "topLeft".to_owned();
+                let mut selections: Vec<(String, Option<(u32, u32)>)> = Vec::new();
+                loop {
+                    match events.next()? {
+                        Some(XmlEvent::Start(child)) if child.name.is(MAIN_NAMESPACE, "pane") => {
+                            if let Some(pane) = child.attribute("activePane") {
+                                active_pane = pane.trim().to_owned();
+                            }
+                            events.skip()?;
+                        }
+                        Some(XmlEvent::Start(child))
+                            if child.name.is(MAIN_NAMESPACE, "selection") =>
+                        {
+                            let pane = child.attribute("pane").unwrap_or("topLeft").trim().to_owned();
+                            selections.push((pane, child.attribute("activeCell").and_then(address::cell)));
+                            events.skip()?;
+                        }
+                        Some(XmlEvent::Start(_)) => events.skip()?,
+                        Some(XmlEvent::Text(_)) => {}
+                        Some(XmlEvent::End(_)) => break,
+                        None => return Err(events.invalid("the part ends inside sheetView")),
+                    }
+                }
+                view.active_cell = selections
+                    .iter()
+                    .find(|(pane, _)| *pane == active_pane)
+                    .and_then(|(_, cell)| *cell);
+            }
+            Some(XmlEvent::Start(_)) => events.skip()?,
+            Some(XmlEvent::Text(_)) => {}
+            Some(XmlEvent::End(_)) => return Ok(view),
+            None => return Err(events.invalid("the part ends inside sheetViews")),
+        }
+    }
 }

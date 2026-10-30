@@ -85,7 +85,7 @@ fn address_name_is_reference(units: &[u16]) -> bool {
             .is_ok_and(|number| (1..=limit).contains(&number))
 }
 
-fn quote_sheet_text_if_needed(
+pub(crate) fn quote_sheet_text_if_needed(
     sheet_text: &ExcelText,
 ) -> Result<Vec<u16>, WorksheetErrorCode> {
     let units = sheet_text.utf16_code_units();

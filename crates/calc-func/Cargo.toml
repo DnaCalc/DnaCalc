@@ -17,6 +17,10 @@ soft-x87 = []
 [dependencies]
 calc-value = { path = "../calc-value" }
 libm = "0.2"
+# FILTERXML parses its XML and evaluates its XPath 1.0 with these (pure Rust, MIT and
+# MIT/Apache-2.0; OxFunc's web_text_xml_family.rs used them), dc-uar.
+sxd-document = "0.3.2"
+sxd-xpath = "0.4.2"
 
 # The cfunc-m1.2 acceptance cases read the Excel capture of their oracle workbook through the one
 # verdict library's CaptureRecord and MissingCapture. Test-only: calc-verdict never depends on

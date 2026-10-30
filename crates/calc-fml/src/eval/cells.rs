@@ -244,6 +244,10 @@ impl HostFacts for ReaderCells<'_, '_> {
     fn sheet_count(&mut self) -> Option<u32> {
         self.shared.reader.borrow_mut().host_facts()?.sheet_count()
     }
+
+    fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_func::WorkbookFacts>> {
+        self.shared.reader.borrow_mut().host_facts()?.workbook_facts()
+    }
 }
 
 #[cfg(test)]

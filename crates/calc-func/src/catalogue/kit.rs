@@ -235,7 +235,7 @@ pub(super) fn values(
     visit: &mut dyn FnMut(bool, &CalcValue) -> Step<()>,
 ) -> Step<()> {
     aggregate::each_value(site, &arguments[from..to], services, &mut |_, origin, value| {
-        visit(origin == Origin::Held, value)
+        visit(origin != Origin::Direct, value)
     })
 }
 
