@@ -756,6 +756,15 @@ pub enum Action {
     Into(&'static str, &'static str),
     /// Clicks the element.
     Click(&'static str),
+    /// Two real pointer clicks at the element's centre.
+    DoubleClick(&'static str),
+    /// A real pointer drag between two rendered elements.
+    Drag(&'static str, &'static str),
+    /// Synthetic IME events exercise the composition boundary; this is not a device IME test.
+    Composing(&'static str, &'static str),
+    CompositionEnd(&'static str),
+    /// Wait for a worker-backed projection before the next gesture.
+    Wait(Check),
     /// Chooses this file (relative to the workspace root) in the file input.
     Upload(&'static str, &'static str),
     /// Sets the browser window's size (WebDriver's Set Window Rect): a narrow screen (dc-xib).
@@ -776,6 +785,8 @@ pub enum Check {
     Absent(&'static str),
     /// The field's value.
     Value(&'static str, &'static str),
+    /// The element owns keyboard focus.
+    Focused(&'static str),
     /// The element's attribute.
     Attr(&'static str, &'static str, &'static str),
     /// The element's inline style sets each of these declarations (`"left:4px;color:#ff0000"`),
@@ -1171,7 +1182,9 @@ const CALC_CASES: &[Case] = &[
         actions: &[Action::Keys(BAR, "A1:A3)"), Action::Keys(BAR, ENTER)],
         checks: &[
             Check::Text(cell!("D1"), "24"),
-            Check::Value(BAR, "=SUM(A1:A3)"),
+            Check::Value("name-box", "D2"),
+            Check::Value(BAR, ""),
+            Check::Focused("grid"),
         ],
     },
     Case {
@@ -1844,6 +1857,478 @@ const CALC_CASES: &[Case] = &[
         actions: &[Action::Window(1280, 1000)],
         checks: &[Check::Fits],
     },
+    // dc-971p.2: the cell and bar share the same draft, assistance and commit contract.
+    Case {
+        name: "edit session: cell completion opens on typed replacement",
+        actions: &[
+            Action::Click("new"),
+            Action::Keys("grid", "1"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Keys("grid", "2"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "SUM"),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "=SUM"),
+            Check::Text("[data-onecalc=\"completion-label\"]", "SUM"),
+        ],
+    },
+    Case {
+        name: "edit session: completion Escape dismisses only the popup",
+        actions: &[Action::Keys("cell-editor", ESCAPE)],
+        checks: &[
+            Check::Value("cell-editor", "=SUM"),
+            Check::Absent("[data-onecalc=\"completions\"]"),
+            Check::Focused("cell-editor"),
+        ],
+    },
+    Case {
+        name: "edit session: completion Tab accepts before worksheet Tab can commit",
+        actions: &[
+            Action::Keys("cell-editor", "\u{E003}M"),
+            Action::Keys("cell-editor", TAB),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "=SUM("),
+            Check::Value("name-box", "B1"),
+            Check::Text("[data-onecalc=\"active-parameter\"]", "number1"),
+        ],
+    },
+    Case {
+        name: "edit session: cell Enter commits once and returns focus below",
+        actions: &[
+            Action::Keys("cell-editor", "A1:A2)"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[
+            Check::Text(cell!("B1"), "3"),
+            Check::Value("name-box", "B2"),
+            Check::Focused("grid"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "edit session: F2 seeds authored formula and Escape keeps exact source",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", F2),
+            Action::Keys("cell-editor", "+100"),
+            Action::Keys("cell-editor", ESCAPE),
+        ],
+        checks: &[
+            Check::Value(BAR, "=SUM(A1:A2)"),
+            Check::Text(cell!("B1"), "3"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: double click opens the authored source",
+        actions: &[Action::DoubleClick(cell!("B1"))],
+        checks: &[
+            Check::Value("cell-editor", "=SUM(A1:A2)"),
+            Check::Focused("cell-editor"),
+        ],
+    },
+    Case {
+        name: "edit session: local Ctrl+Z and Redo never enter the workbook journal",
+        actions: &[
+            Action::Keys("cell-editor", "+9"),
+            Action::Keys("cell-editor", "\u{E009}z\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "=SUM(A1:A2)+"),
+            Check::Text(cell!("B1"), "3"),
+            Check::Text(cell!("A2"), "2"),
+        ],
+    },
+    Case {
+        name: "edit session: toolbar Redo belongs to the current text edit",
+        actions: &[Action::Click("redo")],
+        checks: &[
+            Check::Value("cell-editor", "=SUM(A1:A2)+9"),
+            Check::Focused("cell-editor"),
+            Check::Text(cell!("B1"), "3"),
+        ],
+    },
+    Case {
+        name: "edit session: bar point click retains the target and inserts a reference",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::Into("name-box", "B3\u{E007}"),
+            Action::Into(BAR, "=A1+"),
+            Action::Click(cell!("A2")),
+        ],
+        checks: &[
+            Check::Value(BAR, "=A1+A2"),
+            Check::Value("name-box", "B3"),
+            Check::Focused(BAR),
+            Check::Attr("point-reference", "class", "dc-reference"),
+            Check::Text("edit-mode", "Point · F2 to edit text"),
+        ],
+    },
+    Case {
+        name: "edit session: F4 cycles a picked reference through four anchor forms",
+        actions: &[Action::Keys(BAR, "\u{E034}")],
+        checks: &[
+            Check::Value(BAR, "=A1+$A$2"),
+            Check::Value("name-box", "B3"),
+        ],
+    },
+    Case {
+        name: "edit session: F4 row absolute",
+        actions: &[Action::Keys(BAR, "\u{E034}")],
+        checks: &[Check::Value(BAR, "=A1+A$2")],
+    },
+    Case {
+        name: "edit session: F4 column absolute",
+        actions: &[Action::Keys(BAR, "\u{E034}")],
+        checks: &[Check::Value(BAR, "=A1+$A2")],
+    },
+    Case {
+        name: "edit session: F4 relative again and Ctrl+F2 transfers the draft",
+        actions: &[
+            Action::Keys(BAR, "\u{E034}"),
+            Action::Keys(BAR, "\u{E009}\u{E032}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "=A1+A2"),
+            Check::Focused("cell-editor"),
+        ],
+    },
+    Case {
+        name: "edit session: transferred draft commits to its original address with one undo step",
+        actions: &[Action::Keys("cell-editor", ENTER)],
+        checks: &[
+            Check::Text(cell!("B3"), "3"),
+            Check::Value("name-box", "B4"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: workbook Undo removes only that completed entry",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Absent(cell!("B3")),
+            Check::Text(cell!("B1"), "3"),
+            Check::Text(cell!("A2"), "2"),
+            Check::Value(BAR, ""),
+        ],
+    },
+    Case {
+        name: "edit session: workbook Redo restores the exact pointed formula",
+        actions: &[Action::Click("redo")],
+        checks: &[Check::Text(cell!("B3"), "3"), Check::Value(BAR, "=A1+A2")],
+    },
+    Case {
+        name: "edit session: bar Tab commits and moves right",
+        actions: &[
+            Action::Into("name-box", "B4\u{E007}"),
+            Action::Into(BAR, "25"),
+            Action::Keys(BAR, TAB),
+        ],
+        checks: &[
+            Check::Text(cell!("B4"), "25"),
+            Check::Value("name-box", "C4"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: bar Shift+Tab commits and moves left",
+        actions: &[
+            Action::Into(BAR, "27"),
+            Action::Keys(BAR, "\u{E008}\u{E004}\u{E000}"),
+        ],
+        checks: &[
+            Check::Text(cell!("C4"), "27"),
+            Check::Value("name-box", "B4"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: bar Shift+Enter commits and moves up",
+        actions: &[
+            Action::Into(BAR, "28"),
+            Action::Keys(BAR, "\u{E008}\u{E007}\u{E000}"),
+        ],
+        checks: &[
+            Check::Text(cell!("B4"), "28"),
+            Check::Value("name-box", "B3"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: cell Shift+Enter commits and moves up",
+        actions: &[
+            Action::Keys("grid", "4"),
+            Action::Keys("cell-editor", "\u{E008}\u{E007}\u{E000}"),
+        ],
+        checks: &[
+            Check::Text(cell!("B3"), "4"),
+            Check::Value("name-box", "B2"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: cell Shift+Tab commits and moves left",
+        actions: &[
+            Action::Keys("grid", "5"),
+            Action::Keys("cell-editor", "\u{E008}\u{E004}\u{E000}"),
+        ],
+        checks: &[
+            Check::Text(cell!("B2"), "5"),
+            Check::Value("name-box", "A2"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: rejected bar entry keeps the draft target source and focus",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into(BAR, "=A1+"),
+            Action::Keys(BAR, ENTER),
+        ],
+        checks: &[
+            Check::Value(BAR, "=A1+"),
+            Check::Value("name-box", "B1"),
+            Check::Text(cell!("B1"), "3"),
+            Check::Focused(BAR),
+            Check::Attr("status", "data-refused", "true"),
+        ],
+    },
+    Case {
+        name: "edit session: cancelling a rejected entry restores authored source",
+        actions: &[Action::Keys(BAR, ESCAPE)],
+        checks: &[Check::Value(BAR, "=SUM(A1:A2)"), Check::Focused("grid")],
+    },
+    Case {
+        name: "edit session: formula pointing can drag a range without changing active cell",
+        actions: &[
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Into(BAR, "=SUM("),
+            Action::Drag(cell!("A1"), cell!("A2")),
+        ],
+        checks: &[
+            Check::Value(BAR, "=SUM(A1:A2"),
+            Check::Value("name-box", "D1"),
+            Check::Focused(BAR),
+        ],
+    },
+    Case {
+        name: "edit session: completion leaves Enter to worksheet entry",
+        actions: &[
+            Action::Keys(BAR, ESCAPE),
+            Action::Into(BAR, "=TRUE"),
+            Action::Keys(BAR, ENTER),
+        ],
+        checks: &[
+            Check::Text(cell!("D1"), "TRUE"),
+            Check::Value("name-box", "D2"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: point mode arrows create references and F2 returns to caret movement",
+        actions: &[
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "\u{E012}"),
+            Action::Keys("cell-editor", F2),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "=C1"),
+            Check::Text("edit-mode", "Edit · F2 to point to references"),
+        ],
+    },
+    Case {
+        name: "edit session: switching skins keeps the draft and returns it to the bar",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", F2),
+            Action::Keys("cell-editor", "+4"),
+            Action::Click("skin-canvas"),
+        ],
+        checks: &[
+            Check::Value(BAR, "=SUM(A1:A2)+4"),
+            Check::Value("name-box", "B1"),
+            Check::Focused(BAR),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "edit session: another skin uses the same commit and undo route",
+        actions: &[
+            Action::Keys(BAR, ENTER),
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "B1\u{E007}"),
+        ],
+        checks: &[
+            Check::Value(BAR, "=SUM(A1:A2)+4"),
+            Check::Text(cell!("B1"), "7"),
+        ],
+    },
+    Case {
+        name: "edit session: synthetic in-cell composition Enter cannot commit",
+        actions: &[
+            Action::Into("name-box", "B7\u{E007}"),
+            Action::Keys("grid", "x"),
+            Action::Composing("cell-editor", "漢"),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "x漢"),
+            Check::Value("name-box", "B7"),
+            Check::Absent(cell!("B7")),
+            Check::Focused("cell-editor"),
+        ],
+    },
+    Case {
+        name: "edit session: composition ends then Escape cancels without a workbook edit",
+        actions: &[
+            Action::CompositionEnd("cell-editor"),
+            Action::Keys("cell-editor", ESCAPE),
+        ],
+        checks: &[
+            Check::Value(BAR, ""),
+            Check::Absent(cell!("B7")),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: synthetic bar composition Enter cannot commit",
+        actions: &[Action::Into(BAR, "abc"), Action::Composing(BAR, "字")],
+        checks: &[
+            Check::Value(BAR, "abc字"),
+            Check::Value("name-box", "B7"),
+            Check::Absent(cell!("B7")),
+            Check::Focused(BAR),
+        ],
+    },
+    Case {
+        name: "edit session: after composition a normal Enter commits the complete text",
+        actions: &[
+            Action::CompositionEnd(BAR),
+            Action::Keys(BAR, ENTER),
+            Action::Into("name-box", "B7\u{E007}"),
+        ],
+        checks: &[
+            Check::Value(BAR, "abc字"),
+            Check::Text(cell!("B7"), "abc字"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "edit session: a reference picked on another sheet retains the original edit target",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::Into("name-box", "F5\u{E007}"),
+            Action::Into(BAR, "="),
+            Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Other\"]"),
+            Action::Wait(Check::Text(cell!("A1"), "100")),
+            Action::Click(cell!("A1")),
+        ],
+        checks: &[
+            Check::Value(BAR, "=Other!A1"),
+            Check::Starts("edit-session", "Editing Data!F5"),
+            Check::Focused(BAR),
+        ],
+    },
+    Case {
+        name: "edit session: a cross-sheet point commits back on the edited sheet",
+        actions: &[Action::Keys(BAR, ENTER)],
+        checks: &[
+            Check::Text(cell!("F5"), "100"),
+            Check::Value("name-box", "F6"),
+            Check::Focused("grid"),
+            Check::Attr(
+                "[data-dnacalc=\"sheet-tab\"][data-sheet=\"Data\"]",
+                "aria-selected",
+                "true",
+            ),
+        ],
+    },
+    Case {
+        name: "edit session: cross-sheet entry undo restores the source selection and removes only that formula",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Value("name-box", "F5"),
+            Check::Value(BAR, ""),
+            Check::Absent(cell!("F5")),
+            Check::Text(cell!("A1"), "1"),
+        ],
+    },
+    Case {
+        name: "edit session: entering unchanged source adds no workbook undo step",
+        actions: &[
+            Action::Click("new"),
+            Action::Keys("grid", "1"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", F2),
+            Action::Keys("cell-editor", ENTER),
+            Action::Click("undo"),
+        ],
+        checks: &[
+            Check::Absent(cell!("A1")),
+            Check::Value("name-box", "A1"),
+            Check::Value(BAR, ""),
+        ],
+    },
+    Case {
+        name: "edit session: cell Shift+Left keeps the whole text selection for replacement",
+        actions: &[
+            Action::Keys("grid", "a"),
+            Action::Keys("cell-editor", "bcdef"),
+            Action::Keys("cell-editor", "\u{E008}\u{E012}\u{E012}\u{E012}\u{E000}"),
+            Action::Keys("cell-editor", "Z"),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "abcZ"),
+            Check::Absent(cell!("A1")),
+            Check::Focused("cell-editor"),
+        ],
+    },
+    Case {
+        name: "edit session: bar Shift+Left keeps the whole text selection for replacement",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::Into(BAR, "abcdef"),
+            Action::Keys(BAR, "\u{E008}\u{E012}\u{E012}\u{E012}\u{E000}"),
+            Action::Keys(BAR, "Z"),
+        ],
+        checks: &[
+            Check::Value(BAR, "abcZ"),
+            Check::Absent(cell!("A1")),
+            Check::Focused(BAR),
+        ],
+    },
+    Case {
+        name: "edit session: name-box navigation commits an accepted draft before moving",
+        actions: &[Action::Into("name-box", "C3\u{E007}")],
+        checks: &[
+            Check::Text(cell!("A1"), "abcZ"),
+            Check::Value("name-box", "C3"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "edit session: name-box navigation preserves rejected draft and focus",
+        actions: &[
+            Action::Into(BAR, "=1+"),
+            Action::Into("name-box", "D4\u{E007}"),
+        ],
+        checks: &[
+            Check::Value(BAR, "=1+"),
+            Check::Focused(BAR),
+            Check::Value("name-box", "C3"),
+            Check::Starts("edit-session", "Editing Sheet1!C3"),
+            Check::Absent(cell!("C3")),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -1864,6 +2349,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         ),
         Check::Absent(name) => format!("return {} === null;", q(name)),
         Check::Value(name, _) => format!("var e = {}; return e ? e.value : null;", q(name)),
+        Check::Focused(name) => format!("return {} === document.activeElement;", q(name)),
         Check::Attr(name, attribute, _) => format!(
             "var e = {}; return e ? e.getAttribute('{attribute}') : null;",
             q(name)
@@ -1921,7 +2407,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .iter()
                 .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
         }),
-        Check::Absent(_) => seen.as_bool() == Some(true),
+        Check::Absent(_) | Check::Focused(_) => seen.as_bool() == Some(true),
         Check::Array(rows) => seen.as_array().is_some_and(|seen_rows| {
             seen_rows.len() == rows.len()
                 && seen_rows.iter().zip(rows.iter()).all(|(seen_row, row)| {
@@ -1948,6 +2434,7 @@ fn describe(check: &Check) -> String {
         Check::Contains(name, wanted) => format!("{name} has an item starting {wanted:?}"),
         Check::Absent(name) => format!("no {name}"),
         Check::Value(name, expected) => format!("the field {name} holds {expected:?}"),
+        Check::Focused(name) => format!("{name} owns keyboard focus"),
         Check::Attr(name, attribute, expected) => {
             format!("{name} has {attribute}={expected:?}")
         }
@@ -1990,14 +2477,49 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::Keys(name, keys) => session.keys(&select(app, name), keys),
         Action::Into(name, text) => {
-            session.clear(&select(app, name))?;
-            session.keys(&select(app, name), text)
+            let css = select(app, name);
+            let element = session.element(&css)?;
+            session.post(&format!("/element/{element}/click"), json!({}))?;
+            session.keys(&css, "\u{E009}a\u{E000}")?;
+            session.keys(&css, &format!("\u{E003}{text}"))
         }
         Action::Click(name) => {
             let element = session.element(&select(app, name))?;
             session.post(&format!("/element/{element}/click"), json!({}))?;
             Ok(())
         }
+        Action::DoubleClick(name) => {
+            let element = session.element(&select(app,name))?;
+            session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
+                {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":element},"x":0,"y":0},
+                {"type":"pointerDown","button":0},{"type":"pointerUp","button":0},
+                {"type":"pointerDown","button":0},{"type":"pointerUp","button":0}
+            ]}]}))?;
+            Ok(())
+        }
+        Action::Drag(from,to) => {
+            let from = session.element(&select(app,from))?;
+            let to = session.element(&select(app,to))?;
+            session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
+                {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},
+                {"type":"pointerDown","button":0},
+                {"type":"pointerMove","duration":200,"origin":{"element-6066-11e4-a52e-4f735466cecf":to},"x":0,"y":0},
+                {"type":"pointerUp","button":0}
+            ]}]}))?;
+            Ok(())
+        }
+        Action::Composing(name,text) => {
+            let selector = serde_json::to_string(&select(app,name)).unwrap();
+            let text = serde_json::to_string(text).unwrap();
+            session.script(&format!("var e = document.querySelector({selector}); e.focus(); e.dispatchEvent(new CompositionEvent('compositionstart', {{bubbles:true}})); var s=e.selectionStart, t=e.selectionEnd; e.setRangeText({text},s,t,'end'); e.dispatchEvent(new InputEvent('input', {{bubbles:true,inputType:'insertCompositionText',data:{text},isComposing:true}})); e.dispatchEvent(new KeyboardEvent('keydown', {{key:'Enter',keyCode:229,isComposing:true,bubbles:true,cancelable:true}})); return null;"))?;
+            Ok(())
+        }
+        Action::CompositionEnd(name) => {
+            let selector = serde_json::to_string(&select(app,name)).unwrap();
+            session.script(&format!("document.querySelector({selector}).dispatchEvent(new CompositionEvent('compositionend', {{bubbles:true}})); return null;"))?;
+            Ok(())
+        }
+        Action::Wait(check) => wait_for(app, session, check, SETTLE).map_or(Ok(()), Err),
         Action::Choose(name, value) => {
             let option =
                 session.element(&format!("{} option[value=\"{value}\"]", select(app, name)))?;
@@ -2445,7 +2967,14 @@ pub(crate) fn smoke(
                     dir
                 }
             };
-            let port = match serve(dir.clone(), None) {
+            let headers = match SiteHeaders::load(ws) {
+                Ok(headers) => Arc::new(headers),
+                Err(e) => {
+                    println!("{} RESULT failed: {e}", app.label);
+                    return ExitCode::from(1);
+                }
+            };
+            let port = match serve(dir.clone(), Some(headers)) {
                 Ok(port) => port,
                 Err(e) => {
                     println!("{} RESULT failed: {e}", app.label);

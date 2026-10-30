@@ -25,7 +25,6 @@ use crate::notebook::NotebookSkin;
 use crate::skin::{SkinContext, SkinRegistry, SkinResolution, resolve_active_skin, switch_skin};
 use crate::tree::TreeSkin;
 
-use dna_formula_ui::formula_field::FormulaAssist;
 use leptos::prelude::*;
 use std::sync::Arc;
 
@@ -102,7 +101,7 @@ pub fn app() -> impl IntoView {
     let controller = Controller::new();
     let registry = registry();
     let active_skin: RwSignal<Option<String>> = RwSignal::new(None);
-    let assist = FormulaAssist::new(controller.edit_text);
+    let assist = controller.assist;
 
     // While nothing is edited, the formula bar shows the active cell's input.
     Effect::new(move |_| {
@@ -123,9 +122,17 @@ pub fn app() -> impl IntoView {
     });
     let go_to = move |text: String| match cells::parse_address(&text) {
         Some((row, col)) => {
-            controller.cancel_edit();
-            controller.select(row, col);
-            grid::focus_grid();
+            if let Some(sheet) = controller.sheet.get_untracked()
+                && let Ok(at) = calc_host::value::CellKey::new(sheet, row, col)
+            {
+                controller.navigate_to(at, move |accepted| {
+                    let (row, col) = controller.active.get_untracked();
+                    name_box.set(cells::address(row, col));
+                    if accepted {
+                        grid::focus_grid();
+                    }
+                });
+            }
         }
         None => controller.status.set(crate::controller::Status {
             text: format!("{text:?} is not a cell address such as B3"),
@@ -133,27 +140,7 @@ pub fn app() -> impl IntoView {
         }),
     };
 
-    let bar_key = Callback::new(
-        move |ev: leptos::ev::KeyboardEvent| match ev.key().as_str() {
-            "Enter" if !ev.shift_key() && !ev.alt_key() => {
-                ev.prevent_default();
-                if controller.editing.get_untracked().is_none() {
-                    controller.editing.set(Some(EditOrigin::Bar));
-                }
-                controller.commit_edit(|accepted| {
-                    if accepted {
-                        grid::focus_grid();
-                    }
-                });
-            }
-            "Escape" => {
-                ev.prevent_default();
-                controller.cancel_edit();
-                grid::focus_grid();
-            }
-            _ => {}
-        },
-    );
+    let bar_key = Callback::new(move |ev| controller.editor_key(ev, assist));
 
     let save = move |_| {
         controller.save(move |name, bytes| {
@@ -192,7 +179,7 @@ pub fn app() -> impl IntoView {
                         aria-pressed=pressed
                         title=format!("{title} (Alt+{slot})")
                         on:click=move |_| {
-                            controller.cancel_edit();
+                            controller.carry_edit_to_bar();
                             switch_skin(active_skin, &registry, slot);
                         }
                     >
@@ -219,6 +206,9 @@ pub fn app() -> impl IntoView {
     };
     let registry_for_keys = registry.clone();
     let on_app_key = move |ev: leptos::ev::KeyboardEvent| {
+        if ev.is_composing() || assist.composing.get_untracked() {
+            return;
+        }
         let ctrl = ev.ctrl_key() || ev.meta_key();
         if ev.alt_key()
             && !ctrl
@@ -226,7 +216,7 @@ pub fn app() -> impl IntoView {
             && switch_skin(active_skin, &registry_for_keys, slot).is_some()
         {
             ev.prevent_default();
-            controller.cancel_edit();
+            controller.carry_edit_to_bar();
         }
     };
 
@@ -404,18 +394,33 @@ pub fn app() -> impl IntoView {
                 <div
                     class="dc-fx"
                     data-dnacalc="formula-bar"
+                    on:input=move |_| controller.edit_changed()
                     on:focusin=move |_| {
-                        if controller.editing.get_untracked().is_none() {
-                            controller.editing.set(Some(EditOrigin::Bar));
-                        }
+                        controller.activate_editor(EditOrigin::Bar, assist);
                     }
                 >
                     {assist.field(Signal::derive(Vec::new), Some(bar_key), 1, "")}
-                    {assist.popup()}
-                    {assist.signature()}
+                    {move || (controller.editing.get() == Some(EditOrigin::Bar)).then(|| view! {
+                        {assist.popup()}
+                        {assist.signature()}
+                    })}
                 </div>
             </div>
-            <main class="dc-main">{skin_view}</main>
+            {move || controller.editing.get().map(|_| view! {
+                <div class="dc-edit-tools" data-dnacalc="edit-session">
+                    <span>{move || format!("Editing {}", controller.edit_label())}</span>
+                    <span data-dnacalc="edit-mode">{move || if controller.point_mode.get() {
+                        "Point · F2 to edit text"
+                    } else { "Edit · F2 to point to references" }}</span>
+                    <button type="button" data-dnacalc="commit-edit"
+                        disabled=move || assist.readonly.get()
+                        on:click=move |_| controller.finish_edit(crate::grid::selection::NavAction::CommitDown)>"Enter"</button>
+                    <button type="button" data-dnacalc="cancel-edit"
+                        disabled=move || assist.readonly.get()
+                        on:click=move |_| { controller.cancel_edit(); grid::focus_grid(); }>"Cancel"</button>
+                </div>
+            })}
+            <main class="dc-main" tabindex="-1">{skin_view}</main>
             <nav class="dc-tabs" role="tablist" data-dnacalc="sheet-tabs">{tabs}</nav>
             <footer class="dc-status">
                 <span

@@ -10,6 +10,48 @@
 //! calc-fml's ([`calc_fml::assist::complete`]).
 
 use calc_fml::assist::{Completion, Proposal};
+use calc_fml::syntax::{TextSpan, TokenKind, lex};
+
+/// The current text edit's undo journal. It never contains workbook operations.
+#[derive(Clone, Debug, Default)]
+pub struct TextHistory {
+    entries: Vec<(String, usize)>,
+    current: usize,
+}
+
+impl TextHistory {
+    pub fn reset(&mut self, text: String, caret: usize) {
+        self.entries = vec![(text, caret)];
+        self.current = 0;
+    }
+
+    pub fn record(&mut self, text: String, caret: usize) {
+        if self
+            .entries
+            .get(self.current)
+            .is_some_and(|(old, _)| *old == text)
+        {
+            return;
+        }
+        self.entries.truncate(self.current + 1);
+        self.entries.push((text, caret));
+        if self.entries.len() > 256 {
+            self.entries.remove(0);
+        }
+        self.current = self.entries.len() - 1;
+    }
+
+    pub fn step(&mut self, redo: bool) -> Option<(String, usize)> {
+        let next = if redo {
+            self.current.checked_add(1)?
+        } else {
+            self.current.checked_sub(1)?
+        };
+        let entry = self.entries.get(next)?.clone();
+        self.current = next;
+        Some(entry)
+    }
+}
 
 /// The completion popup: hidden, or open on a list with one item selected.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -121,7 +163,7 @@ pub fn popup_key(key: &str) -> Option<PopupKey> {
     match key {
         "ArrowDown" => Some(PopupKey::Next),
         "ArrowUp" => Some(PopupKey::Previous),
-        "Enter" | "Tab" => Some(PopupKey::Accept),
+        "Tab" => Some(PopupKey::Accept),
         "Escape" => Some(PopupKey::Dismiss),
         _ => None,
     }
@@ -144,6 +186,224 @@ pub fn insert_call(text: &str, start: usize, end: usize, name: &str) -> (String,
     let caret = out.len();
     out.extend_from_slice(&units[end..]);
     (String::from_utf16_lossy(&out), caret)
+}
+
+/// Replace a browser selection, counted in UTF-16, and return the caret after the insertion.
+pub fn replace_text(text: &str, start: usize, end: usize, insert: &str) -> (String, usize) {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let end = end.min(units.len());
+    let start = start.min(end);
+    let mut out = units[..start].to_vec();
+    out.extend(insert.encode_utf16());
+    let caret = out.len();
+    out.extend_from_slice(&units[end..]);
+    (String::from_utf16_lossy(&out), caret)
+}
+
+fn cell_reference_spans(text: &str) -> Vec<TextSpan> {
+    let tokens: Vec<_> = lex(text)
+        .into_iter()
+        .filter(|t| t.kind() != TokenKind::Whitespace)
+        .collect();
+    tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(i, token)| {
+            let next = tokens[i + 1..]
+                .iter()
+                .find(|t| t.kind() != TokenKind::Whitespace);
+            let axis = axis_endpoint(token.text());
+            let whole_axis = axis.is_some()
+                && [i.checked_sub(1), Some(i + 1)]
+                    .into_iter()
+                    .flatten()
+                    .any(|colon| {
+                        if tokens
+                            .get(colon)
+                            .is_none_or(|t| t.kind() != TokenKind::Colon)
+                        {
+                            return false;
+                        }
+                        let other = if colon < i {
+                            colon.checked_sub(1)
+                        } else {
+                            Some(colon + 1)
+                        };
+                        other
+                            .and_then(|other| tokens.get(other))
+                            .is_some_and(|other| axis_endpoint(other.text()) == axis)
+                    });
+            ((crate::display::parse_address(token.text()).is_some() || whole_axis)
+                && !next.is_some_and(|t| matches!(t.kind(), TokenKind::Bang | TokenKind::LParen)))
+            .then_some(token.span())
+        })
+        .collect()
+}
+
+/// Whole rows and columns have one anchor bit; a colon distinguishes them from names/numbers.
+fn axis_endpoint(text: &str) -> Option<bool> {
+    let text = text.strip_prefix('$').unwrap_or(text);
+    if text.bytes().all(|b| b.is_ascii_alphabetic())
+        && crate::display::parse_address(&format!("{text}1")).is_some()
+    {
+        Some(true)
+    } else if !text.is_empty()
+        && text.bytes().all(|b| b.is_ascii_digit())
+        && text
+            .parse::<u32>()
+            .is_ok_and(|r| (1..=1_048_576).contains(&r))
+    {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// The A1 reference at the caret, or the complete cell/range selection around it.
+/// Strings, function names and sheet qualifiers are never editable reference endpoints.
+pub fn reference_span(text: &str, start: usize, end: usize) -> Option<TextSpan> {
+    if !text.trim_start().starts_with('=') {
+        return None;
+    }
+    let spans = cell_reference_spans(text);
+    if start == end {
+        spans
+            .iter()
+            .find(|s| s.start < start && start <= s.end())
+            .or_else(|| spans.iter().find(|s| s.start == start))
+            .copied()
+    } else {
+        let selected: Vec<_> = spans
+            .into_iter()
+            .filter(|s| start <= s.start && s.end() <= end)
+            .collect();
+        Some(TextSpan::covering(*selected.first()?, *selected.last()?))
+    }
+}
+
+/// The reference being replaced by a point gesture includes its sheet qualifier.
+pub fn point_reference_span(text: &str, start: usize, end: usize) -> Option<TextSpan> {
+    let mut span = reference_span(text, start, end)?;
+    let tokens: Vec<_> = lex(text)
+        .into_iter()
+        .filter(|t| t.kind() != TokenKind::Whitespace)
+        .collect();
+    let i = tokens.iter().position(|t| t.span().start == span.start)?;
+    if i >= 2 && tokens[i - 1].kind() == TokenKind::Bang {
+        let mut first = i - 2;
+        if first >= 2 && tokens[first - 1].kind() == TokenKind::Colon {
+            first -= 2;
+        }
+        if first > 0 && tokens[first - 1].kind() == TokenKind::BracketedQualifier {
+            first -= 1;
+        }
+        span = TextSpan::new(
+            tokens[first].span().start,
+            span.end() - tokens[first].span().start,
+        );
+    }
+    Some(span)
+}
+
+/// A formula caret where a pointed reference can be inserted without joining two operands.
+pub fn expects_reference(text: &str, start: usize, end: usize) -> bool {
+    if !text.trim_start().starts_with('=') {
+        return false;
+    }
+    let tokens = lex(text);
+    if tokens.iter().any(|t| {
+        matches!(
+            t.kind(),
+            TokenKind::StringLiteral | TokenKind::QuotedIdentifier | TokenKind::BracketedQualifier
+        ) && t.span().start < start
+            && start < t.span().end()
+    }) {
+        return false;
+    }
+    if start != end {
+        return reference_span(text, start, end).is_some();
+    }
+    tokens
+        .iter()
+        .rev()
+        .find(|t| {
+            t.span().end() <= start && !matches!(t.kind(), TokenKind::Whitespace | TokenKind::Eof)
+        })
+        .is_some_and(|t| {
+            matches!(
+                t.kind(),
+                TokenKind::Equals
+                    | TokenKind::Plus
+                    | TokenKind::Minus
+                    | TokenKind::Star
+                    | TokenKind::Slash
+                    | TokenKind::Caret
+                    | TokenKind::Ampersand
+                    | TokenKind::LParen
+                    | TokenKind::Comma
+                    | TokenKind::Semicolon
+                    | TokenKind::Less
+                    | TokenKind::LessEqual
+                    | TokenKind::Greater
+                    | TokenKind::GreaterEqual
+                    | TokenKind::NotEqual
+                    | TokenKind::Colon
+            )
+        })
+}
+
+/// F4's relative → absolute → row-absolute → column-absolute cycle, at a cell or
+/// over selected A1 endpoints. Qualifiers and text outside those endpoints stay exact.
+pub fn cycle_anchors(text: &str, start: usize, end: usize) -> Option<(String, usize, usize)> {
+    let span = reference_span(text, start, end)?;
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let selected = cell_reference_spans(text)
+        .into_iter()
+        .filter(|s| span.start <= s.start && s.end() <= span.end());
+    let mut out = units[..span.start].to_vec();
+    let mut from = span.start;
+    for at in selected {
+        out.extend_from_slice(&units[from..at.start]);
+        let endpoint = String::from_utf16_lossy(&units[at.start..at.end()]);
+        if crate::display::parse_address(&endpoint).is_none() {
+            let next = if endpoint.starts_with('$') {
+                endpoint[1..].to_owned()
+            } else {
+                format!("${endpoint}")
+            };
+            out.extend(next.encode_utf16());
+            from = at.end();
+            continue;
+        }
+        let split = endpoint.find(|c: char| c.is_ascii_digit())?;
+        let column_absolute = endpoint.starts_with('$');
+        let row_absolute = endpoint[..split].ends_with('$');
+        let column = endpoint[..split].trim_matches('$');
+        let row = &endpoint[split..];
+        let (next_col, next_row) = match (column_absolute, row_absolute) {
+            (false, false) => (true, true),
+            (true, true) => (false, true),
+            (false, true) => (true, false),
+            (true, false) => (false, false),
+        };
+        let next = format!(
+            "{}{}{}{}",
+            if next_col { "$" } else { "" },
+            column,
+            if next_row { "$" } else { "" },
+            row
+        );
+        out.extend(next.encode_utf16());
+        from = at.end();
+    }
+    out.extend_from_slice(&units[from..span.end()]);
+    let new_end = out.len();
+    out.extend_from_slice(&units[span.end()..]);
+    Some((
+        String::from_utf16_lossy(&out),
+        if start == end { new_end } else { span.start },
+        new_end,
+    ))
 }
 
 /// The catalogue's named functions whose name contains `filter` (in any ASCII case) or whose
@@ -268,6 +528,89 @@ fn matching_open(units: &[u16], close_index: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn text_undo_stays_inside_the_current_edit_and_branches_after_undo() {
+        let mut history = TextHistory::default();
+        history.reset("=A1".into(), 3);
+        history.record("=A1+2".into(), 5);
+        assert_eq!(history.step(false), Some(("=A1".into(), 3)));
+        assert_eq!(history.step(false), None);
+        assert_eq!(history.step(true), Some(("=A1+2".into(), 5)));
+        history.step(false);
+        history.record("=A1+3".into(), 5);
+        assert_eq!(history.step(true), None);
+        history.reset("new session".into(), 11);
+        assert_eq!(history.step(false), None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn f4_cycles_only_references_and_keeps_strings_qualifiers_and_utf16_offsets() {
+        let mut text = "=A1".to_owned();
+        for expected in ["=$A$1", "=A$1", "=$A1", "=A1"] {
+            let at = text.len();
+            text = cycle_anchors(&text, at, at).unwrap().0;
+            assert_eq!(text, expected);
+        }
+        let text = "=\"😀A1\"&'A1'!B2+C3";
+        let start = text.encode_utf16().count() - 5;
+        let end = text.encode_utf16().count();
+        let (next, _, _) = cycle_anchors(text, start, end).unwrap();
+        assert_eq!(next, "=\"😀A1\"&'A1'!$B$2+$C$3");
+        assert_eq!(cycle_anchors("=LOG10(A1)", 5, 5), None);
+        assert_eq!(cycle_anchors("=\"A1\"", 3, 3), None);
+        assert_eq!(cycle_anchors("=A1!B2", 3, 3), None);
+        assert_eq!(cycle_anchors("=XFE1", 5, 5), None);
+        assert_eq!(cycle_anchors("=A1048577", 9, 9), None);
+        assert_eq!(cycle_anchors("text A1", 7, 7), None);
+        assert_eq!(
+            cycle_anchors("=SUM(A1:B3)", 5, 10).unwrap().0,
+            "=SUM($A$1:$B$3)"
+        );
+        assert_eq!(
+            point_reference_span("='Q2 Data'!A1+1", 12, 12),
+            Some(TextSpan::new(1, 12))
+        );
+        assert_eq!(cycle_anchors("=SUM(A:B)", 5, 8).unwrap().0, "=SUM($A:$B)");
+        assert_eq!(cycle_anchors("=SUM(1:3)", 5, 8).unwrap().0, "=SUM($1:$3)");
+        assert_eq!(cycle_anchors("=42", 3, 3), None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_point_slot_excludes_text_and_does_not_concatenate_operands() {
+        for text in ["=", "=A1+", "=SUM(", "=IF(A1, ", "=A1:"] {
+            assert!(
+                expects_reference(
+                    text,
+                    text.encode_utf16().count(),
+                    text.encode_utf16().count()
+                ),
+                "{text}"
+            );
+        }
+        for (text, at) in [
+            ("plain", 5),
+            ("=\"A1+", 5),
+            ("='A1+", 5),
+            ("=42", 3),
+            ("=A1", 3),
+            ("=SUM(A1)", 8),
+        ] {
+            assert!(!expects_reference(text, at, at), "{text}");
+        }
+        assert!(expects_reference("=A1+B2", 4, 6));
+        assert_eq!(
+            replace_text("=\"😀\"&A1", 6, 8, "B4"),
+            ("=\"😀\"&B4".into(), 8)
+        );
+        assert_eq!(crate::display::parse_address("$a$1"), Some((1, 1)));
+        for invalid in ["A$$1", "A1$", "$A$0", "XFE1", "A1048577", "1", "$$A1"] {
+            assert_eq!(crate::display::parse_address(invalid), None, "{invalid}");
+        }
+    }
     use calc_fml::assist::complete;
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -348,7 +691,11 @@ mod tests {
         assert_eq!(popup_key("ArrowDown"), Some(PopupKey::Next));
         assert_eq!(popup_key("ArrowUp"), Some(PopupKey::Previous));
         assert_eq!(popup_key("Tab"), Some(PopupKey::Accept));
-        assert_eq!(popup_key("Enter"), Some(PopupKey::Accept));
+        assert_eq!(
+            popup_key("Enter"),
+            None,
+            "worksheet Enter belongs to the field's owner"
+        );
         assert_eq!(popup_key("Escape"), Some(PopupKey::Dismiss));
         assert_eq!(popup_key("a"), None);
     }

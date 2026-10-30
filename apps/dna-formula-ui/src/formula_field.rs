@@ -22,7 +22,9 @@
 //! the text or the caret, so a panic can only come from a memo or a view, where the browser smoke
 //! test sees it.
 
-use crate::editor::{BracketPair, Popup, PopupKey, bracket_pair_at, insert_call, popup_key};
+use crate::editor::{
+    BracketPair, Popup, PopupKey, TextHistory, bracket_pair_at, insert_call, popup_key,
+};
 use calc_fml::assist::{self, CallSite, HighlightRun, TokenRole};
 use calc_fml::parse_formula;
 use calc_fml::syntax::TextSpan;
@@ -42,6 +44,9 @@ pub struct FormulaAssist {
     dismissed: RwSignal<Option<String>>,
     /// The text field.
     pub field: NodeRef<leptos::html::Textarea>,
+    pub composing: RwSignal<bool>,
+    pub readonly: RwSignal<bool>,
+    history: StoredValue<TextHistory>,
     runs: Memo<Vec<HighlightRun>>,
     brackets: Memo<Option<BracketPair>>,
     /// The function call the caret is in.
@@ -51,6 +56,8 @@ pub struct FormulaAssist {
 impl FormulaAssist {
     /// The field's state over `text`, with the caret at the start and the popup hidden.
     pub fn new(text: RwSignal<String>) -> FormulaAssist {
+        let mut history = TextHistory::default();
+        history.reset(text.get_untracked(), 0);
         let caret = RwSignal::new(0usize);
         let runs = Memo::new(move |_| text.with(|text| assist::highlight(text)));
         let brackets = Memo::new(move |_| {
@@ -67,10 +74,34 @@ impl FormulaAssist {
             popup: RwSignal::new(Popup::Hidden),
             dismissed: RwSignal::new(None),
             field: NodeRef::new(),
+            composing: RwSignal::new(false),
+            readonly: RwSignal::new(false),
+            history: StoredValue::new(history),
             runs,
             brackets,
             call,
         }
+    }
+
+    /// Another field over the same text, completion, caret and local undo session.
+    pub fn another_field(self) -> Self {
+        Self {
+            field: NodeRef::new(),
+            ..self
+        }
+    }
+
+    pub fn start_edit(self, original: String) {
+        let text = self.text.get_untracked();
+        let end = text.encode_utf16().count();
+        self.caret.set(end);
+        self.history.update_value(|history| {
+            let original_end = original.encode_utf16().count();
+            history.reset(original, original_end);
+            history.record(text, end);
+        });
+        self.composing.set(false);
+        self.reset();
     }
 
     /// Reads the field's text and caret after an edit or a caret move, and reconciles the popup.
@@ -86,8 +117,13 @@ impl FormulaAssist {
             .map_or(text.encode_utf16().count(), |at| at as usize);
         if text_changed {
             self.text.set(text.clone());
+            self.history
+                .update_value(|history| history.record(text.clone(), at));
         }
         self.caret.set(at);
+        if self.composing.get_untracked() {
+            return;
+        }
         let completion = assist::complete(&text, at);
         let prefix_now = completion.as_ref().map(|c| c.prefix.clone());
         if self.dismissed.get_untracked() != prefix_now {
@@ -123,7 +159,13 @@ impl FormulaAssist {
     }
 
     /// Sets the text and puts the caret at `at`, in the field and in the signals.
-    fn place(self, next: String, at: usize) {
+    pub fn place(self, next: String, at: usize) {
+        self.history
+            .update_value(|history| history.record(next.clone(), at));
+        self.restore(next, at);
+    }
+
+    fn restore(self, next: String, at: usize) {
         if let Some(field) = self.field.get_untracked() {
             field.set_value(&next);
             let _ = field.focus();
@@ -131,6 +173,20 @@ impl FormulaAssist {
         }
         self.text.set(next);
         self.caret.set(at);
+    }
+
+    pub fn undo(self, redo: bool) {
+        if self.readonly.get_untracked() || self.composing.get_untracked() {
+            return;
+        }
+        if let Some((text, at)) = self
+            .history
+            .try_update_value(|history| history.step(redo))
+            .flatten()
+        {
+            self.restore(text, at);
+            self.sync_from_field(false);
+        }
     }
 
     /// Closes the popup and keeps it closed until the prefix changes.
@@ -151,6 +207,9 @@ impl FormulaAssist {
 
     /// Takes a key the open popup uses (arrows, Enter, Tab, Escape); `true` when it took it.
     pub fn popup_keydown(self, ev: &leptos::ev::KeyboardEvent) -> bool {
+        if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.shift_key() {
+            return false;
+        }
         if !self.popup.with_untracked(Popup::is_open) {
             return false;
         }
@@ -176,6 +235,18 @@ impl FormulaAssist {
         rows: u32,
         placeholder: &'static str,
     ) -> impl IntoView {
+        self.field_named(diagnostics, on_key, rows, placeholder, None)
+    }
+
+    /// The same field with an application role for an in-cell editor.
+    pub fn field_named(
+        self,
+        diagnostics: Signal<Vec<TextSpan>>,
+        on_key: Option<Callback<leptos::ev::KeyboardEvent>>,
+        rows: u32,
+        placeholder: &'static str,
+        cell_role: Option<&'static str>,
+    ) -> impl IntoView {
         let highlight = move || {
             let diagnostics = diagnostics.get();
             let pair = self.brackets.get();
@@ -196,6 +267,7 @@ impl FormulaAssist {
                 <pre data-onecalc="highlight" aria-hidden="true">{highlight}"\n"</pre>
                 <textarea
                     data-onecalc="formula"
+                    data-dnacalc=cell_role
                     node_ref=self.field
                     rows=rows.to_string()
                     spellcheck="false"
@@ -203,11 +275,37 @@ impl FormulaAssist {
                     aria-label="Formula"
                     placeholder=placeholder
                     prop:value=move || text.get()
+                    prop:readOnly=move || self.readonly.get()
                     on:input=move |_| self.sync_from_field(true)
+                    on:compositionstart=move |_| {
+                        self.composing.set(true);
+                        self.reset();
+                    }
+                    on:compositionend=move |_| {
+                        self.composing.set(false);
+                        self.sync_from_field(true);
+                    }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                        if !self.popup_keydown(&ev)
-                            && let Some(on_key) = on_key
-                        {
+                        if self.readonly.get_untracked() {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            return;
+                        }
+                        if self.composing.get_untracked() || ev.is_composing() || ev.key_code() == 229 {
+                            ev.stop_propagation();
+                            return;
+                        }
+                        let ctrl = ev.ctrl_key() || ev.meta_key();
+                        if ctrl && !ev.alt_key() && matches!(ev.key().to_ascii_lowercase().as_str(), "z" | "y") {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            let redo = ev.key().eq_ignore_ascii_case("y") || ev.shift_key();
+                            self.undo(redo);
+                            return;
+                        }
+                        if self.popup_keydown(&ev) {
+                            ev.stop_propagation();
+                        } else if let Some(on_key) = on_key {
                             on_key.run(ev);
                         }
                     }

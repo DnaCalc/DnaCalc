@@ -24,10 +24,15 @@
 //! `src/dnacalc-skin-leptos/src/state_handles.rs` (shared state behind one handle), onto calc-host's
 //! session.
 
+use crate::grid::selection::{GridExtent, NavAction, next_active};
 use crate::port;
 use crate::wire::{self, Area, Cells, Event, Intent, Key, Outcome, Reply, Request, Sheet, Summary};
 use crate::workbook::SheetTab;
 use calc_host::value::{CellKey, GridArea, SheetId};
+use dna_formula_ui::editor::{
+    cycle_anchors, expects_reference, point_reference_span, replace_text,
+};
+use dna_formula_ui::formula_field::FormulaAssist;
 use leptos::prelude::*;
 use std::collections::BTreeMap;
 
@@ -45,6 +50,31 @@ pub enum EditOrigin {
     Cell,
     /// The formula bar.
     Bar,
+}
+
+/// A reference being pointed into the draft, separate from the workbook selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PointPick {
+    pub sheet: SheetId,
+    pub start: usize,
+    pub end: usize,
+    pub anchor: (u32, u32),
+    pub corner: (u32, u32),
+}
+
+fn field_selection(assist: FormulaAssist) -> (usize, usize) {
+    assist.field.get_untracked().map_or_else(
+        || {
+            let at = assist.caret.get_untracked();
+            (at, at)
+        },
+        |field| {
+            (
+                field.selection_start().ok().flatten().unwrap_or(0) as usize,
+                field.selection_end().ok().flatten().unwrap_or(0) as usize,
+            )
+        },
+    )
 }
 
 /// How long the last open and the last intent took, in milliseconds of the browser's clock.
@@ -154,12 +184,21 @@ pub struct Controller {
     pub editing: RwSignal<Option<EditOrigin>>,
     /// The text being edited, or the active cell's input when nothing is.
     pub edit_text: RwSignal<String>,
+    pub assist: FormulaAssist,
+    edit_field: StoredValue<FormulaAssist>,
+    edit_target: RwSignal<Option<CellKey>>,
+    edit_original: StoredValue<String>,
+    pub point_mode: RwSignal<bool>,
+    pub pointed: RwSignal<Option<PointPick>>,
+    pointed_text: StoredValue<String>,
     pub timings: RwSignal<Timings>,
 }
 
 impl Controller {
     /// A controller over a new workbook.
     pub fn new() -> Controller {
+        let edit_text = RwSignal::new(String::new());
+        let assist = FormulaAssist::new(edit_text);
         let controller = Controller {
             mirrors: StoredValue::new_local(BTreeMap::new()),
             next_subscription: StoredValue::new(1),
@@ -174,7 +213,14 @@ impl Controller {
             selection: RwSignal::new(ViewMirror::default()),
             status: RwSignal::new(Status::default()),
             editing: RwSignal::new(None),
-            edit_text: RwSignal::new(String::new()),
+            edit_text,
+            assist,
+            edit_field: StoredValue::new(assist),
+            edit_target: RwSignal::new(None),
+            edit_original: StoredValue::new(String::new()),
+            point_mode: RwSignal::new(false),
+            pointed: RwSignal::new(None),
+            pointed_text: StoredValue::new(String::new()),
             timings: RwSignal::new(Timings::default()),
         };
         port::start();
@@ -335,14 +381,32 @@ impl Controller {
     /// Carries out an intent; when its outcome comes, applies it (the summary, the revision, the
     /// selection, the status line) and hands it to `then`.
     pub fn dispatch(&self, intent: Intent, then: impl FnOnce(&Outcome) + 'static) {
+        self.dispatch_result(intent, move |result| {
+            if let Ok(outcome) = result {
+                then(&outcome);
+            }
+        });
+    }
+
+    fn dispatch_result(
+        &self,
+        intent: Intent,
+        then: impl FnOnce(Result<Outcome, String>) + 'static,
+    ) {
         let controller = *self;
         port::call(Request::Intent(intent), None, move |reply, _| match reply {
             Ok(Reply::Done { outcome, .. }) => {
                 controller.applied(&outcome);
-                then(&outcome);
+                then(Ok(outcome));
             }
-            Ok(_) => controller.say("The workbook answered an intent with something else", true),
-            Err(message) => controller.say(format!("The workbook did not answer: {message}"), true),
+            reply => {
+                let message = match reply {
+                    Err(message) => format!("The workbook did not answer: {message}"),
+                    _ => "The workbook answered an intent with something else".to_owned(),
+                };
+                controller.say(message.clone(), true);
+                then(Err(message));
+            }
         });
     }
 
@@ -359,7 +423,6 @@ impl Controller {
             && let Some(at) = at.cell()
         {
             if Some(at.sheet()) != self.sheet.get_untracked() {
-                self.editing.set(None);
                 self.sheet.set(Some(at.sheet()));
             }
             if (at.row(), at.column()) != self.active.get_untracked() {
@@ -527,7 +590,21 @@ impl Controller {
 
     /// Shows another sheet, at its A1.
     pub fn show_sheet(&self, sheet: SheetId) {
-        self.cancel_edit();
+        if self.editing.get_untracked().is_some() {
+            if self.edit_text.get_untracked().trim_start().starts_with('=') {
+                self.carry_edit_to_bar();
+            } else {
+                let controller = *self;
+                self.commit_edit(move |ok| {
+                    if ok {
+                        controller.show_sheet(sheet);
+                    } else {
+                        controller.focus_editor();
+                    }
+                });
+                return;
+            }
+        }
         self.sheet.set(Some(sheet));
         self.select(1, 1);
     }
@@ -535,33 +612,305 @@ impl Controller {
     /// Makes `at` the active cell, showing its sheet (a skin's jump to a cell: the tree's, the
     /// canvas's, the ledger's).
     pub fn go_to(&self, at: CellKey) {
+        self.navigate_to(at, |_| {});
+    }
+
+    /// Navigate after resolving the current draft; a rejected draft keeps the original address.
+    pub fn navigate_to(&self, at: CellKey, arrived: impl FnOnce(bool) + 'static) {
+        if self.editing.get_untracked().is_some() {
+            let controller = *self;
+            self.commit_edit(move |ok| {
+                if ok {
+                    controller.navigate_to(at, arrived);
+                } else {
+                    controller.focus_editor();
+                    arrived(false);
+                }
+            });
+            return;
+        }
         if Some(at.sheet()) != self.sheet.get_untracked() {
             self.cancel_edit();
             self.sheet.set(Some(at.sheet()));
         }
         self.select(at.row(), at.column());
+        arrived(true);
     }
 
     /// Starts an edit of the active cell: with `seed`, or the cell's input when `None`.
     pub fn begin_edit(&self, origin: EditOrigin, seed: Option<String>) {
-        let text = match seed {
-            Some(seed) => seed,
-            None => self
-                .active_key_untracked()
-                .and_then(|at| {
-                    self.selection
-                        .with_untracked(|mirror| mirror.cell(at).map(|cell| cell.input.clone()))
-                })
-                .unwrap_or_default(),
-        };
+        if self.editing.get_untracked().is_some() {
+            if self.editing.get_untracked() != Some(origin) {
+                self.editing.set(Some(origin));
+            }
+            return;
+        }
+        let replacing = seed.is_some();
+        let original = self
+            .active_key_untracked()
+            .and_then(|at| {
+                self.selection
+                    .with_untracked(|mirror| mirror.cell(at).map(|cell| cell.input.clone()))
+            })
+            .unwrap_or_default();
+        let text = seed.unwrap_or_else(|| original.clone());
         self.edit_text.set(text);
+        self.edit_target.set(self.active_key_untracked());
+        self.point_mode.set(replacing);
+        self.pointed.set(None);
+        self.edit_original.set_value(original.clone());
+        self.assist.start_edit(original);
         self.editing.set(Some(origin));
+    }
+
+    pub fn activate_editor(&self, origin: EditOrigin, assist: FormulaAssist) {
+        self.begin_edit(origin, None);
+        self.edit_field.set_value(assist);
+    }
+
+    /// Keep the draft and its target when its cell overlay is about to unmount.
+    pub fn carry_edit_to_bar(&self) {
+        if self.editing.get_untracked().is_some() {
+            self.editing.set(Some(EditOrigin::Bar));
+            self.edit_field.set_value(self.assist);
+            #[cfg(target_arch = "wasm32")]
+            {
+                let controller = *self;
+                leptos::prelude::set_timeout(
+                    move || {
+                        if controller.editing.try_get_untracked().flatten() != Some(EditOrigin::Bar) {
+                            return;
+                        }
+                        let assist = controller.assist;
+                        assist.place(
+                            controller.edit_text.get_untracked(),
+                            assist.caret.get_untracked(),
+                        );
+                    },
+                    std::time::Duration::ZERO,
+                );
+            }
+        }
+    }
+
+    pub fn focus_editor(&self) {
+        let assist = self.edit_field.get_value();
+        if let Some(field) = assist.field.get_untracked() {
+            let _ = field.focus();
+        }
+    }
+
+    /// Both editors use this route after their shared completion and local undo handlers.
+    pub fn editor_key(&self, ev: leptos::ev::KeyboardEvent, assist: FormulaAssist) {
+        if assist.composing.get_untracked() || ev.is_composing() || ev.key_code() == 229 {
+            return;
+        }
+        let ctrl = ev.ctrl_key() || ev.meta_key();
+        let movement = match ev.key().as_str() {
+            "Enter" if !ctrl && !ev.alt_key() => Some(if ev.shift_key() {
+                NavAction::Up
+            } else {
+                NavAction::CommitDown
+            }),
+            "Tab" if !ctrl && !ev.alt_key() => Some(if ev.shift_key() {
+                NavAction::PrevColumn
+            } else {
+                NavAction::CommitRight
+            }),
+            _ => None,
+        };
+        if let Some(movement) = movement {
+            ev.prevent_default();
+            ev.stop_propagation();
+            self.finish_edit(movement);
+            return;
+        }
+        match ev.key().as_str() {
+            "Escape" => {
+                ev.prevent_default();
+                ev.stop_propagation();
+                self.cancel_edit();
+                crate::grid::focus_grid();
+            }
+            "F2" if !ev.alt_key() => {
+                ev.prevent_default();
+                ev.stop_propagation();
+                if ctrl {
+                    match self.editing.get_untracked() {
+                        Some(EditOrigin::Cell) => self.carry_edit_to_bar(),
+                        _ => {
+                            if document()
+                                .query_selector("[data-dnacalc=\"grid\"]")
+                                .ok()
+                                .flatten()
+                                .is_some()
+                            {
+                                self.editing.set(Some(EditOrigin::Cell));
+                            }
+                        }
+                    }
+                } else {
+                    self.point_mode.update(|point| *point = !*point);
+                    self.pointed.set(None);
+                }
+            }
+            "F4" if !ctrl && !ev.alt_key() => {
+                ev.prevent_default();
+                ev.stop_propagation();
+                let (start, end) = field_selection(assist);
+                if let Some((text, start, end)) =
+                    cycle_anchors(&self.edit_text.get_untracked(), start, end)
+                {
+                    self.pointed.set(None);
+                    assist.place(text, end);
+                    if let Some(field) = assist.field.get_untracked() {
+                        let _ = field.set_selection_range(start as u32, end as u32);
+                    }
+                }
+            }
+            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
+                if self.point_mode.get_untracked() && !ctrl && !ev.alt_key() =>
+            {
+                let action = match ev.key().as_str() {
+                    "ArrowUp" => NavAction::Up,
+                    "ArrowDown" => NavAction::Down,
+                    "ArrowLeft" => NavAction::Left,
+                    _ => NavAction::Right,
+                };
+                let from = self
+                    .pointed
+                    .get_untracked()
+                    .map(|p| p.corner)
+                    .or_else(|| {
+                        self.edit_target
+                            .get_untracked()
+                            .map(|at| (at.row(), at.column()))
+                    })
+                    .unwrap_or((1, 1));
+                let next = next_active(from, action, GridExtent::new(1_048_576, 16_384));
+                if self.point_at(next.0, next.1, ev.shift_key()) {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn edit_changed(&self) {
+        self.pointed.set(None);
+    }
+
+    pub fn edit_label(&self) -> String {
+        self.edit_target
+            .get()
+            .map(|at| self.cell_label(at))
+            .unwrap_or_default()
+    }
+
+    /// Insert/replace a pointed reference without changing the edit's target or selection.
+    pub fn point_at(&self, row: u32, column: u32, extend: bool) -> bool {
+        if self.editing.get_untracked().is_none()
+            || self.assist.composing.get_untracked()
+            || self.assist.readonly.get_untracked()
+        {
+            return false;
+        }
+        let assist = self.edit_field.get_value();
+        let text = self.edit_text.get_untracked();
+        let (start, end) = field_selection(assist);
+        let Some(sheet) = self.sheet.get_untracked() else {
+            return false;
+        };
+        let previous = self
+            .pointed
+            .get_untracked()
+            .filter(|p| self.pointed_text.get_value() == text && start == end && end == p.end);
+        let slot = previous.map(|p| (p.start, p.end)).or_else(|| {
+            if expects_reference(&text, start, end) {
+                Some((start, end))
+            } else if self.point_mode.get_untracked() {
+                point_reference_span(&text, start, end).map(|s| (s.start, s.end()))
+            } else {
+                None
+            }
+        });
+        let Some((start, end)) = slot else {
+            return false;
+        };
+        let anchor = if extend {
+            previous
+                .filter(|p| p.sheet == sheet)
+                .map_or((row, column), |p| p.anchor)
+        } else {
+            (row, column)
+        };
+        let near = (anchor.0.min(row), anchor.1.min(column));
+        let far = (anchor.0.max(row), anchor.1.max(column));
+        let first = if self
+            .edit_target
+            .get_untracked()
+            .is_some_and(|at| at.sheet() != sheet)
+        {
+            CellKey::new(sheet, near.0, near.1)
+                .ok()
+                .map(|at| self.cell_label(at))
+                .unwrap_or_default()
+        } else {
+            crate::cells::address(near.0, near.1)
+        };
+        let reference = if near == far {
+            first
+        } else {
+            format!("{}:{}", first, crate::cells::address(far.0, far.1))
+        };
+        let (text, end) = replace_text(&text, start, end, &reference);
+        self.pointed_text.set_value(text.clone());
+        assist.reset();
+        assist.place(text, end);
+        self.point_mode.set(true);
+        self.pointed.set(Some(PointPick {
+            sheet,
+            start,
+            end,
+            anchor,
+            corner: (row, column),
+        }));
+        true
+    }
+
+    pub fn finish_edit(&self, movement: NavAction) {
+        let controller = *self;
+        self.commit_edit(move |accepted| {
+            if accepted {
+                let next = next_active(
+                    controller.active.get_untracked(),
+                    movement,
+                    GridExtent::new(1_048_576, 16_384),
+                );
+                controller.select(next.0, next.1);
+                crate::grid::focus_grid();
+            } else {
+                controller.focus_editor();
+            }
+        });
     }
 
     /// Ends an edit without entering it.
     pub fn cancel_edit(&self) {
+        if self.assist.readonly.get_untracked() {
+            return;
+        }
         if self.editing.get_untracked().is_some() {
+            let target = self.edit_target.get_untracked();
             self.editing.set(None);
+            self.edit_target.set(None);
+            self.pointed.set(None);
+            self.assist.reset();
+            if let Some(at) = target {
+                self.sheet.set(Some(at.sheet()));
+                self.select(at.row(), at.column());
+            }
             self.say("Edit cancelled", false);
         }
     }
@@ -569,22 +918,43 @@ impl Controller {
     /// Enters the edited text into the active cell. `then` hears whether the entry was
     /// accepted; a refused entry keeps the edit open with the reason on the status line.
     pub fn commit_edit(&self, then: impl FnOnce(bool) + 'static) {
-        let Some(at) = self.active_key_untracked() else {
+        if self.assist.readonly.get_untracked() {
+            return;
+        }
+        let Some(at) = self.edit_target.get_untracked() else {
             then(false);
             return;
         };
         let text = self.edit_text.get_untracked();
+        if self.active_key_untracked() != Some(at) {
+            self.sheet.set(Some(at.sheet()));
+            self.select(at.row(), at.column());
+        }
+        if text == self.edit_original.get_value() {
+            self.editing.set(None);
+            self.edit_target.set(None);
+            self.pointed.set(None);
+            self.assist.reset();
+            then(true);
+            return;
+        }
+        self.assist.readonly.set(true);
         let controller = *self;
-        self.dispatch(
+        self.dispatch_result(
             Intent::EnterCell {
                 at: Key::of(at),
                 text,
             },
-            move |outcome| {
-                if outcome.accepted {
+            move |result| {
+                controller.assist.readonly.set(false);
+                let accepted = result.is_ok_and(|outcome| outcome.accepted);
+                if accepted {
                     controller.editing.set(None);
+                    controller.edit_target.set(None);
+                    controller.pointed.set(None);
+                    controller.assist.reset();
                 }
-                then(outcome.accepted);
+                then(accepted);
             },
         );
     }
@@ -648,12 +1018,20 @@ impl Controller {
     }
 
     pub fn undo(&self) {
-        self.cancel_edit();
+        if self.editing.get_untracked().is_some() {
+            self.pointed.set(None);
+            self.edit_field.get_value().undo(false);
+            return;
+        }
         self.dispatch(Intent::Undo, |_| {});
     }
 
     pub fn redo(&self) {
-        self.cancel_edit();
+        if self.editing.get_untracked().is_some() {
+            self.pointed.set(None);
+            self.edit_field.get_value().undo(true);
+            return;
+        }
         self.dispatch(Intent::Redo, |_| {});
     }
 
@@ -669,8 +1047,13 @@ impl Controller {
     /// The workbook's iterative-calculation settings: on, the most iterations, the maximum change
     /// (dc-y2o.2).
     pub fn iteration(&self) -> (bool, u32, f64) {
-        self.summary
-            .with(|summary| (summary.iteration, summary.max_iterations, summary.max_change))
+        self.summary.with(|summary| {
+            (
+                summary.iteration,
+                summary.max_iterations,
+                summary.max_change,
+            )
+        })
     }
 
     /// Sets the workbook's iterative-calculation settings, one undo step (dc-y2o.2).
