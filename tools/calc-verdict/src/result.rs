@@ -15,6 +15,8 @@
 //!  "results": [{"sheet": "Sheet1", "row": 1, "column": 1,
 //!               "provenance": {"calculated": {"tick": t, "revision": r, "context": "...",
 //!                                             "external_links": true}}
+//!                           | {"circular_rule": {"tick": t, "revision": r, "context": "...",
+//!                                                "external_links": true}}
 //!                           | {"file_cached": {"source": "..."}}
 //!                           | {"stale": {"last_calculated": t | null, "cause": "..."}}
 //!                           | {"not_modeled": {"feature": "...", "diagnostic": "..."}}
@@ -29,6 +31,12 @@
 //! file hold, directly or through the formulas it read: calculated, from inputs that are the file's
 //! cache of the other book rather than live ones. The verdict counts such cells apart
 //! ([`crate::Counts::external_links`]) so a reader never takes them for plain passes.
+//!
+//! A `circular_rule` result (dc-y2o.1) is the value the circular-reference rule holds with
+//! iteration off: the formula is on a circular reference, or reads one, so it was not evaluated,
+//! and its cell keeps what it held, as Excel keeps it. No evaluation proves it, since none ran; it
+//! is judged against the observation like a calculated result at the same revision and context,
+//! and counted apart ([`crate::Counts::circular_rule`]), never as a plain pass.
 
 use crate::DecodeError;
 use crate::capture::{CellAddress, check_format};
@@ -51,6 +59,16 @@ pub enum Provenance {
         /// The calculation read values another workbook's link caches hold (dc-ylr).
         external_links: bool,
     },
+    /// The value the circular-reference rule held at `tick` (dc-y2o.1): with iteration off, a
+    /// formula on a circular reference, or one that reads such a formula, is not evaluated and
+    /// keeps what its cell held. No evaluation proves it; it is counted apart.
+    CircularRule {
+        tick: u64,
+        revision: u64,
+        context: String,
+        /// The value held was calculated from values another workbook's link caches hold.
+        external_links: bool,
+    },
     /// The value the workbook file cached, not calculated; `source` identifies the file.
     FileCached { source: String },
     /// Calculated once (at `last_calculated`, when known) and invalidated since, for `cause`.
@@ -68,8 +86,9 @@ pub enum Provenance {
     Failed { fault: String },
 }
 
-const PROVENANCES: [&str; 6] = [
+const PROVENANCES: [&str; 7] = [
     "calculated",
+    "circular_rule",
     "file_cached",
     "stale",
     "not_modeled",
@@ -85,21 +104,35 @@ impl Provenance {
             Ok(json::name(fields.required(name)?, &fields.at(name))?.to_owned())
         };
         match kind {
-            "calculated" => {
+            "calculated" | "circular_rule" => {
                 let fields = Fields::new(
                     inner,
                     &at,
                     &["tick", "revision", "context", "external_links"],
                 )?;
-                Ok(Self::Calculated {
-                    tick: json::unsigned(fields.required("tick")?, &fields.at("tick"))?,
-                    revision: json::unsigned(fields.required("revision")?, &fields.at("revision"))?,
-                    context: string(&fields, "context")?,
-                    external_links: fields
-                        .optional("external_links")
-                        .map(|node| json::boolean(node, &fields.at("external_links")))
-                        .transpose()?
-                        .unwrap_or(false),
+                let tick = json::unsigned(fields.required("tick")?, &fields.at("tick"))?;
+                let revision =
+                    json::unsigned(fields.required("revision")?, &fields.at("revision"))?;
+                let context = string(&fields, "context")?;
+                let external_links = fields
+                    .optional("external_links")
+                    .map(|node| json::boolean(node, &fields.at("external_links")))
+                    .transpose()?
+                    .unwrap_or(false);
+                Ok(if kind == "calculated" {
+                    Self::Calculated {
+                        tick,
+                        revision,
+                        context,
+                        external_links,
+                    }
+                } else {
+                    Self::CircularRule {
+                        tick,
+                        revision,
+                        context,
+                        external_links,
+                    }
                 })
             }
             "file_cached" => {
@@ -144,6 +177,7 @@ impl Provenance {
     pub(crate) fn name(&self) -> &'static str {
         match self {
             Provenance::Calculated { .. } => "calculated",
+            Provenance::CircularRule { .. } => "circular_rule",
             Provenance::FileCached { .. } => "file_cached",
             Provenance::Stale { .. } => "stale",
             Provenance::NotModeled { .. } => "not_modeled",
@@ -156,7 +190,9 @@ impl Provenance {
     /// must, `Some(false)` must not, `None` may.
     pub(crate) fn value_rule(&self) -> Option<bool> {
         match self {
-            Provenance::Calculated { .. } | Provenance::FileCached { .. } => Some(true),
+            Provenance::Calculated { .. }
+            | Provenance::CircularRule { .. }
+            | Provenance::FileCached { .. } => Some(true),
             Provenance::Stale { .. } => None,
             Provenance::NotModeled { .. }
             | Provenance::Missing { .. }

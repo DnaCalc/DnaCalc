@@ -1248,6 +1248,11 @@ impl Triage {
             // summary counts a match among them apart from plain passes.
             map.insert("external_links".to_owned(), json!(true));
         }
+        if verdict.circular_rule {
+            // The circular-reference rule's value with iteration off (dc-y2o.1): the corpus
+            // summary counts a match among them apart from plain passes.
+            map.insert("circular_rule".to_owned(), json!(true));
+        }
         map.insert("class".to_owned(), json!(cell.class.name()));
         map.insert("key".to_owned(), json!(cell.key));
         if let Some(owner) = &cell.owner {
