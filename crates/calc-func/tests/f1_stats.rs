@@ -313,6 +313,11 @@ fn mod_reports_a_subnormal_remainder_as_num() {
     error(call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0000)), n(f64::from_bits(0x8010_0000_0000_0001))]), Num);
     error(call("MOD", vec![n(f64::from_bits(1)), n(0.0)]), Div0);
     exact(call("MOD", vec![n(f64::from_bits(1)), n(0.1)]), 0.0);
+    // W111 tiny-00005 and refinement-00006/01014 separate both binary boundaries.
+    exact(call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0001)), n(f64::from_bits(0x8010_0000_0000_0000))]),
+        f64::from_bits(0x8010_0000_0000_0001));
+    error(call("MOD", vec![n(f64::from_bits(0x0011_0000_0000_0000)), n(f64::from_bits(0x8010_0000_0000_0000))]), Num);
+    error(call("MOD", vec![n(f64::from_bits(0x01b0_0000_0000_0001)), n(f64::from_bits(0x8010_0000_0000_0000))]), Num);
     // A binary-power divisor preserves a tiny intermediate with a normal final remainder.
     exact(call("MOD", vec![n(f64::from_bits(0x0020800000000000)), n(f64::from_bits(0x8020000000000000))]), f64::from_bits(0x801f_0000_0000_0000));
 }
