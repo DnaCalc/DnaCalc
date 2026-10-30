@@ -919,7 +919,7 @@ const ONECALC_CASES: &[Case] = &[
             Check::Text("help-name", "SUM"),
             Check::Text(
                 "help-description",
-                "Total of the numbers",
+                "Use this function to add the values in cells.",
             ),
         ],
     },

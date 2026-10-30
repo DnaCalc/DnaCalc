@@ -829,7 +829,7 @@
   },
   {
    "path": "crates/calc-func/src/help.rs",
-   "class": "own-work",
+   "class": "vendor-text",
    "parts": [
     {
      "class": "vendor-text",
@@ -855,13 +855,13 @@
     }
    ],
    "cleanup": {
-    "action": "replace",
+    "action": "keep",
     "bead": "dc-96l.5",
-    "how": "rewrite every description in our own words (or drop the table from the published build until then)"
+    "how": "kept with attribution (owner direction 2026-10-30)"
    },
    "surveyed_blob": "99c6f418314c8784f8e86785127c443505b053e1",
    "surveyed_bytes": 52426,
-   "status_2026_10_30": "The 516 Microsoft one-line summaries are replaced by DNA Calc's own descriptions, written from what each function computes (dc-96l.5); the replaced text's sources stay listed in migration/help-text-sources.tsv as history. OP_IMPLICIT_INTERSECTION was already our own."
+   "status_2026_10_30": "Owner direction 2026-10-30: Microsoft's official one-line descriptions are kept as the function metadata, attributed to Microsoft with each function's support-article URL (source field, from migration/help-text-sources.tsv) and a header note; DNA Calc's own line sits beside each in the own field. Notice: deploy/notices/ported.txt."
   },
   {
    "path": "crates/calc-func/src/kernel.rs",
