@@ -180,6 +180,8 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
             accepted.get().expect("the server answered")
         };
         let sheet1 = controller.sheet.get_untracked().expect("a sheet");
+        assert!(!controller.has_dirty_work());
+        assert!(!controller.history_available(false));
         controller.select(2, 1);
         controller.begin_edit(EditOrigin::Cell, Some("4".to_owned()));
         assert!(commit(&controller));
@@ -210,6 +212,11 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         let into = saved.clone();
         controller.save(move |name, bytes| *into.borrow_mut() = Some((name, bytes)));
         let (name, bytes) = saved.borrow_mut().take().expect("saved");
+        assert!(
+            controller.has_dirty_work(),
+            "a browser download cannot establish durable storage"
+        );
+        assert!(controller.download_unconfirmed.get_untracked());
         assert_eq!(name, "Book1.xlsx");
         assert!(
             controller
@@ -224,6 +231,21 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         let seen = opened.clone();
         controller.open("d1.saved.xlsx", fixture(), move |ok| seen.set(Some(ok)));
         assert_eq!(opened.get(), Some(true));
+        assert!(!controller.has_dirty_work());
+        let draft_cell = controller.active_key().unwrap();
+        controller.notebook_drafts.update(|drafts| {
+            drafts.insert(draft_cell, "not entered".to_owned());
+        });
+        assert!(controller.has_dirty_work());
+        let downloaded = std::rc::Rc::new(std::cell::Cell::new(false));
+        let seen_download = downloaded.clone();
+        controller.save(move |_, _| seen_download.set(true));
+        assert!(
+            !downloaded.get(),
+            "a Notebook draft cannot be silently omitted from a download"
+        );
+        controller.notebook_drafts.update(|drafts| drafts.clear());
+        assert!(!controller.has_dirty_work());
         assert_eq!(controller.generation.get_untracked(), generation + 1);
         assert_eq!(controller.active.get_untracked(), (1, 1));
         assert!(controller.sheets().iter().any(|tab| tab.name == "Calc"));

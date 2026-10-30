@@ -251,6 +251,8 @@ impl Server {
         Summary {
             name: self.book.name().to_owned(),
             changed: self.book.changed(),
+            undo: self.book.session().history_depth().0,
+            redo: self.book.session().history_depth().1,
             sheets: self
                 .book
                 .sheets()
@@ -353,6 +355,7 @@ impl Server {
                     &shown,
                     cells::input_text(projected.input()),
                     cells::provenance_text(self.book.host(), projected),
+                    projected,
                 ));
             }
             self.events.push(Event::Cells(Cells {
@@ -417,6 +420,7 @@ impl Server {
                     &self.book.shown(projected),
                     cells::input_text(projected.input()),
                     cells::provenance_text(host, projected),
+                    projected,
                 )
             })
             .collect();

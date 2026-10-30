@@ -14,6 +14,49 @@ use calc_func::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
 /// The most cells an array window holds.
 pub const MAX_ARRAY_WINDOW_CELLS: usize = 4_096;
 
+/// A host-supplied value state. Calculation and numerical agreement are separate facts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ValueState {
+    Empty,
+    Literal,
+    Calculated,
+    FileCache,
+    Stale,
+    Pending,
+    Refused,
+    WorksheetError,
+}
+
+impl ValueState {
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Empty => "Empty",
+            Self::Literal => "Literal",
+            Self::Calculated => "Calculated",
+            Self::FileCache => "File cache",
+            Self::Stale => "Stale",
+            Self::Pending => "Pending",
+            Self::Refused => "Refused",
+            Self::WorksheetError => "Worksheet error",
+        }
+    }
+
+    pub const fn explanation(self) -> &'static str {
+        match self {
+            Self::Empty => "No value in this cell.",
+            Self::Literal => "A value entered directly into the worksheet.",
+            Self::Calculated => {
+                "Calculated by DNA Calc. Agreement with Excel has not been checked here."
+            }
+            Self::FileCache => "A value stored in the opened file. DNA Calc has not calculated it.",
+            Self::Stale => "This value is out of date. Calculate to update it.",
+            Self::Pending => "Workbook work is in progress. The displayed value may change.",
+            Self::Refused => "DNA Calc could not calculate this formula. Read the reason below.",
+            Self::WorksheetError => "The cell holds a worksheet error. Its source is shown below.",
+        }
+    }
+}
+
 /// The most rows an array window shows at first.
 const FIRST_WINDOW_ROWS: usize = 32;
 
@@ -304,9 +347,7 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn numbers_show_as_a_cell_shows_them_with_the_exact_decimal_beside() {
         let profile = FormatProfile::for_culture("en-US").expect("en-US");
-        let view = |value: f64| {
-            ResultView::of(Some(&CalcValue::number(value)), Some(&profile))
-        };
+        let view = |value: f64| ResultView::of(Some(&CalcValue::number(value)), Some(&profile));
         // Excel's General format at the standard column width: 11 characters.
         assert_eq!(
             view(0.1 + 0.2),

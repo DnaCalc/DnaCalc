@@ -408,11 +408,11 @@ fn ledger_view(controller: Controller) -> impl IntoView {
     view! {
         <section class="dc-ledger" data-skin="ledger" data-dnacalc="ledger">
             <div class="dc-cleave">
-                <select data-dnacalc="ledger-scope" on:change=move |ev| this_sheet.set(event_target_value(&ev) == "sheet")>
+                <select data-dnacalc="ledger-scope" aria-label="Formula scope" on:change=move |ev| this_sheet.set(event_target_value(&ev) == "sheet")>
                     <option value="workbook">"Workbook"</option>
                     <option value="sheet">"This sheet"</option>
                 </select>
-                <select data-dnacalc="ledger-filter" on:change=move |ev| filter_choice.set(event_target_value(&ev))>
+                <select data-dnacalc="ledger-filter" aria-label="Formula filter" on:change=move |ev| filter_choice.set(event_target_value(&ev))>
                     <option value="">"Every formula cell"</option>
                     <option value="errors">"Errors"</option>
                     <option value="calculated">"Calculated"</option>
@@ -422,9 +422,9 @@ fn ledger_view(controller: Controller) -> impl IntoView {
                     <option value="text">"Holding text"</option>
                     <option value="reads-active">"Reading the active cell"</option>
                 </select>
-                <input type="text" data-dnacalc="ledger-text" placeholder="text" spellcheck="false"
+                <input type="text" data-dnacalc="ledger-text" aria-label="Filter formula text" placeholder="text" spellcheck="false"
                     prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
-                <select data-dnacalc="ledger-sort" on:change=move |ev| sort_choice.set(event_target_value(&ev))>
+                <select data-dnacalc="ledger-sort" aria-label="Formula sort" on:change=move |ev| sort_choice.set(event_target_value(&ev))>
                     <option value="">"By address"</option>
                     <option value="address-desc">"By address, last first"</option>
                     <option value="value-asc">"By value, smallest first"</option>

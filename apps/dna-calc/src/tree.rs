@@ -377,6 +377,17 @@ fn tree_view(controller: Controller) -> impl IntoView {
         }
     });
 
+    Effect::new(move |_| {
+        let lines = rows.get();
+        let selected = focus.get();
+        if selected.is_none_or(|selected| !lines.iter().any(|line| line.focus() == selected)) {
+            let next = lines.first().map(TreeRow::focus);
+            if next != selected {
+                focus.set(next);
+            }
+        }
+    });
+
     let sheet_name = move |sheet: SheetId| -> String {
         outline.with_untracked(|outline| {
             outline
@@ -464,6 +475,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
         let key = row.focus();
         let depth = row.depth();
         let focused = move || focus.get() == Some(key);
+        let item_id = format!("dc-tree-{key:?}").replace([' ', '(', ')', ','], "-");
         let indent = format!("padding-left:{}px", 6 + 18 * u32::from(depth));
         let clicked = row.clone();
         let on_click = move |_| {
@@ -495,9 +507,9 @@ fn tree_view(controller: Controller) -> impl IntoView {
                     folded.update(|f| toggle_fold(f, branch));
                 };
                 view! {
-                    <li data-dnacalc="tree-row" data-kind=kind data-key=data_key data-folded=is_folded.to_string()
+                    <li role="treeitem" id=item_id attr:aria-level=(depth + 1).to_string() aria-selected=move || focused().to_string() data-dnacalc="tree-row" data-kind=kind data-key=data_key aria-expanded=(!is_folded).to_string() data-folded=is_folded.to_string()
                         data-focused=move || focused().to_string() use:css=indent on:click=on_click>
-                        <button type="button" class="dc-twisty" data-dnacalc="tree-toggle" on:click=toggle>
+                        <button type="button" class="dc-twisty" tabindex="-1" aria-label=if is_folded { "Expand branch" } else { "Collapse branch" } data-dnacalc="tree-toggle" on:click=toggle>
                             {if is_folded { "+" } else { "-" }}
                         </button>
                         <span class="dc-label">{label}</span>
@@ -507,7 +519,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
                 .into_any()
             }
             TreeRow::Name { text, .. } => view! {
-                <li data-dnacalc="tree-row" data-kind="name" data-focused=move || focused().to_string()
+                <li role="treeitem" id=item_id attr:aria-level=(depth + 1).to_string() aria-selected=move || focused().to_string() data-dnacalc="tree-row" data-kind="name" data-focused=move || focused().to_string()
                     use:css=indent on:click=on_click>
                     <span class="dc-input">{text}</span>
                 </li>
@@ -550,7 +562,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
                 });
                 let read_by = move || read_by.get();
                 view! {
-                    <li data-dnacalc="tree-row" data-kind="cell" data-sheet=sheet_name data-cell=data_cell
+                    <li role="treeitem" id=item_id attr:aria-level=(depth + 1).to_string() aria-selected=move || focused().to_string() data-dnacalc="tree-row" data-kind="cell" data-sheet=sheet_name data-cell=data_cell
                         data-provenance=provenance.name() data-focused=move || focused().to_string()
                         use:css=indent on:click=on_click>
                         <span class="dc-label">{address}</span>
@@ -563,15 +575,15 @@ fn tree_view(controller: Controller) -> impl IntoView {
                 .into_any()
             }
             TreeRow::MoreRows { hidden, .. } => view! {
-                <li data-dnacalc="tree-row" data-kind="more" data-focused=move || focused().to_string() use:css=indent>
-                    <button type="button" data-dnacalc="tree-more" on:click=on_click>
+                <li role="treeitem" id=item_id attr:aria-level=(depth + 1).to_string() aria-selected=move || focused().to_string() data-dnacalc="tree-row" data-kind="more" data-focused=move || focused().to_string() use:css=indent>
+                    <button type="button" data-dnacalc="tree-more" tabindex="-1" on:click=on_click>
                         {format!("Show more rows ({hidden} not shown)")}
                     </button>
                 </li>
             }
             .into_any(),
             TreeRow::MoreCells { hidden, .. } => view! {
-                <li data-dnacalc="tree-row" data-kind="more-cells" data-focused=move || focused().to_string() use:css=indent>
+                <li role="treeitem" id=item_id attr:aria-level=(depth + 1).to_string() aria-selected=move || focused().to_string() data-dnacalc="tree-row" data-kind="more-cells" data-focused=move || focused().to_string() use:css=indent>
                     <span class="dc-count">{format!("{hidden} more cells in this row (see the grid)")}</span>
                 </li>
             }
@@ -580,8 +592,8 @@ fn tree_view(controller: Controller) -> impl IntoView {
     };
 
     view! {
-        <section class="dc-tree" data-skin="tree" data-dnacalc="tree" tabindex="0" on:keydown=on_key>
-            <ul>{move || rows.get().into_iter().map(line).collect_view()}</ul>
+        <section class="dc-tree" data-skin="tree" data-dnacalc="tree" role="tree" aria-label="Workbook outline" aria-activedescendant=move || focus.get().filter(|key| rows.with(|rows| rows.iter().any(|row| row.focus() == *key))).map(|key| format!("dc-tree-{key:?}").replace([' ', '(', ')', ','], "-")) tabindex="0" on:keydown=on_key>
+            <ul role="none">{move || rows.get().into_iter().map(line).collect_view()}</ul>
         </section>
     }
 }

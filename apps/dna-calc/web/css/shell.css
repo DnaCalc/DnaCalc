@@ -39,3 +39,58 @@ html,body{height:100%}
 @media (pointer:coarse){
 .dc-mast button,.dc-mast select,.dc-mast label.dc-open,.dc-tabs button,.dc-gridbar button{min-height:36px;min-width:36px}
 }
+/* Shared workbook feedback and compact commands (dc-971p.3). */
+.dc-mast,.dc-bar,.dc-tabs,.dc-status{flex-shrink:0}
+.dc-mast{position:relative;gap:6px}
+.dc-doc{max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc-mast button,.dc-mast select,.dc-settings>summary{min-height:30px;box-sizing:border-box}
+.dc-mast button:disabled{opacity:.5;cursor:default}
+.dc-settings{margin-left:auto}
+.dc-settings>summary{cursor:pointer;padding:6px 8px;border:1px solid var(--dna-chrome-ink-2);border-radius:4px;white-space:nowrap}
+.dc-settings-body{position:absolute;right:8px;top:calc(100% - 1px);width:min(420px,calc(100vw - 32px));max-height:65dvh;overflow:auto;box-sizing:border-box;z-index:20;padding:16px;border:1px solid var(--dna-line);border-radius:0 0 8px 8px;background:var(--dna-paper);color:var(--dna-ink);box-shadow:0 6px 20px #0003}
+.dc-settings-body h2{font-size:14px;margin:12px 0 8px}
+.dc-settings-body h2:first-child{margin-top:0}
+.dc-settings-body p{overflow-wrap:anywhere;line-height:1.45}
+.dc-settings-body input{max-width:100px;color:var(--dna-ink);background:var(--dna-paper);border:1px solid var(--dna-ink-3);padding:6px}
+.dc-settings-body select{color:var(--dna-ink);background:var(--dna-paper)}
+.dc-settings-body .dc-iterate{display:block;margin:12px 0}
+.dc-mast .dc-skins{flex:1 0 100%;margin:0;overflow:auto;gap:4px;padding-bottom:2px}
+.dc-skins button{flex:1 0 auto}
+.dc-result{flex:0 0 auto;border-bottom:1px solid var(--dna-line);background:var(--dna-paper)}
+.dc-result>summary{display:flex;gap:10px;align-items:center;padding:5px 10px;cursor:pointer;min-height:24px;list-style:none;overflow:hidden}
+.dc-result>summary::before{content:'▸';color:var(--dna-ink-2)}
+.dc-result[open]>summary::before{content:'▾'}
+.dc-result-state{font-size:11px;font-weight:700;border:1px solid var(--dna-ink-3);border-radius:4px;padding:3px 6px;white-space:nowrap;color:var(--dna-ink);background:var(--dna-paper-2)}
+.dc-result-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dna-ink-2)}
+.dc-result-body{padding:0 12px 10px 30px;max-height:140px;overflow:auto;line-height:1.4}
+.dc-result-body p{margin:5px 0;overflow-wrap:anywhere}
+.dc-result-body button,.dc-replace button{font:inherit;padding:7px 10px;border:1px solid var(--dna-ink-3);border-radius:4px;color:var(--dna-ink);background:var(--dna-paper-2);cursor:pointer}
+.dc-status{min-height:22px;gap:6px 16px;flex-wrap:wrap;white-space:normal;max-height:72px;overflow:auto;line-height:1.5}
+.dc-status [data-dnacalc=feedback]{overflow-wrap:anywhere}
+.dc-tabs{min-height:28px}
+.dc-tabs button{white-space:nowrap;color:var(--dna-ink);flex-shrink:0}
+.dc-gridbar{flex-shrink:0;flex-wrap:wrap;gap:6px;padding:4px 10px}
+.dc-main{overflow:auto}
+.dc-mono{font-family:ui-monospace,Consolas,monospace}
+.dc-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.dc-replace{max-width:min(430px,calc(100vw - 48px));padding:24px;border:1px solid var(--dna-line);border-radius:10px;color:var(--dna-ink);background:var(--dna-paper);box-shadow:0 12px 60px #0005;line-height:1.5}
+.dc-replace::backdrop{background:#0006}
+.dc-replace h2{font-size:18px;margin:0}
+.dc-dialog-actions{display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap}
+.dc-app :focus-visible{outline:2px solid var(--dna-accent-ink);outline-offset:2px}
+@media(max-width:700px){
+ .dc-doc{max-width:calc(100vw - 140px)}
+ .dc-mast .dc-settings{margin-left:0}
+ .dc-mast .dc-skins{flex-wrap:nowrap}
+ .dc-result>summary{gap:6px;padding:5px 8px;font-size:12px}
+ .dc-result-body{max-height:120px;padding-left:16px}
+ .dc-status{font-size:11px}
+}
+.dc-notebook-drafts{flex:0 0 auto;padding:5px 10px;border-bottom:1px solid var(--dna-line);background:var(--dna-amber-soft);color:var(--dna-ink)}
+.dc-notebook-drafts>div{max-height:120px;overflow:auto}
+.dc-notebook-drafts summary{cursor:pointer}
+.dc-draft-item{padding:8px 0}
+.dc-draft-item pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0}
+.dc-setting-label{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:10px 0}
+.dc-status span{overflow-wrap:anywhere}
+.dc-mast>button:focus-visible,.dc-mast>select:focus-visible,.dc-skins button:focus-visible,.dc-settings>summary:focus-visible{outline-color:var(--dna-chrome-ink)}
