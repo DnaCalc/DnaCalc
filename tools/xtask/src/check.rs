@@ -2,7 +2,9 @@
 //!
 //! It first runs the five architecture checks `cargo xtask accept` runs (`arch::run_all`:
 //! dependencies, os-imports, wasm-refusal, tree-reference-tokens and word-scan), one line each
-//! with its findings, so a lane sees a layering, portability or wording finding before it pushes.
+//! with its findings, so a lane sees a layering, portability or wording finding before it pushes,
+//! and the provenance scan beside them (`licence.rs`: every calc-func and calc-value file has a
+//! licence-ledger entry, and no marker of a removed source reappears in code).
 //! Then it builds the workspace (`cargo build --workspace`), then runs `cargo test -p <package>` for
 //! every workspace member, one after the other, and prints one line per package: `passed` with
 //! the test count, `zero tests` when its harnesses ran no test, or `failed` with the tail of its
@@ -22,6 +24,7 @@
 use crate::arch;
 use crate::cargo::{self, Member, Workspace};
 use crate::ci;
+use crate::licence;
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
@@ -198,6 +201,19 @@ pub fn run(raw: &[String]) -> ExitCode {
             failed.push(format!("architecture {}", check.name));
         }
     }
+    let provenance = licence::check(&ws.root);
+    println!(
+        "CHECK {} {}: {}",
+        if provenance.passed { "passed" } else { "failed" },
+        provenance.name,
+        provenance.summary
+    );
+    for finding in &provenance.findings {
+        println!("  {finding}");
+    }
+    if !provenance.passed {
+        failed.push(provenance.name.to_owned());
+    }
 
     println!("CHECK running cargo build --workspace");
     let build_log = log_dir.join("build.log");
@@ -237,7 +253,7 @@ pub fn run(raw: &[String]) -> ExitCode {
 
     if failed.is_empty() && !wasm_failed {
         println!(
-            "CHECK RESULT passed: {architecture} architecture checks, build and {} packages{}",
+            "CHECK RESULT passed: {architecture} architecture checks, the provenance scan, build and {} packages{}",
             ws.members.len(),
             if wasm {
                 ", and wasm in Chrome and Firefox"

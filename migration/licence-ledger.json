@@ -1,0 +1,3258 @@
+{
+ "format": "dnacalc-licence-ledger/2",
+ "bead": "dc-96l.1 (ledger), dc-96l.6 (scan)",
+ "extends": "migration/numeric-provenance.json (format dnacalc-numeric-provenance/2): same field style (path, blob, disposition-like class, reason, evidence with kind/line/quote, owner bead)",
+ "status": {
+  "prepared": "Prepared 2026-10-30 by a read-only investigation agent from file headers, provenance comments, greps over every file, the commit messages of the commits that added the excel_numeric files (DnaCalc 0f411cb, db30f10, adf6780, 98046b0, b0e7b3b; OxFunc a4e94d1e, af79125b, 824c3654), the research record C:/Temp/ExcelExpFunction, the infra-m0.5 provenance record and the web pages of the licences named. No build or test was run.",
+  "repository": "DnaCalc",
+  "commit": "81d2b381135cb1ee1c6ef18b7b3f66e4f9ac48b1",
+  "scope": "every tracked file of crates/calc-func and crates/calc-value",
+  "reading": "Unlike infra-m0.5, this investigation read code bodies where needed to say what was copied (x87.rs, mod.rs chains, bessel, the binom chain, gratio/bratio headers). Its author is therefore not a clean-room author for any replacement under dc-96l.3.",
+  "updated": "2026-10-30 by the licence lane (dc-96l): status_2026_10_30 on each changed entry, nt_chains.rs added, blob and bytes renamed surveyed_blob and surveyed_bytes (the survey commit's, not kept current). cargo xtask check reads this file (tools/xtask/src/licence.rs)."
+ },
+ "classes": {
+  "own-work": "Written in this project (DnaCalc, or its own legacy repositories OxFunc, OxFml, OxCalc, DnaTreeCalc, DnaOneCalc, all MIT, DNA Kode). Includes rules and constants read from black-box Excel measurement, published mathematics (formulas, series, coefficients printed in papers and books) and the public x87/IEEE instruction set. Needs no notice.",
+  "permissive-third-party": "Code or data taken from a third party under a permissive licence; the entry names the licence and the notice a source or binary release carries.",
+  "copyleft": "Code or data whose licence would put copyleft terms on the file (GPL, LGPL); not compatible with presenting the file as MIT.",
+  "proprietary-or-unclear": "Code that follows a source whose terms forbid or restrict redistribution (Numerical Recipes) or whose terms for commercial redistribution are not settled (ACM Collected Algorithms, Applied Statistics algorithms).",
+  "microsoft-derived": "Content taken from Microsoft material: kind nt-source (the Windows NT/Server 2003 CRT source, 87tran.asm/87disp.asm/87cdisp.asm, a leaked copy), dll-disassembly (reading ucrtbase.dll machine code with dumpbin), documentation (support.microsoft.com pages: text, rules, examples).",
+  "vendor-text": "Prose copied from a vendor (here Microsoft's function descriptions).",
+  "studied-reference": "A port of a third-party implementation kept only to compare against; not reached by the product (test code or dead code)."
+ },
+ "class_precedence": [
+  "microsoft-derived",
+  "proprietary-or-unclear",
+  "copyleft",
+  "vendor-text",
+  "studied-reference",
+  "permissive-third-party",
+  "own-work"
+ ],
+ "licences": {
+  "aocl-libm": {
+   "name": "AMD AOCL-LibM",
+   "licence": "BSD-3-Clause",
+   "notice": "Copyright (C) 2008-2022 Advanced Micro Devices, Inc., the three conditions and the disclaimer, in source (kept in crt_libm.rs lines 23-39) and in the documentation of a binary release (deploy/notices/ported.txt)"
+  },
+  "amd-win-libm": {
+   "name": "AMD win-libm (github.com/amd/win-libm, archived 2019): the x64 Windows CRT math sources",
+   "licence": "MIT (file headers: Copyright (c) 2002-2019 Advanced Micro Devices, Inc.)",
+   "notice": "the copyright line and the MIT permission notice"
+  },
+  "arm-optimized-routines": {
+   "name": "Arm optimized-routines (math/pow.c, pow_log_data.c, exp_data.c)",
+   "licence": "MIT OR Apache-2.0 WITH LLVM-exception (MIT taken)",
+   "notice": "Copyright (c) 2018-2026 Arm Limited and the MIT permission notice"
+  },
+  "glibc-2.29": {
+   "name": "GNU C Library 2.29 sysdeps/ieee754/dbl-64 e_exp.c, e_log.c, e_exp_data.c, e_log_data.c, math_config.h (Szabolcs Nagy, contributed by Arm)",
+   "licence": "LGPL-2.1-or-later",
+   "notice": "LGPL terms (source of the library part, relinking); not compatible with an MIT presentation. The same author's code is published by Arm under MIT in optimized-routines (math/exp.c, log.c, exp_data.c, log_data.c), so re-sourcing from there after a table-for-table comparison removes the LGPL question"
+  },
+  "fdlibm": {
+   "name": "fdlibm e_lgamma_r.c (Sun Microsystems)",
+   "licence": "Sun fdlibm notice: 'Permission to use, copy, modify, and distribute this software is freely granted, provided that this notice is preserved'",
+   "notice": "the Sun notice"
+  },
+  "unicode": {
+   "name": "Unicode Character Database 15.0.0 CaseFolding.txt",
+   "licence": "Unicode License V3",
+   "notice": "the Unicode copyright and permission notice"
+  },
+  "excel-financial-functions": {
+   "name": "ExcelFinancialFunctions (F#, Luca Bolognese; fsprojects/ExcelFinancialFunctions: bonds.fs, oddbonds.fs, daycountbasis.fs)",
+   "licence": "Apache-2.0 (LICENSE.txt: 'Copyright 2010-2013', Apache License 2.0)",
+   "notice": "a copy of the Apache-2.0 licence, the copyright line, any NOTICE file of the project, and a statement that the files were changed (section 4)"
+  },
+  "numerical-recipes": {
+   "name": "Numerical Recipes in C (Press, Teukolsky, Vetterling, Flannery): bessj0, bessj1, bessy0, bessy1, bessi0, bessi1, bessk0, bessk1, bessj, bessy, bessi, bessk; gser, gcf",
+   "licence": "proprietary: the book's licence forbids redistribution of the routines in source or binary form without a licence from Numerical Recipes Software",
+   "notice": "none possible; the code has to be rewritten from the mathematics (Abramowitz and Stegun 9.4 and 9.8, Hart's Computer Approximations) with its own structure"
+  },
+  "r-nmath": {
+   "name": "R nmath stirlerr.c, bd0.c, dbinom.c, dpois.c (after Catherine Loader 2000)",
+   "licence": "GPL-2.0-or-later",
+   "notice": "GPL terms; not compatible with an MIT presentation"
+  },
+  "acm-toms-654-708": {
+   "name": "ACM TOMS Algorithm 654 (gratio, DiDonato and Morris 1987) and 708 (bratio, DiDonato and Morris 1992), via the NSWC library, DCDFLIB (Brown, Lovato, Russell) and scipy v0.14 cdflib",
+   "licence": "ACM Software Copyright and License Agreement for code published in ACM journals: free non-commercial use; 'Any User wishing to make a commercial use of the Software must contact ACM ... to arrange an appropriate license', commercial use including incorporation into a product licensed to third parties. DCDFLIB places its own work in the public domain but states that code from ACM publications stays subject to ACM's policy ('General permission to copy and distribute the algorithm without fee is granted provided that the copies are not made or distributed for direct commercial advantage'). The NSWC library (Morris, US Navy) is commonly treated as a US Government work in the public domain, but that has not been established for the TOMS-published versions",
+   "notice": "if the public-domain route holds: a credit naming DiDonato and Morris, ACM TOMS 13(3) 1987 and 18(3) 1992; otherwise a licence from ACM or a fresh implementation from the papers' mathematics (Temme expansion, continued fractions, series) with our own structure"
+  },
+  "as-241": {
+   "name": "Applied Statistics Algorithm AS 241 (Wichura 1988, PPND16), Royal Statistical Society, via StatLib",
+   "licence": "the file on StatLib carries no licence statement; StatLib's long-standing notice (quoted in R-help 2000) says the Royal Statistical Society holds the copyright and permits distribution provided no fee is charged; R obtained permission to include AS code",
+   "notice": "the four rational tables C to F are published coefficients (mathematics, from the 1988 paper); the short evaluation routine is a standard rational evaluation. A credit to Wichura 1988 is enough if the routine is our own code evaluating the published coefficients; nothing more is needed unless the RSS asks"
+  },
+  "microsoft-nt-crt": {
+   "name": "Microsoft Windows NT / Server 2003 CRT fpw32/tran/i386/87tran.asm, 87disp.asm, 87cdisp.asm (Copyright (c) 1984-2001 Microsoft Corporation, All rights reserved), read from the leaked selfrender/Windows-Server-2003 repository",
+   "licence": "none; proprietary source obtained without a licence",
+   "notice": "none possible"
+  },
+  "microsoft-ucrt-disassembly": {
+   "name": "Microsoft ucrtbase.dll 10.0.26100.9711 machine code, read with dumpbin",
+   "licence": "the Windows licence; reverse engineering is allowed only as far as applicable law permits",
+   "notice": "none; what was taken has to be either sourced from the published AMD/Arm code the runtime was built from, or re-derived by black-box measurement"
+  },
+  "microsoft-docs": {
+   "name": "Microsoft support pages for Excel functions (support.microsoft.com)",
+   "licence": "Microsoft Terms of Use; no licence to republish the text",
+   "notice": "none; rewrite in our own words. Rules and examples read from the pages as facts need no notice"
+  }
+ },
+ "corrections_to_third_party_review": [
+  "Row 8 of docs/plan/THIRD_PARTY_REVIEW.md (glibc 2.29 exp/log 'No' shipped) is wrong: financial_time_value_family.rs calls excel_log1p in PMT (line 258) and exp_portable, excel_expm1 and excel_log1p in IPMT and PPMT (lines 794-796, 841), which the catalogue (catalogue/financial.rs lines 161, 179, 183) registers; tables.rs is reached through them. The glibc port and its tables are in the release wasm.",
+  "Row 1 (Bessel) also covers BESSELI and BESSELK's order-n recurrences (NR bessi, bessk), not only J and Y.",
+  "Not in the review: bond_core_family.rs and odd_bond_family.rs port ExcelFinancialFunctions (Apache-2.0), which needs its notice in deploy/notices/ported.txt."
+ ],
+ "scan": {
+  "what": "cargo xtask check, provenance-scan: (1) every git-tracked file under ledger_roots has an entry in files, and every entry names a tracked file; (2) no git-tracked file under scan_roots holds the markers of a family more often than allowed lists for it. A marker matches case-sensitively where the characters next to it are not ASCII letters or digits. Markers are stored as the hex of their ASCII bytes, so neither this file nor xtask carries them as text. To add a file: add an entry {path, class, reason} to files. A marker hit is fixed by removing the material, not by raising an allowance; each allowance names the bead that removes it.",
+  "ledger_roots": [
+   "crates/calc-func",
+   "crates/calc-value"
+  ],
+  "scan_roots": [
+   "crates",
+   "apps",
+   "platform",
+   "tools",
+   "deploy"
+  ],
+  "markers": [
+   {
+    "family": "microsoft-nt-crt",
+    "forms_hex": [
+     "38377472616e",
+     "383764697370",
+     "38376364697370",
+     "6646455850",
+     "66464c4e",
+     "66464c4f476d",
+     "664653494e",
+     "6646434f53",
+     "664654414e",
+     "78616d544f53",
+     "57696e646f77732d5365727665722d32303033",
+     "73656c6672656e646572"
+    ]
+   },
+   {
+    "family": "numerical-recipes",
+    "forms_hex": [
+     "4e756d65726963616c2052656369706573",
+     "626573736a30",
+     "626573736a31",
+     "626573737930",
+     "626573737931",
+     "626573736930",
+     "626573736931",
+     "626573736b30",
+     "626573736b31",
+     "4249474e4f",
+     "4249474e49",
+     "67736572",
+     "676366",
+     "6f6c645f6e725f67616d6d615f70",
+     "6f6c645f6e725f67616d6d615f71"
+    ]
+   },
+   {
+    "family": "r-nmath",
+    "forms_hex": [
+     "6462696e6f6d5f726177",
+     "64706f69735f726177",
+     "737469726c657272",
+     "626430",
+     "6e6d617468"
+    ]
+   },
+   {
+    "family": "glibc",
+    "forms_hex": [
+     "676c696263323239",
+     "676c6962632d322e3239",
+     "676c69626320322e3239",
+     "655f6578705f64617461",
+     "655f6c6f675f64617461"
+    ]
+   },
+   {
+    "family": "runtime-machine-code",
+    "forms_hex": [
+     "64756d7062696e",
+     "646973617373656d626c79",
+     "646973617373656d626c6564",
+     "646973617373656d626c65"
+    ]
+   }
+  ],
+  "allowed": {
+   "crates/calc-func/src/ported/bessel_convert_family.rs": {
+    "counts": {
+     "numerical-recipes": 42
+    },
+    "owner": "dc-96l.3",
+    "reason": "the Bessel kernels follow Numerical Recipes and are replaced clean-room"
+   },
+   "crates/calc-func/src/ported/discrete_dist_family.rs": {
+    "counts": {
+     "r-nmath": 34
+    },
+    "owner": "dc-96l.3",
+    "reason": "the BINOM.DIST and POISSON.DIST mass functions follow R nmath and are replaced clean-room"
+   }
+  }
+ },
+ "files": [
+  {
+   "path": "crates/calc-func/Cargo.toml",
+   "class": "own-work",
+   "reason": "project metadata",
+   "surveyed_blob": "aba3d5c29d0fc3e233b2fcac1d15b3f749a6625d",
+   "surveyed_bytes": 1550
+  },
+  {
+   "path": "crates/calc-func/acceptance.json",
+   "class": "own-work",
+   "reason": "project metadata",
+   "surveyed_blob": "c86445fcfee14154a34c5975086e9b77105300b3",
+   "surveyed_bytes": 11038
+  },
+  {
+   "path": "crates/calc-func/src/call.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The call interface: [`invoke`] runs a resolved catalogue entry on the arguments its caller"
+    }
+   ],
+   "surveyed_blob": "0981cb4d0687614bcd4f6895146711c362c9e083",
+   "surveyed_bytes": 23144
+  },
+  {
+   "path": "crates/calc-func/src/catalogue.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The function catalogue: one logical, declarative catalogue assembled from per-family"
+    }
+   ],
+   "surveyed_blob": "2ee27beb0d906f27913137b845f147256a35d55f",
+   "surveyed_bytes": 20942
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/aggregate.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The aggregate family fragment: the sums, products, counts, averages and extremes of their"
+    }
+   ],
+   "surveyed_blob": "f977938bf878082af9191c68132543e93e462e44",
+   "surveyed_bytes": 26393
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/arithmetic.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The arithmetic family fragment: the arithmetic operators and their kernels."
+    }
+   ],
+   "surveyed_blob": "d26c0f2960da4e78bca1b393d2438ba05bb267f7",
+   "surveyed_bytes": 8086
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/arrays.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The dynamic-array family fragment ported from OxFunc (functions/ at 6fca3518):"
+    }
+   ],
+   "surveyed_blob": "6095983453d2e9f71b679a1cefd42aa20cd12d24",
+   "surveyed_bytes": 24125
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/bonds.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The securities family fragment ported from OxFunc (functions/ at 6fca3518): bond_core_family.rs"
+    }
+   ],
+   "surveyed_blob": "948b75cd732aa87e9d94eeffb5ffadc30156c188",
+   "surveyed_bytes": 13536
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/comparison.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The comparison family fragment: the comparison operators and their kernels."
+    }
+   ],
+   "surveyed_blob": "34cc94de289421f3986b8fc7c98e6fb2f90570fe",
+   "surveyed_bytes": 16194
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/comparison/collation.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Excel's comparison of two texts, as the comparison operators give it under the Windows locale"
+    }
+   ],
+   "note": "collation rules measured from Excel under en-ZA",
+   "surveyed_blob": "51f6ed406b3c0ea896ff5b4464f2d4cd722e6ef5",
+   "surveyed_bytes": 21696
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/conditional.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The conditional aggregate family fragment: COUNTIF, COUNTIFS, SUMIF, SUMIFS, AVERAGEIF,"
+    }
+   ],
+   "note": "rule cited from Microsoft's database function pages as a fact",
+   "surveyed_blob": "7cdf0454df233ee8adf5e4845b35ae7496d96690",
+   "surveyed_bytes": 45967
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/database.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The database functions family fragment ported from OxFunc (functions/database_family.rs at"
+    }
+   ],
+   "surveyed_blob": "9374d6518566b787ce74217a19fcd4a52d9e3ba5",
+   "surveyed_bytes": 11496
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/dates.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The date and time family fragment ported from OxFunc (functions/ at 6fca3518): date_fn.rs,"
+    }
+   ],
+   "surveyed_blob": "740c2ad125fd2aace86adda8e6b701a74543821b",
+   "surveyed_bytes": 14015
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/distributions.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The probability distribution family fragment ported from OxFunc (functions/ at 6fca3518):"
+    }
+   ],
+   "surveyed_blob": "22e065e41072cd9e0ed5e1257a0f963bd52f4481",
+   "surveyed_bytes": 19635
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/engineering.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The engineering family fragment ported from OxFunc (functions/ at 6fca3518): the radix"
+    }
+   ],
+   "surveyed_blob": "9107c99c3fff5be8e31aef9826b77330f4cd1676",
+   "surveyed_bytes": 12769
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/error_fallback.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The error-fallback family fragment: IFERROR and IFNA and their lazy kernels."
+    }
+   ],
+   "note": "rules cited from Microsoft's IFERROR page as facts",
+   "surveyed_blob": "7fae76e9612cb0d454bfac3c7eaa09101f234f3a",
+   "surveyed_bytes": 12370
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/financial.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The financial family fragment ported from OxFunc (functions/ at 6fca3518):"
+    }
+   ],
+   "surveyed_blob": "9f12470ee68edafa4798fd4df10d340cf41aaee2",
+   "surveyed_bytes": 14651
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/host_facts.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The information and reference functions that read host facts or build references, ported"
+    }
+   ],
+   "surveyed_blob": "381ae788d099124811216a110edd2fdb2e4ca010",
+   "surveyed_bytes": 12047
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/information.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The information family fragment: the IS functions, TYPE, N, NA and ERROR.TYPE, and their"
+    }
+   ],
+   "note": "rules cited from Microsoft's IS/ERROR.TYPE pages as facts",
+   "surveyed_blob": "c01fdd3e1ea6865a3624370c73a2ff3e211ecfcc",
+   "surveyed_bytes": 21410
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/kit.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "What the family fragments ported from OxFunc share: the declaration macro"
+    }
+   ],
+   "surveyed_blob": "039fe3be42e40ad46321d33d95fc4889c6dc5116",
+   "surveyed_bytes": 13549
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/lambda_helpers.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The LAMBDA helper family fragment ported from OxFunc (functions/callable_helpers.rs at"
+    }
+   ],
+   "surveyed_blob": "9b01e3a3d29f56219682cd153c3e9e89668f3f11",
+   "surveyed_bytes": 10445
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/logical.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The logical family fragment: IF and its lazy kernel; AND, OR and XOR over the logicals of their"
+    }
+   ],
+   "surveyed_blob": "a85a4688aeba1d456953b60705224da1bf436e49",
+   "surveyed_bytes": 11784
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/logical_more.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The logical functions F2 adds beside the logical family, ported from OxFunc (functions/ at"
+    }
+   ],
+   "surveyed_blob": "1e00f5e3f8b4c74781422c17969fabc879c24bb2",
+   "surveyed_bytes": 2408
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/lookup.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The lookup and reference family fragment: INDEX, MATCH, XMATCH, XLOOKUP, VLOOKUP, HLOOKUP,"
+    }
+   ],
+   "surveyed_blob": "57edef8984802cddd60950da60950d47c02e1eef",
+   "surveyed_bytes": 70753
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/math.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The math and trigonometry family fragment ported from OxFunc (functions/ at 6fca3518): the"
+    }
+   ],
+   "surveyed_blob": "21890fe17d368857a594c540d6c0c3f57475cb90",
+   "surveyed_bytes": 14950
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/offset.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The reference-offset family fragment: OFFSET, and ISOMITTED, which LAMBDA parameters need."
+    }
+   ],
+   "surveyed_blob": "60b6060c2383f3e9f9b8e5d67810a83f4686adb4",
+   "surveyed_bytes": 8978
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/random.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The random-number family fragment, after OxFunc (functions/rand_fn.rs, randbetween_fn.rs and"
+    }
+   ],
+   "surveyed_blob": "923b62a24bc6c188e9268a33a9982a9c010e38c2",
+   "surveyed_bytes": 3271
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/reference_text.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The reference-text family fragment: INDIRECT and its kernel."
+    }
+   ],
+   "surveyed_blob": "66fa6370f409b573507ed5db426598aac115b05d",
+   "surveyed_bytes": 8884
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/rounding.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The rounding and integer family fragment: ABS, SIGN, INT, TRUNC, ROUND, ROUNDUP, ROUNDDOWN,"
+    }
+   ],
+   "surveyed_blob": "003615f70701b91b8b91a5c7c0d5ec00255659d5",
+   "surveyed_bytes": 19287
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/rounding_more.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The rounding functions F1 adds beside the rounding family, ported from OxFunc"
+    }
+   ],
+   "surveyed_blob": "e2e383c7a2eff076b35c4bae7ce4271c2af5b163",
+   "surveyed_bytes": 1866
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/statistics.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The descriptive statistics family fragment ported from OxFunc (functions/ at 6fca3518):"
+    }
+   ],
+   "surveyed_blob": "d72c1d77499d6aee0c5a21e2df4271aa80003609",
+   "surveyed_bytes": 22970
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/subtotal.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "SUBTOTAL and AGGREGATE, after OxFunc's functions/subtotal_aggregate_family.rs (6fca3518)."
+    }
+   ],
+   "surveyed_blob": "0e3905725d87514996bc234b8beb8e636498724c",
+   "surveyed_bytes": 10912
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/text.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The text family fragment: the concatenation operator and its kernel."
+    }
+   ],
+   "surveyed_blob": "915a5ffa63beb19dfaaddf0d9b3b069b64515a13",
+   "surveyed_bytes": 2380
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/text_format.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The text functions that read or write number formats, dates and other text forms, ported from"
+    }
+   ],
+   "surveyed_blob": "ee26b5be4b448d42ac8798ab4514b7aa6a1acff8",
+   "surveyed_bytes": 25936
+  },
+  {
+   "path": "crates/calc-func/src/catalogue/text_functions.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The text functions family fragment ported from OxFunc (functions/ at 6fca3518:"
+    }
+   ],
+   "surveyed_blob": "e869c240294ef7d67f7703e3a352cfb64ea467f1",
+   "surveyed_bytes": 13371
+  },
+  {
+   "path": "crates/calc-func/src/coerce.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Worksheet coercion: how an operand or a direct function argument is read as a number, a"
+    }
+   ],
+   "surveyed_blob": "f1c4fbd4771254f1b5e4549a3ccfbb30d787abe2",
+   "surveyed_bytes": 15278
+  },
+  {
+   "path": "crates/calc-func/src/decimal.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Exact decimal arithmetic for the rounding and integer functions: how such a function reads a"
+    }
+   ],
+   "surveyed_blob": "d80e6bbc7cbbd92e2dcaee70a6d3b8c9bf83ed7d",
+   "surveyed_bytes": 20322
+  },
+  {
+   "path": "crates/calc-func/src/file_prefix.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The prefix a workbook file writes before a named function's name."
+    }
+   ],
+   "note": "the _xlfn prefix table, checked against a package Excel saves",
+   "surveyed_blob": "70b5143fcd4b598ef9c20ca1ab84de0baa2fcbbe",
+   "surveyed_bytes": 20734
+  },
+  {
+   "path": "crates/calc-func/src/format/datetime.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Date and time number formats, ported from OxFml (crates/oxfml_core/src/format/datetime.rs at"
+    }
+   ],
+   "surveyed_blob": "9a6f994869f87455f58b52f285669f67e5ca609e",
+   "surveyed_bytes": 16186
+  },
+  {
+   "path": "crates/calc-func/src/format/mod.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The number-format engine that TEXT, FIXED and DOLLAR render with, ported from OxFml"
+    }
+   ],
+   "surveyed_blob": "0bab3e63f4f681051343f0f846dee0d3ef1c494c",
+   "surveyed_bytes": 53903
+  },
+  {
+   "path": "crates/calc-func/src/format/names.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Month and weekday names by locale, ported from OxFml (crates/oxfml_core/src/format/locale_tables.rs at 15daac5)."
+    }
+   ],
+   "note": "month and weekday names per locale, ported from OxFml locale tables (no source recorded in the file; locale names are facts)",
+   "surveyed_blob": "2dd8b23d9ab489cbaa1b85ed7b21c57d8d51c574",
+   "surveyed_bytes": 16832
+  },
+  {
+   "path": "crates/calc-func/src/help.rs",
+   "class": "vendor-text",
+   "parts": [
+    {
+     "class": "vendor-text",
+     "source": "microsoft-docs",
+     "symbols": [
+      "DESCRIPTIONS"
+     ],
+     "what": "about 500 one-line function descriptions, ported from OxFunc's registry help seed, whose text matches Microsoft's support pages (OxFunc's catalogue function_url column points there)",
+     "shipped": "yes (text)"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 4,
+     "quote": "The descriptions are ported from OxFunc's registry help seed"
+    },
+    {
+     "kind": "doc",
+     "path": "docs/plan/THIRD_PARTY_REVIEW.md",
+     "line": 59,
+     "quote": "whose text matches **Microsoft's support pages**"
+    }
+   ],
+   "cleanup": {
+    "action": "replace",
+    "bead": "dc-96l.5",
+    "how": "rewrite every description in our own words (or drop the table from the published build until then)"
+   },
+   "surveyed_blob": "99c6f418314c8784f8e86785127c443505b053e1",
+   "surveyed_bytes": 52426,
+   "status_2026_10_30": "Marked as Microsoft's text in the header with the source list URLs and the licence position; per-function sources in migration/help-text-sources.tsv (503 from 'Excel functions (by category)', 13 from '(alphabetical)', 1 our own). Not rewritten yet (dc-96l.5)."
+  },
+  {
+   "path": "crates/calc-func/src/kernel.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "What the kernels share: how a kernel stops (with a worksheet error, which is a computed result,"
+    }
+   ],
+   "surveyed_blob": "e98be6f0ac77dc7ab479cb78589f5ffbe56ec9bd",
+   "surveyed_bytes": 9899
+  },
+  {
+   "path": "crates/calc-func/src/lib.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The package for CalcFunc: the worksheet function catalogue and semantic kernels."
+    }
+   ],
+   "surveyed_blob": "421b0570d2b8ed49231247d60236c17fd4ff0741",
+   "surveyed_bytes": 3103
+  },
+  {
+   "path": "crates/calc-func/src/locale.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Locale profiles and the date serial systems, ported from OxFunc"
+    }
+   ],
+   "surveyed_blob": "c67352a1a4d080627ca841a237b3ee31a6b1d9db",
+   "surveyed_bytes": 41437
+  },
+  {
+   "path": "crates/calc-func/src/number_text.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "A number's text when the & operator reads the number as text, as Excel gives it with `.` as"
+    }
+   ],
+   "surveyed_blob": "a36d2390d79190fff1e13a9d26cf7f89c6d9f6c1",
+   "surveyed_bytes": 8598
+  },
+  {
+   "path": "crates/calc-func/src/number_words.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The words Excel's number, date and time recognition reads inside number text, as measured, and"
+    }
+   ],
+   "surveyed_blob": "3d41648e932514452e1224cbea04e8e472e3840e",
+   "surveyed_bytes": 6597
+  },
+  {
+   "path": "crates/calc-func/src/ported/a1_refs.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "A1 reference text, as ADDRESS reads a sheet name that could be a reference; ported from OxFunc"
+    }
+   ],
+   "surveyed_blob": "457292e8c54263d5c1280c86ba247de2fe25a9a1",
+   "surveyed_bytes": 9701
+  },
+  {
+   "path": "crates/calc-func/src/ported/acos.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "09c6c981140616db66384d6137804dc79ad97d51",
+   "surveyed_bytes": 1475
+  },
+  {
+   "path": "crates/calc-func/src/ported/acosh.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "628d3695639d75226132bec5cbf6b478a0a79e7a",
+   "surveyed_bytes": 2312
+  },
+  {
+   "path": "crates/calc-func/src/ported/acot.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "8f25bdad554ec6d0760d8aad20f9bdf972831f18",
+   "surveyed_bytes": 1697
+  },
+  {
+   "path": "crates/calc-func/src/ported/acoth.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "First binary64 `|x|` routed to Excel's direct inverse odd-power series."
+    }
+   ],
+   "surveyed_blob": "05d0f3629f9da48fe92dcfa170c5e9a3fdcaa4ef",
+   "surveyed_bytes": 6806
+  },
+  {
+   "path": "crates/calc-func/src/ported/address.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "ADDRESS, ported from OxFunc (crates/oxfunc_core/src/functions/reference_metadata_family.rs at"
+    }
+   ],
+   "surveyed_blob": "fbabd1b3edb02724f1d7fd5fd397aa667eac917a",
+   "surveyed_bytes": 8101
+  },
+  {
+   "path": "crates/calc-func/src/ported/address_name_classes.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "ADDRESS name grammar character classes, Excel build20430/CV2."
+    }
+   ],
+   "note": "character classes measured from Excel (W111)",
+   "surveyed_blob": "c9036f282240bc226efbac66593bc6ba647b3d9c",
+   "surveyed_bytes": 19986
+  },
+  {
+   "path": "crates/calc-func/src/ported/amor_depreciation_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "38874fb9bcf0428d0fbc101caf28476b29e31d1f",
+   "surveyed_bytes": 17648
+  },
+  {
+   "path": "crates/calc-func/src/ported/arabic_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "349ed1da81055bf0cf5e76515b9f7756701e0d6f",
+   "surveyed_bytes": 1561
+  },
+  {
+   "path": "crates/calc-func/src/ported/asin.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 6,
+     "quote": "ASIN; #NUM! outside -1..1."
+    }
+   ],
+   "surveyed_blob": "bf994632f726a508dbfdad82cb448e6344bbfd23",
+   "surveyed_bytes": 1254
+  },
+  {
+   "path": "crates/calc-func/src/ported/asinh.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "c89ae9a805df3f43f85a22092bffcea593dc70cb",
+   "surveyed_bytes": 5138
+  },
+  {
+   "path": "crates/calc-func/src/ported/atan.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "30e07bab4eee1e81a2a3fa3f7e23afef8ccdecbd",
+   "surveyed_bytes": 1133
+  },
+  {
+   "path": "crates/calc-func/src/ported/atan2.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "342dc31759a72a4a18a8182b5ab1cab6b897ba4f",
+   "surveyed_bytes": 2696
+  },
+  {
+   "path": "crates/calc-func/src/ported/atanh.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "Exact W109 switch from the binary64 cubic body to the x87-spilled ratio"
+    }
+   ],
+   "surveyed_blob": "e29fddf558fdb8286ea1c0920fcd82c4c29d292d",
+   "surveyed_bytes": 8872
+  },
+  {
+   "path": "crates/calc-func/src/ported/base_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "0b7a6b9afc5e84bfe198d0715a5128083aef26a8",
+   "surveyed_bytes": 2327
+  },
+  {
+   "path": "crates/calc-func/src/ported/bessel_convert_family.rs",
+   "class": "proprietary-or-unclear",
+   "parts": [
+    {
+     "class": "proprietary-or-unclear",
+     "source": "numerical-recipes",
+     "symbols": [
+      "ACC",
+      "BIGNO",
+      "BIGNI",
+      "NR_2_OVER_PI",
+      "bessi0",
+      "bessi1",
+      "bessj0",
+      "bessj1",
+      "bessy0",
+      "bessy1",
+      "bessk0",
+      "bessk1",
+      "besseli_kernel",
+      "besselj_kernel",
+      "besselk_kernel",
+      "bessely_kernel"
+     ],
+     "what": "the eight order-0/1 routines carry NR's names, NR's split points (|x| < 8 rational fit, else the asymptotic P/Q form; 3.75 and 2 for I and K), NR's coefficient tables (with Excel's typos, kept on purpose) and NR's 9-digit 2/pi; the order-n kernels are NR's bessi/bessj (Miller's downward recurrence from m = 2*((n + sqrt(ACC*n))/2), renormalising by BIGNO/BIGNI, the jsum alternation) and bessk/bessy (upward recurrence). The structure is a line-by-line translation of NR in C; Excel's own BESSEL functions follow NR, which is why matching Excel led here",
+     "shipped": "yes (BESSELI, BESSELJ, BESSELK, BESSELY)"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "code",
+     "line": 8,
+     "quote": "const ACC: f64 = 40.0;"
+    },
+    {
+     "kind": "comment",
+     "line": 11,
+     "quote": "Excel's Bessel functions use the Numerical Recipes algorithm"
+    }
+   ],
+   "cleanup": {
+    "action": "replace",
+    "bead": "dc-96l.3",
+    "how": "the I0/I1/K0/K1 polynomials are Abramowitz and Stegun 9.8.1-9.8.8 and the J/Y rational fits come from Hart; a clean-room agent writes the routines from A&S/Hart and the recurrences from the mathematics (Miller's algorithm is published, 1952), with its own structure and constants, and re-measures against the Excel captures (Excel's NR typos have to be re-found by measurement or accepted as regressions under dc-j9k)"
+   },
+   "surveyed_blob": "4020bf4674bb4e44d8ff325e79c8b672920aa2d0",
+   "surveyed_bytes": 24091
+  },
+  {
+   "path": "crates/calc-func/src/ported/beta_gamma_stats_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls gratio/bratio and lgamma",
+   "surveyed_blob": "1bf4af8ebeefb1031b0cceb09fa0eeb5c4271fb4",
+   "surveyed_bytes": 8022
+  },
+  {
+   "path": "crates/calc-func/src/ported/bit_common.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 22,
+     "quote": "Common BITLSHIFT/BITRSHIFT graph observed in Excel 16.0 build 20430, CV2."
+    }
+   ],
+   "surveyed_blob": "1c968a5bd4565b6bdabed302ff19844cbd8fe55f",
+   "surveyed_bytes": 4115
+  },
+  {
+   "path": "crates/calc-func/src/ported/bitand_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "a991766a24d830155a492fd1780262080b6648ca",
+   "surveyed_bytes": 247
+  },
+  {
+   "path": "crates/calc-func/src/ported/bitlshift_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "38a8fbd7320fe470ec31a1ef3817f6331c013a4e",
+   "surveyed_bytes": 226
+  },
+  {
+   "path": "crates/calc-func/src/ported/bitor_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "a7732bbd5865abb2e81cd1a52379c47bca57bdc9",
+   "surveyed_bytes": 246
+  },
+  {
+   "path": "crates/calc-func/src/ported/bitrshift_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "6da9c6890f02e1d51ee69b6254663c715e67472d",
+   "surveyed_bytes": 227
+  },
+  {
+   "path": "crates/calc-func/src/ported/bitxor_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "22210825f37dd2bcb3751be6bba87cdfecf07661",
+   "surveyed_bytes": 247
+  },
+  {
+   "path": "crates/calc-func/src/ported/bond_core_family.rs",
+   "class": "permissive-third-party",
+   "parts": [
+    {
+     "class": "permissive-third-party",
+     "source": "excel-financial-functions",
+     "symbols": [
+      "yield_disc (yieldDisc, bonds.fs)",
+      "accrint (accrInt)",
+      "change_month",
+      "date_diff_360_us",
+      "find_pcd_ncd",
+      "days_between",
+      "actual_coup_days",
+      "coup_days"
+     ],
+     "what": "'faithful port' of ExcelFinancialFunctions F# routines",
+     "shipped": "yes (PRICE, YIELD, ACCRINT, DURATION, COUP*, ...)"
+    },
+    {
+     "class": "own-work",
+     "kind": "black-box",
+     "symbols": [
+      "excel_bond_pow"
+     ],
+     "what": "the integer-exponent 'C-runtime pow' binary exponentiation, identified from Excel captures; the old record tainted it by its comment citing the C runtime"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 514,
+     "quote": "Faithful port of ExcelFinancialFunctions `yieldDisc` (bonds.fs)"
+    },
+    {
+     "kind": "comment",
+     "line": 687,
+     "quote": "F# `findPcdNcd`"
+    }
+   ],
+   "cleanup": {
+    "action": "notice",
+    "bead": "dc-96l.1",
+    "how": "add the Apache-2.0 notice for ExcelFinancialFunctions to deploy/notices/ported.txt and a header line naming the ported routines and that they were changed"
+   },
+   "surveyed_blob": "088faf8cf69569a211530335b01afe1f3a195825",
+   "surveyed_bytes": 67247,
+   "status_2026_10_30": "File header names the translated ExcelFinancialFunctions routines and that they were changed; the Apache-2.0 licence text is in deploy/notices/ported.txt."
+  },
+  {
+   "path": "crates/calc-func/src/ported/cashflow_rate_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "compares with the F# ExcelFinancialFunctions reference in a test comment only (line 818)",
+   "surveyed_blob": "8fcc521ace5737b3de681d2e028d298391eec5e4",
+   "surveyed_bytes": 45907
+  },
+  {
+   "path": "crates/calc-func/src/ported/ceiling_floor_family.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 4,
+     "quote": "The quotient number/significance as the CEILING and FLOOR family counts multiples from it:"
+    }
+   ],
+   "surveyed_blob": "09896926d7074da8c478b03759b6bb99c0b78702",
+   "surveyed_bytes": 5149
+  },
+  {
+   "path": "crates/calc-func/src/ported/chi_f_t_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls gratio/bratio (special_math_common.rs)",
+   "surveyed_blob": "2fb6442c74793379f288fa47ec916fc6201c6fb9",
+   "surveyed_bytes": 26496
+  },
+  {
+   "path": "crates/calc-func/src/ported/combin.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 4,
+     "quote": "Largest first argument admitted by the current reference COMBIN lane."
+    }
+   ],
+   "surveyed_blob": "4b4701a1f0d8c2e3a54e1c7060c1a072d42eb1b5",
+   "surveyed_bytes": 7422
+  },
+  {
+   "path": "crates/calc-func/src/ported/combina.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "aadc43cb2217e7d0da948241706922b8160a30b7",
+   "surveyed_bytes": 6579
+  },
+  {
+   "path": "crates/calc-func/src/ported/combinatorics_common.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "df824b68a4175444c11735478c5212f1241fe5ca",
+   "surveyed_bytes": 803
+  },
+  {
+   "path": "crates/calc-func/src/ported/complex_decimal.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Arithmetic model for complex coefficient decimal rounding, derived from public-interface"
+    }
+   ],
+   "surveyed_blob": "df132aad13894b182c0920eac244c691a0d7e4d2",
+   "surveyed_bytes": 3576
+  },
+  {
+   "path": "crates/calc-func/src/ported/complex_decimal_powers.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "18f405183b9a86bacd37078f83f4ff6dd4fa1fb7",
+   "surveyed_bytes": 14402
+  },
+  {
+   "path": "crates/calc-func/src/ported/complex_family.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The complex-number engineering functions' arithmetic, parsing and text rendering, ported from"
+    }
+   ],
+   "note": "calls crt_libm (AOCL/ucrtbase port)",
+   "surveyed_blob": "3ba14946a6c9bcd1e2e3329e87911f3da201568f",
+   "surveyed_bytes": 17359
+  },
+  {
+   "path": "crates/calc-func/src/ported/confidence_test_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "75d823d6b949eb599066394c3779c288721bf16f",
+   "surveyed_bytes": 3891
+  },
+  {
+   "path": "crates/calc-func/src/ported/cos.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "W109 G4-01: the fFCOS π/2-quadrant chain with the |x| < 2^-26 -> 1.0"
+    }
+   ],
+   "note": "calls the fFCOS-labelled chain",
+   "surveyed_blob": "80cfca246dfd1fa3f81cc0a77557bd91531231ec",
+   "surveyed_bytes": 580,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/cosh.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 18,
+     "quote": "The witness is the Windows runtime's cosh, ported (dc-twc), so the test runs on every target."
+    }
+   ],
+   "note": "glibc and the MSVC runtime named in test comments only",
+   "surveyed_blob": "1611e1263bdc889b615d66b697deac317f5f4fc9",
+   "surveyed_bytes": 3038
+  },
+  {
+   "path": "crates/calc-func/src/ported/cot.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls the trig chains",
+   "surveyed_blob": "efb07510aa732b2b51125af0a46b27ecb9328a83",
+   "surveyed_bytes": 1793,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/coth.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "084f7b047e8c86a24c7d50a7930808a807bab709",
+   "surveyed_bytes": 1513
+  },
+  {
+   "path": "crates/calc-func/src/ported/coupon_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "af6a924fa9cccacb63f9028bfb85797cd5defb37",
+   "surveyed_bytes": 19182
+  },
+  {
+   "path": "crates/calc-func/src/ported/csc.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls the trig chains",
+   "surveyed_blob": "d8e8bc3fba1ae61e3c064adb1add9d3c8b5db816",
+   "surveyed_bytes": 1254,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/csch.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "43e9a8b84317c8e4e05afdb55320df774aae2030",
+   "surveyed_bytes": 1163
+  },
+  {
+   "path": "crates/calc-func/src/ported/cumulative_finance_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "802d89216c927d11948598eb26613cd474b0a317",
+   "surveyed_bytes": 13761
+  },
+  {
+   "path": "crates/calc-func/src/ported/date_kernels.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The date and time kernels ported from OxFunc (crates/oxfunc_core/src/functions/ at 6fca3518):"
+    }
+   ],
+   "surveyed_blob": "e57641af9d740b976c54470c319a7767922bbdeb",
+   "surveyed_bytes": 24812
+  },
+  {
+   "path": "crates/calc-func/src/ported/day_count_common.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 16,
+     "quote": "NASD US (30/360) day count between two Excel serial dates."
+    }
+   ],
+   "note": "YEARFRAC rule from David Wheeler's published analysis; no Gnumeric or LibreOffice code",
+   "surveyed_blob": "671d71803e1e509d193e2d4b8b7a8aae5c6875e4",
+   "surveyed_bytes": 7450
+  },
+  {
+   "path": "crates/calc-func/src/ported/decimal_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "534c533ff30ba5778b2c33648b294964998713a3",
+   "surveyed_bytes": 2123
+  },
+  {
+   "path": "crates/calc-func/src/ported/degrees.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "7b543e49fbce899216c817abe716461550bd6d39",
+   "surveyed_bytes": 1097
+  },
+  {
+   "path": "crates/calc-func/src/ported/delta_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "5b7c0f2b204b7fa02f24c62ed36351f513c8e454",
+   "surveyed_bytes": 166
+  },
+  {
+   "path": "crates/calc-func/src/ported/depreciation_family.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "ROUND(x, 3), by the catalogue's ROUND rule: the exact decimal reading of `x`, rounded half away"
+    }
+   ],
+   "surveyed_blob": "aa8574eb6d24a40ab751d9f3b3bcfc88626b40a4",
+   "surveyed_bytes": 21906
+  },
+  {
+   "path": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "ad6fce272c9c967f6f6c4020ed44567c2611b6bb",
+   "surveyed_bytes": 25452
+  },
+  {
+   "path": "crates/calc-func/src/ported/discrete_dist_family.rs",
+   "class": "copyleft",
+   "parts": [
+    {
+     "class": "copyleft",
+     "source": "r-nmath",
+     "symbols": [
+      "STIRLERR",
+      "STIRL_S0..S4",
+      "M_LN_2PI",
+      "binom_stirlerr",
+      "binom_bd0",
+      "binom_pmf (dbinom_raw body)",
+      "poisson_dist_kernel's k >= 2 branch (dpois_raw)"
+     ],
+     "what": "R's stirlerr (table for n <= 15, then the series with R's cut-offs 15/35/80/500 and the coefficients 1/12, 1/360, 1/1260, 1/1680, 1/1188), R's bd0 (the |x-np| < 0.1(x+np) test, the v-series loop, the direct form), the dbinom_raw composition lc = stirlerr/bd0 terms and lf, and dpois_raw. The table values were recomputed with mpmath (own data) and the grouping of the sums was chosen by Excel measurement, but the tiers, loop and composition follow R line for line",
+     "shipped": "yes (BINOM.DIST, BINOMDIST pmf; POISSON.DIST/POISSON pmf for k >= 2; NEGBINOM, HYPGEOM where they reach binom_pmf)"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 72,
+     "quote": "probability mass through R's `dbinom_raw`/`bd0`/`stirlerr` machinery"
+    },
+    {
+     "kind": "comment",
+     "line": 316,
+     "quote": "Public R `dpois_raw` (nmath/dpois.c)"
+    }
+   ],
+   "cleanup": {
+    "action": "replace",
+    "bead": "dc-96l.3",
+    "how": "reimplement from Loader (2000), 'Fast and accurate computation of binomial probabilities', which publishes the saddle-point method, the deviance series and the Stirling-error cut-offs; a clean-room agent that has not read R or this file writes it, then Excel measurement settles the operation order"
+   },
+   "surveyed_blob": "09ea97bcc24ad660e0d6ce15c6cd5657d1088681",
+   "surveyed_bytes": 28032,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/dollar_fraction_family.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 22,
+     "quote": "The fraction argument truncated to an integer, kept as a double: an `i32` saturates at"
+    }
+   ],
+   "surveyed_blob": "f15180c16e64d5b524d135861b4018b5b247b1c2",
+   "surveyed_bytes": 5236
+  },
+  {
+   "path": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The dynamic-array shaping kernels ported from OxFunc (functions/ at 6fca3518):"
+    }
+   ],
+   "surveyed_blob": "82785b0b01abe9cd6573d9a607eb28c293a4c94b",
+   "surveyed_bytes": 39516
+  },
+  {
+   "path": "crates/calc-func/src/ported/engineering_radix_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "203632feb0d51aa94c779472c105208eab9b1820",
+   "surveyed_bytes": 9909
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/crt_libm.rs",
+   "class": "permissive-third-party",
+   "parts": [
+    {
+     "class": "permissive-third-party",
+     "source": "aocl-libm",
+     "symbols": [
+      "crt_log",
+      "crt_log10",
+      "the log/log10/exp tables",
+      "crt_sinh",
+      "crt_cosh",
+      "splitexp",
+      "crt_atan2",
+      "atan tables",
+      "sinh/cosh tables"
+     ],
+     "what": "AOCL-LibM log_fma3.S, log10_fma3.S (algorithm and tables), exp_tables.h, src/ref/sinh.c, cosh.c, atan2.c and libm_inlines_amd.h splitexp, with the BSD-3-Clause notice in the header"
+    },
+    {
+     "class": "microsoft-derived",
+     "kind": "dll-disassembly",
+     "source": "microsoft-ucrt-disassembly",
+     "symbols": [
+      "crt_exp (reduction n = trunc(x*64/ln2), two-part ln2/64 reduction, Horner 1/720..1/2)",
+      "crt_sin/crt_cos (polynomials, three-part Cody-Waite reduction below 2e7, the Payne-Hanek routine with its 192-bit product)",
+      "crt_sinh/crt_cosh/crt_atan2 (where the fused multiply-adds go)",
+      "crt_hypot (the scaled sqrt(x*x+y*y) with 2^-600/2^600)"
+     ],
+     "what": "operation order, constants and branch thresholds read from the FMA3 bodies of ucrtbase.dll 10.0.26100.9711 with dumpbin, where they are not AOCL's published code; the 8/pi table was generated from mpmath and only compared with the DLL's",
+     "shipped": "yes (every f64 ln/exp/log10/sin/cos/sinh/cosh/atan2/hypot site in calc-func, dc-twc)"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 8,
+     "quote": "own reduction and polynomial, as its FMA3 body runs them"
+    },
+    {
+     "kind": "comment",
+     "line": 13,
+     "quote": "the binary expansion of 8/pi) from there, transcribed from those bodies"
+    },
+    {
+     "kind": "comment",
+     "line": 19,
+     "quote": "`hypot` is the runtime's own"
+    },
+    {
+     "kind": "commit",
+     "repository": "DnaCalc",
+     "commit": "0f411cb",
+     "quote": "Identified from the runtime itself (ucrtbase.dll 10.0.26100.9711, dumpbin)"
+    },
+    {
+     "kind": "commit",
+     "repository": "DnaCalc",
+     "commit": "db30f10",
+     "quote": "transcribed from the runtime's FMA3 bodies (ucrtbase.dll 10.0.26100.9711)"
+    }
+   ],
+   "cleanup": {
+    "action": "re-source",
+    "bead": "dc-96l.3",
+    "how": "keep the AOCL parts with the notice; re-source exp, sin, cos, the pi/2 reduction, hypot, sinh, cosh and atan2 from AMD's published amd/win-libm (MIT, Copyright 2002-2019 AMD: exp.asm, sin.asm, cos.asm, remainder_piby2_forFMA3.asm, L2_by_pi_bits.asm, hypot.c, sinh.c, cosh.c, atan2.c) after a comparison; exp.asm's FMA3 path was checked here and has the truncating conversion, the FMA two-part reduction and the 1/720..1/2 Horner order crt_exp describes. The FMA placement in sinh/cosh/atan2 is a compiler output in no source: establish it by black-box search against the runtime (the 1,000,000-per-region harness exists) and record it as measured"
+   },
+   "surveyed_blob": "711a425174e678cd5882e4aebbd6eb4986eff92f",
+   "surveyed_bytes": 86529,
+   "status_2026_10_30": "Re-sourced: exp, sin, cos, both pi/2 reductions, sinh, cosh, atan2 and hypot are AMD win-libm (MIT, 6121d02): every table checked equal, operation order compared with the published sources; log and log10 stay AOCL-LibM (BSD-3). The comments that described reading the runtime's machine code are removed. The runtime's configuration and the fused multiply-adds of sinh, cosh, atan2 and splitexp were established by black-box measurement (65 single-site alternatives against ucrtbase on 9,000,000 arguments, then 20,000,000 more per region for those not told apart: 25 refuted, 40 without observable effect, 0 conflicts; parked/licence/fma-probe). Notices: AOCL BSD-3 in the header and ported.txt; win-libm MIT in ported.txt."
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/crt_pow.rs",
+   "class": "permissive-third-party",
+   "parts": [
+    {
+     "class": "permissive-third-party",
+     "source": "arm-optimized-routines",
+     "symbols": [
+      "crt_pow",
+      "POW_LOG_TAB",
+      "EXP_TAB",
+      "the polynomials"
+     ],
+     "what": "Arm optimized-routines pow.c on its FMA path with the 256-entry exp configuration, tables equal Arm's entry for entry; notice in the header"
+    },
+    {
+     "class": "microsoft-derived",
+     "kind": "dll-disassembly",
+     "source": "microsoft-ucrt-disassembly",
+     "what": "only the identification: which Arm configuration the runtime runs (EXP_TABLE_BITS 8, wide polynomial, TOINT_NARROW) was read from ucrtbase.dll with dumpbin, and its tables were compared with Arm's. No code or data was taken from the DLL that Arm does not publish",
+     "shipped": "yes"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 8,
+     "quote": "read from `ucrtbase.dll` 10.0.26100"
+    },
+    {
+     "kind": "commit",
+     "repository": "DnaCalc",
+     "commit": "adf6780",
+     "quote": "Identified from the runtime itself (ucrtbase.dll 10.0.26100.9711, dumpbin)"
+    }
+   ],
+   "cleanup": {
+    "action": "keep",
+    "how": "keep with Arm's notice; reword the header so the configuration is stated as established by black-box comparison (an Arm build with 128 entries differs in up to 773 of 1,000,000; the 256-entry build in 0 of 8,000,000), which is already measured"
+   },
+   "surveyed_blob": "dff2fcfea10e3ec499b3a3e7805289a1f32f9a29",
+   "surveyed_bytes": 34103,
+   "status_2026_10_30": "Header reworded: the configuration is stated as measured; no code or data from the runtime DLL."
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/gammaln.rs",
+   "class": "permissive-third-party",
+   "parts": [
+    {
+     "class": "permissive-third-party",
+     "source": "fdlibm",
+     "symbols": [
+      "W1..W6 (Stirling tail)"
+     ],
+     "what": "six fdlibm e_lgamma_r.c constants and the tail's Horner form"
+    },
+    {
+     "class": "own-work",
+     "kind": "published",
+     "what": "Cody-Hillstrom 1967 Table II and SPECFUN dlgama P4/Q4 coefficients (published), band boundaries and staging identified from Excel captures"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 103,
+     "quote": "fdlibm e_lgamma_r w1..w6 verbatim"
+    }
+   ],
+   "note": "the Stirling band runs on the worksheet LN chain (mod.rs) and B2/B4 on the x87 operations; it inherits the replacement of those chains, its own content is not Microsoft-derived. SPECFUN (netlib, W. J. Cody) is distributed without restriction",
+   "cleanup": {
+    "action": "keep",
+    "how": "keep the Sun notice (deploy/notices/ported.txt has it)"
+   },
+   "surveyed_blob": "ca04ec2c5e7078327cdf0a3f0e7cf91fe8ae3330",
+   "surveyed_bytes": 12723
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/mod.rs",
+   "class": "permissive-third-party",
+   "parts": [
+    {
+     "class": "microsoft-derived",
+     "kind": "nt-source",
+     "source": "microsoft-nt-crt",
+     "symbols": [
+      "exp2_tail",
+      "exp_with",
+      "ln_with",
+      "log10_with",
+      "pow_direct_with",
+      "excel_exp",
+      "excel_log",
+      "excel_log10",
+      "excel_pow_positive",
+      "excel_pow_chain",
+      "excel_pow_x87_direct",
+      "excel_exp_rz",
+      "excel_binom_pmf_exp",
+      "excel_root_x87",
+      "CW"
+     ],
+     "what": "the fFEXP/fFLN/LOG10 chain structure re-expressed over the Fpu trait (dc-8dg, 98046b0): k = rint(t), f = t - k, F2XM1(|f|), 1 + w, reciprocal when f < 0, FSCALE, under CW 0x133F. The POWER staging, the BINOM extended argument, GEOMEAN's root and the chopped store were identified by black-box measurement on top of that chain",
+     "shipped": "yes (wasm and native)"
+    },
+    {
+     "class": "own-work",
+     "kind": "black-box",
+     "symbols": [
+      "sin_with/excel_sin",
+      "cos_with/excel_cos",
+      "tan_with/excel_tan",
+      "excel_x87_add/sub/mul/div/recip",
+      "excel_atan",
+      "excel_atan_reduced",
+      "excel_expm1_internal",
+      "excel_gammaln"
+     ],
+     "what": "trig chains identified by live-Excel search (OxFunc 824c3654, 1020/1020 per function) but documented under the CRT labels fFSIN/fFCOS/fFTAN; the labels are names, the graphs were measured. expm1 is a Kahan composition identified by measurement"
+    },
+    {
+     "class": "copyleft",
+     "source": "glibc-2.29",
+     "symbols": [
+      "exp_portable",
+      "log_portable",
+      "log_general_hi_lo",
+      "specialcase",
+      "excel_expm1",
+      "excel_log1p"
+     ],
+     "what": "a port of glibc 2.29 __exp/__log (no-FMA path, table bits 7) and expm1/log1p built on its kernels",
+     "shipped": "yes: PMT (financial_time_value_family.rs line 258, excel_log1p), IPMT and PPMT (lines 794-796, 841: exp_portable, excel_expm1, excel_log1p) and CUMIPMT/CUMPRINC through them. THIRD_PARTY_REVIEW.md row 8 says only tests reach these; that is wrong"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 7,
+     "quote": "Microsoft x87 CRT transcendental sequences (`87tran.asm`, control word `0x133F`, PC=64)"
+    },
+    {
+     "kind": "comment",
+     "line": 18,
+     "quote": "the glibc-2.29 (Szabolcs Nagy) `__exp` / `__log` routines"
+    },
+    {
+     "kind": "comment",
+     "line": 322,
+     "quote": "Faithful transcription of glibc `specialcase`"
+    },
+    {
+     "kind": "commit",
+     "repository": "DnaCalc",
+     "commit": "98046b0",
+     "quote": "each chain (fFEXP and its chopped store, fFLN, LOG10, the direct and published pow ...) is written once over an Fpu trait"
+    }
+   ],
+   "cleanup": {
+    "action": "replace",
+    "bead": "dc-96l.3",
+    "how": "chains: clean-room from Intel SDM + Excel captures (as x87.rs). glibc port: re-source exp/log/tables from Arm optimized-routines math/exp.c, log.c, exp_data.c, log_data.c (MIT) after a table-for-table and bit-for-bit comparison, or replace PMT/IPMT/PPMT's substrate by the crt_libm/x87 routes Excel uses"
+   },
+   "surveyed_blob": "7938459acbe536546625be2086ec479ee6319946",
+   "surveyed_bytes": 61072,
+   "status_2026_10_30": "The NT-derived chains moved to nt_chains.rs (DnaCalc 7ade800). exp_portable/log_portable/specialcase are re-sourced to Arm optimized-routines math/exp.c and log.c (MIT, the same author's code as the glibc copy; checked to be the same code on the path without FMA). excel_expm1/excel_log1p are our own on those kernels. The trig chains are named by function, not by the CRT labels. What remains: own work (black-box) and Arm (MIT, notice in deploy/notices/ported.txt)."
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/nt_chains.rs",
+   "class": "microsoft-derived",
+   "parts": [
+    {
+     "class": "microsoft-derived",
+     "kind": "nt-source",
+     "source": "microsoft-nt-crt",
+     "symbols": [
+      "exp2_tail",
+      "exp_with",
+      "ln_with",
+      "log10_with",
+      "pow_direct_with",
+      "root_with",
+      "binom_pmf_exp_with",
+      "hard::exp",
+      "hard::pow_direct",
+      "hard::ln",
+      "hard::log10",
+      "excel_exp",
+      "excel_exp_rz",
+      "excel_log",
+      "excel_log10",
+      "excel_pow_x87_direct",
+      "excel_root_x87",
+      "excel_binom_pmf_exp"
+     ],
+     "what": "the exponential and logarithm chains written after reading the NT CRT source, moved here from mod.rs and x87.rs behind a documented interface",
+     "shipped": "yes"
+    }
+   ],
+   "reason": "split out of mod.rs and x87.rs (DnaCalc 7ade800) so that a clean-room implementation replaces this file alone",
+   "cleanup": {
+    "action": "replace",
+    "bead": "dc-96l.3",
+    "how": "clean-room implementation of the interface in the module docs, judged by tests outside this file"
+   }
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/soft87.rs",
+   "class": "own-work",
+   "parts": [
+    {
+     "class": "own-work",
+     "kind": "isa",
+     "what": "a software x87 (80-bit format, exact IEEE operations, ROM constants, transcendental instructions as exact-then-rounded functions in a 128-bit software float), written for dc-8dg from the public instruction-set definitions; no legacy port"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "commit",
+     "repository": "DnaCalc",
+     "commit": "98046b0",
+     "quote": "New code, no legacy port."
+    },
+    {
+     "kind": "comment",
+     "line": 45,
+     "quote": "PC=64, round-to-nearest-even, all exceptions masked (`87disp.asm` / Excel's transcendental"
+    }
+   ],
+   "note": "its doc comment for CW_PC64 cites 87disp.asm as the source of the control word 0x133F; the value is also measurable from Excel. Drop the citation when the chains are replaced",
+   "cleanup": {
+    "action": "keep",
+    "how": "edit the 87disp.asm citation out"
+   },
+   "surveyed_blob": "10e197be7b6620817d7794aee7087e83e741e645",
+   "surveyed_bytes": 45846,
+   "status_2026_10_30": "The control-word citation of the NT file is removed."
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/tables.rs",
+   "class": "permissive-third-party",
+   "parts": [
+    {
+     "class": "copyleft",
+     "source": "glibc-2.29",
+     "what": "__exp_data and __log_data tables, generated from glibc229_probe.c (OxFunc-Evidence runs/w108a-reference-hunt/) by OxFunc's gen_tables.py",
+     "shipped": "yes, through exp_portable/log_portable/excel_expm1/excel_log1p (PMT, IPMT, PPMT)"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "AUTO-GENERATED from glibc229_probe.c"
+    }
+   ],
+   "cleanup": {
+    "action": "replace",
+    "bead": "dc-96l.3",
+    "how": "regenerate from Arm optimized-routines math/exp_data.c and log_data.c (MIT) and check bit equality; or remove with the glibc port"
+   },
+   "surveyed_blob": "bcf08e5a260b5d470650937f7133468613e79829",
+   "surveyed_bytes": 35035,
+   "status_2026_10_30": "Re-sourced to Arm optimized-routines math/exp_data.c and log_data.c at 2ee4b0d4 (MIT): every value checked equal (EXP_TAB 256, LOG_TAB 256, LOG_TAB2 256, the polynomials and constants). Notice in deploy/notices/ported.txt."
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/x87.rs",
+   "class": "own-work",
+   "parts": [
+    {
+     "class": "microsoft-derived",
+     "kind": "nt-source",
+     "source": "microsoft-nt-crt",
+     "symbols": [
+      "exp",
+      "fyl2x_fn",
+      "ln",
+      "log10",
+      "pow_direct",
+      "CW_CORE"
+     ],
+     "what": "the instruction sequences of the 87tran.asm fFEXP and fFLN/fFLOGm chains (control-word set, fldl2e/fmul, frndint, fsub, ftst, fabs, f2xm1, fld1/fadd, the invert-if-negative fdivr, fscale, fstp) as inline assembly, and the 87disp.asm control word 0x133F; the invert branch and the control word are the two facts REPORT.md says came from the NT source",
+     "shipped": "native x86_64 builds only (the wasm build runs the same chains from mod.rs on soft87)"
+    },
+    {
+     "class": "own-work",
+     "kind": "black-box",
+     "symbols": [
+      "mul",
+      "add",
+      "sub",
+      "div",
+      "recip",
+      "atan",
+      "atan_reduced"
+     ],
+     "what": "single x87 operations at PC=64 followed by a binary64 store, and FPATAN graphs, identified from live Excel captures (W108 POWER, W109 XNPV/NPER, W111 ATAN); public ISA. The old record tainted mul/recip/add/sub/div by commit association, not by content"
+    },
+    {
+     "class": "own-work",
+     "kind": "isa",
+     "symbols": [
+      "raw"
+     ],
+     "what": "research wrappers of single x87 instructions (Intel ISA); test and research use. Its doc comment cites 87disp.asm for the control word"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 6,
+     "quote": "`fFLOGm` of `fpw32/tran/i386/87tran.asm` in the NT source tree), executed"
+    },
+    {
+     "kind": "comment",
+     "line": 12,
+     "quote": "This module executes exactly those instruction sequences"
+    },
+    {
+     "kind": "code",
+     "line": 45,
+     "quote": "const CW_CORE: u16 = 0x133F;"
+    },
+    {
+     "kind": "commit",
+     "repository": "OxFunc",
+     "commit": "a4e94d1e",
+     "quote": "Reverse-engineered and validated in C:/Temp/ExcelExpFunction"
+    },
+    {
+     "kind": "note",
+     "path": "C:/Temp/ExcelExpFunction/REPORT.md",
+     "line": 163,
+     "quote": "Transcribed `87tran.asm` + `87disp.asm` + `87cdisp.asm` from leaked NT source"
+    }
+   ],
+   "cleanup": {
+    "action": "replace",
+    "bead": "dc-96l.3",
+    "how": "delete the asm chains; write the EXP/LN/LOG10/POWER chains from the Intel SDM instruction definitions and Excel captures (the invert branch and the control word re-established by measurement against Excel, as dc-8dg already measures soft87 against hardware); keep the black-box single-operation helpers and FPATAN after review"
+   },
+   "surveyed_blob": "014448eb227a6de83c1ad43eb6611eb86805e158",
+   "surveyed_bytes": 37412,
+   "status_2026_10_30": "The NT-derived chains (exp, ln, log10, pow_direct, fyl2x_fn) moved to nt_chains.rs; the control-word citations removed and the value stated as measured. What remains: the double-rounded operations, the ATAN graphs and the single-instruction wrappers (black-box and public ISA)."
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric/x87_excel_ground_truth.tsv",
+   "class": "own-work",
+   "parts": [
+    {
+     "class": "own-work",
+     "kind": "measurement",
+     "what": "249 EXP/LN rows of live-Excel results harvested in the C:/Temp/ExcelExpFunction pass; Excel outputs, test data only"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 819,
+     "quote": "Full offline regression: every EXP/LN witness harvested from live Excel",
+     "path": "crates/calc-func/src/ported/excel_numeric/x87.rs"
+    }
+   ],
+   "note": "acquisition (Excel build, settings) is not recorded in the file; infra-m0.5 left it unresolved for that reason, not for its content",
+   "cleanup": {
+    "action": "keep",
+    "how": "keep as measurements; add an acquisition note or re-capture"
+   },
+   "surveyed_blob": "0f920db24778dc1c16e7d44ac79b5195e3e66c6a",
+   "surveyed_bytes": 9598
+  },
+  {
+   "path": "crates/calc-func/src/ported/excel_numeric_compare.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls crt_pow/crt_libm",
+   "surveyed_blob": "feb2eeb11e9524641e88c9217f910a4f447e6df7",
+   "surveyed_bytes": 2618
+  },
+  {
+   "path": "crates/calc-func/src/ported/exp_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls the x87 EXP chain (mod.rs); comment cites 'the legacy x87 CRT chain'",
+   "surveyed_blob": "7e44ebd6340ecbc0c1bc7644e056aa13e2f65a82",
+   "surveyed_bytes": 1204,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/fact.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "f913860b2c0e0986f4bfd3570c334d418d7a9102",
+   "surveyed_bytes": 3070
+  },
+  {
+   "path": "crates/calc-func/src/ported/factdouble.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "258b3e16d8845365a1622eb7ba8dc4b3ffda77bc",
+   "surveyed_bytes": 1853
+  },
+  {
+   "path": "crates/calc-func/src/ported/factorial_common.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "d7a642d491288dd56cc949e89a68e10872186e11",
+   "surveyed_bytes": 2109
+  },
+  {
+   "path": "crates/calc-func/src/ported/financial_time_value_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls the glibc-2.29 port in mod.rs (PMT line 258; IPMT/PPMT lines 794-796, 841) and the x87 operations; 'CR core' is 'correctly rounded', not R",
+   "surveyed_blob": "555fccbd261f3f72512394d4b2047d5b131f5118",
+   "surveyed_bytes": 79551,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/fisher_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "a79a47d21a5c92d6295183de893e8fb7dde5f615",
+   "surveyed_bytes": 1505
+  },
+  {
+   "path": "crates/calc-func/src/ported/fisherinv_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "a1584f527fad812fc582df75d1349c88855d6c6f",
+   "surveyed_bytes": 1671
+  },
+  {
+   "path": "crates/calc-func/src/ported/gauss_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "281c4a179c3327a0504436f4cbc14805c6128813",
+   "surveyed_bytes": 2214
+  },
+  {
+   "path": "crates/calc-func/src/ported/gcd_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "4c41c9b06020c9be74eb9d618050e13107e6bc02",
+   "surveyed_bytes": 565
+  },
+  {
+   "path": "crates/calc-func/src/ported/gcd_lcm_common.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "0d40256fd13f671e8db78cb3bb8c51ae50bb8381",
+   "surveyed_bytes": 1489
+  },
+  {
+   "path": "crates/calc-func/src/ported/gestep_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "4c6990d02adf6f6fd0534b0a6cd42e696824f78a",
+   "surveyed_bytes": 175
+  },
+  {
+   "path": "crates/calc-func/src/ported/lcm_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "d34e79bcc9862ac0fffeaaa4224eb2147cd5d745",
+   "surveyed_bytes": 1275
+  },
+  {
+   "path": "crates/calc-func/src/ported/ln_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls the x87 LN chain (mod.rs)",
+   "surveyed_blob": "fe0b8753b35e4312630dfeb565af5e8cc641ddc3",
+   "surveyed_bytes": 604
+  },
+  {
+   "path": "crates/calc-func/src/ported/log10_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls the x87 LOG10 chain (mod.rs)",
+   "surveyed_blob": "e3af5a87b5bee12dc5e518a1405c4d5999cfe05e",
+   "surveyed_bytes": 616
+  },
+  {
+   "path": "crates/calc-func/src/ported/log_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls the x87 LN chain (mod.rs)",
+   "surveyed_blob": "f477f7087e8b8f70a5a244bf46d9a18a6d41a2c7",
+   "surveyed_bytes": 3267
+  },
+  {
+   "path": "crates/calc-func/src/ported/lookup_prob_frequency_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "a785adec56579f92df4ff866d1d0e282945fc4ab",
+   "surveyed_bytes": 1264
+  },
+  {
+   "path": "crates/calc-func/src/ported/matrix_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "09db791f182107346d05d90fb86865a54096e676",
+   "surveyed_bytes": 11921
+  },
+  {
+   "path": "crates/calc-func/src/ported/misc_conversion_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "BAHTTEXT words measured from live Excel",
+   "surveyed_blob": "3f233473ac888d1fa17fceebccedef06d273bf66",
+   "surveyed_bytes": 25495
+  },
+  {
+   "path": "crates/calc-func/src/ported/mod.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Numeric kernels ported from OxFunc (crates/oxfunc_core/src, functions/ and excel_numeric/), with"
+    }
+   ],
+   "surveyed_blob": "4babb9a7901a9745c655964c822abdaad6f282a2",
+   "surveyed_bytes": 3633
+  },
+  {
+   "path": "crates/calc-func/src/ported/moment_stats_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "2c5482a3b518322d48e3805ae725df4d41f7ccb9",
+   "surveyed_bytes": 5346
+  },
+  {
+   "path": "crates/calc-func/src/ported/multinomial.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "Lanczos coefficients (published)",
+   "surveyed_blob": "fe310a36755d4b2dad3795364ea2706b921fc899",
+   "surveyed_bytes": 9274
+  },
+  {
+   "path": "crates/calc-func/src/ported/normal_dist_common.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 4,
+     "quote": "`RN(1/sqrt(2π))` — PHI multiplies by this reciprocal constant (the"
+    }
+   ],
+   "note": "calls the x87 chains",
+   "surveyed_blob": "7875d15affe98520fd833db0ef17a55bd25ed72c",
+   "surveyed_bytes": 3371,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/normal_log_family.rs",
+   "class": "proprietary-or-unclear",
+   "parts": [
+    {
+     "class": "proprietary-or-unclear",
+     "source": "as-241",
+     "symbols": [
+      "inverse_standard_normal_as241_tail (tables C, D, E, F)"
+     ],
+     "what": "the PPND16 tail rational approximations of AS 241: the published coefficients and the standard rational evaluation",
+     "shipped": "yes (NORM.S.INV, NORM.INV and their callers, tails)"
+    },
+    {
+     "class": "proprietary-or-unclear",
+     "source": "acm-toms-654-708",
+     "symbols": [
+      "branch190_j"
+     ],
+     "what": "the gratio statement-190 'j' series at a = 1/2, from TOMS 654",
+     "shipped": "yes"
+    },
+    {
+     "class": "own-work",
+     "kind": "published",
+     "symbols": [
+      "inverse_standard_normal_acklam_refined"
+     ],
+     "what": "Acklam's published rational approximation with a refinement step"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 18,
+     "quote": "TOMS 654 branch-190 `j` series"
+    },
+    {
+     "kind": "comment",
+     "line": 241,
+     "quote": "AS241/Wichura tail polynomials"
+    }
+   ],
+   "cleanup": {
+    "action": "decide",
+    "bead": "dc-96l.3",
+    "how": "AS 241: keep with a credit (published coefficients, own evaluation code) unless the owner wants RSS permission; branch190_j follows the gratio decision"
+   },
+   "surveyed_blob": "d90dd1221f34c34e9f1e3006c0e18d06d649eb4f",
+   "surveyed_bytes": 18817,
+   "status_2026_10_30": "The AS 241 tail routine carries a credit to Wichura (Applied Statistics 37(3), 1988). branch190_j follows the TOMS decision."
+  },
+  {
+   "path": "crates/calc-func/src/ported/odd_bond_family.rs",
+   "class": "permissive-third-party",
+   "parts": [
+    {
+     "class": "permissive-third-party",
+     "source": "excel-financial-functions",
+     "symbols": [
+      "odd_f_price (oddFPrice, oddbonds.fs)",
+      "change_month (daycountbasis.fs)",
+      "find_coupon_dates",
+      "number_of_coupons",
+      "coup_days",
+      "coup_number",
+      "aggr_between"
+     ],
+     "what": "'faithful port' of ExcelFinancialFunctions odd-period bond routines",
+     "shipped": "yes (ODDFPRICE, ODDFYIELD, ODDLPRICE, ODDLYIELD)"
+    },
+    {
+     "class": "own-work",
+     "kind": "black-box",
+     "symbols": [
+      "its copy of excel_bond_pow"
+     ],
+     "what": "as bond_core_family"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 395,
+     "quote": "Faithful port of ExcelFinancialFunctions `oddFPrice` (oddbonds.fs)"
+    }
+   ],
+   "cleanup": {
+    "action": "notice",
+    "bead": "dc-96l.1",
+    "how": "as bond_core_family.rs"
+   },
+   "surveyed_blob": "5675aeb3b0718894f3ca48f67054da9748c7b5ea",
+   "surveyed_bytes": 34058,
+   "status_2026_10_30": "File header names the translated ExcelFinancialFunctions routines and that they were changed; the Apache-2.0 licence text is in deploy/notices/ported.txt."
+  },
+  {
+   "path": "crates/calc-func/src/ported/paired_stats_common.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "078f0a687a6e0d37c5d54bb42e7e50c595e80747",
+   "surveyed_bytes": 5244
+  },
+  {
+   "path": "crates/calc-func/src/ported/percentile_common.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "e6641334a53152dad16309a35923db8bccc79ed4",
+   "surveyed_bytes": 2345
+  },
+  {
+   "path": "crates/calc-func/src/ported/percentrank_common.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "1be870d8da8490cd41d83532122af344f14ee068",
+   "surveyed_bytes": 3485
+  },
+  {
+   "path": "crates/calc-func/src/ported/permut_fn.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 4,
+     "quote": "Worksheet `PERMUT` — bit-exact to 64-bit Excel on `x86_64` (W109 Phase 2,"
+    }
+   ],
+   "surveyed_blob": "b932874c5d89041b7717b08d44aa208561454d1c",
+   "surveyed_bytes": 2772
+  },
+  {
+   "path": "crates/calc-func/src/ported/permutationa_fn.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 4,
+     "quote": "PERMUTATIONA: n to the power k, both truncated, by repeated squaring (10^k by decimal"
+    }
+   ],
+   "surveyed_blob": "c042eb62e8aad0373e640dd76e084c0080af3e0d",
+   "surveyed_bytes": 2920
+  },
+  {
+   "path": "crates/calc-func/src/ported/phi_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "ad60b1194b5a95be71f934e3185549d59c8a894f",
+   "surveyed_bytes": 925
+  },
+  {
+   "path": "crates/calc-func/src/ported/power_fn.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 18,
+     "quote": "Excel's real-root acceptance for a negative base with a fractional exponent."
+    }
+   ],
+   "note": "calls the x87 POWER staging (mod.rs); the staging itself (double-rounded product, reciprocal for y < 0, sqrt at 0.5) was identified from live Excel (POWER_REPORT.md, OxFunc af79125b)",
+   "surveyed_blob": "f20cbdf84ca8d9de6ea19689e5af05efcf263683",
+   "surveyed_bytes": 11313
+  },
+  {
+   "path": "crates/calc-func/src/ported/radians.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "b243262537bfd4fe12ff5f3ced601ec7b57e0b9f",
+   "surveyed_bytes": 544
+  },
+  {
+   "path": "crates/calc-func/src/ported/rank_common.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "f76ff99414467f0798ec0ec0ce0a0955e3b2ca04",
+   "surveyed_bytes": 2082
+  },
+  {
+   "path": "crates/calc-func/src/ported/real_policy.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 12,
+     "quote": "Argument-domain pre-check applied before a real kernel runs. Named after the Excel"
+    }
+   ],
+   "surveyed_blob": "211b87957eebc295618b41618b90a63b78fa83af",
+   "surveyed_bytes": 6777
+  },
+  {
+   "path": "crates/calc-func/src/ported/regression_forecast_family.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "LINEST, LOGEST, TREND and GROWTH (and FORECAST's pair kernel), ported from OxFunc"
+    }
+   ],
+   "note": "own LINEST/LOGEST",
+   "surveyed_blob": "964b957ac1226923e263c827192f265e27f5838b",
+   "surveyed_bytes": 55737
+  },
+  {
+   "path": "crates/calc-func/src/ported/roman_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "7ad4e7b89a0312ef9cbb48a0b43c4c8666b52445",
+   "surveyed_bytes": 8700
+  },
+  {
+   "path": "crates/calc-func/src/ported/sec.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "calls the trig chains",
+   "surveyed_blob": "722f8328bce94292543a941bd9776cc94895d180",
+   "surveyed_bytes": 1203,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/sech.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "deaddcd035f4d7151d54b09070f05f59510edda5",
+   "surveyed_bytes": 1048
+  },
+  {
+   "path": "crates/calc-func/src/ported/sin.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "W109 G4-01: the legacy CRT fFSIN chain (see `excel_numeric::excel_sin`),"
+    }
+   ],
+   "note": "calls the fFSIN-labelled chain (black-box identified); comment cites 'the legacy CRT fFSIN chain'",
+   "surveyed_blob": "288d501fc43ffdcf8ea99a1f9f406ea17e242cf2",
+   "surveyed_bytes": 257,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/sinh.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "glibc and the MSVC runtime named in test comments only",
+   "surveyed_blob": "8798184e6e9cc1d57b2a1b5db03e9eddec2c76b9",
+   "surveyed_bytes": 4248
+  },
+  {
+   "path": "crates/calc-func/src/ported/special_dist_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "own correction fit on the libm crate's erfc (a dependency, MIT/Apache); 'fdlibm-inspired' region split is a boundary value; Lanczos coefficients published",
+   "surveyed_blob": "bd1f21935fe55b6f7a16c62bd7f6db101fb270dc",
+   "surveyed_bytes": 100063
+  },
+  {
+   "path": "crates/calc-func/src/ported/special_math_common.rs",
+   "class": "proprietary-or-unclear",
+   "parts": [
+    {
+     "class": "proprietary-or-unclear",
+     "source": "acm-toms-654-708",
+     "symbols": [
+      "gratio and its gratio_* helpers (rexp, rlog, gam1, gamma_nswc, cf, temme_270/330/340)",
+      "bratio and its bratio_* helpers (about 35 routines: esum, alnrel, rlog1, gam1, gamln1, gamln, algdiv, bcorr, betaln, erf_nswc, erfc1, psi, fpser, apser, bpser, bup, brcomp, brcmp1, bfrac, bgrat, grat1, basym)",
+      "regularized_gamma_p/q",
+      "regularized_beta"
+     ],
+     "what": "'faithful port' of DCDFLIB/NSWC gratio (TOMS 654) and bratio (TOMS 708), transcribed from scipy v0.14 cdflib Fortran via a Python transcription, 'every arithmetic op, Fortran GOTO branch, DATA constant ... preserved verbatim'; statement numbers of gratio.f are kept as comments",
+     "shipped": "yes (GAMMA.DIST, CHISQ.*, CHIDIST, POISSON.DIST cumulative, BETA.DIST, T.*, F.*, BINOM cumulative paths)"
+    },
+    {
+     "class": "studied-reference",
+     "source": "numerical-recipes",
+     "symbols": [
+      "old_nr_gamma_p",
+      "old_nr_gamma_q"
+     ],
+     "what": "NR gser/gcf, a 'verbatim pre-port copy' kept for an ignored comparison test",
+     "shipped": "no (#[cfg(test)])"
+    },
+    {
+     "class": "own-work",
+     "kind": "published",
+     "symbols": [
+      "ln_gamma",
+      "gamma"
+     ],
+     "what": "Lanczos g=7 coefficients (published); the Cephes-igam-style staging note at line 635 is a comment on Moshier's published form ('may be used freely')"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "comment",
+     "line": 48,
+     "quote": "// GRATIO: faithful port of the DCDFLIB / NSWC incomplete-gamma-ratio kernel"
+    },
+    {
+     "kind": "comment",
+     "line": 881,
+     "quote": "// BRATIO: faithful port of the DCDFLIB / NSWC incomplete-beta-ratio kernel"
+    },
+    {
+     "kind": "comment",
+     "line": 891,
+     "quote": "`0.5 + (0.5 - x)` idioms are preserved verbatim"
+    },
+    {
+     "kind": "comment",
+     "line": 2550,
+     "quote": "OLD Newton-Raphson kernel (verbatim pre-port copy)"
+    }
+   ],
+   "cleanup": {
+    "action": "decide",
+    "bead": "dc-96l.3",
+    "how": "delete old_nr_gamma_p/q (dc-96l.4). For gratio/bratio the owner decides: (a) rely on the public-domain status of the NSWC/DCDFLIB code and credit DiDonato and Morris, (b) ask ACM for a licence, or (c) a clean-room implementation from the two papers' mathematics, re-measured against Excel (Excel's own code is this algorithm, so (c) is the most work)"
+   },
+   "surveyed_blob": "168264dd57e5717898022b079d91cbb4d07464c6",
+   "surveyed_bytes": 82249,
+   "status_2026_10_30": "The studied-reference part (old_nr_gamma_p/q, the Numerical Recipes series and continued fraction, test-only) is deleted (dc-96l.4). gratio/bratio remain under the TOMS decision."
+  },
+  {
+   "path": "crates/calc-func/src/ported/sqrt_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "36c0753ae83eec44d965a4a54b094adfbee87458",
+   "surveyed_bytes": 541
+  },
+  {
+   "path": "crates/calc-func/src/ported/sqrtpi.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "note": "glibc's pow named in a test comment only",
+   "surveyed_blob": "58d351284e3b35cadce2b26b696fcd24d91ea5fd",
+   "surveyed_bytes": 4940
+  },
+  {
+   "path": "crates/calc-func/src/ported/standardize_fn.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "efa637c7dd7b57d0239c178d5d86bebef915a59c",
+   "surveyed_bytes": 914
+  },
+  {
+   "path": "crates/calc-func/src/ported/statistical_tests_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "a6d129cbfba3002dba554148563b14b987e14cc4",
+   "surveyed_bytes": 4494
+  },
+  {
+   "path": "crates/calc-func/src/ported/subtotal_aggregate_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "7581ad5ba5198e4e134c9e1e59e22df56fb10c4d",
+   "surveyed_bytes": 589
+  },
+  {
+   "path": "crates/calc-func/src/ported/sumproduct_family.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "20b0f2bcc70f39e957848b12d912a6ca5784c520",
+   "surveyed_bytes": 618
+  },
+  {
+   "path": "crates/calc-func/src/ported/tan.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "W109 G4-01: the fFTAN π/2-quadrant chain (see `excel_numeric::excel_tan`)."
+    }
+   ],
+   "note": "calls the fFTAN-labelled chain",
+   "surveyed_blob": "6fa9151344824d5ca00c8390a7626324a4b6447d",
+   "surveyed_bytes": 487,
+   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+  },
+  {
+   "path": "crates/calc-func/src/ported/tanh.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "e5e6c38d28367133b73cd8b7d3742a1a88cbf405",
+   "surveyed_bytes": 1498
+  },
+  {
+   "path": "crates/calc-func/src/ported/text_kernels.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The text kernels ported from OxFunc (crates/oxfunc_core/src/functions/ at 6fca3518):"
+    }
+   ],
+   "surveyed_blob": "bc4a05aa71adcd87d027d9209290ea57f5576c40",
+   "surveyed_bytes": 21535
+  },
+  {
+   "path": "crates/calc-func/src/ported/text_more.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Text kernels ported from OxFunc (crates/oxfunc_core/src/functions/ at 6fca3518):"
+    }
+   ],
+   "surveyed_blob": "1f708825fbba0a67ded05e327e6c2854879c4daf",
+   "surveyed_bytes": 25282
+  },
+  {
+   "path": "crates/calc-func/src/ported/variance_common.rs",
+   "class": "own-work",
+   "reason": "written here",
+   "surveyed_blob": "bd5ba9f281107528c607012703b01ebc98e6ef10",
+   "surveyed_bytes": 3253
+  },
+  {
+   "path": "crates/calc-func/src/value_text.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Reading text as a number the way Excel's VALUE does under a locale: number text with the"
+    }
+   ],
+   "surveyed_blob": "3941e66281713bb752cd68f019044a6a960bfd02",
+   "surveyed_bytes": 31627
+  },
+  {
+   "path": "crates/calc-func/tests/acceptance.rs",
+   "class": "own-work",
+   "parts": [
+    {
+     "class": "own-work",
+     "kind": "documentation-facts",
+     "source": "microsoft-docs",
+     "what": "219 `Documented(...)` rows apply a rule or example a Microsoft function page states, cited by name; the rest are Excel captures. Rules and short worked examples read as facts; no page text is copied"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Acceptance cases owned by the calc-func package, each registered by its exact name in"
+    }
+   ],
+   "cleanup": {
+    "action": "keep",
+    "how": "facts need no notice; prefer Excel captures where a row could be captured"
+   },
+   "surveyed_blob": "21cb7e4439988659781d426bdcea357f2b292206",
+   "surveyed_bytes": 815684
+  },
+  {
+   "path": "crates/calc-func/tests/captures/.gitattributes",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "15a61429deac886b2135dd51379e9e2124536e57",
+   "surveyed_bytes": 160
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "2a7ce71fe45d574e13cb77e688253a61abbe6837",
+   "surveyed_bytes": 3797056
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/oracle.saved.xlsx",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "8e60611b4194244c3a2e8170f789683f0d8bd1f1",
+   "surveyed_bytes": 257032
+  },
+  {
+   "path": "crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "9ee76b065f3361a70820daba0b8ea83b722ec703",
+   "surveyed_bytes": 633001
+  },
+  {
+   "path": "crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "b51748a2f4439404828b04bb98f89682c73c197c",
+   "surveyed_bytes": 972651
+  },
+  {
+   "path": "crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "863b4fd8e5c543842ccfad5d87031b6f552421a2",
+   "surveyed_bytes": 90531
+  },
+  {
+   "path": "crates/calc-func/tests/captures/cfunc_m3_4/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "ebff1435f03fbe15f0a4743a43171b655b7ba69e",
+   "surveyed_bytes": 47201
+  },
+  {
+   "path": "crates/calc-func/tests/captures/cfunc_m3_5/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "5df4a74130f49338dae409da1071e93b166258e0",
+   "surveyed_bytes": 59517
+  },
+  {
+   "path": "crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "be0f6b6ffb350b66a7b8730916233df29c6f8978",
+   "surveyed_bytes": 228891
+  },
+  {
+   "path": "crates/calc-func/tests/captures/dc_e00t/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "08a8e23ee8830ffa02ceac83af166aeec8458d28",
+   "surveyed_bytes": 449226
+  },
+  {
+   "path": "crates/calc-func/tests/captures/dc_fwpz/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "119a624443de3be096bd4025b5c900a113760316",
+   "surveyed_bytes": 50574
+  },
+  {
+   "path": "crates/calc-func/tests/captures/dc_nzpw/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "d18ff7ed03e34f716151c345657d7ac83d128d80",
+   "surveyed_bytes": 76498
+  },
+  {
+   "path": "crates/calc-func/tests/captures/dc_q9rb/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "6cb1cd82afc903c448fd2292d906c064fd45245c",
+   "surveyed_bytes": 48760
+  },
+  {
+   "path": "crates/calc-func/tests/captures/dc_xrxb/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "91b044cb073bdacafdcb60826d2b581de7240f74",
+   "surveyed_bytes": 67528
+  },
+  {
+   "path": "crates/calc-func/tests/captures/dc_xrxb/oracle.saved.xlsx",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
+   "surveyed_blob": "3b92532dce45d87aab187d4a678ed9ba4165af53",
+   "surveyed_bytes": 12603
+  },
+  {
+   "path": "crates/calc-func/tests/dc_xrxb_support/mod.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The case dc_xrxb__prefix_metadata_matches_excel: the file prefix calc_func gives each catalogued"
+    }
+   ],
+   "surveyed_blob": "15836f4006f9505b063771a5e4da6be557cbfb2b",
+   "surveyed_bytes": 21604
+  },
+  {
+   "path": "crates/calc-func/tests/f1_engineering.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "F1 (dc-8dq): the engineering functions ported from OxFunc, called through"
+    }
+   ],
+   "surveyed_blob": "8135faafdd2e777e43e22b3a43858ddb7134159e",
+   "surveyed_bytes": 4275
+  },
+  {
+   "path": "crates/calc-func/tests/f1_math.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "F1 (dc-8dq): the math and trigonometry functions ported from OxFunc, called through"
+    }
+   ],
+   "surveyed_blob": "6e4b86e6d33aac94817768bb3fc23dc65199beba",
+   "surveyed_bytes": 9680
+  },
+  {
+   "path": "crates/calc-func/tests/f1_stats.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "F1 (dc-8dq): the descriptive statistics, the distributions, SUBTOTAL and AGGREGATE, called"
+    }
+   ],
+   "surveyed_blob": "37d4366d141b73e942bb941c36714ea02693a6e8",
+   "surveyed_bytes": 14198
+  },
+  {
+   "path": "crates/calc-func/tests/f1_support/mod.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Shared helpers of the F1 test files: a call through `calc_func::invoke` by spelling, a sheet"
+    }
+   ],
+   "surveyed_blob": "4f429a23269b402437f4acb113b8e8af9de01082",
+   "surveyed_bytes": 9354
+  },
+  {
+   "path": "crates/calc-func/tests/f2_dates.rs",
+   "class": "own-work",
+   "parts": [
+    {
+     "class": "own-work",
+     "kind": "documentation-facts",
+     "source": "microsoft-docs",
+     "what": "expected values include Microsoft's documented examples (YEARFRAC, the DSUM tree database). Rules and short worked examples read as facts; no page text is copied"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "F2 (dc-ip6): the date and time functions, the number-format functions (TEXT, VALUE, FIXED,"
+    }
+   ],
+   "cleanup": {
+    "action": "keep",
+    "how": "facts need no notice; prefer Excel captures where a row could be captured"
+   },
+   "surveyed_blob": "d9ef364da992d5b03873035accae5858d7dce0ab",
+   "surveyed_bytes": 19095
+  },
+  {
+   "path": "crates/calc-func/tests/f2_text.rs",
+   "class": "own-work",
+   "parts": [
+    {
+     "class": "own-work",
+     "kind": "documentation-facts",
+     "source": "microsoft-docs",
+     "what": "expected values include Microsoft's documented results. Rules and short worked examples read as facts; no page text is copied"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "F2 (dc-ip6): the text and logical functions ported from OxFunc, and the folded-in rules, called"
+    }
+   ],
+   "cleanup": {
+    "action": "keep",
+    "how": "facts need no notice; prefer Excel captures where a row could be captured"
+   },
+   "surveyed_blob": "f311b59073ef7e73f12c12d69f923c84dbebd62a",
+   "surveyed_bytes": 9448
+  },
+  {
+   "path": "crates/calc-func/tests/f3_arrays.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "F3 (dc-728): the dynamic-array functions and the LAMBDA helpers called through"
+    }
+   ],
+   "surveyed_blob": "fbdda157dd18c64438201e3e56f95720a8a032db",
+   "surveyed_bytes": 3316
+  },
+  {
+   "path": "crates/calc-func/tests/f3_financial.rs",
+   "class": "own-work",
+   "parts": [
+    {
+     "class": "own-work",
+     "kind": "documentation-facts",
+     "source": "microsoft-docs",
+     "what": "expected values are Microsoft's documented examples, compared within the documentation's rounding. Rules and short worked examples read as facts; no page text is copied"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 3,
+     "quote": "F3 (dc-728): the financial functions ported from OxFunc, called through `calc_func::invoke`"
+    }
+   ],
+   "cleanup": {
+    "action": "keep",
+    "how": "facts need no notice; prefer Excel captures where a row could be captured"
+   },
+   "surveyed_blob": "d6a1efc70949f6f5193cd07426b63f95d73f0258",
+   "surveyed_bytes": 11453
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/.gitattributes",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "f31e4a7290af16723089475bbe5e4d6dc6704fad",
+   "surveyed_bytes": 289
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "34ad78891fd1a4f191463bc754cc09d500364236",
+   "surveyed_bytes": 867393
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/prefix-b1l.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "7c20d0a6fc79d6a0bc382bc78e3f6b41eff6b8fc",
+   "surveyed_bytes": 105
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/prefix-f1.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "c3fb8d5db4001e1eb2b4cd75c79696cd6b51603a",
+   "surveyed_bytes": 4523
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/prefix-f2.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "045acee79475ede14a74abd6809237fe77fddf76",
+   "surveyed_bytes": 2036
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/prefix-f3.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "36256739337d92cd9512df714d2c3ad4bd881da2",
+   "surveyed_bytes": 2570
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/prefix-l1.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "1ecab8af299aba715f72348d04e3aaf4bdf0cf5d",
+   "surveyed_bytes": 33
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dc6qki_arith.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "279548134af95ea36e20e45d64614460f5bc4d3d",
+   "surveyed_bytes": 3725
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcb1l_language.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "fa1f0b2befb8e184d61f547a16710c6edeb4f121",
+   "surveyed_bytes": 3612
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_annuity.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "76ad6e18881500ee6f4f79d09ccc0fecbba161cb",
+   "surveyed_bytes": 28511
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_closed_form.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "9a907e4b17439bd355282481324ed83581942103",
+   "surveyed_bytes": 13661
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_linest_stats.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "2d1521fdf7fb2b7dd902b5bde0f83b76b726c906",
+   "surveyed_bytes": 198488
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_math.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "f3998fe60d1206a2131229f879962f561d76d8df",
+   "surveyed_bytes": 31027
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_regression.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "f51a9a8930b395dd47781ba7b7329d7a6c81fa5c",
+   "surveyed_bytes": 74034
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_statistics.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "07785691e726ec1dbb36d1cc4705e23943413be3",
+   "surveyed_bytes": 98467
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcuar_text.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "b00851c2e6ddc8e87fd8ecff9b48c0635183b4b0",
+   "surveyed_bytes": 29441
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-f1_power.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "c999e4549f19044c73638abd75b21f23c2514be5",
+   "surveyed_bytes": 519
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-f2_rows.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "d96fcbd04620cd643e95ed2ea93ddac48ad5eda6",
+   "surveyed_bytes": 3910
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-f3_arrays.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "7ec2030d3995b34200660dc9e6ac9fb5fdad9bdf",
+   "surveyed_bytes": 2325
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-f3_financial.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "7cca31f7417cee8438aec3f3f354146413f86747",
+   "surveyed_bytes": 562
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/cdoc_jpha/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "f96544b4b56a0c0a31b6d7a40aab527a2de211f3",
+   "surveyed_bytes": 334038
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/cdoc_jpha/rows.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "08898fcc15d213b8247ee545a36d6ef11392a0f8",
+   "surveyed_bytes": 31488
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "334cbf20761ae4dc330828c25f27d7e79f62ff8f",
+   "surveyed_bytes": 82352
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "72158d09712f350dc94e11e58d50cc56ae9eafc6",
+   "surveyed_bytes": 16391
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "c0e3971b2a46821eee8b41be9eb73aec5ae6f8a4",
+   "surveyed_bytes": 11018
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "955a638dc28e784228cf103734cd890b2ba01685",
+   "surveyed_bytes": 15905
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "4049a86b94bd3cf996f1d4fa0dae970e5bc44f16",
+   "surveyed_bytes": 57133
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/dc_e00t/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "bcc017b22791d7b94470bdbc637784ffc4f55c59",
+   "surveyed_bytes": 68934
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/dc_fwpz/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "0f17dccd484016d8876e9c6101cf88555651f844",
+   "surveyed_bytes": 14488
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/dc_nzpw/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "c9a0e702b868b82ba21251465ffc48e4871a474e",
+   "surveyed_bytes": 15694
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/dc_q9rb/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "6243067b50403c6171ffb4a4334356d018a313f3",
+   "surveyed_bytes": 10004
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/dc_xrxb/oracle.xlsx",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "surveyed_blob": "80add756335dca2526b027a32aa6644d7552cc9c",
+   "surveyed_bytes": 14166
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/make-catalogue-fixtures.ps1",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The generator of the catalogue oracle under crates/calc-func/tests/fixtures/catalogue/."
+    }
+   ],
+   "surveyed_blob": "5c22f04372cf854bba40268aae064df0c93753c6",
+   "surveyed_bytes": 17206
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/make-fixtures.ps1",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The generator of the workbook fixtures under crates/calc-func/tests/fixtures/."
+    }
+   ],
+   "note": "generator of the oracle workbooks; cites Microsoft's XOR page for an argument limit",
+   "surveyed_blob": "b7aa24166596c03a0e3bf232f36072d7d1d6b2f6",
+   "surveyed_bytes": 95439
+  },
+  {
+   "path": "crates/calc-value/Cargo.toml",
+   "class": "own-work",
+   "reason": "project metadata",
+   "surveyed_blob": "4bf5beab4d817d4ceb0a8d151e35180068da66ff",
+   "surveyed_bytes": 1013
+  },
+  {
+   "path": "crates/calc-value/acceptance.json",
+   "class": "own-work",
+   "reason": "project metadata",
+   "surveyed_blob": "6a7c934ebf76319cd7a5d583ed4e0d35ebcd8913",
+   "surveyed_bytes": 49
+  },
+  {
+   "path": "crates/calc-value/src/case_folding.rs",
+   "class": "permissive-third-party",
+   "parts": [
+    {
+     "class": "permissive-third-party",
+     "source": "unicode",
+     "what": "simple and full case-fold tables from CaseFolding.txt 15.0.0, ported from OxFml",
+     "shipped": "yes"
+    }
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Unicode case-folding table"
+    }
+   ],
+   "cleanup": {
+    "action": "keep",
+    "how": "Unicode notice (deploy/notices/ported.txt has it)"
+   },
+   "surveyed_blob": "3749f92546a26b1efeda00cf00bc48f0c35017d0",
+   "surveyed_bytes": 19020
+  },
+  {
+   "path": "crates/calc-value/src/grid.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Checked Excel grid coordinates: a [`CellKey`] names one cell of one sheet and a [`GridArea`]"
+    }
+   ],
+   "surveyed_blob": "764274b462908c4dcd55e4807811cb9578d739ef",
+   "surveyed_bytes": 6680
+  },
+  {
+   "path": "crates/calc-value/src/id.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Generational identities for workbooks, sheets, names, tables and calculation nodes."
+    }
+   ],
+   "surveyed_blob": "32c3b7b06036f9df9f5efc97581f6ed723337310",
+   "surveyed_bytes": 11056
+  },
+  {
+   "path": "crates/calc-value/src/lib.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The package for CalcFunc's lowest layer: the value types and service contracts that CalcFunc"
+    }
+   ],
+   "surveyed_blob": "b4a8f63d92a914276fa14a79cd9da22d11959c84",
+   "surveyed_bytes": 3261
+  },
+  {
+   "path": "crates/calc-value/src/name_case.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "Case-insensitive comparison of Excel names (dc-cpr, ported from OxFml 15daac5"
+    }
+   ],
+   "surveyed_blob": "2d5c6f985911b258d6a89d2d55fd49b4df2b44fb",
+   "surveyed_bytes": 11314
+  },
+  {
+   "path": "crates/calc-value/src/numeric.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The numeric policy a calculation runs under (plan section 5). A [`NumericMode`] is a value the"
+    }
+   ],
+   "surveyed_blob": "253cf26e3804713cfed4397bc6bbb771354ac3ee",
+   "surveyed_bytes": 3225
+  },
+  {
+   "path": "crates/calc-value/src/value.rs",
+   "class": "own-work",
+   "reason": "ported from this project's legacy repositories or written here",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The worksheet value model."
+    }
+   ],
+   "surveyed_blob": "110dd2a88302f4425cb75c91cad0ad86ea7a158f",
+   "surveyed_bytes": 29613
+  },
+  {
+   "path": "crates/calc-value/tests/.gitkeep",
+   "class": "own-work",
+   "reason": "project metadata",
+   "surveyed_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "surveyed_bytes": 0
+  }
+ ]
+}

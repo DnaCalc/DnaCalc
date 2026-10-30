@@ -49,8 +49,11 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    ported from. Several commits per package is normal.
 
    `cargo xtask check` runs the five architecture checks (dependencies, os-imports,
-   wasm-refusal, tree-reference-tokens, word-scan), builds the workspace and tests every package
-   (one line each), and fails on any of them; `--wasm` adds the portable packages' tests in
+   wasm-refusal, tree-reference-tokens, word-scan) and the provenance scan, builds the workspace
+   and tests every package (one line each), and fails on any of them. The provenance scan needs
+   an entry in `migration/licence-ledger.json` (`path`, `class`, `reason`) for every file under
+   `crates/calc-func` and `crates/calc-value`, and fails when a marker of a removed third-party
+   or Microsoft source reappears in code; `--wasm` adds the portable packages' tests in
    headless Chrome and Firefox. A portable package's test runs in both: give it
    `#[cfg_attr(not(target_arch = "wasm32"), test)]` with
    `#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]`, and embed its data

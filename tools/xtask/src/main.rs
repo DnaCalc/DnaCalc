@@ -106,6 +106,7 @@ mod corpus_summary;
 mod evidence;
 mod evidence_labels;
 mod legacy;
+mod licence;
 mod manifest;
 mod owners;
 mod rust_source;

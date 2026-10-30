@@ -322,7 +322,7 @@ fn gratio_gam1(a: f64) -> f64 {
 }
 
 // ---- exp_rd: round-toward-zero exp (W109 chopped-exp identification) -------
-// Excel's gser-path r = exp(t1)/G publishes a TRUNCATED exp, not nearest:
+// Excel's series-path r = exp(t1)/G publishes a TRUNCATED exp, not nearest:
 // floor(true exp) scores 38/45 on the implied-exp corpus vs CR 25/45 and
 // fdlibm 28/45 (every real 2010-era MSVC CRT exp refuted by direct binary
 // probes: 32-bit SSE2 rounds one-sided HIGH, x87 and x64-AMD are CR here).
