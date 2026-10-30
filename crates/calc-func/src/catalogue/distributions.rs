@@ -15,7 +15,7 @@ use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::ported::{
     beta_gamma_stats_family as bg, chi_f_t_family as cft, confidence_test_family as ct,
-    discrete_dist_family as dd, normal_log_family as nl, special_dist_family as sd,
+    discrete_dist as dd, normal_log_family as nl, special_dist_family as sd,
     statistical_tests_family as st,
 };
 use crate::ported::{self as k};

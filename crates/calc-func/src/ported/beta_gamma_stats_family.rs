@@ -117,7 +117,7 @@ pub fn gamma_dist_kernel(
         // EXPON.DIST(x,1/beta,TRUE) misses by 1 ULP when 1/beta is inexact.
         // PDF identity is false (33/85).
         if alpha == 1.0 {
-            return crate::ported::discrete_dist_family::expon_dist_kernel(x / beta, 1.0, true);
+            return crate::ported::discrete_dist::expon_dist_kernel(x / beta, 1.0, true);
         }
         // W109 lane-3 (2026-07-18): the pre-W109 integer-shape fast path
         // (1 − e^{-x}·Σ x^k/k!) is an OxFunc-side shortcut Excel does NOT
@@ -215,7 +215,7 @@ mod tests {
         for (x, beta) in [(1e-12, 3.0), (3.0, 5.0), (1.0, 3.0), (8.0, 5.0)] {
             let got = gamma_dist_kernel(x, 1.0, beta, true).unwrap();
             let expect =
-                crate::ported::discrete_dist_family::expon_dist_kernel(x / beta, 1.0, true)
+                crate::ported::discrete_dist::expon_dist_kernel(x / beta, 1.0, true)
                     .unwrap();
             assert_eq!(got.to_bits(), expect.to_bits(), "shape1 x={x} beta={beta}");
         }
