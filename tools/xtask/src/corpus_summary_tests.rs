@@ -227,6 +227,46 @@ fn a_whole_run_failure_is_one_cause_of_every_cell() {
     assert_eq!(compared.times.recalculation, None);
 }
 
+/// dc-ylr: a match that read another workbook's link caches is neither pass nor fail; a mismatch
+/// that read them is a fail like any other.
+#[test]
+fn a_match_from_external_link_caches_is_counted_apart_from_pass() {
+    let triage = json!({
+        "run": {},
+        "cells": [
+            cell("A1", "matched", "matched", "matched", None),
+            with(cell("A2", "matched", "matched", "matched", None), "external_links", json!(true)),
+            with(
+                with(cell("A3", "mismatched", "formula", "+", Some("root")), "external_links", json!(true)),
+                "difference",
+                difference(call("+", "Infix"), number(1.0), number(2.0), None, Some(false)),
+            ),
+        ],
+    });
+    let compared = read_triage(&triage).unwrap();
+    let c = &compared.counts;
+    assert_eq!(
+        (c.formula_cells, c.pass, c.external_links, c.mismatched, c.fail()),
+        (3, 1, 1, 1, 1)
+    );
+    let summary = Summary {
+        run: json!({}),
+        workbooks: vec![Workbook {
+            name: "w.xlsx".to_owned(),
+            sha256: None,
+            capture: None,
+            outcome: Ok(compared),
+            times: Times::default(),
+        }],
+    };
+    let markdown = summary.markdown();
+    assert!(
+        markdown.contains("pass 1; external links 1; fail 1 (mismatched 1"),
+        "{markdown}"
+    );
+    assert_eq!(summary.json()["totals"]["counts"]["external_links"], 1);
+}
+
 #[test]
 fn a_triage_naming_an_unlisted_root_is_refused() {
     let triage = json!({
@@ -419,9 +459,9 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
 
     let markdown = summary.markdown();
     for expected in [
-        "- formula cells (compared workbooks): 13; pass 4; fail 9 (mismatched 4, refused 3, failed or missing 2)",
+        "- formula cells (compared workbooks): 13; pass 4; external links 0; fail 9 (mismatched 4, refused 3, failed or missing 2)",
         "- pass rate over all formula cells: 30.76%",
-        "| one.xlsx | 9 | 1 | 8 | 4 | 2 | 2 | 11.11% | 0.500 | 2.000 | 0.250 |",
+        "| one.xlsx | 9 | 1 | 0 | 8 | 4 | 2 | 2 | 11.11% | 0.500 | 2.000 | 0.250 |",
         "| three.xlsx (not compared) |",
         "- three.xlsx: capture: Excel refused",
         "| exactness dc-uar | not-modelled NOT | 2 | 1 | 0 | 3 | 2 |",

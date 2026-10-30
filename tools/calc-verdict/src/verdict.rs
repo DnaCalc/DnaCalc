@@ -268,6 +268,10 @@ pub struct CellVerdict {
     /// whether that value equals the observation; `None` when there is no such value or no
     /// observation.
     pub value_equals_expectation: Option<bool>,
+    /// The cell is calculated (matched, mismatched or not run) and its result read values another
+    /// workbook's link caches hold, directly or through the formulas it read (dc-ylr): the result
+    /// set's `external_links`. Such a cell is counted apart ([`Counts::external_links`]).
+    pub external_links: bool,
 }
 
 /// A result for a cell the inventory does not list (a spill child or a constant cell, say). It is
@@ -308,6 +312,12 @@ pub struct Counts {
     /// calculated cell when the record is version 1, none when it is version 2. Part of
     /// `calculated`, not apart from it.
     pub calculated_without_value_check: u64,
+    /// Calculated cells whose result read values another workbook's link caches hold (dc-ylr):
+    /// part of `calculated`. A match among them rests on the file's cache of the other book, so
+    /// a report states them apart from plain passes.
+    pub external_links: u64,
+    /// The matched cells among `external_links`: part of `matched`.
+    pub matched_external_links: u64,
 }
 
 /// How the denominator divides by sheet visibility, by formula kind and by what was observed.
@@ -852,6 +862,7 @@ pub fn judge<'e>(
                 tick,
                 revision,
                 context,
+                ..
             }) => {
                 if *revision != results.run.revision
                     || captured.is_some_and(|(captured, _)| captured != results.run.revision)
@@ -939,12 +950,21 @@ pub fn judge<'e>(
                 }
             }
         };
+        let external_links = verdict.is_calculated()
+            && matches!(
+                result.map(|result| &result.provenance),
+                Some(Provenance::Calculated {
+                    external_links: true,
+                    ..
+                })
+            );
         cells.push(CellVerdict {
             formula: formula.clone(),
             visibility: sheets[formula.cell.sheet()],
             observation: observation.cloned(),
             verdict,
             value_equals_expectation,
+            external_links,
         });
     }
 
@@ -1004,6 +1024,12 @@ pub fn judge<'e>(
             counts.calculated += 1;
             if !value_checked {
                 counts.calculated_without_value_check += 1;
+            }
+        }
+        if cell.external_links {
+            counts.external_links += 1;
+            if matches!(cell.verdict, Verdict::Matched { .. }) {
+                counts.matched_external_links += 1;
             }
         }
         if cell.value_equals_expectation == Some(true) {
@@ -1196,6 +1222,9 @@ fn cell_out(cell: &CellVerdict) -> Out {
         ));
     }
     members.push(("verdict", Out::text(cell.verdict.name())));
+    if cell.external_links {
+        members.push(("external_links", Out::Bool(true)));
+    }
     match &cell.verdict {
         Verdict::Matched { certainty } => certainty_members(*certainty, &mut members),
         Verdict::Mismatched {
@@ -1388,7 +1417,20 @@ impl VerdictReport {
                         "calculated_without_value_check",
                         Out::Unsigned(c.calculated_without_value_check),
                     ),
-                ]),
+                ]
+                .into_iter()
+                // Written only when a calculated cell read another workbook's link caches, so a
+                // report without one reads as it did before (dc-ylr).
+                .chain((c.external_links > 0).then(|| {
+                    [
+                        ("external_links", Out::Unsigned(c.external_links)),
+                        (
+                            "matched_external_links",
+                            Out::Unsigned(c.matched_external_links),
+                        ),
+                    ]
+                }).into_iter().flatten())
+                .collect()),
             ),
             (
                 "uncertified_by_reason",
@@ -1682,6 +1724,40 @@ mod tests {
         CalcValue::text(ExcelText::from_utf16_code_units(
             value.encode_utf16().collect(),
         ))
+    }
+
+    /// dc-ylr: a calculated result that read another workbook's link caches is still judged as
+    /// calculated, and the report counts it apart, in the counts and on the cell; a result without
+    /// the member is not counted there.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_result_read_from_external_link_caches_is_counted_apart() {
+        let live = capture(LIVE, ENVIRONMENT, RAW_TWO);
+        let linked = results(
+            r#"{"calculated": {"tick": 7, "revision": 3, "context": "k", "external_links": true}}"#,
+        );
+        let report = judge(&live, &linked, &evaluated(), &exact("20430")).unwrap();
+        assert_eq!(report.cells[0].verdict, matched(Certainty::StrictBits));
+        assert!(report.cells[0].external_links);
+        assert_eq!(
+            (
+                report.counts.matched,
+                report.counts.external_links,
+                report.counts.matched_external_links
+            ),
+            (1, 1, 1)
+        );
+        let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
+        assert_eq!(encoded["counts"]["external_links"], 1);
+        assert_eq!(encoded["counts"]["matched_external_links"], 1);
+        assert_eq!(encoded["cells"][0]["external_links"], true);
+
+        let plain = judge(&live, &results(CALCULATED), &evaluated(), &exact("20430")).unwrap();
+        assert!(!plain.cells[0].external_links);
+        assert_eq!(plain.counts.external_links, 0);
+        let encoded: serde_json::Value = serde_json::from_str(&plain.encode()).unwrap();
+        assert!(encoded["counts"].get("external_links").is_none());
+        assert!(encoded["cells"][0].get("external_links").is_none());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -2289,6 +2365,8 @@ mod tests {
                 evaluator_calls: 2,
                 // A version 1 record: both calculated cells are proven without a value check.
                 calculated_without_value_check: 2,
+                external_links: 0,
+                matched_external_links: 0,
             }
         );
         assert_eq!(report.evaluation_record_version, 1);
@@ -2685,6 +2763,7 @@ mod tests {
                 tick: 7,
                 revision: 3,
                 context: "k".to_owned(),
+                external_links: false,
             },
             value: Some(CalcValue::number(1.0)),
         });

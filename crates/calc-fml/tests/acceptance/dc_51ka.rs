@@ -1076,6 +1076,7 @@ fn documents(run: &[(u32, Row, Shown)]) -> (ResultSet, InstrumentRecord) {
                     tick,
                     revision: REVISION,
                     context: context.clone(),
+                    external_links: false,
                 },
                 Some(value.clone()),
             ),

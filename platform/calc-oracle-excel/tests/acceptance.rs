@@ -1267,6 +1267,7 @@ mod windows {
                         tick: 1,
                         revision: session.revision,
                         context: session.context.clone(),
+                        external_links: false,
                     },
                     value: Some(value.clone()),
                 })

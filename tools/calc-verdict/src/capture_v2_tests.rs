@@ -86,6 +86,7 @@ fn calculated(run: (u64, &str), revision: u64, context: &str) -> (ResultSet, Eva
                     tick: i as u64 + 1,
                     revision,
                     context: context.to_owned(),
+                    external_links: false,
                 },
                 value: Some(value.clone()),
             })
@@ -989,6 +990,7 @@ fn calculated_cells(values: &[(CellAddress, f64)]) -> (ResultSet, EvaluationReco
                     tick: i as u64 + 1,
                     revision: 1,
                     context: CONTEXT.to_owned(),
+                    external_links: false,
                 },
                 value: Some(CalcValue::number(*value)),
             })
@@ -1044,6 +1046,7 @@ fn legacy_array_cells_are_proven_by_their_anchors_evaluation() {
                     tick: 1,
                     revision: 1,
                     context: CONTEXT.to_owned(),
+                    external_links: false,
                 },
                 value: Some(CalcValue::number(*value)),
             })

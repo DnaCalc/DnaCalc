@@ -771,6 +771,7 @@ fn run_workbook(
                     tick: calculation.tick().get(),
                     revision: calculation.revision().get(),
                     context: context.clone(),
+                    external_links: calculation.reads_external_links(),
                 },
                 // A dynamic array's anchor is compared by the whole array its spill shows, as the
                 // capture records Excel's (dc-677); a legacy array's cells each by its own value.
@@ -1026,6 +1027,12 @@ fn compare(request: &Request) -> Result<(), Failure> {
         c.failed,
         c.missing
     );
+    if c.external_links > 0 {
+        println!(
+            "xtask compare: {} calculated cells read another workbook's link caches ({} of them matched); the corpus summary counts those matches apart from passes",
+            c.external_links, c.matched_external_links
+        );
+    }
     if let Some(failure) = &run.workbook {
         println!(
             "xtask compare: {}; every inventory cell is classed {} with key {}",
