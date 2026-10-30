@@ -96,9 +96,9 @@ fn character_scan_end(text: &ExcelText) -> usize {
         )
 }
 
-/// LEN: characters, a surrogate pair counting once and a trailing unmatched high surrogate not
+/// The characters LEFT counts: a surrogate pair once, and a trailing unmatched high surrogate not
 /// at all.
-pub(crate) fn len_character_count(text: &ExcelText) -> usize {
+fn len_character_count(text: &ExcelText) -> usize {
     slice_character_count(text)
         - usize::from(character_scan_end(text) < text.len_utf16_code_units())
 }
@@ -121,41 +121,15 @@ pub(crate) fn take_right(text: &ExcelText, count: usize) -> ExcelText {
     ExcelText::from_utf16_code_units(text.utf16_code_units()[start..].to_vec())
 }
 
-/// MID (characters) or MIDB (`raw_units`, UTF-16 code units).
-pub(crate) fn take_mid(
-    text: &ExcelText,
-    start_one_based: usize,
-    count: usize,
-    raw_units: bool,
-) -> ExcelText {
-    if count == 0 {
+/// MID and MIDB: `count` UTF-16 code units from the one-based `start_one_based`.
+pub(crate) fn take_mid(text: &ExcelText, start_one_based: usize, count: usize) -> ExcelText {
+    let units = text.utf16_code_units();
+    let start = start_one_based.saturating_sub(1);
+    if count == 0 || start >= units.len() {
         return ExcelText::from_utf16_code_units(Vec::new());
     }
-    let start_index = if raw_units {
-        start_one_based.saturating_sub(1)
-    } else {
-        character_boundary(text, start_one_based.saturating_sub(1))
-    };
-    let scan_end = if raw_units {
-        text.len_utf16_code_units()
-    } else {
-        character_scan_end(text)
-    };
-    if start_index >= scan_end {
-        return ExcelText::from_utf16_code_units(Vec::new());
-    }
-    let end_index = if raw_units {
-        start_index
-            .saturating_add(count)
-            .min(text.len_utf16_code_units())
-    } else {
-        character_boundary(
-            text,
-            start_one_based.saturating_sub(1).saturating_add(count),
-        )
-        .min(scan_end)
-    };
-    ExcelText::from_utf16_code_units(text.utf16_code_units()[start_index..end_index].to_vec())
+    let end = start.saturating_add(count).min(units.len());
+    ExcelText::from_utf16_code_units(units[start..end].to_vec())
 }
 
 // --- search and replace (text_search_replace_family.rs) ----------------------------------------
@@ -591,7 +565,8 @@ mod tests {
         assert_eq!(len_character_count(&emoji), 2);
         assert_eq!(take_left(&emoji, 1), text(vec![0xD83D, 0xDE00]));
         assert_eq!(take_right(&emoji, 1), t("A"));
-        assert_eq!(take_mid(&emoji, 2, 5, false), t("A"));
+        // MID counts code units (dc-fl2).
+        assert_eq!(take_mid(&emoji, 2, 5), text(vec![0xDE00, 0x41]));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -53,13 +53,16 @@ fn right(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     Ok(CalcValue::text(k::take_right(&text, count)))
 }
 
-fn mid(site: &Site<'_>, a: &[CalcValue], raw_units: bool) -> Step<CalcValue> {
+/// MID and MIDB: both count UTF-16 code units, so either can return half of a surrogate pair
+/// (dc-fl2, Excel 16.0.20527, the catalogue's sheet dcfl2_text: MID(UNICHAR(128512),1,1) is U+D83D
+/// alone and MID(UNICHAR(128512),2,1) U+DE00).
+fn mid(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
     let start = num(site, a, 1)?;
     let count = num(site, a, 2)?;
     let start = k::mid_start(start).map_err(Exit::Error)?;
     let count = k::nonnegative_count(count, false).map_err(Exit::Error)?;
-    Ok(CalcValue::text(k::take_mid(&text, start, count, raw_units)))
+    Ok(CalcValue::text(k::take_mid(&text, start, count)))
 }
 
 /// The optional start of FIND and SEARCH: 1 when the call does not reach it or leaves it empty.
@@ -139,11 +142,12 @@ fn concatenate(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let mut joined: Vec<u16> = Vec::new();
     for index in 0..a.len() {
         let units = cell_text(site, index, &a[index])?;
-        if joined.len() + units.len() > EXCEL_TEXT_MAX_UTF16_CODE_UNITS {
-            return fail(WorksheetErrorCode::Calc);
-        }
         joined.extend_from_slice(&units);
     }
+    // A result longer than a cell holds is cut to its first 32,767 UTF-16 code units, as &'s is
+    // (dc-fl2, Excel 16.0.20527: LEN(CONCATENATE(REPT("a",32767),"b")) is 32,767; CONCAT's is
+    // #CALC!).
+    joined.truncate(EXCEL_TEXT_MAX_UTF16_CODE_UNITS);
     Ok(CalcValue::text(ExcelText::from_utf16_code_units(joined)))
 }
 
@@ -227,19 +231,22 @@ ported_family! {
         out(s, k::unicode(&text))
     }
     5 len_fn "LEN" (1, 1) [V "text"] |s, a, sv| {
+        // UTF-16 code units, a surrogate pair counting twice (dc-fl2, Excel 16.0.20527, the
+        // catalogue's sheet dcfl2_text: LEN(UNICHAR(128512)) is 2, LEN of 16,383 of them and a
+        // lone high surrogate 32,767).
         let text = text_arg(s, a, 0)?;
-        s.number(k::len_character_count(&text) as f64)
+        s.number(text.len_utf16_code_units() as f64)
     }
     6 left_fn "LEFT" (1, 2) [V "text", V "num_chars"] |s, a, sv| { left(s, a) }
     7 right_fn "RIGHT" (1, 2) [V "text", V "num_chars"] |s, a, sv| { right(s, a) }
-    8 mid_fn "MID" (3, 3) [V "text", V "start_num", V "num_chars"] |s, a, sv| { mid(s, a, false) }
+    8 mid_fn "MID" (3, 3) [V "text", V "start_num", V "num_chars"] |s, a, sv| { mid(s, a) }
     9 lenb_fn "LENB" (1, 1) [V "text"] |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         s.number(text.len_utf16_code_units() as f64)
     }
     10 leftb_fn "LEFTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { left(s, a) }
     11 rightb_fn "RIGHTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { right(s, a) }
-    12 midb_fn "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] |s, a, sv| { mid(s, a, true) }
+    12 midb_fn "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] |s, a, sv| { mid(s, a) }
     13 upper_fn "UPPER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::upper) }
     14 lower_fn "LOWER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::lower) }
     15 proper_fn "PROPER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::proper) }
