@@ -190,6 +190,11 @@
  },
  "files": [
   {
+   "path": "crates/calc-func/tests/f1_support/x87_cpu.rs",
+   "class": "own-work",
+   "reason": "Written here (dc-ymjf.2): shared test-only vendor-scoped x87 measurements from the existing AMD pins and the Intel Haswell Linux run of 2026-10-30; no Excel readings changed."
+  },
+  {
    "path": "crates/calc-func/Cargo.toml",
    "class": "own-work",
    "reason": "project metadata",

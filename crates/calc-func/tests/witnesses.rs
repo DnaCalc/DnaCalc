@@ -9,6 +9,9 @@
 #[path = "witnesses/index.rs"]
 mod index;
 
+#[path = "f1_support/x87_cpu.rs"]
+mod x87_cpu;
+
 use calc_func::locale::{CalcEnvironment, DateSystem};
 use calc_func::value::{CalcValue, NumericMode};
 use calc_func::{EvalServices, FunctionCallScratch, Notation, PreparedArguments, catalogue, invoke};
@@ -72,7 +75,21 @@ fn every_pinned_witness_row_calculates_as_pinned() {
         for row in &set.witnesses {
             rows += 1;
             let actual = calculate(&set.function, row);
-            let want = row.calc_func.as_deref().unwrap_or(&row.expected);
+            let pinned = row.calc_func.as_deref().unwrap_or(&row.expected);
+            let cpu_row = match row.args.as_slice() {
+                [arg] => arg.as_str().and_then(|s| s.strip_prefix("0x"))
+                    .and_then(|s| u64::from_str_radix(s, 16).ok())
+                    .and_then(|input| x87_cpu::find(&set.function, input)),
+                _ => None,
+            };
+            // Excel itself on Intel has not been measured for these inputs. Check the
+            // hardware result for this CPUID vendor without changing the Excel reading.
+            let want = if let Some(cpu_row) = cpu_row {
+                assert_eq!(pinned, format!("0x{:016x}", cpu_row.for_vendor("AuthenticAMD").bits), "original pin");
+                format!("0x{:016x}", cpu_row.expected_bits())
+            } else {
+                pinned.to_owned()
+            };
             if actual != want {
                 let what = if actual == row.expected {
                     "now matches Excel (a gain: re-pin)"

@@ -874,6 +874,10 @@ const LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY: [u64; 18] = [
 ];
 
 #[cfg(test)]
+#[path = "../../../tests/f1_support/x87_cpu.rs"]
+mod x87_cpu;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use test_support::Rng;
@@ -984,11 +988,12 @@ mod tests {
     /// ([`excel_exp`], [`excel_log`]) against every witness harvested from live Excel
     /// (`x87_excel_ground_truth.tsv`). Every EXP row matches except
     /// [`EXP_WITNESSES_THE_CLEAN_ROOM_CHAIN_ROUNDS_THE_OTHER_WAY`], each one unit of the last place
-    /// away, on both backends. On the x87 hardware every LN row matches (the hardest rows depend
-    /// on the CPU's `FYL2X`); on the software x87 the LN rows match except
+    /// away, on both backends. Hardware LN results are exact against the measured CPU vendor
+    /// in `x87_cpu` for its listed rows, and against the original reading for every other row.
+    /// Excel itself on Intel has not been measured for these inputs. On the software x87 the LN rows match except
     /// [`LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY`], each one unit of the last place
-    /// away; on x86_64 each of those is shown to be a hardware `FYL2X` result that differs from
-    /// the exactly rounded one.
+    /// away. On x86_64, listed hardware `FYL2X` rows use the same exact vendor expectations;
+    /// every other row in that list must differ from the exactly rounded software result.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn exp_and_ln_against_live_excel() {
@@ -1005,6 +1010,14 @@ mod tests {
                 "EXP" => {
                     exp_rows += 1;
                     let got = excel_exp(x).to_bits();
+                    let want = if let Some(row) = x87_cpu::find("EXP", x.to_bits()) {
+                        assert_eq!(want, row.for_vendor("AuthenticAMD").bits, "original Excel reading");
+                        let expected = row.expected_bits();
+                        assert_eq!(got, expected, "vendor-scoped EXP x={:016x}", x.to_bits());
+                        expected
+                    } else {
+                        want
+                    };
                     if got != want {
                         assert_eq!(got.abs_diff(want), 1, "EXP x={:016x}", x.to_bits());
                         exp_differ.push(x.to_bits());
@@ -1013,6 +1026,17 @@ mod tests {
                 "LN" => {
                     ln_rows += 1;
                     let got = excel_log(x).to_bits();
+                    let want = if let Some(row) = x87_cpu::find("LN", x.to_bits()) {
+                        assert_eq!(want, row.for_vendor("AuthenticAMD").bits, "original Excel reading");
+                        if software {
+                            assert_eq!(got, row.software_bits, "software LN x={:016x}", x.to_bits());
+                            want // Preserve the software backend's own difference list below.
+                        } else {
+                            row.expected_bits()
+                        }
+                    } else {
+                        want
+                    };
                     if got != want {
                         assert!(software, "LN x={:016x}: got {got:016x} want {want:016x}", x.to_bits());
                         assert_eq!(got.abs_diff(want), 1, "LN x={:016x}", x.to_bits());
@@ -1030,7 +1054,15 @@ mod tests {
         #[cfg(target_arch = "x86_64")]
         for bits in LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY {
             let x = load(f64::from_bits(bits));
-            assert_ne!(Hard::fyl2x(&ext_ln2(), &x, CW), Soft::fyl2x(&ext_ln2(), &x, CW), "{bits:016x}");
+            let hard = Hard::fyl2x(&ext_ln2(), &x, CW);
+            let soft = Soft::fyl2x(&ext_ln2(), &x, CW);
+            if let Some(row) = x87_cpu::find("LN", bits) {
+                let expected = row.hardware_bits();
+                assert_eq!(Hard::store(&hard, CW).to_bits(), expected, "hardware FYL2X {bits:016x}");
+                assert_eq!(Soft::store(&soft, CW).to_bits(), row.software_bits, "software FYL2X {bits:016x}");
+            } else {
+                assert_ne!(hard, soft, "{bits:016x}");
+            }
         }
     }
 
@@ -1214,4 +1246,3 @@ mod tests {
         assert!(excel_exp(f64::NAN).is_nan());
     }
 }
-
