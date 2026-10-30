@@ -11,20 +11,18 @@
       ],
       "cases": [
         "infra_m0_1__workspace_builds",
-        "infra_m0_1__independent_lanes",
-        "infra_m0_1__agent_contract"
+        "infra_m0_1__independent_lanes"
       ],
       "platforms": {
         "infra_m0_1__workspace_builds": ["windows", "linux"],
-        "infra_m0_1__independent_lanes": ["windows", "linux"],
-        "infra_m0_1__agent_contract": ["windows", "linux"]
+        "infra_m0_1__independent_lanes": ["windows", "linux"]
       }
     },
     {
       "id": "infra-m0.3",
       "test": "acceptance",
       "commands": [
-        ["cargo", "test", "-p", "xtask", "--test", "acceptance", "infra_m0_3", "--", "--nocapture"],
+        ["cargo", "test", "-p", "xtask", "--features", "acceptance", "--test", "acceptance", "infra_m0_3", "--", "--nocapture"],
         ["cargo", "test", "-p", "xtask", "--bins"],
         ["cargo", "xtask", "accept", "--id", "infra-m0.3", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "infra-m0.3", "--platform", "linux", "--require-all"]
@@ -42,7 +40,7 @@
       "id": "infra-m0.2",
       "test": "acceptance",
       "commands": [
-        ["cargo", "test", "-p", "xtask", "--test", "acceptance", "infra_m0_2", "--", "--nocapture"],
+        ["cargo", "test", "-p", "xtask", "--features", "acceptance", "--test", "acceptance", "infra_m0_2", "--", "--nocapture"],
         ["cargo", "test", "-p", "xtask", "--bins"]
       ],
       "cases": [

@@ -489,6 +489,132 @@ pub fn check(root: &Path) -> CheckResult {
     CheckResult::new("word-scan", summary, findings, details)
 }
 
+/// The commit new text is measured from: where `HEAD` meets `origin/master` (`HEAD` itself when
+/// the repository has no `origin/master`), with how it was found.
+pub fn new_text_base(root: &Path) -> (String, String) {
+    match crate::cargo::git(root, &["merge-base", "HEAD", "origin/master"]) {
+        Ok(base) => (
+            base.trim().to_owned(),
+            "where HEAD meets origin/master".to_owned(),
+        ),
+        Err(_) => (
+            "HEAD".to_owned(),
+            "HEAD (no origin/master: only uncommitted text is new)".to_owned(),
+        ),
+    }
+}
+
+/// Whether `rel` (with `/` separators) is one of the inputs the scan reads.
+fn is_input(rel: &str, inputs: &Inputs) -> bool {
+    rel.starts_with(&format!("{}/", inputs.docs))
+        || inputs.files.contains(&rel)
+        || rel == inputs.tracker
+}
+
+/// The per-commit word scan: only text that is new since [`new_text_base`] is read, so text that
+/// is already pushed never fails it. New text is each line the working tree adds to the scan's
+/// inputs (`docs/`, `AGENTS.md`, `README.md` and the tracker JSONL) against the base, every line
+/// of an untracked file among them, and the message of each commit after the base. Any occurrence
+/// of a banned word in new text is a finding; the baseline is not consulted, because it counts
+/// pushed text.
+pub fn check_new(root: &Path) -> CheckResult {
+    const NAME: &str = "word-scan (new text)";
+    let config = match fs::read_to_string(root.join(CONFIG_PATH))
+        .map_err(|e| format!("cannot read {CONFIG_PATH}: {e}"))
+        .and_then(|text| WordConfig::parse(&text))
+    {
+        Ok(config) => config,
+        Err(e) => return CheckResult::new(NAME, format!("not checked: {e}"), vec![e], Value::Null),
+    };
+    let inputs = &REPOSITORY_INPUTS;
+    let (base, how) = new_text_base(root);
+    let mut findings = Vec::new();
+    let (mut lines_read, mut files_read, mut commits_read) = (0usize, 0usize, 0usize);
+    let check_text = |what: String, text: &str, findings: &mut Vec<String>| {
+        let found = config.occurrences(text);
+        if !found.offsets.is_empty() {
+            findings.push(format!(
+                "{what}: {} occurrences of the banned words in new text",
+                found.offsets.len()
+            ));
+        }
+    };
+    let mut pathspecs = vec![inputs.docs, inputs.tracker];
+    pathspecs.extend(inputs.files.iter().copied());
+    let mut diff_args = vec!["diff", "--no-color", "--unified=0", base.as_str(), "--"];
+    diff_args.extend(pathspecs.iter().copied());
+    match crate::cargo::git(root, &diff_args) {
+        Err(e) => findings.push(format!("cannot read the diff against {base}: {e}")),
+        Ok(diff) => {
+            let mut file = String::new();
+            let mut added: BTreeMap<String, Vec<(usize, String)>> = BTreeMap::new();
+            let mut line_no = 0usize;
+            for line in diff.lines() {
+                if let Some(path) = line.strip_prefix("+++ ") {
+                    file = path.trim_start_matches("b/").to_owned();
+                } else if line.starts_with("@@") {
+                    // "@@ -a,b +c,d @@": the new side starts at line c.
+                    line_no = line
+                        .split_whitespace()
+                        .find_map(|part| part.strip_prefix('+'))
+                        .and_then(|part| part.split(',').next())
+                        .and_then(|start| start.parse().ok())
+                        .unwrap_or(0);
+                } else if let Some(text) = line.strip_prefix('+') {
+                    added
+                        .entry(file.clone())
+                        .or_default()
+                        .push((line_no, text.to_owned()));
+                    line_no += 1;
+                }
+            }
+            for (file, lines) in &added {
+                files_read += 1;
+                for (at, text) in lines {
+                    lines_read += 1;
+                    check_text(format!("{file}:{at}"), text, &mut findings);
+                }
+            }
+        }
+    }
+    match crate::cargo::git(root, &["ls-files", "--others", "--exclude-standard", "-z"]) {
+        Err(e) => findings.push(format!("cannot list the untracked files: {e}")),
+        Ok(listing) => {
+            for rel in listing.split('\0').filter(|rel| is_input(rel, inputs)) {
+                match fs::read(root.join(rel)) {
+                    Ok(bytes) => {
+                        files_read += 1;
+                        let text = String::from_utf8_lossy(&bytes);
+                        lines_read += text.lines().count();
+                        check_text(format!("{rel} (untracked)"), &text, &mut findings);
+                    }
+                    Err(e) => findings.push(format!("cannot read {rel}: {e}")),
+                }
+            }
+        }
+    }
+    let range = format!("{base}..HEAD");
+    match crate::cargo::git(root, &["log", "--format=%H%x1f%B%x1e", &range]) {
+        Err(e) => findings.push(format!("cannot read the commit messages after {base}: {e}")),
+        Ok(log) => {
+            commits_read = log.matches('\u{1e}').count();
+            let (found, _) = config.commit_counts(&log);
+            for (hash, count) in found {
+                findings.push(format!(
+                    "commit {hash}: {count} occurrences of the banned words in its message (not pushed yet: reword it before pushing)"
+                ));
+            }
+        }
+    }
+    let summary = format!(
+        "{lines_read} new lines in {files_read} files and {commits_read} unpushed commit messages since {how}; {} findings",
+        findings.len()
+    );
+    let details =
+        json!({ "base": base, "lines": lines_read, "files": files_read, "commits": commits_read });
+    CheckResult::new(NAME, summary, findings, details)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
