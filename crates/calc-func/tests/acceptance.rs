@@ -19887,10 +19887,6 @@ const ARRAY_ARGUMENT: Owner = Owner {
     bead: "dc-10y",
     behaviour: "an array given to a value argument, which Excel loads in a legacy formula with @ (its first element) and which array evaluation applies the function to in a dynamic-array formula",
 };
-const RANGE_TO_TYPE: Owner = Owner {
-    bead: "dc-10y",
-    behaviour: "a range of several cells given to TYPE, which Excel loads in a legacy formula with @ (implicit intersection); its dynamic-array result is unmeasured",
-};
 const FORMULA_FACT: Owner = Owner {
     bead: "dc-uar",
     behaviour: "whether a cell holds a formula, a host fact the cell reader does not supply",
@@ -20950,9 +20946,9 @@ fn information_rows(s: &mut TestSheet, quiet: bool) -> InfoRows {
         r,
         s,
         "TYPE",
-        [reference(s, &["A1:A2"])],
-        Refused(Some(0)),
-        Ref(RANGE_TO_TYPE)
+        [arg("A1:A2", CalcValue::error(W::Value))],
+        N(16.0),
+        Meas("dc-b1l: the legacy formula in row 111 below A1:A2 intersects the range before the call (Excel writes TYPE(@A1:A2), calc-fml's legacy places), giving TYPE #VALUE!, of type 16; a range itself is of type 64, as the reader test below checks")
     );
     info!(r, s, "TYPE", [txt("")], N(2.0), Doc(TYPE_TABLE));
     info!(r, s, "TYPE", [err(W::NA)], N(16.0), Doc(TYPE_TABLE));
@@ -21905,6 +21901,18 @@ fn dc_nzpw__information_functions() {
                 index: 0
             }),
             "{spelling} without a cell reader"
+        );
+    }
+
+    // dc-b1l: a reference to one area of several cells is of type 64, as Excel 16.0.20527 gives
+    // =TYPE(A101:A103) and =TYPE(A101:B101) in a dynamic-array formula and
+    // =SUMPRODUCT(TYPE(A101:A103)) in a legacy one (a legacy formula intersects it elsewhere).
+    for area in ["A1:A2", "A3:B3"] {
+        let given = CalcValue::reference(ReferenceLike::from_areas(vec![sheet.area(area)]).expect("one area"));
+        assert_eq!(
+            information_call("TYPE", vec![given], &fast, Some(&mut DenseReader(&sheet))),
+            Ok(CalcValue::number(64.0)),
+            "TYPE({area})"
         );
     }
 

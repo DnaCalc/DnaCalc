@@ -29,7 +29,7 @@
 //! `binding/excel_prefix.rs`, measured on Excel 16.0 on 2026-09-15).
 
 use super::builtins::is_builtin;
-use super::legacy::Place;
+use super::legacy::{self, Place};
 use super::{Admission, CompiledPlan, FormulaForm, Instruction, Literal, PlanCache, Target};
 use crate::parse_formula;
 use crate::reference::{
@@ -894,6 +894,14 @@ impl<'c> Lowering<'c> {
                         tasks.push(Task::Emit { block, instruction });
                     }
                     continue;
+                }
+                if self.form == FormulaForm::Legacy
+                    && legacy::intersects_reference(place, spelled, index)
+                {
+                    tasks.push(Task::Emit {
+                        block,
+                        instruction: Instruction::ImplicitReference,
+                    });
                 }
                 tasks.push(Task::Lower {
                     node: argument,

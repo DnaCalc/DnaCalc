@@ -333,6 +333,17 @@ impl Run<'_, '_> {
                         .push(refops::implicit(&value, instance.anchor.cell()));
                     Ok(())
                 }
+                Instruction::ImplicitReference => {
+                    let value = self.stack.pop().expect("an operand");
+                    let value = match value.core_ref() {
+                        CoreRef::Reference(reference) if reference.areas().len() == 1 => {
+                            refops::implicit(&value, instance.anchor.cell())
+                        }
+                        _ => value,
+                    };
+                    self.stack.push(value);
+                    Ok(())
+                }
                 Instruction::Spill => self.spill(),
                 Instruction::Local(slot) => {
                     let value = self.locals[self.base + *slot as usize].clone();

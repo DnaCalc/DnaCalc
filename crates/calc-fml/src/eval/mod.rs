@@ -232,6 +232,10 @@ enum Instruction {
     Union(usize),
     /// Pops a value and pushes the one value implicit intersection takes of it (`@`).
     Implicit,
+    /// Pops a value and pushes, for a reference of one area, the cell implicit intersection takes
+    /// of it (#VALUE! when there is none), and any other value as it is: the `@` a legacy formula
+    /// writes before a reference given to TYPE or TRANSPOSE (`legacy::intersects_reference`).
+    ImplicitReference,
     /// Pops a reference to one cell and pushes the reference to the range spilled from it (`#`).
     Spill,
     /// Pushes local `.0` of the current frame: a LET name or a LAMBDA parameter.
