@@ -56,8 +56,8 @@ decide.
 code is AMD's MIT win-libm and Arm's MIT optimized-routines, and what no source says (the
 configurations, the fused multiply-adds of sinh, cosh and atan2) was measured against the
 runtime; row 8 was wrong (PMT, IPMT and PPMT do reach the port) and is resolved by re-sourcing to
-Arm's MIT copy of the same code, checked equal table for table; row 4's text is marked as
-Microsoft's in help.rs, with sources in `migration/help-text-sources.tsv`; row 7 carries a credit
+Arm's MIT copy of the same code, checked equal table for table; row 4 is resolved: help.rs's
+descriptions are our own, and `migration/help-text-sources.tsv` records what they replaced; row 7 carries a credit
 to Wichura; row 9's comparison functions are removed (dc-96l.4).
 
 These do not fit an MIT release as they stand. A notice cannot fix the first five. Each is in the
