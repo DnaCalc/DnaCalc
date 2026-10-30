@@ -64,8 +64,23 @@ pub(super) enum Place {
     Value,
     Aggregate,
     Array,
+    /// The arguments of an aggregate function called at an array place
+    /// ([`AGGREGATE_UNDER_ARRAY`], dc-b1l): an operator over a range lifts there, and a function
+    /// called there takes its arguments as at a formula's root.
+    ArrayAggregate,
     Unknown,
 }
+
+/// The aggregate functions measured below an array place (dc-b1l, Excel 16.0.20527 through COM,
+/// 2026-10-30, legacy formulas entered through `Range.Formula` over 1, 2, 3 in A1:A3 and 10, 20,
+/// 30 in B1:B3): `=SUMPRODUCT(SUM(A1:A3*2))` is 12, `=SUMPRODUCT(MAX(A1:A3*2))` 6,
+/// `=SUMPRODUCT(AVERAGE(A1:A3*B1:B3))` 46.67, `=SUMPRODUCT(MIN(A1:A3+1))` 2 (an operator lifts),
+/// while `=SUMPRODUCT(SUM(ABS(A1:A3)))` reads back as `=SUMPRODUCT(SUM(ABS(@A1:A3)))` and
+/// `=SUMPRODUCT(SUM(IF(A1:A3>1,A1:A3)))` as `...IF(@A1:A3>1,...)` (a function below intersects
+/// as at the root); COUNT, COUNTA, PRODUCT, SUMSQ and MEDIAN likewise.
+const AGGREGATE_UNDER_ARRAY: &[&str] = &[
+    "SUM", "MAX", "MIN", "AVERAGE", "COUNT", "COUNTA", "PRODUCT", "SUMSQ", "MEDIAN",
+];
 
 /// The parameters that take a reference and do not spill, by function: a range expression
 /// written there is intersected. dc-10y measured every parameter of the catalogue that takes a
@@ -253,6 +268,21 @@ const SINGLE: &[(&str, &[usize])] = &[("FIELDVALUE", ALL)];
 /// catalogue oracle's `=ROWS(GROUPBY(...,{1;2;3;4;5;6}>2))` rows give the filtered groups.
 const NESTED_ARRAY: &[(&str, &[usize])] = &[("GROUPBY", &[0, 1, 6]), ("PIVOTBY", &[0, 1, 2, 9])];
 
+/// The reference parameters at which OFFSET or INDIRECT lifts over an array wherever the call is,
+/// giving an array of references the function runs once per reference of (dc-b1l, the
+/// catalogue's dcb1l_language rows, Excel 16.0.20527, 2026-10-30: legacy
+/// `=SUM(SUBTOTAL(9,OFFSET(E1,{0;1},0,2)))` is 8 over 1, 2, 3 in E1:E3); ROW and INDEX, given one
+/// there, take its first reference (`=SUMPRODUCT(ROW(OFFSET(E1,{0;1},0)))` is 1).
+const REFERENCES_LIFT: &[(&str, &[usize])] = &[
+    ("SUBTOTAL", ALL),
+    ("SUMIF", &[0]),
+    ("COUNTIF", &[0]),
+    ("AREAS", &[0]),
+    ("N", &[0]),
+    ("ROW", &[0]),
+    ("INDEX", &[0]),
+];
+
 /// The parameters whose range expression a legacy formula intersects wherever the call is, an
 /// array place included, while an array there lifts (dc-o9r). Measured as [`NESTED_ARRAY`] says:
 /// `=SUMPRODUCT(TRANSPOSE(A101:A103*1))` is written back `=SUMPRODUCT(TRANSPOSE(@A101:A103*1))`,
@@ -301,7 +331,7 @@ impl Place {
         match self {
             Place::Value => Admission::IntersectAll,
             Place::Aggregate => Admission::IntersectReferences,
-            Place::Array => Admission::Lift,
+            Place::Array | Place::ArrayAggregate => Admission::Lift,
             Place::Unknown => Admission::Refuse,
         }
     }
@@ -324,6 +354,9 @@ impl Place {
         if self == Place::Unknown {
             return Place::Unknown;
         }
+        if self == Place::ArrayAggregate {
+            return Place::Value.argument(spelling, index, class, lazy);
+        }
         if lazy {
             // IF's, IFERROR's and CHOOSE's arguments keep the place of the call, except in an
             // array place, where a range at their single-value parameters is intersected again.
@@ -336,7 +369,7 @@ impl Place {
             Some(ParameterClass::Value) if listed(SINGLE, spelling, index) => Place::Value,
             Some(ParameterClass::Value) => self,
             Some(ParameterClass::ValueOrReference | ParameterClass::Reference) | None => {
-                if listed(NESTED_ARRAY, spelling, index) {
+                if listed(NESTED_ARRAY, spelling, index) || listed(REFERENCES_LIFT, spelling, index) {
                     Place::Array
                 } else if listed(AGGREGATE_ANYWHERE, spelling, index) {
                     Place::Aggregate
@@ -348,6 +381,13 @@ impl Place {
                 } else if listed(AGGREGATE, spelling, index) {
                     match self {
                         Place::Value | Place::Aggregate => Place::Aggregate,
+                        Place::Array
+                            if AGGREGATE_UNDER_ARRAY
+                                .iter()
+                                .any(|name| name.eq_ignore_ascii_case(spelling)) =>
+                        {
+                            Place::ArrayAggregate
+                        }
                         _ => Place::Unknown,
                     }
                 } else {
@@ -393,8 +433,13 @@ mod tests {
         assert_eq!(Place::Value.argument("XLOOKUP", 1, r, false), Place::Array);
         assert_eq!(Place::Value.argument("MEDIAN", 0, r, false), Place::Aggregate);
         assert_eq!(Place::Unknown.admission(), Admission::Refuse);
-        // A function below an array place that is not measured there.
-        assert_eq!(array.argument("SUM", 0, r, false), Place::Unknown);
+        // A function below an array place that is not measured there; dc-b1l: SUM there lifts an
+        // operator and takes a function's arguments as at the root.
+        assert_eq!(array.argument("STDEV", 0, r, false), Place::Unknown);
+        let sum = array.argument("SUM", 0, r, false);
+        assert_eq!(sum, Place::ArrayAggregate);
+        assert_eq!(sum.admission(), Admission::Lift);
+        assert_eq!(sum.argument("ABS", 0, v, false), Place::Value);
         assert_eq!(Place::Value.argument("lookup", 2, r, false), Place::Array);
         // dc-b1l: FIELDVALUE's value parameters are intersected below ROWS's array place.
         assert_eq!(array.argument("FIELDVALUE", 0, v, false), Place::Value);

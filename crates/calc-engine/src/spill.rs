@@ -89,7 +89,11 @@ impl SpillOutcome {
 pub(crate) fn shown(value: &CalcValue) -> CalcValue {
     if value.is_empty() || value.is_missing() {
         CalcValue::number(0.0)
-    } else if value.as_array().is_some() && value.callable_value().is_none() {
+    } else if (value.as_array().is_some() && value.callable_value().is_none())
+        || value.as_reference().is_some()
+    {
+        // dc-b1l: an element of an array of references too (`=OFFSET(A1,{0;1;2},0)` spills
+        // #VALUE! in Excel 16.0.20527).
         CalcValue::error(WorksheetErrorCode::Value)
     } else {
         value.clone()

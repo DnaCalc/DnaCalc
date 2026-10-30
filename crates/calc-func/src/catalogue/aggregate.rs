@@ -24,8 +24,10 @@
 //! and COUNTA, each of its elements as an element of the outer array, and makes PRODUCT, SUMSQ,
 //! AVERAGE, AVERAGEA, MIN, MAX, MINA and MAXA #N/A (Excel 16.0.20527, 2026-10-30: SUM of
 //! `GROUPBY(k,v,LAMBDA(x,x))` adds every group's values, MAX of it is #N/A); SUMPRODUCT takes it as
-//! no number. The other functions that read arrays here refuse it, and a reference held inside an
-//! array, as not modelled. A product below
+//! no number. The other functions that read arrays here refuse it as not modelled. A reference
+//! held inside an array (OFFSET or INDIRECT lifted over an array, dc-b1l) is read at its first
+//! cell by SUM, AVERAGE and MAX, is no number to COUNT and a value to COUNTA, and is refused by
+//! the others ([`HeldReference`]). A product below
 //! binary64's normal range is 0, as Excel gives it (dc-bd5: PRODUCT(1E-200,1E-200),
 //! SUMSQ(1E-200) and SUMPRODUCT(1E-200,1E-200) are 0 in Excel 16.0.20430).
 
@@ -132,6 +134,11 @@ fn sum(
     let mut total = 0.0;
     let read_through = read_through_held_arrays(arguments);
     let arguments: &[CalcValue] = read_through.as_deref().unwrap_or(arguments);
+    let held = match read_held_references(&site, services, arguments, HeldReference::FirstCell) {
+        Ok(held) => held,
+        Err(exit) => return Site::finish(Err(exit)),
+    };
+    let arguments: &[CalcValue] = held.as_deref().unwrap_or(arguments);
     let read = direct_first(&site, arguments).and_then(|()| {
         each_number(&site, arguments, services, Held::Numbers, &mut |n| {
             total = site.add(total, n)?;
@@ -224,6 +231,15 @@ fn mean(
     if holds_held_arrays(arguments) {
         return Site::finish(Err(Exit::Error(WorksheetErrorCode::NA)));
     }
+    let held_references = if id == AVERAGE {
+        match read_held_references(&site, services, arguments, HeldReference::FirstCell) {
+            Ok(held) => held,
+            Err(exit) => return Site::finish(Err(exit)),
+        }
+    } else {
+        None
+    };
+    let arguments: &[CalcValue] = held_references.as_deref().unwrap_or(arguments);
     let (mut total, mut counted) = (0.0, 0u64);
     let read = each_number(&site, arguments, services, held, &mut |n| {
         total = site.add(total, n)?;
@@ -277,6 +293,15 @@ fn extreme(
     if holds_held_arrays(arguments) {
         return Site::finish(Err(Exit::Error(WorksheetErrorCode::NA)));
     }
+    let held_references = if id == MAX {
+        match read_held_references(&site, services, arguments, HeldReference::FirstCell) {
+            Ok(held) => held,
+            Err(exit) => return Site::finish(Err(exit)),
+        }
+    } else {
+        None
+    };
+    let arguments: &[CalcValue] = held_references.as_deref().unwrap_or(arguments);
     let mut best: Option<f64> = None;
     let read = each_number(&site, arguments, services, held, &mut |n| {
         if best.is_none_or(|best| replaces(n, best)) {
@@ -298,6 +323,11 @@ fn count(
     let mut counted = 0u64;
     let read_through = read_through_held_arrays(arguments);
     let arguments: &[CalcValue] = read_through.as_deref().unwrap_or(arguments);
+    let held = match read_held_references(&site, services, arguments, HeldReference::NoNumber) {
+        Ok(held) => held,
+        Err(exit) => return Site::finish(Err(exit)),
+    };
+    let arguments: &[CalcValue] = held.as_deref().unwrap_or(arguments);
     let read = each_value(&site, arguments, services, &mut |index, origin, value| {
         if counts_as_number(&site, index, origin, value)? {
             counted += 1;
@@ -352,6 +382,11 @@ fn counta(
     let mut counted = 0u64;
     let read_through = read_through_held_arrays(arguments);
     let arguments: &[CalcValue] = read_through.as_deref().unwrap_or(arguments);
+    let held = match read_held_references(&site, services, arguments, HeldReference::Counted) {
+        Ok(held) => held,
+        Err(exit) => return Site::finish(Err(exit)),
+    };
+    let arguments: &[CalcValue] = held.as_deref().unwrap_or(arguments);
     let read = each_value(&site, arguments, services, &mut |index, origin, value| {
         match (origin, value.core_ref()) {
             (_, CoreRef::Number(n)) => finite(&site, index, n)?,
@@ -608,6 +643,76 @@ fn flatten(array: &CalcArray, out: &mut Vec<CalcValue>) {
             _ => out.push(element.clone()),
         }
     }
+}
+
+/// How an aggregate reads a reference an array argument holds (dc-b1l: OFFSET or INDIRECT lifted
+/// over an array; Excel 16.0.20527, 2026-10-30).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HeldReference {
+    /// As the value of its first cell (SUM, AVERAGE, MAX: `=SUM(OFFSET(A1,{0;1;2},0,2))` is 6
+    /// over 1..6 in A1:A6).
+    FirstCell,
+    /// As no number (COUNT: `=COUNT(OFFSET(A1,{0,1,2},0))` is 0).
+    NoNumber,
+    /// As a value (COUNTA: 3 for the same).
+    Counted,
+}
+
+/// The arguments with each reference an array argument holds read by `how`; `None`, allocating
+/// nothing, when no array argument holds one.
+fn read_held_references(
+    site: &Site<'_>,
+    services: &mut EvalServices<'_>,
+    arguments: &[CalcValue],
+    how: HeldReference,
+) -> Step<Option<Vec<CalcValue>>> {
+    let holds = |argument: &CalcValue| {
+        argument.callable_value().is_none()
+            && argument.as_array().is_some_and(|array| {
+                array
+                    .iter_row_major()
+                    .any(|element| matches!(element.core_ref(), CoreRef::Reference(_)))
+            })
+    };
+    if !arguments.iter().any(holds) {
+        return Ok(None);
+    }
+    let mut read = Vec::with_capacity(arguments.len());
+    for (index, argument) in arguments.iter().enumerate() {
+        let Some(array) = argument.as_array().filter(|_| holds(argument)) else {
+            read.push(argument.clone());
+            continue;
+        };
+        let mut cells = Vec::with_capacity(array.cell_count());
+        for element in array.iter_row_major() {
+            let CoreRef::Reference(reference) = element.core_ref() else {
+                cells.push(element.clone());
+                continue;
+            };
+            cells.push(match how {
+                HeldReference::NoNumber => CalcValue::text(crate::value::ExcelText::from_utf16_code_units(Vec::new())),
+                HeldReference::Counted => CalcValue::logical(true),
+                HeldReference::FirstCell => {
+                    let first = reference.areas()[0].first();
+                    let mut value = CalcValue::empty();
+                    let cells_reader = reader(site, services, index)?;
+                    cells_reader
+                        .read_area(GridArea::cell(first), &mut |_, held| {
+                            value = held.clone();
+                            ControlFlow::Break(())
+                        })
+                        .map_err(|Unreadable| {
+                            Exit::Fault(FunctionFault::ReferenceUnreadable { id: site.id(), index })
+                        })?;
+                    value
+                }
+            });
+        }
+        read.push(CalcValue::array(
+            CalcArray::new(array.shape(), cells).expect("the array's own shape"),
+        ));
+    }
+    Ok(Some(read))
 }
 
 /// Where a value an aggregate reads comes from.
