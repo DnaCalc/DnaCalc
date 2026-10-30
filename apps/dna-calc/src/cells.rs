@@ -4,16 +4,16 @@
 //! literal, the file's cached value (shown as such, never as calculated), a refusal (shown as
 //! refused, never as a value), or a stale value.
 //!
-//! The value text is DNA OneCalc's: a number in the General format of the host's locale profile
-//! ([`dna_onecalc::result::shown`]), an error by its spelling. The labels of cells, areas and
-//! refusals are DNA OneCalc's too ([`dna_onecalc::display`]), over the workbook's sheet names.
+//! The value text is the one DNA OneCalc shows too: a number in the General format of the host's
+//! locale profile ([`dna_formula_ui::result::shown`]), an error by its spelling. So are the labels
+//! of cells, areas and refusals ([`dna_formula_ui::display`]), over the workbook's sheet names.
 
 use calc_host::value::{CalcValue, CellKey, CoreValue, ExcelText, GridArea, SheetId};
 use calc_host::{
     CellInput, FormatProfile, HostState, NotModeled, ProjectedCell, ProjectedValue, StaleCause,
 };
-use dna_onecalc::display::{self, SheetNames};
-use dna_onecalc::result;
+use dna_formula_ui::display::{self, SheetNames};
+use dna_formula_ui::result;
 
 /// Where a shown value came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -83,7 +83,7 @@ pub struct ConditionalShown {
     pub hide_value: bool,
 }
 
-/// The sheet names of a host, for DNA OneCalc's labels.
+/// The sheet names of a host, for the shared labels ([`dna_formula_ui::display`]).
 pub struct WorkbookNames<'a>(pub &'a HostState);
 
 impl SheetNames for WorkbookNames<'_> {
@@ -106,7 +106,7 @@ pub fn area_label(host: &HostState, area: GridArea) -> String {
     display::area(&WorkbookNames(host), area)
 }
 
-pub use dna_onecalc::display::column_letters;
+pub use dna_formula_ui::display::column_letters;
 
 /// A cell's address without its sheet: `B3`.
 pub fn address(row: u32, column: u32) -> String {

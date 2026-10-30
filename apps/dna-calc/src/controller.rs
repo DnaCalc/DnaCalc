@@ -441,13 +441,13 @@ impl Controller {
     /// A cell's label with its sheet's name: `Sheet1!B3`.
     pub fn cell_label(&self, at: CellKey) -> String {
         self.summary
-            .with_untracked(|summary| dna_onecalc::display::cell(summary, at))
+            .with_untracked(|summary| dna_formula_ui::display::cell(summary, at))
     }
 
     /// An area's label with its sheet's name: `Sheet1!A1:B3`.
     pub fn area_label(&self, area: GridArea) -> String {
         self.summary
-            .with_untracked(|summary| dna_onecalc::display::area(summary, area))
+            .with_untracked(|summary| dna_formula_ui::display::area(summary, area))
     }
 
     /// Copies the selected range (Ctrl+C): a paste copies from it.

@@ -64,3 +64,20 @@ pub fn set(theme: &str) {
         let _ = theme;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::CHOICES;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn every_named_choice_is_a_strand_theme_and_every_theme_is_offered() {
+        let named: Vec<&str> = CHOICES
+            .iter()
+            .map(|(id, _)| *id)
+            .filter(|id| !id.is_empty())
+            .collect();
+        let themes: Vec<&str> = dna_strand::Theme::ALL.iter().map(|t| t.id()).collect();
+        assert_eq!(named, themes);
+    }
+}

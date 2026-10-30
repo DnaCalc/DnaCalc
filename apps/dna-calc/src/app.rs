@@ -1,7 +1,7 @@
 //! The DNA Calc shell: the mast with the document's name and the file commands (New, Open, Save),
 //! the edit and calculation commands (Undo, Redo, Calculate, the calculation mode), the skin
-//! switcher, the formula bar (the name box and DNA OneCalc's formula field), the active skin, the
-//! sheet tabs, and the status line with the active cell's provenance.
+//! switcher, the formula bar (the name box and the formula field DNA OneCalc shows too), the active
+//! skin, the sheet tabs, and the status line with the active cell's provenance.
 //!
 //! Every element a person uses carries a `data-dnacalc` attribute naming its role; the browser
 //! smoke test (`cargo xtask app smoke calc`) drives the page through them.
@@ -25,7 +25,7 @@ use crate::notebook::NotebookSkin;
 use crate::skin::{SkinContext, SkinRegistry, SkinResolution, resolve_active_skin, switch_skin};
 use crate::tree::TreeSkin;
 
-use dna_onecalc::formula_field::FormulaAssist;
+use dna_formula_ui::formula_field::FormulaAssist;
 use leptos::prelude::*;
 use std::sync::Arc;
 
@@ -292,10 +292,10 @@ pub fn app() -> impl IntoView {
                     class="dc-theme"
                     data-dnacalc="theme"
                     aria-label="Theme"
-                    on:change=move |ev| dna_onecalc::theme::set(&event_target_value(&ev))
-                    prop:value=dna_onecalc::theme::current()
+                    on:change=move |ev| dna_formula_ui::theme::set(&event_target_value(&ev))
+                    prop:value=dna_formula_ui::theme::current()
                 >
-                    {dna_onecalc::theme::CHOICES
+                    {dna_formula_ui::theme::CHOICES
                         .iter()
                         .map(|(id, label)| view! { <option value=*id>{*label}</option> })
                         .collect_view()}

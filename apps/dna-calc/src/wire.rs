@@ -188,7 +188,7 @@ pub struct Summary {
     pub revision: u64,
 }
 
-impl dna_onecalc::display::SheetNames for Summary {
+impl dna_formula_ui::display::SheetNames for Summary {
     fn sheet_name_of(&self, sheet: SheetId) -> Option<String> {
         self.sheets
             .iter()

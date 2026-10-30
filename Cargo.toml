@@ -11,6 +11,7 @@ members = [
     "crates/calc-doc",
     "crates/calc-engine",
     "crates/calc-host",
+    "apps/dna-formula-ui",
     "apps/dna-onecalc",
     "apps/dna-calc",
     "apps/dna-strand",
