@@ -177,7 +177,9 @@ pub fn erfc_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
     if !x.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(excel_erfc(x))
+    // Recorded ERFC/ERFC.PRECISE tail readings publish +0 below the normal range.
+    let value = excel_erfc(x);
+    Ok(if value.is_subnormal() { 0.0 } else { value })
 }
 
 pub fn erfc_precise_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {

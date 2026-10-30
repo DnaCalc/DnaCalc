@@ -10,7 +10,7 @@
 //! kernels are the distributions' own.
 
 use super::aggregate::Held;
-use super::kit::{fail, given, grid, num, numbers, out};
+use super::kit::{fail, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::ported::{
@@ -111,7 +111,7 @@ ported_family! {
         let [alpha, sd_, n] = nums::<3>(s, a)?;
         out(s, ct::confidence_t_kernel(alpha, sd_, n))
     }
-    16 gauss "GAUSS" (1, 1) [V "z"] |s, a, sv| { out(s, k::gauss_fn::gauss_kernel(num(s, a, 0)?)) }
+    16 gauss "GAUSS" (1, 1) [V "z"] |s, a, sv| { out(s, k::gauss_fn::gauss_kernel(num_with_subnormal(s, a, 0)?)) }
     17 phi "PHI" (1, 1) [V "x"] |s, a, sv| { out(s, k::phi_fn::phi_kernel(num(s, a, 0)?)) }
     // Chi-squared.
     20 chisq_dist "CHISQ.DIST" (3, 3) [V "x", V "deg_freedom", V "cumulative"] |s, a, sv| {
@@ -242,9 +242,9 @@ ported_family! {
         out(s, bg::gamma_inv_kernel(p, alpha, beta))
     }
     58 gamma "GAMMA" (1, 1) [V "number"] |s, a, sv| { out(s, sd::gamma_kernel(num(s, a, 0)?)) }
-    59 gammaln "GAMMALN" (1, 1) [V "x"] |s, a, sv| { out(s, sd::gammaln_kernel(num(s, a, 0)?)) }
+    59 gammaln "GAMMALN" (1, 1) [V "x"] |s, a, sv| { out(s, sd::gammaln_kernel(num_with_subnormal(s, a, 0)?)) }
     60 gammaln_precise "GAMMALN.PRECISE" (1, 1) [V "x"] |s, a, sv| {
-        out(s, sd::gammaln_precise_kernel(num(s, a, 0)?))
+        out(s, sd::gammaln_precise_kernel(num_with_subnormal(s, a, 0)?))
     }
     61 weibull_dist "WEIBULL.DIST" (4, 4) [V "x", V "alpha", V "beta", V "cumulative"] |s, a, sv| {
         let [x, alpha, beta] = nums::<3>(s, a)?;
@@ -286,11 +286,11 @@ ported_family! {
     }
     75 poisson_dist "POISSON.DIST" (3, 3) [V "x", V "mean", V "cumulative"] |s, a, sv| {
         let [x, m] = nums::<2>(s, a)?;
-        out(s, dd::poisson_dist_kernel(x, m, flag(s, a, 2)?))
+        out_with_subnormal(s, dd::poisson_dist_kernel(x, m, flag(s, a, 2)?))
     }
     76 poisson "POISSON" (3, 3) [V "x", V "mean", V "cumulative"] |s, a, sv| {
         let [x, m] = nums::<2>(s, a)?;
-        out(s, dd::poisson_dist_kernel(x, m, flag(s, a, 2)?))
+        out_with_subnormal(s, dd::poisson_dist_kernel(x, m, flag(s, a, 2)?))
     }
     77 hypgeom_dist "HYPGEOM.DIST" (5, 5) [V "sample_s", V "number_sample", V "population_s", V "number_pop", V "cumulative"] |s, a, sv| {
         let [ss, ns, ps, np] = nums::<4>(s, a)?;

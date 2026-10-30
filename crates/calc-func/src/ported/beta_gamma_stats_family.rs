@@ -126,7 +126,9 @@ pub fn gamma_dist_kernel(
         // path. All other shapes route through regularized_gamma_p.
         return Ok(regularized_gamma_p(alpha, x / beta));
     }
-    let log_pdf = (alpha - 1.0) * crt_log(x) - x / beta - ln_gamma(alpha) - alpha * crt_log(beta);
+    // Gamma(1) = 1 exactly; Lanczos leaves a small nonzero log at this point.
+    let log_normalizer = if alpha == 1.0 { 0.0 } else { ln_gamma(alpha) };
+    let log_pdf = (alpha - 1.0) * crt_log(x) - x / beta - log_normalizer - alpha * crt_log(beta);
     let pdf = crt_exp(log_pdf);
     if pdf.is_finite() {
         Ok(pdf)

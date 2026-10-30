@@ -125,7 +125,7 @@
     {"args":["0x4027e66666666666"],"expected_bits":"0x4031615a4334ad5d","id":"oc141","reading":"r0"},
     {"args":["0x402f9eaba5c907a2"],"expected_bits":"0x403b611f4e26324a","id":"oc79","reading":"r0"},
     {"args":["0x4056841129bae5ce"],"expected_bits":"0x40739f03e4dad75c","id":"oc42","reading":"r0"},
-    {"args":["0x0000000000000001"],"calc_func":"fault:NotImplemented","expected_bits":"error:Num","id":"a-minsub","reading":"r1"},
-    {"args":["0x000fffffffffffff"],"calc_func":"fault:NotImplemented","expected_bits":"error:Num","id":"a-maxsub","reading":"r1"}
+    {"args":["0x0000000000000001"],"expected_bits":"error:Num","id":"a-minsub","reading":"r1"},
+    {"args":["0x000fffffffffffff"],"expected_bits":"error:Num","id":"a-maxsub","reading":"r1"}
   ]
 }

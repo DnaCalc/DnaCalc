@@ -180,6 +180,15 @@ pub(super) fn out(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> S
     }
 }
 
+/// Publish a kernel's measured subnormal result as a number; other outcomes use `out`.
+/// The caller still runs the family's numeric-mode check before calculating.
+pub(super) fn out_with_subnormal(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+    match result {
+        Ok(n) if n.is_subnormal() => Ok(CalcValue::number(n)),
+        other => out(site, other),
+    }
+}
+
 /// A ported kernel's text result.
 pub(super) fn out_text(result: Result<ExcelText, WorksheetErrorCode>) -> Step<CalcValue> {
     result.map(CalcValue::text).map_err(Exit::Error)

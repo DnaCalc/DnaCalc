@@ -276,3 +276,63 @@ fn exponential_distribution_uses_the_recorded_arithmetic_stores() {
     // The shape-one gamma CDF calls the same exponential kernel (recorded row oc61017).
     exact(call("GAMMA.DIST", vec![n(f64::from_bits(0x3e54df1215fc525b)), n(1.0), n(1.0), b(true)]), f64::from_bits(0x3e54df12129517f4));
 }
+
+/// Recorded GAUSS subnormal-power rows and ERFC tail controls (W109/W111).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn normal_error_functions_publish_recorded_underflows() {
+    for bits in [1, 2, 0x0008_0000_0000_0000, 0x8008_0000_0000_0000] {
+        exact(call("GAUSS", vec![n(f64::from_bits(bits))]), 0.0);
+    }
+    for function in ["ERFC", "ERFC.PRECISE"] {
+        for bits in [0x403a_c3c9_6948_f741, 0x403b_0000_0000_0000] {
+            exact(call(function, vec![n(f64::from_bits(bits))]), 0.0);
+        }
+    }
+}
+
+/// Recorded GAMMA.DIST density row; the shape-one log normalizer is exactly zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_density_uses_the_exact_shape_one_normalizer() {
+    exact(call("GAMMA.DIST", vec![
+        n(f64::from_bits(0x3f0b11ad0237a590)), n(1.0),
+        n(f64::from_bits(0x3fce00f3acb82fad)), b(false),
+    ]), f64::from_bits(0x4011_0f90_28e4_bd60));
+}
+
+/// Recorded MOD tiny-result and subnormal-admission rows from W111.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mod_reports_a_subnormal_remainder_as_num() {
+    error(call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0000)), n(f64::from_bits(0x8010_0000_0000_0001))]), Num);
+    error(call("MOD", vec![n(f64::from_bits(1)), n(0.0)]), Div0);
+    exact(call("MOD", vec![n(f64::from_bits(1)), n(0.1)]), 0.0);
+    // A subnormal intermediate can lead to a normal, valid sign-adjusted remainder.
+    exact(call("MOD", vec![n(f64::from_bits(0x0020800000000000)), n(f64::from_bits(0x8020000000000000))]), f64::from_bits(0x801f_0000_0000_0000));
+}
+
+/// Recorded subnormal inputs reach the measured policies of these functions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rounding_and_log_gamma_handle_recorded_subnormal_inputs() {
+    for bits in [1, 0x8000_0000_0000_0001] {
+        for function in ["ROUND", "ROUNDUP", "ROUNDDOWN", "TRUNC"] {
+            exact(call(function, vec![n(f64::from_bits(bits)), n(0.0)]), 0.0);
+        }
+        for function in ["GAMMALN", "GAMMALN.PRECISE"] {
+            error(call(function, vec![n(f64::from_bits(bits))]), Num);
+        }
+    }
+}
+
+/// W111 zero-count Poisson exponential-boundary readings retain the exponential's bits.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn poisson_zero_count_retains_recorded_subnormal_probabilities() {
+    for function in ["POISSON.DIST", "POISSON"] {
+        for cumulative in [false, true] {
+            exact(call(function, vec![n(0.0), n(f64::from_bits(0x4086_232b_dd7a_bcd3)), b(cumulative)]), f64::from_bits(0x000f_ffff_ffff_fe7c));
+        }
+    }
+}

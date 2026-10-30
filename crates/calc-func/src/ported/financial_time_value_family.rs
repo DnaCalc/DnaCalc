@@ -249,21 +249,21 @@ pub fn pmt(
     // W109 G6-01 (2026-07-23, multi-agent workflow): the transcendental substrate is
     // the x87 chain (Excel's PMT `exp` is the x87 exponential `excel_exp`, matched 234/234; `expm1` is the internal
     // x87 double-rounded Kahan), and the combine is the live-Excel-pinned **quotient-first,
-    // ·rate LAST** SSE2 op-graph `pmt = RN(RN(RN(num/em)/tf)·r)` — NOT the former
+    // ·rate LAST** graph; the timing division stores RN53(RN64((num/em)/tf)) — NOT the former
     // reciprocal-multiply product order. `log1p` stays correctly-rounded (proven CR via the
     // confound-free |tau|≥1 oracle: FYL2XP1 == CR bit-for-bit on the PMT domain). These
     // three corrections lift heldout 46%→56%, combsweep 62%→100%, po2 61%→87%, genrate
     // 47%→73%. Residual = the expm1 |tau|<1 non-CR Kahan double-rounding (≤165/234 ceiling,
     // a tracked Excel imprecision — see docs/function-lane/W109_G6...20260720.md).
     let neg_log = -(periods * excel_log1p(periodic_rate));
-    let em = excel_expm1_internal(neg_log); // (1+r)^-n − 1  (x87 Kahan; negative for r>0)
+    let em = crate::ported::excel_numeric::excel_expm1_spilled(neg_log); // (1+r)^-n − 1  (x87 Kahan; negative for r>0)
     if em == 0.0 {
         return Err(FinancialError::Num);
     }
     let inv_factor = 1.0 + em; // v = (1+r)^-n
     let tf = timing.factor(periodic_rate); // 1 + r·type
     let numerator = present_value + future_value * inv_factor;
-    let result = ((numerator / em) / tf) * periodic_rate;
+    let result = excel_x87_div(numerator / em, tf) * periodic_rate;
     if result.is_finite() {
         Ok(result)
     } else {

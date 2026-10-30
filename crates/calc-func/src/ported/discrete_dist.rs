@@ -266,6 +266,11 @@ pub fn poisson_dist_kernel(x: f64, mean: f64, cumulative: bool) -> R {
     if mean == 0.0 {
         return Ok(if cumulative || x == 0.0 { 1.0 } else { 0.0 });
     }
+    // P(X=0) = P(X<=0) = exp(-mean). The recorded zero-count branch retains
+    // its subnormal exponential, while the nonzero-count branches flush below normal.
+    if x == 0.0 {
+        return Ok(excel_exp(-mean));
+    }
     if !cumulative {
         return finite(poisson_mass(x, mean));
     }

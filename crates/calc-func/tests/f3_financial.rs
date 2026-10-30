@@ -284,3 +284,24 @@ fn odd_period_bonds() {
         1e-4,
     );
 }
+
+/// Recorded IRR discovery row d12-far_n025: a nonzero tiny derivative still polishes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn irr_polishes_cashflows_with_a_small_nonzero_derivative() {
+    let flows = col(&[
+        f64::from_bits(0xa0ca_2fe7_6a3f_9475),
+        f64::from_bits(0x20aa_2fe7_6a3f_9475),
+        f64::from_bits(0x20b1_0589_9ea9_53b2),
+        f64::from_bits(0x20c1_ad22_9aea_ea9c),
+    ]);
+    exact(call("IRR", vec![flows, n(-0.25)]), f64::from_bits(0x3fb9_f899_7cbe_f010));
+}
+
+/// Recorded PMT stores in the exponential correction and timing division.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pmt_uses_recorded_exponential_and_timing_stores() {
+    exact(call("PMT", vec![n(f64::from_bits(0x3e70000000000000)), n(f64::from_bits(0x4018000000000000)), n(f64::from_bits(0x3ff0000000000000)), n(f64::from_bits(0x0000000000000000)), n(f64::from_bits(0x0000000000000000))]), f64::from_bits(0xbfc55555a000003d));
+    exact(call("PMT", vec![n(f64::from_bits(0x3e70000000000000)), n(f64::from_bits(0x4018000000000000)), n(f64::from_bits(0x3ff0000000000001)), n(f64::from_bits(0x0000000000000000)), n(f64::from_bits(0x0000000000000000))]), f64::from_bits(0xbfc55555a000003f));
+}

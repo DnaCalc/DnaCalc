@@ -16,10 +16,10 @@
     {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r10","platform":"Windows","source":"OxFunc-Evidence runs/w111-trunc-hyperbolic-20260929/answers/answers-trunc.json"}
   ],
   "witnesses": [
-    {"args":["0x0000000000000001","0x0000000000000000"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w111broad-20260929-TRUNC-00014","reading":"r0"},
-    {"args":["0x0000000000000001","0x3ff0000000000000"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w111broad-20260929-TRUNC-00015","reading":"r0"},
-    {"args":["0x0000000000000001","0x402e000000000000"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w111broad-20260929-TRUNC-00016","reading":"r0"},
-    {"args":["0x0000000000000001","0x4073400000000000"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w111broad-20260929-TRUNC-00017","reading":"r0"},
+    {"args":["0x0000000000000001","0x0000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-TRUNC-00014","reading":"r0"},
+    {"args":["0x0000000000000001","0x3ff0000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-TRUNC-00015","reading":"r0"},
+    {"args":["0x0000000000000001","0x402e000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-TRUNC-00016","reading":"r0"},
+    {"args":["0x0000000000000001","0x4073400000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-TRUNC-00017","reading":"r0"},
     {"args":["0x02d6c92600015d59","0x4073500000000000"],"expected_bits":"0x02d6c92600015d55","id":"w111initialdiscriminator-TRUNC-00962","reading":"r1"},
     {"args":["0x02d6c92600015d59","0x4073600000000000"],"expected_bits":"0x02d6c92600015d55","id":"w111initialdiscriminator-TRUNC-00963","reading":"r1"},
     {"args":["0x02d6c92600015d5a","0x4073500000000000"],"expected_bits":"0x02d6c92600015d55","id":"w111initialdiscriminator-TRUNC-00966","reading":"r1"},

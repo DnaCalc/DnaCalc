@@ -454,7 +454,8 @@ where
     for _ in 0..ROOT_POLISH_ITERATIONS {
         let value = f(rate)?;
         let deriv = match derivative(rate) {
-            Ok(d) if d.abs() > ROOT_DERIVATIVE_EPS => d,
+            // Currency units do not decide whether a nonzero slope can polish a rate.
+            Ok(d) if d != 0.0 => d,
             _ => break,
         };
         let next = rate - value / deriv;

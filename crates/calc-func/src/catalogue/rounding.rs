@@ -120,17 +120,24 @@ fn numeric(
     compute: fn(&Site<'_>, &[f64]) -> Step<f64>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
-    Site::finish(numbers(&site, arguments).and_then(|read| site.number(compute(&site, &read)?)))
+    let flush_input = matches!(id, TRUNC | ROUND | ROUNDUP | ROUNDDOWN | MOD);
+    Site::finish(numbers(&site, arguments, flush_input).and_then(|read| site.number(compute(&site, &read)?)))
 }
 
 /// The arguments as numbers: an array argument is refused first, then each argument is read in
 /// order, so the first one's error is the result.
-fn numbers(site: &Site<'_>, arguments: &[CalcValue]) -> Step<Vec<f64>> {
+fn numbers(site: &Site<'_>, arguments: &[CalcValue], flush_input: bool) -> Step<Vec<f64>> {
     site.scalar_operands(arguments)?;
     arguments
         .iter()
         .enumerate()
-        .map(|(index, argument)| site.number_argument(index, argument))
+        .map(|(index, argument)| {
+            if flush_input && argument.as_number().is_some_and(f64::is_subnormal) {
+                Ok(0.0)
+            } else {
+                site.number_argument(index, argument)
+            }
+        })
         .collect()
 }
 
@@ -396,13 +403,19 @@ fn modulo(
             return Err(Exit::Error(WorksheetErrorCode::Num));
         }
         let remainder = number % divisor;
-        if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
+        let result = if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
             let adjusted = site.add(remainder, divisor)?;
             // A remainder the divisor absorbs is 0 (dc-bd5: MOD(-5,9.99999999999999E+307) is 0
             // in Excel 16.0.20430).
-            Ok(if adjusted == divisor { 0.0 } else { adjusted })
+            if adjusted == divisor { 0.0 } else { adjusted }
         } else {
-            Ok(remainder)
+            remainder
+        };
+        // The recorded tiny MOD banks return #NUM! when the final remainder is subnormal.
+        if result.is_subnormal() {
+            Err(Exit::Error(WorksheetErrorCode::Num))
+        } else {
+            Ok(result)
         }
     })
 }
