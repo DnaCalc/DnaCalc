@@ -42,7 +42,10 @@
 //! [--verdict <report.json>] ...` takes one live capture through calc-oracle-excel, the one Excel
 //! capture adapter, writes the CaptureRecord version 2 and, with `--verdict`, the verdict record of
 //! its file-cache replay (`capture.rs`). It needs Excel on Windows; on the owner's machine any
-//! agent may run it (AGENTS.md, Excel on this machine).
+//! agent may run it (AGENTS.md, Excel on this machine). `cargo xtask capture --pending [--list]`
+//! takes every committed oracle capture, or section capture, that is missing or no longer of what
+//! it captured, and `--split` writes a sectioned oracle's section captures from a capture of the
+//! whole workbook (`pending.rs`, `oracle_cases.rs`).
 //!
 //! `cargo xtask corpus [<dir>] [--oracle] [--out <dir>] [--cache <dir>] [--import
 //! <capture.json>]... [--no-capture] [--timeout <s>]` compares every workbook of a folder, and with
@@ -111,7 +114,13 @@ mod evidence_labels;
 mod legacy;
 mod licence;
 mod manifest;
+// The oracle workbooks' committed captures, which the capture and corpus commands read.
+#[cfg(not(target_arch = "wasm32"))]
+mod oracle_cases;
 mod owners;
+// `cargo xtask capture --pending` and `--split`, through calc-oracle-excel.
+#[cfg(not(target_arch = "wasm32"))]
+mod pending;
 mod rust_source;
 mod site;
 mod text;

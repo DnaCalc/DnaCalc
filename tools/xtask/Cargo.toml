@@ -20,6 +20,9 @@ portability = "native-only"
 # FunctionId).
 [dependencies]
 calc-engine = { path = "../../crates/calc-engine" }
+# calc-doc reads the parts of an oracle workbook and of the package Excel saved, stored or
+# deflated, for the section captures (`oracle_cases.rs`).
+calc-doc = { path = "../../crates/calc-doc" }
 calc-fml = { path = "../../crates/calc-fml" }
 calc-func = { path = "../../crates/calc-func" }
 calc-host = { path = "../../crates/calc-host" }

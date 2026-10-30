@@ -2574,20 +2574,6 @@
    "surveyed_bytes": 160
   },
   {
-   "path": "crates/calc-func/tests/captures/catalogue/oracle.capture.json",
-   "class": "own-work",
-   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
-   "surveyed_blob": "2a7ce71fe45d574e13cb77e688253a61abbe6837",
-   "surveyed_bytes": 3797056
-  },
-  {
-   "path": "crates/calc-func/tests/captures/catalogue/oracle.saved.xlsx",
-   "class": "own-work",
-   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
-   "surveyed_blob": "8e60611b4194244c3a2e8170f789683f0d8bd1f1",
-   "surveyed_bytes": 257032
-  },
-  {
    "path": "crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json",
    "class": "own-work",
    "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)",
@@ -3267,6 +3253,126 @@
    "reason": "project metadata",
    "surveyed_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
    "surveyed_bytes": 0
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/prefix_metadata.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/prefix_metadata.saved.xml",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/f1_power.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/f2_rows.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/f3_financial.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/f3_arrays.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dc6qki_arith.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcj9k_regression.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcj9k_closed_form.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcuar_text.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcj9k_annuity.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcj9k_statistics.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcj9k_math.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcj9k_linest_stats.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcb1l_language.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dczsn1_collation.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcfl2_text.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dczsn2_collation.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dczsn3_bytes.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dch9u_functions.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dc96l3_bessel.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dc96l3_discrete.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dc96l3_x87.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/dcuar_cell.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
   }
  ]
 }

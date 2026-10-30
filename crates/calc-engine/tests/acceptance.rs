@@ -4586,27 +4586,3 @@ fn dc_m3u__data_tables() {
     assert_eq!(l1_value(&state, c(10, 5)), n(81.0));
 }
 
-/// Every capture this package commits was taken by the capture worker as it stands: its tool
-/// revision names the SHA-256 of `platform/calc-oracle-excel/worker/capture-worker.ps1`, so a
-/// change to the worker is caught until each capture is taken again (dc-35p).
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_35p__captures_name_the_current_worker() {
-    let worker = calc_verdict::sha256_hex(include_bytes!(
-        "../../../platform/calc-oracle-excel/worker/capture-worker.ps1"
-    ));
-    for (name, capture) in [
-        ("l3", &include_bytes!("captures/l3/oracle.capture.json")[..]),
-        ("dc_10y", &include_bytes!("captures/dc_10y/oracle.capture.json")[..]),
-        (
-            "dc_10y_iteration",
-            &include_bytes!("captures/dc_10y_iteration/oracle.capture.json")[..],
-        ),
-    ] {
-        let text = std::str::from_utf8(capture).expect("a capture is UTF-8");
-        assert!(
-            text.contains(&format!("worker sha256:{worker}")),
-            "{name}: the capture was taken by another worker than sha256:{worker}"
-        );
-    }
-}

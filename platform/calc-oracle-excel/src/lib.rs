@@ -137,6 +137,13 @@ use std::fmt;
 /// The worker script every capture runs (`worker/capture-worker.ps1`).
 pub const WORKER_SCRIPT: &str = include_str!("../worker/capture-worker.ps1");
 
+/// The version of what the worker observes: bumped only when a change to the worker changes the
+/// observations a capture records (which cells, which values, which settings), not for a change
+/// to how it runs (retries, timing, messages). Every capture records it in its tool revision, as
+/// provenance beside the worker script's hash; neither is compared before a committed capture is
+/// used, so a change to the worker leaves every committed capture valid.
+pub const WORKER_RESULTS_VERSION: u32 = 1;
+
 /// The worker that times Excel's own calculation of a workbook (`worker/timing-worker.ps1`, bead
 /// dc-10d9), which runs under the same isolation and uses the capture worker's functions.
 pub const TIMING_SCRIPT: &str = include_str!("../worker/timing-worker.ps1");

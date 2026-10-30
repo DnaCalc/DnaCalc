@@ -27,6 +27,9 @@
 //! - [`file_cache_replay`]: a version 2 live capture judged against the file-cache reading of the
 //!   package Excel saved during it, and [`MissingCapture`], the typed answer for a capture
 //!   artifact path whose capture has not been taken.
+//! - [`workbook_sections`]: an oracle workbook's worksheets as sections, each keyed by what
+//!   decides its results, and [`section_record`] and [`merged_record`], which split a capture into
+//!   section captures and judge several together (`section.rs`).
 //! - [`sha256_hex`]: the content hash a version 2 record names its packages and its capture
 //!   worker by.
 //!
@@ -42,6 +45,7 @@ mod evidence;
 mod json;
 mod replay;
 mod result;
+mod section;
 mod session;
 mod sha256;
 mod typed;
@@ -65,6 +69,10 @@ pub use replay::{
     MISSING_CAPTURE_FORMAT, MISSING_CAPTURE_VERSION, MissingCapture, file_cache_replay,
 };
 pub use result::{CellResult, Provenance, RESULT_FORMAT, RESULT_VERSION, ResultSet, RunIdentity};
+pub use section::{
+    SECTION_KEY_PREFIX, WorkbookSection, merged_record, section_record, stored_package_parts,
+    workbook_sections,
+};
 pub use session::{
     CalculationContext, CaptureFailure, CaptureSession, STAGE_ENVIRONMENT, STAGE_INVENTORY,
     STAGE_ISOLATION, SharedRange,

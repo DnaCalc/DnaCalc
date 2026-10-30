@@ -79,7 +79,17 @@ required for every commit.
 Before you create a fixture, oracle workbook, generator, test helper, adapter, registry, tool
 command or document, look for the one that already exists and extend it. There is:
 - one catalogue oracle for calc-func, `crates/calc-func/tests/fixtures/catalogue` and its generator, to which
-  each package adds its own section;
+  each package adds its own section (its own `sheet-*.txt` or `prefix-*.txt` file, appended to
+  the lists in `make-catalogue-fixtures.ps1`). Adding a row: edit your section file, regenerate
+  (`make-catalogue-fixtures.ps1 -OutDir crates/calc-func/tests/fixtures`), commit. Nothing else
+  is required to build, test or commit. The catalogue is captured per sheet
+  (`tests/captures/catalogue/sections/`), each capture keyed by its sheet's content, so your
+  change leaves every other sheet's capture valid; your sheet is "awaiting capture" (counted apart
+  in `cargo xtask corpus`, never a pass, failing no test) until someone runs `cargo xtask capture
+  --pending`, which captures every pending sheet of every oracle, one Excel session per sheet,
+  and writes the section captures (commit them). The same holds for every other oracle workbook
+  and its `oracle.capture.json`. The Excel build, worker version and saved package a capture
+  records are provenance, never a condition;
 - one corpus harness (`cargo xtask corpus`);
 - one adapter from OxFunc's types (`catalogue/kit.rs`);
 - one verdict path.
