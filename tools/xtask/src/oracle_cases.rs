@@ -213,7 +213,9 @@ pub(crate) fn whole_state(case: &OracleCase, sha256: &str) -> Result<PathBuf, St
         Err(e) => return Err(format!("cannot read {}: {e}", path.display())),
     };
     if let Some(missing) = MissingCapture::recognize(&bytes) {
-        return Err(format!("the capture path holds the absent-capture marker: {missing}"));
+        return Err(format!(
+            "the capture path holds the absent-capture marker: {missing}"
+        ));
     }
     let record = CaptureRecord::decode(&bytes)
         .map_err(|e| format!("{} does not decode: {e}", path.display()))?;
@@ -243,14 +245,13 @@ fn crc32(bytes: &[u8]) -> u32 {
     !crc
 }
 
-/// The stored package `package` (every entry stored, as the generators write them) with the
-/// content of each part `replace` names replaced, entries in their order, each stored and dated
-/// as the original.
-pub(crate) fn replace_stored_parts(
+/// The package (stored or deflated) with each named part replaced. Entries keep
+/// their order and dates; output entries are stored, as the fixture generators write them.
+pub(crate) fn replace_package_parts(
     package: &[u8],
     replace: &BTreeMap<String, Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    let parts = calc_verdict::stored_package_parts(package)?;
+    let mut parts = package_parts(package)?;
     // The names in central-directory order, with each entry's DOS time and date.
     let u16_at = |at: usize| usize::from(u16::from_le_bytes([package[at], package[at + 1]]));
     let u32_at = |at: usize| {
@@ -270,7 +271,33 @@ pub(crate) fn replace_stored_parts(
     for _ in 0..count {
         let name_length = u16_at(at + 28);
         let name = String::from_utf8_lossy(&package[at + 46..at + 46 + name_length]).into_owned();
-        let stamp = [package[at + 12], package[at + 13], package[at + 14], package[at + 15]];
+        // OPC's part directory excludes the content-types entry and directory entries.
+        // Preserve their exact content too, validating the original size and CRC.
+        if !parts.contains_key(&name) {
+            let local = u32_at(at + 42);
+            let start = local + 30 + u16_at(local + 26) + u16_at(local + 28);
+            let compressed = package
+                .get(start..start + u32_at(at + 20))
+                .ok_or("a ZIP entry extends past the package")?;
+            let content = match u16_at(at + 10) {
+                0 => compressed.to_vec(),
+                8 => {
+                    miniz_oxide::inflate::decompress_to_vec_with_limit(compressed, u32_at(at + 24))
+                        .map_err(|error| format!("{name} does not inflate: {error:?}"))?
+                }
+                method => return Err(format!("{name} uses unsupported ZIP method {method}")),
+            };
+            if content.len() != u32_at(at + 24) || crc32(&content) != u32_at(at + 16) as u32 {
+                return Err(format!("{name} does not match its ZIP size and CRC"));
+            }
+            parts.insert(name.clone(), content);
+        }
+        let stamp = [
+            package[at + 12],
+            package[at + 13],
+            package[at + 14],
+            package[at + 15],
+        ];
         order.push((name, stamp));
         at += 46 + name_length + u16_at(at + 30) + u16_at(at + 32);
     }
@@ -326,7 +353,9 @@ pub(crate) fn replace_stored_parts(
 /// A worksheet part with its cells taken out (`<sheetData/>`), everything else kept.
 pub(crate) fn emptied_sheet(xml: &str) -> String {
     if let Some(start) = xml.find("<sheetData") {
-        let open_end = xml[start..].find('>').map_or(xml.len(), |at| start + at + 1);
+        let open_end = xml[start..]
+            .find('>')
+            .map_or(xml.len(), |at| start + at + 1);
         if xml[start..open_end].ends_with("/>") {
             return xml.to_owned();
         }
@@ -343,7 +372,11 @@ pub(crate) fn emptied_sheet(xml: &str) -> String {
 pub(crate) fn keyed_saved_sheet(xml: &str, key: &str) -> String {
     let comment = format!("<!-- dnacalc section key: {key} -->");
     match xml.find("?>").filter(|_| xml.starts_with("<?xml")) {
-        Some(at) => format!("{}\n{comment}\n{}", &xml[..at + 2], xml[at + 2..].trim_start()),
+        Some(at) => format!(
+            "{}\n{comment}\n{}",
+            &xml[..at + 2],
+            xml[at + 2..].trim_start()
+        ),
         None => format!("{comment}\n{xml}"),
     }
 }
@@ -360,27 +393,59 @@ mod tests {
     #[test]
     fn a_sheet_empties_to_its_frame() {
         assert_eq!(
-            emptied_sheet(r#"<worksheet><cols/><sheetData><row r="1"/></sheetData><x/></worksheet>"#),
+            emptied_sheet(
+                r#"<worksheet><cols/><sheetData><row r="1"/></sheetData><x/></worksheet>"#
+            ),
             r#"<worksheet><cols/><sheetData/><x/></worksheet>"#
         );
-        assert_eq!(emptied_sheet("<worksheet><sheetData/></worksheet>"), "<worksheet><sheetData/></worksheet>");
+        assert_eq!(
+            emptied_sheet("<worksheet><sheetData/></worksheet>"),
+            "<worksheet><sheetData/></worksheet>"
+        );
     }
 
     #[test]
     fn a_saved_sheet_names_its_key_after_the_declaration() {
         assert_eq!(
-            keyed_saved_sheet("<?xml version=\"1.0\"?>\r\n<worksheet/>", "section:sha256:00"),
+            keyed_saved_sheet(
+                "<?xml version=\"1.0\"?>\r\n<worksheet/>",
+                "section:sha256:00"
+            ),
             "<?xml version=\"1.0\"?>\n<!-- dnacalc section key: section:sha256:00 -->\n<worksheet/>"
         );
     }
 
     #[test]
+    fn a_deflated_package_keeps_all_other_parts_when_one_is_replaced() {
+        let bytes = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx");
+        let before = package_parts(bytes).unwrap();
+        let workbook = String::from_utf8(before["xl/workbook.xml"].clone()).unwrap();
+        let manual = workbook.replacen("<calcPr ", "<calcPr calcMode=\"manual\" ", 1);
+        assert_ne!(manual, workbook);
+        let mut expected = before.clone();
+        expected.insert("xl/workbook.xml".to_owned(), manual.into_bytes());
+        let changed = replace_package_parts(
+            bytes,
+            &BTreeMap::from([(
+                "xl/workbook.xml".to_owned(),
+                expected["xl/workbook.xml"].clone(),
+            )]),
+        )
+        .unwrap();
+        assert_eq!(package_parts(&changed).unwrap(), expected);
+        let mut stored = calc_verdict::stored_package_parts(&changed).unwrap();
+        assert!(stored.remove("[Content_Types].xml").is_some());
+        assert_eq!(stored, expected);
+    }
+
+    #[test]
     fn a_stored_package_keeps_its_other_parts_when_one_is_replaced() {
-        let catalogue = include_bytes!("../../../crates/calc-func/tests/fixtures/catalogue/oracle.xlsx");
+        let catalogue =
+            include_bytes!("../../../crates/calc-func/tests/fixtures/catalogue/oracle.xlsx");
         let parts = calc_verdict::stored_package_parts(catalogue).unwrap();
         let sheet = "xl/worksheets/sheet2.xml".to_owned();
         let emptied = emptied_sheet(std::str::from_utf8(&parts[&sheet]).unwrap());
-        let replaced = replace_stored_parts(
+        let replaced = replace_package_parts(
             catalogue,
             &BTreeMap::from([(sheet.clone(), emptied.clone().into_bytes())]),
         )
@@ -395,6 +460,9 @@ mod tests {
             }
         }
         // Replacing nothing gives the package back byte for byte.
-        assert_eq!(replace_stored_parts(catalogue, &BTreeMap::new()).unwrap(), catalogue);
+        assert_eq!(
+            replace_package_parts(catalogue, &BTreeMap::new()).unwrap(),
+            catalogue
+        );
     }
 }

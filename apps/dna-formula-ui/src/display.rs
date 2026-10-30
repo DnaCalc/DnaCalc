@@ -174,6 +174,56 @@ pub fn span(span: TextSpan) -> String {
 }
 
 /// A compile refusal, in words.
+pub fn compile_owner(error: &CompileError) -> Option<&str> {
+    match error {
+        CompileError::Unsupported { owner, .. } => Some(owner),
+        _ => None,
+    }
+}
+
+/// A work package carried by the typed fault; never inferred from display text.
+pub fn eval_owner(fault: &EvalFault) -> Option<&str> {
+    match fault {
+        EvalFault::NotModelled { owner, .. } => Some(owner),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod ownership_tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn only_typed_ownership_is_reported() {
+        assert_eq!(
+            eval_owner(&EvalFault::NotModelled {
+                construct: "example",
+                owner: "dc-example"
+            }),
+            Some("dc-example")
+        );
+        assert_eq!(
+            eval_owner(&EvalFault::NearZeroFinalSum { result: 1.0 }),
+            None
+        );
+        assert_eq!(
+            compile_owner(&CompileError::Unsupported {
+                span: TextSpan::new(0, 1),
+                construct: "example",
+                owner: "dc-example"
+            }),
+            Some("dc-example")
+        );
+        assert_eq!(
+            compile_owner(&CompileError::NumberLiteral {
+                span: TextSpan::new(0, 1)
+            }),
+            None
+        );
+    }
+}
+
 pub fn compile_error(error: &CompileError) -> String {
     match error {
         CompileError::Syntax { span: at } => {

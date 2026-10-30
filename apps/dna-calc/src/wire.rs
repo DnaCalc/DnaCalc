@@ -188,6 +188,8 @@ pub enum Request {
 pub struct Summary {
     pub name: String,
     pub changed: bool,
+    pub undo: usize,
+    pub redo: usize,
     /// The sheets in workbook order, with their names.
     pub sheets: Vec<(Sheet, String)>,
     pub manual: bool,
@@ -472,10 +474,17 @@ pub struct Cell {
     pub input: String,
     /// Where the value came from, in words.
     pub why: String,
+    pub owner: Option<String>,
+    pub error_meaning: Option<String>,
 }
 
 impl Cell {
-    pub fn of(shown: &CellShown, input: String, why: String) -> Cell {
+    pub fn of(
+        shown: &CellShown,
+        input: String,
+        why: String,
+        projected: &calc_host::ProjectedCell,
+    ) -> Cell {
         Cell {
             at: Key::of(shown.at),
             text: shown.text.clone(),
@@ -487,6 +496,8 @@ impl Cell {
             conditional: shown.conditional.clone(),
             input,
             why,
+            owner: crate::cells::refusal_owner(projected),
+            error_meaning: crate::cells::error_meaning(projected),
         }
     }
 
@@ -590,6 +601,8 @@ mod tests {
             }),
             input: "=A1+0.1".to_owned(),
             why: "calculated".to_owned(),
+            owner: None,
+            error_meaning: None,
         };
         for message in [
             FromServer::Started,

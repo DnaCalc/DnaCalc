@@ -144,7 +144,7 @@ fn atlas_view(controller: Controller) -> impl IntoView {
     view! {
         <section class="dc-atlas" data-skin="atlas">
             <h2>"Calculation"</h2>
-            {hud}
+            <details data-dnacalc="atlas-diagnostics"><summary>"Calculation diagnostics"</summary>{hud}</details>
             <p data-dnacalc="atlas-totals">{totals}</p>
             <h2>"Sheets"</h2>
             <table>

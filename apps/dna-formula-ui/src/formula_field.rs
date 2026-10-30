@@ -84,6 +84,12 @@ impl FormulaAssist {
     }
 
     /// Another field over the same text, completion, caret and local undo session.
+    pub fn history_available(self, redo: bool) -> bool {
+        self.text.track();
+        self.caret.track();
+        self.history.with_value(|history| history.available(redo))
+    }
+
     pub fn another_field(self) -> Self {
         Self {
             field: NodeRef::new(),

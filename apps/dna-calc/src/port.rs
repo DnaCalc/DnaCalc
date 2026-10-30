@@ -35,7 +35,15 @@ struct WorkerLink {
     _on_message: wasm_bindgen::prelude::Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Health {
+    pub state: String,
+    pub pending: usize,
+}
+
 enum Transport {
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    Failed(String),
     InProcess(Box<Server>),
     #[cfg(target_arch = "wasm32")]
     Worker(WorkerLink),
@@ -48,6 +56,8 @@ struct Port {
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     answers: BTreeMap<u64, Answer>,
     events: Option<Rc<dyn Fn(Event)>>,
+    health: Health,
+    observer: Option<Rc<dyn Fn(Health)>>,
 }
 
 thread_local! {
@@ -56,7 +66,51 @@ thread_local! {
         next_id: 1,
         answers: BTreeMap::new(),
         events: None,
+        health: Health::default(),
+        observer: None,
     });
+}
+
+/// Observes transport state and outstanding messages, outside the port borrow.
+pub fn set_health(handler: impl Fn(Health) + 'static) {
+    PORT.with(|port| port.borrow_mut().observer = Some(Rc::new(handler)));
+    notify_health(None);
+}
+
+fn notify_health(state: Option<String>) {
+    let (handler, health) = PORT.with(|port| {
+        let mut port = port.borrow_mut();
+        if let Some(state) = state {
+            port.health.state = state;
+        }
+        port.health.pending = port.answers.len();
+        (port.observer.clone(), port.health.clone())
+    });
+    if let Some(handler) = handler {
+        handler(health);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn fail(message: String) {
+    let answers = PORT.with(|port| {
+        let mut port = port.borrow_mut();
+        // Keep a failed transport: restarting here would lose the workbook silently.
+        if let Some(Transport::Worker(link)) = port.transport.as_ref() {
+            link.worker.set_onmessage(None);
+            link.worker.set_onerror(None);
+            link.worker.terminate();
+        }
+        port.transport = Some(Transport::Failed(message.clone()));
+        std::mem::take(&mut port.answers)
+    });
+    mark("data-dnacalc-worker", &format!("failed: {message}"));
+    notify_health(Some(format!(
+        "Worker failed: {message}. Keep this page open; reload starts a new session."
+    )));
+    for (_, answer) in answers {
+        answer(Err(message.clone()), None);
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -87,6 +141,7 @@ pub fn start() {
                             &format!("{:.1}", crate::controller::now_ms() - asked),
                         );
                         mark("data-dnacalc-worker", "ready");
+                        notify_health(Some("Worker ready".to_owned()));
                     }
                     Ok(_) => mark(
                         "data-dnacalc-worker",
@@ -102,6 +157,7 @@ pub fn start() {
     PORT.with(|port| {
         port.borrow_mut().transport = Some(Transport::InProcess(Box::default()));
     });
+    notify_health(Some("Workbook running on this page".to_owned()));
 }
 
 /// Whether the server runs in the calculation worker.
@@ -158,15 +214,30 @@ pub fn call(
             Some(Transport::Worker(link)) => {
                 answers.insert(id, answer);
                 if link.started {
-                    post(&link.worker, &text, bytes);
+                    if let Err(message) = post(&link.worker, &text, bytes) {
+                        // Defer until the current port borrow is released.
+                        leptos::prelude::set_timeout(
+                            move || fail(message),
+                            std::time::Duration::ZERO,
+                        );
+                    }
                 } else {
                     link.waiting.push((text, bytes));
                 }
                 None
             }
+            Some(Transport::Failed(message)) => Some((
+                vec![wire::encode(&FromServer::Failed {
+                    id: Some(id),
+                    message: message.clone(),
+                })],
+                None,
+                answer,
+            )),
             None => Some((Vec::new(), None, answer)),
         }
     });
+    notify_health(None);
     if let Some((messages, bytes, answer)) = served {
         let mut answer = Some(answer);
         let mut bytes = bytes;
@@ -206,18 +277,20 @@ fn deliver(event: Event) {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn post(worker: &web_sys::Worker, text: &str, bytes: Option<Vec<u8>>) {
+fn post(worker: &web_sys::Worker, text: &str, bytes: Option<Vec<u8>>) -> Result<(), String> {
     let message = wasm_bindgen::JsValue::from_str(text);
     match bytes {
-        None => {
-            let _ = worker.post_message(&message);
-        }
+        None => worker
+            .post_message(&message)
+            .map_err(|error| format!("Could not send workbook request: {error:?}")),
         Some(bytes) => {
             // The bytes travel beside the text, their buffer transferred rather than copied.
             let array = js_sys::Uint8Array::from(bytes.as_slice());
             let buffer = array.buffer();
             let pair = js_sys::Array::of2(&message, &buffer);
-            let _ = worker.post_message_with_transfer(&pair, &js_sys::Array::of1(&buffer));
+            worker
+                .post_message_with_transfer(&pair, &js_sys::Array::of1(&buffer))
+                .map_err(|error| format!("Could not send workbook bytes: {error:?}"))
         }
     }
 }
@@ -239,6 +312,7 @@ fn start_worker() -> Result<WorkerLink, String> {
     use wasm_bindgen::JsCast;
     use wasm_bindgen::prelude::Closure;
     mark("data-dnacalc-worker", "starting");
+    notify_health(Some("Worker starting".to_owned()));
     // boot.js records the folder its assets came from; worker.js is beside it.
     let assets = js_sys::Reflect::get(&js_sys::global(), &"__dnacalcAssets".into())
         .ok()
@@ -254,10 +328,8 @@ fn start_worker() -> Result<WorkerLink, String> {
     let on_message = Closure::<dyn FnMut(web_sys::MessageEvent)>::new(receive);
     worker.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
     let on_error = Closure::<dyn FnMut(web_sys::ErrorEvent)>::new(|event: web_sys::ErrorEvent| {
-        mark(
-            "data-dnacalc-worker",
-            &format!("failed: {}", event.message()),
-        );
+        event.prevent_default();
+        fail(event.message());
     });
     worker.set_onerror(Some(on_error.as_ref().unchecked_ref()));
     on_error.forget();
@@ -272,12 +344,13 @@ fn start_worker() -> Result<WorkerLink, String> {
 #[cfg(target_arch = "wasm32")]
 fn receive(event: web_sys::MessageEvent) {
     let Some((text, bytes)) = unpack(event.data()) else {
+        fail("The worker sent an unreadable message".to_owned());
         return;
     };
     let message = match wire::decode::<FromServer>(&text) {
         Ok(message) => message,
         Err(e) => {
-            mark("data-dnacalc-worker", &format!("failed: {e}"));
+            fail(e);
             return;
         }
     };
@@ -287,7 +360,13 @@ fn receive(event: web_sys::MessageEvent) {
             if let Some(Transport::Worker(link)) = port.transport.as_mut() {
                 link.started = true;
                 for (text, bytes) in link.waiting.drain(..) {
-                    post(&link.worker, &text, bytes);
+                    if let Err(message) = post(&link.worker, &text, bytes) {
+                        leptos::prelude::set_timeout(
+                            move || fail(message),
+                            std::time::Duration::ZERO,
+                        );
+                        break;
+                    }
                 }
             }
         }),
@@ -297,6 +376,7 @@ fn receive(event: web_sys::MessageEvent) {
             if let Some(answer) = answer {
                 answer(Ok(reply), bytes);
             }
+            notify_health(None);
         }
         FromServer::Failed {
             id: Some(id),
@@ -306,9 +386,10 @@ fn receive(event: web_sys::MessageEvent) {
             if let Some(answer) = answer {
                 answer(Err(message), None);
             }
+            notify_health(None);
         }
         FromServer::Failed { id: None, message } => {
-            mark("data-dnacalc-worker", &format!("failed: {message}"));
+            fail(message);
         }
     }
 }

@@ -192,6 +192,9 @@ pub struct Controller {
     pub pointed: RwSignal<Option<PointPick>>,
     pointed_text: StoredValue<String>,
     pub timings: RwSignal<Timings>,
+    pub transport: RwSignal<port::Health>,
+    pub download_unconfirmed: RwSignal<bool>,
+    pub notebook_drafts: RwSignal<BTreeMap<CellKey, String>>,
 }
 
 impl Controller {
@@ -222,9 +225,15 @@ impl Controller {
             pointed: RwSignal::new(None),
             pointed_text: StoredValue::new(String::new()),
             timings: RwSignal::new(Timings::default()),
+            transport: RwSignal::new(port::Health::default()),
+            download_unconfirmed: RwSignal::new(false),
+            notebook_drafts: RwSignal::new(BTreeMap::new()),
         };
         port::start();
         port::set_events(move |event| controller.receive(event));
+        port::set_health(move |health| {
+            controller.transport.try_set(health);
+        });
         controller.new_workbook();
         controller
     }
@@ -300,6 +309,9 @@ impl Controller {
         self.mirrors.update_value(BTreeMap::clear);
         let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
         self.summary.set(summary);
+        self.download_unconfirmed.set(false);
+        self.notebook_drafts.set(BTreeMap::new());
+        self.assist.readonly.set(false);
         self.sheet.set(first);
         self.active.set((1, 1));
         self.corner.set((1, 1));
@@ -323,13 +335,91 @@ impl Controller {
         self.say(message, false);
     }
 
+    /// Replacing a workbook also risks an uncommitted draft or an unconfirmed download.
+    pub fn has_dirty_work(&self) -> bool {
+        self.summary.get().changed
+            || self.download_unconfirmed.get()
+            || !self.notebook_drafts.with(BTreeMap::is_empty)
+            || (self.editing.get().is_some()
+                && self.edit_text.get() != self.edit_original.get_value())
+    }
+
+    pub fn focus_pending_draft(&self) {
+        if self.editing.get_untracked().is_some() {
+            self.focus_editor();
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            use wasm_bindgen::JsCast;
+            let sheet = self.sheet.get_untracked();
+            let at = self.notebook_drafts.with_untracked(|drafts| {
+                drafts.keys().find(|at| Some(at.sheet()) == sheet).copied()
+            });
+            if let Some(at) = at {
+                let selector = format!(
+                    "[data-dnacalc=block][data-cell={}] input",
+                    crate::cells::address(at.row(), at.column())
+                );
+                if let Some(field) = document()
+                    .query_selector(&selector)
+                    .ok()
+                    .flatten()
+                    .and_then(|field| field.dyn_into::<web_sys::HtmlElement>().ok())
+                {
+                    let _ = field.focus();
+                    return;
+                }
+            }
+            crate::grid::focus_grid();
+        }
+    }
+
+    pub fn history_available(&self, redo: bool) -> bool {
+        if self.assist.readonly.get() {
+            return false;
+        }
+        if self.editing.get().is_some() {
+            self.assist.history_available(redo)
+        } else {
+            self.summary.with(|summary| {
+                if redo {
+                    summary.redo > 0
+                } else {
+                    summary.undo > 0
+                }
+            })
+        }
+    }
+
+    pub fn value_state(&self) -> dna_formula_ui::result::ValueState {
+        use dna_formula_ui::result::ValueState as S;
+        if self.transport.get().pending > 0 {
+            return S::Pending;
+        }
+        let Some(cell) = self.active_cell() else {
+            return S::Empty;
+        };
+        match cell.provenance {
+            crate::cells::Provenance::Refused => S::Refused,
+            crate::cells::Provenance::Stale => S::Stale,
+            crate::cells::Provenance::FileCache => S::FileCache,
+            _ if cell.kind == "error" => S::WorksheetError,
+            crate::cells::Provenance::Empty => S::Empty,
+            crate::cells::Provenance::Literal => S::Literal,
+            crate::cells::Provenance::Calculated => S::Calculated,
+        }
+    }
+
     /// A new, empty workbook.
     pub fn new_workbook(&self) {
         let controller = *self;
-        port::call(Request::New, None, move |reply, _| {
-            if let Ok(Reply::Done { outcome, .. }) = reply {
-                controller.installed(outcome.summary, "New workbook".to_owned());
+        port::call(Request::New, None, move |reply, _| match reply {
+            Ok(Reply::Done { outcome, .. }) => {
+                controller.installed(outcome.summary, "New workbook".to_owned())
             }
+            Err(error) => controller.say(format!("New workbook failed: {error}"), true),
+            _ => controller.say("New workbook did not answer", true),
         });
     }
 
@@ -678,7 +768,8 @@ impl Controller {
                 let controller = *self;
                 leptos::prelude::set_timeout(
                     move || {
-                        if controller.editing.try_get_untracked().flatten() != Some(EditOrigin::Bar) {
+                        if controller.editing.try_get_untracked().flatten() != Some(EditOrigin::Bar)
+                        {
                             return;
                         }
                         let assist = controller.assist;
@@ -1118,6 +1209,26 @@ impl Controller {
     /// Saves the workbook as a package's bytes; `saved` gets its name and bytes, and the status
     /// line says how it went.
     pub fn save(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
+        if !self.notebook_drafts.with_untracked(BTreeMap::is_empty) {
+            self.say("Finish the Notebook draft with Enter, or cancel it with Escape, before downloading.", true);
+            self.focus_pending_draft();
+            return;
+        }
+        let controller = *self;
+        if self.editing.get_untracked().is_some() {
+            self.commit_edit(move |accepted| {
+                if accepted {
+                    controller.save_package(saved);
+                } else {
+                    controller.focus_editor();
+                }
+            });
+        } else {
+            self.save_package(saved);
+        }
+    }
+
+    fn save_package(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
         let controller = *self;
         port::call(Request::Save, None, move |reply, bytes| {
             controller.revision.update(|n| *n += 1);
@@ -1130,8 +1241,14 @@ impl Controller {
                     }),
                     Some(bytes),
                 ) => {
+                    if controller.summary.get_untracked().changed {
+                        controller.download_unconfirmed.set(true);
+                    }
                     controller.summary.set(outcome.summary);
-                    controller.say(format!("Saved {name}: {} bytes", bytes.len()), false);
+                    controller.say(
+                        format!("Download package prepared: {name}, {} bytes", bytes.len()),
+                        false,
+                    );
                     saved(name, bytes);
                 }
                 (Ok(Reply::Done { outcome, .. }), _) => controller.say(

@@ -55,6 +55,7 @@ use std::time::{Duration, Instant};
 pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
 /// One browser application: its package, its entry, its page, and how its page reports itself.
+#[derive(Clone)]
 pub struct App {
     /// The name on the command line.
     pub key: &'static str,
@@ -392,6 +393,15 @@ pub(crate) fn serve_on(
     headers: Option<Arc<SiteHeaders>>,
     port: u16,
 ) -> Result<u16, String> {
+    serve_mode(dir, headers, port, false)
+}
+
+fn serve_mode(
+    dir: PathBuf,
+    headers: Option<Arc<SiteHeaders>>,
+    port: u16,
+    worker_fault: bool,
+) -> Result<u16, String> {
     let listener = TcpListener::bind(("127.0.0.1", port))
         .map_err(|e| format!("cannot listen on 127.0.0.1:{port}: {e}"))?;
     let port = listener
@@ -403,7 +413,7 @@ pub(crate) fn serve_on(
             let dir = dir.clone();
             let headers = headers.clone();
             thread::spawn(move || {
-                let _ = answer(stream, &dir, headers.as_deref());
+                let _ = answer(stream, &dir, headers.as_deref(), worker_fault);
             });
         }
     });
@@ -446,7 +456,12 @@ fn served_name(path: &str) -> Option<String> {
 }
 
 /// Answers one request: a file of the folder by its path, `/` as `index.html`.
-fn answer(mut stream: TcpStream, dir: &Path, headers: Option<&SiteHeaders>) -> std::io::Result<()> {
+fn answer(
+    mut stream: TcpStream,
+    dir: &Path,
+    headers: Option<&SiteHeaders>,
+    worker_fault: bool,
+) -> std::io::Result<()> {
     let mut request = Vec::new();
     let mut buffer = [0u8; 4096];
     while !request.windows(4).any(|w| w == b"\r\n\r\n") {
@@ -459,7 +474,13 @@ fn answer(mut stream: TcpStream, dir: &Path, headers: Option<&SiteHeaders>) -> s
     let line = String::from_utf8_lossy(&request);
     let path = line.split_whitespace().nth(1).unwrap_or("/").to_owned();
     let name = served_name(&path);
-    let body = name.as_ref().and_then(|name| fs::read(dir.join(name)).ok());
+    let body = if worker_fault && name.as_deref() == Some("worker.js") {
+        // Tool-only network fault: exercise the actual Worker error path with no product hook.
+        thread::sleep(Duration::from_secs(3));
+        Some(b"setTimeout(()=>postMessage('{}'),200); throw new Error('Smoke worker startup failure');".to_vec())
+    } else {
+        name.as_ref().and_then(|name| fs::read(dir.join(name)).ok())
+    };
     let mut extra = String::new();
     match headers {
         Some(headers) => {
@@ -610,6 +631,8 @@ impl Drop for DriverProcess {
 struct Session {
     port: u16,
     id: String,
+    downloads: PathBuf,
+    bidi: Option<String>,
 }
 
 impl Session {
@@ -620,6 +643,59 @@ impl Session {
             &format!("/session/{}{path}", self.id),
             Some(&body),
         )
+    }
+
+    /// W3C browsingContext.setViewport, which changes CSS viewport dimensions rather
+    /// than resizing Firefox's desktop window (whose minimum width is 500 px).
+    fn viewport(&self, width: u32, height: u32) -> Result<(), String> {
+        let url = self
+            .bidi
+            .as_deref()
+            .ok_or("the driver supplied no BiDi connection")?;
+        let (mut socket, _) =
+            tungstenite::connect(url).map_err(|e| format!("BiDi connect: {e}"))?;
+        if let tungstenite::stream::MaybeTlsStream::Plain(stream) = socket.get_mut() {
+            stream
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .map_err(|e| e.to_string())?;
+            stream
+                .set_write_timeout(Some(Duration::from_secs(10)))
+                .map_err(|e| e.to_string())?;
+        }
+        let mut command = |id: u64, method: &str, params: Value| -> Result<Value, String> {
+            socket
+                .send(tungstenite::Message::Text(
+                    json!({"id":id,"method":method,"params":params})
+                        .to_string()
+                        .into(),
+                ))
+                .map_err(|e| e.to_string())?;
+            loop {
+                let message = socket.read().map_err(|e| e.to_string())?;
+                let tungstenite::Message::Text(text) = message else {
+                    continue;
+                };
+                let value: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                if value.get("id").and_then(Value::as_u64) == Some(id) {
+                    if value.get("type").and_then(Value::as_str) == Some("success") {
+                        return Ok(value["result"].clone());
+                    }
+                    return Err(format!("BiDi {method}: {value}"));
+                }
+            }
+        };
+        let tree = command(1, "browsingContext.getTree", json!({}))?;
+        let context = tree
+            .pointer("/contexts/0/context")
+            .and_then(Value::as_str)
+            .ok_or("BiDi returned no top-level context")?;
+        command(
+            2,
+            "browsingContext.setViewport",
+            json!({"context":context,"viewport":{"width":width,"height":height},"devicePixelRatio":1}),
+        )?;
+        let _ = socket.close(None);
+        Ok(())
     }
 
     fn script(&self, script: &str) -> Result<Value, String> {
@@ -694,14 +770,22 @@ fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
         }
         thread::sleep(Duration::from_millis(200));
     }
+    let downloads =
+        std::env::temp_dir().join(format!("dnacalc-smoke-{}-{port}", std::process::id()));
+    fs::create_dir_all(&downloads)
+        .map_err(|error| format!("cannot create smoke download folder: {error}"))?;
     let capabilities = match browser.name {
         "firefox" => json!({
             "browserName": "firefox",
-            "moz:firefoxOptions": { "args": ["-headless", "-width=1280", "-height=1000"] }
+            "webSocketUrl": true,
+            "moz:firefoxOptions": { "args": ["-headless", "-width=1280", "-height=1000"], "prefs": {
+                "browser.download.folderList":2,"browser.download.dir":downloads,"browser.download.useDownloadDir":true,
+                "browser.helperApps.neverAsk.saveToDisk":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream"
+            } }
         }),
         _ => json!({
             "browserName": "chrome",
-            "goog:chromeOptions": { "args": ["--headless=new", "--disable-gpu", "--window-size=1280,1000"] }
+            "goog:chromeOptions": { "args": ["--headless=new", "--disable-gpu", "--window-size=1280,1000"], "prefs": {"download.default_directory":downloads,"download.prompt_for_download":false} }
         }),
     };
     let created = webdriver(
@@ -718,6 +802,11 @@ fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
     let session = Session {
         port: driver.port,
         id,
+        downloads,
+        bidi: created
+            .pointer("/capabilities/webSocketUrl")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
     };
     Ok((driver, session))
 }
@@ -730,12 +819,13 @@ const TAB: &str = "\u{E004}";
 const ENTER: &str = "\u{E007}";
 const ESCAPE: &str = "\u{E00C}";
 const DELETE: &str = "\u{E017}";
+const F6: &str = "\u{E036}";
 const F2: &str = "\u{E032}";
 
 /// The selector of an element: a selector as written when `name` starts with `[` (or is `body`), otherwise the
 /// element whose role attribute is `name`.
 fn select(app: &App, name: &str) -> String {
-    if name.starts_with('[') || name == "body" {
+    if name.starts_with('[') || name.starts_with('#') || name == "body" {
         name.to_owned()
     } else {
         format!("[{}=\"{name}\"]", app.role_attribute)
@@ -758,6 +848,15 @@ pub enum Action {
     Click(&'static str),
     /// Two real pointer clicks at the element's centre.
     DoubleClick(&'static str),
+    /// An explicit discard decision when replacing a smoke fixture; clean work needs none.
+    DiscardReplacement,
+    /// Only files in this browser session's own temporary download folder.
+    ClearDownloads,
+    UploadDownload(&'static str),
+    /// Prepare an explicitly manual cache fixture with the existing package-part editor.
+    ManualDownloadFixture,
+    /// Observe delayed external events in fault cases.
+    PauseMillis(u64),
     /// A real pointer drag between two rendered elements.
     Drag(&'static str, &'static str),
     /// Synthetic IME events exercise the composition boundary; this is not a device IME test.
@@ -787,6 +886,15 @@ pub enum Check {
     Value(&'static str, &'static str),
     /// The element owns keyboard focus.
     Focused(&'static str),
+    /// Browser accessibility computation through the standard WebDriver endpoints.
+    Role(&'static str, &'static str),
+    Name(&'static str, &'static str),
+    /// The whole element fits within the viewport, with rendered, reachable content.
+    Reachable(&'static str),
+    /// The selected element's solid text/background colours meet WCAG's normal-text ratio.
+    Contrast(&'static str),
+    Bounded(&'static str, usize),
+    ActiveDescendant(&'static str),
     /// The element's attribute.
     Attr(&'static str, &'static str, &'static str),
     /// The element's inline style sets each of these declarations (`"left:4px;color:#ff0000"`),
@@ -1028,13 +1136,20 @@ const ONECALC_CASES: &[Case] = &[
     },
     Case {
         name: "high contrast, then the system's theme",
-        actions: &[Action::Choose("theme", "high-contrast"), Action::Choose("theme", "")],
+        actions: &[
+            Action::Choose("theme", "high-contrast"),
+            Action::Choose("theme", ""),
+        ],
         checks: &[Check::Computed("body", "background-color:#FFFFFF")],
     },
     Case {
         name: "on a 500-pixel screen (the narrowest a desktop Firefox window goes) the page fits its width",
         actions: &[Action::Window(500, 844)],
-        checks: &[Check::Narrow(500), Check::Fits, Check::Text("sheets", "Sheet1")],
+        checks: &[
+            Check::Narrow(500),
+            Check::Fits,
+            Check::Text("sheets", "Sheet1"),
+        ],
     },
     Case {
         name: "back on a wide screen",
@@ -1069,7 +1184,11 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "the calculation worker starts from its own script and answers (dc-p96)",
         actions: &[],
-        checks: &[Check::Attr("[data-dnacalc-worker]", "data-dnacalc-worker", "ready")],
+        checks: &[Check::Attr(
+            "[data-dnacalc-worker]",
+            "data-dnacalc-worker",
+            "ready",
+        )],
     },
     Case {
         name: "typed numbers replace the cell, Enter enters them and moves down",
@@ -1225,7 +1344,7 @@ const CALC_CASES: &[Case] = &[
         name: "Save writes the workbook's package",
         actions: &[Action::Click("save")],
         checks: &[
-            Check::Starts("status", "Saved Book1.xlsx: "),
+            Check::Starts("status", "Download started: Book1.xlsx."),
             Check::Text("document", "Book1.xlsx"),
         ],
     },
@@ -1273,10 +1392,13 @@ const CALC_CASES: &[Case] = &[
     },
     Case {
         name: "an Excel-saved workbook opens through the file input, calculated",
-        actions: &[Action::Upload(
-            "open-file",
-            "crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx",
-        )],
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx",
+            ),
+            Action::DiscardReplacement,
+        ],
         checks: &[
             Check::Text("document", "d1.saved.xlsx"),
             Check::Starts("status", "Opened d1.saved.xlsx: "),
@@ -1328,11 +1450,14 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "F2 and Enter on the restored cell enter its own text again",
         actions: &[Action::Keys("grid", F2), Action::Keys("cell-editor", ENTER)],
-        checks: &[Check::Text(cell!("A1"), "1"), Check::Value("name-box", "A2")],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Value("name-box", "A2"),
+        ],
     },
     Case {
         name: "New makes an empty workbook",
-        actions: &[Action::Click("new")],
+        actions: &[Action::Click("new"), Action::DiscardReplacement],
         checks: &[
             Check::Text("document", "Book1.xlsx"),
             Check::Absent("[data-dnacalc=\"cell\"]"),
@@ -1346,7 +1471,10 @@ const CALC_CASES: &[Case] = &[
             Action::Keys("grid", "9"),
             Action::Keys("cell-editor", ENTER),
         ],
-        checks: &[Check::Text(cell!("B200"), "9"), Check::Value("name-box", "B201")],
+        checks: &[
+            Check::Text(cell!("B200"), "9"),
+            Check::Value("name-box", "B201"),
+        ],
     },
     Case {
         name: "back at the top, row 200 is out of view",
@@ -1382,6 +1510,7 @@ const CALC_CASES: &[Case] = &[
         name: "a new workbook for the range cases: A1 1, A2 2, B1 =A1*10",
         actions: &[
             Action::Click("new"),
+            Action::DiscardReplacement,
             Action::Keys("grid", "1"),
             Action::Keys("cell-editor", ENTER),
             Action::Keys("grid", "2"),
@@ -1398,7 +1527,10 @@ const CALC_CASES: &[Case] = &[
         actions: &[
             Action::Into("name-box", "B1\u{E007}"),
             // Shift down, Down twice, every key released (WebDriver's modifier and NULL keys).
-            Action::Keys("grid", concat!("\u{E008}", "\u{E015}", "\u{E015}", "\u{E000}")),
+            Action::Keys(
+                "grid",
+                concat!("\u{E008}", "\u{E015}", "\u{E015}", "\u{E000}"),
+            ),
             Action::Keys("grid", concat!("\u{E009}", "d", "\u{E000}")),
         ],
         checks: &[
@@ -1437,7 +1569,10 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "Undo brings the column's cell back",
         actions: &[Action::Click("undo")],
-        checks: &[Check::Text(cell!("D5"), "1"), Check::Text(cell!("E5"), "10")],
+        checks: &[
+            Check::Text(cell!("D5"), "1"),
+            Check::Text(cell!("E5"), "10"),
+        ],
     },
     Case {
         name: "a row header and Insert insert a row: cells and references move down",
@@ -1480,7 +1615,10 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "Undo of the column insertion",
         actions: &[Action::Click("undo")],
-        checks: &[Check::Text(cell!("A1"), "1"), Check::Text(cell!("B1"), "10")],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Text(cell!("B1"), "10"),
+        ],
     },
     Case {
         name: "Ctrl+X and Ctrl+V move cells, and the formulas that read them follow",
@@ -1502,7 +1640,10 @@ const CALC_CASES: &[Case] = &[
     },
     Case {
         name: "Undo takes the move back",
-        actions: &[Action::Click("undo"), Action::Into("name-box", "B1\u{E007}")],
+        actions: &[
+            Action::Click("undo"),
+            Action::Into("name-box", "B1\u{E007}"),
+        ],
         checks: &[
             Check::Text(cell!("A1"), "1"),
             Check::Absent(cell!("H1")),
@@ -1511,10 +1652,13 @@ const CALC_CASES: &[Case] = &[
     },
     Case {
         name: "a workbook's number formats show as Excel shows them",
-        actions: &[Action::Upload(
-            "open-file",
-            "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
-        )],
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
+            ),
+            Action::DiscardReplacement,
+        ],
         checks: &[
             Check::Text("document", "formats.xlsx"),
             Check::Text(cell!("A1"), "1,234.50"),
@@ -1537,14 +1681,20 @@ const CALC_CASES: &[Case] = &[
             Check::Style(cell!("A3"), "left:48px;top:62px;width:117px;height:40px"),
             Check::Style(cell!("A14"), "left:48px;top:282px;width:117px;height:20px"),
             // A15's negative section is [Color10]: Excel's palette entry 10.
-            Check::Style(cell!("A15"), "left:48px;top:302px;width:117px;height:20px;color:#008000"),
+            Check::Style(
+                cell!("A15"),
+                "left:48px;top:302px;width:117px;height:20px;color:#008000",
+            ),
             // Column E is 4 characters (33 px): a formatted number too wide shows ####, as in
             // Excel, and a text overflows over the empty F to I.
             Check::Text(cell!("E1"), "####"),
             Check::Text(cell!("E2"), "12"),
             Check::Style(cell!("E3"), "left:409px;top:62px;width:289px;height:40px"),
             // A4's negative section is [Red].
-            Check::Style(cell!("A4"), "left:48px;top:102px;width:117px;height:20px;color:#ff0000"),
+            Check::Style(
+                cell!("A4"),
+                "left:48px;top:102px;width:117px;height:20px;color:#ff0000",
+            ),
         ],
     },
     Case {
@@ -1589,19 +1739,29 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "Save after the insertions and the move writes the package",
         actions: &[Action::Click("save")],
-        checks: &[Check::Starts("status", "Saved formats.xlsx: ")],
+        checks: &[Check::Starts("status", "Download started: formats.xlsx.")],
     },
     // dc-gf0: the tree, canvas and ledger skins over calc-host's dc_gf0 workbook (Data, Other and
     // Target Sheet, six defined names, formulas across the sheets).
     Case {
         name: "the tree outlines the workbook: its names, its sheets, their rows and cells",
         actions: &[
-            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::DiscardReplacement,
             Action::Click("skin-tree"),
         ],
         checks: &[
-            Check::Text("[data-dnacalc=\"tree-row\"][data-key=\"names\"] .dc-count", "6"),
-            Check::Text("[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"] .dc-count", "13 cells"),
+            Check::Text(
+                "[data-dnacalc=\"tree-row\"][data-key=\"names\"] .dc-count",
+                "6",
+            ),
+            Check::Text(
+                "[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"] .dc-count",
+                "13 cells",
+            ),
             Check::Text(
                 "[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"] [data-dnacalc=\"tree-value\"]",
                 "108",
@@ -1614,7 +1774,11 @@ const CALC_CASES: &[Case] = &[
             "[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"] [data-dnacalc=\"tree-toggle\"]",
         )],
         checks: &[
-            Check::Attr("[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"]", "data-folded", "true"),
+            Check::Attr(
+                "[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"]",
+                "data-folded",
+                "true",
+            ),
             Check::Absent("[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"]"),
         ],
     },
@@ -1629,7 +1793,11 @@ const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Value("name-box", "B3"),
             Check::Value(BAR, "=A1+Other!A1+D1"),
-            Check::Attr("[data-dnacalc=\"tree-row\"][data-focused=\"true\"]", "data-cell", "B3"),
+            Check::Attr(
+                "[data-dnacalc=\"tree-row\"][data-focused=\"true\"]",
+                "data-cell",
+                "B3",
+            ),
             // Other!B4, B12 and B13 sum ranges that hold Data!B3.
             Check::Text(
                 "[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"] [data-dnacalc=\"tree-dependents\"]",
@@ -1641,22 +1809,45 @@ const CALC_CASES: &[Case] = &[
         name: "Down and Enter in the tree move to the next cell and select it",
         actions: &[Action::Keys("tree", concat!("\u{E015}", "\u{E007}"))],
         checks: &[
-            Check::Attr("[data-dnacalc=\"tree-row\"][data-focused=\"true\"]", "data-cell", "C3"),
+            Check::Attr(
+                "[data-dnacalc=\"tree-row\"][data-focused=\"true\"]",
+                "data-cell",
+                "C3",
+            ),
             Check::Value("name-box", "C3"),
         ],
     },
     Case {
         name: "the canvas centres on the active cell, what it reads to the left, what reads it to the right",
-        actions: &[Action::Into("name-box", "B1\u{E007}"), Action::Click("skin-canvas")],
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Click("skin-canvas"),
+        ],
         checks: &[
-            Check::Attr("[data-dnacalc=\"canvas-node\"][data-center=\"true\"]", "data-node", "B1"),
+            Check::Attr(
+                "[data-dnacalc=\"canvas-node\"][data-center=\"true\"]",
+                "data-node",
+                "B1",
+            ),
             Check::Text(
                 "[data-dnacalc=\"canvas-node\"][data-node=\"B1\"] [data-dnacalc=\"canvas-value\"]",
                 "10",
             ),
-            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"A1\"]", "data-column", "-1"),
-            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"C1\"]", "data-column", "1"),
-            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"Other!B3\"]", "data-column", "1"),
+            Check::Attr(
+                "[data-dnacalc=\"canvas-node\"][data-node=\"A1\"]",
+                "data-column",
+                "-1",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"canvas-node\"][data-node=\"C1\"]",
+                "data-column",
+                "1",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"canvas-node\"][data-node=\"Other!B3\"]",
+                "data-column",
+                "1",
+            ),
             Check::Text(
                 "canvas-read-by",
                 "Data!C1, Other!B3, Other!B4, Other!B12, Other!B13",
@@ -1672,8 +1863,16 @@ const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Value("name-box", "C1"),
             Check::Text("canvas-depth", "2 back, 1 forward"),
-            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"B1\"]", "data-column", "-1"),
-            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"A1\"]", "data-column", "-2"),
+            Check::Attr(
+                "[data-dnacalc=\"canvas-node\"][data-node=\"B1\"]",
+                "data-column",
+                "-1",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"canvas-node\"][data-node=\"A1\"]",
+                "data-column",
+                "-2",
+            ),
         ],
     },
     Case {
@@ -1683,7 +1882,10 @@ const CALC_CASES: &[Case] = &[
     },
     Case {
         name: "the ledger keeps the cells holding a text",
-        actions: &[Action::Choose("ledger-filter", "text"), Action::Into("ledger-text", "Other!")],
+        actions: &[
+            Action::Choose("ledger-filter", "text"),
+            Action::Into("ledger-text", "Other!"),
+        ],
         checks: &[Check::Starts("ledger-count", "14 of 22 formula cells")],
     },
     Case {
@@ -1703,7 +1905,11 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "conditional formats colour cells as Excel shows them",
         actions: &[
-            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/conditional-formats.xlsx"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_6yw/conditional-formats.xlsx",
+            ),
+            Action::DiscardReplacement,
             Action::Click("skin-grid"),
         ],
         checks: &[
@@ -1734,7 +1940,11 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "a list cell shows its drop-down and input message",
         actions: &[
-            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx",
+            ),
+            Action::DiscardReplacement,
             Action::Click("skin-grid"),
             Action::Into("name-box", "A1\u{E007}"),
         ],
@@ -1750,12 +1960,20 @@ const CALC_CASES: &[Case] = &[
     },
     Case {
         name: "a picked item is the cell's entry",
-        actions: &[Action::Click("[data-dnacalc=\"dropdown-list\"] li:nth-child(2)")],
-        checks: &[Check::Text(cell!("A1"), "Green"), Check::Absent("dropdown-list")],
+        actions: &[Action::Click(
+            "[data-dnacalc=\"dropdown-list\"] li:nth-child(2)",
+        )],
+        checks: &[
+            Check::Text(cell!("A1"), "Green"),
+            Check::Absent("dropdown-list"),
+        ],
     },
     Case {
         name: "a list read from cells lists their values",
-        actions: &[Action::Into("name-box", "B1\u{E007}"), Action::Click("dropdown")],
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Click("dropdown"),
+        ],
         checks: &[Check::Items("dropdown-list", &["North", "South", "East"])],
     },
     Case {
@@ -1791,11 +2009,19 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "charts are drawn where Excel puts them, with their series' values",
         actions: &[
-            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx",
+            ),
+            Action::DiscardReplacement,
             Action::Click("skin-grid"),
         ],
         checks: &[
-            Check::Attr("[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"]", "data-kind", "column"),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"]",
+                "data-kind",
+                "column",
+            ),
             Check::Text(
                 "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-dnacalc=\"chart-title\"]",
                 "Column",
@@ -1810,7 +2036,11 @@ const CALC_CASES: &[Case] = &[
                 "data-value",
                 "13",
             ),
-            Check::Attr("[data-dnacalc=\"chart\"][data-chart=\"Chart 3\"]", "data-kind", "line"),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 3\"]",
+                "data-kind",
+                "line",
+            ),
         ],
     },
     Case {
@@ -1836,21 +2066,39 @@ const CALC_CASES: &[Case] = &[
     // dc-xib: Strand's themes and a narrow screen.
     Case {
         name: "the theme switch shows the dark theme: petrol chrome, charcoal paper",
-        actions: &[Action::Choose("theme", "cockpit-dark")],
+        actions: &[
+            Action::Click("settings-toggle"),
+            Action::Choose("theme", "cockpit-dark"),
+            Action::Click("settings-toggle"),
+        ],
         checks: &[
             Check::Computed("app", "background-color:#1A262B;color:#E2ECEF"),
-            Check::Computed("[data-dnacalc=\"app\"] .dc-mast", "background-color:#0F2229"),
+            Check::Computed(
+                "[data-dnacalc=\"app\"] .dc-mast",
+                "background-color:#0F2229",
+            ),
         ],
     },
     Case {
         name: "the system's theme again: light paper",
-        actions: &[Action::Choose("theme", "")],
-        checks: &[Check::Computed("app", "background-color:#FFFFFF;color:#17282E")],
+        actions: &[
+            Action::Click("settings-toggle"),
+            Action::Choose("theme", ""),
+            Action::Click("settings-toggle"),
+        ],
+        checks: &[Check::Computed(
+            "app",
+            "background-color:#FFFFFF;color:#17282E",
+        )],
     },
     Case {
         name: "on a 500-pixel screen (the narrowest a desktop Firefox window goes) the page fits its width and the grid still shows",
         actions: &[Action::Window(500, 844), Action::Click("skin-grid")],
-        checks: &[Check::Narrow(500), Check::Fits, Check::Attr("grid", "tabindex", "0")],
+        checks: &[
+            Check::Narrow(500),
+            Check::Fits,
+            Check::Attr("grid", "tabindex", "0"),
+        ],
     },
     Case {
         name: "back on a wide screen",
@@ -1862,6 +2110,7 @@ const CALC_CASES: &[Case] = &[
         name: "edit session: cell completion opens on typed replacement",
         actions: &[
             Action::Click("new"),
+            Action::DiscardReplacement,
             Action::Keys("grid", "1"),
             Action::Keys("cell-editor", ENTER),
             Action::Keys("grid", "2"),
@@ -2225,6 +2474,7 @@ const CALC_CASES: &[Case] = &[
                 "open-file",
                 "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
             ),
+            Action::DiscardReplacement,
             Action::Into("name-box", "F5\u{E007}"),
             Action::Into(BAR, "="),
             Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Other\"]"),
@@ -2265,6 +2515,7 @@ const CALC_CASES: &[Case] = &[
         name: "edit session: entering unchanged source adds no workbook undo step",
         actions: &[
             Action::Click("new"),
+            Action::DiscardReplacement,
             Action::Keys("grid", "1"),
             Action::Keys("cell-editor", ENTER),
             Action::Into("name-box", "A1\u{E007}"),
@@ -2329,9 +2580,483 @@ const CALC_CASES: &[Case] = &[
             Check::Absent(cell!("C3")),
         ],
     },
+    Case {
+        name: "shared states: Save preserves a rejected draft and returns keyboard focus",
+        actions: &[Action::Click("save")],
+        checks: &[
+            Check::Value(BAR, "=1+"),
+            Check::Focused(BAR),
+            Check::Attr("status", "data-refused", "true"),
+        ],
+    },
+    Case {
+        name: "shared states: New protects a rejected draft and restores focus on Keep working",
+        actions: &[Action::Click("new")],
+        checks: &[
+            Check::Role("replace-dialog", "dialog"),
+            Check::Name("replace-dialog", "Keep your current work?"),
+            Check::Focused("keep-working"),
+            Check::Reachable("keep-working"),
+        ],
+    },
+    Case {
+        name: "shared states: keeping the workbook preserves source, draft and its editor",
+        actions: &[Action::Click("keep-working")],
+        checks: &[
+            Check::Value(BAR, "=1+"),
+            Check::Focused(BAR),
+            Check::Absent("[data-dnacalc=replace-dialog][open]"),
+        ],
+    },
+    Case {
+        name: "shared states: discard explicitly replaces the workbook and clears history",
+        actions: &[
+            Action::Keys(BAR, ESCAPE),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+        ],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Value(BAR, ""),
+            Check::Attr("undo", "disabled", ""),
+            Check::Attr("redo", "disabled", ""),
+            Check::Text("result-state", "Empty"),
+        ],
+    },
+    Case {
+        name: "shared states: entered literals are distinct from calculated values",
+        actions: &[
+            Action::Keys("grid", "8"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("result-state", "Literal"),
+            Check::Text("selected-value", "8"),
+            Check::Role("grid", "grid"),
+            Check::Name("grid", "Sheet1 worksheet"),
+            Check::Role("#dc-grid-cell-1-1", "gridcell"),
+            Check::Name("#dc-grid-cell-1-1", "A1, 8, literal"),
+            Check::Bounded("[role=gridcell]", 5000),
+            Check::ActiveDescendant("grid"),
+        ],
+    },
+    Case {
+        name: "shared states: Save enters an accepted draft before preparing its package",
+        actions: &[
+            Action::Into("name-box", "E1\u{E007}"),
+            Action::Into(BAR, "=1+2"),
+            Action::Click("save"),
+        ],
+        checks: &[
+            Check::Starts("status", "Download started: Book1.xlsx."),
+            Check::Text(cell!("E1"), "3"),
+            Check::Absent("edit-session"),
+        ],
+    },
+    Case {
+        name: "shared states: a worksheet error has meaning and calculated provenance",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into(BAR, "=1/0\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("result-state", "Worksheet error"),
+            Check::Text("error-meaning", "division by zero"),
+            Check::Starts(
+                "cell-provenance",
+                "Sheet1!B1: calculated by DNA Calc's engine",
+            ),
+            Check::Reachable("recover-edit"),
+            Check::Attr("result-announcement", "aria-live", "polite"),
+        ],
+    },
+    Case {
+        name: "shared states: a refusal opens the exact reason without inventing an owner",
+        actions: &[
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Into(BAR, "=WEBSERVICE(\"https://example.com\")\u{E007}"),
+            Action::Into("name-box", "C1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("result-state", "Refused"),
+            Check::Starts("cell-provenance", "Sheet1!C1: refused: "),
+            Check::Absent("refusal-owner"),
+            Check::Reachable("recover-edit"),
+        ],
+    },
+    Case {
+        name: "shared states: backend-supplied ownership is visible with the refusal reason",
+        actions: &[
+            Action::Into("name-box", "F1\u{E007}"),
+            Action::Into(BAR, "='[Missing.xlsx]Data'!A1\u{E007}"),
+            Action::Into("name-box", "F1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("result-state", "Refused"),
+            Check::Text("refusal-owner", "Work package: dc-ylr"),
+            Check::Starts("cell-provenance", "Sheet1!F1: refused: "),
+        ],
+    },
+    Case {
+        name: "shared refusal in Canvas",
+        actions: &[
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Click("skin-canvas"),
+        ],
+        checks: &[
+            Check::Text("result-state", "Refused"),
+            Check::Reachable("recover-edit"),
+        ],
+    },
+    Case {
+        name: "shared refusal in Atlas",
+        actions: &[Action::Click("skin-atlas")],
+        checks: &[
+            Check::Text("result-state", "Refused"),
+            Check::Reachable("recover-edit"),
+            Check::Absent("[data-dnacalc=atlas-diagnostics][open]"),
+        ],
+    },
+    Case {
+        name: "shared refusal in Ledger",
+        actions: &[Action::Click("skin-ledger")],
+        checks: &[
+            Check::Text("result-state", "Refused"),
+            Check::Name("ledger-filter", "Formula filter"),
+            Check::Reachable("recover-edit"),
+        ],
+    },
+    Case {
+        name: "shared refusal in Tree",
+        actions: &[Action::Click("skin-tree")],
+        checks: &[
+            Check::Text("result-state", "Refused"),
+            Check::Role("tree", "tree"),
+            Check::Name("tree", "Workbook outline"),
+            Check::Bounded("[role=treeitem]", 3000),
+            Check::ActiveDescendant("tree"),
+        ],
+    },
+    Case {
+        name: "shared refusal in Notebook",
+        actions: &[Action::Click("skin-notebook")],
+        checks: &[
+            Check::Text("result-state", "Refused"),
+            Check::Name("[data-dnacalc=block][data-cell=A1] input", "Input for A1"),
+        ],
+    },
+    Case {
+        name: "shared states: recovery opens the selected source without replacing it",
+        actions: &[Action::Click("recover-edit")],
+        checks: &[
+            Check::Value(BAR, "=WEBSERVICE(\"https://example.com\")"),
+            Check::Focused(BAR),
+        ],
+    },
+    Case {
+        name: "shared states: manual edits show Stale with an explicit Calculate recovery",
+        actions: &[
+            Action::Keys(BAR, ESCAPE),
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Into(BAR, "=A1*2\u{E007}"),
+            Action::Choose("calc-mode", "manual"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into(BAR, "9\u{E007}"),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Click("result-toggle"),
+        ],
+        checks: &[
+            Check::Text("result-state", "Stale"),
+            Check::Text("selected-value", "16"),
+            Check::Reachable("recover-calculate"),
+        ],
+    },
+    Case {
+        name: "shared states: recovery updates the selected result through the worker",
+        actions: &[Action::Click("recover-calculate")],
+        checks: &[
+            Check::Text("result-state", "Calculated"),
+            Check::Text("selected-value", "18"),
+            Check::Starts(
+                "state-explanation",
+                "Calculated by DNA Calc. Agreement with Excel has not been checked here.",
+            ),
+        ],
+    },
+    Case {
+        name: "shared states: Open protects edits; cancelling keeps the current workbook and history",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::Wait(Check::Focused("keep-working")),
+            Action::Keys("keep-working", ESCAPE),
+        ],
+        checks: &[
+            Check::Starts("document", "Book1.xlsx"),
+            Check::Value("name-box", "D1"),
+            Check::Value(BAR, "=A1*2"),
+            Check::Text("selected-value", "18"),
+        ],
+    },
+    Case {
+        name: "shared states: a downloaded package is not confirmation of durable storage",
+        actions: &[
+            Action::Click("save"),
+            Action::Wait(Check::Starts("status", "Download started: Book1.xlsx.")),
+            Action::Click("new"),
+        ],
+        checks: &[
+            Check::Reachable("keep-working"),
+            Check::Text(
+                "download-warning",
+                "Download unconfirmed · check your files",
+            ),
+        ],
+    },
+    Case {
+        name: "shared states: F6 exits the worksheet and returns without losing selection",
+        actions: &[Action::Click("keep-working"), Action::Keys("grid", F6)],
+        checks: &[
+            Check::Focused("[data-dnacalc=sheet-tab][aria-selected=true]"),
+            Check::Value("name-box", "D1"),
+        ],
+    },
+    Case {
+        name: "shared states: Shift+F6 returns to the workspace",
+        actions: &[Action::Keys(
+            "[data-dnacalc=sheet-tab][aria-selected=true]",
+            "\u{E008}\u{E036}\u{E000}",
+        )],
+        checks: &[Check::Focused("grid"), Check::Value("name-box", "D1")],
+    },
+    Case {
+        name: "shared shell: commands, worksheet tabs, status and editor fit at 390 pixels",
+        actions: &[Action::Window(390, 844)],
+        checks: &[
+            Check::Narrow(390),
+            Check::Fits,
+            Check::Reachable("new"),
+            Check::Reachable("open"),
+            Check::Reachable("save"),
+            Check::Reachable(BAR),
+            Check::Reachable("sheet-tabs"),
+            Check::Reachable("worker-status"),
+            Check::Contrast("result-state"),
+        ],
+    },
+    Case {
+        name: "shared shell: commands, tabs and status fit at 1024 pixels",
+        actions: &[Action::Window(1024, 768)],
+        checks: &[
+            Check::Fits,
+            Check::Reachable("sheet-tabs"),
+            Check::Reachable("worker-status"),
+            Check::Reachable(BAR),
+        ],
+    },
+    Case {
+        name: "shared shell: dark theme state text has measured contrast",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Click("settings-toggle"),
+            Action::Choose("theme", "cockpit-dark"),
+            Action::Click("settings-toggle"),
+        ],
+        checks: &[
+            Check::Fits,
+            Check::Contrast("result-state"),
+            Check::Reachable("sheet-tabs"),
+            Check::Reachable("worker-status"),
+        ],
+    },
+    Case {
+        name: "shared shell: high-contrast theme state text has measured contrast",
+        actions: &[
+            Action::Click("settings-toggle"),
+            Action::Choose("theme", "high-contrast"),
+            Action::Click("settings-toggle"),
+        ],
+        checks: &[
+            Check::Contrast("result-state"),
+            Check::Reachable("sheet-tabs"),
+            Check::Reachable("worker-status"),
+        ],
+    },
+    Case {
+        name: "shared states: a downloaded package explicitly declaring Manual opens with file-cache provenance",
+        actions: &[
+            Action::Click("settings-toggle"),
+            Action::Choose("theme", ""),
+            Action::Click("settings-toggle"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::Wait(Check::Starts("status", "Download started: Book1.xlsx.")),
+            Action::ManualDownloadFixture,
+            Action::UploadDownload("manual-cache.xlsx"),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "D1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("result-state", "File cache"),
+            Check::Text("selected-value", "18"),
+            Check::Starts("cell-provenance", "Sheet1!D1: the value the file stored"),
+        ],
+    },
+    Case {
+        name: "shared states: an uncommitted Notebook draft is protected by New",
+        actions: &[
+            Action::Click("skin-notebook"),
+            Action::Into("[data-dnacalc=block][data-cell=A1] input", "123"),
+            Action::Click("new"),
+        ],
+        checks: &[
+            Check::Focused("keep-working"),
+            Check::Reachable("keep-working"),
+        ],
+    },
+    Case {
+        name: "shared states: a Notebook draft survives Keep working and a skin round trip",
+        actions: &[
+            Action::Click("keep-working"),
+            Action::Click("skin-grid"),
+            Action::Click("skin-notebook"),
+        ],
+        checks: &[Check::Value(
+            "[data-dnacalc=block][data-cell=A1] input",
+            "123",
+        )],
+    },
+    Case {
+        name: "shared states: Save cannot silently omit a Notebook draft",
+        actions: &[Action::Click("save")],
+        checks: &[
+            Check::Starts("status", "Finish the Notebook draft with Enter"),
+            Check::Focused("[data-dnacalc=block][data-cell=A1] input"),
+            Check::Value("[data-dnacalc=block][data-cell=A1] input", "123"),
+        ],
+    },
+    Case {
+        name: "shared states: cancelling a Notebook draft restores authored input",
+        actions: &[Action::Keys(
+            "[data-dnacalc=block][data-cell=A1] input",
+            ESCAPE,
+        )],
+        checks: &[
+            Check::Value("[data-dnacalc=block][data-cell=A1] input", "9"),
+            Check::Absent("notebook-drafts"),
+        ],
+    },
+    Case {
+        name: "shared sheet tabs: arrows activate and focus other sheets",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Keys("[data-dnacalc=sheet-tab][aria-selected=true]", "\u{E014}"),
+        ],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=sheet-tab][data-sheet=Other]",
+                "aria-selected",
+                "true",
+            ),
+            Check::Focused("[data-dnacalc=sheet-tab][data-sheet=Other]"),
+        ],
+    },
+    Case {
+        name: "shared sheet tabs: Home returns keyboard focus to the first sheet",
+        actions: &[Action::Keys(
+            "[data-dnacalc=sheet-tab][aria-selected=true]",
+            "\u{E011}",
+        )],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=sheet-tab][data-sheet=Data]",
+                "aria-selected",
+                "true",
+            ),
+            Check::Focused("[data-dnacalc=sheet-tab][data-sheet=Data]"),
+        ],
+    },
+    Case {
+        name: "shared shell: F6 leaves settings and closes the overlay",
+        actions: &[
+            Action::Click("skin-grid"),
+            Action::Click("settings-toggle"),
+            Action::Keys("settings-toggle", F6),
+        ],
+        checks: &[
+            Check::Focused(BAR),
+            Check::Absent("[data-dnacalc=settings][open]"),
+        ],
+    },
+    Case {
+        name: "shared shell: workspace resizing keeps the active cell editor visible",
+        actions: &[
+            Action::Keys(BAR, ESCAPE),
+            Action::Into("name-box", "F200\u{E007}"),
+            Action::Keys("grid", F2),
+            Action::Window(390, 844),
+        ],
+        checks: &[
+            Check::Reachable("cell-editor"),
+            Check::Focused("cell-editor"),
+            Check::Reachable("sheet-tabs"),
+            Check::Reachable("worker-status"),
+        ],
+    },
+    Case {
+        name: "shared shell: leaving a resized editor keeps its authored source",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::Window(1440, 1000),
+        ],
+        checks: &[Check::Value("name-box", "F200"), Check::Value(BAR, "")],
+    },
+    Case {
+        name: "shared tree semantics: an empty active cell still has a rendered outline focus",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Click("skin-tree"),
+        ],
+        checks: &[Check::Role("tree", "tree"), Check::ActiveDescendant("tree")],
+    },
 ];
 
 /// The script that reads what one check looks at.
+const CALC_WORKER_FAULT_CASES: &[Case] = &[
+    Case {
+        name: "worker transport: outstanding startup requests visibly say Pending",
+        actions: &[],
+        checks: &[
+            Check::Starts("worker-status", "Pending"),
+            Check::Text("result-state", "Pending"),
+        ],
+    },
+    Case {
+        name: "worker transport: a real Worker startup error is visible and releases pending requests",
+        actions: &[
+            Action::Wait(Check::Starts("worker-status", "Worker failed:")),
+            Action::Window(1024, 768),
+            Action::PauseMillis(350),
+        ],
+        checks: &[
+            Check::Starts("worker-status", "Worker failed:"),
+            Check::Starts("status", "New workbook failed:"),
+            Check::Text("result-state", "Empty"),
+            Check::Reachable("worker-status"),
+        ],
+    },
+];
+
 fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String> {
     let q = |name: &str| {
         format!(
@@ -2339,7 +3064,38 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             select(app, name).replace('\'', "\\'")
         )
     };
+    if let Check::Role(name, _) | Check::Name(name, _) = check {
+        let element = session.element(&select(app, name))?;
+        let endpoint = if matches!(check, Check::Role(..)) {
+            "computedrole"
+        } else {
+            "computedlabel"
+        };
+        return webdriver(
+            session.port,
+            "GET",
+            &format!("/session/{}/element/{element}/{endpoint}", session.id),
+            None,
+        );
+    }
     let script = match check {
+        Check::Role(..) | Check::Name(..) => unreachable!(),
+        Check::ActiveDescendant(name) => format!(
+            "var e={}; var id=e && e.getAttribute('aria-activedescendant'); var child=id && document.getElementById(id); return !!child && e.contains(child);",
+            q(name)
+        ),
+        Check::Reachable(name) => format!(
+            "var e={}; if(!e) return false; var r=e.getBoundingClientRect(); return r.width>0 && r.height>0 && r.left>=0 && r.top>=0 && r.right<=innerWidth+1 && r.bottom<=innerHeight+1 && getComputedStyle(e).visibility==='visible';",
+            q(name)
+        ),
+        Check::Bounded(name, _) => format!(
+            "return document.querySelectorAll('{}').length;",
+            select(app, name).replace('\'', "\\'")
+        ),
+        Check::Contrast(name) => format!(
+            "var e={}; if(!e) return null; var s=getComputedStyle(e); function lum(c) {{ var v=c.match(/[0-9.]+/g).slice(0,3).map(Number).map(x=>{{x/=255;return x<=0.04045?x/12.92:Math.pow((x+0.055)/1.055,2.4);}}); return v[0]*0.2126+v[1]*0.7152+v[2]*0.0722; }} var a=lum(s.color),b=lum(s.backgroundColor); return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);",
+            q(name)
+        ),
         Check::Text(name, _) | Check::Starts(name, _) => {
             format!("var e = {}; return e ? e.textContent : null;", q(name))
         }
@@ -2358,7 +3114,9 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             "var e = {}; if (!e) {{ return null; }} var probe = document.createElement('div'); document.body.appendChild(probe); var out = []; '{declarations}'.split(';').forEach(function (d) {{ var i = d.indexOf(':'); if (i < 0) {{ return; }} var k = d.slice(0, i).trim(); probe.style.setProperty(k, d.slice(i + 1).trim()); out.push([k, getComputedStyle(e).getPropertyValue(k), getComputedStyle(probe).getPropertyValue(k)]); }}); probe.remove(); return out;",
             q(name)
         ),
-        Check::Fits => "return [document.documentElement.scrollWidth, window.innerWidth];".to_owned(),
+        Check::Fits => {
+            "return [document.documentElement.scrollWidth, window.innerWidth];".to_owned()
+        }
         Check::Narrow(_) => "return window.innerWidth;".to_owned(),
         Check::Style(name, declarations) => format!(
             "var e = {}; if (!e) {{ return null; }} var probe = document.createElement('div'); var out = []; '{declarations}'.split(';').forEach(function (d) {{ var i = d.indexOf(':'); if (i < 0) {{ return; }} var k = d.slice(0, i).trim(); probe.style.setProperty(k, d.slice(i + 1).trim()); out.push([k, e.style.getPropertyValue(k), probe.style.getPropertyValue(k)]); }}); return out;",
@@ -2377,21 +3135,30 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
 
 fn satisfied(check: &Check, seen: &Value) -> bool {
     match check {
-        Check::Text(_, expected) | Check::Value(_, expected) | Check::Attr(_, _, expected) => {
-            seen.as_str() == Some(expected)
-        }
+        Check::Text(_, expected)
+        | Check::Value(_, expected)
+        | Check::Attr(_, _, expected)
+        | Check::Role(_, expected)
+        | Check::Name(_, expected) => seen.as_str() == Some(expected),
         Check::Starts(_, prefix) => seen.as_str().is_some_and(|text| text.starts_with(prefix)),
         Check::Fits => seen.as_array().is_some_and(|sizes| {
-            match (sizes.first().and_then(Value::as_f64), sizes.get(1).and_then(Value::as_f64)) {
+            match (
+                sizes.first().and_then(Value::as_f64),
+                sizes.get(1).and_then(Value::as_f64),
+            ) {
                 (Some(scroll), Some(window)) => window > 0.0 && scroll <= window,
                 _ => false,
             }
         }),
-        Check::Narrow(width) => seen.as_f64().is_some_and(|seen| seen > 0.0 && seen <= f64::from(*width)),
+        Check::Narrow(width) => seen
+            .as_f64()
+            .is_some_and(|seen| seen > 0.0 && seen <= f64::from(*width)),
         Check::Style(..) | Check::Computed(..) => seen.as_array().is_some_and(|pairs| {
             !pairs.is_empty()
                 && pairs.iter().all(|pair| {
-                    pair.get(1).and_then(Value::as_str).is_some_and(|seen| !seen.is_empty())
+                    pair.get(1)
+                        .and_then(Value::as_str)
+                        .is_some_and(|seen| !seen.is_empty())
                         && pair.get(1) == pair.get(2)
                 })
         }),
@@ -2407,7 +3174,13 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .iter()
                 .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
         }),
-        Check::Absent(_) | Check::Focused(_) => seen.as_bool() == Some(true),
+        Check::Absent(_) | Check::Focused(_) | Check::Reachable(_) | Check::ActiveDescendant(_) => {
+            seen.as_bool() == Some(true)
+        }
+        Check::Contrast(_) => seen.as_f64().is_some_and(|ratio| ratio >= 4.5),
+        Check::Bounded(_, limit) => seen
+            .as_u64()
+            .is_some_and(|count| count > 0 && count <= *limit as u64),
         Check::Array(rows) => seen.as_array().is_some_and(|seen_rows| {
             seen_rows.len() == rows.len()
                 && seen_rows.iter().zip(rows.iter()).all(|(seen_row, row)| {
@@ -2435,6 +3208,12 @@ fn describe(check: &Check) -> String {
         Check::Absent(name) => format!("no {name}"),
         Check::Value(name, expected) => format!("the field {name} holds {expected:?}"),
         Check::Focused(name) => format!("{name} owns keyboard focus"),
+        Check::Role(name, value) => format!("{name} has computed accessibility role {value}"),
+        Check::Name(name, value) => format!("{name} has computed accessible name {value}"),
+        Check::Reachable(name) => format!("{name} fits within the viewport"),
+        Check::Contrast(name) => format!("{name} has text contrast at least 4.5:1"),
+        Check::ActiveDescendant(name) => format!("{name} identifies a rendered active descendant"),
+        Check::Bounded(name, limit) => format!("{name} has between 1 and {limit} elements"),
         Check::Attr(name, attribute, expected) => {
             format!("{name} has {attribute}={expected:?}")
         }
@@ -2483,13 +3262,77 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             session.keys(&css, "\u{E009}a\u{E000}")?;
             session.keys(&css, &format!("\u{E003}{text}"))
         }
+        Action::PauseMillis(ms) => {
+            thread::sleep(Duration::from_millis(*ms));
+            Ok(())
+        }
+        Action::ClearDownloads => {
+            for entry in fs::read_dir(&session.downloads).map_err(|e| e.to_string())? {
+                let entry = entry.map_err(|e| e.to_string())?;
+                if entry.file_type().map_err(|e| e.to_string())?.is_file() {
+                    fs::remove_file(entry.path()).map_err(|e| e.to_string())?;
+                }
+            }
+            Ok(())
+        }
+        Action::ManualDownloadFixture => {
+            let path = session.downloads.join("Book1.xlsx");
+            let started = Instant::now();
+            while !path.is_file() && started.elapsed() < SETTLE {
+                thread::sleep(Duration::from_millis(50));
+            }
+            let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+            let parts = crate::oracle_cases::package_parts(&bytes)?;
+            let xml = std::str::from_utf8(parts.get("xl/workbook.xml").ok_or("no workbook part")?)
+                .map_err(|e| e.to_string())?;
+            if xml.contains("calcMode=") || !xml.contains("<calcPr ") {
+                return Err(
+                    "manual smoke fixture expects the blank package's original calcPr".to_owned(),
+                );
+            }
+            let manual = xml.replacen("<calcPr ", "<calcPr calcMode=\"manual\" ", 1);
+            let bytes = crate::oracle_cases::replace_package_parts(
+                &bytes,
+                &std::collections::BTreeMap::from([(
+                    "xl/workbook.xml".to_owned(),
+                    manual.into_bytes(),
+                )]),
+            )?;
+            fs::write(session.downloads.join("manual-cache.xlsx"), bytes).map_err(|e| e.to_string())
+        }
+        Action::UploadDownload(name) => {
+            let path = session.downloads.join(name);
+            let started = Instant::now();
+            while !path.is_file() && started.elapsed() < SETTLE {
+                thread::sleep(Duration::from_millis(50));
+            }
+            upload(app, session, "open-file", &path)
+        }
+        Action::DiscardReplacement => {
+            let started = Instant::now();
+            while started.elapsed() < Duration::from_secs(2) {
+                if session
+                    .script(
+                        "return !!document.querySelector('[data-dnacalc=replace-dialog][open]');",
+                    )?
+                    .as_bool()
+                    == Some(true)
+                {
+                    let element = session.element(&select(app, "discard-work"))?;
+                    session.post(&format!("/element/{element}/click"), json!({}))?;
+                    return Ok(());
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            Ok(())
+        }
         Action::Click(name) => {
             let element = session.element(&select(app, name))?;
             session.post(&format!("/element/{element}/click"), json!({}))?;
             Ok(())
         }
         Action::DoubleClick(name) => {
-            let element = session.element(&select(app,name))?;
+            let element = session.element(&select(app, name))?;
             session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
                 {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":element},"x":0,"y":0},
                 {"type":"pointerDown","button":0},{"type":"pointerUp","button":0},
@@ -2497,9 +3340,9 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             ]}]}))?;
             Ok(())
         }
-        Action::Drag(from,to) => {
-            let from = session.element(&select(app,from))?;
-            let to = session.element(&select(app,to))?;
+        Action::Drag(from, to) => {
+            let from = session.element(&select(app, from))?;
+            let to = session.element(&select(app, to))?;
             session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
                 {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},
                 {"type":"pointerDown","button":0},
@@ -2508,14 +3351,14 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             ]}]}))?;
             Ok(())
         }
-        Action::Composing(name,text) => {
-            let selector = serde_json::to_string(&select(app,name)).unwrap();
+        Action::Composing(name, text) => {
+            let selector = serde_json::to_string(&select(app, name)).unwrap();
             let text = serde_json::to_string(text).unwrap();
             session.script(&format!("var e = document.querySelector({selector}); e.focus(); e.dispatchEvent(new CompositionEvent('compositionstart', {{bubbles:true}})); var s=e.selectionStart, t=e.selectionEnd; e.setRangeText({text},s,t,'end'); e.dispatchEvent(new InputEvent('input', {{bubbles:true,inputType:'insertCompositionText',data:{text},isComposing:true}})); e.dispatchEvent(new KeyboardEvent('keydown', {{key:'Enter',keyCode:229,isComposing:true,bubbles:true,cancelable:true}})); return null;"))?;
             Ok(())
         }
         Action::CompositionEnd(name) => {
-            let selector = serde_json::to_string(&select(app,name)).unwrap();
+            let selector = serde_json::to_string(&select(app, name)).unwrap();
             session.script(&format!("document.querySelector({selector}).dispatchEvent(new CompositionEvent('compositionend', {{bubbles:true}})); return null;"))?;
             Ok(())
         }
@@ -2549,7 +3392,9 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     }),
                 )
             };
-            if emulated.is_err() || wide {
+            if session.bidi.is_some() {
+                session.viewport(*width, *height)?;
+            } else if emulated.is_err() || wide {
                 session.post("/window/rect", json!({ "width": width, "height": height }))?;
             }
             Ok(())
@@ -2660,7 +3505,9 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             ("Profiler.setSamplingInterval", json!({ "interval": 200 })),
             ("Profiler.start", json!({})),
         ] {
-            if let Err(e) = session.post("/goog/cdp/execute", json!({ "cmd": cmd, "params": params })) {
+            if let Err(e) =
+                session.post("/goog/cdp/execute", json!({ "cmd": cmd, "params": params }))
+            {
                 return vec![format!("the profiler did not start ({cmd}): {e}")];
             }
         }
@@ -2685,7 +3532,9 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
                     json!({ "cmd": "Profiler.stop", "params": {} }),
                 ) {
                     Ok(stopped) => match fs::write(path, stopped.to_string()) {
-                        Ok(()) => println!("{label} WORKBOOK {browser} profile: {}", path.display()),
+                        Ok(()) => {
+                            println!("{label} WORKBOOK {browser} profile: {}", path.display())
+                        }
                         Err(e) => failures.push(format!("the profile was not written: {e}")),
                     },
                     Err(e) => failures.push(format!("the profiler did not stop: {e}")),
@@ -2793,7 +3642,10 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
 const TIMED_SKINS: [(&str, &str); 4] = [
     ("grid", "[data-skin=\"grid\"]"),
     ("tree", "[data-dnacalc=\"tree-row\"][data-kind=\"cell\"]"),
-    ("canvas", "[data-dnacalc=\"canvas-node\"][data-center=\"true\"]"),
+    (
+        "canvas",
+        "[data-dnacalc=\"canvas-node\"][data-center=\"true\"]",
+    ),
     ("ledger", "[data-dnacalc=\"ledger-row\"]"),
 ];
 
@@ -2950,6 +3802,7 @@ pub(crate) fn smoke(
     only: Option<&str>,
     workbook: Option<&WorkbookRun>,
 ) -> ExitCode {
+    let mut fault_page = None;
     let page = match target {
         SmokeTarget::Url(url) => {
             println!("{} driving the page at {url}", app.label);
@@ -2974,25 +3827,44 @@ pub(crate) fn smoke(
                     return ExitCode::from(1);
                 }
             };
-            let port = match serve(dir.clone(), Some(headers)) {
+            let port = match serve(dir.clone(), Some(headers.clone())) {
                 Ok(port) => port,
                 Err(e) => {
                     println!("{} RESULT failed: {e}", app.label);
                     return ExitCode::from(1);
                 }
             };
+            if app.key == "calc" {
+                match serve_mode(dir.clone(), Some(headers), 0, true) {
+                    Ok(port) => fault_page = Some(format!("http://127.0.0.1:{port}/index.html")),
+                    Err(error) => {
+                        println!("{} RESULT failed: {error}", app.label);
+                        return ExitCode::from(1);
+                    }
+                }
+            }
             let page = format!("http://127.0.0.1:{port}/index.html");
             println!("{} serving {} at {page}", app.label, dir.display());
             page
         }
     };
+    let mut fault_app = app.clone();
+    fault_app.cases = CALC_WORKER_FAULT_CASES;
     let mut all_passed = true;
     let mut summary = Vec::new();
     for browser in BROWSERS
         .iter()
         .filter(|b| only.is_none_or(|name| b.name == name))
     {
-        match run_browser(ws, app, browser, &page, workbook) {
+        let result = run_browser(ws, app, browser, &page, workbook).and_then(|(passed, failed)| {
+            if let Some(page) = fault_page.as_deref() {
+                run_browser(ws, &fault_app, browser, page, None)
+                    .map(|(p, f)| (passed + p, failed + f))
+            } else {
+                Ok((passed, failed))
+            }
+        });
+        match result {
             Ok((passed, failed)) => {
                 all_passed &= failed == 0;
                 summary.push(format!(
@@ -3015,7 +3887,12 @@ pub(crate) fn smoke(
         "{} RESULT {}: {} cases per browser{}; {}",
         app.label,
         if all_passed { "passed" } else { "failed" },
-        app.cases.len(),
+        app.cases.len()
+            + if fault_page.is_some() {
+                CALC_WORKER_FAULT_CASES.len()
+            } else {
+                0
+            },
         if workbook.is_some() {
             " and the workbook"
         } else {
@@ -3037,7 +3914,10 @@ mod tests {
     #[test]
     fn served_paths_stay_inside_the_folder() {
         assert_eq!(served_name("/").as_deref(), Some("index.html"));
-        assert_eq!(served_name("/build.json?x=1").as_deref(), Some("build.json"));
+        assert_eq!(
+            served_name("/build.json?x=1").as_deref(),
+            Some("build.json")
+        );
         assert_eq!(
             served_name("/assets/0123456789abcdef/boot.js").as_deref(),
             Some("assets/0123456789abcdef/boot.js")
@@ -3062,8 +3942,14 @@ mod tests {
     #[test]
     fn style_checks_need_every_declaration_as_the_browser_holds_it() {
         let check = Check::Style("r", "color:#010203");
-        assert!(satisfied(&check, &json!([["color", "rgb(1, 2, 3)", "rgb(1, 2, 3)"]])));
-        assert!(!satisfied(&check, &json!([["color", "rgb(9, 9, 9)", "rgb(1, 2, 3)"]])));
+        assert!(satisfied(
+            &check,
+            &json!([["color", "rgb(1, 2, 3)", "rgb(1, 2, 3)"]])
+        ));
+        assert!(!satisfied(
+            &check,
+            &json!([["color", "rgb(9, 9, 9)", "rgb(1, 2, 3)"]])
+        ));
         assert!(!satisfied(&check, &json!([["color", "", ""]])));
         assert!(!satisfied(&check, &json!([])));
         assert!(!satisfied(&check, &Value::Null));

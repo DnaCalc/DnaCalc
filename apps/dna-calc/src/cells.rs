@@ -289,6 +289,34 @@ pub fn refusal_text(host: &HostState, refusal: &NotModeled) -> String {
     }
 }
 
+/// Only ownership present in the backend's typed refusal travels to the page.
+pub fn refusal_owner(cell: &ProjectedCell) -> Option<String> {
+    let ProjectedValue::NotModeled { refusal, .. } = cell.value() else {
+        return None;
+    };
+    match refusal {
+        NotModeled::Compile(error) => display::compile_owner(error).map(str::to_owned),
+        NotModeled::Evaluation(fault) => display::eval_owner(fault).map(str::to_owned),
+        _ => None,
+    }
+}
+
+pub fn error_meaning(cell: &ProjectedCell) -> Option<String> {
+    let value = match cell.value() {
+        ProjectedValue::Literal(value) | ProjectedValue::Calculated { value, .. } => value.clone(),
+        ProjectedValue::FileCached(cache) => cache.value().to_value(),
+        ProjectedValue::Stale(stale) => stale
+            .last_value()
+            .cloned()
+            .or_else(|| stale.file_cache().map(|cache| cache.value().to_value()))?,
+        _ => return None,
+    };
+    match value.core() {
+        CoreValue::Error(code) => Some(result::error_meaning(*code).to_owned()),
+        _ => None,
+    }
+}
+
 /// Where a cell's value came from, in a sentence: the status line and the cell's tooltip.
 pub fn provenance_text(host: &HostState, cell: &ProjectedCell) -> String {
     match cell.value() {

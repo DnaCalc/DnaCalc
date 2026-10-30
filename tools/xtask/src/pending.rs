@@ -48,7 +48,7 @@
 use crate::capture::{accepted, default_work_dir_in, repository_revision, with_workbook_iteration};
 use crate::oracle_cases::{
     OracleCase, SectionState, emptied_sheet, keyed_saved_sheet, oracle_cases, package_parts,
-    replace_stored_parts, section_states, whole_state,
+    replace_package_parts, section_states, whole_state,
 };
 use calc_oracle_excel::{CalculationPolicy, CaptureError, CaptureOutcome, CaptureRequest, capture};
 use calc_verdict::{CaptureRecord, section_record, sha256_hex, workbook_sections};
@@ -290,7 +290,7 @@ fn pending_copy(bytes: &[u8], pending: &[SectionState]) -> Result<Vec<u8>, Strin
             .map_err(|e| format!("{}: {e}", section.part))?;
         replace.insert(section.part.clone(), emptied_sheet(xml).into_bytes());
     }
-    let copy = replace_stored_parts(bytes, &replace)?;
+    let copy = replace_package_parts(bytes, &replace)?;
     let copied = workbook_sections(&calc_verdict::stored_package_parts(&copy)?)?;
     for state in pending {
         let key = copied

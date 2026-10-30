@@ -35,6 +35,8 @@ miniz_oxide = "=0.8.9"
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 quote = { version = "1", default-features = false }
 serde_json = "1"
+# WebDriver BiDi sets a real Firefox viewport below the desktop window minimum.
+tungstenite = { version = "=0.30.0", default-features = false, features = ["handshake"] }
 syn = { version = "3", default-features = false, features = ["full", "parsing", "printing"] }
 
 # calc-oracle-excel is the one Excel capture adapter `cargo xtask capture` runs. It is native-only

@@ -354,6 +354,40 @@ fn grid_view(controller: Controller) -> impl IntoView {
             reveal(row, col);
         }
     });
+    // The formula tools and result disclosure can resize the workspace without a window
+    // resize. Observe the actual scroller so an active editor remains visible.
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::JsCast;
+        let observer = StoredValue::new_local(
+            None::<(
+                web_sys::ResizeObserver,
+                wasm_bindgen::closure::Closure<dyn FnMut()>,
+            )>,
+        );
+        Effect::new(move |_| {
+            if let Some(element) = scroller.get()
+                && observer.with_value(Option::is_none)
+            {
+                let callback = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
+                    measure();
+                    let (row, col) = controller.active.get_untracked();
+                    reveal(row, col);
+                });
+                if let Ok(watch) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
+                    watch.observe(&element);
+                    observer.set_value(Some((watch, callback)));
+                }
+            }
+        });
+        on_cleanup(move || {
+            observer.with_value(|observer| {
+                if let Some((watch, _)) = observer {
+                    watch.disconnect();
+                }
+            })
+        });
+    }
     let focus_grid = move || {
         if let Some(element) = scroller.get_untracked() {
             let _ = element.focus();
@@ -653,6 +687,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     view! {
                         <div
                             class="dc-cell"
+                            aria-hidden="true"
                             data-dnacalc="cell"
                             data-cell=address
                             data-kind=shown.kind
@@ -671,6 +706,36 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .collect_view()
         })
     };
+    // A bounded semantic window over the same render plan, including empty cells. Visual
+    // geometry stays out of the accessibility tree; no second workbook projection is made.
+    let semantic_cells = move || {
+        let active = controller.active.get();
+        let corner = controller.corner.get();
+        plan.with(|plan| {
+            let values: std::collections::BTreeMap<_, _> = plan
+                .cells
+                .iter()
+                .map(|cell| ((cell.row, cell.col), &cell.shown))
+                .collect();
+            plan.row_headers
+                .iter()
+                .map(|row| {
+                    let cells = plan.col_headers.iter().map(|col| {
+                    let at = (row.row, col.col);
+                    let address = cells::address(at.0, at.1);
+                    let label = values.get(&at).map_or_else(|| format!("{address}, empty"), |cell|
+                        format!("{address}, {}, {}", cell.text, cell.provenance.name()));
+                    let selected = at.0 >= active.0.min(corner.0) && at.0 <= active.0.max(corner.0)
+                        && at.1 >= active.1.min(corner.1) && at.1 <= active.1.max(corner.1);
+                    view! { <span role="gridcell" id=format!("dc-grid-cell-{}-{}", at.0, at.1)
+                        aria-colindex=at.1.to_string() aria-selected=selected.to_string()
+                        aria-label=label>{address}</span> }
+                }).collect_view();
+                    view! { <div role="row" aria-rowindex=row.row.to_string()>{cells}</div> }
+                })
+                .collect_view()
+        })
+    };
     let headers_view = move || {
         let (row, col) = controller.active.get();
         let (corner_row, corner_col) = controller.corner.get();
@@ -682,7 +747,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|header| {
                     let class = if cols.contains(&header.col) { "dc-head dc-on" } else { "dc-head" };
-                    view! { <div class=class data-dnacalc="column-header" data-column=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
+                    view! { <div class=class aria-hidden="true" data-dnacalc="column-header" data-column=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
                 })
                 .collect_view();
             let rows = plan
@@ -690,7 +755,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|header| {
                     let class = if rows.contains(&header.row) { "dc-head dc-on" } else { "dc-head" };
-                    view! { <div class=class data-dnacalc="row-header" data-row=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
+                    view! { <div class=class aria-hidden="true" data-dnacalc="row-header" data-row=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
                 })
                 .collect_view();
             (columns, rows)
@@ -981,6 +1046,16 @@ fn grid_view(controller: Controller) -> impl IntoView {
             <div
                 class="dc-grid"
                 data-dnacalc="grid"
+                role="grid"
+                aria-label=move || controller.sheet.get().and_then(|id| controller.sheets().into_iter().find(|tab| tab.id == id).map(|tab| format!("{} worksheet", tab.name))).unwrap_or_else(|| "Worksheet".to_owned())
+                aria-rowcount="1048576"
+                aria-colcount="16384"
+                aria-describedby="dc-grid-keyboard"
+                aria-activedescendant=move || {
+                    let (row, col) = controller.active.get();
+                    plan.with(|plan| (plan.row_headers.iter().any(|r| r.row == row) && plan.col_headers.iter().any(|c| c.col == col))
+                        .then(|| format!("dc-grid-cell-{row}-{col}")))
+                }
                 tabindex="0"
                 node_ref=scroller
                 on:scroll=move |_| measure()
@@ -990,6 +1065,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 on:mousemove=on_mousemove
                 on:mouseup=move |_| { dragging.set_value(false); point_drag.set_value(false); }
             >
+                <div class="dc-sr-only" role="rowgroup">{semantic_cells}</div>
+                <span class="dc-sr-only" id="dc-grid-keyboard">"Arrow keys move cells. F2 edits. F6 leaves the worksheet; Shift+F6 returns to the formula bar."</span>
                 <div class="dc-space" style:width=space_width style:height=space_height>
                     <div class="dc-layer" node_ref=layer style:width=move || px(viewport.get().width) style:height=move || px(viewport.get().height)>
                         {gridlines}

@@ -20,6 +20,13 @@ pub struct TextHistory {
 }
 
 impl TextHistory {
+    pub fn available(&self, redo: bool) -> bool {
+        if redo {
+            self.current + 1 < self.entries.len()
+        } else {
+            self.current > 0
+        }
+    }
     pub fn reset(&mut self, text: String, caret: usize) {
         self.entries = vec![(text, caret)];
         self.current = 0;

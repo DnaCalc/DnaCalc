@@ -106,7 +106,9 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                 let editable = !cell.input.is_empty();
                 let kind = block_kind(&shown, editable);
                 let why = cell.why.clone();
-                let text = RwSignal::new(cell.input.clone());
+                let original = cell.input.clone();
+                let displayed_original = original.clone();
+                let text = Signal::derive(move || controller.notebook_drafts.with(|drafts| drafts.get(&at).cloned()).unwrap_or_else(|| displayed_original.clone()));
                 let outcome = RwSignal::new(String::new());
                 let value = if shown.provenance == Provenance::Refused {
                     "refused".to_owned()
@@ -124,14 +126,26 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                             <input
                                 type="text"
                                 data-dnacalc="block-input"
+                                aria-label=format!("Input for {}", cells::address(at.row(), at.column()))
                                 spellcheck="false"
                                 prop:value=move || text.get()
-                                on:input=move |ev| text.set(event_target_value(&ev))
+                                on:input=move |ev| {
+                                    let draft = event_target_value(&ev);
+                                    controller.notebook_drafts.update(|drafts| {
+                                        if draft == original { drafts.remove(&at); } else { drafts.insert(at, draft); }
+                                    });
+                                }
                                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.is_composing() || ev.key_code() == 229 { return; }
+                                    if ev.key() == "Escape" {
+                                        ev.prevent_default();
+                                        controller.notebook_drafts.update(|drafts| { drafts.remove(&at); });
+                                    }
                                     if ev.key() == "Enter" {
                                         ev.prevent_default();
                                         controller.enter(at, text.get_untracked(), move |done| {
-                                            outcome.set(done.error.clone().unwrap_or_default());
+                                            if done.accepted { controller.notebook_drafts.update(|drafts| { drafts.remove(&at); }); }
+                                            outcome.try_set(done.error.clone().unwrap_or_default());
                                         });
                                     }
                                 }
