@@ -31,10 +31,11 @@ use super::{
     FormulaForm, FormulaInstance, Instruction, ResolvedReference, Target, lift, refops,
 };
 use crate::reference::{
-    FormulaAnchor, ReadContractError, ReferenceCatalog, ReferenceNotation, SpillExtent, bind_text,
+    ExternalCell, FormulaAnchor, ReadContractError, ReferenceCatalog, ReferenceNotation,
+    ReferenceOperand, SheetTarget, SpillExtent, bind_text,
 };
 use calc_func::value::{
-    CalcArray, CalcValue, CellKey, CoreRef, GridArea, NumericMode, ReferenceLike,
+    ArrayShape, CalcArray, CalcValue, CellKey, CoreRef, GridArea, NumericMode, ReferenceLike,
     WorksheetErrorCode,
 };
 use calc_func::{
@@ -252,7 +253,67 @@ fn not_modelled(construct: &'static str) -> EvalFault {
     }
 }
 
+/// The most cells of another workbook one external reference reads (dc-ylr): a larger area is
+/// refused rather than read cell by cell.
+const EXTERNAL_CELLS: u64 = 1 << 16;
+
 impl Run<'_, '_> {
+    /// Pushes the value of the plan's external reference `index` (dc-ylr): each cell's value as
+    /// the catalogue's link caches it, one value for one cell and an array for several; #REF!
+    /// when a cell is uncached on a sheet whose link was not refreshed, or when the reference
+    /// leaves the grid. A cell no cache gives, a missing catalogue and an area of more than
+    /// [`EXTERNAL_CELLS`] cells are refused. The value is no reference: a function given it sees
+    /// the cached values, as an array.
+    fn external(&mut self, index: usize) -> Result<(), EvalFault> {
+        let refused = || EvalFault::NotModelled {
+            construct: "a reference to another workbook whose cells no link of this workbook caches",
+            owner: "dc-ylr",
+        };
+        let instance = self.instance;
+        let operand = instance.external(index);
+        let placed = ReferenceOperand {
+            sheet: SheetTarget::Anchor,
+            shape: operand.shape,
+        }
+        .instantiate(instance.anchor);
+        let area = match placed {
+            Ok(area) => area,
+            Err(error) => {
+                self.stack.push(CalcValue::error(error.worksheet_error()));
+                return Ok(());
+            }
+        };
+        let catalog = self.catalog.ok_or_else(refused)?;
+        if area.cell_count() > EXTERNAL_CELLS {
+            return Err(refused());
+        }
+        let (first, last) = (area.first(), area.last());
+        let mut cells = Vec::new();
+        for row in first.row()..=last.row() {
+            for column in first.column()..=last.column() {
+                match catalog.external_cell(operand.book, &operand.sheet, row, column) {
+                    ExternalCell::Value(value) => cells.push(value),
+                    ExternalCell::RefError => {
+                        self.stack.push(CalcValue::error(WorksheetErrorCode::Ref));
+                        return Ok(());
+                    }
+                    ExternalCell::NotModelled => return Err(refused()),
+                }
+            }
+        }
+        let value = if cells.len() == 1 {
+            cells.pop().expect("one cell")
+        } else {
+            let shape = ArrayShape {
+                rows: (last.row() - first.row() + 1) as usize,
+                cols: (last.column() - first.column() + 1) as usize,
+            };
+            CalcValue::array(CalcArray::new(shape, cells).expect("one value per cell"))
+        };
+        self.stack.push(value);
+        Ok(())
+    }
+
     /// Runs block `index` and gives the one value it leaves.
     fn block(&mut self, index: usize) -> Result<CalcValue, EvalFault> {
         let base = self.stack.len();
@@ -380,6 +441,7 @@ impl Run<'_, '_> {
                     Ok(())
                 }
                 Instruction::Name(block) => self.name(*block),
+                Instruction::External(index) => self.external(*index),
             };
             if let Err(fault) = step {
                 self.stack.truncate(base);

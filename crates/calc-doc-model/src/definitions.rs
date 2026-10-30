@@ -7,6 +7,7 @@
 //! of its area that it fills are not inputs at all; what a file cached for them is kept beside the
 //! model by the codec, as file caches.
 
+use crate::cache::CachedValue;
 use calc_value::{CellKey, GridArea, SheetId};
 use std::collections::BTreeMap;
 
@@ -76,6 +77,25 @@ pub struct DefinedName {
     pub vb_procedure: bool,
     /// `xlm`: the name refers to an Excel 4.0 macro.
     pub xlm: bool,
+}
+
+/// A book the workbook's external references name, as its externalLink part caches it (dc-ylr): a
+/// file's formula writes `[1]Sheet1!A1` for cell A1 of sheet Sheet1 of the first such book.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExternalBook {
+    /// Its sheets, in the order the part lists their names.
+    pub sheets: Vec<ExternalSheet>,
+}
+
+/// One sheet of an [`ExternalBook`]: its name and the values its link caches.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExternalSheet {
+    pub name: String,
+    /// The link's `sheetData` is marked `refreshError`: Excel could not read the book when it last
+    /// tried, and a reference to a cell it caches nothing for is #REF!.
+    pub refresh_error: bool,
+    /// The cached values, by row and column.
+    pub cells: BTreeMap<(u32, u32), CachedValue>,
 }
 
 /// A table (ListObject) of a sheet, as its table part declares it.
@@ -277,6 +297,9 @@ pub struct Definitions {
     /// The cell formats edits gave cells (dc-09v): each an index into the workbook's cell formats
     /// (a cell's `s`), over the format the file gave the cell.
     formats: BTreeMap<CellKey, u32>,
+    /// The books the external references name, by their number less one (`[1]` is the first):
+    /// each the book its externalLink part caches, or `None` for a link not read.
+    external_books: Vec<Option<ExternalBook>>,
 }
 
 impl Definitions {
@@ -300,7 +323,20 @@ impl Definitions {
             data_tables: Vec::new(),
             workbook_name: None,
             formats: BTreeMap::new(),
+            external_books: Vec::new(),
         }
+    }
+
+    /// These definitions with the books the workbook's external references name (dc-ylr).
+    pub fn with_external_books(mut self, books: Vec<Option<ExternalBook>>) -> Self {
+        self.external_books = books;
+        self
+    }
+
+    /// The book `[number]` names (`[1]` the first), `None` when there is none or it was not read.
+    pub fn external_book(&self, number: u32) -> Option<&ExternalBook> {
+        let index = usize::try_from(number).ok()?.checked_sub(1)?;
+        self.external_books.get(index)?.as_ref()
     }
 
     /// These definitions with the cell formats edits gave cells (index into the workbook's cell

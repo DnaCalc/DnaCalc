@@ -78,6 +78,101 @@ pub trait ReferenceCatalog {
     fn workbook_name(&self) -> Option<&str> {
         None
     }
+
+    /// Cell (`row`, `column`) of sheet `sheet` (the name as written, matched as Excel matches
+    /// sheet names) of the book a file's formula numbers `book` (`[1]Sheet1!A1` names book 1), as
+    /// the workbook's link to that book caches it (dc-ylr). The default, not modelled, refuses
+    /// every external reference.
+    fn external_cell(&self, book: u32, sheet: &str, row: u32, column: u32) -> ExternalCell {
+        let _ = (book, sheet, row, column);
+        ExternalCell::NotModelled
+    }
+}
+
+/// A cell of another workbook as the formula's workbook caches it ([`ReferenceCatalog::external_cell`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExternalCell {
+    /// The value the link caches for the cell.
+    Value(calc_func::value::CalcValue),
+    /// The link's cache of the sheet is marked as not refreshed and holds nothing for the cell:
+    /// Excel's #REF!.
+    RefError,
+    /// No cache says what the cell holds.
+    NotModelled,
+}
+
+/// An external reference as a file's formula writes it (`[1]Sheet1!A1`, `'[1]My Sheet'!A1:B2`):
+/// the book's number, the sheet's name and the cells' shape (dc-ylr).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ExternalOperand {
+    pub book: u32,
+    pub sheet: String,
+    pub shape: ReferenceShape,
+}
+
+/// The external reference `node` writes, read in `notation` for a formula anchored at `anchor`: a
+/// qualifier `[N]Sheet` (quoted or not) before a cell, or before the first end of a range whose
+/// second end is unqualified or has the same qualifier. `None` for anything else (a book named by
+/// its file name or path, which a file's formula does not store, a run of sheets, a name).
+pub(crate) fn external_operand(
+    node: &SyntaxNode,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+) -> Option<ExternalOperand> {
+    let spell = |token: &Token| match notation {
+        ReferenceNotation::A1 => notation::a1(token.text(), anchor.cell().row(), anchor.cell().column()),
+        ReferenceNotation::R1C1 => notation::r1c1(token.text()),
+    };
+    let qualified = |node: &SyntaxNode| -> Option<(u32, String, Spelled)> {
+        if node.kind() != SyntaxKind::QualifiedReferenceExpr {
+            return None;
+        }
+        let SyntaxChild::Token(qualifier) = node.children().first()? else {
+            return None;
+        };
+        let text = match qualifier.kind() {
+            TokenKind::BracketedQualifier => qualifier.text().to_owned(),
+            TokenKind::QuotedIdentifier => unquote(qualifier.text()),
+            _ => return None,
+        };
+        let (book, sheet) = text.strip_prefix('[')?.split_once(']')?;
+        let book: u32 = book.parse().ok()?;
+        if sheet.is_empty() || sheet.contains(':') || book == 0 {
+            return None;
+        }
+        let spelled = spell(only_token(node.child_nodes().next()?)?)?;
+        Some((book, sheet.to_owned(), spelled))
+    };
+    let (book, sheet, shape) = match node.kind() {
+        SyntaxKind::QualifiedReferenceExpr => {
+            let (book, sheet, spelled) = qualified(node)?;
+            let Spelled::Cell(cell) = spelled else {
+                return None;
+            };
+            (book, sheet, ReferenceShape::Cell(cell))
+        }
+        SyntaxKind::RangeExpr => {
+            let mut operands = node.child_nodes();
+            let (left, right) = (operands.next()?, operands.next()?);
+            let (book, sheet, first) = qualified(left)?;
+            let last = match right.kind() {
+                SyntaxKind::QualifiedReferenceExpr => {
+                    let (other_book, other_sheet, last) = qualified(right)?;
+                    if other_book != book || other_sheet != sheet {
+                        return None;
+                    }
+                    last
+                }
+                _ => spell(only_token(right)?)?,
+            };
+            if first.form() != last.form() {
+                return None;
+            }
+            (book, sheet, pair(first, last).ok()?)
+        }
+        _ => return None,
+    };
+    Some(ExternalOperand { book, sheet, shape })
 }
 
 /// Where a defined name is looked up from.

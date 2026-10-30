@@ -13,7 +13,7 @@ use crate::spill::{Spill, SpillIndex};
 use crate::state::EngineState;
 use calc_doc_model::{CellInput, ModelRoot, NameScope, RowHidden};
 use calc_fml::reference::{
-    CellRead, CellRun, NameDefinition, ReadContractError, NameScope as FmlNameScope, ReferenceReader, SpillExtent, TableInfo,
+    CellRead, CellRun, ExternalCell, NameDefinition, ReadContractError, NameScope as FmlNameScope, ReferenceReader, SpillExtent, TableInfo,
     TableLookup,
 };
 use calc_fml::{
@@ -272,6 +272,29 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
     fn unknown_calls_are_names(&self) -> bool {
         !self.0.definitions().macro_enabled()
     }
+
+    /// A cell of another workbook as the snapshot's link to it caches it (dc-ylr): the cached
+    /// value; #REF! for a cell the cache of a sheet whose link was not refreshed does not hold;
+    /// otherwise, and for a book or sheet no link caches, not modelled. The sheet name is matched
+    /// without regard to case, as a sheet name of the workbook is.
+    fn external_cell(&self, book: u32, sheet: &str, row: u32, column: u32) -> ExternalCell {
+        let Some(book) = self.0.definitions().external_book(book) else {
+            return ExternalCell::NotModelled;
+        };
+        let wanted: Vec<char> = sheet.chars().flat_map(char::to_uppercase).collect();
+        let Some(held) = book
+            .sheets
+            .iter()
+            .find(|held| held.name.chars().flat_map(char::to_uppercase).eq(wanted.iter().copied()))
+        else {
+            return ExternalCell::NotModelled;
+        };
+        match held.cells.get(&(row, column)) {
+            Some(value) => ExternalCell::Value(value.to_value()),
+            None if held.refresh_error => ExternalCell::RefError,
+            None => ExternalCell::NotModelled,
+        }
+    }
 }
 
 /// A document table as CalcFml's binding reads it.
@@ -503,6 +526,9 @@ pub(crate) struct WorkbookReader<'a> {
     /// The storage a read of several cells gathers their values in (dc-dxm: handed from one
     /// evaluation to the next by [`WorkbookReader::with_batch`] and [`WorkbookReader::into_batch`]).
     batch: Vec<CalcValue>,
+    /// A formula result read was calculated from values another workbook's link caches
+    /// ([`Calculation::reads_external_links`], dc-ylr).
+    external: Cell<bool>,
 }
 
 impl<'a> WorkbookReader<'a> {
@@ -514,7 +540,14 @@ impl<'a> WorkbookReader<'a> {
             view,
             uncomputed,
             batch: Vec::new(),
+            external: Cell::new(false),
         }
+    }
+
+    /// Whether a formula result this reader handed out was calculated from values another
+    /// workbook's link caches (dc-ylr).
+    pub(crate) fn read_external_links(&self) -> bool {
+        self.external.get()
     }
 
     /// The reader, gathering values in `batch`'s storage.
@@ -668,7 +701,12 @@ impl<'a> WorkbookReader<'a> {
             NodeStanding::Published(None) => return Ok(None),
             NodeStanding::Published(Some(result)) => result,
         };
-        Ok(result.calculated().map(|(value, _)| value))
+        Ok(result.calculated().map(|(value, calculation)| {
+            if calculation.reads_external_links() {
+                self.external.set(true);
+            }
+            value
+        }))
     }
 
     /// What the cell `at`, which holds no input, reads as.
