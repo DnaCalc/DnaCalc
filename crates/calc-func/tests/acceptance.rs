@@ -2614,6 +2614,7 @@ fn published_in(
                         tick: row.tick,
                         revision: AUTHORED_REVISION,
                         context: context.clone(),
+                        external_links: false,
                     },
                     Some(value.clone()),
                 ),
@@ -3649,22 +3650,31 @@ fn cfunc_m1_2__mixed_operands() {
         );
         assert_eq!(given.asked, [0], "IF({condition:?},1,2) asked for a branch");
     }
+    // An array held in an array is read through (dc-h9u, Excel 16.0.20527: SUM of a GROUPBY
+    // result whose LAMBDA returns arrays adds their elements); a reference held in an array is
+    // refused.
     let nested = CalcValue::array(CalcArray::from_scalar(CalcValue::number(1.0)));
-    for element in [nested, a1_reference()] {
-        let held = CalcArray::from_rows(vec![vec![CalcValue::number(1.0), element.clone()]])
-            .expect("a 1-by-2 array");
-        let mut given = Recorded::new(vec![CalcValue::number(1.0), CalcValue::array(held)]);
-        assert_eq!(
-            run(sum, &mut given, &fast),
-            Err(FunctionFault::NotImplemented {
-                id: sum.id(),
-                argument: Some(1)
-            }),
-            "SUM(1, an array holding 1 and {element:?})"
-        );
-    }
+    let held = CalcArray::from_rows(vec![vec![CalcValue::number(1.0), nested]])
+        .expect("a 1-by-2 array");
+    let mut given = Recorded::new(vec![CalcValue::number(1.0), CalcValue::array(held)]);
+    assert_eq!(
+        run(sum, &mut given, &fast),
+        Ok(CalcValue::number(3.0)),
+        "SUM(1, an array holding 1 and an array holding 1)"
+    );
+    let held = CalcArray::from_rows(vec![vec![CalcValue::number(1.0), a1_reference()]])
+        .expect("a 1-by-2 array");
+    let mut given = Recorded::new(vec![CalcValue::number(1.0), CalcValue::array(held)]);
+    assert_eq!(
+        run(sum, &mut given, &fast),
+        Err(FunctionFault::NotImplemented {
+            id: sum.id(),
+            argument: Some(1)
+        }),
+        "SUM(1, an array holding 1 and a reference)"
+    );
     note!(
-        "ACCEPT-NOTE: {CASE}: IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) and SUM(1, an array holding 1 and a reference) are refused naming the array"
+        "ACCEPT-NOTE: {CASE}: IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) is 3 (dc-h9u) and SUM(1, an array holding 1 and a reference) is refused naming the array"
     );
 
     // NumericMode reaches every arithmetic site. Under Exact each call that rounds is refused:
@@ -5951,8 +5961,9 @@ fn cfunc_m3_4__argument_classes() {
         );
     }
 
-    // Values that no formula writes, each refused naming its argument: an array held inside an
-    // array argument, and a NaN or an infinity given to a count.
+    // An array held inside an array argument (a GROUPBY result's cell, dc-h9u; Excel 16.0.20527,
+    // 2026-10-30, through COM): SUM, COUNT and COUNTA read through it, SUMPRODUCT takes it as no
+    // number, the others give #N/A. Measured: catalogue sheet dch9u_functions.
     let nested = CalcValue::array(
         CalcArray::from_rows(vec![vec![
             CalcValue::number(1.0),
@@ -5965,15 +5976,20 @@ fn cfunc_m3_4__argument_classes() {
         .filter(|(spelling, _)| *spelling != "COUNTBLANK")
     {
         let target = surface(Notation::Call, spelling);
+        let expected = match *spelling {
+            "SUM" => CalcValue::number(3.0),
+            "COUNT" | "COUNTA" => CalcValue::number(2.0),
+            "SUMPRODUCT" => CalcValue::number(1.0),
+            _ => CalcValue::error(WorksheetErrorCode::NA),
+        };
         assert_eq!(
             run(target, &mut Recorded::new(vec![nested.clone()]), &fast),
-            Err(FunctionFault::NotImplemented {
-                id: target.id(),
-                argument: Some(0)
-            }),
+            Ok(expected),
             "{spelling} of an array holding an array"
         );
     }
+    // Values that no formula writes, each refused naming its argument: a NaN or an infinity
+    // given to a count.
     for spelling in ["COUNT", "COUNTA"] {
         let target = surface(Notation::Call, spelling);
         for n in [f64::NAN, f64::INFINITY] {
@@ -16192,6 +16208,7 @@ fn lookup_published(run: &[&Rows]) -> (ResultSet, EvaluationRecord) {
                             tick: row.tick,
                             revision: AUTHORED_REVISION,
                             context: context.clone(),
+                            external_links: false,
                         },
                         Some(value.clone()),
                     )
@@ -22014,6 +22031,7 @@ fn information_documents(info: &InfoRows) -> (ResultSet, EvaluationRecord) {
                     tick: row.tick,
                     revision: AUTHORED_REVISION,
                     context: context.clone(),
+                    external_links: false,
                 },
                 Some(value.clone()),
             ),

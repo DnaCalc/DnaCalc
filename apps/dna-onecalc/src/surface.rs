@@ -399,7 +399,12 @@ fn surface() -> impl IntoView {
                 .map(|target| {
                     let name = target.spelling();
                     let signature = target.signature_help().display;
-                    let description = help::description(*target).unwrap_or("").to_owned();
+                    // Microsoft's official description, marked as Microsoft's text in the tooltip.
+                    let description = match help::help(*target) {
+                        Some(h) if h.microsoft.is_some() => format!("{} (Source: Microsoft)", h.description()),
+                        Some(h) => h.description().to_owned(),
+                        None => String::new(),
+                    };
                     view! {
                         <li>
                             <button

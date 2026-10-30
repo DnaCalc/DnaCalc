@@ -95,7 +95,7 @@ pub use opc::{
     RELATIONSHIPS_NAMESPACE, Relationship, Relationships, TargetMode,
 };
 pub use policy::{OpenPolicy, PackageLimits};
-pub use save::file_form::{FileForm, FileFormError, file_form};
+pub use save::file_form::{FileForm, FileFormError, file_form, file_form_with_links};
 pub use save::{
     DocumentSnapshot, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, StructuralEdits, WriteError,
     prepare_save, write,

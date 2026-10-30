@@ -7,6 +7,7 @@
 //! of its area that it fills are not inputs at all; what a file cached for them is kept beside the
 //! model by the codec, as file caches.
 
+use crate::cache::CachedValue;
 use calc_value::{CellKey, GridArea, SheetId};
 use std::collections::BTreeMap;
 
@@ -76,6 +77,38 @@ pub struct DefinedName {
     pub vb_procedure: bool,
     /// `xlm`: the name refers to an Excel 4.0 macro.
     pub xlm: bool,
+}
+
+/// A book the workbook's external references name, as its externalLink part caches it (dc-ylr): a
+/// file's formula writes `[1]Sheet1!A1` for cell A1 of sheet Sheet1 of the first such book.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExternalBook {
+    /// The file name of the book the link targets (`Book2.xlsx`), the last part of its
+    /// relationship's target, when the part names one: a typed formula names the book by it
+    /// (`[Book2.xlsx]Sheet1!A1`).
+    pub file_name: Option<String>,
+    /// Its sheets, in the order the part lists their names.
+    pub sheets: Vec<ExternalSheet>,
+}
+
+/// One sheet of an [`ExternalBook`]: its name and the values its link caches.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExternalSheet {
+    pub name: String,
+    /// The ID the workbook's load issued the sheet (dc-ylr), by which a reference to it names it:
+    /// a reference to another workbook is a reference, to a sheet of no workbook the model holds,
+    /// whose cells only the link's cache gives. `None` when no ID could be issued.
+    pub id: Option<SheetId>,
+    /// The link's `sheetDataSet` holds a `sheetData` for the sheet. A cell such a cache does not
+    /// hold is blank: Excel 16.0.20527 (2026-10-30, links not updated, the other book absent)
+    /// gives `=[1]Sheet1!C1` 0 and `ISBLANK([1]Sheet1!C1)` TRUE where C1 was empty and is not
+    /// cached. A sheet without one gives no cell.
+    pub cached: bool,
+    /// The link's `sheetData` is marked `refreshError`: Excel could not read the book when it last
+    /// tried, and a reference to a cell it caches nothing for is #REF!.
+    pub refresh_error: bool,
+    /// The cached values, by row and column.
+    pub cells: BTreeMap<(u32, u32), CachedValue>,
 }
 
 /// A table (ListObject) of a sheet, as its table part declares it.
@@ -277,6 +310,9 @@ pub struct Definitions {
     /// The cell formats edits gave cells (dc-09v): each an index into the workbook's cell formats
     /// (a cell's `s`), over the format the file gave the cell.
     formats: BTreeMap<CellKey, u32>,
+    /// The books the external references name, by their number less one (`[1]` is the first):
+    /// each the book its externalLink part caches, or `None` for a link not read.
+    external_books: Vec<Option<ExternalBook>>,
 }
 
 impl Definitions {
@@ -300,7 +336,66 @@ impl Definitions {
             data_tables: Vec::new(),
             workbook_name: None,
             formats: BTreeMap::new(),
+            external_books: Vec::new(),
         }
+    }
+
+    /// These definitions with the books the workbook's external references name (dc-ylr).
+    pub fn with_external_books(mut self, books: Vec<Option<ExternalBook>>) -> Self {
+        self.external_books = books;
+        self
+    }
+
+    /// The book `[number]` names (`[1]` the first), `None` when there is none or it was not read.
+    pub fn external_book(&self, number: u32) -> Option<&ExternalBook> {
+        let index = usize::try_from(number).ok()?.checked_sub(1)?;
+        self.external_books.get(index)?.as_ref()
+    }
+
+    /// The number of the book whose link targets the file named `file_name` (`[2]` for the
+    /// second link), matched without regard to case; the first such link when several do.
+    pub fn external_book_named(&self, file_name: &str) -> Option<u32> {
+        let wanted = file_name.to_uppercase();
+        self.external_books
+            .iter()
+            .position(|book| {
+                book.as_ref()
+                    .and_then(|book| book.file_name.as_ref())
+                    .is_some_and(|name| name.to_uppercase() == wanted)
+            })
+            .and_then(|index| u32::try_from(index + 1).ok())
+    }
+
+    /// The sheet of another workbook that the load issued `sheet` for (dc-ylr), or `None` when
+    /// `sheet` is no such sheet.
+    pub fn external_sheet(&self, sheet: SheetId) -> Option<&ExternalSheet> {
+        self.external_books
+            .iter()
+            .flatten()
+            .flat_map(|book| book.sheets.iter())
+            .find(|held| held.id == Some(sheet))
+    }
+
+    /// The books the external references name, each with its number (`[1]` the first); a link
+    /// not read is left out.
+    pub fn external_books(&self) -> impl Iterator<Item = (u32, &ExternalBook)> {
+        self.external_books
+            .iter()
+            .enumerate()
+            .filter_map(|(index, book)| Some((u32::try_from(index + 1).ok()?, book.as_ref()?)))
+    }
+
+    /// Each link's number and the file name of the book it targets, for a typed formula's
+    /// reference that names the book by file name (dc-ylr).
+    pub fn external_file_names(&self) -> Vec<(u32, String)> {
+        self.external_books()
+            .filter_map(|(number, book)| Some((number, book.file_name.clone()?)))
+            .collect()
+    }
+
+    /// The books, mutably, for the load to issue their sheets' IDs.
+    pub fn external_books_mut(&mut self) -> impl Iterator<Item = &mut ExternalBook> {
+        self.external_books.iter_mut().flatten()
     }
 
     /// These definitions with the cell formats edits gave cells (index into the workbook's cell

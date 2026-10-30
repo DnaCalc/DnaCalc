@@ -33,9 +33,9 @@ use super::legacy::{self, Place};
 use super::{Admission, CompiledPlan, FormulaForm, Instruction, Literal, PlanCache, Target};
 use crate::parse_formula;
 use crate::reference::{
-    BindError, FormulaAnchor, NameDefinition, NameScope, ReferenceCatalog,
+    BindError, ExternalOperand, FormulaAnchor, NameDefinition, NameScope, ReferenceCatalog,
     ReferenceNotation, ReferenceOperand, SheetTarget, TableLookup,
-    bind_references, qualified_name,
+    bind_references, external_operand, qualified_name,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, ExcelText, WorksheetErrorCode};
@@ -192,6 +192,8 @@ fn compile_as(
         blocks: vec![Vec::new()],
         references: Vec::new(),
         wrapped: Vec::new(),
+        externals: Vec::new(),
+        notation,
         in_name: false,
         scope: Vec::new(),
         floor: 0,
@@ -209,6 +211,7 @@ fn compile_as(
             .collect(),
         references: lowering.references.into_boxed_slice(),
         wrapped: lowering.wrapped.into_boxed_slice(),
+        externals: lowering.externals.into_boxed_slice(),
         form,
     };
     Ok(cache.share(plan))
@@ -243,6 +246,10 @@ struct Lowering<'c> {
     /// Whether each reference is placed with its relative offsets wrapping around the grid's
     /// edge: the references of a defined name's formula.
     wrapped: Vec<bool>,
+    /// The external references, in the order compile met them (dc-ylr).
+    externals: Vec<ExternalOperand>,
+    /// The notation the formula's references are read in.
+    notation: ReferenceNotation,
     /// Whether the references being bound now belong to a defined name's formula.
     in_name: bool,
     /// The LET names and LAMBDA parameters in scope, innermost last, each with its local slot.
@@ -1262,6 +1269,29 @@ impl<'c> Lowering<'c> {
         let span = node.span();
         match self.sites.remove(&span) {
             None => Ok(false),
+            // dc-ylr: a reference to another workbook is a reference to the sheet the workbook's
+            // link to that book caches, placed when the formula runs. A defined name's is bound
+            // as a file stores it, relative to A1 of the formula's sheet, and wraps when placed.
+            Some((Err(BindError::ExternalWorkbook), _)) => {
+                let (notation, anchor) = if self.in_name {
+                    let a1 = CellKey::new(self.anchor.sheet(), 1, 1).expect("A1 lies on the grid");
+                    (ReferenceNotation::A1, FormulaAnchor::new(a1))
+                } else {
+                    (self.notation, self.anchor)
+                };
+                match external_operand(node, notation, anchor) {
+                    Some(mut operand) => {
+                        operand.wrapped = self.in_name;
+                        self.blocks[block].push(Instruction::External(self.externals.len()));
+                        self.externals.push(operand);
+                        Ok(true)
+                    }
+                    None => Err(CompileError::Reference {
+                        span,
+                        error: BindError::ExternalWorkbook,
+                    }),
+                }
+            }
             Some((Err(error), _)) => Err(CompileError::Reference { span, error }),
             Some((Ok(operand), _)) if matches!(operand.sheet, SheetTarget::Span { .. }) => {
                 self.blocks[block].push(Instruction::Literal(Literal::Error(

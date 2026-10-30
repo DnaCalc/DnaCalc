@@ -1,0 +1,107 @@
+# dc-zsn.2: text comparison over every block. Rows 1 to 12 are texts the later rows read as the
+# range D1:D12: an arrow, a square root, a private-use character, Ethiopic HA, Georgian AN, Khmer
+# KA, Yi IT, KA with the iteration mark, KA KA, KA with the prolonged-sound mark, KA A, and a text
+# that starts with a combining acute.
+_xlfn.UNICHAR(8592)
+_xlfn.UNICHAR(8730)
+_xlfn.UNICHAR(57344)
+_xlfn.UNICHAR(4608)
+_xlfn.UNICHAR(4256)
+_xlfn.UNICHAR(6016)
+_xlfn.UNICHAR(40960)
+_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12541)
+_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12459)
+_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12540)
+_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12450)
+_xlfn.UNICHAR(769)&"a"
+# Symbols, arrows and operators.
+_xlfn.UNICHAR(8593)<_xlfn.UNICHAR(8592)
+_xlfn.UNICHAR(8592)<_xlfn.UNICHAR(8594)
+_xlfn.UNICHAR(8730)<_xlfn.UNICHAR(9730)
+_xlfn.UNICHAR(8730)<"a"
+_xlfn.UNICHAR(8364)<_xlfn.UNICHAR(8592)
+_xlfn.UNICHAR(9731)>_xlfn.UNICHAR(9730)
+_xlfn.UNICHAR(9472)<_xlfn.UNICHAR(9474)
+_xlfn.UNICHAR(9312)="1"
+_xlfn.UNICHAR(9312)>"1"
+_xlfn.UNICHAR(8544)="I"
+_xlfn.UNICHAR(8544)>"I"
+_xlfn.UNICHAR(9398)="A"
+_xlfn.UNICHAR(10003)<_xlfn.UNICHAR(10007)
+_xlfn.UNICHAR(8800)<_xlfn.UNICHAR(8804)
+# Private use.
+_xlfn.UNICHAR(57344)<_xlfn.UNICHAR(57345)
+_xlfn.UNICHAR(63743)>_xlfn.UNICHAR(57344)
+_xlfn.UNICHAR(57344)>_xlfn.UNICHAR(20013)
+"a"&_xlfn.UNICHAR(57344)&_xlfn.UNICHAR(769)<"a"&_xlfn.UNICHAR(769)&_xlfn.UNICHAR(57344)
+# Scripts dc-zsn.1 did not cover.
+_xlfn.UNICHAR(4608)>_xlfn.UNICHAR(4256)
+_xlfn.UNICHAR(40960)>_xlfn.UNICHAR(6016)
+_xlfn.UNICHAR(4256)<_xlfn.UNICHAR(4257)
+_xlfn.UNICHAR(4304)=_xlfn.UNICHAR(4256)
+_xlfn.UNICHAR(6016)<_xlfn.UNICHAR(6017)
+_xlfn.UNICHAR(2949)<_xlfn.UNICHAR(2950)
+_xlfn.UNICHAR(3333)>_xlfn.UNICHAR(2949)
+_xlfn.UNICHAR(4096)<_xlfn.UNICHAR(4097)
+_xlfn.UNICHAR(5024)<_xlfn.UNICHAR(5025)
+_xlfn.UNICHAR(6176)<_xlfn.UNICHAR(6177)
+_xlfn.UNICHAR(3904)<_xlfn.UNICHAR(3905)
+_xlfn.UNICHAR(1920)<_xlfn.UNICHAR(1921)
+_xlfn.UNICHAR(12593)<_xlfn.UNICHAR(44032)
+_xlfn.UNICHAR(12784)>_xlfn.UNICHAR(12459)
+# Combining marks where a sort key's sums would order otherwise: at the start, after a special,
+# after an ignorable unit, and past one byte.
+_xlfn.UNICHAR(769)&"a">"a"&_xlfn.UNICHAR(769)
+_xlfn.UNICHAR(769)&"a">"a"&REPT(_xlfn.UNICHAR(783),30)
+"-"&_xlfn.UNICHAR(769)<_xlfn.UNICHAR(769)
+"-"&_xlfn.UNICHAR(769)&"a"<_xlfn.UNICHAR(769)&"a"
+"b-"&_xlfn.UNICHAR(769)&"a"<"b"&_xlfn.UNICHAR(769)&"a"
+"'"&_xlfn.UNICHAR(769)<"-"&_xlfn.UNICHAR(769)
+"--"&_xlfn.UNICHAR(769)>"'"&_xlfn.UNICHAR(769)
+"-a"&_xlfn.UNICHAR(769)<"a-"&_xlfn.UNICHAR(768)
+"A-"&_xlfn.UNICHAR(768)<"a"&_xlfn.UNICHAR(768)
+"A"&_xlfn.UNICHAR(769)>"a'"&_xlfn.UNICHAR(769)
+"b"&_xlfn.UNICHAR(769)&_xlfn.UNICHAR(173)&_xlfn.UNICHAR(769)<"b"&_xlfn.UNICHAR(776)
+"B"&_xlfn.UNICHAR(769)&_xlfn.UNICHAR(173)&_xlfn.UNICHAR(769)="b"&_xlfn.UNICHAR(769)&_xlfn.UNICHAR(769)
+"a"&REPT(_xlfn.UNICHAR(769),22)<"a"&_xlfn.UNICHAR(770)
+"a"&REPT(_xlfn.UNICHAR(769),21)>"a"&_xlfn.UNICHAR(770)
+"a"&REPT(_xlfn.UNICHAR(769),22)>"a"&REPT(_xlfn.UNICHAR(769),21)
+# Iteration and prolonged-sound marks.
+_xlfn.UNICHAR(26178)&_xlfn.UNICHAR(12293)<_xlfn.UNICHAR(26178)&_xlfn.UNICHAR(26178)
+_xlfn.UNICHAR(26178)&_xlfn.UNICHAR(12293)>_xlfn.UNICHAR(26178)
+_xlfn.UNICHAR(20154)&_xlfn.UNICHAR(12293)<_xlfn.UNICHAR(20154)&"a"
+_xlfn.UNICHAR(12363)&_xlfn.UNICHAR(12445)>_xlfn.UNICHAR(12363)&_xlfn.UNICHAR(12363)
+_xlfn.UNICHAR(12363)&_xlfn.UNICHAR(12446)>_xlfn.UNICHAR(12363)&_xlfn.UNICHAR(12364)
+_xlfn.UNICHAR(12363)&_xlfn.UNICHAR(12446)=_xlfn.UNICHAR(12363)&_xlfn.UNICHAR(12364)
+_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12540)>_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12450)
+_xlfn.UNICHAR(12461)&_xlfn.UNICHAR(12540)<_xlfn.UNICHAR(12461)&_xlfn.UNICHAR(12454)
+_xlfn.UNICHAR(65398)&_xlfn.UNICHAR(65392)<_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12540)
+"a"&_xlfn.UNICHAR(12540)="aa"
+"a"&_xlfn.UNICHAR(12540)>"ab"
+"x"&_xlfn.UNICHAR(12540)<"xy"
+"a"&_xlfn.UNICHAR(12445)>"aa"
+"A"&_xlfn.UNICHAR(12540)="aa"
+"a"&_xlfn.UNICHAR(12540)&"b"="aab"
+_xlfn.UNICHAR(12540)>_xlfn.UNICHAR(20013)
+_xlfn.UNICHAR(12459)&"-"&_xlfn.UNICHAR(12445)<_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12445)
+"KO"&_xlfn.UNICHAR(12540)&"HI"&_xlfn.UNICHAR(12540)<"KOOHII"
+_xlfn.UNICHAR(12467)&_xlfn.UNICHAR(12540)&_xlfn.UNICHAR(12498)&_xlfn.UNICHAR(12540)>_xlfn.UNICHAR(12467)&_xlfn.UNICHAR(12458)&_xlfn.UNICHAR(12498)&_xlfn.UNICHAR(12452)
+# Units compared as their decomposition.
+_xlfn.UNICHAR(901)=_xlfn.UNICHAR(168)&_xlfn.UNICHAR(769)
+_xlfn.UNICHAR(12447)=_xlfn.UNICHAR(12424)&_xlfn.UNICHAR(12426)
+_xlfn.UNICHAR(12543)=_xlfn.UNICHAR(12467)&_xlfn.UNICHAR(12488)
+_xlfn.UNICHAR(64285)=_xlfn.UNICHAR(1497)&_xlfn.UNICHAR(1460)
+_xlfn.UNICHAR(3955)=_xlfn.UNICHAR(3953)&_xlfn.UNICHAR(3954)
+_xlfn.UNICHAR(65136)=" "&_xlfn.UNICHAR(1611)
+# Lookups, criteria and SORT over the texts of rows 1 to 12.
+MATCH(_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12459),D1:D12,0)
+_xlfn.XMATCH(_xlfn.UNICHAR(12459)&_xlfn.UNICHAR(12541),D1:D12)
+_xlfn.XMATCH(_xlfn.UNICHAR(57344),D1:D12)
+_xlfn.XLOOKUP(_xlfn.UNICHAR(4608),D1:D12,D1:D12)
+COUNTIF(D1:D12,"<"&_xlfn.UNICHAR(8730))
+COUNTIF(D1:D12,">"&_xlfn.UNICHAR(4256))
+COUNTIF(D1:D12,_xlfn.UNICHAR(12459)&"*")
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT(D1:D12))
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT(D1:D12,1,-1))
+_xlfn.TEXTJOIN("|",FALSE,_xlfn.UNIQUE(D1:D12))
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"b";"a";"c"}&_xlfn.UNICHAR({8592;57344;4608})))

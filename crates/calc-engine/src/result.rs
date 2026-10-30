@@ -33,6 +33,10 @@ pub struct Calculation {
     /// Shared by every result of the recalculation (dc-dxm): an Exact mode names its Excel target
     /// in four strings, and each formula's result carries its calculation.
     mode: Arc<NumericMode>,
+    /// The result read values another workbook's link caches, directly or through the formulas
+    /// it read (dc-ylr): it is calculated, from inputs that are the file's cache of the other
+    /// book rather than live ones.
+    external_links: bool,
 }
 
 impl Calculation {
@@ -41,7 +45,20 @@ impl Calculation {
             revision,
             tick,
             mode: Arc::new(mode),
+            external_links: false,
         }
+    }
+
+    /// This calculation, marked as reading values another workbook's link caches.
+    pub(crate) fn with_external_links(mut self) -> Self {
+        self.external_links = true;
+        self
+    }
+
+    /// Whether the result read values another workbook's link caches, directly or through the
+    /// formulas it read, rather than only live inputs (dc-ylr).
+    pub fn reads_external_links(&self) -> bool {
+        self.external_links
     }
 
     /// The authored revision whose inputs the calculation read.

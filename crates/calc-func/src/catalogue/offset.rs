@@ -79,7 +79,18 @@ fn offset(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
+    // dc-ylr: Excel gives OFFSET of a reference to a closed workbook #VALUE!.
+    let external = arguments[0].as_reference().is_some_and(|reference| {
+        reference.areas().iter().any(|area| {
+            services
+                .host()
+                .is_some_and(|host| host.is_external_sheet(area.sheet()))
+        })
+    });
     let site = Site::new(OFFSET, services);
+    if external {
+        return Site::finish(Err(Exit::Error(WorksheetErrorCode::Value)));
+    }
     Site::finish(shifted(&site, arguments))
 }
 

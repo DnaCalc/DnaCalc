@@ -11,31 +11,36 @@
 //! an acute accent (U+00E9) equal to itself followed by one.
 //!
 //! The second pass is Windows' comparison `CompareStringEx` under en-ZA with `NORM_IGNORECASE`
-//! (bead dc-zsn.1), which compares the texts' sort keys. calc-func builds its own keys
-//! ([`super::sort_key`]: the Unicode Collation Algorithm's default order with Windows' measured
-//! departures from it), which order texts as Windows' do, and compares them byte by byte. Primary
-//! weights first (a ligature such as U+00E6, U+00DF or U+00DE weighs as ae, ss or th; e followed
+//! (beads dc-zsn.1 and dc-zsn.2) of what follows the units the first pass passed, not of the
+//! whole texts: so a prolonged-sound mark after `a` weighs as it does alone, and `a` followed by
+//! U+30FC is greater than `ab` (Excel 16.0.20527, the catalogue's sheet dczsn2_collation), while
+//! `CompareStringEx` of the whole texts holds it equal to `aa`. calc-func builds its own weights ([`super::sort_key`]: the
+//! Unicode Collation Algorithm's default order with Windows' measured departures from it), which
+//! order texts as Windows does. Primary weights first (a ligature such as U+00E6, U+00DF or U+00DE weighs as ae, ss or th; e followed
 //! by a combining acute weighs as U+00E9), then diacritics, then case (which ignores upper and
 //! lower case but keeps width), then kana, then the special characters (the apostrophe, the hyphen
 //! and the dashes, the minus sign, the control characters) by their positions. So `a-b` follows
 //! `ab` and precedes `ac`, `co-op` follows `coop`, Greek follows Latin and CJK follows both.
 //! Measured: every text row of the catalogue's comparison oracle (cdoc_jpha) is this rule.
 //!
-//! A text holding a code unit the sort keys are not built for here is not decided ([`Beyond`]),
-//! whichever pass would decide it: one outside the covered scripts and blocks (most symbol
-//! blocks, the scripts not covered, the private use area; see `cargo xtask collation`), U+0000,
-//! Hangul conjoining jamo, the iteration marks. Neither is one whose key is not built (a combining
-//! mark that follows no weighted unit directly, marks adding up past one byte).
+//! The diacritics are compared as `CompareStringEx` walks them, which a sort key's sums of marks
+//! do not always give: a combining mark at the start, after a special or after an ignorable unit,
+//! and marks past one byte ([`super::sort_key::diacritic_order`]).
+//!
+//! The weights cover every UTF-16 code unit but a few (dc-zsn.2). A text holding one of those is
+//! not decided ([`Beyond`]), whichever pass would decide it: U+0000, the Hangul conjoining jamo,
+//! U+30A0, the isolated and medial forms of Arabic marks, and an iteration mark after a Han
+//! character or a special (see [`super::sort_key`]).
 
 use super::Beyond;
-use super::sort_key::{refused, sort_key};
+use super::sort_key::{diacritic_order, parts, refused};
 use std::cmp::Ordering;
 
 /// The last code unit the first pass reads itself.
 const FIRST_PASS_LAST: u16 = 0x007A;
 
 /// The order of two texts as the comparison operators give it, or [`Beyond`] naming the first of
-/// them whose sort key is not built here.
+/// them whose weights are not built here.
 pub(super) fn compare(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
     // A text holding a unit the collation refuses is not decided, whichever pass would decide it.
     if let Some(operand) = [a, b]
@@ -51,19 +56,25 @@ pub(super) fn compare(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
             code
         }
     };
-    for (&x, &y) in a.iter().zip(b) {
+    for (at, (&x, &y)) in a.iter().zip(b).enumerate() {
         if x > FIRST_PASS_LAST || y > FIRST_PASS_LAST || fold(x) != fold(y) {
-            return weighed(a, b);
+            // The second pass reads the texts from there on, not from their starts.
+            return weighed(&a[at..], &b[at..]);
         }
     }
     Ok(a.len().cmp(&b.len()))
 }
 
-/// The second pass: the two texts' sort keys.
+/// The second pass: the two texts' primary weights, then their diacritics as `CompareStringEx`
+/// walks them ([`diacritic_order`]), then the rest of their sort keys (case, kana, specials).
 fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
-    let left = sort_key(a).ok_or(Beyond { operand: 0 })?;
-    let right = sort_key(b).ok_or(Beyond { operand: 1 })?;
-    Ok(left.cmp(&right))
+    let left = parts(a).ok_or(Beyond { operand: 0 })?;
+    let right = parts(b).ok_or(Beyond { operand: 1 })?;
+    Ok(left
+        .primary
+        .cmp(&right.primary)
+        .then_with(|| diacritic_order(a, &left, b, &right))
+        .then_with(|| left.rest.cmp(&right.rest)))
 }
 
 #[cfg(test)]

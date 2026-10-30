@@ -115,6 +115,67 @@ fn d1_file_form__entered_formulas_match_excel() {
     assert_eq!(checked, 70);
 }
 
+/// dc-h9u: a function named where a LAMBDA value is taken, as Excel 16.0.20527 saved each of these
+/// entered through `Range.Formula2` (COM, 2026-10-30): `_xleta.` before the name and no other
+/// prefix, and the formula an array only where its call makes it one: GROUPBY, PIVOTBY and
+/// TRIMRANGE take their ranges as they are, so `ROWS(GROUPBY(range,...))` is an ordinary formula
+/// (also measured 2026-10-30 with C1:C6, D1:D6 and E1:E6), while a comparison of a range at
+/// GROUPBY's filter makes it a dynamic array.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_h9u__function_values_are_written_with_xleta() {
+    for (entered, stored, dynamic) in [
+        (
+            "GROUPBY(A101:A103,B101:B103,SUM)",
+            "_xlfn.GROUPBY(A101:A103,B101:B103,_xleta.SUM)",
+            true,
+        ),
+        ("BYROW(B101:C103,SUM)", "_xlfn.BYROW(B101:C103,_xleta.SUM)", true),
+        (
+            "BYROW(B101:C103,STDEV.S)",
+            "_xlfn.BYROW(B101:C103,_xleta.STDEV.S)",
+            true,
+        ),
+        ("MAP(B101:B103,ABS)", "_xlfn.MAP(B101:B103,_xleta.ABS)", true),
+        (
+            "GROUPBY(A101:A103,B101:B103,HSTACK(SUM,MAX))",
+            "_xlfn.GROUPBY(A101:A103,B101:B103,_xlfn.HSTACK(_xleta.SUM,_xleta.MAX))",
+            true,
+        ),
+        ("SUM", "_xleta.SUM", false),
+        (
+            "ROWS(GROUPBY(A101:A103,B101:B103,PERCENTOF))",
+            "ROWS(_xlfn.GROUPBY(A101:A103,B101:B103,_xleta.PERCENTOF))",
+            false,
+        ),
+        ("REDUCE(0,B101:B103,SUM)", "_xlfn.REDUCE(0,B101:B103,_xleta.SUM)", true),
+        ("ISREF(SUM)", "ISREF(_xleta.SUM)", false),
+        ("BYCOL(B101:C103,CONCAT)", "_xlfn.BYCOL(B101:C103,_xleta.CONCAT)", true),
+        ("_xlfn.MAP(B1:B3,_xleta.ABS)", "_xlfn.MAP(B1:B3,_xleta.ABS)", true),
+        (
+            "ROWS(PIVOTBY(C1:C6,E1:E6,D1:D6,SUM))",
+            "ROWS(_xlfn.PIVOTBY(C1:C6,E1:E6,D1:D6,_xleta.SUM))",
+            false,
+        ),
+        (
+            "SUM(GROUPBY(C1:C6,D1:D6,SUM,0,0))",
+            "SUM(_xlfn.GROUPBY(C1:C6,D1:D6,_xleta.SUM,0,0))",
+            false,
+        ),
+        (
+            "ROWS(GROUPBY(C1:C6,D1:D6,SUM,0,0,,C1:C6=\"a\"))",
+            "ROWS(_xlfn.GROUPBY(C1:C6,D1:D6,_xleta.SUM,0,0,,C1:C6=\"a\"))",
+            true,
+        ),
+        ("ROWS(TRIMRANGE(C1:C20))", "ROWS(_xlfn.TRIMRANGE(C1:C20))", false),
+        ("ROWS(GROUPBY(C1,D1,SUM))", "ROWS(_xlfn.GROUPBY(C1,D1,_xleta.SUM))", false),
+    ] {
+        let (text, array) = form(entered, &[]);
+        assert_eq!(text, stored, "{entered}");
+        assert_eq!(array, dynamic, "{entered}");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_file_form__prefixed_text_is_left_as_written() {

@@ -1,21 +1,24 @@
-//! A text's sort key (bead dc-zsn.1): the second pass of Excel's text comparison
-//! ([`super::collation`]) compares two texts' keys byte by byte, ordering them as Windows'
-//! `CompareStringEx` with `NORM_IGNORECASE` does under the Windows locale en-ZA.
+//! A text's collation weights (beads dc-zsn.1 and dc-zsn.2): the second pass of Excel's text
+//! comparison ([`super::collation`]) orders two texts by them as Windows' `CompareStringEx` with
+//! `NORM_IGNORECASE` does under the Windows locale en-ZA.
 //!
-//! The keys are not Windows' keys: they are built from the Unicode Collation Algorithm's default
-//! order (the CLDR root collation, [`super::root_collation`]) and the measured ways Windows
-//! departs from it ([`super::windows_collation`]), and they order texts as Windows' keys do. Each
-//! code unit adds a [`Weight`]; a key has five sections, each ended by 0x01, as Windows' has:
+//! The weights are not Windows' weights: they are built from the Unicode Collation Algorithm's
+//! default order (the CLDR root collation, [`super::root_collation`]) and the measured ways Windows
+//! departs from it ([`super::windows_collation`]), and they order texts as Windows does. Each code
+//! unit adds a [`Weight`]. A text's [`Parts`] are three of the five sections of a Windows sort key,
+//! and the steps of its diacritic walk:
 //!
 //! 1. the primary weights of the weighted units, in order, each ten bytes: its Windows group, the
 //!    root primary it is placed at (its own, or the one Windows places it after) and its number
 //!    there;
-//! 2. the diacritic weights, one entry per primary weight, a combining mark adding its weight to
-//!    the entry before it, trailing 0x02 entries dropped;
-//! 3. the case weights, the same way (under `NORM_IGNORECASE` they hold only width and the like);
-//! 4. the kana weights, when the text holds kana: the small-kana weights, 0xFF, 0x02, the
-//!    hiragana or katakana weights, 0xFF, the width weights, 0xFF, each list without its trailing
-//!    default (0xC6, 0xE4, 0xC5);
+//! 2. the diacritic level, which `CompareStringEx` walks rather than reading the key's sums of
+//!    marks ([`diacritic_order`]): each unit's entries (one per primary weight; one of 0x02 for a
+//!    private-use character, whose key holds none), marks, specials and ignorable units in order;
+//! 3. the case weights, trailing 0x02 entries dropped (under `NORM_IGNORECASE` they hold only width
+//!    and the like), then 0x01;
+//! 4. the kana weights, when the text holds kana: the small-kana weights, 0xFF, the iteration
+//!    weights, 0x02, the hiragana or katakana weights, 0xFF, the width weights, 0xFF, each list
+//!    without its trailing default (0xC6, 0x03, 0xE4, 0xC5), then 0x01;
 //! 5. the special weights (the hyphen, the apostrophe and the like), each after its position:
 //!    0xFFFF less half the length Windows' primary weights before it have.
 //!
@@ -25,21 +28,28 @@
 //! is small, katakana or a narrow form; ignorable when it was assigned after Unicode 6.0 or has no
 //! root weight; a mark when it has one root secondary and nothing else. The Han characters weigh
 //! in code point order (the UCA's implicit weights), the Hangul syllables and the surrogates in
-//! code unit order. A unit whose Windows weights the rules do not give is a measured exception.
+//! code unit order. A unit whose Windows weights the rules do not give is a measured exception:
+//! its weights, or the units `CompareStringEx` compares it as (a composite whose own key is
+//! malformed, such as U+0385 or U+309F), or an iteration or prolonged-sound mark (U+3005, U+309D,
+//! U+30FC and the like), which takes the primary of the unit before it.
 //!
-//! An ignorable unit adds nothing, and so does a supplementary variation selector (U+E0100 to
-//! U+E01EF, a surrogate pair). A text holding a refused unit (outside the covered ranges, or one
-//! Windows' keys do not decide), a combining mark that does not follow a weighted unit or another
-//! mark directly (CompareStringEx then departs from the key's bytes), or combining marks that add up
-//! past one byte, has no key here ([`None`]).
+//! An ignorable unit adds no weight, and so does a supplementary variation selector (U+E0100 to
+//! U+E01EF, a surrogate pair). A text has no weights here ([`None`]) when it holds U+0000, a
+//! Hangul conjoining jamo (which Windows composes with each other), U+30A0 (which
+//! `CompareStringEx` orders otherwise than its key), an isolated or medial form of Arabic marks
+//! (U+FC5E to U+FC63, U+FE71 and the like, into which the walk's runs are not modelled), or an
+//! iteration mark after a Han character (whose repeat Windows' key writes otherwise) or after a
+//! special: `CompareStringEx` departs from the key there, in ways not yet measured.
 //!
-//! `cargo xtask collation verify` compares the order these keys give with `CompareStringEx` over
-//! random texts of many scripts.
+//! `cargo xtask collation verify` compares the order these weights give with `CompareStringEx`
+//! over random texts of many scripts.
 
 use super::root_collation::{NEW, UNITS};
 use super::windows_collation::{
-    COVERED, EXCEPTIONS, EXTRA, GROUPS, PLACED, SECONDARY, SPECIAL, SURROGATES,
+    COVERED, EXCEPTIONS, EXTRA, GROUPS, NO_REPEAT, PLACED, REPEAT, SECONDARY, SPECIAL, SURROGATES,
+    VOWEL,
 };
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -64,6 +74,11 @@ enum Weight {
     Mark(u8),
     /// A special weight, placed by its position.
     Special([u8; 2]),
+    /// A unit compared as the `len` units at `at` in [`Table::expansions`]: its whole
+    /// decomposition, or (not `whole`) its compatibility decomposition without the leading space.
+    Expansion { at: u32, len: u8, whole: bool },
+    /// An iteration or prolonged-sound mark.
+    Iteration(Iteration),
     /// Primary weights (`primaries` of them at `primary` in [`Table::primary`]), as long in
     /// Windows' keys as `windows_length` bytes, with the unit's diacritic and case entries at
     /// `entries` in [`Table::diacritic`] and [`Table::case`] and, for kana, its small, type and
@@ -72,9 +87,23 @@ enum Weight {
         primary: u32,
         primaries: u8,
         windows_length: u8,
-        entries: u32,
+        diacritic: u32,
+        diacritics: u8,
+        case: u32,
+        cases: u8,
         kana: Option<[u8; 3]>,
     },
+}
+
+/// An iteration or prolonged-sound mark: the primary of the unit before it (for a prolonged-sound
+/// mark after a kana, its vowel's), its own diacritic entry and iteration weight, and its own
+/// width weight or, when `None`, the one of the unit before it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Iteration {
+    vowel: bool,
+    diacritic: u8,
+    iteration: u8,
+    width: Option<u8>,
 }
 
 /// Every code unit's weight, built on first use.
@@ -83,7 +112,17 @@ struct Table {
     primary: Vec<u8>,
     diacritic: Vec<u8>,
     case: Vec<u8>,
+    /// The units of the expansions.
+    expansions: Vec<u16>,
+    /// The primaries an iteration mark takes (see windows_collation.rs): REPEAT's ranges, VOWEL's
+    /// units and NO_REPEAT, each as key bytes and Windows length.
+    repeat: Vec<(u16, u16, Slot)>,
+    vowel: HashMap<u16, Slot>,
+    no_repeat: Slot,
 }
+
+/// A primary's key bytes and its length in Windows' keys.
+type Slot = ([u8; PRIMARY_BYTES], u8);
 
 fn table() -> &'static Table {
     static TABLE: OnceLock<Table> = OnceLock::new();
@@ -163,6 +202,8 @@ enum Exception {
     Refused,
     Mark(u8),
     Special([u8; 2]),
+    Expansion(Vec<u16>, bool),
+    Iteration(Iteration),
     Weighted {
         primaries: Vec<u64>,
         diacritic: Vec<u8>,
@@ -217,10 +258,26 @@ fn build() -> Table {
             1 => Exception::Refused,
             2 => Exception::Mark(reader.byte()),
             3 => Exception::Special([reader.byte(), reader.byte()]),
+            5 => {
+                let whole = reader.byte() == 1;
+                let n = reader.varint() as usize;
+                Exception::Expansion((0..n).map(|_| reader.varint() as u16).collect(), whole)
+            }
+            6 => Exception::Iteration(Iteration {
+                vowel: reader.byte() == 1,
+                diacritic: reader.byte(),
+                iteration: reader.byte(),
+                width: match reader.byte() {
+                    0 => None,
+                    _ => Some(reader.byte()),
+                },
+            }),
             _ => {
                 let n = reader.varint() as usize;
                 let primaries = (0..n).map(|_| reader.varint()).collect();
+                let n = reader.varint() as usize;
                 let diacritic = (0..n).map(|_| reader.byte()).collect();
+                let n = reader.varint() as usize;
                 let case = (0..n).map(|_| reader.byte()).collect();
                 let kana = match reader.byte() {
                     0 => None,
@@ -241,7 +298,7 @@ fn build() -> Table {
     let special: HashMap<u16, [u8; 2]> = SPECIAL.iter().copied().collect();
 
     // A primary's ten key bytes and its length in Windows' keys.
-    let slot = |token: u64| -> ([u8; PRIMARY_BYTES], u8) {
+    let slot = |token: u64| -> Slot {
         let (group, anchor, sub) = if token >= EXTRA_KIND {
             let (group, anchor, sub) = EXTRA[(token - EXTRA_KIND) as usize];
             (group, anchor, sub)
@@ -268,6 +325,10 @@ fn build() -> Table {
         primary: Vec::new(),
         diacritic: Vec::new(),
         case: Vec::new(),
+        expansions: Vec::new(),
+        repeat: REPEAT.iter().map(|&(a, b, t)| (a, b, slot(t))).collect(),
+        vowel: VOWEL.iter().map(|&(c, t)| (c, slot(t))).collect(),
+        no_repeat: slot(NO_REPEAT),
     };
     let weighted = |table: &mut Table,
                     primaries: &[u64],
@@ -276,7 +337,8 @@ fn build() -> Table {
                     kana: Option<[u8; 3]>|
      -> Weight {
         let primary = table.primary.len() as u32;
-        let entries = table.diacritic.len() as u32;
+        let diacritic_at = table.diacritic.len() as u32;
+        let case_at = table.case.len() as u32;
         let mut windows_length = 0u8;
         for &token in primaries {
             let (bytes, length) = slot(token);
@@ -289,7 +351,10 @@ fn build() -> Table {
             primary,
             primaries: primaries.len() as u8,
             windows_length,
-            entries,
+            diacritic: diacritic_at,
+            diacritics: diacritic.len() as u8,
+            case: case_at,
+            cases: case.len() as u8,
             kana,
         }
     };
@@ -304,6 +369,19 @@ fn build() -> Table {
                 Exception::Refused => Weight::Refused,
                 Exception::Mark(w) => Weight::Mark(*w),
                 Exception::Special(w) => Weight::Special(*w),
+                // An isolated form of marks compared as the marks (its decomposition without the
+                // leading space): the walk's runs into it are not modelled.
+                Exception::Expansion(_, false) => Weight::Refused,
+                Exception::Expansion(units, whole) => {
+                    let at = table.expansions.len() as u32;
+                    table.expansions.extend_from_slice(units);
+                    Weight::Expansion {
+                        at,
+                        len: units.len() as u8,
+                        whole: *whole,
+                    }
+                }
+                Exception::Iteration(rule) => Weight::Iteration(*rule),
                 Exception::Weighted {
                     primaries,
                     diacritic,
@@ -438,125 +516,399 @@ pub(super) fn refused(code: u16) -> bool {
     }
 }
 
-/// The sort key of `text`, or `None` when it holds a refused unit or its marks overflow.
-pub(super) fn sort_key(text: &[u16]) -> Option<Vec<u8>> {
-    let table = table();
-    let mut primary: Vec<u8> = Vec::with_capacity(text.len() * PRIMARY_BYTES);
+/// One step of a text's diacritic walk ([`diacritics`]): what each unit gives the diacritic
+/// level, in text order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Step {
+    /// A weighted unit's diacritic entry (one per entry; one of 0x02 for a unit that has none).
+    Base(u8),
+    /// A combining mark's diacritic weight.
+    Mark(u8),
+    /// A special unit (the code unit).
+    Special(u16),
+    /// An ignorable unit: the walk passes it, but it ends a run of marks.
+    Ignorable,
+    /// The start of an expansion: the walk passes it; it ends a run of marks after a mark, not
+    /// after an entry.
+    Expansion,
+}
+
+/// A text's collation weights: the sort key's primary section, its diacritic walk, and the key's
+/// case, kana and special sections (each ended by 0x01 but the last).
+pub(super) struct Parts {
+    pub(super) primary: Vec<u8>,
+    pub(super) steps: Vec<Step>,
+    pub(super) rest: Vec<u8>,
+    /// Where each code unit's steps start, and after the last unit, the count of steps.
+    starts: Vec<u32>,
+}
+
+/// What an iteration mark repeats: the last unit before it that is not a mark, an ignorable unit
+/// or another iteration mark.
+#[derive(Clone, Copy)]
+enum Before {
+    /// Nothing, or a unit of several primaries (or none).
+    Nothing,
+    /// A unit of one primary: the unit, its primary and its kana weights.
+    One(u16, Slot, Option<[u8; 3]>),
+    Special,
+}
+
+/// The weights of a text as they are gathered.
+#[derive(Default)]
+struct Gathered {
+    primary: Vec<u8>,
     // Half the length Windows' primary weights so far have.
-    let mut windows_length = 0u32;
-    let mut diacritic: Vec<u16> = Vec::new();
-    let mut case: Vec<u8> = Vec::new();
-    let mut special: Vec<u8> = Vec::new();
-    let (mut small, mut kind, mut width): (Vec<u8>, Vec<u8>, Vec<u8>) = Default::default();
-    // Whether a combining mark here follows a weighted unit or another mark directly.
-    let mut attached = false;
+    windows_length: u32,
+    steps: Vec<Step>,
+    case: Vec<u8>,
+    special: Vec<u8>,
+    small: Vec<u8>,
+    iteration: Vec<u8>,
+    kind: Vec<u8>,
+    width: Vec<u8>,
+    /// Whether the units being added are an expansion's.
+    expanding: bool,
+}
+
+impl Gathered {
+    fn kana(&mut self, [small, kind, width]: [u8; 3], iteration: u8) {
+        self.small.push(small);
+        self.iteration.push(iteration);
+        self.kind.push(kind);
+        self.width.push(width);
+    }
+
+    /// Adds one code unit; `None` when it is refused.
+    fn unit(&mut self, table: &Table, code: u16, before: &mut Before) -> Option<()> {
+        match table.weights[usize::from(code)] {
+            Weight::Refused => return None,
+            Weight::Ignorable if self.expanding => {}
+            Weight::Ignorable => self.steps.push(Step::Ignorable),
+            Weight::Mark(added) => self.steps.push(Step::Mark(added)),
+            Weight::Special([w0, w1]) => {
+                self.steps.push(Step::Special(code));
+                let position = 0xFFFF - (self.windows_length / 2) as u16;
+                self.special.extend_from_slice(&position.to_be_bytes());
+                self.special.extend_from_slice(&[w0, w1]);
+                *before = Before::Special;
+            }
+            Weight::Expansion { at, len, whole } => {
+                let at = at as usize;
+                let primaries = self.primary.len();
+                // Marks run on into a decomposition after an entry, not after a mark, and an
+                // ignorable unit in it does not end them (measured).
+                debug_assert!(whole);
+                self.steps.push(Step::Expansion);
+                let expanding = std::mem::replace(&mut self.expanding, true);
+                for &unit in &table.expansions[at..at + usize::from(len)] {
+                    self.unit(table, unit, before)?;
+                }
+                self.expanding = expanding;
+                // An iteration mark after a unit that expands to several primaries takes FF FF.
+                if self.primary.len() - primaries > PRIMARY_BYTES {
+                    *before = Before::Nothing;
+                }
+            }
+            Weight::Iteration(rule) => {
+                let ((bytes, length), kana) = match *before {
+                    Before::Nothing => (table.no_repeat, None),
+                    // After a special, CompareStringEx departs from the key: not modelled.
+                    Before::Special => return None,
+                    Before::One(unit, own, kana) => {
+                        let vowel = rule.vowel.then(|| table.vowel.get(&unit)).flatten();
+                        let repeat = || {
+                            let at = table.repeat.partition_point(|&(start, _, _)| start <= unit);
+                            at.checked_sub(1)
+                                .map(|at| table.repeat[at])
+                                .filter(|&(_, end, _)| unit <= end)
+                                .map(|(_, _, slot)| slot)
+                        };
+                        // After a unit whose repeated primary Windows' key writes otherwise than the
+                        // unit's own (the Han characters' four-byte primaries), CompareStringEx
+                        // departs from the key: not modelled.
+                        if vowel.is_none() && repeat().is_some() {
+                            return None;
+                        }
+                        (vowel.copied().unwrap_or(own), kana)
+                    }
+                };
+                self.primary.extend_from_slice(&bytes);
+                self.windows_length += u32::from(length);
+                // With nothing before it, the mark's own diacritic entry is not in the key.
+                let diacritic = match *before {
+                    Before::Nothing => 2,
+                    _ => rule.diacritic,
+                };
+                self.steps.push(Step::Base(diacritic));
+                self.case.push(2);
+                if let Some([small, kind, width]) = kana {
+                    self.kana([small, kind, rule.width.unwrap_or(width)], rule.iteration);
+                }
+            }
+            Weight::Weighted {
+                primary: start,
+                primaries,
+                windows_length: length,
+                diacritic: diacritic_at,
+                diacritics,
+                case: case_at,
+                cases,
+                kana,
+            } => {
+                let start = start as usize;
+                let bytes = &table.primary[start..start + usize::from(primaries) * PRIMARY_BYTES];
+                self.primary.extend_from_slice(bytes);
+                self.windows_length += u32::from(length);
+                let (d, nd) = (diacritic_at as usize, usize::from(diacritics));
+                if nd == 0 {
+                    self.steps.push(Step::Base(2));
+                }
+                self.steps
+                    .extend(table.diacritic[d..d + nd].iter().map(|&w| Step::Base(w)));
+                let (c, nc) = (case_at as usize, usize::from(cases));
+                self.case.extend_from_slice(&table.case[c..c + nc]);
+                if let Some(weights) = kana {
+                    self.kana(weights, 3);
+                }
+                *before = if primaries == 1 {
+                    let mut slot = [0u8; PRIMARY_BYTES];
+                    slot.copy_from_slice(bytes);
+                    Before::One(code, (slot, length), kana)
+                } else {
+                    Before::Nothing
+                };
+            }
+        }
+        Some(())
+    }
+}
+
+/// The collation weights of `text`, or `None` when it holds a refused unit.
+pub(super) fn parts(text: &[u16]) -> Option<Parts> {
+    let table = table();
+    let mut gathered = Gathered::default();
+    let mut before = Before::Nothing;
+    let mut starts: Vec<u32> = Vec::with_capacity(text.len() + 1);
     let mut at = 0;
     while at < text.len() {
         let code = text[at];
+        starts.push(gathered.steps.len() as u32);
         if (0xD800..=0xDBFF).contains(&code)
             && let Some(&low) = text.get(at + 1)
             && (0xDC00..=0xDFFF).contains(&low)
         {
             let point = 0x10000 + ((u32::from(code) - 0xD800) << 10) + (u32::from(low) - 0xDC00);
             if (0xE0100..=0xE01EF).contains(&point) {
+                gathered.steps.push(Step::Ignorable);
+                starts.push(gathered.steps.len() as u32);
                 at += 2;
                 continue;
             }
         }
-        match table.weights[usize::from(code)] {
-            Weight::Refused => return None,
-            Weight::Ignorable => attached = false,
-            // A mark that does not follow a weighted unit or another mark directly (one at the
-            // start, or after an ignorable or special unit) is in Windows' key, but
-            // CompareStringEx does not order it as the key's bytes would: not decided here.
-            Weight::Mark(added) => {
-                if !attached {
-                    return None;
-                }
-                let last = diacritic.last_mut()?;
-                *last += u16::from(added);
-                if *last > 0xFF {
-                    return None;
-                }
-            }
-            Weight::Special([w0, w1]) => {
-                attached = false;
-                let position = 0xFFFF - (windows_length / 2) as u16;
-                special.extend_from_slice(&position.to_be_bytes());
-                special.extend_from_slice(&[w0, w1]);
-            }
-            Weight::Weighted {
-                primary: start,
-                primaries,
-                windows_length: length,
-                entries,
-                kana,
-            } => {
-                attached = true;
-                let start = start as usize;
-                primary.extend_from_slice(
-                    &table.primary[start..start + usize::from(primaries) * PRIMARY_BYTES],
-                );
-                windows_length += u32::from(length);
-                let entries = entries as usize;
-                let n = usize::from(primaries);
-                diacritic.extend(
-                    table.diacritic[entries..entries + n]
-                        .iter()
-                        .map(|&entry| u16::from(entry)),
-                );
-                case.extend_from_slice(&table.case[entries..entries + n]);
-                if let Some([s, t, w]) = kana {
-                    small.push(s);
-                    kind.push(t);
-                    width.push(w);
-                }
-            }
-        }
+        gathered.unit(table, code, &mut before)?;
         at += 1;
     }
+    starts.push(gathered.steps.len() as u32);
     let trim = |list: &mut Vec<u8>, default: u8| {
         while list.last() == Some(&default) {
             list.pop();
         }
     };
-    while diacritic.last() == Some(&2) {
-        diacritic.pop();
-    }
+    let Gathered {
+        primary,
+        steps,
+        mut case,
+        special,
+        mut small,
+        mut iteration,
+        mut kind,
+        mut width,
+        ..
+    } = gathered;
     trim(&mut case, 2);
-    let mut key = primary;
-    key.push(1);
-    key.extend(diacritic.iter().map(|&entry| entry as u8));
-    key.push(1);
-    key.extend_from_slice(&case);
-    key.push(1);
+    let mut rest = case;
+    rest.push(1);
     if !small.is_empty() {
         trim(&mut small, 0xC6);
+        trim(&mut iteration, 3);
         trim(&mut kind, 0xE4);
         trim(&mut width, 0xC5);
-        key.extend_from_slice(&small);
-        key.extend_from_slice(&[0xFF, 0x02]);
-        key.extend_from_slice(&kind);
-        key.push(0xFF);
-        key.extend_from_slice(&width);
-        key.push(0xFF);
+        rest.extend_from_slice(&small);
+        rest.push(0xFF);
+        rest.extend_from_slice(&iteration);
+        rest.push(0x02);
+        rest.extend_from_slice(&kind);
+        rest.push(0xFF);
+        rest.extend_from_slice(&width);
+        rest.push(0xFF);
     }
-    key.push(1);
-    key.extend_from_slice(&special);
-    Some(key)
+    rest.push(1);
+    rest.extend_from_slice(&special);
+    Some(Parts {
+        primary,
+        steps,
+        rest,
+        starts,
+    })
+}
+
+/// The diacritic level of two texts whose primary weights are the same (see [`diacritics`]):
+/// `CompareStringEx` first passes the code units the texts start with in common, passing an
+/// ignorable unit on either side, and walks the rest.
+pub(super) fn diacritic_order(a: &[u16], left: &Parts, b: &[u16], right: &Parts) -> Ordering {
+    let ignorable = |parts: &Parts, at: usize| {
+        let range = parts.starts[at] as usize..parts.starts[at + 1] as usize;
+        parts.steps[range]
+            .iter()
+            .all(|step| matches!(step, Step::Ignorable | Step::Expansion))
+    };
+    let (mut i, mut j) = (0, 0);
+    loop {
+        while i < a.len() && ignorable(left, i) {
+            i += 1;
+        }
+        while j < b.len() && ignorable(right, j) {
+            j += 1;
+        }
+        if i < a.len() && j < b.len() && a[i] == b[j] {
+            i += 1;
+            j += 1;
+        } else {
+            break;
+        }
+    }
+    diacritics(
+        &left.steps[left.starts[i] as usize..],
+        &right.steps[right.starts[j] as usize..],
+    )
+}
+
+/// The diacritic level of what follows two texts' common start, as `CompareStringEx` walks it
+/// (measured; Windows' sort keys hold a sum of marks per entry instead, and so order a few texts
+/// otherwise). Both are walked in step, an ignorable unit passed on its own side. Two equal steps
+/// pass. Two different entries, or two different marks, compare as sums: each with the marks that
+/// follow it directly, added in a byte. A mark against a special passes the special once the walk
+/// has passed a special (alone, or two different ones); otherwise, and against anything else, the
+/// mark makes its text the greater. Two different specials pass every special and ignorable unit
+/// that follows them on both sides; a special against anything else is passed on its own side. The first difference decides; when one side runs out, a mark left in the
+/// other makes that one the greater.
+fn diacritics(a: &[Step], b: &[Step]) -> Ordering {
+    let passed = |steps: &[Step], mut at: usize| {
+        while matches!(
+            steps.get(at),
+            Some(Step::Special(_) | Step::Ignorable | Step::Expansion)
+        ) {
+            at += 1;
+        }
+        at
+    };
+    // The sum of `first` and the marks from `at` on (passing an expansion's start after an
+    // entry), and where they end.
+    fn run(steps: &[Step], mut at: usize, first: u8, entry: bool) -> (u8, usize) {
+        let mut sum = first;
+        loop {
+            match steps.get(at) {
+                Some(Step::Mark(w)) => sum = sum.wrapping_add(*w),
+                Some(Step::Expansion) if entry => {}
+                _ => return (sum, at),
+            }
+            at += 1;
+        }
+    }
+    let (mut i, mut j) = (0, 0);
+    let mut result = Ordering::Equal;
+    let mut decide = |order: Ordering| {
+        if result.is_eq() {
+            result = order;
+        }
+    };
+    // Whether the walk has passed a special (alone, or two different ones).
+    let mut special_passed = false;
+    loop {
+        while matches!(a.get(i), Some(Step::Ignorable | Step::Expansion)) {
+            i += 1;
+        }
+        while matches!(b.get(j), Some(Step::Ignorable | Step::Expansion)) {
+            j += 1;
+        }
+        let (Some(&x), Some(&y)) = (a.get(i), b.get(j)) else {
+            break;
+        };
+        match (x, y) {
+            _ if x == y => {
+                i += 1;
+                j += 1;
+            }
+            (Step::Mark(w), Step::Mark(v)) | (Step::Base(w), Step::Base(v)) => {
+                let entry = matches!(x, Step::Base(_));
+                let (left, next_i) = run(a, i + 1, w, entry);
+                let (right, next_j) = run(b, j + 1, v, entry);
+                decide(left.cmp(&right));
+                i = next_i;
+                j = next_j;
+            }
+            (Step::Mark(_), Step::Special(_)) if special_passed => j += 1,
+            (Step::Special(_), Step::Mark(_)) if special_passed => i += 1,
+            (Step::Mark(_), _) => {
+                decide(Ordering::Greater);
+                i += 1;
+            }
+            (_, Step::Mark(_)) => {
+                decide(Ordering::Less);
+                j += 1;
+            }
+            (Step::Special(_), Step::Special(_)) => {
+                special_passed = true;
+                i = passed(a, i);
+                j = passed(b, j);
+            }
+            (Step::Special(_), _) => {
+                special_passed = true;
+                i += 1;
+            }
+            (_, Step::Special(_)) => {
+                special_passed = true;
+                j += 1;
+            }
+            _ => {
+                i += 1;
+                j += 1;
+            }
+        }
+    }
+    if a[i.min(a.len())..]
+        .iter()
+        .any(|s| matches!(s, Step::Mark(_)))
+    {
+        decide(Ordering::Greater);
+    }
+    if b[j.min(b.len())..]
+        .iter()
+        .any(|s| matches!(s, Step::Mark(_)))
+    {
+        decide(Ordering::Less);
+    }
+    result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cmp::Ordering;
 
     fn units(text: &str) -> Vec<u16> {
         text.encode_utf16().collect()
     }
 
     fn order(a: &str, b: &str) -> Option<Ordering> {
-        Some(sort_key(&units(a))?.cmp(&sort_key(&units(b))?))
+        let (a, b) = (units(a), units(b));
+        let (left, right) = (parts(&a)?, parts(&b)?);
+        Some(
+            left.primary
+                .cmp(&right.primary)
+                .then_with(|| diacritic_order(&a, &left, &b, &right))
+                .then_with(|| left.rest.cmp(&right.rest)),
+        )
     }
 
     /// Orders CompareStringEx gave on the generating machine (en-ZA, NORM_IGNORECASE).
@@ -578,18 +930,44 @@ mod tests {
             ("\u{3042}", "\u{30a2}", Ordering::Greater),
             ("a\u{ad}b", "ab", Ordering::Equal),
             ("\u{1f600}", "\u{1f601}", Ordering::Less),
+            ("\u{2191}", "\u{2190}", Ordering::Less),
+            ("\u{221a}", "\u{2602}", Ordering::Less),
+            ("\u{e000}", "\u{e001}", Ordering::Less),
+            ("\u{3131}", "\u{ac00}", Ordering::Less),
+            // The diacritic walk, where Windows' keys would order otherwise.
+            ("\u{301}a", "a\u{301}", Ordering::Greater),
+            ("-\u{301}", "\u{301}", Ordering::Less),
+            ("b-\u{301}a", "b\u{301}a", Ordering::Less),
+            ("b\u{301}\u{ad}\u{301}", "b\u{308}", Ordering::Less),
+            ("B\u{301}\u{ad}\u{301}", "b\u{301}\u{301}", Ordering::Equal),
+            ("a\u{e000}\u{301}", "a\u{301}\u{e000}", Ordering::Less),
+            // Iteration and prolonged-sound marks, and units compared as their decomposition.
+            ("\u{304b}\u{309d}", "\u{304b}\u{304b}", Ordering::Greater),
+            ("\u{304b}\u{309e}", "\u{304b}\u{304c}", Ordering::Greater),
+            ("\u{30ab}\u{30fc}", "\u{30ab}\u{30a2}", Ordering::Greater),
+            ("\u{ff76}\u{ff70}", "\u{30ab}\u{30fc}", Ordering::Less),
+            ("\u{309f}", "\u{3088}\u{308a}", Ordering::Equal),
+            ("\u{30ff}", "\u{30b3}\u{30c8}", Ordering::Equal),
+            ("\u{385}", "\u{a8}\u{301}", Ordering::Equal),
+            ("\u{f73}", "\u{f71}\u{f72}", Ordering::Equal),
+            ("\u{fb1d}", "\u{5d9}\u{5b4}", Ordering::Equal),
+            ("\u{1200}", "\u{10a0}", Ordering::Greater),
+            ("\u{a000}", "\u{1780}", Ordering::Greater),
         ] {
             assert_eq!(order(a, b), Some(expected), "{a:?} against {b:?}");
         }
-        assert_eq!(
-            sort_key(&units("\u{1100}\u{1161}")),
-            None,
+        assert!(
+            parts(&units("\u{1100}\u{1161}")).is_none(),
             "conjoining jamo"
         );
-        assert_eq!(
-            sort_key(&units("\u{2190}")),
-            None,
-            "an arrow, outside the covered ranges"
+        assert!(parts(&units("\u{30a0}")).is_none(), "the double hyphen");
+        assert!(
+            parts(&units("\u{6642}\u{3005}")).is_none(),
+            "an iteration mark after a Han character"
+        );
+        assert!(
+            parts(&units("\u{fc5e}")).is_none(),
+            "an isolated form of marks"
         );
     }
 }

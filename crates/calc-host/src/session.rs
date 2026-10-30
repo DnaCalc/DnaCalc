@@ -485,8 +485,9 @@ impl HostSession {
     /// parser does not read is left as typed, for the edit to refuse.
     fn authored(&self, edit: CellEdit) -> CellEdit {
         let names = self.host.model.definitions().names();
+        let links = self.host.model.definitions().external_file_names();
         let file_form = |formula: &FormulaText| {
-            let form = calc_doc::file_form(formula, names).ok()?;
+            let form = calc_doc::file_form_with_links(formula, names, &links).ok()?;
             let text = FormulaText::new(ExcelText::from_utf16_code_units(form.text)).ok()?;
             Some((text, form.dynamic))
         };

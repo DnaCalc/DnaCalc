@@ -1243,6 +1243,11 @@ impl Triage {
         map.insert("column".to_owned(), json!(address.column()));
         map.insert("cell".to_owned(), json!(address.a1()));
         map.insert("verdict".to_owned(), json!(verdict.verdict.name()));
+        if verdict.external_links {
+            // Calculated from values another workbook's link caches hold (dc-ylr): the corpus
+            // summary counts a match among them apart from plain passes.
+            map.insert("external_links".to_owned(), json!(true));
+        }
         map.insert("class".to_owned(), json!(cell.class.name()));
         map.insert("key".to_owned(), json!(cell.key));
         if let Some(owner) = &cell.owner {
@@ -1362,6 +1367,7 @@ mod tests {
                     tick,
                     revision,
                     context,
+                    ..
                 } => Some(InstrumentedEvaluation::new(
                     calc_verdict::Evaluation {
                         cell: at(*row, *column),
@@ -1403,6 +1409,7 @@ mod tests {
             tick: 1,
             revision: 0,
             context: CONTEXT.to_owned(),
+            external_links: false,
         }
     }
 

@@ -334,7 +334,12 @@ struct Plan {
 }
 
 /// The reference argument at `index` as a range of one area.
-fn range(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<Range> {
+fn range(
+    site: &Site<'_>,
+    services: &mut EvalServices<'_>,
+    arguments: &[CalcValue],
+    index: usize,
+) -> Step<Range> {
     let CoreRef::Reference(reference) = arguments[index].core_ref() else {
         return Err(Exit::Fault(FunctionFault::ReferenceRequired {
             id: site.id(),
@@ -342,6 +347,14 @@ fn range(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<Range> 
         }));
     };
     match reference.areas() {
+        // dc-ylr: Excel gives the conditional family #VALUE! for a range of a closed workbook.
+        [area]
+            if services
+                .host()
+                .is_some_and(|host| host.is_external_sheet(area.sheet())) =>
+        {
+            Err(Exit::Error(WorksheetErrorCode::Value))
+        }
         [area] => Ok(Range { index, area: *area }),
         _ => Err(Exit::Error(WorksheetErrorCode::Value)),
     }
@@ -357,12 +370,12 @@ fn single(
     services: &mut EvalServices<'_>,
     with_target: bool,
 ) -> Step<Plan> {
-    let criteria_range = range(site, arguments, 0)?;
+    let criteria_range = range(site, services, arguments, 0)?;
     let target = match (with_target, arguments.get(2)) {
         (false, _) => None,
         (true, None) => Some(criteria_range),
         (true, Some(_)) => {
-            let given = range(site, arguments, 2)?;
+            let given = range(site, services, arguments, 2)?;
             let (rows, columns) = criteria_range.shape();
             let first = given.area.first();
             let last_column = u64::from(first.column()) + u64::from(columns) - 1;
@@ -401,13 +414,13 @@ fn pairs(
         }));
     }
     let target = if with_target {
-        Some(range(site, arguments, 0)?)
+        Some(range(site, services, arguments, 0)?)
     } else {
         None
     };
     let mut ranges = Vec::with_capacity((arguments.len() - first_pair) / 2);
     for index in (first_pair..arguments.len()).step_by(2) {
-        ranges.push(range(site, arguments, index)?);
+        ranges.push(range(site, services, arguments, index)?);
     }
     let shape = target.unwrap_or(ranges[0]).shape();
     if ranges.iter().any(|range| range.shape() != shape) {

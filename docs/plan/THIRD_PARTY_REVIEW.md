@@ -49,8 +49,9 @@ decide.
 - **Own data:** Excel's measured outputs (`x87_excel_ground_truth.tsv`, test-only), the
   icons, drawn here (`apps/dna-calc/src/grid/icons.rs`), and the measured departures of Windows'
   text comparison from the CLDR root order (`calc-func/src/catalogue/comparison/windows_collation.rs`,
-  dc-zsn.1: about 1,500 facts, each about one code unit, one root weight or one range, measured
-  through `LCMapStringEx`; no Windows table is copied, and the order between the departures comes
+  dc-zsn.1 and dc-zsn.2: about 18,800 facts over every UTF-16 code unit, 6,400 of them the private
+  use area's, each about one code unit, one root weight or one range, measured through
+  `LCMapStringEx`; no Windows table or file is copied, and the order between the departures comes
   from the Unicode data).
 
 ## 3. Problems the owner must rule on before the first public binary
@@ -60,9 +61,13 @@ decide.
 code is AMD's MIT win-libm and Arm's MIT optimized-routines, and what no source says (the
 configurations, the fused multiply-adds of sinh, cosh and atan2) was measured against the
 runtime; row 8 was wrong (PMT, IPMT and PPMT do reach the port) and is resolved by re-sourcing to
-Arm's MIT copy of the same code, checked equal table for table; row 4 is resolved: help.rs's
-descriptions are our own, and `migration/help-text-sources.tsv` records what they replaced; row 7 carries a credit
-to Wichura; row 9's comparison functions are removed (dc-96l.4).
+Arm's MIT copy of the same code, checked equal table for table; row 4 is settled by the owner
+(2026-10-30): Microsoft's official descriptions stay as the function metadata, attributed to
+Microsoft with each function's support-article URL (`migration/help-text-sources.tsv`), with our
+own line beside each, and a notice in `deploy/notices/ported.txt`; row 6 is kept: gratio and bratio
+stay, with a source comment naming DiDonato and Morris, ACM TOMS 654 and 708, via scipy's cdflib
+(owner, 2026-10-30); row 7 is kept: AS 241 stays, with a source comment naming Wichura, Applied
+Statistics 1988 (owner, 2026-10-30); row 9's comparison functions are removed (dc-96l.4).
 
 These do not fit an MIT release as they stand. A notice cannot fix the first five. Each is in the
 shipped wasm unless the row says otherwise.

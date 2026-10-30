@@ -13,7 +13,8 @@
 //!  "case": "<case id>", "source": "<content hash of the input workbook>",
 //!  "run": {"revision": <authored revision calculated>, "context": "<context fingerprint>"},
 //!  "results": [{"sheet": "Sheet1", "row": 1, "column": 1,
-//!               "provenance": {"calculated": {"tick": t, "revision": r, "context": "..."}}
+//!               "provenance": {"calculated": {"tick": t, "revision": r, "context": "...",
+//!                                             "external_links": true}}
 //!                           | {"file_cached": {"source": "..."}}
 //!                           | {"stale": {"last_calculated": t | null, "cause": "..."}}
 //!                           | {"not_modeled": {"feature": "...", "diagnostic": "..."}}
@@ -23,7 +24,11 @@
 //! ```
 //!
 //! A calculated or file-cached result carries a value; a stale one may; a not-modeled, missing or
-//! failed one carries none.
+//! failed one carries none. A calculated result's `external_links` member, written only when
+//! `true` (dc-ylr), says that the calculation read values another workbook's link caches in the
+//! file hold, directly or through the formulas it read: calculated, from inputs that are the file's
+//! cache of the other book rather than live ones. The verdict counts such cells apart
+//! ([`crate::Counts::external_links`]) so a reader never takes them for plain passes.
 
 use crate::DecodeError;
 use crate::capture::{CellAddress, check_format};
@@ -43,6 +48,8 @@ pub enum Provenance {
         tick: u64,
         revision: u64,
         context: String,
+        /// The calculation read values another workbook's link caches hold (dc-ylr).
+        external_links: bool,
     },
     /// The value the workbook file cached, not calculated; `source` identifies the file.
     FileCached { source: String },
@@ -79,11 +86,20 @@ impl Provenance {
         };
         match kind {
             "calculated" => {
-                let fields = Fields::new(inner, &at, &["tick", "revision", "context"])?;
+                let fields = Fields::new(
+                    inner,
+                    &at,
+                    &["tick", "revision", "context", "external_links"],
+                )?;
                 Ok(Self::Calculated {
                     tick: json::unsigned(fields.required("tick")?, &fields.at("tick"))?,
                     revision: json::unsigned(fields.required("revision")?, &fields.at("revision"))?,
                     context: string(&fields, "context")?,
+                    external_links: fields
+                        .optional("external_links")
+                        .map(|node| json::boolean(node, &fields.at("external_links")))
+                        .transpose()?
+                        .unwrap_or(false),
                 })
             }
             "file_cached" => {

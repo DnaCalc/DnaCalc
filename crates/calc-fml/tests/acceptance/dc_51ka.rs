@@ -405,15 +405,8 @@ fn rows(_book: &Book) -> Vec<Row> {
         not_modelled("=INDIRECT(\"data!Foo\")", refused(0), NAME, "dc-10y"),
         not_modelled("=INDIRECT(\"XFE1\")", refused(0), NAME, "dc-10y"),
         not_modelled("=INDIRECT(\"Rate\")", refused(0), DEFINED, "dc-10y"),
-        not_modelled(
-            "=INDIRECT(\"[Book1]data!A1\")",
-            EvalFault::NotModelled {
-                construct: "reference text naming another workbook (an external reference)",
-                owner: "dc-10y",
-            },
-            "a qualifier naming another workbook, which INDIRECT resolves when that workbook is open; external references are refused (L3)",
-            "dc-10y",
-        ),
+        // A qualifier naming another workbook, closed (dc-ylr): #REF!, as Excel gives it.
+        row("=INDIRECT(\"[Book1]data!A1\")", e(W::Ref), M),
         // The legacy formula intersects the range with its own row, which A1:B2 does not reach
         // (Excel writes it `=@INDIRECT("A1:B2")`; dc-mzk).
         row("=INDIRECT(\"A1:B2\")", e(W::Value), M),
@@ -1076,6 +1069,7 @@ fn documents(run: &[(u32, Row, Shown)]) -> (ResultSet, InstrumentRecord) {
                     tick,
                     revision: REVISION,
                     context: context.clone(),
+                    external_links: false,
                 },
                 Some(value.clone()),
             ),

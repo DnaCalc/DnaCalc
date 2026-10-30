@@ -125,7 +125,12 @@ fn cell(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
             .active_cell()
             .ok_or_else(|| site.not_modelled(None))?
     } else {
-        first_cell(site, a, 1)?
+        let at = first_cell(site, a, 1)?;
+        // dc-ylr: Excel gives CELL of a reference to a closed workbook #N/A.
+        if sv.host().is_some_and(|host| host.is_external_sheet(at.sheet())) {
+            return fail(WorksheetErrorCode::NA);
+        }
+        at
     };
     let format = |site: &Site<'_>, sv: &mut EvalServices<'_>| -> Step<CellFormatFacts> {
         facts(site, sv, Some(1))?
@@ -347,6 +352,10 @@ fn sheets(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
 
 fn formulatext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let at = first_cell(site, a, 0)?;
+    // dc-ylr: Excel gives FORMULATEXT of a reference to a closed workbook #N/A.
+    if sv.host().is_some_and(|host| host.is_external_sheet(at.sheet())) {
+        return fail(WorksheetErrorCode::NA);
+    }
     match sv.host().and_then(|host| host.formula_text(at)) {
         Some(Some(text)) => Ok(crate::catalogue::kit::text_value(&text)),
         Some(None) => fail(WorksheetErrorCode::NA),

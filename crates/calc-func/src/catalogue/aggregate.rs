@@ -20,7 +20,12 @@
 //! follow their own rules, which their kernels' docs state: the counts never return an error of
 //! their arguments, and SUMPRODUCT reads direct text as 0 and an omitted argument as #VALUE!.
 //!
-//! An array or a reference held inside an array is not modelled and is refused. A product below
+//! An array held inside an array (a GROUPBY result's cell, dc-h9u) is read through by SUM, COUNT
+//! and COUNTA, each of its elements as an element of the outer array, and makes PRODUCT, SUMSQ,
+//! AVERAGE, AVERAGEA, MIN, MAX, MINA and MAXA #N/A (Excel 16.0.20527, 2026-10-30: SUM of
+//! `GROUPBY(k,v,LAMBDA(x,x))` adds every group's values, MAX of it is #N/A); SUMPRODUCT takes it as
+//! no number. The other functions that read arrays here refuse it, and a reference held inside an
+//! array, as not modelled. A product below
 //! binary64's normal range is 0, as Excel gives it (dc-bd5: PRODUCT(1E-200,1E-200),
 //! SUMSQ(1E-200) and SUMPRODUCT(1E-200,1E-200) are 0 in Excel 16.0.20430).
 
@@ -29,7 +34,8 @@ use crate::call::{CellReader, EagerKernel, EvalServices, FunctionFault, Unreadab
 use crate::coerce::{self, Numeric, Stop};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcValue, CallableArityShape, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
+    CalcArray, CalcValue, CallableArityShape, CellKey, CoreRef, GridArea, ReferenceLike,
+    WorksheetErrorCode,
 };
 use std::ops::ControlFlow;
 
@@ -124,6 +130,8 @@ fn sum(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(SUM, services);
     let mut total = 0.0;
+    let read_through = read_through_held_arrays(arguments);
+    let arguments: &[CalcValue] = read_through.as_deref().unwrap_or(arguments);
     let read = direct_first(&site, arguments).and_then(|()| {
         each_number(&site, arguments, services, Held::Numbers, &mut |n| {
             total = site.add(total, n)?;
@@ -155,6 +163,9 @@ fn product(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(PRODUCT, services);
+    if holds_held_arrays(arguments) {
+        return Site::finish(Err(Exit::Error(WorksheetErrorCode::NA)));
+    }
     let given: Vec<CalcValue> = arguments
         .iter()
         .filter(|argument| !argument.is_missing())
@@ -175,6 +186,9 @@ fn sumsq(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(SUMSQ, services);
+    if holds_held_arrays(arguments) {
+        return Site::finish(Err(Exit::Error(WorksheetErrorCode::NA)));
+    }
     let mut total = 0.0;
     let read = each_number(&site, arguments, services, Held::Numbers, &mut |n| {
         total = site.add(total, times(&site, n, n)?)?;
@@ -207,6 +221,9 @@ fn mean(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
+    if holds_held_arrays(arguments) {
+        return Site::finish(Err(Exit::Error(WorksheetErrorCode::NA)));
+    }
     let (mut total, mut counted) = (0.0, 0u64);
     let read = each_number(&site, arguments, services, held, &mut |n| {
         total = site.add(total, n)?;
@@ -257,6 +274,9 @@ fn extreme(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
+    if holds_held_arrays(arguments) {
+        return Site::finish(Err(Exit::Error(WorksheetErrorCode::NA)));
+    }
     let mut best: Option<f64> = None;
     let read = each_number(&site, arguments, services, held, &mut |n| {
         if best.is_none_or(|best| replaces(n, best)) {
@@ -276,6 +296,8 @@ fn count(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(COUNT, services);
     let mut counted = 0u64;
+    let read_through = read_through_held_arrays(arguments);
+    let arguments: &[CalcValue] = read_through.as_deref().unwrap_or(arguments);
     let read = each_value(&site, arguments, services, &mut |index, origin, value| {
         if counts_as_number(&site, index, origin, value)? {
             counted += 1;
@@ -328,6 +350,8 @@ fn counta(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(COUNTA, services);
     let mut counted = 0u64;
+    let read_through = read_through_held_arrays(arguments);
+    let arguments: &[CalcValue] = read_through.as_deref().unwrap_or(arguments);
     let read = each_value(&site, arguments, services, &mut |index, origin, value| {
         match (origin, value.core_ref()) {
             (_, CoreRef::Number(n)) => finite(&site, index, n)?,
@@ -506,6 +530,10 @@ fn factor(
         CoreRef::Array(array) => {
             let mut numbers = Vec::new();
             for (offset, element) in array.iter_row_major().enumerate() {
+                // An array an element holds (dc-h9u) is no number.
+                if element.as_array().is_some() && element.callable_value().is_none() {
+                    continue;
+                }
                 if let Some(n) = entry(element)? {
                     numbers.push((offset as u64, n));
                 }
@@ -536,6 +564,49 @@ fn times(site: &Site<'_>, a: f64, b: f64) -> Step<f64> {
         Ok(0.0)
     } else {
         Ok(product)
+    }
+}
+
+/// Whether an array argument holds an array in a cell (dc-h9u).
+fn holds_held_arrays(arguments: &[CalcValue]) -> bool {
+    arguments.iter().any(|argument| {
+        argument.callable_value().is_none()
+            && argument.as_array().is_some_and(|array| array.holds_arrays())
+    })
+}
+
+/// The arguments with each array argument that holds arrays in its cells read through: the held
+/// arrays' elements in the place of the cell, in row-major order, as one row (dc-h9u: SUM, COUNT
+/// and COUNTA read a held array's elements as the outer array's); `None`, allocating nothing,
+/// when no argument holds one.
+fn read_through_held_arrays(arguments: &[CalcValue]) -> Option<Vec<CalcValue>> {
+    if !holds_held_arrays(arguments) {
+        return None;
+    }
+    let read = arguments
+        .iter()
+        .map(|argument| match argument.as_array() {
+            Some(array) if argument.callable_value().is_none() && array.holds_arrays() => {
+                let mut flat = Vec::new();
+                flatten(array, &mut flat);
+                let shape = crate::value::ArrayShape {
+                    rows: 1,
+                    cols: flat.len(),
+                };
+                CalcValue::array(CalcArray::new(shape, flat).expect("at least one element"))
+            }
+            _ => argument.clone(),
+        })
+        .collect();
+    Some(read)
+}
+
+fn flatten(array: &CalcArray, out: &mut Vec<CalcValue>) {
+    for element in array.iter_row_major() {
+        match element.as_array() {
+            Some(held) if element.callable_value().is_none() => flatten(held, out),
+            _ => out.push(element.clone()),
+        }
     }
 }
 

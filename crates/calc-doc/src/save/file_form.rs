@@ -13,7 +13,16 @@
 //!   intersection operator `@x` is written `_xlfn.SINGLE(x)`, except at the top of the formula,
 //!   where it is dropped and the formula is stored as an ordinary one (Excel's legacy formulas
 //!   intersect implicitly);
-//! - a name that already carries a file prefix (`_xlfn.`, `_xlpm.`) is left as written.
+//! - a function named where a LAMBDA value is taken (`GROUPBY(A1:A3,B1:B3,SUM)`, `=SUM` alone) is
+//!   written `_xleta.` before its name and no other prefix (`_xleta.STDEV.S`, `_xleta.CONCAT`),
+//!   and is no array (dc-h9u, Excel 16.0.20527 through COM on 2026-10-30, 11 formulas entered
+//!   through `Range.Formula2` and saved);
+//! - a name that already carries a file prefix (`_xlfn.`, `_xlpm.`) is left as written;
+//! - a reference to another workbook named by its file name, with or without its folder
+//!   (`[Book2.xlsx]Sheet1!A1`, `'C:\Data\[Book2.xlsx]Sheet1'!A1`), is written by the number of
+//!   the workbook's link to that file (`[1]Sheet1!A1`), as Excel 16.0.20527 stores a formula typed
+//!   so (dc-ylr, 2026-10-30), when such a link exists ([`file_form_with_links`]); otherwise it is
+//!   left as written.
 //!
 //! Dynamic array: Excel stores an entered formula as a dynamic-array formula when the formula
 //! could give more than one value: when its value is a multi-cell reference or an array (a range,
@@ -109,6 +118,9 @@ struct Shape {
 
 struct Walk<'n> {
     names: &'n [DefinedName],
+    /// The workbook's links to other workbooks: each link's number and its target's file name in
+    /// upper case (dc-ylr).
+    links: &'n [(u32, String)],
     /// Edits of the `=`-prefixed source, as (start, end, replacement) in UTF-16 code units.
     edits: Vec<(usize, usize, String)>,
     dynamic: bool,
@@ -154,7 +166,7 @@ fn has_prefix(name: &str) -> bool {
     let lower = name.get(..5).map(str::to_ascii_lowercase);
     matches!(
         lower.as_deref(),
-        Some("_xlfn" | "_xlpm" | "_xlop" | "_xlws" | "_xlud")
+        Some("_xlfn" | "_xlpm" | "_xlop" | "_xlws" | "_xlud" | "_xlet")
     )
 }
 
@@ -181,6 +193,55 @@ impl Walk<'_> {
 
     fn insert(&mut self, at: usize, text: &str) {
         self.edits.push((at, at, text.to_owned()));
+    }
+
+    /// dc-ylr: the qualifier of `node` written with the number of the workbook's link to the
+    /// book it names by file name (`[Book2.xlsx]Sheet1` as `[1]Sheet1`, a folder before it
+    /// dropped); quoted when the sheet's name needs it, as Excel writes `'[1]My Sheet'!A1`.
+    fn number_external_book(&mut self, node: &SyntaxNode) {
+        let Some(SyntaxChild::Token(qualifier)) = node.children().first() else {
+            return;
+        };
+        let (quoted, text) = match qualifier.kind() {
+            TokenKind::BracketedQualifier => (false, qualifier.text().to_owned()),
+            TokenKind::QuotedIdentifier => {
+                let inner = qualifier.text();
+                let inner = inner
+                    .strip_prefix('\'')
+                    .and_then(|t| t.strip_suffix('\''))
+                    .unwrap_or(inner);
+                (true, inner.to_owned())
+            }
+            _ => return,
+        };
+        let Some((folder, rest)) = text.split_once('[') else {
+            return;
+        };
+        let Some((book, sheet)) = rest.split_once(']') else {
+            return;
+        };
+        if sheet.is_empty() || (folder.is_empty() && book.parse::<u32>().is_ok()) {
+            return;
+        }
+        let wanted = book.to_uppercase();
+        let Some(&(number, _)) = self.links.iter().find(|(_, name)| *name == wanted) else {
+            return;
+        };
+        let plain = sheet
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_')
+            && sheet.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.');
+        let written = if plain {
+            // A quoted name doubles its quotes; a plain one holds none.
+            format!("[{number}]{sheet}")
+        } else if quoted {
+            format!("'[{number}]{sheet}'")
+        } else {
+            format!("'[{number}]{}'", sheet.replace('\'', "''"))
+        };
+        let span = qualifier.span();
+        self.edits.push((span.start, span.end(), written));
     }
 
     fn name_is_multi(&self, text: &str) -> bool {
@@ -236,9 +297,26 @@ impl Walk<'_> {
                     self.insert(token.span().start, "_xlpm.");
                     return multi(parameter);
                 }
+                if token.kind() == TokenKind::Identifier
+                    && tokens.len() == 1
+                    && !is_cell(token.text())
+                    && !token.text().eq_ignore_ascii_case("TRUE")
+                    && !token.text().eq_ignore_ascii_case("FALSE")
+                    && function(token.text()).is_some()
+                    && !self
+                        .names
+                        .iter()
+                        .any(|name| name.name.eq_ignore_ascii_case(token.text()))
+                {
+                    self.insert(token.span().start, "_xleta.");
+                    return multi(false);
+                }
                 multi(self.name_is_multi(token.text()))
             }
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
+                if node.kind() == SyntaxKind::QualifiedReferenceExpr {
+                    self.number_external_book(node);
+                }
                 let mut shape = Shape::default();
                 for child in node.child_nodes() {
                     shape = self.walk(child, depth + 1)?;
@@ -469,8 +547,14 @@ impl Walk<'_> {
         // array) is the case where it returns a whole row or column (measured:
         // XLOOKUP(11,A1:A3,B1:B3) is ordinary).
         let lookup_range = upper == "XLOOKUP" && shapes.get(1).is_some_and(|shape| shape.multi);
+        // GROUPBY, PIVOTBY and TRIMRANGE take ranges as they are: their measured position flags
+        // only repeat that the call alone is a dynamic array, and Excel 16.0.20527 stores
+        // ROWS(GROUPBY(C1:C6,D1:D6,SUM)), ROWS(PIVOTBY(...)) and ROWS(TRIMRANGE(C1:C20)) as
+        // ordinary formulas (dc-h9u, 2026-10-30).
+        let takes_ranges = matches!(upper.as_str(), "GROUPBY" | "PIVOTBY" | "TRIMRANGE");
         for (position, shape) in shapes.iter().enumerate() {
             if !shape.multi
+                || takes_ranges
                 || entry.positions.is_empty()
                 || (literal_index && position == 0)
                 || (lookup_range && position == 2)
@@ -589,6 +673,21 @@ impl Walk<'_> {
 /// and whether Excel stores it as a dynamic array. `names` are the workbook's defined names,
 /// which tell a constant name from one that may hold several values.
 pub fn file_form(formula: &FormulaText, names: &[DefinedName]) -> Result<FileForm, FileFormError> {
+    file_form_with_links(formula, names, &[])
+}
+
+/// [`file_form`] in a workbook with links to other workbooks, `links` giving each link's number
+/// and the file name of the book it targets (dc-ylr): a reference naming such a book by file name
+/// is written by the link's number.
+pub fn file_form_with_links(
+    formula: &FormulaText,
+    names: &[DefinedName],
+    links: &[(u32, String)],
+) -> Result<FileForm, FileFormError> {
+    let links: Vec<(u32, String)> = links
+        .iter()
+        .map(|(number, name)| (*number, name.to_uppercase()))
+        .collect();
     let units = formula.text().utf16_code_units();
     let text = String::from_utf16(units).map_err(|_| FileFormError::Unreadable)?;
     let source = format!("={text}");
@@ -598,6 +697,7 @@ pub fn file_form(formula: &FormulaText, names: &[DefinedName]) -> Result<FileFor
     }
     let mut walk = Walk {
         names,
+        links: &links,
         edits: Vec::new(),
         dynamic: false,
         scopes: Vec::new(),

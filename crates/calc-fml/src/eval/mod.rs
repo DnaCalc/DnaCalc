@@ -47,7 +47,8 @@ pub(crate) use compile::file_unprefixed;
 pub use run::{EvalFault, MAX_CALL_DEPTH, evaluate};
 
 use crate::reference::{
-    FormulaAnchor, PlacementError, ReferenceCatalog, ReferenceOperand, ReferenceReader,
+    ExternalOperand, FormulaAnchor, PlacementError, ReferenceCatalog, ReferenceOperand,
+    ReferenceReader,
 };
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, ExcelText, GridArea, NumericMode, ReferenceLike,
@@ -77,6 +78,9 @@ pub struct CompiledPlan {
     /// Whether each reference is placed with its relative offsets wrapping around the grid's
     /// edge ([`ReferenceOperand::instantiate_wrapped`]): a defined name's references.
     wrapped: Box<[bool]>,
+    /// The references to other workbooks, which read the values the workbook's links cache
+    /// (dc-ylr).
+    externals: Box<[ExternalOperand]>,
     form: FormulaForm,
 }
 
@@ -114,6 +118,12 @@ impl CompiledPlan {
     /// The form the plan was compiled in.
     pub fn form(&self) -> FormulaForm {
         self.form
+    }
+
+    /// Whether the plan reads another workbook's cells, whose values are those the workbook's
+    /// links cache, not live inputs (dc-ylr).
+    pub fn reads_external_links(&self) -> bool {
+        !self.externals.is_empty()
     }
 
     /// Every catalogue entry the plan may call, in the order compile emitted the calls, those in
@@ -257,6 +267,9 @@ enum Instruction {
     /// value is taken (`GROUPBY(A2:A9,B2:B9,SUM)`, which a file stores as `_xleta.SUM`), which a
     /// call of it calls with the arguments it is given (dc-h9u).
     Function(Target),
+    /// Pushes the plan's external reference `.0` (dc-ylr): a reference to the cells of the sheet
+    /// the workbook's link to the other book caches.
+    External(usize),
     /// Runs block `.0`, a defined name's formula, in a frame of its own and pushes its value.
     Name(usize),
     /// Pushes a copy of the value `.0` places below the top of the stack (0 is the top).
@@ -374,6 +387,11 @@ impl FormulaInstance {
     /// The placed areas, one per entry of [`CompiledPlan::references`], in its order.
     pub fn areas(&self) -> &[Result<GridArea, PlacementError>] {
         &self.areas
+    }
+
+    /// The plan's external reference `index` (dc-ylr).
+    pub(crate) fn external(&self, index: usize) -> &ExternalOperand {
+        &self.plan.externals[index]
     }
 
     /// The value reference operand `index` pushes.

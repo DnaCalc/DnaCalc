@@ -12,8 +12,9 @@
 //! Of the workbook part's other elements, the loaded workbook carries the date system its
 //! `workbookPr` names ([`DateSystem`]), the calculation mode `calcPr`'s `calcMode` names
 //! ([`CalcMode`]), and its `definedName` elements: a block's locator becomes the block's anchor,
-//! and every other defined name is counted and not loaded. `calcPr`'s other attributes and every
-//! other element of the workbook part are not read.
+//! and every other defined name is counted and not loaded. Its `externalReference` elements name
+//! externalLink parts, whose cached books the definitions hold (`external`, dc-ylr). `calcPr`'s
+//! other attributes and every other element of the workbook part are not read.
 //!
 //! The package's DNA view manifest, when it holds one, is read into the model's skin layout
 //! ([`manifest`]): its blocks, each anchored where its locator refers, and its placements in the
@@ -28,6 +29,7 @@ pub(crate) mod address;
 mod chart;
 pub(crate) mod conditional;
 mod error;
+mod external;
 pub(crate) mod geometry;
 pub(crate) mod manifest;
 pub(crate) mod metadata;
@@ -643,6 +645,8 @@ struct WorkbookPart {
     iteration: IterationSettings,
     /// Its `definedName` elements, in order.
     defined_names: Vec<DefinedName>,
+    /// The relationship IDs of its `externalReference` elements, in order (dc-ylr).
+    external_references: Vec<String>,
 }
 
 /// The text of the `definedName` element whose start tag was just read, with its `_xHHHH_`
@@ -677,6 +681,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     let mut active_tab: Option<usize> = None;
     let mut iteration = IterationSettings::EXCEL_DEFAULT;
     let mut defined_names = Vec::new();
+    let mut external_references = Vec::new();
     loop {
         let element = match events.next()? {
             Some(XmlEvent::Start(element)) => element,
@@ -786,6 +791,26 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
             }
             continue;
         }
+        if element.name.is(MAIN_NAMESPACE, "externalReferences") {
+            loop {
+                match events.next()? {
+                    Some(XmlEvent::Start(reference)) => {
+                        if reference.name.is(MAIN_NAMESPACE, "externalReference") {
+                            external_references.push(
+                                relationship_attribute(&reference, "id")
+                                    .unwrap_or_default()
+                                    .to_owned(),
+                            );
+                        }
+                        events.skip()?;
+                    }
+                    Some(XmlEvent::Text(_)) => {}
+                    Some(XmlEvent::End(_)) => break,
+                    None => return Err(events.invalid("the part ends inside externalReferences")),
+                }
+            }
+            continue;
+        }
         if !element.name.is(MAIN_NAMESPACE, "sheets") {
             events.skip()?;
             continue;
@@ -870,6 +895,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
         active_tab: active_tab.unwrap_or(0),
         iteration,
         defined_names,
+        external_references,
     })
 }
 
@@ -970,7 +996,10 @@ pub fn load(
         active_tab,
         iteration,
         defined_names,
+        external_references,
     } = read_workbook(package, &workbook)?;
+    let mut external_books =
+        external::read_external_books(package, &workbook, &external_references);
     let shared_strings = match workbook_part_of(package, &workbook, SHARED_STRINGS)? {
         Some(part) => strings::shared_strings(package, &part)?,
         None => Vec::new(),
@@ -1054,6 +1083,15 @@ pub fn load(
             }
         }
     }
+    // dc-ylr: each sheet of another workbook a link caches gets an ID of its own, by which a
+    // reference to it names it; one that cannot be issued leaves the sheet without (refused).
+    for sheet in external_books
+        .iter_mut()
+        .flatten()
+        .flat_map(|book| book.sheets.iter_mut())
+    {
+        sheet.id = sheet_ids.issue().ok();
+    }
     let named: Vec<(SheetId, &SheetName)> = declared
         .iter()
         .zip(&issued)
@@ -1116,7 +1154,8 @@ pub fn load(
         .with_macro_enabled(macro_enabled)
         .with_iteration(iteration)
         .with_data_tables(data_tables)
-        .with_workbook_name(package.source_name().map(str::to_owned));
+        .with_workbook_name(package.source_name().map(str::to_owned))
+        .with_external_books(external_books);
     let entries = declared
         .into_iter()
         .zip(&issued)

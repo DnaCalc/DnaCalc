@@ -33,9 +33,10 @@ mod template;
 mod text;
 mod transform;
 
-pub(crate) use bind::qualified_name;
+pub(crate) use bind::{external_operand, qualified_name};
 pub use bind::{
-    BindError, NameDefinition, NameScope, ReferenceCatalog, ReferenceSite, bind_references,
+    BindError, ExternalBookRef, ExternalOperand, NameDefinition, NameScope, ReferenceCatalog,
+    ReferenceSite, bind_references,
 };
 pub use read::{
     CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cell_by_area,

@@ -344,7 +344,9 @@ fn three_d_references_reach_the_functions_that_take_them() {
     ));
 }
 
-/// External references are refused wherever they stand, INDIRECT's text included.
+/// External references are refused where no link caches their sheet: a book a file's formula
+/// numbers (`[1]`) or a typed formula names by its file name, when it runs against a catalogue that
+/// caches no link (dc-ylr); INDIRECT's text naming another workbook is #REF!.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn external_references_are_refused() {
@@ -353,24 +355,22 @@ fn external_references_are_refused() {
         "=[1]Ja!A1",
         "=SUM('[Book2.xlsx]Ja'!A1:B2)",
         "=[Book2.xlsx]Ja!A1+1",
+        r"=SUM('C:\Data\[Book2.xlsx]Ja'!A1:B2)",
     ] {
-        assert!(
-            matches!(
-                book.refusal(formula, "B1"),
-                CompileError::Reference {
-                    error: BindError::ExternalWorkbook,
-                    ..
-                }
-            ),
+        assert_eq!(
+            book.eval(FormulaForm::Legacy, formula, "B1"),
+            Ok(Err(EvalFault::NotModelled {
+                construct: "a reference to another workbook whose sheet no link of this workbook caches",
+                owner: "dc-ylr",
+            })),
             "{formula}"
         );
     }
+    // INDIRECT's text naming another workbook names a closed one: #REF! (dc-ylr, Excel
+    // 16.0.20527, 2026-10-30).
     assert_eq!(
         book.eval(FormulaForm::Legacy, "=INDIRECT(\"[Book2]Ja!A1\")", "B1"),
-        Ok(Err(EvalFault::NotModelled {
-            construct: "reference text naming another workbook (an external reference)",
-            owner: "dc-10y",
-        }))
+        Ok(Ok(CalcValue::error(W::Ref)))
     );
 }
 

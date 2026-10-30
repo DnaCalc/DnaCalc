@@ -19,3 +19,5 @@
 .oc-help h3{margin:0 0 4px;font:600 14px ui-monospace,Consolas,monospace}
 .oc-help code{font-size:13px}
 .oc-help p{margin:4px 0}
+.oc-help .oc-help-source{margin:0 0 4px;font-size:11px;color:var(--dna-ink-3)}
+.oc-help .oc-help-source a{color:var(--dna-accent-ink)}
