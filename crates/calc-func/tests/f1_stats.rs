@@ -255,3 +255,24 @@ fn random_numbers_draw_from_the_services_source() {
     ));
     assert_eq!((rows, cols, cells), (2, 2, vec![1.0, 3.0, 4.0, 4.0]));
 }
+
+/// Recorded build-20131 rows oc1540/oc35142/oc35121 and W111 product-overflow rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn exponential_distribution_uses_the_recorded_arithmetic_stores() {
+    for (x, lambda, cumulative, expected) in [
+        (0x3e9f46de57161763, 0x3ff0000000000000, true, 0x3e9f46dddcce69b3),
+        (0x3eeaf5c72d71a9d8, 0x3fc2294a8d5b7317, true, 0x3ebe9a11ac30f36e),
+        (0x3ec7bfe8f913eebb, 0x3ff406b01029c9a0, false, 0x3ff406ab699425f4),
+    ] {
+        exact(call("EXPON.DIST", vec![n(f64::from_bits(x)), n(f64::from_bits(lambda)), b(cumulative)]), f64::from_bits(expected));
+    }
+    for (x, lambda, cumulative) in [
+        (0x418d8b21f25875a1, 0x7f685d78a25c9e53, true),
+        (0x42577d4b99895077, 0x7db09552fcb9586c, false),
+    ] {
+        error(call("EXPON.DIST", vec![n(f64::from_bits(x)), n(f64::from_bits(lambda)), b(cumulative)]), Num);
+    }
+    // The shape-one gamma CDF calls the same exponential kernel (recorded row oc61017).
+    exact(call("GAMMA.DIST", vec![n(f64::from_bits(0x3e54df1215fc525b)), n(1.0), n(1.0), b(true)]), f64::from_bits(0x3e54df12129517f4));
+}

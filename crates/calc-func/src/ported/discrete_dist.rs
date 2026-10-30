@@ -27,7 +27,7 @@
 //! exponential, `lf = ln(2 pi x (n - x) / n)`, and `n ln p` at x = n. Excel's masses agree with these to within a few
 //! units in the last place; about half are bit-identical (the rest are dc-j9k's to find).
 
-use crate::ported::excel_numeric::{excel_binom_pmf_exp, excel_exp, excel_expm1, excel_log};
+use crate::ported::excel_numeric::{excel_binom_pmf_exp, excel_exp, excel_expm1_spilled, excel_log};
 use crate::value::WorksheetErrorCode;
 
 type R = Result<f64, WorksheetErrorCode>;
@@ -161,14 +161,18 @@ fn finite(v: f64) -> R {
 
 /// `EXPON.DIST(x, lambda, cumulative)`.
 pub fn expon_dist_kernel(x: f64, lambda: f64, cumulative: bool) -> R {
+    use crate::ported::excel_numeric::excel_x87_mul;
     if x < 0.0 || lambda <= 0.0 {
         return Err(NUM);
     }
-    let mut t = lambda * x;
+    let mut t = excel_x87_mul(lambda, x);
+    if !t.is_finite() {
+        return Err(NUM);
+    }
     if t.is_subnormal() {
         t = 0.0;
     }
-    finite(if cumulative { -excel_expm1(-t) } else { lambda * excel_exp(-t) })
+    finite(if cumulative { -excel_expm1_spilled(-t) } else { excel_x87_mul(lambda, excel_exp(-t)) })
 }
 
 /// `BINOM.DIST(number_s, trials, probability_s, cumulative)`.

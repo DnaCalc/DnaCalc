@@ -6,7 +6,7 @@
 //!
 //! POWER is the `^` operator's rule ([`super::arithmetic::raise`]).
 
-use super::kit::{Grid, fail, given, grid, num, out, out_matrix, out_text, text, values};
+use super::kit::{Grid, fail, given, grid, num, num_with_subnormal, out, out_matrix, out_text, text, values};
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::real_policy::ExcelRealPolicy;
 use crate::ported::{self as k};
@@ -53,7 +53,9 @@ ported_family! {
     8 atan2 "ATAN2" (2, 2) [V "x_num", V "y_num"] |s, a, sv| {
         binary(s, a, k::atan2::atan2_kernel)
     }
-    9 atanh "ATANH" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::atanh::atanh_kernel) }
+    9 atanh "ATANH" (1, 1) [V "number"] |s, a, sv| {
+        out(s, k::atanh::atanh_kernel(num_with_subnormal(s, a, 0)?))
+    }
     10 cos "COS" (1, 1) [V "number"] |s, a, sv| {
         raw(s, a, ExcelRealPolicy::CIRCULAR_TRIG, k::cos::cos_kernel)
     }
@@ -112,10 +114,10 @@ ported_family! {
         unary(s, a, k::factdouble::factdouble_kernel)
     }
     34 combin "COMBIN" (2, 2) [V "number", V "number_chosen"] |s, a, sv| {
-        binary(s, a, k::combin::combin_kernel)
+        out(s, k::combin::combin_kernel(num_with_subnormal(s, a, 0)?, num_with_subnormal(s, a, 1)?))
     }
     35 combina "COMBINA" (2, 2) [V "number", V "number_chosen"] |s, a, sv| {
-        binary(s, a, k::combina::combina_kernel)
+        out(s, k::combina::combina_kernel(num_with_subnormal(s, a, 0)?, num_with_subnormal(s, a, 1)?))
     }
     36 permut "PERMUT" (2, 2) [V "number", V "number_chosen"] |s, a, sv| {
         binary(s, a, k::permut_fn::permut_kernel)

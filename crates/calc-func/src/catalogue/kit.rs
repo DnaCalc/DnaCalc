@@ -113,6 +113,15 @@ pub(super) fn num(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Ste
     site.number_argument(index, &arguments[index])
 }
 
+/// Number coercion for a kernel that implements its own measured subnormal input policy.
+/// Keep the ordinary coercions and refusals for every other kind of value.
+pub(super) fn num_with_subnormal(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<f64> {
+    match arguments[index].core_ref() {
+        CoreRef::Number(n) if n.is_subnormal() => Ok(n),
+        _ => num(site, arguments, index),
+    }
+}
+
 /// Argument `index` as a number, or `default` when the call does not reach it. An argument the
 /// call leaves empty (`f(1,)`) is read as 0, as coercion reads it.
 pub(super) fn opt(site: &Site<'_>, arguments: &[CalcValue], index: usize, default: f64) -> Step<f64> {
@@ -347,4 +356,3 @@ pub(super) fn pairs(
     }
     Ok(found)
 }
-

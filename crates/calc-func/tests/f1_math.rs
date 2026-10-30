@@ -62,6 +62,21 @@ fn hyperbolic_functions() {
     close(call("CSCH", vec![n(1.0)]), 0.8509181282393216, 1e-15);
 }
 
+/// Recorded build-20228 admission witnesses: the ported kernels implement DAZ,
+/// and the catalogue must let those inputs reach them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn measured_subnormal_admission_reaches_the_kernel() {
+    for bits in [1, 0x8000_0000_0000_0001] {
+        exact(call("ATANH", vec![n(f64::from_bits(bits))]), 0.0);
+        exact(call("COMBIN", vec![n(f64::from_bits(bits)), n(0.0)]), 1.0);
+        exact(call("COMBIN", vec![n(1.0), n(f64::from_bits(bits))]), 1.0);
+        exact(call("COMBINA", vec![n(1.0), n(f64::from_bits(bits))]), 1.0);
+    }
+    error(call("ATANH", vec![t("not a number")]), Value);
+    error(call("COMBIN", vec![n(-f64::MIN_POSITIVE), n(0.0)]), Num);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn angles_and_pi() {

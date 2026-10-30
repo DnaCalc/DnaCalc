@@ -323,14 +323,30 @@ fn specialcase(tmp: f64, mut sbits: u64, ki: u64) -> f64 {
 /// everything probed); plain `u - 1` otherwise. The numerator is one double
 /// product, then the divide (alternate orderings refuted at 82.9%/84.9%).
 pub(crate) fn excel_expm1_internal(t: f64) -> f64 {
+    expm1_internal_graph(t, false)
+}
+
+/// The same cancellation correction with each arithmetic assignment stored from x87 PC64.
+/// EXPON.DIST's recorded rows distinguish both the numerator product and the final division
+/// from binary64 arithmetic; its density also stores the rate product through x87.
+pub(crate) fn excel_expm1_spilled(t: f64) -> f64 {
+    expm1_internal_graph(t, true)
+}
+
+fn expm1_internal_graph(t: f64, spilled: bool) -> f64 {
     let u = excel_exp(t);
     if u == 1.0 {
         return t;
     }
+    let difference = if spilled { excel_x87_sub(u, 1.0) } else { u - 1.0 };
     if t.abs() < 1.0 {
-        (u - 1.0) * t / excel_log(u)
+        if spilled {
+            excel_x87_div(excel_x87_mul(difference, t), excel_log(u))
+        } else {
+            difference * t / excel_log(u)
+        }
     } else {
-        u - 1.0
+        difference
     }
 }
 
