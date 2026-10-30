@@ -22,7 +22,9 @@ here. Read `AGENTS.md` first; it is the contract. Then read the bead of your wor
   you leave open is useful. Close a bead with `br close <id> --reason "<what works; evidence;
   still open>"`.
 - **Licence.** No third-party reference code in our repositories (see
-  `docs/plan/THIRD_PARTY_REVIEW.md`). Every new calc-func file gets a ledger entry
+  `docs/plan/THIRD_PARTY_REVIEW.md`). What you may read or port when working out an algorithm,
+  and how facts from restricted sources may reach an implementation, is in
+  `docs/plan/RESEARCH_SOURCES.md` (source tiers, analyst and implementer roles). Every new calc-func file gets a ledger entry
   (`migration/licence-ledger.json`). Microsoft's function descriptions are kept, attributed, with
   their source URLs.
 

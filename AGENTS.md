@@ -60,7 +60,9 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    with `include_bytes!` in test code. A test that cannot (it drives Excel or the file system)
    keeps `#[test]` and a `/// Native-only: <reason>` doc line. A new file under
    `crates/calc-func` or `crates/calc-value` gets an entry in `migration/licence-ledger.json`
-   (`path`, `class`, `reason`).
+   (`path`, `class`, `reason`). What you may read or port when working out how Excel computes a
+   function is in `docs/plan/RESEARCH_SOURCES.md`: four source tiers, and an analyst/implementer
+   split for sources whose code we may not use.
 
    `cargo xtask sweep` runs the slow and structural validation: the five architecture checks
    (dependencies, os-imports, wasm-refusal, tree-reference-tokens, the word scan over all text

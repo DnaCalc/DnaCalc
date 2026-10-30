@@ -86,3 +86,11 @@ shipped wasm unless the row says otherwise.
 
 Until the owner rules on rows 1 to 7, `site pack` builds and the local checks run, but the release
 must not be published. `OWNER_STEPS.md` (dc-ysl.5) says so as its first step.
+
+## Research sources
+
+For future work, `docs/plan/RESEARCH_SOURCES.md` sets which sources may be read or ported when
+working out a function's algorithm (four tiers), and how facts from Numerical Recipes, R nmath,
+glibc and similar code may reach an implementation (an analyst writes a facts-only
+specification, someone checks it, a different agent implements it). Microsoft's leaked source
+and disassembly of Microsoft binaries are not used at all.
