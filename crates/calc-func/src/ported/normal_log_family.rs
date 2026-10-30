@@ -321,7 +321,9 @@ pub fn lognorm_dist_kernel(
     // Inverse-problem identity, live Excel 16.0 b20228: LOGNORM.DIST(x,μ,σ,TRUE)
     // == NORM.S.DIST((LN(x)-μ)/σ,TRUE) == NORMSDIST((LN(x)-μ)/σ)
     // == NORM.DIST(LN(x),μ,σ,TRUE) on 45/45 mixed (x,μ,σ) rows.
-    let z = (crate::ported::excel_numeric::excel_log(x) - mean) / sigma;
+    // The full recorded banks distinguish the internal CRT logarithm at oc3066;
+    // the public LN chain differs there. The earlier 45-row identity still holds.
+    let z = (crt_log(x) - mean) / sigma;
     if cumulative {
         Ok(norm_cdf(z))
     } else {

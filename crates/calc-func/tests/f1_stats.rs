@@ -348,3 +348,13 @@ fn poisson_zero_count_retains_recorded_subnormal_probabilities() {
 fn gamma_cumulative_stores_the_final_series_product() {
     exact(call("GAMMA.DIST", vec![n(f64::from_bits(0x3ee4e69846c122d8)), n(f64::from_bits(0x4000000000000000)), n(f64::from_bits(0x3ff0000000000000)), b(true)]), f64::from_bits(0x3dcb4d6c2d100466));
 }
+
+/// Recorded oc3066 distinguishes the logarithm composed into the lognormal CDF.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lognormal_uses_its_internal_logarithm() {
+    let x = n(f64::from_bits(0x3fe2_57a6_22fc_740d));
+    let expected = f64::from_bits(0x3fd2_7dc8_2b76_c882);
+    exact(call("LOGNORM.DIST", vec![x.clone(), n(0.0), n(1.0), b(true)]), expected);
+    exact(call("LOGNORMDIST", vec![x, n(0.0), n(1.0)]), expected);
+}
