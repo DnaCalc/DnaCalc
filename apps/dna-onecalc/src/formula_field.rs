@@ -417,11 +417,24 @@ pub fn help_view(target: FunctionCallTarget<'static>) -> impl IntoView {
     let description = help::description(target)
         .unwrap_or("No description in calc-func's help text.")
         .to_owned();
+    // Microsoft's official description is Microsoft's text: show where it comes from.
+    let source = help::help(target)
+        .filter(|h| h.microsoft.is_some())
+        .and_then(|h| h.source)
+        .map(|url| {
+            view! {
+                <p class="oc-help-source" data-onecalc="help-source">
+                    "Source: "
+                    <a href=url target="_blank" rel="noopener noreferrer">"Microsoft"</a>
+                </p>
+            }
+        });
     view! {
         <aside class="oc-help" data-onecalc="function-help">
             <h3 data-onecalc="help-name">{target.spelling()}</h3>
             <code data-onecalc="help-signature">{signature}</code>
             <p data-onecalc="help-description">{description}</p>
+            {source}
             <p>{format!("{}; in calc-func's catalogue.", arity_text(target))}</p>
         </aside>
     }
