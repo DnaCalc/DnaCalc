@@ -63,6 +63,8 @@ pub struct Target {
     pub name: String,
     pub kinds: Vec<String>,
     pub src_path: PathBuf,
+    /// The features cargo builds the target only with (`required-features`).
+    pub required_features: Vec<String>,
 }
 
 /// One workspace member, as `cargo metadata --no-deps` reports it.
@@ -188,6 +190,12 @@ impl Workspace {
                         .filter_map(|kind| kind.as_str().map(str::to_owned))
                         .collect(),
                     src_path: PathBuf::from(string_field(target, "src_path", "a target")?),
+                    required_features: target["required-features"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|feature| feature.as_str().map(str::to_owned))
+                        .collect(),
                 });
             }
             members.push(Member {

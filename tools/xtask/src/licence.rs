@@ -48,7 +48,11 @@ fn strings(value: &Value, what: &str) -> Result<Vec<String>, String> {
         .as_array()
         .ok_or_else(|| format!("{what} is not a list"))?
         .iter()
-        .map(|v| v.as_str().map(str::to_owned).ok_or_else(|| format!("{what} holds a non-string")))
+        .map(|v| {
+            v.as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| format!("{what} holds a non-string"))
+        })
         .collect()
 }
 
@@ -58,7 +62,10 @@ impl Scan {
             serde_json::from_str(text).map_err(|e| format!("{LEDGER_PATH} is not JSON: {e}"))?;
         let scan = &value["scan"];
         let mut families = Vec::new();
-        for family in scan["markers"].as_array().ok_or("scan.markers is not a list")? {
+        for family in scan["markers"]
+            .as_array()
+            .ok_or("scan.markers is not a list")?
+        {
             let name = family["family"]
                 .as_str()
                 .ok_or("a marker family has no name")?
@@ -73,7 +80,10 @@ impl Scan {
             families.push(Family { name, forms });
         }
         let mut allowed = BTreeMap::new();
-        for (path, entry) in scan["allowed"].as_object().ok_or("scan.allowed is not an object")? {
+        for (path, entry) in scan["allowed"]
+            .as_object()
+            .ok_or("scan.allowed is not an object")?
+        {
             let owner = entry["owner"]
                 .as_str()
                 .filter(|s| !s.is_empty())
@@ -85,7 +95,9 @@ impl Scan {
                 .ok_or_else(|| format!("allowance for {path} has no counts"))?
             {
                 if !families.iter().any(|f| &f.name == family) {
-                    return Err(format!("allowance for {path} names unknown family {family}"));
+                    return Err(format!(
+                        "allowance for {path} names unknown family {family}"
+                    ));
                 }
                 let count = count
                     .as_u64()
@@ -125,7 +137,11 @@ pub fn count_marker(text: &str, marker: &str) -> usize {
     while let Some(found) = text[from..].find(marker) {
         let start = from + found;
         let end = start + marker.len();
-        let before = if start == 0 { None } else { bytes.get(start - 1) };
+        let before = if start == 0 {
+            None
+        } else {
+            bytes.get(start - 1)
+        };
         if boundary(before) && boundary(bytes.get(end)) {
             count += 1;
         }
@@ -139,7 +155,11 @@ pub fn family_counts(text: &str, families: &[Family]) -> BTreeMap<String, usize>
     families
         .iter()
         .filter_map(|family| {
-            let n: usize = family.forms.iter().map(|form| count_marker(text, form)).sum();
+            let n: usize = family
+                .forms
+                .iter()
+                .map(|form| count_marker(text, form))
+                .sum();
             (n > 0).then(|| (family.name.clone(), n))
         })
         .collect()
@@ -161,7 +181,9 @@ pub fn coverage_findings(tracked: &BTreeSet<String>, entries: &[String]) -> Vec<
         ));
     }
     for path in seen.difference(tracked) {
-        findings.push(format!("{LEDGER_PATH} has an entry for {path}, which is not a tracked file"));
+        findings.push(format!(
+            "{LEDGER_PATH} has an entry for {path}, which is not a tracked file"
+        ));
     }
     findings
 }
@@ -176,7 +198,19 @@ fn tracked(root: &Path, roots: &[String]) -> Result<BTreeSet<String>, String> {
         .collect())
 }
 
+/// The whole provenance scan: the ledger covers every file under its roots, and no marker
+/// reappears (the sweep).
 pub fn check(root: &Path) -> CheckResult {
+    check_with(root, true)
+}
+
+/// The marker part of the provenance scan alone (the per-commit check); the ledger's completeness
+/// is left to the sweep.
+pub fn check_markers(root: &Path) -> CheckResult {
+    check_with(root, false)
+}
+
+fn check_with(root: &Path, ledger: bool) -> CheckResult {
     let scan = match fs::read_to_string(root.join(LEDGER_PATH))
         .map_err(|e| format!("cannot read {LEDGER_PATH}: {e}"))
         .and_then(|text| Scan::parse(&text))
@@ -184,12 +218,17 @@ pub fn check(root: &Path) -> CheckResult {
         Ok(scan) => scan,
         Err(e) => return CheckResult::new(NAME, format!("not checked: {e}"), vec![e], Value::Null),
     };
-    let (ledger_files, scanned_files) =
-        match tracked(root, &scan.ledger_roots).and_then(|l| Ok((l, tracked(root, &scan.scan_roots)?))) {
-            Ok(both) => both,
-            Err(e) => return CheckResult::new(NAME, format!("not checked: {e}"), vec![e], Value::Null),
-        };
-    let mut findings = coverage_findings(&ledger_files, &scan.entries);
+    let (ledger_files, scanned_files) = match tracked(root, &scan.ledger_roots)
+        .and_then(|l| Ok((l, tracked(root, &scan.scan_roots)?)))
+    {
+        Ok(both) => both,
+        Err(e) => return CheckResult::new(NAME, format!("not checked: {e}"), vec![e], Value::Null),
+    };
+    let mut findings = if ledger {
+        coverage_findings(&ledger_files, &scan.entries)
+    } else {
+        Vec::new()
+    };
     let mut hits = serde_json::Map::new();
     let mut total = 0;
     let mut text_files = 0;
@@ -219,7 +258,10 @@ pub fn check(root: &Path) -> CheckResult {
             }
         }
         if !counts.is_empty() || !allowed.is_empty() {
-            hits.insert(path.clone(), json!({ "counts": counts, "allowed": allowed, "owner": owner }));
+            hits.insert(
+                path.clone(),
+                json!({ "counts": counts, "allowed": allowed, "owner": owner }),
+            );
         }
     }
     let allowed_total: usize = scan.allowed.values().flat_map(|(c, _)| c.values()).sum();
@@ -229,7 +271,9 @@ pub fn check(root: &Path) -> CheckResult {
         scan.ledger_roots.join(" and "),
         scan.entries.len(),
         scan.families.len(),
-        hits.values().filter(|h| h["counts"].as_object().is_some_and(|c| !c.is_empty())).count(),
+        hits.values()
+            .filter(|h| h["counts"].as_object().is_some_and(|c| !c.is_empty()))
+            .count(),
         scan.scan_roots.join(", "),
         scan.allowed.len(),
     );
@@ -249,7 +293,10 @@ mod tests {
 
     /// A family whose one marker is `word`, given as hex the way the ledger stores it.
     fn family(name: &str, hex: &str) -> Family {
-        Family { name: name.to_owned(), forms: vec![unhex(hex).unwrap()] }
+        Family {
+            name: name.to_owned(),
+            forms: vec![unhex(hex).unwrap()],
+        }
     }
 
     #[test]
@@ -284,6 +331,10 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let scan = Scan::parse(&fs::read_to_string(root.join(LEDGER_PATH)).unwrap()).unwrap();
         assert!(!scan.families.is_empty() && !scan.entries.is_empty());
-        assert!(scan.allowed.values().all(|(_, owner)| owner.starts_with("dc-")));
+        assert!(
+            scan.allowed
+                .values()
+                .all(|(_, owner)| owner.starts_with("dc-"))
+        );
     }
 }

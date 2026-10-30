@@ -129,12 +129,14 @@ pub struct CaptureOutcome {
     pub output_package: PathBuf,
 }
 
-/// The capture tool's revision: this package's version, the content hash of the worker script it
-/// embeds, and the repository revision when given.
+/// The capture tool's revision: this package's version, the worker's results version
+/// ([`crate::WORKER_RESULTS_VERSION`]), the content hash of the worker script it embeds, and the
+/// repository revision when given. It is provenance: no capture is judged by it.
 pub fn capture_tool_revision(repository: Option<&str>) -> String {
     let mut revision = format!(
-        "calc-oracle-excel {}; worker sha256:{}",
+        "calc-oracle-excel {}; worker results {}; worker sha256:{}",
         env!("CARGO_PKG_VERSION"),
+        crate::WORKER_RESULTS_VERSION,
         sha256_hex(WORKER_SCRIPT.as_bytes())
     );
     if let Some(repository) = repository {
@@ -583,6 +585,10 @@ mod tests {
     fn the_tool_revision_names_the_embedded_worker() {
         let revision = capture_tool_revision(Some("abc123"));
         assert!(revision.starts_with("calc-oracle-excel "), "{revision}");
+        assert!(
+            revision.contains(&format!("; worker results {};", crate::WORKER_RESULTS_VERSION)),
+            "{revision}"
+        );
         assert!(
             revision.contains(&format!(
                 "worker sha256:{}",

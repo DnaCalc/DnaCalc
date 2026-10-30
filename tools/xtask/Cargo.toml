@@ -20,6 +20,9 @@ portability = "native-only"
 # FunctionId).
 [dependencies]
 calc-engine = { path = "../../crates/calc-engine" }
+# calc-doc reads the parts of an oracle workbook and of the package Excel saved, stored or
+# deflated, for the section captures (`oracle_cases.rs`).
+calc-doc = { path = "../../crates/calc-doc" }
 calc-fml = { path = "../../crates/calc-fml" }
 calc-func = { path = "../../crates/calc-func" }
 calc-host = { path = "../../crates/calc-host" }
@@ -48,3 +51,14 @@ calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 # isolation uses it).
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Globalization", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
+
+# The acceptance suite builds copies of the workspace and lane clones and takes hours, so a plain
+# `cargo test` leaves it out: it needs the `acceptance` feature, which `cargo xtask sweep` and
+# `cargo xtask accept` pass.
+[features]
+acceptance = []
+
+[[test]]
+name = "acceptance"
+path = "tests/acceptance.rs"
+required-features = ["acceptance"]

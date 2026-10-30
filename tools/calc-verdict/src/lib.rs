@@ -31,6 +31,9 @@
 //!   WitnessSet rows, with the environment of each reading), and OxFunc's ODR-FN-005 classing of a
 //!   calculated result against one, which `cargo xtask witness judge` and calc-func's pinned
 //!   witness test both use.
+//! - [`workbook_sections`]: an oracle workbook's worksheets as sections, each keyed by what
+//!   decides its results, and [`section_record`] and [`merged_record`], which split a capture into
+//!   section captures and judge several together (`section.rs`).
 //! - [`sha256_hex`]: the content hash a version 2 record names its packages and its capture
 //!   worker by.
 //!
@@ -46,6 +49,7 @@ mod evidence;
 mod json;
 mod replay;
 mod result;
+mod section;
 mod session;
 mod sha256;
 mod typed;
@@ -70,6 +74,10 @@ pub use replay::{
     MISSING_CAPTURE_FORMAT, MISSING_CAPTURE_VERSION, MissingCapture, file_cache_replay,
 };
 pub use result::{CellResult, Provenance, RESULT_FORMAT, RESULT_VERSION, ResultSet, RunIdentity};
+pub use section::{
+    SECTION_KEY_PREFIX, WorkbookSection, merged_record, section_record, stored_package_parts,
+    workbook_sections,
+};
 pub use session::{
     CalculationContext, CaptureFailure, CaptureSession, STAGE_ENVIRONMENT, STAGE_INVENTORY,
     STAGE_ISOLATION, SharedRange,

@@ -778,7 +778,10 @@ fn browser_coverage(
     let tests = match rust_source::test_functions(&ws.root, &browser_roots(member, excluded)) {
         Ok(tests) => tests,
         Err(e) => {
-            problems.push(format!("{}: cannot read its test sources: {e}", member.name));
+            problems.push(format!(
+                "{}: cannot read its test sources: {e}",
+                member.name
+            ));
             return json!({ "summary": format!("its test sources cannot be read: {e}") });
         }
     };
@@ -2406,6 +2409,7 @@ error: 1 target failed:
             name: name.to_owned(),
             kinds: vec![kind.to_owned()],
             src_path: PathBuf::new(),
+            required_features: Vec::new(),
         };
         let member = Member {
             name: "p".to_owned(),

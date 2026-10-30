@@ -24,7 +24,8 @@ pub struct CaptureSession {
     pub context: String,
     /// The revision of the capture tool (adapter and worker) that took the capture.
     pub tool: String,
-    /// The content hash of the package the capture opened (the record's `source`).
+    /// The content hash of the package the capture opened: the record's `source`, but in a
+    /// section capture (`section.rs`), whose source is the section key.
     pub input_package: String,
     /// The content hash of the package Excel saved, or `None` when none was saved.
     pub output_package: Option<String>,

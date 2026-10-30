@@ -1749,9 +1749,9 @@ pub fn forbidden_dependency() {
     copy.replace(source, &old);
 
     // OS-binding crates: stand-in path crates outside the copy, named like the deny list, attached
-    // to dna-calc. No member depends on DNA Calc's application core (checked below; dna-onecalc
-    // has one dependent, dna-calc, which shares its formula field), so the check's lines name
-    // dna-calc alone, whichever portable packages depend on each other.
+    // to dna-calc. No member depends on DNA Calc's application core (checked below; no
+    // architecture rule forbids one), so the check's lines name dna-calc alone, whichever portable
+    // packages depend on each other.
     const HOLDER: &str = "dna-calc";
     let dependents: Vec<&String> = copy
         .graph

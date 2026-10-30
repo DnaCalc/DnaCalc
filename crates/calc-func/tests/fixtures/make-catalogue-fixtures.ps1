@@ -7,12 +7,15 @@
 # fresh directory on Windows and compares its output with the committed workbook byte for byte.
 #
 # catalogue/oracle.xlsx is the one oracle workbook of the functions the catalogue adds from the
-# bulk port on (F1 dc-8dq first; F2 and the later packages append their own sections), which the
-# Excel capture reads (`cargo xtask capture --fixture
-# crates/calc-func/tests/fixtures/catalogue/oracle.xlsx --case catalogue__oracle --out
-# crates/calc-func/tests/captures/catalogue/oracle.capture.json --work-dir <dir>`, keeping
-# <dir>/out/oracle.xlsx as captures/catalogue/oracle.saved.xlsx). The functions catalogued before
-# the bulk port keep their rows in dc_xrxb/oracle.xlsx (make-fixtures.ps1).
+# bulk port on (F1 dc-8dq first; F2 and the later packages append their own sections). It is
+# captured per sheet: crates/calc-func/tests/captures/catalogue/sections/<sheet>.capture.json is
+# Excel's capture of one sheet, keyed by what decides its results (the sheet and the sheets it
+# reads; calc_verdict::workbook_sections), so a sheet added or changed leaves every other sheet's
+# capture valid. A sheet with no capture of its current content is awaiting capture: counted
+# apart in `cargo xtask corpus --oracle`, failing no test. `cargo xtask capture --pending` takes
+# every such sheet, each in its own Excel session (prefix_metadata also keeps the worksheet Excel
+# saved, sections/prefix_metadata.saved.xml). The functions catalogued before the bulk port keep
+# their rows in dc_xrxb/oracle.xlsx (make-fixtures.ps1).
 #
 # Its sheets:
 # - Data: the constant cells the formulas read (A1:A3 the numbers 1, 5 and 3; B1:B3 the texts x,

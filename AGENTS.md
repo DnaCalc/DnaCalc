@@ -41,25 +41,35 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    ruling, 2026-10-23).
 3. **Commit in working chunks.** Each commit:
    - starts with `git pull --no-rebase`;
-   - builds the workspace;
-   - passes `cargo test` for the crates it touched, on Windows;
+   - passes `cargo xtask check` on Windows;
    - is then pushed.
 
    The message starts with the bead ID and names the legacy repository, commit and paths it
    ported from. Several commits per package is normal.
 
-   `cargo xtask check` runs the five architecture checks (dependencies, os-imports,
-   wasm-refusal, tree-reference-tokens, word-scan) and the provenance scan, builds the workspace
-   and tests every package (one line each), and fails on any of them. The provenance scan needs
-   an entry in `migration/licence-ledger.json` (`path`, `class`, `reason`) for every file under
-   `crates/calc-func` and `crates/calc-value`, and fails when a marker of a removed third-party
-   or Microsoft source reappears in code; `--wasm` adds the portable packages' tests in
-   headless Chrome and Firefox. A portable package's test runs in both: give it
+   `cargo xtask check` is the per-commit check, a few minutes on a warm tree. It runs the word
+   scan over new text only (the lines your working tree adds to the docs, AGENTS.md, README.md
+   and the tracker, and the messages of commits not pushed yet), the provenance marker scan (no
+   marker of a removed third-party or Microsoft source in code), `cargo build --workspace`, and
+   one `cargo test` over the packages you touched and the packages that depend on them.
+   `cargo xtask check --all` tests every package.
+
+   A portable package's test runs natively and in the browsers: give it
    `#[cfg_attr(not(target_arch = "wasm32"), test)]` with
    `#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]`, and embed its data
    with `include_bytes!` in test code. A test that cannot (it drives Excel or the file system)
-   keeps `#[test]` and a `/// Native-only: <reason>` doc line; `--wasm` prints both counts per
-   package and fails on a test that is neither.
+   keeps `#[test]` and a `/// Native-only: <reason>` doc line. A new file under
+   `crates/calc-func` or `crates/calc-value` gets an entry in `migration/licence-ledger.json`
+   (`path`, `class`, `reason`).
+
+   `cargo xtask sweep` runs the slow and structural validation: the five architecture checks
+   (dependencies, os-imports, wasm-refusal, tree-reference-tokens, the word scan over all text
+   and history), the licence ledger's completeness, the dependency ceiling (dna-onecalc and
+   dna-formula-ui never reach calc-engine, calc-doc or calc-host; dna-calc does not depend on
+   dna-onecalc), the portable packages' tests in headless Chrome and Firefox (a test that is
+   neither run there nor marked `Native-only:` fails it), and xtask's acceptance suite. It takes
+   hours and is never required for a commit: run it at a milestone or on a schedule, on a clean
+   tree. `--skip <step>` leaves a step out.
 4. **Measure.** Run the corpus comparison (`cargo xtask corpus`, or `cargo xtask compare` per
    workbook until it lands) before and after the package, and record the summary.
 5. **Close.**
@@ -79,7 +89,17 @@ required for every commit.
 Before you create a fixture, oracle workbook, generator, test helper, adapter, registry, tool
 command or document, look for the one that already exists and extend it. There is:
 - one catalogue oracle for calc-func, `crates/calc-func/tests/fixtures/catalogue` and its generator, to which
-  each package adds its own section;
+  each package adds its own section (its own `sheet-*.txt` or `prefix-*.txt` file, appended to
+  the lists in `make-catalogue-fixtures.ps1`). Adding a row: edit your section file, regenerate
+  (`make-catalogue-fixtures.ps1 -OutDir crates/calc-func/tests/fixtures`), commit. Nothing else
+  is required to build, test or commit. The catalogue is captured per sheet
+  (`tests/captures/catalogue/sections/`), each capture keyed by its sheet's content, so your
+  change leaves every other sheet's capture valid; your sheet is "awaiting capture" (counted apart
+  in `cargo xtask corpus`, never a pass, failing no test) until someone runs `cargo xtask capture
+  --pending`, which captures every pending sheet of every oracle, one Excel session per sheet,
+  and writes the section captures (commit them). The same holds for every other oracle workbook
+  and its `oracle.capture.json`. The Excel build, worker version and saved package a capture
+  records are provenance, never a condition;
 - one corpus harness (`cargo xtask corpus`);
 - one adapter from OxFunc's types (`catalogue/kit.rs`);
 - one verdict path.
@@ -123,10 +143,10 @@ word scan reads code, docs, tracker text and commit messages. Say what blocks wh
 
 ## Platforms
 
-- **Per commit:** tests run on Windows.
-- **Per milestone:** a whole-suite sweep runs on Windows, Linux (a WSL clone of the pushed
-  commit; WSL is offline and builds from `~/cargo-vendor`) and wasm (headless Chrome and Firefox
-  via wasm-bindgen-test-runner).
+- **Per commit:** `cargo xtask check` on Windows.
+- **Per milestone:** `cargo xtask sweep` on Windows (it includes wasm in headless Chrome and
+  Firefox), and the tests on Linux (a WSL clone of the pushed commit; WSL is offline and builds
+  from `~/cargo-vendor`).
 - **GitHub CI:** the `ci` workflow is disabled (owner, 2026-10-20). Do not enable or dispatch it.
 - **Excel on this machine** (owner ruling, 2026-10-21): any agent may use Excel here. That
   includes opening any workbook, macros, add-ins, COM automation, `cargo xtask capture`, and

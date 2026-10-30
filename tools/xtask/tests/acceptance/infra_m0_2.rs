@@ -495,11 +495,13 @@ pub fn platform_matrix() {
         .filter(|m| m.dir.starts_with("apps/"))
         .map(|m| m.name.as_str())
         .collect();
-    // The packages under apps/ are infra-m0.1's: the two application cores and dna-strand.
-    let expected_cores: BTreeSet<&str> = super::EXPECTED_PACKAGES
+    // The packages under apps/ are this checkout's: the two application cores and the packages
+    // they share.
+    let packages = super::workspace_packages();
+    let expected_cores: BTreeSet<&str> = packages
         .iter()
         .filter(|(_, dir)| dir.starts_with("apps/"))
-        .map(|(name, _)| *name)
+        .map(|(name, _)| name.as_str())
         .collect();
     evidence.expect(
         app_cores == expected_cores

@@ -9,8 +9,16 @@
 //!    same workbook, as the inventory the capture worker reads (bead dc-5sr), and without one it
 //!    is not compared; with `--oracle`, every
 //!    `crates/*/tests/fixtures/*/oracle.xlsx` of the repository, each with its committed capture
-//!    `crates/<crate>/tests/captures/<case>/oracle.capture.json` when there is one.
-//! 2. **Captures, taken once and cached.** The cache (`--cache`, by default
+//!    `crates/<crate>/tests/captures/<case>/oracle.capture.json`, or, for a workbook captured per
+//!    section, its section captures `.../<case>/sections/<sheet>.capture.json` (`oracle_cases.rs`).
+//!    An oracle workbook is compared only with its committed captures, never with a cached one or
+//!    one taken now: a workbook whose committed capture is missing or of other bytes, and each
+//!    section with no capture of its current key, is counted as awaiting capture (its formula
+//!    cells, counted from the package), and `cargo xtask capture --pending` takes it. A sectioned
+//!    workbook is compared once per capture session its valid section captures come from, each
+//!    time with one record of that session's sections (`calc_verdict::merged_record`, written to
+//!    `<out>/workbooks/<name>/session-<n>.capture.json`), and the counts are added.
+//! 2. **Captures of a folder's workbooks, taken once and cached.** The cache (`--cache`, by default
 //!    `C:\Work\DnaCalc\corpus\captures-cache`, outside the repository) holds a capture record at
 //!    `<sha256 of the workbook>/<Excel build>.capture.json`, or, for a workbook captured under
 //!    another calculation policy than Excel's default (one whose `calcPr` iterates, since dc-10y:
@@ -56,7 +64,10 @@
 //! 2 on a usage error.
 
 use crate::capture::{accepted, repository_revision, with_workbook_iteration};
-use crate::corpus_summary::{NotCompared, Summary, Times, Workbook, read_triage};
+use crate::corpus_summary::{Compared, NotCompared, Summary, Times, Workbook, read_triage};
+use crate::oracle_cases::{OracleCase, oracle_cases, package_parts, section_states, whole_state};
+use calc_verdict::{merged_record, workbook_sections};
+use std::collections::BTreeMap;
 use calc_oracle_excel::{CalculationPolicy, CaptureRequest, capture, windows_powershell};
 use calc_verdict::{CaptureRecord, sha256_hex};
 use serde_json::{Value, json};
@@ -170,6 +181,9 @@ pub(crate) struct Entry {
     pub(crate) committed: Option<PathBuf>,
     /// For an `.xlsb`, its SpreadsheetML twin in the same folder, when there is one.
     pub(crate) inventory: Option<PathBuf>,
+    /// For an oracle workbook of this repository, its case: compared only with its committed
+    /// captures.
+    pub(crate) oracle: Option<OracleCase>,
 }
 
 /// The `.xlsx`, `.xlsm` and `.xlsb` files directly in `dir`, in name order, leaving out Excel's
@@ -202,6 +216,7 @@ pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
                 path,
                 committed: None,
                 inventory,
+                oracle: None,
             });
         }
     }
@@ -212,42 +227,19 @@ pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
 /// Every `crates/*/tests/fixtures/*/oracle.xlsx` under `root`, in path order, with its committed
 /// capture `crates/<crate>/tests/captures/<case>/oracle.capture.json` when there is one.
 pub(crate) fn oracle_workbooks(root: &Path) -> Result<Vec<Entry>, String> {
-    let list = |dir: &Path| -> Result<Vec<PathBuf>, String> {
-        let mut dirs: Vec<PathBuf> = match fs::read_dir(dir) {
-            Ok(listing) => listing
-                .filter_map(Result::ok)
-                .map(|item| item.path())
-                .filter(|path| path.is_dir())
-                .collect(),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-            Err(e) => return Err(format!("cannot list {}: {e}", dir.display())),
-        };
-        dirs.sort();
-        Ok(dirs)
-    };
-    let mut entries = Vec::new();
-    for krate in list(&root.join("crates"))? {
-        for case in list(&krate.join("tests").join("fixtures"))? {
-            let path = case.join("oracle.xlsx");
-            if !path.is_file() {
-                continue;
-            }
-            let crate_name = krate.file_name().unwrap_or_default().to_string_lossy();
-            let case_name = case.file_name().unwrap_or_default().to_string_lossy();
-            let committed = krate
-                .join("tests")
-                .join("captures")
-                .join(case.file_name().unwrap_or_default())
-                .join("oracle.capture.json");
-            entries.push(Entry {
-                name: format!("{crate_name}/{case_name}/oracle.xlsx"),
-                path,
+    Ok(oracle_cases(root)?
+        .into_iter()
+        .map(|case| {
+            let committed = case.whole_capture();
+            Entry {
+                name: case.name.clone(),
+                path: case.fixture.clone(),
                 committed: committed.is_file().then_some(committed),
                 inventory: None,
-            });
-        }
-    }
-    Ok(entries)
+                oracle: Some(case),
+            }
+        })
+        .collect())
 }
 
 /// The cache of capture records: `<root>/<sha256>/<Excel build>.capture.json`.
@@ -435,7 +427,7 @@ pub(crate) fn excel_build() -> Result<String, String> {
 }
 
 /// The repository root: two levels above xtask's manifest.
-fn repository_root() -> PathBuf {
+pub(crate) fn repository_root() -> PathBuf {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
     match root.canonicalize() {
         // Windows gives a canonical path its verbatim prefix `\\?\`, which the summary need not
@@ -756,11 +748,12 @@ fn run_corpus(args: &Args) -> u8 {
             Ok(compared) => {
                 let c = &compared.counts;
                 println!(
-                    "xtask corpus:   formula cells {}; pass {}; external links {}; circular rule {}; fail {} (mismatched {}, refused {}, failed or missing {}); pass rate {}{}",
+                    "xtask corpus:   formula cells {}; pass {}; external links {}; circular rule {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {}); pass rate {}{}",
                     c.formula_cells,
                     c.pass,
                     c.external_links,
                     c.circular_rule,
+                    c.awaiting_capture,
                     c.fail(),
                     c.mismatched,
                     c.refused,
@@ -821,7 +814,7 @@ fn run_corpus(args: &Args) -> u8 {
     let totals = summary.totals();
     let c = &totals.counts;
     println!(
-        "xtask corpus: {} workbooks ({} compared, {} not compared); formula cells {}; pass {}; external links {}; circular rule {}; fail {} (mismatched {}, refused {}, failed or missing {}); pass rate over all formula cells {}",
+        "xtask corpus: {} workbooks ({} compared, {} not compared); formula cells {}; pass {}; external links {}; circular rule {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {}); pass rate over all formula cells {}",
         totals.workbooks,
         totals.compared,
         totals.not_compared,
@@ -829,6 +822,7 @@ fn run_corpus(args: &Args) -> u8 {
         c.pass,
         c.external_links,
         c.circular_rule,
+        c.awaiting_capture,
         c.fail(),
         c.mismatched,
         c.refused,
@@ -865,8 +859,19 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         }
     };
     let sha256 = sha256_hex(&bytes);
-    drop(bytes);
     workbook.sha256 = Some(sha256.clone());
+    if let Some(case) = &entry.oracle {
+        if case.sectioned() {
+            sectioned_workbook(&mut workbook, program, entry, case, &bytes, &sha256, out);
+            return workbook;
+        }
+        if let Err(reason) = whole_state(case, &sha256) {
+            workbook.capture = Some(format!("awaiting capture: {reason}"));
+            workbook.outcome = awaiting(&bytes, &reason);
+            return workbook;
+        }
+    }
+    drop(bytes);
     let captured = match run.capture_of(entry, &sha256) {
         Ok(captured) => captured,
         Err(not) => {
@@ -886,6 +891,141 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         })
     });
     workbook
+}
+
+/// The outcome of a workbook awaiting capture: its formula cells, counted from the package, all
+/// awaiting capture.
+fn awaiting(bytes: &[u8], reason: &str) -> Result<Compared, NotCompared> {
+    let cells = package_parts(bytes)
+        .and_then(|parts| workbook_sections(&parts))
+        .map_err(|e| NotCompared {
+            stage: "read".to_owned(),
+            reason: format!("awaiting capture ({reason}), and its formula cells cannot be counted: {e}"),
+        })?
+        .iter()
+        .map(|section| section.formula_cells)
+        .sum();
+    let mut compared = Compared::default();
+    compared.counts.formula_cells = cells;
+    compared.counts.awaiting_capture = cells;
+    Ok(compared)
+}
+
+/// Compares a workbook captured per section: each capture session's valid section captures
+/// together, against one record of them, and every section with no valid capture counted as
+/// awaiting capture.
+fn sectioned_workbook(
+    workbook: &mut Workbook,
+    program: &Path,
+    entry: &Entry,
+    case: &OracleCase,
+    bytes: &[u8],
+    sha256: &str,
+    out: &Path,
+) {
+    let states = match section_states(case, bytes) {
+        Ok((states, _)) => states,
+        Err(reason) => {
+            workbook.outcome = Err(NotCompared {
+                stage: "read".to_owned(),
+                reason,
+            });
+            return;
+        }
+    };
+    // The valid captures by the session that took them: the package Excel opened, the capture
+    // tool and the workbook's path (which CELL("filename") reads).
+    let mut sessions: BTreeMap<(String, String, String), Vec<&CaptureRecord>> = BTreeMap::new();
+    let mut compared = Compared::default();
+    let mut awaiting_names = Vec::new();
+    for state in &states {
+        match &state.capture {
+            Some(record) => {
+                let session = record.session.as_ref();
+                let path = record
+                    .environment
+                    .as_ref()
+                    .and_then(|environment| {
+                        environment
+                            .settings
+                            .iter()
+                            .find(|(name, _)| name == "workbook_path")
+                            .map(|(_, value)| value.clone())
+                    })
+                    .unwrap_or_default();
+                sessions
+                    .entry((
+                        session.map(|s| s.input_package.clone()).unwrap_or_default(),
+                        session.map(|s| s.tool.clone()).unwrap_or_default(),
+                        path,
+                    ))
+                    .or_default()
+                    .push(record);
+            }
+            None => {
+                compared.counts.formula_cells += state.section.formula_cells;
+                compared.counts.awaiting_capture += state.section.formula_cells;
+                awaiting_names.push(format!(
+                    "{} ({} cells)",
+                    state.section.sheet, state.section.formula_cells
+                ));
+            }
+        }
+    }
+    let dir = out.join("workbooks").join(file_safe(&entry.name));
+    if let Err(e) = fs::create_dir_all(&dir) {
+        workbook.outcome = Err(NotCompared {
+            stage: "compare".to_owned(),
+            reason: format!("cannot create {}: {e}", dir.display()),
+        });
+        return;
+    }
+    let mut compare_seconds = 0.0;
+    for (n, records) in sessions.values().enumerate() {
+        let Some(merged) = merged_record(records, &case.case, &format!("sha256:{sha256}")) else {
+            continue;
+        };
+        let path = dir.join(format!("session-{}.capture.json", n + 1));
+        let written = merged
+            .encode()
+            .map_err(|e| e.to_string())
+            .and_then(|text| fs::write(&path, text).map_err(|e| e.to_string()));
+        if let Err(e) = written {
+            workbook.outcome = Err(NotCompared {
+                stage: "capture".to_owned(),
+                reason: format!("the record of capture session {} cannot be written: {e}", n + 1),
+            });
+            return;
+        }
+        let (triage, seconds) =
+            compare_one(program, entry, &path, &dir.join(format!("session-{}", n + 1)));
+        compare_seconds += seconds;
+        match triage.and_then(|triage| {
+            read_triage(&triage).map_err(|reason| NotCompared {
+                stage: "summary".to_owned(),
+                reason,
+            })
+        }) {
+            Ok(part) => compared.add(&part),
+            Err(not) => {
+                workbook.outcome = Err(not);
+                return;
+            }
+        }
+    }
+    workbook.times.compare_process = Some(compare_seconds);
+    let captured = states.iter().filter(|s| s.capture.is_some()).count();
+    workbook.capture = Some(format!(
+        "{captured} committed section captures from {} capture session(s); {} section(s) awaiting capture{}",
+        sessions.len(),
+        awaiting_names.len(),
+        if awaiting_names.is_empty() {
+            String::new()
+        } else {
+            format!(": {}", awaiting_names.join(", "))
+        }
+    ));
+    workbook.outcome = Ok(compared);
 }
 
 pub fn run(raw: &[String]) -> ExitCode {

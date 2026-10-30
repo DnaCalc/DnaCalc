@@ -261,7 +261,7 @@ fn a_match_from_external_link_caches_is_counted_apart_from_pass() {
     };
     let markdown = summary.markdown();
     assert!(
-        markdown.contains("pass 1; external links 1; circular rule 0; fail 1 (mismatched 1"),
+        markdown.contains("pass 1; external links 1; circular rule 0; awaiting capture 0; fail 1 (mismatched 1"),
         "{markdown}"
     );
     assert_eq!(summary.json()["totals"]["counts"]["external_links"], 1);
@@ -306,7 +306,7 @@ fn a_match_held_by_the_circular_rule_is_counted_apart_from_pass() {
     };
     let markdown = summary.markdown();
     assert!(
-        markdown.contains("pass 1; external links 0; circular rule 2; fail 1 (mismatched 1"),
+        markdown.contains("pass 1; external links 0; circular rule 2; awaiting capture 0; fail 1 (mismatched 1"),
         "{markdown}"
     );
     assert_eq!(summary.json()["totals"]["counts"]["circular_rule"], 2);
@@ -504,9 +504,9 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
 
     let markdown = summary.markdown();
     for expected in [
-        "- formula cells (compared workbooks): 13; pass 4; external links 0; circular rule 0; fail 9 (mismatched 4, refused 3, failed or missing 2)",
+        "- formula cells (compared workbooks): 13; pass 4; external links 0; circular rule 0; awaiting capture 0; fail 9 (mismatched 4, refused 3, failed or missing 2)",
         "- pass rate over all formula cells: 30.76%",
-        "| one.xlsx | 9 | 1 | 0 | 0 | 8 | 4 | 2 | 2 | 11.11% | 0.500 | 2.000 | 0.250 |",
+        "| one.xlsx | 9 | 1 | 0 | 0 | 0 | 8 | 4 | 2 | 2 | 11.11% | 0.500 | 2.000 | 0.250 |",
         "| three.xlsx (not compared) |",
         "- three.xlsx: capture: Excel refused",
         "| exactness dc-uar | not-modelled NOT | 2 | 1 | 0 | 3 | 2 |",
@@ -518,4 +518,40 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
             "{expected:?} not in:\n{markdown}"
         );
     }
+}
+
+/// Formula cells awaiting capture are counted apart: in the formula cells and the pass rate's
+/// denominator, never in pass or fail; parts of one workbook add up.
+#[test]
+fn cells_awaiting_capture_are_neither_pass_nor_fail() {
+    let mut compared = Compared::default();
+    compared.counts.formula_cells = 4;
+    compared.counts.pass = 3;
+    compared.counts.mismatched = 1;
+    let mut awaiting = Compared::default();
+    awaiting.counts.formula_cells = 6;
+    awaiting.counts.awaiting_capture = 6;
+    compared.add(&awaiting);
+    assert_eq!(
+        (compared.counts.formula_cells, compared.counts.pass, compared.counts.awaiting_capture, compared.counts.fail()),
+        (10, 3, 6, 1)
+    );
+    let summary = Summary {
+        run: json!({}),
+        workbooks: vec![Workbook {
+            name: "w.xlsx".to_owned(),
+            sha256: None,
+            capture: None,
+            outcome: Ok(compared),
+            times: Times::default(),
+        }],
+    };
+    let markdown = summary.markdown();
+    assert!(
+        markdown.contains("formula cells (compared workbooks): 10; pass 3; external links 0; circular rule 0; awaiting capture 6; fail 1"),
+        "{markdown}"
+    );
+    assert!(markdown.contains("| w.xlsx | 10 | 3 | 0 | 0 | 6 | 1 |"), "{markdown}");
+    assert_eq!(summary.json()["totals"]["counts"]["awaiting_capture"], 6);
+    assert_eq!(summary.json()["totals"]["counts"]["pass_rate"], 0.3);
 }

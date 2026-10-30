@@ -36,6 +36,11 @@
 //! machine any agent may run this command (AGENTS.md, Excel on this machine). Paths are relative
 //! to the current directory.
 //!
+//! `cargo xtask capture --pending` takes every committed oracle capture that is missing or no
+//! longer of its workbook (or, for a workbook captured per section, of its section), and `cargo
+//! xtask capture --split` writes a sectioned workbook's section captures from a capture of the
+//! whole workbook (`pending.rs`).
+//!
 //! Exit codes: 0 when the record (and the verdict record) was written; 1 when the capture failed
 //! (setup, worker or result, the worker's own refusals among them) or a file cannot be written; 2
 //! on a usage error; 3 when the worker timed out and it and its Excel were terminated; 4 when this
@@ -229,8 +234,13 @@ fn failure(error: &CaptureError) -> u8 {
 /// The default work directory: `target/c/<UTC time as digits>`, with `-2`, `-3`, ... added when
 /// that already exists.
 fn default_work_dir() -> PathBuf {
+    default_work_dir_in(&PathBuf::from("target").join("c"))
+}
+
+/// A new work directory in `base`: `<base>/<UTC time as digits>`, with `-2`, `-3`, ... added when
+/// that already exists.
+pub(crate) fn default_work_dir_in(base: &Path) -> PathBuf {
     let stamp: String = utc_now().chars().filter(char::is_ascii_digit).collect();
-    let base = PathBuf::from("target").join("c");
     let mut dir = base.join(&stamp);
     let mut n = 2;
     while dir.exists() {
@@ -241,10 +251,17 @@ fn default_work_dir() -> PathBuf {
 }
 
 fn run_code(raw: &[String]) -> u8 {
+    match raw.split_first() {
+        Some((mode, rest)) if mode == "--pending" => {
+            return crate::pending::run_pending_command(rest);
+        }
+        Some((mode, rest)) if mode == "--split" => return crate::pending::run_split_command(rest),
+        _ => {}
+    }
     let args = match parse_args(raw) {
         Ok(args) => args,
         Err(e) => {
-            eprintln!("xtask capture: {e}\n{USAGE}");
+            eprintln!("xtask capture: {e}\n{USAGE}\n{}", crate::pending::USAGE);
             return EXIT_USAGE;
         }
     };

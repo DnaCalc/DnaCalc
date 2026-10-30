@@ -356,9 +356,20 @@ fn listed_names(stdout: &str) -> Vec<String> {
         .collect()
 }
 
-/// `cargo test -p <package> --test <target> --locked --target-dir target/xtask-accept [extra]
-/// -- [libtest]`, run from the workspace root.
+/// `cargo test -p <package> --test <target> --locked --target-dir target/xtask-accept
+/// [--features <the target's required features>] [extra] -- [libtest]`, run from the workspace
+/// root.
 fn cargo_test(ws: &Workspace, entry: &BeadEntry, extra: &[&str], libtest: &[&str]) -> Command {
+    let required: Vec<String> = ws
+        .member(&entry.package)
+        .and_then(|member| {
+            member
+                .targets
+                .iter()
+                .find(|target| target.name == entry.test)
+        })
+        .map(|target| target.required_features.clone())
+        .unwrap_or_default();
     let mut command = Command::new(cargo::cargo_program());
     command
         .args([
@@ -370,7 +381,11 @@ fn cargo_test(ws: &Workspace, entry: &BeadEntry, extra: &[&str], libtest: &[&str
             "--locked",
         ])
         .arg("--target-dir")
-        .arg(ws.accept_target_dir())
+        .arg(ws.accept_target_dir());
+    if !required.is_empty() {
+        command.args(["--features", &required.join(",")]);
+    }
+    command
         .args(extra)
         .arg("--")
         .args(libtest)
