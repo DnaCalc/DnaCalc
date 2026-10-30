@@ -56,17 +56,17 @@
       "external_links": "",
       "ole_dde_links": "",
       "connections": "",
-      "calculation_clock": "40e69e8e5926ab56"
+      "calculation_clock": "40e69e9550548a9c"
     }
   },
   "session": {
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:2fe03da89092385bdac1915ffc0999a15223cbd8b4041ade68cc0d4372c5b8c8; repository 45185cd621fc43fc4b6ab977db2bc143bd8fa718+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:599032d018da3b9889269e0ca46c2c1c7f2f21572fb378bc1781a73b9cd93d25; repository 4f063f15a5447eae93ae8d2d5fe0edb6376207b7+dirty",
     "packages": {
       "input": "sha256:9e65fa7e8567ae06d19fb45ac5cdb57bfe7b50f646470ef3b0d6ef7d719673a2",
-      "output": "sha256:bdc36ef3e64cc72539aa9819175e556a79ecd03a4cabf538a9a6ca24a3d31101"
+      "output": "sha256:b438891fbcaca6e06d189891c27a72e77a15a4e450664adc26445746b82bebec"
     },
     "failures": []
   },

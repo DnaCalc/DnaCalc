@@ -11319,7 +11319,7 @@ const CAPTURED_COM_ADD_IN: &str = "VS15ExcelAdaptor";
 /// records it. That package holds the cells the subnormal and -0 rows read as 0; it was read when
 /// the capture was taken and is not retained.
 const CAPTURED_OUTPUT_PACKAGE: &str =
-    "sha256:c143790d9125bf15b529a8aee0d5048eaf58158df4ff77a49f76ef2a51991d08";
+    "sha256:a18501285fda99bbb6ed53289ffde0d1e111118a0e7ff7a189bf44561aee43f1";
 
 /// The behaviour the refused dc-q9rb rows show.
 const NEAR_TIE: Owner = Owner {
@@ -15734,9 +15734,9 @@ fn cfunc_m3_6__lookup_edges() {
     // ROW() and COLUMN() need, is not among the services (dc-m3u); regex matching (match_mode 3,
     // dc-uar), an array index_num (dc-m3u) and a read past LOOKUP's result reference
     // (dc-m3u) are refused; so is a text comparison calc_func's comparison cannot decide (text
-    // beyond the repertoire of cdoc-jpha's collation, whose replacement dc-uar owns),
-    // and an order between #BUSY!, #BLOCKED! or #CONNECT! and another error, which no formula on
-    // this machine gives offline (dc-uar).
+    // holding Hangul conjoining jamo, which compose with each other: dc-zsn.1's collation builds no
+    // sort key for them), and an order between #BUSY!, #BLOCKED! or #CONNECT! and another error,
+    // which no formula on this machine gives offline (dc-uar).
     let refusals: [(&str, Vec<CalcValue>, Option<usize>); 7] = [
         ("ROW", vec![], None),
         ("COLUMN", vec![], None),
@@ -15769,7 +15769,7 @@ fn cfunc_m3_6__lookup_edges() {
         (
             "XMATCH",
             vec![
-                text_value("\u{3b1}"),
+                text_value("\u{1100}\u{1161}"),
                 reference(s, &["B1:B6"]).value,
                 CalcValue::number(-1.0),
             ],
@@ -15809,7 +15809,7 @@ fn cfunc_m3_6__lookup_edges() {
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; dc-uar), CHOOSE({{1}},\"a\") (lifted; dc-m3u), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"\u{3b1}\",B1:B6,-1) (text beyond the repertoire of calc_func's collation; dc-uar), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-uar)",
+        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; dc-uar), CHOOSE({{1}},\"a\") (lifted; dc-m3u), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"\u{1100}\u{1161}\",B1:B6,-1) (Hangul conjoining jamo, for which calc_func's collation builds no sort key; dc-zsn.1), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-uar)",
         CALLER_OWNER.bead,
         CALLER_OWNER.behaviour,
         READ_PAST_OWNER.bead,
@@ -19522,8 +19522,9 @@ fn cdoc_jpha__text_and_number_comparison() {
     );
 
     // Text holding U+0000 (which CHAR(0) and UNICHAR(0) do not give: both are #VALUE! in Excel) is
-    // beyond the repertoire: refused, naming the operand that holds it. calc_func's comparison
-    // before this bead equated ASCII texts, U+0000 included, ignoring ASCII case.
+    // not decided (Windows' sort key ignores it; Excel's comparison of it is not measured): refused,
+    // naming the operand that holds it. calc_func's comparison before this bead equated ASCII
+    // texts, U+0000 included, ignoring ASCII case.
     let nul = |text: &str| CalcValue::text(ExcelText::from_interop_assignment(text));
     let mut narrowed = 0;
     for (target, a, b, argument) in [

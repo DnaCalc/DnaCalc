@@ -23,6 +23,7 @@ mod arithmetic;
 mod arrays;
 mod bonds;
 mod comparison;
+pub(crate) use comparison::text_order;
 mod conditional;
 mod database;
 mod dates;

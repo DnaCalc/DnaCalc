@@ -30,7 +30,7 @@ decide.
 | Arm optimized-routines `exp`, `log` and their data (re-sourced from the glibc port, dc-96l) | `excel_numeric/mod.rs` (`exp_portable`, `log_portable`), `excel_numeric/tables.rs` | as `pow` below | as `pow` below |
 | ExcelFinancialFunctions (Luca Bolognese), bond and odd-period bond routines (dc-96l) | `ported/bond_core_family.rs`, `ported/odd_bond_family.rs` | Apache-2.0 | The licence text, the copyright line and a statement that the files were changed |
 | Arm optimized-routines `pow` (pow.c, pow_log_data.c at 0b5e3775) | `excel_numeric/crt_pow.rs` | MIT OR Apache-2.0 WITH LLVM-exception; we take MIT | The copyright line and the MIT permission notice (upstream LICENSE, fetched 2026-10-29) |
-| Unicode Character Database 15.0.0 (combining marks table; CaseFolding.txt's simple and full folds, dc-cpr) | `calc-fml/src/syntax/combining_marks.rs`, `calc-value/src/case_folding.rs` | Unicode License V3 | The Unicode copyright and permission notice |
+| Unicode Character Database 15.0.0 (combining marks table; CaseFolding.txt's simple and full folds, dc-cpr); the CLDR root collation's primary and secondary weights with UCD ages, decomposition types and names (Unicode 15.1, read from the ICU Windows ships, dc-zsn.1) | `calc-fml/src/syntax/combining_marks.rs`, `calc-value/src/case_folding.rs`, `calc-func/src/catalogue/comparison/root_collation.rs` | Unicode License V3 | The Unicode copyright and permission notice |
 | fdlibm `e_lgamma_r.c`: six constants (w1 to w6) and the tail's Horner form | `excel_numeric/gammaln.rs` | Sun Microsystems: "provided that this notice is preserved" | Keep the Sun notice. Six constants may not need it; carrying it costs nothing |
 
 ## 2. Reimplemented from published mathematics, or a reference only (no notice)
@@ -46,8 +46,12 @@ decide.
 - **References only:** glibc in `cosh.rs`, `sinh.rs` and `sqrtpi.rs` (test comments comparing
   results); fdlibm boundaries in `special_dist_family.rs`; "R core" in
   `financial_time_value_family.rs` is a false match ("CR core", correctly rounded).
-- **Own data:** Excel's measured outputs (`x87_excel_ground_truth.tsv`, test-only), and the
-  icons, drawn here (`apps/dna-calc/src/grid/icons.rs`).
+- **Own data:** Excel's measured outputs (`x87_excel_ground_truth.tsv`, test-only), the
+  icons, drawn here (`apps/dna-calc/src/grid/icons.rs`), and the measured departures of Windows'
+  text comparison from the CLDR root order (`calc-func/src/catalogue/comparison/windows_collation.rs`,
+  dc-zsn.1: about 1,500 facts, each about one code unit, one root weight or one range, measured
+  through `LCMapStringEx`; no Windows table is copied, and the order between the departures comes
+  from the Unicode data).
 
 ## 3. Problems the owner must rule on before the first public binary
 
@@ -56,8 +60,8 @@ decide.
 code is AMD's MIT win-libm and Arm's MIT optimized-routines, and what no source says (the
 configurations, the fused multiply-adds of sinh, cosh and atan2) was measured against the
 runtime; row 8 was wrong (PMT, IPMT and PPMT do reach the port) and is resolved by re-sourcing to
-Arm's MIT copy of the same code, checked equal table for table; row 4's text is marked as
-Microsoft's in help.rs, with sources in `migration/help-text-sources.tsv`; row 7 carries a credit
+Arm's MIT copy of the same code, checked equal table for table; row 4 is resolved: help.rs's
+descriptions are our own, and `migration/help-text-sources.tsv` records what they replaced; row 7 carries a credit
 to Wichura; row 9's comparison functions are removed (dc-96l.4).
 
 These do not fit an MIT release as they stand. A notice cannot fix the first five. Each is in the

@@ -21,8 +21,8 @@
 #
 # expected is Excel's raw value for the row's cell in the committed capture
 # crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json: T, F, a number, #N/A, or s:text
-# for a text. R marks a row calc_func refuses as not modelled (text beyond the repertoire, whose
-# collation cfml-m2.6 owns), R0 or R1 one whose refusal names that argument.
+# for a text. R marks a row calc_func refuses as not modelled, R0 or R1 one whose refusal names
+# that argument (no row since dc-zsn.1 decided the text beyond cdoc-jpha's repertoire).
 #
 # 1. The kinds of cfunc-m1.2's 14 comparison rows (its sheet mixed_operands, D65, D71-D76, D82-D88).
 t|=|a|A|T
@@ -1164,13 +1164,13 @@ c|<|C1507|C1508|T
 c|=|C1509|C1510|F
 c|>|C1509|C1510|T
 #
-# 8. Text beyond the repertoire: refused (cfml-m2.6), naming the operand that holds such a
-#    character first, unless the texts are the same.
-t|<|\03B1|\03B2|R0
-t|<|a|a\4E2D|R1
-t|=|e\0301|\00E9|R0
-t|>|\0411|\0410|R0
-t|=|a\0080|a|R0
+# 8. Text beyond the repertoire of cdoc-jpha's measured table, decided since dc-zsn.1 by Windows'
+#    collation (sort keys built from calc-func's generated table).
+t|<|\03B1|\03B2|T
+t|<|a|a\4E2D|T
+t|=|e\0301|\00E9|T
+t|>|\0411|\0410|T
+t|=|a\0080|a|F
 t|=|\4E2D|\4E2D|T
 #
 # 9. Numbers near each other: each pair by = and by <, and each number as Excel loaded it.
@@ -1349,8 +1349,8 @@ L|XLOOKUP|t:aeb|E7:E7|{7},,2|7
 L|MATCH|t:ss|E1:E1|1|1
 L|MATCH|t:ss|E1:E1|-1|1
 L|VLOOKUP|t:ss|E1:E1|1,TRUE|s:\00DF
-L|MATCH|t:e\0301|E5:E5|0|R
-L|XMATCH|t:e\0301|E5:E5||R
+L|MATCH|t:e\0301|E5:E5|0|#N/A
+L|XMATCH|t:e\0301|E5:E5||1
 L|MATCH|n:0.3|E15:E15|0|#N/A
 L|MATCH|n:0.1+0.2|E15:E15|0|1
 L|VLOOKUP|n:0.3|E15:E15|1,FALSE|#N/A

@@ -592,6 +592,37 @@ Add-Type -Namespace DnaCalcCapture -Name NativeMethods -MemberDefinition @'
 public static extern uint GetWindowThreadProcessId(System.IntPtr hWnd, out uint processId);
 '@
 
+# The worker's COM message filter: a call Excel rejects because it is busy
+# (SERVERCALL_RETRYLATER, which PowerShell reports as RPC_E_CALL_REJECTED) is sent again every
+# 100 ms for up to ten minutes, and then fails as before. Excel 16.0.20527 rejected calls right
+# after the catalogue oracle's CalculateFullRebuild had reported done (2026-10-29); the retry
+# changes no value read, only when it is read. A call rejected for another reason fails at once.
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace DnaCalcCapture {
+    [ComImport, Guid("00000016-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IOleMessageFilter {
+        [PreserveSig] int HandleInComingCall(int callType, IntPtr caller, int tickCount, IntPtr interfaceInfo);
+        [PreserveSig] int RetryRejectedCall(IntPtr callee, int tickCount, int rejectType);
+        [PreserveSig] int MessagePending(IntPtr callee, int tickCount, int pendingType);
+    }
+    public sealed class BusyRetryFilter : IOleMessageFilter {
+        [DllImport("ole32.dll")]
+        private static extern int CoRegisterMessageFilter(IOleMessageFilter filter, out IOleMessageFilter previous);
+        public static int Register() {
+            IOleMessageFilter previous;
+            return CoRegisterMessageFilter(new BusyRetryFilter(), out previous);
+        }
+        public int HandleInComingCall(int callType, IntPtr caller, int tickCount, IntPtr interfaceInfo) { return 0; }
+        public int RetryRejectedCall(IntPtr callee, int tickCount, int rejectType) {
+            return (rejectType == 2 && tickCount < 600000) ? 100 : -1;
+        }
+        public int MessagePending(IntPtr callee, int tickCount, int pendingType) { return 2; }
+    }
+}
+'@
+
 function Get-ExcelPid($Application) {
     $handle = Get-ComProperty $Application 'Hwnd'
     if (-not ($handle -is [int] -or $handle -is [long])) { throw ('Application.Hwnd reads as ' + (Get-Shown $handle) + ', not a window handle') }
@@ -931,6 +962,10 @@ try {
         throw ('refused before Excel was started: the package declares external content Excel could refresh or activate: ' + ($refusals -join '; '))
     }
 
+    # The message filter needs this thread to be a single-threaded apartment, as Windows
+    # PowerShell's is by default; registering fails otherwise, and the worker stops.
+    $filterResult = [DnaCalcCapture.BusyRetryFilter]::Register()
+    if ($filterResult -ne 0) { throw ('CoRegisterMessageFilter failed with HRESULT 0x' + $filterResult.ToString('X8')) }
     $excel = New-Object -ComObject Excel.Application
     $excelPid = Get-ExcelPid $excel
     $Output.excel_pid = $excelPid
