@@ -170,12 +170,16 @@ pub fn encode_result(value: &CalcValue) -> Option<String> {
     }
 }
 
-/// The value a row reads from a calculated result: the cell `result_index` names (1-based) of an
-/// array, or the result itself.
+/// The scalar reading of Excel's `INDEX(result, row, column)`, or the result itself.
+/// Indices are 1-based. A zero axis selects the whole row/column in Excel; the scalar capture
+/// reads its first cell. Worksheet errors propagate through INDEX at any selected position.
 pub fn select_result(value: &CalcValue, index: Option<(usize, usize)>) -> Option<CalcValue> {
+    if matches!(value.core(), CoreValue::Error(_)) {
+        return Some(value.clone());
+    }
     match (index, value.as_array()) {
-        (Some((r, c)), Some(array)) => array.get(r.checked_sub(1)?, c.checked_sub(1)?).cloned(),
-        (Some((1, 1)), None) => Some(value.clone()),
+        (Some((r, c)), Some(array)) => array.get(r.saturating_sub(1), c.saturating_sub(1)).cloned(),
+        (Some((0..=1, 0..=1)), None) => Some(value.clone()),
         (Some(_), None) => None,
         (None, Some(array)) if array.cell_count() == 1 => array.get(0, 0).cloned(),
         (None, _) => Some(value.clone()),
@@ -395,6 +399,10 @@ mod tests {
         let flat = decode_argument(&json!(["0x3ff0000000000000", "0x4000000000000000"]), "a").unwrap();
         assert_eq!(flat.as_array().unwrap().shape().cols, 2);
         assert_eq!(select_result(&flat, Some((1, 2))), Some(n(0x4000000000000000)));
+        assert_eq!(select_result(&flat, Some((0, 2))), Some(n(0x4000000000000000)));
+        assert_eq!(select_result(&flat, Some((0, 0))), Some(n(0x3ff0000000000000)));
+        let error = CalcValue::error(WorksheetErrorCode::Num);
+        assert_eq!(select_result(&error, Some((4, 2))), Some(error));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

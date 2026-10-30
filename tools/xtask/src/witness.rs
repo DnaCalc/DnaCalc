@@ -168,6 +168,8 @@ struct Banks {
     sources: Vec<Source>,
     readings: Vec<Reading>,
     files_read: usize,
+    import_notes: Vec<String>,
+    unread_rows: BTreeMap<String, usize>,
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -337,11 +339,101 @@ fn oracle_outcome(node: &Value) -> Option<String> {
     }
 }
 
+/// Some historical banks formatted an already-prefixed numeric bit string a second time.
+/// Repair only that exact representation; the sixteen recorded bits remain unchanged.
+fn normalize_bank_hex(node: &mut Value) {
+    match node {
+        Value::String(text) => {
+            if let Some(hex) = text.strip_prefix("0x0x") {
+                if hex.len() == 16 && hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                    *text = format!("0x{hex}");
+                }
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(normalize_bank_hex),
+        _ => {}
+    }
+}
+
+/// PowerShell's older UTF-8 output includes a BOM. It is an encoding marker, not JSON data.
+fn bank_json(bytes: &[u8]) -> Result<Value, String> {
+    serde_json::from_slice(bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(bytes))
+        .map_err(|e| e.to_string())
+}
+
+/// Graph banks are lowered copies of worksheet readings, not calls of their named function.
+/// Omit one only when every id and answer is present in its worksheet companion. The original
+/// worksheet calls are still loaded and judged, including every failure.
+fn derived_graph_companion(checkout: &Path, rel: &str, doc: &Value) -> Option<(String, usize)> {
+    if doc.get("capture_provenance").is_some() {
+        return None;
+    }
+    let (prefix, suffix) = rel.rsplit_once("-graph")?;
+    if !(suffix == ".json" || suffix.starts_with('-') && suffix.ends_with(".json")) {
+        return None;
+    }
+    let companion = format!("{prefix}-excel.json");
+    let bytes = gunzip(&blob_bytes(checkout, &companion).ok()?, None).ok()?;
+    let original = bank_json(&bytes).ok()?;
+    if original.get("function") != doc.get("function") || doc.get("function").is_none() {
+        return None;
+    }
+    graph_rows_linked(doc, &original).then(|| (companion, doc["witnesses"].as_array().unwrap().len()))
+}
+
+fn graph_rows_linked(derived: &Value, original: &Value) -> bool {
+    let (Some(rows), Some(calls)) = (derived["witnesses"].as_array(), original["witnesses"].as_array()) else {
+        return false;
+    };
+    let readings: BTreeMap<&str, &Value> = calls.iter().filter_map(|r| {
+        Some((r["id"].as_str()?, r.get("expected_bits")?))
+    }).collect();
+    !rows.is_empty() && rows.iter().all(|r| {
+        r["id"].as_str().and_then(|id| readings.get(id)).is_some_and(|expected| {
+            r.get("expected_bits") == Some(*expected)
+        })
+    })
+}
+
+/// Bulk answer files sometimes omit `result_index`, but their batch's probe records it.
+/// Recover selection by id AND exact arguments, never by guessing a cell from its answer.
+fn batch_path(rel: &str) -> Option<String> {
+    let (dir, name) = rel.rsplit_once('/')?;
+    let tail = name.strip_prefix("answers-")?;
+    Some(format!("{dir}/batch-{tail}"))
+}
+
+fn batch_selections(checkout: &Path, rel: &str) -> Vec<Value> {
+    let Some(batch) = batch_path(rel) else { return Vec::new() };
+    let parsed = blob_bytes(checkout, &batch).and_then(|b| gunzip(&b, None))
+        .and_then(|b| bank_json(&b));
+    let Ok(doc) = parsed else { return Vec::new() };
+    doc["probes"].as_array().into_iter().flatten().map(|p| {
+        p.get("probe").unwrap_or(p).clone()
+    }).filter(|p| p.get("result_index").is_some()).collect()
+}
+
+fn recovered_selection(row: &Value, probes: &[Value]) -> Option<(usize, usize)> {
+    let id = row["id"].as_str()?;
+    let args = row.get("args")?;
+    let mut selected = None;
+    for probe in probes.iter().filter(|p| p["id"].as_str() == Some(id) && p.get("args") == Some(args)) {
+        let index = calc_verdict::result_index(probe.as_object()?)?;
+        if selected.is_some_and(|previous| previous != index) {
+            return None;
+        }
+        selected = Some(index);
+    }
+    selected
+}
+
 fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>), String> {
     let mut banks = Banks {
         sources: Vec::new(),
         readings: Vec::new(),
         files_read: 0,
+        import_notes: Vec::new(),
+        unread_rows: BTreeMap::new(),
     };
     let mut unread = Vec::new();
     let mut oracle_env: BTreeMap<String, Value> = BTreeMap::new();
@@ -352,7 +444,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
     for rel in &paths {
         if rel.starts_with("cache/oracle") && rel.ends_with("/env.json") {
             let bytes = gunzip(&blob_bytes(checkout, rel)?, None)?;
-            if let Ok(env) = serde_json::from_slice::<Value>(&bytes) {
+            if let Ok(env) = bank_json(&bytes) {
                 let dir = rel.trim_end_matches("env.json").to_owned();
                 oracle_env.insert(dir, env);
             }
@@ -378,14 +470,16 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 if line.iter().all(u8::is_ascii_whitespace) {
                     continue;
                 }
-                let Ok(record) = serde_json::from_slice::<Value>(line) else {
+                let Ok(record) = bank_json(line) else {
                     unread.push(format!("{rel}:{}: not JSON", line_no + 1));
+                    *banks.unread_rows.entry(function.to_ascii_uppercase()).or_default() += 1;
                     continue;
                 };
                 let call = record["args"].as_array().and_then(|a| a.first()).and_then(Value::as_array);
                 let args: Option<Vec<Value>> = call.map(|c| c.iter().map(oracle_argument).collect()).flatten();
                 let (Some(args), Some(expected)) = (args, oracle_outcome(&record["outcome"])) else {
                     unread.push(format!("{rel}:{}: an argument or outcome kind with no witness form", line_no + 1));
+                    *banks.unread_rows.entry(function.to_ascii_uppercase()).or_default() += 1;
                     continue;
                 };
                 let env = record.get("environment");
@@ -429,7 +523,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             }
         }
         let bytes = gunzip(&blob_bytes(checkout, rel)?, None)?;
-        let Ok(doc) = serde_json::from_slice::<Value>(&bytes) else {
+        let Ok(doc) = bank_json(&bytes) else {
             unread.push(format!("{rel}: not JSON"));
             continue;
         };
@@ -440,6 +534,12 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         if only.is_some_and(|f| f != function) || rows.first().is_none_or(|r| r.get("expected_bits").is_none()) {
             continue;
         }
+        if let Some((companion, count)) = derived_graph_companion(checkout, rel, &doc) {
+            banks.import_notes.push(format!("{rel}: {count} derived graph rows are copies of worksheet readings in {companion}; not counted as additional calls"));
+            continue;
+        }
+        let probes = batch_selections(checkout, rel);
+        let (mut selections, mut hex_repairs) = (0, 0);
         banks.files_read += 1;
         let env = doc.get("capture_provenance").and_then(|p| p.get("environment"));
         banks.sources.push(Source {
@@ -450,16 +550,35 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         for (i, row) in rows.iter().enumerate() {
             let (Some(args), Some(expected)) = (row["args"].as_array(), row["expected_bits"].as_str()) else {
                 unread.push(format!("{rel}: row {i} has no args or expected_bits"));
+                *banks.unread_rows.entry(function.clone()).or_default() += 1;
                 continue;
             };
+            let index = row.as_object().and_then(calc_verdict::result_index).or_else(|| {
+                let selected = recovered_selection(row, &probes);
+                selections += usize::from(selected.is_some());
+                selected
+            });
+            let mut args = Value::Array(args.clone());
+            normalize_bank_hex(&mut args);
+            let mut normalized_expected = Value::String(expected.to_owned());
+            normalize_bank_hex(&mut normalized_expected);
+            hex_repairs += usize::from(args != row["args"] || normalized_expected != row["expected_bits"]);
             banks.readings.push(Reading {
                 function: function.clone(),
                 id: row["id"].as_str().map_or_else(|| format!("row{i}"), str::to_owned),
-                args: args.clone(),
-                index: row.as_object().and_then(calc_verdict::result_index),
-                expected: expected.to_owned(),
+                args: args.as_array().unwrap().clone(),
+                index,
+                expected: normalized_expected.as_str().unwrap().to_owned(),
                 source,
             });
+        }
+        if selections > 0 || hex_repairs > 0 {
+            banks.import_notes.push(format!("{rel}: recovered {selections} result selections from batch probes; normalized duplicated hex prefixes in {hex_repairs} rows"));
+        }
+        if selections > 0 {
+            banks.sources[source].env.source.push_str(&format!(
+                "; result selection: {CHECKOUT} {}", batch_path(rel).unwrap()
+            ));
         }
     }
     // New readings (`cargo xtask witness read`), kept as plain WitnessSet files.
@@ -470,7 +589,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             .unwrap_or_default();
         let parsed = fs::read(&path)
             .map_err(|e| e.to_string())
-            .and_then(|b| serde_json::from_slice::<Value>(&b).map_err(|e| e.to_string()));
+            .and_then(|b| bank_json(&b));
         let Ok(doc) = parsed else {
             unread.push(format!("{rel}: not JSON"));
             continue;
@@ -491,6 +610,8 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         let source = banks.sources.len() - 1;
         for (i, row) in rows.iter().enumerate() {
             let (Some(args), Some(expected)) = (row["args"].as_array(), row["expected_bits"].as_str()) else {
+                unread.push(format!("{rel}: row {i} has no args or expected_bits"));
+                *banks.unread_rows.entry(function.clone()).or_default() += 1;
                 continue;
             };
             banks.readings.push(Reading {
@@ -1106,7 +1227,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             load_full(&checkout, only)?
         }
         Bank::Pinned => {
-            let mut banks = Banks { sources: Vec::new(), readings: Vec::new(), files_read: 0 };
+            let mut banks = Banks { sources: Vec::new(), readings: Vec::new(), files_read: 0, import_notes: Vec::new(), unread_rows: BTreeMap::new() };
             for (_, set) in pinned_sets(&ws.root, only)? {
                 banks.files_read += 1;
                 let first = banks.sources.len();
@@ -1133,6 +1254,9 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         banks.readings.len(),
         banks.files_read
     );
+    for note in &banks.import_notes {
+        println!("xtask witness: import: {note}");
+    }
     for line in unread.iter().take(20) {
         println!("xtask witness: unread: {line}");
     }
@@ -1140,7 +1264,15 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         println!("xtask witness: unread: ... {} in all", unread.len());
     }
 
-    let (grouped, differences) = group(&banks);
+    let unread_rows: usize = banks.unread_rows.values().sum();
+    let unread_files = unread.len().saturating_sub(unread_rows);
+    if unread_files > 0 {
+        println!("xtask witness: {unread_files} bank files could not be decoded; their row counts are unknown and are additional to the counted failures");
+    }
+    let (mut grouped, differences) = group(&banks);
+    for function in banks.unread_rows.keys() {
+        grouped.entry(function.clone()).or_default();
+    }
     let mut judged: BTreeMap<String, Vec<Row>> = BTreeMap::new();
     let mut statuses = Vec::new();
     for (function, keys) in &grouped {
@@ -1174,7 +1306,13 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             let (severity, ulp) = judge(&reading.expected, &actual);
             rows.push(Row { reading, builds, actual, severity, ulp, slow });
         }
-        let status = status_of(function, &rows);
+        let mut status = status_of(function, &rows);
+        let unread = banks.unread_rows.get(function).copied().unwrap_or(0);
+        status.rows += unread;
+        if unread > 0 {
+            status.class = Severity::Structural;
+            println!("xtask witness: {function}: {unread} unread recorded rows count as failures");
+        }
         println!(
             "xtask witness: {:<22} {:>8} rows {:>8} matched  worst {:>6} ULP  {}",
             function,
@@ -1186,11 +1324,11 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         statuses.push(status);
         judged.insert(function.clone(), rows);
     }
-    let exact = statuses.iter().filter(|s| s.matched == s.rows).count();
+    let exact = statuses.iter().filter(|s| s.class == Severity::Exact).count();
     let rows: usize = statuses.iter().map(|s| s.rows).sum();
     let matched: usize = statuses.iter().map(|s| s.matched).sum();
     println!(
-        "xtask witness: {} functions, {exact} exact on every row; {matched} of {rows} rows matched, {} failed (mismatched or refused)",
+        "xtask witness: {} functions, {exact} exact on every counted row; {matched} of {rows} rows matched, {} failed (mismatched, refused or unread; {unread_rows} unread)",
         statuses.len(),
         rows - matched
     );
@@ -1463,6 +1601,48 @@ mod tests {
         );
         assert_eq!(oracle_outcome(&serde_json::json!({"kind": "number", "bits_hex": "0x0"})).as_deref(), Some("0x0"));
         assert_eq!(oracle_outcome(&serde_json::json!({"kind": "error", "code": "#NUM!"})).as_deref(), Some("error:Num"));
+    }
+
+    #[test]
+    fn graph_copies_require_every_recorded_id_and_answer_in_the_worksheet_bank() {
+        let original = serde_json::json!({"witnesses": [
+            {"id": "a", "args": ["worksheet inputs"], "expected_bits": "0x3ff0000000000000"}
+        ]});
+        let mut derived = serde_json::json!({"witnesses": [
+            {"id": "a", "args": ["lowered inputs"], "expected_bits": "0x3ff0000000000000"}
+        ]});
+        assert!(graph_rows_linked(&derived, &original));
+        derived["witnesses"][0]["expected_bits"] = serde_json::json!("0x3ff0000000000001");
+        assert!(!graph_rows_linked(&derived, &original));
+        derived["witnesses"][0]["id"] = serde_json::json!("unknown");
+        assert!(!graph_rows_linked(&derived, &original));
+    }
+
+    #[test]
+    fn array_selection_is_recovered_by_input_identity_and_not_by_output() {
+        let probe = serde_json::json!({"id": "cell", "args": [[["0x3ff0000000000000"]]], "result_index": [4, 2]});
+        let mut row = serde_json::json!({"id": "cell", "args": [[["0x3ff0000000000000"]]], "expected_bits": "0x3ff0000000000000"});
+        assert_eq!(recovered_selection(&row, &[probe.clone()]), Some((4, 2)));
+        let mut conflicting = probe.clone();
+        conflicting["result_index"] = serde_json::json!([3, 2]);
+        assert_eq!(recovered_selection(&row, &[probe.clone(), conflicting]), None);
+        row["args"][0][0][0] = serde_json::json!("0x4000000000000000");
+        assert_eq!(recovered_selection(&row, &[probe]), None);
+    }
+
+    #[test]
+    fn duplicated_hex_prefixes_keep_the_recorded_bits() {
+        let mut row = serde_json::json!(["0x0x3e22024955d1ccf5", ["0x0x8000000000000000"], "0x0xnot-a-number"]);
+        normalize_bank_hex(&mut row);
+        assert_eq!(row, serde_json::json!(["0x3e22024955d1ccf5", ["0x8000000000000000"], "0x0xnot-a-number"]));
+    }
+
+    #[test]
+    fn powershell_bom_does_not_drop_recorded_rows() {
+        let raw = b"\xef\xbb\xbf{\"function\":\"ERF.PRECISE\",\"witnesses\":[{\"id\":\"row\"}]}";
+        let doc = bank_json(raw).unwrap();
+        assert_eq!(doc["function"], "ERF.PRECISE");
+        assert_eq!(doc["witnesses"].as_array().unwrap().len(), 1);
     }
 
     #[test]
