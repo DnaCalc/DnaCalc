@@ -968,7 +968,11 @@ fn bratio_alnrel(a: f64) -> f64 {
     }
     let t = a / (a + 2.0);
     let t2 = t * t;
-    let w = (((P3 * t2 + P2) * t2 + P1) * t2 + 1.0) / (((Q3 * t2 + Q2) * t2 + Q1) * t2 + 1.0);
+    // Recorded beta tails distinguish the denominator's final PC64 store.
+    let denominator = crate::ported::excel_numeric::excel_x87_add(
+        ((Q3 * t2 + Q2) * t2 + Q1) * t2, 1.0,
+    );
+    let w = (((P3 * t2 + P2) * t2 + P1) * t2 + 1.0) / denominator;
     2.0 * t * w
 }
 
@@ -1715,6 +1719,7 @@ fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
 
 /// bup: Ix(a, b) - Ix(a+n, b) evaluated for n a positive integer.
 fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64) -> f64 {
+    use crate::ported::excel_numeric::excel_x87_mul;
     let apb = a + b;
     let ap1 = a + 1.0;
     let mut mu: i32 = 0;
@@ -1753,20 +1758,21 @@ fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64) -> f64 {
     }
     for i in 1..=k {
         let l = (i - 1) as f64;
-        d = ((apb + l) / (ap1 + l)) * x * d;
+        d = excel_x87_mul(((apb + l) / (ap1 + l)) * x, d);
         w += d;
     }
     if k != nm1 {
         for i in (k + 1)..=nm1 {
             let l = (i - 1) as f64;
-            d = ((apb + l) / (ap1 + l)) * x * d;
+            d = excel_x87_mul(((apb + l) / (ap1 + l)) * x, d);
             w += d;
             if d <= eps * w {
                 break;
             }
         }
     }
-    bp * w
+    // The recurrence and its final product have measured binary64 stores from PC64.
+    excel_x87_mul(bp, w)
 }
 
 /// brcomp: evaluation of x^a * y^b / beta(a, b).

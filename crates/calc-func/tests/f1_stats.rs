@@ -394,3 +394,34 @@ fn tiny_erf_stores_both_rational_operations() {
     exact(call("GAUSS", vec![n(f64::from_bits(0x005f_e189_b32b_8147))]),
         f64::from_bits(0x0049_6ff7_0f27_3fff));
 }
+
+/// Recorded b17-s20-03582 and b16-g25-01840 distinguish the two polynomial stores.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn small_erf_stores_both_polynomial_additions() {
+    for (input, expected) in [
+        (0x3eb4_5231_7b1d_dc40, 0x3eb6_ee0b_e91e_09f3),
+        (0x3e61_cc00_0000_0000, 0x3e64_14e5_3e86_1661),
+    ] {
+        for function in ["ERF.PRECISE", "ERF"] {
+            exact(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        }
+    }
+}
+
+/// Recorded beta rows oc1582/oc640 and adjacent FDIST refinement inputs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_and_f_tails_keep_the_recorded_arithmetic_stores() {
+    for (x, alpha, beta, expected) in [
+        (0x3fd2_d8a7_e6f4_345c, 0x4000_0000_0000_0000, 0x4014_0000_0000_0000, 0x3fe2_2b76_1604_a6c4),
+        (0x3fef_8f5e_328d_786c, 0x4049_84b8_81a3_be4a, 0x3fa9_9999_9999_999a, 0x3f93_d7f8_5447_ca8d),
+    ] {
+        exact(call("BETA.DIST", vec![n(f64::from_bits(x)), n(f64::from_bits(alpha)), n(f64::from_bits(beta)), b(true)]),
+            f64::from_bits(expected));
+    }
+    for x in [0x3ff3_72a3_6987_efc6, 0x3ff3_72a3_6987_efc7] {
+        exact(call("FDIST", vec![n(f64::from_bits(x)), n(5.0), n(6.0)]),
+            f64::from_bits(0x3fd9_d035_ed43_a9d5));
+    }
+}

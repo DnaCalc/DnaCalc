@@ -27,16 +27,33 @@ pub fn phi_kernel(x: f64) -> f64 {
 }
 
 pub fn erf_approx(x: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    const P0: f64 = f64::from_bits(0x3ff1_df5e_70c7_956b);
+    const Q0: f64 = f64::from_bits(0x3fef_ada1_5778_ece6);
     if x.abs() < 1.0e-8 {
         // In this measured linear regime, the recorded answers distinguish two
         // PC64 operations with binary64 stores: (x * numerator) / denominator.
         // The global coefficient pair was identified from arithmetic constraints
         // and checked against all 248,904 recorded tiny ERF.PRECISE inputs.
         // Both stores matter; direct binary64 multiply or divide loses matches.
-        use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
-        const NUMERATOR: f64 = f64::from_bits(0x3ff1_df5e_70c7_956b);
-        const DENOMINATOR: f64 = f64::from_bits(0x3fef_ada1_5778_ece6);
-        return excel_x87_div(excel_x87_mul(x, NUMERATOR), DENOMINATOR);
+        return excel_x87_div(excel_x87_mul(x, P0), Q0);
+    }
+    if x.abs() < 1.0e-4 {
+        // dc-j9k.6: extend the same rational model in t=x*x. The coefficient
+        // constraints come from erf(x)/x = (2/sqrt(pi))*(1-t/3+t*t/10-...),
+        // DLMF 7.6.1, https://dlmf.nist.gov/7.6.E1. Recorded rounding intervals
+        // constrain Q1/Q2; P1/P2 follow those Taylor constraints. This is one
+        // surviving coefficient set, not a unique identification of Excel's code.
+        // All 612,287 recorded inputs below this cutoff match, including the tiny
+        // range. The two outer additions require PC64-to-binary64 stores too.
+        const P1: f64 = f64::from_bits(0x3fc2_01d8_6279_48cf);
+        const P2: f64 = f64::from_bits(0x3fa7_4df6_5003_a685);
+        const Q1: f64 = f64::from_bits(0x3fdd_191a_ca8c_9bf4);
+        const Q2: f64 = f64::from_bits(0x3fb7_c808_9325_7c16);
+        let t = x * x;
+        let numerator = excel_x87_add(P0, (P1 + P2 * t) * t);
+        let denominator = excel_x87_add(Q0, (Q1 + Q2 * t) * t);
+        return excel_x87_div(excel_x87_mul(x, numerator), denominator);
     }
     libm::erf(x)
 }
