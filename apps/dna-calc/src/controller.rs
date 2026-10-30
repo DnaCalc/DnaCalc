@@ -441,13 +441,13 @@ impl Controller {
     /// A cell's label with its sheet's name: `Sheet1!B3`.
     pub fn cell_label(&self, at: CellKey) -> String {
         self.summary
-            .with_untracked(|summary| dna_onecalc::display::cell(summary, at))
+            .with_untracked(|summary| dna_formula_ui::display::cell(summary, at))
     }
 
     /// An area's label with its sheet's name: `Sheet1!A1:B3`.
     pub fn area_label(&self, area: GridArea) -> String {
         self.summary
-            .with_untracked(|summary| dna_onecalc::display::area(summary, area))
+            .with_untracked(|summary| dna_formula_ui::display::area(summary, area))
     }
 
     /// Copies the selected range (Ctrl+C): a paste copies from it.
@@ -664,6 +664,40 @@ impl Controller {
     /// Whether the workbook calculates manually.
     pub fn manual(&self) -> bool {
         self.summary.with(|summary| summary.manual)
+    }
+
+    /// The workbook's iterative-calculation settings: on, the most iterations, the maximum change
+    /// (dc-y2o.2).
+    pub fn iteration(&self) -> (bool, u32, f64) {
+        self.summary
+            .with(|summary| (summary.iteration, summary.max_iterations, summary.max_change))
+    }
+
+    /// Sets the workbook's iterative-calculation settings, one undo step (dc-y2o.2).
+    pub fn set_iteration(&self, enabled: bool, max_iterations: u32, max_change: f64) {
+        self.dispatch(
+            Intent::SetIteration {
+                enabled,
+                max_iterations,
+                max_change_bits: max_change.to_bits(),
+            },
+            |_| {},
+        );
+    }
+
+    /// The warning of a circular reference the last recalculation found (dc-y2o.1): `None` when
+    /// there is none.
+    pub fn circular_warning(&self) -> Option<String> {
+        let (first, count) = self
+            .summary
+            .with(|summary| (summary.circular, summary.circular_count));
+        let at = first.and_then(|key| key.cell())?;
+        let label = self.cell_label(at);
+        Some(if count > 1 {
+            format!("Circular references: {label} and {} more", count - 1)
+        } else {
+            format!("Circular references: {label}")
+        })
     }
 
     pub fn set_calc_mode(&self, manual: bool) {

@@ -47,6 +47,10 @@ pub enum WorkbookOp {
         scope: crate::definitions::NameScope,
         formula: Option<String>,
     },
+    /// Set the workbook's iterative-calculation settings (dc-y2o.2): whether circular references
+    /// are calculated iteratively, the most iterations and the maximum change, as the workbook
+    /// part's `calcPr` holds them. It changes no cell.
+    SetIteration(crate::definitions::IterationSettings),
     /// Insert or delete rows or columns of one sheet.
     EditAxis(AxisEdit),
     /// Insert, rename, move, remove or show or hide a sheet.

@@ -246,6 +246,8 @@ impl Server {
     }
 
     fn summary(&self) -> Summary {
+        let iteration = self.book.host().model().definitions().iteration();
+        let circular = self.book.host().circular_cells();
         Summary {
             name: self.book.name().to_owned(),
             changed: self.book.changed(),
@@ -257,6 +259,11 @@ impl Server {
                 .collect(),
             manual: self.book.session().calc_mode() == CalcMode::Manual,
             revision: self.book.host().revision().get(),
+            iteration: iteration.enabled(),
+            max_iterations: iteration.max_iterations(),
+            max_change: iteration.max_change(),
+            circular: circular.first().copied().map(Key::of),
+            circular_count: circular.len(),
         }
     }
 
@@ -553,6 +560,19 @@ fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
         } else {
             CalcMode::Automatic
         }),
+        Intent::SetIteration {
+            enabled,
+            max_iterations,
+            max_change_bits,
+        } => SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::SetIteration(
+                calc_host::IterationSettings::new(
+                    enabled,
+                    max_iterations,
+                    f64::from_bits(max_change_bits),
+                ),
+            )],
+        },
         Intent::Select { active, area: a } => SkinIntent::Select(Selection {
             active: Some(cell(active)?),
             areas: vec![area(a)?],

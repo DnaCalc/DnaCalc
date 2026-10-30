@@ -7,22 +7,20 @@
 //! The surface keeps only what the person typed. On each edit it gives the session the formula
 //! cell, the grid's entries, every input row and the formula, has the session calculate, and shows
 //! the session's answers through [`crate::display`] and [`crate::result`]; no value is computed
-//! here. The formula editor is [`crate::formula_field`], which DNA Calc's formula bar shares; its
+//! here. The formula editor is [`dna_formula_ui::formula_field`], which DNA Calc's formula bar shares; its
 //! assistance is calc-fml's ([`calc_fml::assist`]) and the function help text is calc-func's
 //! ([`calc_func::help`]). Every element a person uses carries a `data-onecalc` attribute naming its
 //! role.
 //!
 //! Ported in part from DnaTreeCalc's Leptos formula skin (`src/dnacalc-formula-skin-leptos/src/lib.rs`
 //! at DnaTreeCalc c68ecaa: the array result grid and its CSS; the editor's part moved to
-//! [`crate::formula_field`]).
+//! [`dna_formula_ui::formula_field`]).
 //!
 //! No reactive effect writes a signal: the popup is reconciled in the event handlers that change
 //! the text or the caret, so a panic can only come from a memo or a view, where the browser smoke
 //! test (`cargo xtask app smoke onecalc`) sees it.
 
 use crate::display;
-use crate::editor::browse;
-use crate::formula_field::FormulaAssist;
 use crate::grid::{self, Entry};
 use crate::result::{self, ResultView};
 use crate::session::{InputValue, Session};
@@ -30,6 +28,9 @@ use calc_fml::syntax::TextSpan;
 use calc_fml::{CalcEnvironment, DateSystem, FormatProfile, FormulaForm};
 use calc_func::help;
 use calc_func::value::CellKey;
+use dna_formula_ui::editor::browse;
+use dna_formula_ui::formula_field::FormulaAssist;
+use dna_formula_ui::theme;
 use leptos::mount::mount_to;
 use leptos::prelude::*;
 use std::any::Any;
@@ -260,7 +261,7 @@ fn recalculate(
     let profile = session
         .environment()
         .and_then(|environment| environment.profile);
-    let view = ResultView::of(&calculation, profile.as_ref());
+    let view = ResultView::of(calculation.result.as_ref(), profile.as_ref());
     if let Some(index) = formula_index {
         grid[index] = GridShown {
             kind: "formula",
@@ -604,10 +605,10 @@ fn surface() -> impl IntoView {
                     class="oc-theme"
                     data-onecalc="theme"
                     aria-label="Theme"
-                    on:change=move |ev| crate::theme::set(&event_target_value(&ev))
-                    prop:value=crate::theme::current()
+                    on:change=move |ev| theme::set(&event_target_value(&ev))
+                    prop:value=theme::current()
                 >
-                    {crate::theme::CHOICES
+                    {theme::CHOICES
                         .iter()
                         .map(|(id, label)| view! { <option value=*id>{*label}</option> })
                         .collect_view()}

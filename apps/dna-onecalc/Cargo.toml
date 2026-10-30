@@ -10,8 +10,10 @@ description = "The package for the DNA OneCalc application core: formulas withou
 portability = "portable"
 
 # The controller compiles and evaluates through calc-fml, whose operators and functions are
-# calc-func's; neither calc-engine nor calc-host is in the closure, on any target or feature
-# (plan section 1.3; the onecalc-m1.1 dependency case reads cargo metadata to check it).
+# calc-func's; the formula field, value and result display, theme and browser start are
+# dna-formula-ui's, which DNA Calc shares. Neither calc-engine, calc-doc nor calc-host is in the
+# closure, on any target or feature (plan sections 1.3 and 8.7; the onecalc-m1.1 dependency case
+# reads cargo metadata to check calc-engine and calc-host).
 #
 # The browser surface is Leptos in client-side rendering mode (plan section 1.2). Leptos 0.8.19
 # resolves against the workspace's wasm-bindgen 0.2.117, which the browser test runner requires
@@ -21,10 +23,10 @@ portability = "portable"
 [dependencies]
 calc-fml = { path = "../../crates/calc-fml" }
 calc-func = { path = "../../crates/calc-func" }
+dna-formula-ui = { path = "../dna-formula-ui" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
-# The browser entry's start function (src/bin/dna-onecalc-web.rs) and the panic hook (src/web.rs).
-# 0.2.117 exactly: the release Leptos and web-sys resolve against, which the bundle's
-# wasm-bindgen CLI must match.
+# The browser entry's start function (src/bin/dna-onecalc-web.rs). 0.2.117 exactly: the release
+# Leptos and web-sys resolve against, which the bundle's wasm-bindgen CLI must match.
 wasm-bindgen = "=0.2.117"
 # The browser's clock for NOW and TODAY (src/surface.rs). 0.3.94 exactly, the release built on
 # that wasm-bindgen.

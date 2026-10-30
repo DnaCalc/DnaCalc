@@ -3666,8 +3666,9 @@ fn dc_0k9__offset_into_a_later_formula_cell() {
 }
 
 /// Two formulas that read each other only through INDIRECT are a circular reference the order
-/// cannot see: with iteration off neither is calculated, and with no value of this engine's to
-/// keep both are refused (dc-10y), and the recalculation completes.
+/// cannot see: with iteration off neither is calculated, and with no value of their cells to keep
+/// both hold an empty text by the circular-reference rule (dc-10y, dc-y2o.1), and the
+/// recalculation completes.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_0k9__circular_through_indirect() {
@@ -3680,9 +3681,9 @@ fn dc_0k9__circular_through_indirect() {
         (c(3, 1), formula("1+2")),
     ];
     let state = l1_calculated(cells, vec![], (data, calc));
-    assert_eq!(l2_refusal_owner(&state, c(2, 1)), "dc-10y");
-    assert_eq!(l2_refusal_owner(&state, c(1, 1)), "dc-10y");
-    assert_eq!(l1_value(&state, c(3, 1)), CalcValue::number(3.0));
+    assert_eq!(held_by_circular_rule(&state, c(2, 1)), excel_text(""));
+    assert_eq!(held_by_circular_rule(&state, c(1, 1)), excel_text(""));
+    assert_eq!(evaluated_value(&state, c(3, 1)), CalcValue::number(3.0));
 }
 
 /// A dynamic-array formula spills from its anchor; a formula that read a cell of the spill before
@@ -4077,7 +4078,8 @@ fn l3_iterated(
 /// `=C1+1` adds 100; D1 `=E1/2+1` with E1 `=D1` and F1 `=F1*0.5+5` settle at 2 and 10. From
 /// cells that start at 0: A1 199, B1 200, C1 100 after the first recalculation, 399, 400 and 200
 /// after a second one that an unrelated edit starts. G1 `=SUM(A1:B1)` reads the cycle. With
-/// iteration off the formulas on the cycles are refused and G1 too; H1 is calculated either way.
+/// iteration off the formulas on the cycles and G1 hold what their cells held (dc-y2o.1); H1 is
+/// calculated either way.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_m3u__iteration() {
@@ -4123,15 +4125,16 @@ fn dc_m3u__iteration() {
         assert_eq!(l1_value(&state, at), n(value), "{at:?}");
     }
 
-    // Iteration off: the cycles and their reader are refused, each cell holding a value this
-    // engine never calculated (dc-10y); H1 is calculated.
+    // Iteration off: the cycles and their reader hold what their cells held by the
+    // circular-reference rule, here a formula with no stored value, which holds an empty text
+    // (dc-y2o.1); H1 is calculated.
     let (state, _) = l3_iterated(
         cells,
         calc,
         calc_doc_model::IterationSettings::EXCEL_DEFAULT,
     );
     for at in [c(1, 1), c(1, 2), c(1, 3), c(1, 4), c(1, 5), c(1, 6), c(1, 7)] {
-        assert_eq!(l2_refusal_owner(&state, at), "dc-10y", "{at:?}");
+        assert_eq!(held_by_circular_rule(&state, at), excel_text(""), "{at:?}");
     }
     assert_eq!(l1_value(&state, c(1, 8)), n(6.0));
 }
@@ -4141,7 +4144,7 @@ fn dc_m3u__iteration() {
 /// `=E1+1`, each stored as 100, start from 100 (101 after one recalculation); C1 entered as
 /// `=C1+2` and E1 entered again start from 0, not from the result of a formula the cell no longer
 /// holds (2 and 1), while D1 goes on (102). Iteration off: the stored value is all Excel shows of
-/// a formula on a cycle, which this engine never calculated, so it is refused.
+/// a formula on a cycle, held by the circular-reference rule (dc-y2o.1).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_10y__cycles_with_stored_values() {
@@ -4183,7 +4186,7 @@ fn dc_10y__cycles_with_stored_values() {
     assert_eq!(l1_value(&state, c(1, 5)), n(1.0));
     assert_eq!(l1_value(&state, c(1, 4)), n(102.0));
 
-    // Iteration off: refused, never the stored value.
+    // Iteration off: the stored value, held by the circular-reference rule (dc-y2o.1).
     let root = l3_root(
         &[(calc, "Calc")],
         cells,
@@ -4192,7 +4195,171 @@ fn dc_10y__cycles_with_stored_values() {
     let mut state = EngineState::with_file_caches(&root, caches).unwrap();
     recalc(&mut state, &root, &mut Unobserved);
     for at in [c(1, 3), c(1, 4), c(1, 5)] {
-        assert_eq!(l2_refusal_owner(&state, at), "dc-10y", "{at:?}");
+        assert_eq!(held_by_circular_rule(&state, at), n(100.0), "{at:?}");
+    }
+}
+
+/// The value a formula holds by the circular-reference rule (dc-y2o.1), which must be marked so.
+fn held_by_circular_rule(state: &EngineState, at: CellKey) -> CalcValue {
+    match state.result(at) {
+        Some(FormulaResult::Calculated { value, calculation })
+            if calculation.held_by_circular_rule() =>
+        {
+            value.clone()
+        }
+        other => panic!("{at:?} is not held by the circular rule: {other:?}"),
+    }
+}
+
+/// A value this engine evaluated, not one the circular-reference rule held.
+fn evaluated_value(state: &EngineState, at: CellKey) -> CalcValue {
+    match state.result(at) {
+        Some(FormulaResult::Calculated { value, calculation })
+            if !calculation.held_by_circular_rule() =>
+        {
+            value.clone()
+        }
+        other => panic!("{at:?} is not an evaluated value: {other:?}"),
+    }
+}
+
+/// dc-y2o.1, against Excel 16.0.20527 (2026-10-30; tests/fixtures/dc_y2o, made by
+/// make-dc-y2o-oracles.ps1 and captured after a full rebuild with iteration off): a loaded
+/// workbook's formulas on a circular reference, and those that read one, keep what their cells
+/// stored, by the circular-reference rule: A1 `=B1+1` and B1 `=A1+1` stored as 77 and 55, G1
+/// `=A1*10` stored as 999, D1 `=D1+1` stored as 41, E1 `=E1&"x"` as "abc", F1 `=F1+1` as #N/A, and
+/// D2 `=D2*2` stored with no value holds an empty text. H1 `=C1*100`, stored as 3, is on no cycle
+/// and is calculated (100); I1 `=IF(C1>5,I1+1,7)` never meets itself and is calculated (7). An
+/// edit that breaks the cycle calculates its formulas; a formula entered onto it shows 0, held by
+/// the rule, and the cells it closes the cycle through keep their values.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_y2o__iteration_off_holds_what_the_cells_stored() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let off = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(off, row, column).unwrap();
+    let part = Arc::new(SourcePart::new("xl/worksheets/sheet1.xml".to_owned(), 1, 1));
+    let stored = |value: CachedValue| FileCached::new(value, Arc::clone(&part));
+    let number_cache = |value: f64| CachedValue::Number(FiniteNumber::new(value).unwrap());
+    let n = CalcValue::number;
+    let cells = vec![
+        (c(1, 3), number(1.0)),
+        (c(1, 1), formula("B1+1")),
+        (c(1, 2), formula("A1+1")),
+        (c(1, 7), formula("A1*10")),
+        (c(1, 4), formula("D1+1")),
+        (c(1, 5), formula("E1&\"x\"")),
+        (c(1, 6), formula("F1+1")),
+        (c(2, 4), formula("D2*2")),
+        (c(1, 8), formula("C1*100")),
+        (c(1, 9), formula("IF(C1>5,I1+1,7)")),
+    ];
+    let caches = [
+        (c(1, 1), stored(number_cache(77.0))),
+        (c(1, 2), stored(number_cache(55.0))),
+        (c(1, 7), stored(number_cache(999.0))),
+        (c(1, 4), stored(number_cache(41.0))),
+        (
+            c(1, 5),
+            stored(CachedValue::Text(
+                CellText::new(ExcelText::from_interop_assignment("abc")).unwrap(),
+            )),
+        ),
+        (c(1, 6), stored(CachedValue::Error(calc_doc_model::value::WorksheetErrorCode::NA))),
+        (c(1, 8), stored(number_cache(3.0))),
+        (c(1, 9), stored(number_cache(1.0))),
+    ];
+    let root = l3_root(
+        &[(off, "Off")],
+        cells,
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::with_file_caches(&root, caches).unwrap();
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(held_by_circular_rule(&state, c(1, 1)), n(77.0));
+    assert_eq!(held_by_circular_rule(&state, c(1, 2)), n(55.0));
+    assert_eq!(held_by_circular_rule(&state, c(1, 7)), n(999.0));
+    assert_eq!(held_by_circular_rule(&state, c(1, 4)), n(41.0));
+    assert_eq!(held_by_circular_rule(&state, c(1, 5)), excel_text("abc"));
+    assert_eq!(
+        held_by_circular_rule(&state, c(1, 6)),
+        CalcValue::error(calc_doc_model::value::WorksheetErrorCode::NA)
+    );
+    assert_eq!(held_by_circular_rule(&state, c(2, 4)), excel_text(""));
+    assert_eq!(evaluated_value(&state, c(1, 8)), n(100.0));
+    assert_eq!(evaluated_value(&state, c(1, 9)), n(7.0));
+    // The cells on a cycle of their references, and those that read one: I1 too, though its
+    // evaluation does not meet itself.
+    assert_eq!(
+        state.circular_cells(),
+        vec![c(1, 1), c(1, 2), c(1, 4), c(1, 5), c(1, 6), c(1, 7), c(1, 9), c(2, 4)]
+    );
+    // An edit elsewhere: the cycle's cells hold what they held.
+    let root = edit(&mut state, &root, vec![set(c(1, 3), number(2.0))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(held_by_circular_rule(&state, c(1, 1)), n(77.0));
+    assert_eq!(evaluated_value(&state, c(1, 8)), n(200.0));
+    // B1 entered as a number breaks the cycle: A1 and G1 are calculated from it.
+    let root = edit(&mut state, &root, vec![set(c(1, 2), number(5.0))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(evaluated_value(&state, c(1, 1)), n(6.0));
+    assert_eq!(evaluated_value(&state, c(1, 7)), n(60.0));
+    // Entered again onto the cycle, B1 shows 0 and A1 keeps 6, both by the rule.
+    let root = edit(&mut state, &root, vec![set(c(1, 2), formula("A1+1"))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(held_by_circular_rule(&state, c(1, 2)), n(0.0));
+    assert_eq!(held_by_circular_rule(&state, c(1, 1)), n(6.0));
+    assert_eq!(held_by_circular_rule(&state, c(1, 7)), n(60.0));
+}
+
+/// dc-86f, against Excel 16.0.20527 (2026-10-30; tests/fixtures/dc_86f, iteration on, at most 1
+/// iteration, every formula stored as 0, the saved calc chain reversed): the members of a cycle
+/// are evaluated by sheet name, letter case ignored, then row, then column, whatever the tab
+/// order. Sheets b, A and C in that tab order: b!A1 `=C!A1+1` with C!A1 `=b!A1*2` gives 1 and 2
+/// (b first), A!A2 `=b!A2+1` with b!A2 `=A!A2*2` 1 and 2 (A first), and Order!A10 `=b!A4*2` with
+/// b!A4 `=Order!A10+1` 2 and 1 (b first, though Order is the first tab). H1 `=H2+1`, H2 `=I1*2`
+/// and I1 `=H1+1` give 1, 4 and 2 (row by row).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_86f__cycle_members_evaluate_by_sheet_name_then_row_then_column() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let order = ids.issue().unwrap();
+    let b = ids.issue().unwrap();
+    let a = ids.issue().unwrap();
+    let cc = ids.issue().unwrap();
+    let at = |sheet, row, column| CellKey::new(sheet, row, column).unwrap();
+    let cells = vec![
+        (at(b, 1, 1), formula("C!A1+1")),
+        (at(cc, 1, 1), formula("b!A1*2")),
+        (at(a, 2, 1), formula("b!A2+1")),
+        (at(b, 2, 1), formula("A!A2*2")),
+        (at(order, 10, 1), formula("b!A4*2")),
+        (at(b, 4, 1), formula("Order!A10+1")),
+        (at(order, 1, 8), formula("H2+1")),
+        (at(order, 2, 8), formula("I1*2")),
+        (at(order, 1, 9), formula("H1+1")),
+    ];
+    let root = l3_root(
+        &[(order, "Order"), (b, "b"), (a, "A"), (cc, "C")],
+        cells,
+        Definitions::new(vec![], vec![], vec![], [])
+            .with_iteration(calc_doc_model::IterationSettings::new(true, 1, 0.001)),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let n = CalcValue::number;
+    for (cell, value) in [
+        (at(b, 1, 1), 1.0),
+        (at(cc, 1, 1), 2.0),
+        (at(a, 2, 1), 1.0),
+        (at(b, 2, 1), 2.0),
+        (at(order, 10, 1), 2.0),
+        (at(b, 4, 1), 1.0),
+        (at(order, 1, 8), 1.0),
+        (at(order, 2, 8), 4.0),
+        (at(order, 1, 9), 2.0),
+    ] {
+        assert_eq!(evaluated_value(&state, cell), n(value), "{cell:?}");
     }
 }
 
@@ -4602,6 +4769,8 @@ fn dc_35p__captures_name_the_current_worker() {
             "dc_10y_iteration",
             &include_bytes!("captures/dc_10y_iteration/oracle.capture.json")[..],
         ),
+        ("dc_y2o", &include_bytes!("captures/dc_y2o/oracle.capture.json")[..]),
+        ("dc_86f", &include_bytes!("captures/dc_86f/oracle.capture.json")[..]),
     ] {
         let text = std::str::from_utf8(capture).expect("a capture is UTF-8");
         assert!(

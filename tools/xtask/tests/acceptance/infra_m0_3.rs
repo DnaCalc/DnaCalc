@@ -362,6 +362,20 @@ impl WorkspaceCopy {
         fixture: &'static Fixture,
         evidence: &mut Evidence,
     ) -> WorkspaceCopy {
+        WorkspaceCopy::with_fixtures(name, fixture, &[], evidence)
+    }
+
+    /// [`WorkspaceCopy::with_fixture`], adding each of `companions` to the workspace members
+    /// beside `fixture` as well.
+    pub(super) fn with_fixtures(
+        name: &str,
+        fixture: &'static Fixture,
+        companions: &[&'static Fixture],
+        evidence: &mut Evidence,
+    ) -> WorkspaceCopy {
+        let added: Vec<&'static Fixture> = std::iter::once(fixture)
+            .chain(companions.iter().copied())
+            .collect();
         let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
         let root = base.join("ws");
         if root.is_dir() {
@@ -398,20 +412,19 @@ impl WorkspaceCopy {
             write_afresh(&from, &root.join(rel));
             copied += 1;
         }
-        let sources = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("fixtures")
-            .join(fixture.source);
-        let package = root.join(fixture.dir);
-        for (from, to) in fixture.files {
-            write_afresh(&sources.join(from), &package.join(to));
-        }
         let workspace_manifest = root.join("Cargo.toml");
-        let text = fs::read_to_string(&workspace_manifest).expect("read the copy's Cargo.toml");
-        super::write(
-            &workspace_manifest,
-            add_workspace_member(&text, fixture.dir),
-        );
+        for added in &added {
+            let sources = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests")
+                .join("fixtures")
+                .join(added.source);
+            let package = root.join(added.dir);
+            for (from, to) in added.files {
+                write_afresh(&sources.join(from), &package.join(to));
+            }
+            let text = fs::read_to_string(&workspace_manifest).expect("read the copy's Cargo.toml");
+            super::write(&workspace_manifest, add_workspace_member(&text, added.dir));
+        }
         let mut copy = WorkspaceCopy {
             base,
             root,
@@ -434,11 +447,13 @@ impl WorkspaceCopy {
             "cargo metadata in the copy with the fixture package failed: {stderr}"
         );
         copy.graph = Graph::parse(&stdout);
-        assert!(
-            copy.graph.members.contains_key(fixture.package),
-            "the copy's workspace has no {}",
-            fixture.package
-        );
+        for added in &added {
+            assert!(
+                copy.graph.members.contains_key(added.package),
+                "the copy's workspace has no {}",
+                added.package
+            );
+        }
         git_in(&copy.root, &["init", "--quiet"]);
         git_in(&copy.root, &["add", "--all"]);
         git_in(
@@ -452,12 +467,19 @@ impl WorkspaceCopy {
         );
         copy.markers = copy.base.join("markers");
         copy.clear_markers();
+        let packages: Vec<String> = added
+            .iter()
+            .map(|added| {
+                format!(
+                    "{} at {} (from tools/xtask/tests/fixtures/{})",
+                    added.package, added.dir, added.source
+                )
+            })
+            .collect();
         evidence.lines.push(format!(
-            "copy: {copied} files of the working tree at {}, plus the fixture package {} at {} (from tools/xtask/tests/fixtures/{}) added to its workspace members and Cargo.lock, committed in its own repository",
+            "copy: {copied} files of the working tree at {}, plus the fixture packages {} added to its workspace members and Cargo.lock, committed in its own repository",
             copy.root.display(),
-            fixture.package,
-            fixture.dir,
-            fixture.source
+            packages.join(", ")
         ));
         copy
     }
@@ -1727,10 +1749,10 @@ pub fn forbidden_dependency() {
     copy.replace(source, &old);
 
     // OS-binding crates: stand-in path crates outside the copy, named like the deny list, attached
-    // to dna-onecalc. Plan 2.1's diagram has no arrow into OneCalc and no member depends on it
-    // (checked below; no architecture rule forbids one), so the check's lines name dna-onecalc
-    // alone, whichever portable packages depend on each other.
-    const HOLDER: &str = "dna-onecalc";
+    // to dna-calc. No member depends on DNA Calc's application core (checked below; dna-onecalc
+    // has one dependent, dna-calc, which shares its formula field), so the check's lines name
+    // dna-calc alone, whichever portable packages depend on each other.
+    const HOLDER: &str = "dna-calc";
     let dependents: Vec<&String> = copy
         .graph
         .edges
@@ -1748,8 +1770,7 @@ pub fn forbidden_dependency() {
     stand_in_crate(&shim, "shim", Some(&path_dependency("winapi", &winapi)));
     let manifest = copy.rel(&copy.graph.member_dir(HOLDER).join("Cargo.toml"));
     let manifest = manifest.as_str();
-    let old_manifest =
-        fs::read_to_string(copy.path(manifest)).expect("read dna-onecalc's manifest");
+    let old_manifest = fs::read_to_string(copy.path(manifest)).expect("read the holder's manifest");
     let binding: [(&str, &Path, Vec<String>); 2] = [
         (
             "os-binding-direct",

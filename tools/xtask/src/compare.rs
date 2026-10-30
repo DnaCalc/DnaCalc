@@ -767,11 +767,22 @@ fn run_workbook(
                 Dna::FileCached,
             ),
             ProjectedValue::Calculated { value, calculation } => (
-                Provenance::Calculated {
-                    tick: calculation.tick().get(),
-                    revision: calculation.revision().get(),
-                    context: context.clone(),
-                    external_links: calculation.reads_external_links(),
+                // The value the circular-reference rule held with iteration off was not
+                // evaluated (dc-y2o.1): the judge counts it apart, with no evaluation asked for.
+                if calculation.held_by_circular_rule() {
+                    Provenance::CircularRule {
+                        tick: calculation.tick().get(),
+                        revision: calculation.revision().get(),
+                        context: context.clone(),
+                        external_links: calculation.reads_external_links(),
+                    }
+                } else {
+                    Provenance::Calculated {
+                        tick: calculation.tick().get(),
+                        revision: calculation.revision().get(),
+                        context: context.clone(),
+                        external_links: calculation.reads_external_links(),
+                    }
                 },
                 // A dynamic array's anchor is compared by the whole array its spill shows, as the
                 // capture records Excel's (dc-677); a legacy array's cells each by its own value.
@@ -1031,6 +1042,12 @@ fn compare(request: &Request) -> Result<(), Failure> {
         println!(
             "xtask compare: {} calculated cells read another workbook's link caches ({} of them matched); the corpus summary counts those matches apart from passes",
             c.external_links, c.matched_external_links
+        );
+    }
+    if c.circular_rule > 0 {
+        println!(
+            "xtask compare: {} cells hold the circular-reference rule's value with iteration off ({} of them matched); the corpus summary counts those matches apart from passes",
+            c.circular_rule, c.matched_circular_rule
         );
     }
     if let Some(failure) = &run.workbook {

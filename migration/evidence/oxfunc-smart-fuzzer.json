@@ -47,6 +47,35 @@
     "raw_bytes": 745605552,
     "reason": "third-party, re-downloadable Intel MKL wheel and its extracted DLLs under runs/w108a-reference-hunt/mkl_dl/: hashed, not stored"
   },
+  "removed": {
+    "commit": "5e54ff72a0f2903f7dc55aa69c2ab64be193a468",
+    "files": 21,
+    "raw_bytes": 739402,
+    "reason": "dc-96l.4, the licence cleanup of the evidence repository: the third-party sources under runs/w108a-reference-hunt and the probe built from them, and the candidate copies of OxFunc code files under five runs/w111-*-20260929/candidate folders, were removed from its tree and from manifest.tsv at this commit (its parent's manifest.tsv lists each with these sizes); the measurements stay. The originals keep these files, so the local originals are manifest.tsv plus excluded.tsv plus these paths",
+    "paths": [
+      {"path": "runs/w108a-reference-hunt/e_exp_data_229.c", "raw_bytes": 7072, "raw_sha256": "0f6372322ad50c3b3675337605352f76a43a671cf6d31ad9bc785d9296102689"},
+      {"path": "runs/w108a-reference-hunt/g229_e_exp.c", "raw_bytes": 5704, "raw_sha256": "b398cff7a85012952eb6bf96015c5eaf5c45b1e25bedb245c5806e3de61f175d"},
+      {"path": "runs/w108a-reference-hunt/g229_e_exp_data.c", "raw_bytes": 7072, "raw_sha256": "0f6372322ad50c3b3675337605352f76a43a671cf6d31ad9bc785d9296102689"},
+      {"path": "runs/w108a-reference-hunt/g229_e_log.c", "raw_bytes": 4237, "raw_sha256": "0f9e0c4d9ee89a17b94d406f990e7f3d52c927c2d174c27a6c747759acc22677"},
+      {"path": "runs/w108a-reference-hunt/g229_e_log_data.c", "raw_bytes": 14780, "raw_sha256": "18c4a829ac23ce65292bd2ed05c51e3ae1818470babb0a51e320408d2b08e8ac"},
+      {"path": "runs/w108a-reference-hunt/g229_math_config.h", "raw_bytes": 5578, "raw_sha256": "f52c0a39206473f92b9bafaad452861563abeddb5a4627ab48248afdee0a4b8f"},
+      {"path": "runs/w108a-reference-hunt/glibc229_probe.c", "raw_bytes": 25889, "raw_sha256": "183861275d307cb1e366351ceab7cf23ed0eca9aa53d519b918c199334a99d60"},
+      {"path": "runs/w108a-reference-hunt/glibc229_probe.exe", "raw_bytes": 183808, "raw_sha256": "c17f8f7e23ea234d32840b7cc66b9ba6356c440afee5e2d6c351362d0997efe5"},
+      {"path": "runs/w108a-reference-hunt/glibc229_probe.obj", "raw_bytes": 21104, "raw_sha256": "bc0d6420221a2005c1bb73b7d82741c566e3553f83e7b93a88f91889e87bf8ca"},
+      {"path": "runs/w111-atan-heldout-20260929/candidate/excel_numeric/mod.rs", "raw_bytes": 41453, "raw_sha256": "f7fca56494ecc0d56371afed2b3d43615bb5c4674320bcf842d2e919a0eda9e4"},
+      {"path": "runs/w111-atan-heldout-20260929/candidate/excel_numeric/x87.rs", "raw_bytes": 34963, "raw_sha256": "9020f6665e9fcc31daf3b8891a580a989a983252e0680d6457930b506f59abd8"},
+      {"path": "runs/w111-atan-heldout2-20260929/candidate/excel_numeric/mod.rs", "raw_bytes": 41861, "raw_sha256": "5590d962371a15b8eac10bf0ea09496ae5b7465997da695d19c7d6511ae48262"},
+      {"path": "runs/w111-atan-heldout2-20260929/candidate/excel_numeric/x87.rs", "raw_bytes": 36208, "raw_sha256": "d840f964a082393d1dd6d01023847e987a98c5d745935e7b19db85dbb97083cd"},
+      {"path": "runs/w111-log-power-midpoint-heldout-20260929/candidate/excel_numeric/mod.rs", "raw_bytes": 42414, "raw_sha256": "eaa288a6e24a045073fe75cc207a02cbe3fbec3f91899c8746d44fd1ad5f4989"},
+      {"path": "runs/w111-log-power-midpoint-heldout-20260929/candidate/excel_numeric/x87.rs", "raw_bytes": 36208, "raw_sha256": "d840f964a082393d1dd6d01023847e987a98c5d745935e7b19db85dbb97083cd"},
+      {"path": "runs/w111-numeric-publication-heldout-20260929/candidate/excel_numeric/mod.rs", "raw_bytes": 42458, "raw_sha256": "e2b0505d28e0a99ece9c02400123b5b64857f47162894e49cd2caf08eeb6a7af"},
+      {"path": "runs/w111-numeric-publication-heldout-20260929/candidate/excel_numeric/x87.rs", "raw_bytes": 36208, "raw_sha256": "d840f964a082393d1dd6d01023847e987a98c5d745935e7b19db85dbb97083cd"},
+      {"path": "runs/w111-numeric-publication-heldout-20260929/candidate/functions/discrete_dist_family.rs", "raw_bytes": 43826, "raw_sha256": "056e51703d7e163702a67839e639c63cb8d2f2f1477d2514f976eb857bcb6fa9"},
+      {"path": "runs/w111-numeric-publication-heldout-20260929/candidate/functions/normal_log_family.rs", "raw_bytes": 29937, "raw_sha256": "d24a8b4d32f7d5968705baf2c1f3d89293ccbc41c103eddb1e4a51420a547e7e"},
+      {"path": "runs/w111-radians-sech-heldout2-20260929/candidate/excel_numeric/mod.rs", "raw_bytes": 42414, "raw_sha256": "eaa288a6e24a045073fe75cc207a02cbe3fbec3f91899c8746d44fd1ad5f4989"},
+      {"path": "runs/w111-radians-sech-heldout2-20260929/candidate/excel_numeric/x87.rs", "raw_bytes": 36208, "raw_sha256": "d840f964a082393d1dd6d01023847e987a98c5d745935e7b19db85dbb97083cd"}
+    ]
+  },
   "layout": {
     "note": "322 run files embed absolute C:/Work/DnaCalc/OxFunc/smart-fuzzer paths and 238 reference other run or cache folders, so a restore keeps the relative layout of cache/ and runs/ under one root",
     "source": "quoted from the feasibility check of 2026-10-18 (workflow wf_73aa1fd8-7da), recorded in the infra-m0.6 notes; infra-m0.6 did not re-measure the two counts, because measuring them again opens every file, the files of the path-only run folders included, which the infra-m0.5 reading rule keeps closed"
