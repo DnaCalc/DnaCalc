@@ -98,7 +98,8 @@ is preserved.
 
 ==============================================================================
 Unicode Character Database 15.0.0: combining marks (calc-fml, combining_marks.rs) and the
-case folds of CaseFolding.txt (calc-value, case_folding.rs)
+case folds of CaseFolding.txt (calc-value, case_folding.rs); the CLDR root collation's weights
+and UCD properties (Unicode 15.1; calc-func, root_collation.rs)
 ==============================================================================
 
 UNICODE LICENSE V3

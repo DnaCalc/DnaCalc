@@ -40,6 +40,14 @@ pub use catalogue::{
 };
 pub use file_prefix::FilePrefix;
 
+/// The order of two texts (UTF-16 code units) as Excel's comparison operators give it under the
+/// Windows locale en-ZA: Excel's pass over ASCII ignoring case, then Windows' collation ignoring
+/// case (dc-zsn.1); `None` when the collation does not decide them (a text holding a code unit it
+/// builds no sort key for). `cargo xtask collation verify` checks it against Windows.
+pub fn text_order(a: &[u16], b: &[u16]) -> Option<std::cmp::Ordering> {
+    catalogue::text_order(a, b)
+}
+
 /// What `text` (UTF-16 code units) reads as under `environment`'s locale profile, date system and
 /// clock, by the grammar VALUE reads text with: the number, date or time it is; `Ok(None)` when the
 /// grammar does not read it (VALUE's #VALUE!); `Err(())` when the reading is not modelled (no

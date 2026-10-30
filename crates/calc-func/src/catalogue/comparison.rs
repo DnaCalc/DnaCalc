@@ -18,13 +18,17 @@
 //! 16th-digit tie but not on it, a number of binary64's top binade (from 2^1023), and a number
 //! from 1E-146 or 1E-292 to a relative 2^-8 above it.
 //!
-//! Two texts compare as [`collation::compare`] states: ignoring case, with Excel's collation under
-//! the Windows locale en-ZA for spaces, punctuation and the letters of Latin-1 and Latin
-//! Extended-A. Texts with the same code units are equal. Text holding a character beyond the
-//! collation's repertoire is refused as not modelled, naming the operand that holds the first one
-//! ([`Beyond`]), unless the texts are the same.
+//! Two texts compare as [`collation::compare`] states: Excel's own pass over ASCII, then Windows'
+//! comparison under the locale en-ZA ignoring case, over the covered scripts and blocks (dc-zsn.1).
+//! Texts with the same code units are equal. Text holding a code unit the collation does not build
+//! a sort key for (outside the covered scripts and blocks, Hangul conjoining jamo, the iteration
+//! marks) is refused as not modelled, naming the operand that holds the first one ([`Beyond`]),
+//! unless the texts are the same.
 
 mod collation;
+mod root_collation;
+mod sort_key;
+mod windows_collation;
 
 use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
@@ -93,9 +97,8 @@ pub(super) enum Want {
 }
 
 /// Why [`texts`] does not decide two texts: `operand` (0 for the first, 1 for the second) holds a
-/// character beyond the collation's repertoire, the first one met. Excel's collation of such
-/// characters belongs to locale services, and bead dc-uar owns its replacement; the comparison
-/// operators refuse the pair as not modelled, naming that operand.
+/// code unit the collation builds no sort key for. The comparison operators refuse the pair as not
+/// modelled, naming that operand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Beyond {
     pub(super) operand: usize,
@@ -369,6 +372,23 @@ impl Roundings {
             .flatten()
             .all(|x| !of(other).iter().flatten().any(|y| x == y))
     }
+}
+
+/// The order of two texts as the comparison operators give it ([`texts`] for an order), or `None`
+/// when the collation does not decide them: calc-func's public `text_order`.
+pub(crate) fn text_order(a: &[u16], b: &[u16]) -> Option<Ordering> {
+    texts(a, b, Want::Order).ok()
+}
+
+/// A key under which texts the comparison operators hold equal always fall together, for a
+/// grouping that compares only the texts sharing a key (UNIQUE): the sort key the second pass
+/// compares (texts the first pass holds equal differ in ASCII case alone, which the key ignores),
+/// or `None` when the collation builds none for `text`.
+pub(super) fn text_bucket(text: &[u16]) -> Option<Vec<u8>> {
+    if text.iter().any(|&code| sort_key::refused(code)) {
+        return None;
+    }
+    sort_key::sort_key(text)
 }
 
 /// The order of two texts as the comparison operators give it, or [`Beyond`] when either holds a

@@ -263,6 +263,8 @@ $FormulaSheets += , @('dcj9k_linest_stats', 'sheet-dcj9k_linest_stats.txt')
 # dc-b1l: the oracle corpus's refused cells (FIELDVALUE first).
 $PrefixSections += 'prefix-b1l.txt'
 $FormulaSheets += , @('dcb1l_language', 'sheet-dcb1l_language.txt')
+# dc-zsn.1: text comparison and sorting beyond ASCII.
+$FormulaSheets += , @('dczsn1_collation', 'sheet-dczsn1_collation.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),

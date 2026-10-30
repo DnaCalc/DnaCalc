@@ -56,17 +56,17 @@
       "external_links": "",
       "ole_dde_links": "",
       "connections": "",
-      "calculation_clock": "40e69e8eb6856b9e"
+      "calculation_clock": "40e69e956502016a"
     }
   },
   "session": {
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:2fe03da89092385bdac1915ffc0999a15223cbd8b4041ade68cc0d4372c5b8c8; repository 45185cd621fc43fc4b6ab977db2bc143bd8fa718+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:599032d018da3b9889269e0ca46c2c1c7f2f21572fb378bc1781a73b9cd93d25; repository 4f063f15a5447eae93ae8d2d5fe0edb6376207b7+dirty",
     "packages": {
       "input": "sha256:1e3fb218fe5ca44271799b8befe850e34fa12bc9b15e44b4007f19104fb64724",
-      "output": "sha256:aae1e771a9f1f2fa08bfd0862d8b01ef1668ae3c74df7263c53c306d6c97285b"
+      "output": "sha256:39b1f1e292164660491197674a5645ab0cf5783360f0927cb86ee818e087bda6"
     },
     "failures": [
       {"stage":"reopen","sheet":"large_integers","row":13,"column":4,"message":"after reopening the saved package Excel reads CalcValue { core: Error(Num), callable: None }, where the capture read CalcValue { core: Number(NaN), callable: None }"},

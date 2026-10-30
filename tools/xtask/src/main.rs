@@ -86,6 +86,9 @@ mod arch;
 // The bench command times Excel through calc-oracle-excel, like the capture command.
 #[cfg(not(target_arch = "wasm32"))]
 mod bench;
+// The collation command asks Windows for sort keys (dc-zsn.1).
+#[cfg(not(target_arch = "wasm32"))]
+mod collation;
 #[cfg(not(target_arch = "wasm32"))]
 mod fidelity;
 // calc-oracle-excel, which the capture command calls, is not a dependency of a wasm32 build of
@@ -138,6 +141,8 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "bench" => bench::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "fidelity" => fidelity::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "collation" => collation::run(rest),
         _ => {
             #[allow(unused_mut)]
             let mut usages = vec![
@@ -159,6 +164,8 @@ fn main() -> ExitCode {
             usages.push(bench::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(fidelity::USAGE);
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(collation::USAGE);
             eprintln!(
                 "xtask: unknown or missing command {args:?}\n{}",
                 usages.join("\n")

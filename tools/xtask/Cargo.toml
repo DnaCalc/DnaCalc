@@ -40,7 +40,8 @@ calc-oracle-excel = { path = "../../platform/calc-oracle-excel" }
 calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 
 # `cargo xtask bench` reads its own process's peak memory (GetProcessMemoryInfo) and its thread
-# cycles (QueryThreadCycleTime). windows-sys is already in the workspace lock (calc-oracle-excel's
+# cycles (QueryThreadCycleTime); `cargo xtask collation` asks Windows for sort keys (LCMapStringEx,
+# CompareStringEx) and the ICU Windows ships for the CLDR root collation. windows-sys is already in the workspace lock (calc-oracle-excel's
 # isolation uses it).
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Globalization", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }

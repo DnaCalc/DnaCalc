@@ -41,7 +41,12 @@ fn prepared(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step
     Ok(out)
 }
 
-fn prepared_one(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+fn prepared_one(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<CalcValue> {
     if !matches!(a[index].core_ref(), CoreRef::Reference(_)) {
         return Ok(a[index].clone());
     }
@@ -101,9 +106,15 @@ fn by_area(
     }
     let count = cells.len();
     let shape = if column {
-        ArrayShape { rows: count, cols: 1 }
+        ArrayShape {
+            rows: count,
+            cols: 1,
+        }
     } else {
-        ArrayShape { rows: 1, cols: count }
+        ArrayShape {
+            rows: 1,
+            cols: count,
+        }
     };
     Ok(Some(CalcValue::array(
         CalcArray::new(shape, cells).expect("one cell per item of the shape"),
@@ -153,16 +164,30 @@ fn sub_area(site: &Site<'_>, a: &[CalcValue], take: bool) -> Step<Option<CalcVal
             },
         }
     };
-    let (row_full, col_full) = if take { (rows as isize, cols as isize) } else { (0, 0) };
+    let (row_full, col_full) = if take {
+        (rows as isize, cols as isize)
+    } else {
+        (0, 0)
+    };
     let (row_count, col_count) = (count(1, row_full)?, count(2, col_full)?);
-    let span = |len: usize, n: isize| if take { k::take_span(len, n) } else { k::drop_span(len, n) };
+    let span = |len: usize, n: isize| {
+        if take {
+            k::take_span(len, n)
+        } else {
+            k::drop_span(len, n)
+        }
+    };
     let ((r0, r1), (c0, c1)) = match (span(rows, row_count), span(cols, col_count)) {
         (Ok(r), Ok(c)) => (r, c),
         (Err(error), _) | (_, Err(error)) => return result(site, Err(error)).map(|_| None),
     };
     let first = area.first();
     let corner = |row: usize, col: usize| {
-        CellKey::new(area.sheet(), first.row() + row as u32, first.column() + col as u32)
+        CellKey::new(
+            area.sheet(),
+            first.row() + row as u32,
+            first.column() + col as u32,
+        )
     };
     match (corner(r0, c0), corner(r1 - 1, c1 - 1)) {
         (Ok(top_left), Ok(bottom_right)) => match GridArea::new(top_left, bottom_right) {
@@ -265,16 +290,19 @@ fn order(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<Ordering> {
         }
         (CoreRef::Logical(a), CoreRef::Logical(b)) => Ok(a.cmp(&b)),
         (CoreRef::Error(a), CoreRef::Error(b)) => Ok((a as u8).cmp(&(b as u8))),
-        (CoreRef::Array(_) | CoreRef::Reference(_), _) | (_, CoreRef::Array(_) | CoreRef::Reference(_)) => {
-            Err(site.not_modelled(None))
-        }
+        (CoreRef::Array(_) | CoreRef::Reference(_), _)
+        | (_, CoreRef::Array(_) | CoreRef::Reference(_)) => Err(site.not_modelled(None)),
         _ => Ok(kind(x).cmp(&kind(y))),
     }
 }
 
 /// The indices `0..len` stably sorted by `keys` (each a key per index and its direction); the
 /// first refused comparison refuses the call.
-fn sorted_indices(site: &Site<'_>, len: usize, keys: &[(Vec<CalcValue>, bool)]) -> Step<Vec<usize>> {
+fn sorted_indices(
+    site: &Site<'_>,
+    len: usize,
+    keys: &[(Vec<CalcValue>, bool)],
+) -> Step<Vec<usize>> {
     let refused: RefCell<Option<Exit>> = RefCell::new(None);
     let mut indices: Vec<usize> = (0..len).collect();
     indices.sort_by(|&i, &j| {
@@ -305,7 +333,11 @@ fn reordered(array: &CalcArray, indices: &[usize], by_col: bool) -> Step<CalcVal
     let mut cells = Vec::with_capacity(rows * cols);
     for row in 0..rows {
         for col in 0..cols {
-            let (r, c) = if by_col { (row, indices[col]) } else { (indices[row], col) };
+            let (r, c) = if by_col {
+                (row, indices[col])
+            } else {
+                (indices[row], col)
+            };
             cells.push(array.get(r, c).cloned().unwrap_or_else(CalcValue::empty));
         }
     }
@@ -318,9 +350,23 @@ fn reordered(array: &CalcArray, indices: &[usize], by_col: bool) -> Step<CalcVal
 fn line(array: &CalcArray, index: usize, by_col: bool) -> Vec<CalcValue> {
     let ArrayShape { rows, cols } = array.shape();
     if by_col {
-        (0..rows).map(|r| array.get(r, index).cloned().unwrap_or_else(CalcValue::empty)).collect()
+        (0..rows)
+            .map(|r| {
+                array
+                    .get(r, index)
+                    .cloned()
+                    .unwrap_or_else(CalcValue::empty)
+            })
+            .collect()
     } else {
-        (0..cols).map(|c| array.get(index, c).cloned().unwrap_or_else(CalcValue::empty)).collect()
+        (0..cols)
+            .map(|c| {
+                array
+                    .get(index, c)
+                    .cloned()
+                    .unwrap_or_else(CalcValue::empty)
+            })
+            .collect()
     }
 }
 
@@ -398,9 +444,19 @@ fn sortby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
         };
         let shape = key.shape();
         let (values, columns) = if shape.cols == 1 && shape.rows == rows {
-            ((0..rows).map(|r| key.get(r, 0).cloned().unwrap_or_else(CalcValue::empty)).collect(), false)
+            (
+                (0..rows)
+                    .map(|r| key.get(r, 0).cloned().unwrap_or_else(CalcValue::empty))
+                    .collect(),
+                false,
+            )
         } else if shape.rows == 1 && shape.cols == cols {
-            ((0..cols).map(|c| key.get(0, c).cloned().unwrap_or_else(CalcValue::empty)).collect(), true)
+            (
+                (0..cols)
+                    .map(|c| key.get(0, c).cloned().unwrap_or_else(CalcValue::empty))
+                    .collect(),
+                true,
+            )
         } else {
             return fail(WorksheetErrorCode::Value);
         };
@@ -429,16 +485,20 @@ fn same(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<bool> {
     }
 }
 
-/// A coarse key under which equal cells always fall together (text by its lower case, numbers by
-/// their bits), so each line is compared only with the lines that share it.
-fn bucket(cells: &[CalcValue]) -> String {
+/// A coarse key under which equal cells always fall together (text by its collation sort key,
+/// numbers by their bits), so each line is compared only with the lines that share it; `None`
+/// when a text's sort key is not built (dc-zsn.1), whose equality to the other texts is then not
+/// decided.
+fn bucket(cells: &[CalcValue]) -> Option<String> {
     let mut key = String::new();
     for cell in cells {
         match cell.core_ref() {
             CoreRef::Number(n) => key.push_str(&format!("n{:x}|", (n + 0.0).to_bits())),
             CoreRef::Text(t) => {
                 key.push('t');
-                key.push_str(&t.to_string_lossy().to_lowercase());
+                for byte in comparison::text_bucket(t.utf16_code_units())? {
+                    key.push_str(&format!("{byte:02x}"));
+                }
                 key.push('|');
             }
             CoreRef::Logical(b) => key.push_str(if b { "T|" } else { "F|" }),
@@ -446,7 +506,7 @@ fn bucket(cells: &[CalcValue]) -> String {
             _ => key.push_str("b|"),
         }
     }
-    key
+    Some(key)
 }
 
 fn unique(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
@@ -461,7 +521,8 @@ fn unique(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     let mut buckets: HashMap<String, Vec<usize>> = HashMap::new();
     let mut group = vec![0usize; len];
     for i in 0..len {
-        let members = buckets.entry(bucket(&lines[i])).or_default();
+        let key = bucket(&lines[i]).ok_or_else(|| site.not_modelled(None))?;
+        let members = buckets.entry(key).or_default();
         let mut found = None;
         for &j in members.iter() {
             let mut equal = true;
@@ -494,16 +555,31 @@ fn unique(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     if kept.is_empty() {
         return fail(WorksheetErrorCode::Calc);
     }
-    let (out_rows, out_cols) = if by_col { (rows, kept.len()) } else { (kept.len(), cols) };
+    let (out_rows, out_cols) = if by_col {
+        (rows, kept.len())
+    } else {
+        (kept.len(), cols)
+    };
     let mut cells = Vec::with_capacity(out_rows * out_cols);
     for r in 0..out_rows {
         for c in 0..out_cols {
-            let value = if by_col { &lines[kept[c]][r] } else { &lines[kept[r]][c] };
+            let value = if by_col {
+                &lines[kept[c]][r]
+            } else {
+                &lines[kept[r]][c]
+            };
             cells.push(value.clone());
         }
     }
     Ok(CalcValue::array(
-        CalcArray::new(ArrayShape { rows: out_rows, cols: out_cols }, cells).expect("a shape of its cells"),
+        CalcArray::new(
+            ArrayShape {
+                rows: out_rows,
+                cols: out_cols,
+            },
+            cells,
+        )
+        .expect("a shape of its cells"),
     ))
 }
 
