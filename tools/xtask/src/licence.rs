@@ -5,12 +5,12 @@
 //! - a git-tracked file under the ledger's `scan.ledger_roots` has no entry in its `files`, or an
 //!   entry names a file that is not tracked;
 //! - a git-tracked file under `scan.scan_roots` holds the markers of a removed or replaced source
-//!   (`scan.markers`, by family: the NT CRT file and routine names, the Numerical Recipes and R
-//!   nmath routine names, the glibc copy's file names, words for reading machine code) more often
+//!   (`scan.markers`, by family: the NT CRT file and routine names, the routine names of the
+//!   removed reference libraries, the glibc copy's file names, words for reading machine code) more often
 //!   than `scan.allowed` lists for that file and family.
 //!
 //! A marker matches case-sensitively where the characters on either side of it are not ASCII
-//! letters or digits (so `binom_bd0` holds one, `diffexp` none). The ledger stores each marker as
+//! letters or digits (with a marker `abc`, `x_abc` holds one and `xabc` none). The ledger stores each marker as
 //! the hex of its ASCII bytes, so neither it nor this package carries the markers as text. The
 //! records (`docs/`, `migration/`, `.beads/`, `accept-receipts/`) are outside the scanned roots:
 //! they describe the sources and the clean-up by name.
