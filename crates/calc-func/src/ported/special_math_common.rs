@@ -654,7 +654,8 @@ fn gratio_after40(
                 break;
             }
         }
-        let p = (r_series / a) * ans;
+        // The series product is stored from x87 PC64 before binary64 publication.
+        let p = crate::ported::excel_numeric::excel_x87_mul(r_series / a, ans);
         return (p, 0.5 + (0.5 - p));
     }
     if x < x0 {

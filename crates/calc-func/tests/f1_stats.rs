@@ -336,3 +336,10 @@ fn poisson_zero_count_retains_recorded_subnormal_probabilities() {
         }
     }
 }
+
+/// Recorded cumulative gamma row: the final series product has an x87 store.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_cumulative_stores_the_final_series_product() {
+    exact(call("GAMMA.DIST", vec![n(f64::from_bits(0x3ee4e69846c122d8)), n(f64::from_bits(0x4000000000000000)), n(f64::from_bits(0x3ff0000000000000)), b(true)]), f64::from_bits(0x3dcb4d6c2d100466));
+}
