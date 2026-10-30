@@ -185,8 +185,7 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         assert!(commit(&controller));
         assert_eq!(controller.editing.get_untracked(), None);
         controller.select(3, 1);
-        controller.edit_text.set("=A2*2".to_owned());
-        controller.editing.set(Some(EditOrigin::Bar));
+        controller.begin_edit(EditOrigin::Bar, Some("=A2*2".to_owned()));
         assert!(commit(&controller));
         // The application's selection subscription holds the active cell, as the page shows it.
         let a3 = controller
@@ -252,6 +251,28 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         assert_eq!(opened.get(), Some(false));
         assert!(controller.status.get_untracked().refused);
         assert!(controller.sheets().iter().any(|tab| tab.name == "Calc"));
+        // A reference picked on another sheet never retargets the authored entry.
+        controller.select(5, 6);
+        controller.begin_edit(EditOrigin::Cell, Some("=".to_owned()));
+        controller.show_sheet(calc);
+        assert_eq!(controller.editing.get_untracked(), Some(EditOrigin::Bar));
+        assert!(controller.point_at(3, 21, false));
+        assert_eq!(controller.edit_text.get_untracked(), "=Calc!U3");
+        assert!(commit(&controller));
+        assert_eq!(controller.sheet.get_untracked(), Some(data));
+        assert_eq!(controller.active.get_untracked(), (5, 6));
+        assert_eq!(controller.active_cell().unwrap().input, "=Calc!U3");
+        assert_eq!(controller.active_cell().unwrap().text, "21");
+        let revision = controller.revision.get_untracked();
+        controller.begin_edit(EditOrigin::Bar, None);
+        assert!(commit(&controller));
+        assert_eq!(
+            controller.revision.get_untracked(),
+            revision,
+            "an unchanged edit makes no workbook transaction"
+        );
+        controller.undo();
+        assert_eq!(controller.active_cell().unwrap().input, "4.5");
     });
 }
 

@@ -25,7 +25,11 @@
 .dc-prompt b{display:block}
 .dc-chart{position:absolute;box-sizing:border-box;pointer-events:none;z-index:1}
 .dc-chart svg{display:block}
-.dc-cell-editor{position:absolute;box-sizing:border-box;border:2px solid var(--dna-amber);color:var(--dna-ink);font:13px system-ui,"Segoe UI",sans-serif;padding:0 3px;margin:0;outline:none;background:var(--dna-paper);z-index:2;min-width:120px}
+.dc-cell-editor{position:absolute;box-sizing:border-box;color:var(--dna-ink);margin:0;background:var(--dna-paper);z-index:4;min-width:200px}
+.dc-cell-editor .oc-editor{border:2px solid var(--dna-amber);border-radius:0;font:13px/20px ui-monospace,Consolas,monospace;min-height:20px}
+.dc-cell-editor .oc-editor pre,.dc-cell-editor .oc-editor textarea{padding:0 3px;min-height:20px;resize:none;white-space:pre}
+.dc-cell-editor .oc-pop,.dc-cell-editor .oc-sig{min-width:250px;max-width:min(360px,70vw)}
+.dc-reference{position:absolute;box-sizing:border-box;border:2px dashed var(--dna-accent);background:var(--dna-accent-soft);opacity:.65;pointer-events:none;z-index:1}
 .dc-grid-skin{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
 .dc-space{position:relative}
 .dc-layer{background:var(--dna-paper)}

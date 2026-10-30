@@ -220,12 +220,14 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let subscription: StoredValue<Option<(u64, u64)>> = StoredValue::new(None);
     let scroller: NodeRef<leptos::html::Div> = NodeRef::new();
     let layer: NodeRef<leptos::html::Div> = NodeRef::new();
-    let editor: NodeRef<leptos::html::Input> = NodeRef::new();
+    let assist = controller.assist.another_field();
+    let editor = assist.field;
     let note = RwSignal::new(String::new());
     // Whether the active cell's validation list is open.
     let list_open = RwSignal::new(false);
     // Whether a press on a cell is being dragged to extend the selection.
     let dragging = StoredValue::new(false);
+    let point_drag = StoredValue::new(false);
 
     let grid_extent = Memo::new(move |_| {
         extent(
@@ -366,18 +368,19 @@ fn grid_view(controller: Controller) -> impl IntoView {
         );
         move_to(next.0, next.1);
     };
-    // Enters the cell editor's text and moves as Excel does after Enter or Tab.
-    let commit_and = move |action: NavAction| {
-        controller.commit_edit(move |accepted| {
-            if accepted {
-                go(action);
-                focus_grid();
-            }
-        });
-    };
-
     let on_keydown = move |ev: leptos::ev::KeyboardEvent| {
+        if ev.is_composing() || ev.key_code() == 229 {
+            return;
+        }
         if controller.editing.get_untracked().is_some() {
+            use wasm_bindgen::JsCast;
+            if ev
+                .target()
+                .is_some_and(|target| target.dyn_ref::<web_sys::HtmlTextAreaElement>().is_some())
+            {
+                return;
+            }
+            controller.focus_editor();
             return;
         }
         let ctrl = ev.ctrl_key() || ev.meta_key();
@@ -518,14 +521,6 @@ fn grid_view(controller: Controller) -> impl IntoView {
             return;
         }
         let target = point(&ev);
-        if controller.editing.get_untracked() == Some(EditOrigin::Cell)
-            && let Some(input) = editor.get_untracked()
-            && ev
-                .target()
-                .is_some_and(|t| t == wasm_bindgen::JsValue::from(input.clone()).into())
-        {
-            return;
-        }
         let Some(target) = target else {
             return;
         };
@@ -535,12 +530,22 @@ fn grid_view(controller: Controller) -> impl IntoView {
         ev.prevent_default();
         note.set(String::new());
         let shift = ev.shift_key();
-        // An edit in progress is entered first; a refused entry keeps it, and the press does
-        // nothing more.
+        if controller.assist.composing.get_untracked() {
+            return;
+        }
+        if let HitTarget::Cell { row, col } = target
+            && controller.point_at(row, col, shift)
+        {
+            point_drag.set_value(true);
+            return;
+        }
+        // An ordinary cell press enters the draft first; rejection keeps focus and source.
         if controller.editing.get_untracked().is_some() {
             controller.commit_edit(move |accepted| {
                 if accepted {
                     press(target, shift);
+                } else {
+                    controller.focus_editor();
                 }
             });
         } else {
@@ -548,6 +553,14 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
     };
     let on_mousemove = move |ev: leptos::ev::MouseEvent| {
+        if point_drag.get_value() {
+            if ev.buttons() & 1 == 0 {
+                point_drag.set_value(false);
+            } else if let Some(HitTarget::Cell { row, col }) = point(&ev) {
+                controller.point_at(row, col, true);
+            }
+            return;
+        }
         if !dragging.get_value() || ev.buttons() & 1 == 0 {
             dragging.set_value(false);
             return;
@@ -559,6 +572,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
     };
     let on_dblclick = move |ev: leptos::ev::MouseEvent| {
+        if controller.editing.get_untracked().is_some() {
+            return;
+        }
         if let Some(HitTarget::Cell { row, col }) = point(&ev) {
             move_to(row, col);
             controller.begin_edit(EditOrigin::Cell, None);
@@ -570,38 +586,13 @@ fn grid_view(controller: Controller) -> impl IntoView {
         if controller.editing.get() == Some(EditOrigin::Cell)
             && let Some(input) = editor.get()
         {
+            controller.activate_editor(EditOrigin::Cell, assist);
             let _ = input.focus();
-            let end = input.value().encode_utf16().count() as u32;
+            let end = assist.caret.get_untracked() as u32;
             let _ = input.set_selection_range(end, end);
         }
     });
-    let on_editor_key = move |ev: leptos::ev::KeyboardEvent| {
-        match ev.key().as_str() {
-            "Enter" if !ev.alt_key() => {
-                ev.prevent_default();
-                commit_and(if ev.shift_key() {
-                    NavAction::Up
-                } else {
-                    NavAction::CommitDown
-                });
-            }
-            "Tab" => {
-                ev.prevent_default();
-                commit_and(if ev.shift_key() {
-                    NavAction::PrevColumn
-                } else {
-                    NavAction::CommitRight
-                });
-            }
-            "Escape" => {
-                ev.prevent_default();
-                controller.cancel_edit();
-                focus_grid();
-            }
-            _ => {}
-        }
-        ev.stop_propagation();
-    };
+    let on_editor_key = Callback::new(move |ev| controller.editor_key(ev, assist));
 
     let px = |n: f64| format!("{n}px");
     let rect_style = move |rect: &geometry::CellRect| {
@@ -895,22 +886,51 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
     let editor_view = move || {
         (controller.editing.get() == Some(EditOrigin::Cell)).then(|| {
-            let rect = active_rect();
+            let mut rect = active_rect();
+            let width = (viewport.get().width - metrics.get().header_w).min(320.0).max(120.0);
+            rect.x = rect.x.min((viewport.get().width - width).max(metrics.get().header_w));
+            rect.w = width;
             view! {
-                <input
-                    class="dc-cell-editor"
-                    data-dnacalc="cell-editor"
-                    node_ref=editor
-                    type="text"
-                    spellcheck="false"
-                    autocomplete="off"
-                    use:css=rect_style(&rect)
-                    prop:value=move || controller.edit_text.get()
-                    on:input=move |ev| controller.edit_text.set(event_target_value(&ev))
-                    on:keydown=on_editor_key
-                />
+                <div class="dc-cell-editor" use:css=rect_style(&rect)
+                    on:mousedown=move |ev| ev.stop_propagation()
+                    on:dblclick=move |ev| ev.stop_propagation()
+                    on:input=move |_| controller.edit_changed()
+                    on:focusin=move |_| controller.activate_editor(EditOrigin::Cell, assist)>
+                    {assist.field_named(Signal::derive(Vec::new), Some(on_editor_key), 1, "", Some("cell-editor"))}
+                    {assist.popup()}
+                    {assist.signature()}
+                </div>
             }
         })
+    };
+    let point_view = move || {
+        let pick = controller.pointed.get()?;
+        if Some(pick.sheet) != controller.sheet.get() {
+            return None;
+        }
+        let m = metrics.get();
+        let v = viewport.get();
+        let top = cell_rect(
+            &m,
+            &v,
+            pick.anchor.0.min(pick.corner.0),
+            pick.anchor.1.min(pick.corner.1),
+        );
+        let bottom = cell_rect(
+            &m,
+            &v,
+            pick.anchor.0.max(pick.corner.0),
+            pick.anchor.1.max(pick.corner.1),
+        );
+        let rect = geometry::CellRect {
+            x: top.x,
+            y: top.y,
+            w: bottom.x + bottom.w - top.x,
+            h: bottom.y + bottom.h - top.y,
+        };
+        Some(
+            view! { <div class="dc-reference" data-dnacalc="point-reference" use:css=rect_style(&rect)></div> },
+        )
     };
     let space_width = move || {
         let m = metrics.get();
@@ -968,7 +988,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 on:mousedown=on_mousedown
                 on:dblclick=on_dblclick
                 on:mousemove=on_mousemove
-                on:mouseup=move |_| dragging.set_value(false)
+                on:mouseup=move |_| { dragging.set_value(false); point_drag.set_value(false); }
             >
                 <div class="dc-space" style:width=space_width style:height=space_height>
                     <div class="dc-layer" node_ref=layer style:width=move || px(viewport.get().width) style:height=move || px(viewport.get().height)>
@@ -977,6 +997,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         {charts_view}
                         {selection_view}
                         {active_view}
+                        {point_view}
                         {dropdown_view}
                         {prompt_view}
                         {list_view}
@@ -1014,6 +1035,7 @@ pub fn focus_grid() {
         .query_selector("[data-dnacalc=\"grid\"]")
         .ok()
         .flatten()
+        .or_else(|| document().query_selector(".dc-main").ok().flatten())
         && let Ok(element) = wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlElement>(element)
     {
         let _ = element.focus();

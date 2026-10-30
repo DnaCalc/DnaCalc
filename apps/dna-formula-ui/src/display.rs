@@ -65,6 +65,27 @@ pub fn column_letters(mut column: u32) -> String {
     letters.iter().rev().collect()
 }
 
+/// One A1 cell address, optionally anchored with `$`, inside Excel's grid.
+pub fn parse_address(text: &str) -> Option<(u32, u32)> {
+    let text = text.trim();
+    let text = text.strip_prefix('$').unwrap_or(text);
+    let split = text.find(|c: char| !c.is_ascii_alphabetic())?;
+    let (letters, rest) = text.split_at(split);
+    let digits = rest.strip_prefix('$').unwrap_or(rest);
+    if letters.is_empty()
+        || letters.len() > 3
+        || digits.is_empty()
+        || !digits.bytes().all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    let column = letters.bytes().fold(0u32, |n, b| {
+        n * 26 + u32::from(b.to_ascii_uppercase() - b'A' + 1)
+    });
+    let row: u32 = digits.parse().ok()?;
+    ((1..=1_048_576).contains(&row) && (1..=16_384).contains(&column)).then_some((row, column))
+}
+
 /// What names the sheets a label shows: a DNA OneCalc session names its own sheets, and DNA Calc
 /// names a workbook's (dc-rif), so both label cells, areas and refusals with these functions.
 pub trait SheetNames {

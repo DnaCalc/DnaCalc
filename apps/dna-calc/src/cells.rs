@@ -116,17 +116,7 @@ pub fn address(row: u32, column: u32) -> String {
 /// The row and column of an address such as `B3` or `$B$3` (any case), when it names a cell of
 /// the grid.
 pub fn parse_address(text: &str) -> Option<(u32, u32)> {
-    let text = text.trim().replace('$', "").to_ascii_uppercase();
-    let split = text.find(|c: char| c.is_ascii_digit())?;
-    let (letters, digits) = text.split_at(split);
-    if letters.is_empty() || letters.len() > 3 || !letters.bytes().all(|b| b.is_ascii_uppercase()) {
-        return None;
-    }
-    let column = letters
-        .bytes()
-        .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1));
-    let row: u32 = digits.parse().ok()?;
-    ((1..=1_048_576).contains(&row) && (1..=16_384).contains(&column)).then_some((row, column))
+    display::parse_address(text)
 }
 
 fn kind(value: &CalcValue) -> &'static str {
