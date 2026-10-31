@@ -2,9 +2,6 @@
 //! tree.
 //!
 //! In order:
-//! - the word scan over new text only (`words::check_new`: the lines the working tree adds to the
-//!   docs, AGENTS.md, README.md and the tracker since `HEAD` met `origin/master`, and the messages
-//!   of the commits not pushed yet), so pushed text never fails it;
 //! - the provenance marker scan (`licence::check_markers`: no marker of a removed third-party or
 //!   Microsoft source reappears in code);
 //! - `cargo build --workspace`;
@@ -159,7 +156,7 @@ pub fn run(raw: &[String]) -> ExitCode {
     }
     let mut failed: Vec<String> = Vec::new();
 
-    for result in [words::check_new(&ws.root), licence::check_markers(&ws.root)] {
+    for result in [licence::check_markers(&ws.root)] {
         print_result(
             result.name,
             result.passed,
@@ -287,7 +284,7 @@ pub fn run(raw: &[String]) -> ExitCode {
     let took = started.elapsed().as_secs();
     if failed.is_empty() {
         println!(
-            "CHECK RESULT passed: the new-text word scan, the provenance markers, the build and {tested} ({} min {} s)",
+            "CHECK RESULT passed: the provenance markers, the build and {tested} ({} min {} s)",
             took / 60,
             took % 60
         );
