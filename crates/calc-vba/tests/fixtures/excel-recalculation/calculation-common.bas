@@ -7,6 +7,7 @@ Private currentCase As String
 Private observedSheet As Worksheet
 Private eventSink As Object
 Public editOnSave As Boolean
+Private loggerReady As Boolean
 Private Type DoubleBox
     value As Double
 End Type
@@ -15,6 +16,10 @@ Private Type ByteBox
 End Type
 
 Public Sub Note(ByVal kind As String, ByVal detail As String)
+    If Not loggerReady Then
+        ReDim trace(0 To 200000)
+        loggerReady = True
+    End If
     If used > UBound(trace) Then Err.Raise 5, , "Trace capacity exceeded"
     trace(used) = currentCase & vbTab & currentStage & vbTab & kind & vbTab & detail
     used = used + 1
@@ -99,6 +104,7 @@ End Function
 Public Sub Profile()
     Note "profile", "version=" & Application.Version & ";build=" & Application.Build & ";calculationVersion=" & CStr(Application.CalculationVersion) & ";os=" & Application.OperatingSystem
     Note "settings", "mode=" & CStr(Application.Calculation) & ";iteration=" & CStr(Application.Iteration) & ";maxIterations=" & CStr(Application.MaxIterations) & ";maxChange=" & CStr(Application.MaxChange) & ";calculateBeforeSave=" & CStr(Application.CalculateBeforeSave) & ";events=" & CStr(Application.EnableEvents) & ";precisionAsDisplayed=" & CStr(ThisWorkbook.PrecisionAsDisplayed) & ";date1904=" & CStr(ThisWorkbook.Date1904) & ";mtc=" & CStr(Application.MultiThreadedCalculation.Enabled) & ";threads=" & CStr(Application.MultiThreadedCalculation.ThreadCount) & ";automationSecurity=" & CStr(Application.AutomationSecurity)
+    Note "force-full-setting", CStr(ThisWorkbook.ForceFullCalculation)
     Dim a As Object
     For Each a In Application.AddIns
         Note "addin", a.Name & ";installed=" & CStr(a.Installed)
@@ -126,6 +132,7 @@ Public Function RunCase(ByVal ident As String, ByVal output As String) As String
     On Error GoTo Failed
     currentCase = ident
     ReDim trace(0 To 200000)
+    loggerReady = True
     used = 0
     '__START_EVENT_SINK__
     If Not eventSink Is Nothing Then Set eventSink.XL = Application
@@ -155,6 +162,20 @@ Finished:
         RunCase = Join(resultLines, vbLf)
     End If
 End Function
+Public Function ReadAfterOpen() As String
+    currentCase = "reopened"
+    Set observedSheet = ThisWorkbook.Worksheets(1)
+    Stage "after-open"
+    Snap observedSheet, "A1:C5,E1,E3:E8,G1:H3"
+    Profile
+    CountSnapshot
+    Dim resultLines() As String, k As Long
+    ReDim resultLines(0 To used - 1)
+    For k = 0 To used - 1
+        resultLines(k) = trace(k)
+    Next
+    ReadAfterOpen = Join(resultLines, vbLf)
+End Function
 Public Function RunProbe() As String
     On Error GoTo Failed
     Dim i As Long, ident As Variant, wb As Workbook, component As Object, src As String, result As String, all As String, output As String, n As Long
@@ -163,7 +184,7 @@ Public Function RunProbe() As String
     Application.EnableEvents = True
     src = ThisWorkbook.VBProject.VBComponents("OracleProbe").CodeModule.Lines(1, ThisWorkbook.VBProject.VBComponents("OracleProbe").CodeModule.CountOfLines)
     For i = 1 To __REPETITIONS__
-        For Each ident In Split(CaseIds(), "|")
+        For Each ident In Split(SelectedCaseIds(), "|")
             Set wb = Application.Workbooks.Add(xlWBATWorksheet)
             wb.VBProject.VBComponents("ThisWorkbook").CodeModule.AddFromString EventSource()
             Set component = wb.VBProject.VBComponents.Add(2)
@@ -183,6 +204,10 @@ Public Function RunProbe() As String
     Exit Function
 Failed:
     RunProbe = all & vbLf & "driver-fault:" & CStr(Err.Number) & ":" & Err.Description
+End Function
+Private Function SelectedCaseIds() As String
+    SelectedCaseIds = "__CASES__"
+    If Len(SelectedCaseIds) = 0 Then SelectedCaseIds = CaseIds()
 End Function
 Private Function EventSource() As String
     EventSource = "Option Explicit" & vbCrLf & _

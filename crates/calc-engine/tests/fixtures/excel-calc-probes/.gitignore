@@ -4,3 +4,7 @@ selected-supervisor.ps1
 selected-worker.ps1
 selected-guardian.ps1
 ~$*
+*.obj
+*.exp
+*.lib
+build-native.cmd
