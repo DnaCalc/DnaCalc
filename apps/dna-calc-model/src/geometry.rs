@@ -942,3 +942,52 @@ mod tests {
         assert_eq!(m.scaled(0.5).col_start(4), 140.0);
     }
 }
+
+const DIGIT_PX: f64 = 7.0;
+pub fn sheet_metrics(geometry: Option<&crate::projection::Geometry>) -> GridMetrics {
+    let column_px = |chars: f64| (chars * DIGIT_PX).round();
+    let row_px = |points: f64| (points * 96.0 / 72.0).round();
+    let col_width = geometry
+        .and_then(|g| g.default_column_width)
+        .map_or(64.0, column_px);
+    let row_height = geometry
+        .and_then(|g| g.default_row_height)
+        .map_or(20.0, row_px);
+    let (columns, rows) = match geometry {
+        Some(geometry) => (
+            geometry
+                .columns
+                .iter()
+                .flat_map(|&(first, last, width, hidden)| {
+                    let size = if hidden {
+                        0.0
+                    } else {
+                        width.map_or(col_width, column_px)
+                    };
+                    (first..=last.min(16_384)).map(move |column| (column, size))
+                })
+                .collect::<Vec<_>>(),
+            geometry
+                .rows
+                .iter()
+                .map(|&(row, height, hidden)| {
+                    let size = if hidden {
+                        0.0
+                    } else {
+                        height.map_or(row_height, row_px)
+                    };
+                    (row, size)
+                })
+                .collect::<Vec<_>>(),
+        ),
+        None => (Vec::new(), Vec::new()),
+    };
+    GridMetrics {
+        row_height,
+        col_width,
+        header_h: 22.0,
+        header_w: 64.0,
+        rows: Sizes::new(row_height, rows),
+        cols: Sizes::new(col_width, columns),
+    }
+}

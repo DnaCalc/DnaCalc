@@ -4,44 +4,34 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "The package for the DNA Calc application core: the Excel, notebook, tree and canvas skins over one CalcHost workbook."
+description = "DNA Calc browser shell and skins over the neutral model and workbook transport."
 
 [package.metadata.dnacalc]
 portability = "portable"
 
-# DNA Calc reaches the workbook only through calc-host (plan section 1.3: skins never depend on
-# engine internals; tools/xtask/architecture.json forbids calc-engine as a direct dependency). The
-# formula bar, the value and result display, the cell, area and refusal labels, the theme switch and
-# the browser start are dna-formula-ui's, which DNA OneCalc shows too; DNA Calc never depends on
-# the dna-onecalc app (plan section 8.7).
-#
-# The skins are Leptos in client-side rendering mode, at the releases DNA OneCalc and dna-formula-ui pin (see its
-# manifest): Leptos 0.8.19 on wasm-bindgen 0.2.117, web-sys and js-sys 0.3.94. The views compile
-# on every target and run only in a browser.
+# The shipping page depends only on the model, protocol and shared UI. The separate worker
+# owns CalcHost and the document. Architecture rules check the normal dependency closure.
+# Integration tests explicitly compose the real headless worker through a dev dependency.
 [dependencies]
 dna-calc-model = { path = "../dna-calc-model" }
-calc-host = { path = "../../crates/calc-host" }
+calc-value = { path = "../../crates/calc-value" }
+dna-calc-protocol = { path = "../dna-calc-protocol" }
 # The one number-format renderer (calc-func's cell_text, which TEXT renders with), for cells' number
 # formats (dc-09v).
 calc-func = { path = "../../crates/calc-func" }
 dna-formula-ui = { path = "../dna-formula-ui" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
-# The browser entry's start function (src/bin/dna-calc-web.rs) and the worker (src/worker.rs).
+# The browser entry's start function (src/bin/dna-calc-web.rs).
 wasm-bindgen = "=0.2.117"
 # Reading an opened file's bytes (a File's ArrayBuffer promise).
 wasm-bindgen-futures = "=0.4.67"
 # The clock for timings, the opened file's bytes and the saved package's Blob.
 js-sys = "=0.3.94"
-# The messages between the page and the calculation worker (src/wire.rs, dc-p96): JSON through
-# serde_json, at the releases the workspace already pins.
-serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.154"
 web-sys = { version = "=0.3.94", features = [
     "Blob",
     "BlobPropertyBag",
     "Clipboard",
     "ClipboardItem",
-    "Crypto",
     "ClipboardEvent",
     "DataTransfer",
     "Navigator",
@@ -51,7 +41,6 @@ web-sys = { version = "=0.3.94", features = [
     "Node",
     "Text",
     "console",
-    "DedicatedWorkerGlobalScope",
     "ErrorEvent",
     "MessageEvent",
     "Worker",
@@ -82,5 +71,13 @@ web-sys = { version = "=0.3.94", features = [
 
 # The tests run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, with
 # wasm-bindgen-test 0.3.67 (the pair the workspace pins). Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Direct controller composition needs the same executor that Leptos mounting installs.
+any_spawner = { version = "=0.3.0", features = ["wasm-bindgen"] }
+
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"
+
+[dev-dependencies]
+dna-calc-worker = {path="../dna-calc-worker"}
+calc-host = {path="../../crates/calc-host"}

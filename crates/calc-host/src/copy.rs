@@ -139,7 +139,7 @@ impl fmt::Display for CopyRefusal {
 impl std::error::Error for CopyRefusal {}
 
 /// The most cells one copy writes.
-pub const COPY_LIMIT: u64 = 1_000_000;
+pub use calc_value::COPY_LIMIT;
 
 /// Paste Special's independent content/format choices. Formulas includes literal inputs, as Excel does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

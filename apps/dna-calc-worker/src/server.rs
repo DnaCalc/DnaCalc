@@ -1,17 +1,17 @@
 //! The workbook's server (dc-p96): one open [`Workbook`] and the page's subscriptions to it,
 //! answering [`Request`]s and turning calc-host's deltas into the cells the page shows
-//! ([`Event::Cells`]). The calculation worker runs one ([`crate::worker`]); until every skin
-//! reads through the messages, the page runs one in process ([`crate::port`]).
+//! ([`Event::Cells`]). The calculation worker owns one ([`crate::worker`]); native composition
+//! injects the same route through [`crate::transport::InProcessTransport`].
 //!
 //! A cell crosses as the page shows it: the server works out its text in its number format and
 //! its conditional look ([`Workbook::shown`]), its input as it would be edited, and the words for
 //! where its value came from. A chart crosses drawn: the server lays it out with the sheet's
-//! sizes at 100% and draws it ([`crate::grid::chart::chart_svg`]).
+//! sizes at 100% and draws it ([`crate::chart::chart_svg`]).
 
 use crate::cells;
 use crate::wire::{
-    self, Area, Cells, Chart, ChartPlace, Event, Intent, Interest, Key, Outcome,
-    Reply, Request, Sheet, Summary, Validation,
+    self, Area, Cells, Chart, ChartPlace, Event, Intent, Interest, Key, Outcome, Reply, Request,
+    Sheet, Summary, Validation,
 };
 use crate::workbook::Workbook;
 use calc_host::value::{CellKey, GridArea};
@@ -30,7 +30,7 @@ pub struct Answer {
 
 pub struct Server {
     workbook: u64,
-    commands: calc_host::CommandJournal<(Result<Reply,String>, Option<Vec<u8>>)>,
+    commands: calc_host::CommandJournal<(Result<Reply, String>, Option<Vec<u8>>)>,
     validation_pending: Option<(u64, u64, Selection, SkinIntent)>,
     book: Workbook,
     /// The page's subscriptions: its number for each, and calc-host's.
@@ -54,14 +54,14 @@ impl Server {
         let book = Workbook::new_blank();
         Server {
             workbook: 0,
-            commands: calc_host::CommandJournal::new(128,16*1024*1024),
+            commands: calc_host::CommandJournal::new(128, 16 * 1024 * 1024),
             validation_pending: None,
             book,
             subscriptions: BTreeMap::new(),
             events: Vec::new(),
             snapshots: BTreeMap::new(),
             next_clip: 1,
-            clipboard_session: crate::clipboard::session_nonce(),
+            clipboard_session: crate::services::session_nonce(),
             paste_plan: None,
         }
     }
@@ -84,9 +84,16 @@ impl Server {
 
     /// Answers `request`; `bytes` are those that travel beside it (an open's package).
     pub fn handle(&mut self, request: Request, bytes: Option<Vec<u8>>) -> Answer {
-        if let Request::Command(envelope) = request {return self.command(envelope,bytes);}
-        if request.is_command() {return Answer {reply:Err("A workbook command needs an identity and base revision".into()),bytes:None};}
-        self.handle_admitted(request,bytes)
+        if let Request::Command(envelope) = request {
+            return self.command(envelope, bytes);
+        }
+        if request.is_command() {
+            return Answer {
+                reply: Err("A workbook command needs an identity and base revision".into()),
+                bytes: None,
+            };
+        }
+        self.handle_admitted(request, bytes)
     }
 
     /// Immediate clients resolve their revision and target immediately before delivery. Remote
@@ -177,17 +184,17 @@ impl Server {
         let mut out = None;
         let reply = (|| -> Result<Reply, String> {
             match request {
-                Request::Summary=>Ok(Reply::Summary(self.summary())),
-                Request::Command(_)=>Err("Nested command envelope".into()),
+                Request::Summary => Ok(Reply::Summary(self.summary())),
+                Request::Command(_) => Err("Nested command envelope".into()),
                 Request::Find(options) => {
                     Ok(Reply::Found(crate::search::find(&self.book, &options)))
                 }
                 Request::SelectionStats => Ok(Reply::SelectionStats(
                     crate::search::selection_stats(&self.book, self.book.session().selection()),
                 )),
-                Request::CanEdit(key) => {
-                    Ok(Reply::CanEdit(cell(key).and_then(|at| self.can_edit(at))))
-                }
+                Request::CanEdit(key) => Ok(Reply::CanEdit(
+                    cell(key).and_then(|at| calc_host::can_edit(self.book.host(), at)),
+                )),
                 Request::FitContents { area: target } => self.fit_contents(area(target)?),
                 Request::Capture { area: source, keep } => {
                     let from = area(source)?;
@@ -211,8 +218,12 @@ impl Server {
                         .chunks(from.column_count() as usize)
                         .map(|row| row.iter().map(|cell| self.book.shown(cell).text).collect())
                         .collect();
-                    let text = crate::clipboard::encode_tsv(&rows);
-                    let html = crate::clipboard::encode_html(&rows, token, &self.clipboard_session);
+                    let text = dna_calc_model::clipboard::encode_tsv(&rows);
+                    let html = dna_calc_model::clipboard::encode_html(
+                        &rows,
+                        token,
+                        &self.clipboard_session,
+                    );
                     self.snapshots.retain(|id, _| Some(*id) == keep);
                     self.snapshots.insert(token, snapshot);
                     Ok(Reply::Clipboard(wire::Clipboard {
@@ -235,12 +246,12 @@ impl Server {
                     Ok(self.done(true, None, 0.0))
                 }
                 Request::Open { name } => {
-                    let started = crate::controller::now_ms();
+                    let started = crate::services::now_ms();
                     let bytes = bytes.unwrap_or_default();
                     crate::workbook::reserve_for_open(bytes.len());
                     match Workbook::open(&name, bytes) {
                         Ok(book) => {
-                            let elapsed = crate::controller::now_ms() - started;
+                            let elapsed = crate::services::now_ms() - started;
                             let calculated = book.calculated_on_open();
                             self.install(book);
                             Ok(Reply::Done {
@@ -403,7 +414,7 @@ impl Server {
                         intents: session.intent_log().len(),
                         name: self.book.name().to_owned(),
                         changed: self.book.changed(),
-                        memory: crate::controller::memory_bytes(),
+                        memory: crate::services::memory_bytes(),
                         census,
                     }))
                 }
@@ -488,7 +499,10 @@ impl Server {
     /// A new workbook in place of the open one: the page's subscriptions end with it.
     fn install(&mut self, book: Workbook) {
         self.validation_pending = None;
-        self.workbook = self.workbook.checked_add(1).expect("workbook incarnations exhausted");
+        self.workbook = self
+            .workbook
+            .checked_add(1)
+            .expect("workbook incarnations exhausted");
         self.book = book;
         self.subscriptions.clear();
         self.events.clear();
@@ -519,7 +533,8 @@ impl Server {
             },
             PasteSource::External(rows) => calc_host::PasteSource::External(rows),
         };
-        let plan = calc_host::prepare_paste(self.book.host(), source, to, wire::host_paste_mode(mode))?;
+        let plan =
+            calc_host::prepare_paste(self.book.host(), source, to, wire::host_paste_mode(mode))?;
         let target = plan.target();
         let replaces = plan.replaces();
         let id = self.next_clip;
@@ -536,8 +551,8 @@ impl Server {
         let iteration = self.book.host().model().definitions().iteration();
         let circular = self.book.host().circular_cells();
         Summary {
-            workbook:self.workbook,
-            session:self.clipboard_session.clone(),
+            workbook: self.workbook,
+            session: self.clipboard_session.clone(),
             initial_cell: self
                 .book
                 .host()
@@ -623,60 +638,17 @@ impl Server {
 
     fn fit_contents(&self, target: GridArea) -> Result<Reply, String> {
         let host = self.book.host();
-        if host.model().sheet_by_id(target.sheet()).is_none() {
-            return Err("The sheet is unavailable".to_owned());
-        }
-        let sheet = host
-            .loaded()
-            .sheet(target.sheet())
-            .ok_or("The sheet is unavailable")?;
-        if sheet.protected() {
-            return Err("Fitting a protected sheet is unavailable here".to_owned());
-        }
-        if host.merged_areas(target.sheet()).iter().any(|merge| {
-            merge.first().row() <= target.last().row()
-                && merge.last().row() >= target.first().row()
-                && merge.first().column() <= target.last().column()
-                && merge.last().column() >= target.first().column()
-        }) {
-            return Err(
-                "AutoFit with merged cells is unavailable; choose an unmerged range".to_owned(),
-            );
-        }
-        let metrics = crate::grid::sheet_metrics(host.sheet_geometry(target.sheet()).as_ref().map(wire::geometry_of).as_ref());
-        let mut keys = std::collections::BTreeSet::new();
-        for occupied in host.occupied_areas(target.sheet()) {
-            let top = target.first().row().max(occupied.first().row());
-            let left = target.first().column().max(occupied.first().column());
-            let bottom = target.last().row().min(occupied.last().row());
-            let right = target.last().column().min(occupied.last().column());
-            if top > bottom || left > right {
-                continue;
-            }
-            if u64::from(bottom - top + 1) * u64::from(right - left + 1)
-                > crate::grid::autofit::FIT_CELLS as u64
-            {
-                return Err("Fit at most 10000 occupied cells at once".to_owned());
-            }
-            for row in top..=bottom {
-                for column in left..=right {
-                    if metrics.width(column) == 0.0 || metrics.height(row) == 0.0 {
-                        continue;
-                    }
-                    keys.insert(CellKey::new(target.sheet(), row, column).unwrap());
-                    if keys.len() > crate::grid::autofit::FIT_CELLS {
-                        return Err("Fit at most 10000 occupied cells at once".to_owned());
-                    }
-                }
-            }
-        }
-        let projected = calc_host::project(
-            host,
-            &calc_host::ProjectionRequest {
-                cells: keys.into_iter().collect(),
-            },
-        )
-        .map_err(|e| e.to_string())?;
+        let metrics = dna_calc_model::geometry::sheet_metrics(
+            host.sheet_geometry(target.sheet())
+                .as_ref()
+                .map(wire::geometry_of)
+                .as_ref(),
+        );
+        let keys = calc_host::autofit_cells(host, target, |at| {
+            metrics.width(at.column()) != 0. && metrics.height(at.row()) != 0.
+        })?;
+        let projected = calc_host::project(host, &calc_host::ProjectionRequest { cells: keys })
+            .map_err(|e| e.to_string())?;
         let mut cells = Vec::new();
         for p in projected.cells() {
             let shown = self.book.shown(p);
@@ -905,8 +877,8 @@ impl Server {
                 let at = selection.active.ok_or("no active cell")?;
                 if matches!(
                     nav,
-                    crate::grid::selection::Navigation::Column
-                        | crate::grid::selection::Navigation::Row
+                    dna_calc_model::selection::Navigation::Column
+                        | dna_calc_model::selection::Navigation::Row
                 ) && selection.areas.len() > 1
                 {
                     return Ok(self.done(false,Some("Axis expansion for disjoint selections is not modelled; select one rectangle".to_owned()),0.0));
@@ -923,9 +895,9 @@ impl Server {
                 let host = self.book.host();
                 if matches!(
                     nav,
-                    crate::grid::selection::Navigation::All
-                        | crate::grid::selection::Navigation::Column
-                        | crate::grid::selection::Navigation::Row
+                    dna_calc_model::selection::Navigation::All
+                        | dna_calc_model::selection::Navigation::Column
+                        | dna_calc_model::selection::Navigation::Row
                 ) && host
                     .model()
                     .definitions()
@@ -937,19 +909,19 @@ impl Server {
                 }
                 let occupied = if matches!(
                     nav,
-                    crate::grid::selection::Navigation::Edge(_)
-                        | crate::grid::selection::Navigation::All
+                    dna_calc_model::selection::Navigation::Edge(_)
+                        | dna_calc_model::selection::Navigation::All
                 ) {
                     host.occupied_areas(at.sheet())
                 } else {
                     Vec::new()
                 };
-                let mut used = if matches!(nav, crate::grid::selection::Navigation::UsedEnd) {
+                let mut used = if matches!(nav, dna_calc_model::selection::Navigation::UsedEnd) {
                     host.used_area(at.sheet())
                 } else {
                     None
                 };
-                if matches!(nav, crate::grid::selection::Navigation::UsedEnd) {
+                if matches!(nav, dna_calc_model::selection::Navigation::UsedEnd) {
                     for (key, _) in host
                         .model()
                         .definitions()
@@ -976,8 +948,13 @@ impl Server {
                         });
                     }
                 }
-                let metrics = crate::grid::sheet_metrics(host.sheet_geometry(at.sheet()).as_ref().map(wire::geometry_of).as_ref());
-                SkinIntent::Select(crate::grid::selection::navigate(
+                let metrics = dna_calc_model::geometry::sheet_metrics(
+                    host.sheet_geometry(at.sheet())
+                        .as_ref()
+                        .map(wire::geometry_of)
+                        .as_ref(),
+                );
+                SkinIntent::Select(dna_calc_model::selection::navigate(
                     selection,
                     nav,
                     extend,
@@ -1183,14 +1160,14 @@ impl Server {
                     | calc_host::WorkbookCommand::ShiftCells { .. }
             )
         );
-        let started = crate::controller::now_ms();
+        let started = crate::services::now_ms();
         let receipt = self.book.dispatch(intent);
         if rule_error_is_route
             && let Some(calc_host::IntentError::Workbook(reason)) = &receipt.error
         {
             return Err(reason.clone());
         }
-        let elapsed = crate::controller::now_ms() - started;
+        let elapsed = crate::services::now_ms() - started;
         let mut outcome = self.outcome(
             receipt.accepted(),
             receipt.error.as_ref().map(ToString::to_string),
@@ -1284,14 +1261,14 @@ impl Server {
                 .any(|a| a.contains(*at))
         });
         let (keys, omitted) =
-            crate::tree::outline_keys(host, sheet.id(), crate::notebook::PAGE, reveal);
+            crate::tree::outline_keys(host, sheet.id(), wire::NOTEBOOK_PAGE, reveal);
         linked.extend(
             keys.into_iter()
                 .filter(|at| !placed.iter().any(|a| a.contains(*at)))
                 .map(|at| (None, Some(GridArea::cell(at)), false)),
         );
         let total = linked.len();
-        let pages = total.div_ceil(crate::notebook::PAGE).max(1);
+        let pages = total.div_ceil(wire::NOTEBOOK_PAGE).max(1);
         let page = placement
             .and_then(|id| linked.iter().position(|(p, _, _)| p.as_deref() == Some(id)))
             .or_else(|| {
@@ -1301,13 +1278,13 @@ impl Server {
                         .position(|(_, a, _)| a.is_some_and(|a| a.contains(at)))
                 })
             })
-            .map(|i| i / crate::notebook::PAGE)
+            .map(|i| i / wire::NOTEBOOK_PAGE)
             .unwrap_or(requested)
             .min(pages - 1);
         let blocks = linked
             .into_iter()
-            .skip(page * crate::notebook::PAGE)
-            .take(crate::notebook::PAGE)
+            .skip(page * wire::NOTEBOOK_PAGE)
+            .take(wire::NOTEBOOK_PAGE)
             .map(|(placement, anchor, prose)| {
                 let cell = anchor.and_then(|a| self.book.cell(a.first())).map(|p| {
                     wire::cell_of(
@@ -1333,201 +1310,22 @@ impl Server {
         }
     }
 
-    fn can_edit(&self, at: CellKey) -> Result<(), String> {
-        if self.book.host().model().sheet_by_id(at.sheet()).is_none() {
-            return Err("The worksheet is unavailable".into());
-        }
-        if self
-            .book
-            .host()
-            .loaded()
-            .sheet(at.sheet())
-            .is_some_and(|s| s.protected() || s.is_macro_sheet())
-        {
-            return Err("Editing protected or macro worksheets is unavailable".into());
-        }
-        Ok(())
-    }
-
     fn notebook_link(
         &mut self,
         target: Area,
         prose: bool,
         text: Option<String>,
     ) -> Result<Reply, String> {
-        use calc_host::{BlockId, BlockKind, PlacementId, SkinLayoutEdit, Spot, ViewKind};
-        let target = area(target)?;
-        if text.is_some() {
-            self.can_edit(target.first())?;
-        }
-        let host = self.book.host();
-        let layout = host.model().layout();
-        if text.is_some()
-            && (target.first() != target.last()
-                || host
-                    .occupied_areas(target.sheet())
-                    .iter()
-                    .any(|area| area.contains(target.first())))
-        {
-            return Err("Insert into one empty cell, or link existing cells without replacing their contents".into());
-        }
-        let kind = if prose {
-            BlockKind::Prose
-        } else {
-            BlockKind::Calculation
-        };
-        if prose
-            && host
-                .model()
-                .cells(target)
-                .into_iter()
-                .flatten()
-                .any(|(_, c)| matches!(c, calc_host::CellInput::Formula(_)))
-        {
-            return Err(
-                "Prose uses visible worksheet text; a formula is a calculation block".into(),
-            );
-        }
-        if prose
-            && host.occupied_areas(target.sheet()).iter().any(|a| {
-                a.first() != a.last()
-                    && a.first().row() <= target.last().row()
-                    && a.last().row() >= target.first().row()
-                    && a.first().column() <= target.last().column()
-                    && a.last().column() >= target.first().column()
-            })
-        {
-            return Err("Prose links use worksheet text, not array values".into());
-        }
-        let entry = text.map(|text| if prose { format!("'{text}") } else { text });
-        let mut edits = Vec::new();
-        let block = if let Some(block) = layout
-            .blocks()
-            .iter()
-            .find(|b| b.anchor() == Some(target) && b.kind() == kind)
-        {
-            block.id()
-        } else {
-            let id = BlockId::new(
-                layout
-                    .blocks()
-                    .iter()
-                    .map(|b| b.id().get())
-                    .max()
-                    .unwrap_or(0)
-                    .checked_add(1)
-                    .ok_or("Block identity space exhausted")?,
-            )
-            .ok_or("Block identity space exhausted")?;
-            edits.push(CellEdit::Layout(SkinLayoutEdit::CreateBlock {
-                block: id,
-                kind,
-                anchor: target,
-            }));
-            id
-        };
-        let id = PlacementId::new(
-            ViewKind::ALL
-                .iter()
-                .flat_map(|v| layout.view(*v))
-                .map(|p| p.id().get())
-                .max()
-                .unwrap_or(0)
-                .checked_add(1)
-                .ok_or("Placement identity space exhausted")?,
-        )
-        .ok_or("Placement identity space exhausted")?;
-        let position = std::num::NonZeroU32::new(
-            u32::try_from(layout.view(ViewKind::Notebook).len() + 1)
-                .map_err(|_| "Too many notebook links")?,
-        )
-        .ok_or("Notebook position is zero")?;
-        edits.push(CellEdit::Layout(SkinLayoutEdit::AddPlacement {
-            placement: id,
-            block,
-            spot: Spot::Notebook { position },
-        }));
-        if let Some(text) = entry {
-            let layout = edits
-                .into_iter()
-                .filter_map(|e| {
-                    if let CellEdit::Layout(layout) = e {
-                        Some(layout)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            self.dispatch_entry(
-                SkinIntent::EnterCellAndLayout {
-                    at: target.first(),
-                    text,
-                    layout,
-                },
-                false,
-            )
-        } else {
-            self.dispatch_entry(SkinIntent::Edit { edits }, false)
-        }
+        let intent =
+            calc_host::prepare_notebook_link(self.book.host(), area(target)?, prose, text)?;
+        self.dispatch_entry(intent, false)
     }
-
     fn notebook_order(&mut self, id: String, direction: i8) -> Result<Reply, String> {
-        use calc_host::{PlacementId, SkinLayoutEdit, Spot, ViewKind};
-        let id = PlacementId::parse(&id).ok_or("Invalid notebook placement")?;
-        let layout = self.book.host().model().layout();
-        let list = layout.view(ViewKind::Notebook);
-        let index = list
-            .iter()
-            .position(|p| p.id() == id)
-            .ok_or("Notebook link no longer exists")?;
-        let mut edits = Vec::new();
-        if direction == 0 {
-            let block = list[index].block();
-            edits.push(CellEdit::Layout(SkinLayoutEdit::RemovePlacement {
-                placement: id,
-            }));
-            if ViewKind::ALL
-                .iter()
-                .flat_map(|v| layout.view(*v))
-                .filter(|p| p.block() == block)
-                .count()
-                == 1
-            {
-                edits.push(CellEdit::Layout(SkinLayoutEdit::RemoveBlock { block }));
-            }
-        } else {
-            let sheet = layout
-                .block(list[index].block())
-                .and_then(|b| b.anchor())
-                .map(|a| a.sheet());
-            let peer = if direction < 0 {
-                (0..index).rev().find(|i| {
-                    layout
-                        .block(list[*i].block())
-                        .and_then(|b| b.anchor())
-                        .map(|a| a.sheet())
-                        == sheet
-                })
-            } else {
-                (index + 1..list.len()).find(|i| {
-                    layout
-                        .block(list[*i].block())
-                        .and_then(|b| b.anchor())
-                        .map(|a| a.sheet())
-                        == sheet
-                })
-            };
-            let Some(peer) = peer else {
-                return Ok(self.done(true, None, 0.));
-            };
-            edits.push(CellEdit::Layout(SkinLayoutEdit::MovePlacement {
-                placement: id,
-                spot: Spot::Notebook {
-                    position: std::num::NonZeroU32::new(peer as u32 + 1).unwrap(),
-                },
-            }));
+        let id = calc_host::PlacementId::parse(&id).ok_or("Invalid notebook placement")?;
+        match calc_host::prepare_notebook_order(self.book.host(), id, direction)? {
+            Some(intent) => self.dispatch_entry(intent, false),
+            None => Ok(self.done(true, None, 0.)),
         }
-        self.dispatch_entry(SkinIntent::Edit { edits }, false)
     }
     fn block_detail(&self, linked: GridArea) -> wire::BlockDetail {
         let host = self.book.host();
@@ -1709,7 +1507,9 @@ impl Server {
     fn charts(&self, sheet: Sheet) -> Vec<Chart> {
         let host = self.book.host();
         let geometry = host.sheet_geometry(sheet.id());
-        let m = crate::grid::sheet_metrics(geometry.as_ref().map(wire::geometry_of).as_ref());
+        let m = dna_calc_model::geometry::sheet_metrics(
+            geometry.as_ref().map(wire::geometry_of).as_ref(),
+        );
         let corner = |c: &calc_host::ChartCorner| {
             let x = m.col_start(c.cell.column()) + c.dx;
             let y = m.row_start(c.cell.row()) + c.dy;
@@ -1770,7 +1570,7 @@ impl Server {
                     kind,
                     place,
                     svg: if width > 0.0 && height > 0.0 {
-                        crate::grid::chart::chart_svg(&view, width, height)
+                        crate::chart::chart_svg(&view, width, height)
                     } else {
                         String::new()
                     },
@@ -1840,7 +1640,12 @@ mod fit_tests {
                 text: text.to_owned(),
             })
         };
-        assert!(server.execute_current(enter(at, "original"), None).reply.is_ok());
+        assert!(
+            server
+                .execute_current(enter(at, "original"), None)
+                .reply
+                .is_ok()
+        );
         let Reply::FitContents { revision, cells } = server
             .execute_current(
                 Request::FitContents {
@@ -1994,8 +1799,10 @@ mod outline_tests {
 mod notebook_tests {
     use super::*;
     fn apply(server: &mut Server, intent: Intent) {
-        let Reply::Done { outcome, .. } =
-            server.execute_current(Request::Intent(intent), None).reply.unwrap()
+        let Reply::Done { outcome, .. } = server
+            .execute_current(Request::Intent(intent), None)
+            .reply
+            .unwrap()
         else {
             panic!("an edit receipt")
         };

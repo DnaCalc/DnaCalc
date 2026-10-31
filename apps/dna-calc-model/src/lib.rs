@@ -3,14 +3,14 @@
 mod editor;
 pub use editor::{EditorState, TextHistory};
 pub mod command;
-pub mod projection;
 pub mod geometry;
+mod outbox;
+pub mod projection;
+mod runtime;
 pub mod selection;
 mod state;
-mod runtime;
-mod outbox;
-pub use runtime::{Health,RuntimeState,Snapshot,Status,Timings,ViewMirror};
-pub use outbox::{CommandDelivery,CommandQueue};
+pub use outbox::{CommandDelivery, CommandQueue};
+pub use runtime::{Health, RuntimeState, Snapshot, Status, Timings, ViewMirror};
 mod view;
 pub mod viewport;
 pub use calc_value::{CellKey, GridArea, Selection, SheetId};
@@ -20,9 +20,9 @@ pub use command::{
 };
 pub use state::{EditSession, FindMode, Model, PointPick, SelectionState, TextSelection};
 pub use view::{
-    AtlasState, Branch, CanvasState, ClipboardOwner, EditorContinuation, FocusRegistry,
-    FocusTicket, GridState, LedgerState, NotebookState, SurfaceDescriptor, SurfaceRole, TreeFocus,
-    TreeState, ViewState, ViewStateStore,
+    AtlasState, Branch, CanvasState, ClipboardDraftState, ClipboardOwner, EditorContinuation,
+    FocusRegistry, FocusTicket, GridState, LedgerState, NotebookState, SurfaceDescriptor,
+    SurfaceRole, TreeFocus, TreeState, ViewState, ViewStateStore,
 };
 
 /// Stable registry identity. A new skin declares its own id without editing this crate.
@@ -316,3 +316,11 @@ mod tests {
         assert_eq!(model.active_skin.as_deref(), Some("grid"));
     }
 }
+
+pub mod canvas;
+pub mod clipboard;
+pub mod ledger;
+pub mod tree;
+
+mod transport;
+pub use transport::{TransportAnswer, WorkbookTransport};

@@ -116,3 +116,35 @@ pub fn read_chosen(
     _chosen: impl FnOnce(Result<(String, Vec<u8>), String>) + 'static,
 ) {
 }
+
+/// The bytes of the wasm instance's linear memory; `None` off the browser.
+pub fn memory_bytes() -> Option<f64> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::JsCast;
+        let memory: js_sys::WebAssembly::Memory = wasm_bindgen::memory().dyn_into().ok()?;
+        let buffer: js_sys::ArrayBuffer = memory.buffer().dyn_into().ok()?;
+        Some(f64::from(buffer.byte_length()))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        None
+    }
+}
+
+/// Milliseconds on a clock: the browser's, or off the browser the time since the first call.
+pub fn now_ms() -> f64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        START
+            .get_or_init(std::time::Instant::now)
+            .elapsed()
+            .as_secs_f64()
+            * 1000.0
+    }
+}

@@ -14,6 +14,13 @@ use calc_fml::syntax::{TextSpan, TokenKind, lex};
 
 pub use dna_calc_model::TextHistory;
 
+/// Pure completion presentation stored by Calc's model through its open view-state registry.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CompletionState {
+    pub popup: Popup,
+}
+impl dna_calc_model::ViewState for CompletionState {}
+
 /// The completion popup: hidden, or open on a list with one item selected.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Popup {

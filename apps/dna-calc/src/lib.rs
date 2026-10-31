@@ -1,23 +1,8 @@
-//! The package for the DNA Calc application core: the Excel, notebook, tree and canvas skins over one CalcHost workbook.
-//!
-//! DNA Calc opens a workbook through calc-host and shows it in a skin: the Excel grid ([`grid`]),
-//! the notebook ([`notebook`]), the atlas ([`atlas`]), the tree ([`tree`]), the canvas
-//! ([`canvas`]) and the ledger ([`ledger`]), in one framework ([`skin`]). Every skin reads the
-//! workbook through calc-host's projections and subscriptions and changes it through calc-host's
-//! intents, by way of the one [`controller::Controller`] over the open [`workbook::Workbook`]; no
-//! skin reaches the engine or the document another way (dependency rule: dna-calc never depends on
-//! calc-engine directly).
-//!
-//! - [`workbook`]: the open workbook (calc-host's session, its name, the deltas waiting).
-//! - [`controller`]: the workbook behind reactive signals, the active sheet and cell, the edit.
-//! - [`cells`]: a projected cell as a skin shows it, with its provenance.
-//! - [`skin`]: the skin contract, the registry and switching.
-//! - [`style`]: computed styles through the CSS object model (the site's CSP refuses style
-//!   attributes).
-//! - [`app`]: the shell (file commands, formula bar, skin switcher, sheet tabs, status line).
-//! - [`web`]: the browser entry of the bundle (`cargo xtask app bundle calc`).
-//! - [`worker`], [`port`], [`server`] and [`wire`]: the calculation worker, the page's way to
-//!   it, the workbook's server it runs and the messages between them (dc-p96).
+//! DNA Calc's page, shell and skins over the neutral application model.
+//! Commands and projections cross `dna_calc_model::WorkbookTransport`. Workbook composition
+//! and the existing SVG projection adapters live in the separate dna-calc-worker binary.
+//! This package's normal dependencies contain no CalcHost, CalcEngine or document codec.
+//! The headless tests explicitly inject the worker's transport; the page uses a browser worker.
 
 pub mod app;
 pub mod atlas;
@@ -26,19 +11,15 @@ pub mod cells;
 pub mod clipboard;
 mod commands;
 pub mod controller;
-mod model_adapter;
 pub mod grid;
 pub mod ledger;
+mod model_adapter;
 pub mod notebook;
 pub mod port;
 mod review;
-mod search;
-pub mod server;
 pub mod sheets;
 pub mod skin;
 pub mod style;
 pub mod tree;
 pub mod web;
 pub mod wire;
-pub mod workbook;
-pub mod worker;

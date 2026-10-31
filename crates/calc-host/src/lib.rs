@@ -123,3 +123,8 @@ pub use calc_fml::reference::CellRun;
 
 /// The existing reference-text binder's typed result, exposed to host consumers.
 pub use calc_fml::reference::TextReference as ReferenceTarget;
+
+mod presentation_commands;
+pub use presentation_commands::{
+    AUTOFIT_CELLS, autofit_cells, can_edit, prepare_notebook_link, prepare_notebook_order,
+};

@@ -9,8 +9,8 @@
 //!   command. A live edit transfers to the shared formula bar; workbook state and history stay
 //!   intact. Mounted views release and renew their subscriptions.
 //! - **A skin reaches the workbook only through its [`SkinContext`]**: the controller, whose every
-//!   read is a calc-host projection or a subscription's delta and whose every change is a
-//!   [`calc_host::SkinIntent`].
+//!   read is a neutral cell projection or a subscription's delta and whose every change is a
+//!   [`crate::wire::Intent`].
 //! - **A skin that cannot be shown says so**: [`resolve_active_skin`] gives
 //!   [`SkinResolution::Unavailable`] for an identity the registry does not hold, which the
 //!   application shows as a card naming it, never a blank or another skin.
@@ -32,7 +32,10 @@
 //! - Declare the navigation surface's clipboard ownership and optional input target when it
 //!   differs from the readiness-aware focus target. The model stores those surface roles.
 //! - Reuse existing projections through the controller. Scoped CSS under `web/css` is included
-//!   automatically. New projection families and the protocol/transport split remain U1 work.
+//!   automatically. A new projection family extends the shared contract and worker, while an additional skin
+//!   over existing projections needs only its module and its declaration/registration in app.rs.
+//! - Give `Controller::focus_projection` the target and submission focus ticket when a projection
+//!   refresh needs focus. The browser adapter owns timing, retries and stale-response refusal.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-shell/src/stage.rs` (`StageId`,
 //! `StageSurface`, `StageRegistry`, `StageResolution`, `resolve_active_stage`, `switch_stage`,
@@ -57,11 +60,17 @@ pub trait Skin: Send + Sync + 'static {
     fn id(&self) -> SkinId;
     fn title(&self) -> &'static str;
     /// Input surface while worker-backed content is still mounting. Defaults to the focus target.
-    fn input_target(&self) -> &'static str { self.focus_target() }
+    fn input_target(&self) -> &'static str {
+        self.focus_target()
+    }
     /// Clipboard routing for this skin's navigation surface; registered editors retain native text.
-    fn clipboard_owner(&self) -> dna_calc_model::ClipboardOwner { dna_calc_model::ClipboardOwner::Native }
+    fn clipboard_owner(&self) -> dna_calc_model::ClipboardOwner {
+        dna_calc_model::ClipboardOwner::Native
+    }
     /// A focusable surface belonging to this skin. The shell owns focus timing.
-    fn focus_target(&self) -> &'static str { "#dc-workspace" }
+    fn focus_target(&self) -> &'static str {
+        "#dc-workspace"
+    }
     /// The skin's view over the workbook. It is dropped when another skin is shown, so a skin
     /// releases what it holds (its subscriptions) in `on_cleanup`.
     fn mount(&self, ctx: SkinContext) -> AnyView;
@@ -116,7 +125,12 @@ pub enum SkinResolution {
 /// [`SkinResolution::Unavailable`] when the name is not a registered skin.
 pub fn resolve_active_skin(registry: &SkinRegistry, active: Option<&str>) -> SkinResolution {
     match active {
-        Some(id) => match registry.skins().iter().find(|skin| skin.id().stable_id() == id).cloned() {
+        Some(id) => match registry
+            .skins()
+            .iter()
+            .find(|skin| skin.id().stable_id() == id)
+            .cloned()
+        {
             Some(skin) => SkinResolution::Mount(skin),
             None => SkinResolution::Unavailable {
                 active: Some(id.to_owned()),
@@ -130,11 +144,7 @@ pub fn resolve_active_skin(registry: &SkinRegistry, active: Option<&str>) -> Ski
 }
 
 /// Shows the skin at 1-based `slot` through the shared model dispatch path.
-pub fn switch_skin(
-    controller: Controller,
-    registry: &SkinRegistry,
-    slot: u8,
-) -> Option<SkinId> {
+pub fn switch_skin(controller: Controller, registry: &SkinRegistry, slot: u8) -> Option<SkinId> {
     let skin = registry.slot(slot)?;
     controller.command(dna_calc_model::Command::SwitchSkin(skin.id()));
     Some(skin.id())
@@ -221,9 +231,14 @@ mod tests {
     fn switching_writes_only_the_active_skin() {
         let owner = Owner::new();
         owner.with(|| {
-            let controller = Controller::new();
+            let controller = Controller::with_transport(std::rc::Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ));
             let active = controller.active_skin;
-            assert_eq!(switch_skin(controller, &registry(), 2), Some(SkinId::Notebook));
+            assert_eq!(
+                switch_skin(controller, &registry(), 2),
+                Some(SkinId::Notebook)
+            );
             assert_eq!(active.get_untracked().as_deref(), Some("notebook"));
             assert_eq!(switch_skin(controller, &registry(), 5), None);
             assert_eq!(active.get_untracked().as_deref(), Some("notebook"));

@@ -6,36 +6,13 @@ use wasm_bindgen::JsCast;
 
 pub const TEXT_LIMIT: usize = 8_000_000;
 
-/// Per-worker identity prevents another tab's clipboard token from selecting a local snapshot.
-pub fn session_nonce() -> String {
-    #[cfg(target_arch = "wasm32")]
-    {
-        let mut bytes = [0u8; 16];
-        let crypto = js_sys::Reflect::get(&js_sys::global(), &"crypto".into())
-            .ok()
-            .and_then(|v| v.dyn_into::<web_sys::Crypto>().ok());
-        if crypto.is_some_and(|crypto| crypto.get_random_values_with_u8_array(&mut bytes).is_ok()) {
-            return bytes.iter().map(|b| format!("{b:02x}")).collect();
-        }
-        String::new() // Missing crypto disables implicit internal matching; explicit snapshot paste still works.
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-        format!(
-            "native-{}",
-            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        )
-    }
-}
-
 /// The extension outside the seed rectangle. The larger distance chooses the axis at a corner.
 pub fn fill_extension(
-    from: calc_host::value::GridArea,
+    from: calc_value::GridArea,
     row: u32,
     col: u32,
-) -> Option<(calc_host::value::GridArea, bool)> {
-    use calc_host::value::{CellKey, GridArea};
+) -> Option<(calc_value::GridArea, bool)> {
+    use calc_value::{CellKey, GridArea};
     let (a, b) = (from.first(), from.last());
     let dr = if row < a.row() {
         a.row() - row
@@ -72,7 +49,8 @@ pub fn fill_extension(
     ))
 }
 
-pub use calc_host::matrix_shape;
+pub use calc_value::matrix_shape;
+pub use dna_calc_model::clipboard::{encode_html, encode_tsv, escape};
 
 /// Excel-style quoted fields preserve tabs, line breaks, empty fields and doubled quotes.
 pub fn decode_tsv(text: &str) -> Result<Vec<Vec<String>>, String> {
@@ -130,31 +108,6 @@ pub fn decode_tsv(text: &str) -> Result<Vec<Vec<String>>, String> {
     }
     matrix_shape(&rows)?;
     Ok(rows)
-}
-
-pub fn encode_tsv(rows: &[Vec<String>]) -> String {
-    rows.iter()
-        .map(|row| {
-            row.iter()
-                .map(|text| {
-                    if text.contains(['\t', '\r', '\n', '"']) {
-                        format!("\"{}\"", text.replace('"', "\"\""))
-                    } else {
-                        text.clone()
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\t")
-        })
-        .collect::<Vec<_>>()
-        .join("\r\n")
-}
-
-fn escape(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
 
 /// Reconstruct only table structure before asking the browser to parse it. Inert templates still
@@ -279,21 +232,6 @@ pub fn table_markup(html: &str) -> String {
         out.push('>');
     }
     out
-}
-
-pub fn encode_html(rows: &[Vec<String>], token: u64, session: &str) -> String {
-    format!(
-        "<table data-dnacalc-clipboard=\"{token}\" data-dnacalc-session=\"{}\">{}</table>",
-        escape(session),
-        rows.iter()
-            .map(|row| format!(
-                "<tr>{}</tr>",
-                row.iter()
-                    .map(|cell| format!("<td>{}</td>", escape(cell).replace('\n', "<br>")))
-                    .collect::<String>()
-            ))
-            .collect::<String>()
-    )
 }
 
 pub fn decode_html(html: &str) -> Result<(Vec<Vec<String>>, Option<(String, u64)>), String> {
@@ -463,8 +401,17 @@ pub fn native_paste(controller: Controller, event: web_sys::ClipboardEvent) {
 /// Compact, keyboard-reachable commands, a native modal for conflicts and a permission fallback.
 pub fn controls(controller: Controller) -> impl IntoView {
     let dialog: NodeRef<leptos::html::Dialog> = NodeRef::new();
-    let fallback_text = RwSignal::new(String::new());
-    let fill_end = RwSignal::new(String::new());
+    let scope = dna_calc_model::SkinId::new("clipboard-dialog");
+    let fallback_text = controller.view_field::<dna_calc_model::ClipboardDraftState, _>(
+        scope,
+        |s| &s.text,
+        |s| &mut s.text,
+    );
+    let fill_end = controller.view_field::<dna_calc_model::ClipboardDraftState, _>(
+        scope,
+        |s| &s.fill_end,
+        |s| &mut s.fill_end,
+    );
     Effect::new(move |_| {
         let fallback = controller.clipboard_fallback.get();
         let preview = controller.paste_preview.get();
@@ -493,7 +440,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
         }
         controller.clipboard_fallback.set(None);
         controller.paste_preview.set(None);
-        crate::grid::focus_grid();
+        controller.focus_active_skin();
     };
     view! {
         <details class="dc-clipboard-tools" data-dnacalc="clipboard-tools" name="worksheet-tools">
@@ -556,13 +503,13 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn separate_workers_never_share_a_clipboard_identity() {
-        fn capture(mut server: crate::server::Server) -> wire::Clipboard {
+        fn capture(mut server: dna_calc_worker::server::Server) -> wire::Clipboard {
             let sheet = server.book().host().sheets()[0].id();
-            let at = calc_host::value::CellKey::new(sheet, 1, 1).unwrap();
+            let at = calc_value::CellKey::new(sheet, 1, 1).unwrap();
             match server
                 .handle(
                     wire::Request::Capture {
-                        area: wire::Area::of(calc_host::value::GridArea::cell(at)),
+                        area: wire::Area::of(calc_value::GridArea::cell(at)),
                         keep: None,
                     },
                     None,
@@ -574,8 +521,8 @@ mod tests {
                 other => panic!("{other:?}"),
             }
         }
-        let a = capture(crate::server::Server::new());
-        let b = capture(crate::server::Server::new());
+        let a = capture(dna_calc_worker::server::Server::new());
+        let b = capture(dna_calc_worker::server::Server::new());
         assert_eq!(a.token, b.token);
         assert!(!a.session.is_empty());
         assert!(!b.session.is_empty());
@@ -601,7 +548,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fill_extent_chooses_one_axis_and_never_overwrites_the_seed() {
-        use calc_host::value::{CellKey, GridArea, IdAllocator, SheetId};
+        use calc_value::{CellKey, GridArea, IdAllocator, SheetId};
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let s = ids.issue().unwrap();
         let area = |a, b, c, d| {

@@ -8,9 +8,7 @@
 //! entered, its value and where that came from, its number format, and what it reads and what
 //! reads it. F9 recalculates.
 //!
-//! The graph is calc-host's ([`calc_host::HostState::precedents`] and
-//! [`calc_host::HostState::dependents`], the engine's own edges), traced by the workbook's server
-//! ([`view_model`], dc-p96); the skin changes nothing but the selection and, with F9,
+//! The worker projects the workbook graph (dc-p96); the skin changes nothing but the selection and, with F9,
 //! recalculates.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnatreecalc-skins/src/flow.rs`: the layered
@@ -23,26 +21,15 @@
 //! the engine's evaluation order and the derivation explain panel, whose reads calc-host does not
 //! offer.
 
-use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::style::css;
 use crate::wire;
-use crate::workbook::Workbook;
-use calc_host::value::{CellKey, GridArea};
+#[cfg(test)]
+use calc_value::{CellKey, GridArea};
 use leptos::prelude::*;
-use std::collections::{BTreeMap, BTreeSet};
 
-/// The most chips one column shows; the rest are counted.
-pub const PER_COLUMN: usize = 12;
-/// The deepest trace either way.
-pub const MAX_DEPTH: u8 = 6;
-
-const COLUMN_WIDTH: f64 = 230.0;
-const CHIP_WIDTH: f64 = 200.0;
-const ROW_HEIGHT: f64 = 124.0;
-const CHIP_HEIGHT: f64 = 110.0;
-
+pub use dna_calc_model::canvas::*;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CanvasSkin;
 
@@ -55,302 +42,12 @@ impl Skin for CanvasSkin {
         "Canvas"
     }
 
-    fn focus_target(&self) -> &'static str { "[data-dnacalc=canvas]" }
+    fn focus_target(&self) -> &'static str {
+        "[data-dnacalc=canvas]"
+    }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
         canvas_view(ctx.controller).into_any()
-    }
-}
-
-/// A chip: one cell, or a range a formula reads whole.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Node {
-    Cell(CellKey),
-    Area(GridArea),
-}
-
-impl Node {
-    fn key(&self) -> (u8, CellKey, CellKey) {
-        match self {
-            Node::Cell(at) => (0, *at, *at),
-            Node::Area(area) => (1, area.first(), area.last()),
-        }
-    }
-}
-
-impl PartialOrd for Node {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Node {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.key().cmp(&other.key())
-    }
-}
-
-/// The trace around a cell: the chips of each column (0 the cell, negative its inputs at that
-/// depth, positive its readers), the wires from input to reader, and how many chips each column
-/// leaves out beyond [`PER_COLUMN`].
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Trace {
-    pub columns: BTreeMap<i32, Vec<Node>>,
-    pub wires: Vec<(Node, Node)>,
-    pub hidden: BTreeMap<i32, usize>,
-}
-
-impl Trace {
-    /// Where a chip is: its column and its place in it.
-    pub fn place(&self, node: Node) -> Option<(i32, usize)> {
-        self.columns.iter().find_map(|(column, nodes)| {
-            nodes
-                .iter()
-                .position(|n| *n == node)
-                .map(|row| (*column, row))
-        })
-    }
-}
-
-/// The trace from `center`: `back` steps of what formulas read (a range of one cell is that cell;
-/// a larger range is one chip, which is not followed further) and `forward` steps of the formulas
-/// that read a cell. Each chip appears once, in the first column it is reached in; a column holds
-/// at most `per_column` chips (the rest are counted, and not followed).
-pub fn trace(
-    center: CellKey,
-    back: u8,
-    forward: u8,
-    per_column: usize,
-    precedents: impl Fn(CellKey) -> Option<Vec<GridArea>>,
-    dependents: impl Fn(CellKey) -> Vec<CellKey>,
-) -> Trace {
-    let mut out = Trace::default();
-    out.columns.insert(0, vec![Node::Cell(center)]);
-    let mut seen: BTreeSet<Node> = BTreeSet::from([Node::Cell(center)]);
-    // Places a chip reached at `column`: whether it is shown, and whether it was reached first here.
-    let place = |out: &mut Trace, seen: &mut BTreeSet<Node>, column: i32, node: Node| {
-        if !seen.insert(node) {
-            return (out.place(node).is_some(), false);
-        }
-        let nodes = out.columns.entry(column).or_default();
-        if nodes.len() < per_column {
-            nodes.push(node);
-            (true, true)
-        } else {
-            *out.hidden.entry(column).or_default() += 1;
-            (false, true)
-        }
-    };
-    let mut frontier = vec![center];
-    for level in 1..=i32::from(back) {
-        let mut next = Vec::new();
-        for reader in &frontier {
-            for area in precedents(*reader).unwrap_or_default() {
-                let node = if area.cell_count() == 1 {
-                    Node::Cell(area.first())
-                } else {
-                    Node::Area(area)
-                };
-                let (shown, fresh) = place(&mut out, &mut seen, -level, node);
-                if shown {
-                    out.wires.push((node, Node::Cell(*reader)));
-                    if let (true, Node::Cell(cell)) = (fresh, node) {
-                        next.push(cell);
-                    }
-                }
-            }
-        }
-        frontier = next;
-    }
-    let mut frontier = vec![center];
-    for level in 1..=i32::from(forward) {
-        let mut next = Vec::new();
-        for read in &frontier {
-            for reader in dependents(*read) {
-                let node = Node::Cell(reader);
-                let (shown, fresh) = place(&mut out, &mut seen, level, node);
-                if shown {
-                    out.wires.push((Node::Cell(*read), node));
-                    if fresh {
-                        next.push(reader);
-                    }
-                }
-            }
-        }
-        frontier = next;
-    }
-    out.wires.sort();
-    out.wires.dedup();
-    out
-}
-
-/// The chip's position on the plane, its top-left corner, with the leftmost column at 0.
-fn position(trace: &Trace, column: i32, row: usize) -> (f64, f64) {
-    let first = trace.columns.keys().next().copied().unwrap_or(0);
-    (
-        f64::from(column - first) * COLUMN_WIDTH,
-        row as f64 * ROW_HEIGHT,
-    )
-}
-
-/// The wires as SVG markup: numbers and fixed names only, never text from a cell.
-fn wires_svg(trace: &Trace) -> String {
-    let mut paths = String::new();
-    for (from, to) in &trace.wires {
-        let (Some((c1, r1)), Some((c2, r2))) = (trace.place(*from), trace.place(*to)) else {
-            continue;
-        };
-        let (x1, y1) = position(trace, c1, r1);
-        let (x2, y2) = position(trace, c2, r2);
-        let (x1, y1) = (x1 + CHIP_WIDTH, y1 + CHIP_HEIGHT / 2.0);
-        let y2 = y2 + CHIP_HEIGHT / 2.0;
-        let middle = (x1 + x2) / 2.0;
-        paths.push_str(&format!(
-            "<path d=\"M {x1:.1} {y1:.1} C {middle:.1} {y1:.1} {middle:.1} {y2:.1} {x2:.1} {y2:.1}\"/>"
-        ));
-    }
-    let (width, height) = plane_size(trace);
-    format!("<svg width=\"{width:.0}\" height=\"{height:.0}\">{paths}</svg>")
-}
-
-fn plane_size(trace: &Trace) -> (f64, f64) {
-    let columns = trace.columns.len().max(1) as f64;
-    let rows = trace
-        .columns
-        .values()
-        .map(Vec::len)
-        .max()
-        .unwrap_or(1)
-        .max(1) as f64;
-    (
-        (columns - 1.0) * COLUMN_WIDTH + CHIP_WIDTH,
-        rows * ROW_HEIGHT + 64.0,
-    )
-}
-
-/// The canvas around `center` as the page draws it (the workbook's server works it out, dc-p96):
-/// the trace, each chip's text, the wires and the centre cell's inspector.
-pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wire::Canvas {
-    let host = book.host();
-    let profile = book.profile().cloned();
-    let trace = trace(
-        center,
-        back,
-        forward,
-        PER_COLUMN,
-        |at| host.precedents(at),
-        |at| host.dependents(at),
-    );
-    let center_sheet = center.sheet();
-    let mut chips = Vec::new();
-    let mut hidden = Vec::new();
-    for (column, nodes) in &trace.columns {
-        for (row, node) in nodes.iter().enumerate() {
-            let (x, y) = position(&trace, *column, row);
-            let chip = match *node {
-                Node::Cell(at) => {
-                    let label = if at.sheet() == center_sheet {
-                        cells::address(at.row(), at.column())
-                    } else {
-                        cells::cell_label(host, at)
-                    };
-                    let (input, value, provenance) = match book.cell(at) {
-                        Some(cell) => {
-                            let shown = cells::shown(&cell, profile.as_ref(), book.cell_format(at));
-                            let value = if shown.provenance == Provenance::Refused {
-                                "refused".to_owned()
-                            } else {
-                                shown.text
-                            };
-                            (cells::input_text(cell.input()), value, shown.provenance)
-                        }
-                        None => (String::new(), String::new(), Provenance::Empty),
-                    };
-                    wire::Chip {
-                        column: *column,
-                        x,
-                        y,
-                        reference: cells::cell_label(host, at),
-                        sheet: wire::Sheet::of(at.sheet()),
-                        label,
-                        cell: Some(wire::Key::of(at)),
-                        input,
-                        value,
-                        provenance,
-                        count: 1,
-                    }
-                }
-                Node::Area(area) => wire::Chip {
-                    column: *column,
-                    x,
-                    y,
-                    label: if area.sheet() == center_sheet {
-                        format!(
-                            "{}:{}",
-                            cells::address(area.first().row(), area.first().column()),
-                            cells::address(area.last().row(), area.last().column())
-                        )
-                    } else {
-                        cells::area_label(host, area)
-                    },
-                    reference: cells::area_label(host, area),
-                    sheet: wire::Sheet::of(area.sheet()),
-                    cell: None,
-                    input: String::new(),
-                    value: String::new(),
-                    provenance: Provenance::Empty,
-                    count: area.cell_count(),
-                },
-            };
-            chips.push(chip);
-        }
-        if let Some(count) = trace.hidden.get(column) {
-            let (x, y) = position(&trace, *column, nodes.len());
-            hidden.push((*column, x, y, *count));
-        }
-    }
-    let (width, height) = plane_size(&trace);
-    let cell = book.cell(center);
-    let (input, value, why, reason_is_detail) = match &cell {
-        Some(cell) => {
-            let shown = cells::shown(cell, profile.as_ref(), book.cell_format(center));
-            (
-                cells::input_text(cell.input()),
-                shown.text,
-                match cells::error_meaning(cell) {
-                    Some(meaning) => format!("{}; {meaning}", cells::provenance_text(host, cell)),
-                    None => cells::provenance_text(host, cell),
-                },
-                shown.provenance == Provenance::Calculated && shown.kind != "error",
-            )
-        }
-        None => (String::new(), String::new(), "empty".to_owned(), false),
-    };
-    wire::Canvas {
-        wires_svg: wires_svg(&trace),
-        chips,
-        hidden,
-        width,
-        height,
-        inspector: wire::Inspector {
-            label: cells::cell_label(host, center),
-            input,
-            value,
-            why,
-            reason_is_detail,
-            format: host.number_format(center).unwrap_or("General").to_owned(),
-            reads: host
-                .precedents(center)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|area| cells::area_label(host, area))
-                .collect(),
-            read_by: host
-                .dependents(center)
-                .into_iter()
-                .map(|cell| cells::cell_label(host, cell))
-                .collect(),
-        },
     }
 }
 
@@ -427,16 +124,32 @@ fn center_view() {
     }
 }
 fn canvas_view(controller: Controller) -> impl IntoView {
-    let back = controller.view_field::<dna_calc_model::CanvasState, _>(SkinId::Canvas, |s| &s.back, |s| &mut s.back);
-    let forward = controller.view_field::<dna_calc_model::CanvasState, _>(SkinId::Canvas, |s| &s.forward, |s| &mut s.forward);
-    let zoom = controller.view_field::<dna_calc_model::CanvasState, _>(SkinId::Canvas, |s| &s.zoom, |s| &mut s.zoom);
+    let back = controller.view_field::<dna_calc_model::CanvasState, _>(
+        SkinId::Canvas,
+        |s| &s.back,
+        |s| &mut s.back,
+    );
+    let forward = controller.view_field::<dna_calc_model::CanvasState, _>(
+        SkinId::Canvas,
+        |s| &s.forward,
+        |s| &mut s.forward,
+    );
+    let zoom = controller.view_field::<dna_calc_model::CanvasState, _>(
+        SkinId::Canvas,
+        |s| &s.zoom,
+        |s| &mut s.zoom,
+    );
     let traced = RwSignal::new(None::<wire::Canvas>);
     let range = RwSignal::new(None::<wire::Chip>);
     let loading = RwSignal::new(true);
     let failure = RwSignal::new(String::new());
     let refresh = RwSignal::new(0u64);
     let epoch = StoredValue::new(0u64);
-    let focus_center = StoredValue::new(false);
+    let focus_center = controller.view_field::<dna_calc_model::CanvasState, _>(
+        SkinId::Canvas,
+        |s| &s.pending_focus,
+        |s| &mut s.pending_focus,
+    );
     Effect::new(move |_| {
         let revision = controller.revision.get();
         let generation = controller.generation.get();
@@ -471,14 +184,16 @@ fn canvas_view(controller: Controller) -> impl IntoView {
                         traced.try_set(Some(found));
                         loading.try_set(false);
                         let focus = focus_center.get_value();
-                        focus_center.set_value(false);
+                        focus_center.set_value(None);
                         #[cfg(target_arch = "wasm32")]
                         set_timeout(
                             move || {
                                 center_view();
-                                if focus {
-                                    crate::app::focus(
-                                        "[data-dnacalc=canvas-node][data-center=true]",
+                                if let Some(ticket) = focus {
+                                    controller.focus_projection(
+                                        SkinId::Canvas,
+                                        "[data-dnacalc=canvas-node][data-center=true]".into(),
+                                        ticket,
                                     );
                                 }
                             },
@@ -540,7 +255,7 @@ fn canvas_view(controller: Controller) -> impl IntoView {
             let selected_chip=chip.clone();
             let click=move |_| {
                 if hidden&&!is_range {failure.set("This source is on a hidden sheet. Unhide it in Sheet tools before navigation.".into());return;}
-                if let Some(at)=selected_chip.cell.and_then(|k|k.cell()) {controller.navigate_to(at,move |ok|{if ok&&focus_center.try_update_value(|v|*v=true).is_some(){refresh.try_update(|n|*n+=1);}});}
+                if let Some(at)=selected_chip.cell.and_then(|k|k.cell()) {let ticket=controller.focus_snapshot();controller.navigate_to(at,move |ok|{if ok&&focus_center.try_update_value(|v|*v=Some(ticket)).is_some(){refresh.try_update(|n|*n+=1);}});}
                 else {range.set(Some(selected_chip.clone()));}
             };
             view!{<button type="button" class="dc-node" data-dnacalc="canvas-node" data-kind={if is_range{"area"}else{"cell"}} data-node=chip.label data-column=chip.column.to_string() data-center=(chip.column==0).to_string() data-selected=move ||selected.get().to_string() data-provenance=chip.provenance.name() aria-label=accessible aria-description=description aria-disabled=(hidden&&!is_range).to_string() title={if hidden{"Hidden sheet: unhide it in Sheet tools before source navigation."}else{""}} aria-pressed=move ||selected.get().to_string() use:css=style on:click=click>
@@ -602,7 +317,7 @@ fn canvas_view(controller: Controller) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use calc_host::value::{IdAllocator, SheetId};
+    use calc_value::{IdAllocator, SheetId};
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

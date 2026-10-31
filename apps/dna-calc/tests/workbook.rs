@@ -7,15 +7,15 @@
 
 use calc_host::value::{CellKey, GridArea, SheetId};
 use calc_host::{DeltaMirror, Interest, SkinIntent};
-use dna_calc::cells::{self, Provenance};
 use dna_calc::controller::{Controller, EditOrigin};
-use dna_calc::workbook::{Workbook, host_options};
+use dna_calc_worker::cells::{self, Provenance};
+use dna_calc_worker::workbook::{Workbook, host_options};
 use leptos::prelude::*;
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_4__navigation_range_entry_and_refusal_use_the_worker_message_route() {
-    use dna_calc::{
+    use dna_calc_worker::{
         server::{Server, answer_text},
         wire::{self, Area, FromServer, Intent, Key, Reply, Request, ToServer},
     };
@@ -320,7 +320,9 @@ fn dc_rif__an_excel_workbook_opens_calculated_and_counts_its_formulas() {
 fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
     let owner = Owner::new();
     owner.with(|| {
-        let controller = Controller::new();
+        let controller = Controller::with_transport(std::rc::Rc::new(
+            dna_calc_worker::transport::InProcessTransport::default(),
+        ));
         // The controller's answers come through callbacks (dc-p96); in process they come at once.
         let commit = |controller: &Controller| {
             let accepted = std::rc::Rc::new(std::cell::Cell::new(None));
@@ -392,7 +394,9 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
             !downloaded.get(),
             "a Notebook draft cannot be silently omitted from a download"
         );
-        dna_calc::notebook::ViewState::new(controller).insert_text.set(String::new());
+        dna_calc::notebook::ViewState::new(controller)
+            .insert_text
+            .set(String::new());
         assert!(!controller.has_dirty_work());
         assert_eq!(controller.generation.get_untracked(), generation + 1);
         assert_eq!(controller.active.get_untracked(), (1, 1));
@@ -660,7 +664,7 @@ fn dc_09v__cells_show_their_number_formats() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_7__sheet_lifecycle_worker_history_references_and_saved_package() {
-    use dna_calc::{
+    use dna_calc_worker::{
         server::{Server, answer_text},
         wire::{self, FromServer, Intent, Key, Reply, Request, Sheet, SheetChange as C, ToServer},
     };
@@ -819,7 +823,7 @@ fn dc_971p_7__sheet_lifecycle_worker_history_references_and_saved_package() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_7__cell_shifts_rewrite_sources_with_one_history_step() {
-    use dna_calc::{
+    use dna_calc_worker::{
         server::{Server, answer_text},
         wire::{self, Area, FromServer, Intent, Key, Reply, Request, ToServer},
     };
@@ -1144,12 +1148,16 @@ fn dc_971p_7__hiding_and_unhiding_sheets_preserves_current_values_in_manual_mode
 
 mod rule_review {
     use super::*;
-    use dna_calc::{
+    use dna_calc_worker::{
         server::Server,
         wire::{self, ConditionalChange as C, Intent, Key, Reply, Request, Sheet},
     };
     fn intent(server: &mut Server, intent: Intent) -> wire::Outcome {
-        match server.execute_current(Request::Intent(intent), None).reply.unwrap() {
+        match server
+            .execute_current(Request::Intent(intent), None)
+            .reply
+            .unwrap()
+        {
             Reply::Done { outcome, .. } => outcome,
             other => panic!("{other:?}"),
         }
@@ -1165,7 +1173,8 @@ mod rule_review {
         }
     }
     fn open(server: &mut Server, name: &str, bytes: &[u8]) {
-        let answer = server.execute_current(Request::Open { name: name.into() }, Some(bytes.to_vec()));
+        let answer =
+            server.execute_current(Request::Open { name: name.into() }, Some(bytes.to_vec()));
         assert!(
             matches!(
                 answer.reply,
@@ -1640,7 +1649,7 @@ mod rule_review {
 
 mod workbook_commands {
     use super::*;
-    use dna_calc::{
+    use dna_calc_worker::{
         server::Server,
         wire::{self, Area, FindOptions, FindScope, Intent, Key, Reply, Request, Sheet},
     };
@@ -1985,7 +1994,7 @@ mod workbook_commands {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_messages() {
-    use dna_calc::{
+    use dna_calc_worker::{
         server::{Server, answer_text},
         wire::{self, FromServer, Intent, Key, Reply, Request, ToServer},
     };
@@ -2095,7 +2104,7 @@ fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_message
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_12__ledger_reasons_population_and_active_pages_use_the_existing_projection() {
-    use dna_calc::ledger::view_model;
+    use dna_calc_worker::ledger::view_model;
     let mut book = Workbook::new_blank();
     let sh = book.sheets()[0].id;
     let cell = |r| CellKey::new(sh, r, 1).unwrap();
@@ -2156,7 +2165,7 @@ fn dc_971p_12__ledger_reasons_population_and_active_pages_use_the_existing_proje
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_13__canvas_projects_cross_sheet_ranges_cycles_omissions_and_blocked_spills() {
-    use dna_calc::canvas::{PER_COLUMN, view_model};
+    use dna_calc_worker::canvas::{PER_COLUMN, view_model};
     let imported = Workbook::open(
         "cut-base.xlsx",
         include_bytes!("../../../crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx").to_vec(),
@@ -2211,92 +2220,167 @@ fn dc_971p_13__canvas_projects_cross_sheet_ranges_cycles_omissions_and_blocked_s
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_26__command_identity_revision_and_target_are_checked_before_effects() {
-    use dna_calc::{server::{Server,answer_text},wire::{self,Request,Intent,Key,ToServer,FromServer}};
-    fn deliver(server:&mut Server,request:&Request)->FromServer {
+    use dna_calc_worker::{
+        server::{Server, answer_text},
+        wire::{self, FromServer, Intent, Key, Request, ToServer},
+    };
+    fn deliver(server: &mut Server, request: &Request) -> FromServer {
         // A new request id is permitted to carry a retry of the same command identity.
-        let (text,_)=answer_text(server,&wire::encode(&ToServer {id:99,request:request.clone()}),None);
+        let (text, _) = answer_text(
+            server,
+            &wire::encode(&ToServer {
+                id: 99,
+                request: request.clone(),
+            }),
+            None,
+        );
         wire::decode(&text).unwrap()
     }
-    fn accepted(reply:FromServer) {
-        let FromServer::Reply {reply:wire::Reply::Done {outcome,..},..}=reply else {panic!("{reply:?}")};
-        assert!(outcome.accepted,"{outcome:?}");
+    fn accepted(reply: FromServer) {
+        let FromServer::Reply {
+            reply: wire::Reply::Done { outcome, .. },
+            ..
+        } = reply
+        else {
+            panic!("{reply:?}")
+        };
+        assert!(outcome.accepted, "{outcome:?}");
     }
-    fn refused(reply:FromServer,reason:&str) {
-        let FromServer::Failed {message,..}=reply else {panic!("{reply:?}")};
-        assert!(message.contains(reason),"{message}");
+    fn refused(reply: FromServer, reason: &str) {
+        let FromServer::Failed { message, .. } = reply else {
+            panic!("{reply:?}")
+        };
+        assert!(message.contains(reason), "{message}");
     }
-    let mut server=Server::new();
-    let sheet=server.book().sheets()[0].id;
-    let at=CellKey::new(sheet,1,1).unwrap();
-    let stale=server.envelope(Request::Intent(Intent::EnterCell {at:Key::of(at),text:"stale".into()}));
-    let edit=server.envelope(Request::Intent(Intent::EnterCell {at:Key::of(at),text:"42".into()}));
-    let mut other=Server::new();
-    refused(deliver(&mut other,&edit),"another workbook session");
-    accepted(deliver(&mut server,&edit));
+    let mut server = Server::new();
+    let sheet = server.book().sheets()[0].id;
+    let at = CellKey::new(sheet, 1, 1).unwrap();
+    let stale = server.envelope(Request::Intent(Intent::EnterCell {
+        at: Key::of(at),
+        text: "stale".into(),
+    }));
+    let edit = server.envelope(Request::Intent(Intent::EnterCell {
+        at: Key::of(at),
+        text: "42".into(),
+    }));
+    let mut other = Server::new();
+    refused(deliver(&mut other, &edit), "another workbook session");
+    accepted(deliver(&mut server, &edit));
     server.take_events();
-    let revision=server.book().host().revision();
-    let depth=server.book().session().history_depth();
-    let first=deliver(&mut server,&edit);
+    let revision = server.book().host().revision();
+    let depth = server.book().session().history_depth();
+    let first = deliver(&mut server, &edit);
     accepted(first);
-    assert_eq!(server.book().host().revision(),revision);
-    assert_eq!(server.book().session().history_depth(),depth);
+    assert_eq!(server.book().host().revision(), revision);
+    assert_eq!(server.book().session().history_depth(), depth);
     assert!(server.take_events().is_empty());
     // The same identity with a different payload cannot be reinterpreted as a new command.
-    refused(deliver(&mut server,&stale),"already used");
-    let mut stale=server.envelope(Request::Intent(Intent::EnterCell {at:Key::of(at),text:"stale".into()}));
-    if let Request::Command(ref mut e)=stale {e.base_revision=revision.get()-1;}
-    refused(deliver(&mut server,&stale),"revision");
-    assert_eq!(shown(server.book(),at).text,"42");
-    assert_eq!(server.book().session().history_depth(),depth);
-    let undo=server.envelope(Request::Intent(Intent::Undo));
-    accepted(deliver(&mut server,&undo));
-    let undone=server.book().host().revision();
-    accepted(deliver(&mut server,&undo));
-    assert_eq!(server.book().host().revision(),undone);
-    assert_eq!(shown(server.book(),at).text,"");
-    let mut moved=server.envelope(Request::Intent(Intent::EnterSelection {text:"wrong target".into()}));
-    if let Request::Command(ref mut e)=moved {e.resolved_selection=Some((Key::of(at),vec![wire::Area::of(GridArea::cell(at))]));}
-    refused(deliver(&mut server,&moved),"resolved selection");
-    let old=server.envelope(Request::Intent(Intent::Recalculate));
-    let new=server.envelope(Request::New);
-    accepted(deliver(&mut server,&new));
-    let workbook=if let FromServer::Reply {reply:wire::Reply::Done {outcome,..},..}=deliver(&mut server,&new) {outcome.summary.workbook}else{panic!()};
-    let mut old=old;
-    if let Request::Command(ref mut e)=old {e.id+=1;}
-    refused(deliver(&mut server,&old),"replaced");
-    let now=server.envelope(Request::Intent(Intent::Recalculate));
-    accepted(deliver(&mut server,&now));
-    assert!(matches!(server.execute_current(Request::Save,None).reply,Ok(wire::Reply::Done {outcome,..}) if outcome.summary.workbook==workbook));
+    refused(deliver(&mut server, &stale), "already used");
+    let mut stale = server.envelope(Request::Intent(Intent::EnterCell {
+        at: Key::of(at),
+        text: "stale".into(),
+    }));
+    if let Request::Command(ref mut e) = stale {
+        e.base_revision = revision.get() - 1;
+    }
+    refused(deliver(&mut server, &stale), "revision");
+    assert_eq!(shown(server.book(), at).text, "42");
+    assert_eq!(server.book().session().history_depth(), depth);
+    let undo = server.envelope(Request::Intent(Intent::Undo));
+    accepted(deliver(&mut server, &undo));
+    let undone = server.book().host().revision();
+    accepted(deliver(&mut server, &undo));
+    assert_eq!(server.book().host().revision(), undone);
+    assert_eq!(shown(server.book(), at).text, "");
+    let mut moved = server.envelope(Request::Intent(Intent::EnterSelection {
+        text: "wrong target".into(),
+    }));
+    if let Request::Command(ref mut e) = moved {
+        e.resolved_selection = Some((Key::of(at), vec![wire::Area::of(GridArea::cell(at))]));
+    }
+    refused(deliver(&mut server, &moved), "resolved selection");
+    let old = server.envelope(Request::Intent(Intent::Recalculate));
+    let new = server.envelope(Request::New);
+    accepted(deliver(&mut server, &new));
+    let workbook = if let FromServer::Reply {
+        reply: wire::Reply::Done { outcome, .. },
+        ..
+    } = deliver(&mut server, &new)
+    {
+        outcome.summary.workbook
+    } else {
+        panic!()
+    };
+    let mut old = old;
+    if let Request::Command(ref mut e) = old {
+        e.id += 1;
+    }
+    refused(deliver(&mut server, &old), "replaced");
+    let now = server.envelope(Request::Intent(Intent::Recalculate));
+    accepted(deliver(&mut server, &now));
+    assert!(
+        matches!(server.execute_current(Request::Save,None).reply,Ok(wire::Reply::Done {outcome,..}) if outcome.summary.workbook==workbook)
+    );
     // Bare transport commands cannot bypass admission.
-    refused(deliver(&mut server,&Request::Intent(Intent::Undo)),"identity");
+    refused(
+        deliver(&mut server, &Request::Intent(Intent::Undo)),
+        "identity",
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_26__evicted_command_and_calculation_retries_never_run_again() {
-    use dna_calc::{server::{Server,answer_text},wire::{self,Request,Intent,Key,ToServer,FromServer}};
-    let mut server=Server::new();
-    let sheet=server.book().sheets()[0].id;
-    let at=CellKey::new(sheet,1,1).unwrap();
-    let command=server.envelope(Request::Intent(Intent::EnterCell {at:Key::of(at),text:"=1+2".into()}));
-    let send=|server:&mut Server,request:&Request| {
-        let (text,_)=answer_text(server,&wire::encode(&ToServer {id:1,request:request.clone()}),None);
+    use dna_calc_worker::{
+        server::{Server, answer_text},
+        wire::{self, FromServer, Intent, Key, Request, ToServer},
+    };
+    let mut server = Server::new();
+    let sheet = server.book().sheets()[0].id;
+    let at = CellKey::new(sheet, 1, 1).unwrap();
+    let command = server.envelope(Request::Intent(Intent::EnterCell {
+        at: Key::of(at),
+        text: "=1+2".into(),
+    }));
+    let send = |server: &mut Server, request: &Request| {
+        let (text, _) = answer_text(
+            server,
+            &wire::encode(&ToServer {
+                id: 1,
+                request: request.clone(),
+            }),
+            None,
+        );
         wire::decode::<FromServer>(&text).unwrap()
     };
-    assert!(matches!(send(&mut server,&command),FromServer::Reply {..}));
-    let calc=server.envelope(Request::Intent(Intent::Recalculate));
-    assert!(matches!(send(&mut server,&calc),FromServer::Reply {..}));
+    assert!(matches!(
+        send(&mut server, &command),
+        FromServer::Reply { .. }
+    ));
+    let calc = server.envelope(Request::Intent(Intent::Recalculate));
+    assert!(matches!(send(&mut server, &calc), FromServer::Reply { .. }));
     server.take_events();
-    assert!(matches!(send(&mut server,&calc),FromServer::Reply {..}));
-    assert!(server.take_events().is_empty(),"retry published another calculation");
-    let revision=server.book().host().revision();
-    let depth=server.book().session().history_depth();
+    assert!(matches!(send(&mut server, &calc), FromServer::Reply { .. }));
+    assert!(
+        server.take_events().is_empty(),
+        "retry published another calculation"
+    );
+    let revision = server.book().host().revision();
+    let depth = server.book().session().history_depth();
     for _ in 0..130 {
-        let select=server.envelope(Request::Intent(Intent::Select {active:Key::of(at),areas:vec![wire::Area::of(GridArea::cell(at))]}));
-        assert!(matches!(send(&mut server,&select),FromServer::Reply {..}));
+        let select = server.envelope(Request::Intent(Intent::Select {
+            active: Key::of(at),
+            areas: vec![wire::Area::of(GridArea::cell(at))],
+        }));
+        assert!(matches!(
+            send(&mut server, &select),
+            FromServer::Reply { .. }
+        ));
     }
-    assert!(matches!(send(&mut server,&command),FromServer::Failed {message,..} if message.contains("expired")));
-    assert_eq!(server.book().host().revision(),revision);
-    assert_eq!(server.book().session().history_depth(),depth);
-    assert_eq!(shown(server.book(),at).text,"3");
+    assert!(
+        matches!(send(&mut server,&command),FromServer::Failed {message,..} if message.contains("expired"))
+    );
+    assert_eq!(server.book().host().revision(), revision);
+    assert_eq!(server.book().session().history_depth(), depth);
+    assert_eq!(shown(server.book(), at).text, "3");
 }

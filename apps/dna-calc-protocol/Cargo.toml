@@ -1,0 +1,17 @@
+[package]
+name = "dna-calc-protocol"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+[package.metadata.dnacalc]
+portability = "portable"
+[dependencies]
+dna-calc-model = {path="../dna-calc-model"}
+serde = {version="=1.0.229",features=["derive"]}
+serde_json = "=1.0.154"
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "=0.2.117"
+js-sys = "=0.3.94"
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"

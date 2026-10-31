@@ -1028,3 +1028,6 @@ pub struct SheetTab {
     pub id: SheetId,
     pub name: String,
 }
+
+/// Initial notebook projection page size.
+pub const NOTEBOOK_PAGE: usize = 40;

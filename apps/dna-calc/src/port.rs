@@ -1,24 +1,10 @@
-//! The page's way to the workbook's server (dc-p96): [`call`] sends a [`Request`] and hands the
-//! [`Reply`] to a callback; [`set_events`] takes the [`Event`]s the server pushes.
+//! Browser worker transport for the page. The worker has its own module and wasm binary.
+//! Calls made before startup wait in order; a failed worker reports a reason and releases
+//! pending answers. A failed connection is retained because restarting would lose the workbook.
+//! Headless composition is injected through `WorkbookTransport` from dna-calc-worker.
 //!
-//! In a browser the server runs in the calculation worker ([`crate::worker`]), started from
-//! `worker.js` in the bundle's asset folder (a module worker from its own script, so it runs under
-//! the site's `worker-src 'self'`): a call is posted to it and answered when the worker's reply
-//! comes, so the page's main thread never waits for an open, an edit or a recalculation. Calls
-//! made before the worker reports [`FromServer::Started`] wait for it. Off the browser (the
-//! tests), or when the worker cannot start, the server runs in process on the page, and a call is
-//! answered at once. Either way every message crosses as its JSON text ([`crate::wire`]); a
-//! workbook's bytes travel beside it (in a worker, transferred, not copied), and the server's
-//! events come before the reply they followed.
-//!
-//! The page records which way it took on the root element: `data-dnacalc-worker` is `starting`,
-//! `ready` (with the first round trip in `data-dnacalc-worker-ms`), or `in process: <why>`.
-//!
-//! Following DnaTreeCalc's worker client (bf6dfd7, `src/dnatreecalc-web/src/worker_client.rs`:
-//! the worker and its handler in a thread-local, an id per request, held until the worker reports
-//! it started).
+//! Follows DnaTreeCalc bf6dfd7 `src/dnatreecalc-web/src/worker_client.rs`.
 
-use crate::server::{self, Server};
 use crate::wire::{self, Event, FromServer, Reply, Request, ToServer};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -40,7 +26,6 @@ pub use dna_calc_model::Health;
 enum Transport {
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     Failed(String),
-    InProcess(Box<Server>),
     #[cfg(target_arch = "wasm32")]
     Worker(WorkerLink),
 }
@@ -116,8 +101,7 @@ fn mark(name: &str, value: &str) {
     }
 }
 
-/// Starts the server once for the page: in the calculation worker in a browser, in process
-/// otherwise.
+/// Starts the page's browser worker once. Other targets require an injected transport.
 pub fn start() {
     let started = PORT.with(|port| port.borrow().transport.is_some());
     if started {
@@ -147,13 +131,21 @@ pub fn start() {
                 });
                 return;
             }
-            Err(why) => mark("data-dnacalc-worker", &format!("in process: {why}")),
+            Err(why) => {
+                fail(why);
+                return;
+            }
         }
     }
-    PORT.with(|port| {
-        port.borrow_mut().transport = Some(Transport::InProcess(Box::default()));
-    });
-    notify_health(Some("Workbook running on this page".to_owned()));
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        PORT.with(|port| {
+            port.borrow_mut().transport = Some(Transport::Failed(
+                "The browser transport needs a worker; headless callers inject a transport".into(),
+            ))
+        });
+        notify_health(Some("Browser worker unavailable on this target".into()));
+    }
 }
 
 /// Whether the server runs in the calculation worker.
@@ -183,8 +175,7 @@ pub fn call(
         start();
     }
     let answer: Answer = Box::new(answer);
-    // The in-process server answers here, with the port released afterwards, so a callback may
-    // call again.
+    // Build each message while holding the port, then release it before invoking an answer.
     let served = PORT.with(|port| {
         let mut port = port.borrow_mut();
         let id = port.next_id;
@@ -195,17 +186,6 @@ pub fn call(
         } = &mut *port;
         let _ = &answers;
         match transport.as_mut() {
-            Some(Transport::InProcess(server)) => {
-                let (reply, bytes) = server::answer_text(server, &text, bytes);
-                let events: Vec<String> = server
-                    .take_events()
-                    .into_iter()
-                    .map(|event| wire::encode(&FromServer::Event(event)))
-                    .collect();
-                let mut messages = events;
-                messages.push(reply);
-                Some((messages, bytes, answer))
-            }
             #[cfg(target_arch = "wasm32")]
             Some(Transport::Worker(link)) => {
                 answers.insert(id, answer);
@@ -291,17 +271,8 @@ fn post(worker: &web_sys::Worker, text: &str, bytes: Option<Vec<u8>>) -> Result<
     }
 }
 
-/// A message's text, and the bytes beside it (`[text, ArrayBuffer]`).
 #[cfg(target_arch = "wasm32")]
-pub fn unpack(data: wasm_bindgen::JsValue) -> Option<(String, Option<Vec<u8>>)> {
-    if let Some(text) = data.as_string() {
-        return Some((text, None));
-    }
-    let pair: js_sys::Array = wasm_bindgen::JsCast::dyn_into(data).ok()?;
-    let text = pair.get(0).as_string()?;
-    let bytes = js_sys::Uint8Array::new(&pair.get(1)).to_vec();
-    Some((text, Some(bytes)))
-}
+pub use dna_calc_protocol::unpack;
 
 #[cfg(target_arch = "wasm32")]
 fn start_worker() -> Result<WorkerLink, String> {
@@ -387,5 +358,27 @@ fn receive(event: web_sys::MessageEvent) {
         FromServer::Failed { id: None, message } => {
             fail(message);
         }
+    }
+}
+
+/// Browser worker adapter. It has no in-process workbook fallback or host dependency.
+pub struct BrowserTransport;
+impl dna_calc_model::WorkbookTransport for BrowserTransport {
+    fn start(&self) {
+        start();
+    }
+    fn set_events(&self, handler: Rc<dyn Fn(Event)>) {
+        set_events(move |event| handler(event));
+    }
+    fn set_health(&self, handler: Rc<dyn Fn(Health)>) {
+        set_health(move |health| handler(health));
+    }
+    fn call(
+        &self,
+        request: Request,
+        bytes: Option<Vec<u8>>,
+        answer: dna_calc_model::TransportAnswer,
+    ) {
+        call(request, bytes, answer);
     }
 }

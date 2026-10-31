@@ -22,9 +22,7 @@
 //! the text or the caret, so a panic can only come from a memo or a view, where the browser smoke
 //! test sees it.
 
-use crate::editor::{
-    BracketPair, Popup, PopupKey, bracket_pair_at, insert_call, popup_key,
-};
+use crate::editor::{BracketPair, Popup, PopupKey, bracket_pair_at, insert_call, popup_key};
 use calc_fml::assist::{self, CallSite, HighlightRun, TokenRole};
 use calc_fml::parse_formula;
 use calc_fml::syntax::TextSpan;
@@ -40,55 +38,154 @@ pub struct TextBinding {
 }
 impl TextBinding {
     pub fn new(read: Signal<String>, write: impl Fn(String) + Send + Sync + 'static) -> Self {
-        Self { read, write: Callback::new(write) }
+        Self {
+            read,
+            write: Callback::new(write),
+        }
     }
-    pub fn get(self) -> String { self.read.get() }
-    pub fn get_untracked(self) -> String { self.read.get_untracked() }
-    pub fn with<U>(self, f: impl FnOnce(&String) -> U) -> U { self.read.with(f) }
-    pub fn track(self) { self.read.track(); }
-    pub fn set(self, text: String) { self.write.run(text); }
+    pub fn get(self) -> String {
+        self.read.get()
+    }
+    pub fn get_untracked(self) -> String {
+        self.read.get_untracked()
+    }
+    pub fn with<U>(self, f: impl FnOnce(&String) -> U) -> U {
+        self.read.with(f)
+    }
+    pub fn track(self) {
+        self.read.track();
+    }
+    pub fn set(self, text: String) {
+        self.write.run(text);
+    }
 }
 impl From<RwSignal<String>> for TextBinding {
-    fn from(text: RwSignal<String>) -> Self { Self::new(text.into(), move |next| text.set(next)) }
+    fn from(text: RwSignal<String>) -> Self {
+        Self::new(text.into(), move |next| text.set(next))
+    }
 }
 
 /// Reactive access to a small value owned by the application model.
-pub struct StateBinding<T: Send + Sync + 'static> {read: Signal<T>, write: Callback<T>}
+type StateMutation<T> = Box<dyn Fn(&mut dyn FnMut(&mut T)) + Send + Sync>;
+pub struct StateBinding<T: Send + Sync + 'static> {
+    read: Signal<T>,
+    write: Callback<T>,
+    mutate: StoredValue<StateMutation<T>>,
+}
 impl<T: Send + Sync> Copy for StateBinding<T> {}
-impl<T: Send + Sync> Clone for StateBinding<T> {fn clone(&self)->Self {*self}}
+impl<T: Send + Sync> Clone for StateBinding<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
 impl<T: Clone + Send + Sync + 'static> StateBinding<T> {
-    pub fn new(read: Signal<T>, write: impl Fn(T)+Send+Sync+'static)->Self {Self {read,write:Callback::new(write)}}
-    pub fn get(self)->T {self.read.get()}
-    pub fn get_untracked(self)->T {self.read.get_untracked()}
-    pub fn set(self,value:T) {self.write.run(value)}
-    pub fn track(self) {self.read.track()}
+    pub fn new(read: Signal<T>, write: impl Fn(T) + Send + Sync + 'static) -> Self {
+        let write = Callback::new(write);
+        Self {
+            read,
+            write,
+            mutate: StoredValue::new(Box::new(move |change| {
+                let mut value = read.get_untracked();
+                change(&mut value);
+                write.run(value);
+            })),
+        }
+    }
+    pub fn new_with_update(
+        read: Signal<T>,
+        write: impl Fn(T) + Send + Sync + 'static,
+        mutate: impl Fn(&mut dyn FnMut(&mut T)) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            read,
+            write: Callback::new(write),
+            mutate: StoredValue::new(Box::new(mutate)),
+        }
+    }
+    pub fn with<U>(self, f: impl FnOnce(&T) -> U) -> U {
+        self.read.with(f)
+    }
+    pub fn with_untracked<U>(self, f: impl FnOnce(&T) -> U) -> U {
+        self.read.with_untracked(f)
+    }
+    pub fn try_update<U>(self, f: impl FnOnce(&mut T) -> U) -> Option<U> {
+        let mut f = Some(f);
+        let mut result = None;
+        self.mutate.try_with_value(|mutate| {
+            mutate(&mut |value| {
+                result = Some(f.take().expect("one state update")(value));
+            })
+        });
+        result
+    }
+    pub fn update(self, f: impl FnOnce(&mut T)) {
+        self.try_update(f);
+    }
+    pub fn get(self) -> T {
+        self.read.get()
+    }
+    pub fn get_untracked(self) -> T {
+        self.read.get_untracked()
+    }
+    pub fn set(self, value: T) {
+        self.write.run(value)
+    }
+    pub fn track(self) {
+        self.read.track()
+    }
 }
 /// The journal remains with its owner; edits do not clone the journal to change one entry.
 pub trait HistoryStore: Send + Sync {
-    fn available(&self,redo:bool)->bool;
-    fn start(&self,original:String,text:String,end:usize);
-    fn record(&self,text:String,caret:usize);
-    fn step(&self,redo:bool)->Option<(String,usize)>;
+    fn available(&self, redo: bool) -> bool;
+    fn start(&self, original: String, text: String, end: usize);
+    fn record(&self, text: String, caret: usize);
+    fn step(&self, redo: bool) -> Option<(String, usize)>;
 }
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub struct HistoryBinding(StoredValue<Box<dyn HistoryStore>>);
 impl HistoryBinding {
-    pub fn new(store:impl HistoryStore+'static)->Self {Self(StoredValue::new(Box::new(store)))}
-    fn available(self,redo:bool)->bool {self.0.with_value(|h|h.available(redo))}
-    fn start(self,original:String,text:String,end:usize) {self.0.with_value(|h|h.start(original,text,end))}
-    fn record(self,text:String,caret:usize) {self.0.with_value(|h|h.record(text,caret))}
-    fn step(self,redo:bool)->Option<(String,usize)> {self.0.try_with_value(|h|h.step(redo)).flatten()}
+    pub fn new(store: impl HistoryStore + 'static) -> Self {
+        Self(StoredValue::new(Box::new(store)))
+    }
+    fn available(self, redo: bool) -> bool {
+        self.0.with_value(|h| h.available(redo))
+    }
+    fn start(self, original: String, text: String, end: usize) {
+        self.0.with_value(|h| h.start(original, text, end))
+    }
+    fn record(self, text: String, caret: usize) {
+        self.0.with_value(|h| h.record(text, caret))
+    }
+    fn step(self, redo: bool) -> Option<(String, usize)> {
+        self.0.try_with_value(|h| h.step(redo)).flatten()
+    }
 }
 pub struct AssistBindings {
-    pub caret:StateBinding<usize>,pub dismissed:StateBinding<Option<String>>,
-    pub composing:StateBinding<bool>,pub readonly:StateBinding<bool>,pub history:HistoryBinding,
+    pub caret: StateBinding<usize>,
+    pub dismissed: StateBinding<Option<String>>,
+    pub composing: StateBinding<bool>,
+    pub readonly: StateBinding<bool>,
+    pub history: HistoryBinding,
+    pub popup: StateBinding<Popup>,
 }
 struct LocalHistory(RwSignal<dna_calc_model::EditorState>);
 impl HistoryStore for LocalHistory {
-    fn available(&self,redo:bool)->bool {self.0.with_untracked(|s|s.history.available(redo))}
-    fn start(&self,original:String,text:String,end:usize) {self.0.update(|s|{let caret=original.encode_utf16().count();s.history.reset(original,caret);s.history.record(text,end);});}
-    fn record(&self,text:String,caret:usize) {self.0.update(|s|s.history.record(text,caret));}
-    fn step(&self,redo:bool)->Option<(String,usize)> {self.0.try_update(|s|s.history.step(redo)).flatten()}
+    fn available(&self, redo: bool) -> bool {
+        self.0.with_untracked(|s| s.history.available(redo))
+    }
+    fn start(&self, original: String, text: String, end: usize) {
+        self.0.update(|s| {
+            let caret = original.encode_utf16().count();
+            s.history.reset(original, caret);
+            s.history.record(text, end);
+        });
+    }
+    fn record(&self, text: String, caret: usize) {
+        self.0.update(|s| s.history.record(text, caret));
+    }
+    fn step(&self, redo: bool) -> Option<(String, usize)> {
+        self.0.try_update(|s| s.history.step(redo)).flatten()
+    }
 }
 
 /// The formula field's state over its owner's text signal. Every part is a signal, a memo or a node
@@ -99,7 +196,7 @@ pub struct FormulaAssist {
     pub text: TextBinding,
     /// The caret, in UTF-16 code units.
     pub caret: StateBinding<usize>,
-    pub popup: RwSignal<Popup>,
+    pub popup: StateBinding<Popup>,
     /// The prefix whose completion the person dismissed, which stays hidden until it changes.
     dismissed: StateBinding<Option<String>>,
     /// The text field.
@@ -117,19 +214,49 @@ impl FormulaAssist {
     /// The field's state over `text`, with the caret at the start and the popup hidden.
     pub fn new(text: impl Into<TextBinding>) -> FormulaAssist {
         let text = text.into();
-        let state=RwSignal::new(dna_calc_model::EditorState::default());
-        Self::new_with_state(text,AssistBindings {
-            caret:StateBinding::new(Signal::derive(move ||state.with(|s|s.caret)),move |v|state.update(|s|s.caret=v)),
-            dismissed:StateBinding::new(Signal::derive(move ||state.with(|s|s.dismissed.clone())),move |v|state.update(|s|s.dismissed=v)),
-            composing:StateBinding::new(Signal::derive(move ||state.with(|s|s.composing)),move |v|state.update(|s|s.composing=v)),
-            readonly:StateBinding::new(Signal::derive(move ||state.with(|s|s.readonly)),move |v|state.update(|s|s.readonly=v)),
-            history:HistoryBinding::new(LocalHistory(state)),
-        })
+        let state = RwSignal::new(dna_calc_model::EditorState::default());
+        let popup = RwSignal::new(Popup::default());
+        Self::new_with_state(
+            text,
+            AssistBindings {
+                caret: StateBinding::new(
+                    Signal::derive(move || state.with(|s| s.caret)),
+                    move |v| state.update(|s| s.caret = v),
+                ),
+                dismissed: StateBinding::new(
+                    Signal::derive(move || state.with(|s| s.dismissed.clone())),
+                    move |v| state.update(|s| s.dismissed = v),
+                ),
+                composing: StateBinding::new(
+                    Signal::derive(move || state.with(|s| s.composing)),
+                    move |v| state.update(|s| s.composing = v),
+                ),
+                readonly: StateBinding::new(
+                    Signal::derive(move || state.with(|s| s.readonly)),
+                    move |v| state.update(|s| s.readonly = v),
+                ),
+                history: HistoryBinding::new(LocalHistory(state)),
+                popup: StateBinding::new_with_update(
+                    popup.into(),
+                    move |p| popup.set(p),
+                    move |f| {
+                        popup.try_update(|p| f(p));
+                    },
+                ),
+            },
+        )
     }
-    pub fn new_with_state(text: impl Into<TextBinding>,state:AssistBindings)->FormulaAssist {
-        let text=text.into();
-        let AssistBindings {caret,dismissed,composing,readonly,history}=state;
-        history.start(text.get_untracked(),text.get_untracked(),0);
+    pub fn new_with_state(text: impl Into<TextBinding>, state: AssistBindings) -> FormulaAssist {
+        let text = text.into();
+        let AssistBindings {
+            caret,
+            dismissed,
+            composing,
+            readonly,
+            history,
+            popup,
+        } = state;
+        history.start(text.get_untracked(), text.get_untracked(), 0);
         let runs = Memo::new(move |_| text.with(|text| assist::highlight(text)));
         let brackets = Memo::new(move |_| {
             let caret = caret.get();
@@ -142,7 +269,7 @@ impl FormulaAssist {
         FormulaAssist {
             text,
             caret,
-            popup: RwSignal::new(Popup::Hidden),
+            popup,
             dismissed,
             field: NodeRef::new(),
             composing,
@@ -172,7 +299,7 @@ impl FormulaAssist {
         let text = self.text.get_untracked();
         let end = text.encode_utf16().count();
         self.caret.set(end);
-        self.history.start(original,text,end);
+        self.history.start(original, text, end);
         self.composing.set(false);
         self.reset();
     }
@@ -250,8 +377,7 @@ impl FormulaAssist {
         if self.readonly.get_untracked() || self.composing.get_untracked() {
             return;
         }
-        if let Some((text, at)) = self.history.step(redo)
-        {
+        if let Some((text, at)) = self.history.step(redo) {
             self.restore(text, at);
             self.sync_from_field(false);
         }

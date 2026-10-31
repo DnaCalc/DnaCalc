@@ -6,7 +6,7 @@ use super::{
     viewport,
 };
 use crate::cells::CellShown;
-use calc_host::value::{CellKey, GridArea, SheetId};
+use calc_value::{CellKey, GridArea, SheetId};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -363,7 +363,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn frozen_interests_and_selection_stay_bounded_at_the_last_row() {
-        let mut ids: calc_host::value::IdAllocator<SheetId> = calc_host::value::IdAllocator::new();
+        let mut ids: calc_value::IdAllocator<SheetId> = calc_value::IdAllocator::new();
         let sheet = ids.issue().unwrap();
         let m = GridMetrics::default();
         let p = Panes {
@@ -507,7 +507,7 @@ mod origin_tests {
         g.frozen_columns = 2;
         let p = Panes::from_geometry(&g);
         assert_eq!(p.counts(), (2, 2));
-        let mut ids = calc_host::value::IdAllocator::<SheetId>::new();
+        let mut ids = calc_value::IdAllocator::<SheetId>::new();
         let sheet = ids.issue().unwrap();
         for zoom in [0.5, 1., 1.75, 4.] {
             let m = GridMetrics::default().scaled(zoom);

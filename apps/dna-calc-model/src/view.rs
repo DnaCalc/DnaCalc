@@ -174,8 +174,17 @@ impl FocusRegistry {
     }
 }
 
+/// Draft values in the shell's clipboard and fill controls.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ClipboardDraftState {
+    pub text: String,
+    pub fill_end: String,
+}
+impl ViewState for ClipboardDraftState {}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LedgerState {
+    pub pending_focus: Option<FocusTicket>,
     pub filter: String,
     pub text: String,
     pub sort: String,
@@ -185,6 +194,7 @@ pub struct LedgerState {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NotebookState {
+    pub pending_focus: Option<(String, bool, FocusTicket)>,
     pub insert_text: String,
     pub address: String,
     pub prose: bool,
@@ -223,6 +233,7 @@ pub struct GridState {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CanvasState {
+    pub pending_focus: Option<FocusTicket>,
     pub back: u8,
     pub forward: u8,
     pub zoom: u16,
@@ -230,6 +241,7 @@ pub struct CanvasState {
 impl Default for CanvasState {
     fn default() -> Self {
         Self {
+            pending_focus: None,
             back: 1,
             forward: 1,
             zoom: 100,

@@ -1,12 +1,7 @@
-//! The calculation worker (dc-p96): the same wasm build as the page, started in a dedicated module
-//! worker by `web/worker.js`. The bundle's start function sees it has no window and calls
-//! [`start`], which listens for [`crate::wire::ToServer`] messages and answers each with a
-//! [`FromServer`] through its own [`crate::server::Server`] (see [`crate::wire`]).
+//! Dedicated workbook worker entry, loaded from its separate wasm module by worker.js.
+//! The existing JSON control protocol and transferred package bytes are unchanged.
 //!
-//! Following DnaTreeCalc's worker runtime (bf6dfd7, `src/dnatreecalc-web/src/worker_runtime.rs`:
-//! context detection in the start function, a message handler kept for the worker's life, JSON
-//! messages); the worker is started from its own script file rather than a blob, so it runs under
-//! the site's `worker-src 'self'`.
+//! Follows DnaTreeCalc bf6dfd7 `src/dnatreecalc-web/src/worker_runtime.rs`.
 
 #[cfg(target_arch = "wasm32")]
 use crate::wire::{self, FromServer};
@@ -58,7 +53,7 @@ pub fn start() {
 
 #[cfg(target_arch = "wasm32")]
 fn handle(event: web_sys::MessageEvent) {
-    let Some((text, bytes)) = crate::port::unpack(event.data()) else {
+    let Some((text, bytes)) = dna_calc_protocol::unpack(event.data()) else {
         post(&FromServer::Failed {
             id: None,
             message: "a message that is not text".to_owned(),

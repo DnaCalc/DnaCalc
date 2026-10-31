@@ -106,6 +106,8 @@ pub struct Health {
 }
 
 pub struct RuntimeState {
+    pub selection_focus: Option<crate::FocusTicket>,
+    pub callback_focus: Option<crate::FocusTicket>,
     pub context_menu: Option<(f64, f64)>,
     pub review_open: bool,
     pub validation_decision: Option<wire::ValidationDecision>,
@@ -144,6 +146,8 @@ pub struct RuntimeState {
 impl Default for RuntimeState {
     fn default() -> Self {
         Self {
+            selection_focus: None,
+            callback_focus: None,
             context_menu: None,
             review_open: false,
             validation_decision: None,

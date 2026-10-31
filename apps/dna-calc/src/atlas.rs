@@ -10,7 +10,7 @@
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-stage-atlas/src/lib.rs` (the structure
 //! map and the calculation panel, each derived from the workbook on every change and never
-//! blank), over calc-host's projections ([`crate::workbook::Workbook::census`]), asked of the
+//! blank), over calc-host's projections (the worker census), asked of the
 //! workbook's server after every change (dc-p96). The defined-name catalogue is not listed.
 
 use crate::controller::Controller;
@@ -36,7 +36,7 @@ impl Skin for AtlasSkin {
 }
 
 const REASON_PAGE: usize = 30;
-fn reason_rows(census: &crate::workbook::Census, page: usize) -> Vec<(String, usize)> {
+fn reason_rows(census: &dna_calc_model::projection::Census, page: usize) -> Vec<(String, usize)> {
     let mut reasons: Vec<_> = census
         .refusals
         .iter()
@@ -79,12 +79,26 @@ fn atlas_view(controller: Controller) -> impl IntoView {
     let census = Memo::new(move |_| {
         atlas.with(|a| a.as_ref().map(|a| a.census.clone()).unwrap_or_default())
     });
-    let reason_page = controller.view_field::<dna_calc_model::AtlasState, _>(SkinId::Atlas, |s| &s.reason_page, |s| &mut s.reason_page);
-    let selected = controller.view_field::<dna_calc_model::AtlasState, _>(SkinId::Atlas, |s| &s.selected, |s| &mut s.selected);
-    let cell_page = controller.view_field::<dna_calc_model::AtlasState, _>(SkinId::Atlas, |s| &s.cell_page, |s| &mut s.cell_page);
+    let reason_page = controller.view_field::<dna_calc_model::AtlasState, _>(
+        SkinId::Atlas,
+        |s| &s.reason_page,
+        |s| &mut s.reason_page,
+    );
+    let selected = controller.view_field::<dna_calc_model::AtlasState, _>(
+        SkinId::Atlas,
+        |s| &s.selected,
+        |s| &mut s.selected,
+    );
+    let cell_page = controller.view_field::<dna_calc_model::AtlasState, _>(
+        SkinId::Atlas,
+        |s| &s.cell_page,
+        |s| &mut s.cell_page,
+    );
     Effect::new(move |_| {
         let revision = controller.revision.get();
-        controller.update_view::<dna_calc_model::AtlasState>(SkinId::Atlas, |state| state.observe_revision(revision));
+        controller.update_view::<dna_calc_model::AtlasState>(SkinId::Atlas, |state| {
+            state.observe_revision(revision)
+        });
     });
     let affected = RwSignal::new(None::<wire::RefusalCells>);
     let affected_error = RwSignal::new(String::new());
@@ -138,7 +152,7 @@ fn atlas_view(controller: Controller) -> impl IntoView {
     let jump = move |at, skin| controller.reveal(at, skin);
     let sheets = move || {
         census.with(|c|c.sheets.iter().map(|s| {
-        let at=s.identity.and_then(|s|calc_host::value::CellKey::new(s.id(),1,1).ok());
+        let at=s.identity.and_then(|s|calc_value::CellKey::new(s.id(),1,1).ok());
         let hidden=s.identity.is_some_and(|id|controller.summary.with(|v|v.hidden_sheets.iter().any(|(s,_,_)|*s==id)));
         view!{<tr data-dnacalc="atlas-sheet" data-sheet=s.name.clone()>
             <td><button data-dnacalc="atlas-sheet-jump" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at, SkinId::Grid);}>{s.name.clone()}</button>{hidden.then_some(" (hidden; unhide in Sheet tools)")}</td>
@@ -231,7 +245,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn every_reason_is_reachable_in_count_then_text_order() {
-        let mut census = crate::workbook::Census::default();
+        let mut census = dna_calc_model::projection::Census::default();
         for n in 0..33 {
             census.refusals.insert(format!("reason {n:02}"), 1);
         }

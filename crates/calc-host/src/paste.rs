@@ -148,13 +148,4 @@ pub fn prepare_paste(
     })
 }
 
-pub fn matrix_shape(rows: &[Vec<String>]) -> Result<(u32, u32), String> {
-    let width = rows.first().map_or(0, Vec::len);
-    if width == 0 || rows.is_empty() || rows.iter().any(|row| row.len() != width) {
-        return Err("Paste a rectangular table".to_owned());
-    }
-    if rows.len() as u64 * width as u64 > crate::COPY_LIMIT {
-        return Err("The clipboard table is too large".to_owned());
-    }
-    Ok((rows.len() as u32, width as u32))
-}
+pub use calc_value::matrix_shape;

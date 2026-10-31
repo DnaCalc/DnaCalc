@@ -281,7 +281,7 @@ mod tests {
     use super::*;
     use crate::cells::Provenance;
     use crate::grid::geometry::{HitTarget, hit_test};
-    use calc_host::value::{CellKey, IdAllocator, SheetId};
+    use calc_value::{CellKey, IdAllocator, SheetId};
 
     fn sheet() -> SheetId {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
