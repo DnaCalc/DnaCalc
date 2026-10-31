@@ -1,0 +1,308 @@
+# XLL and COM add-in hosting for DNA Calc (owner ruling 4.9)
+
+Date 2026-10-31. Read-only research for the architecture review; connects to SYNTHESIS.md 1.3-1.6, 3, 4, 6.
+Markers: **[V]** verified this session in source or Microsoft documentation (link or path given);
+**[I]** inference; **[P]** must be measured in Excel on this machine before the dependent type freezes.
+
+Sources read: Excel-DNA local clone `C:\Work\Excel-DNA\ExcelDna` (master f4847492, 2026-09-13; paths under
+`Source/`, https://github.com/Excel-DNA/ExcelDna/tree/master/Source); xlOil https://github.com/cunnane/xloil (master);
+xlw https://github.com/xlw/xlw (master; branch `2026-update` for Native AOT). Microsoft: xlfRegister (Form 1) https://learn.microsoft.com/en-us/office/client-developer/excel/xlfregister-form-1;
+  async UDFs https://learn.microsoft.com/en-us/office/client-developer/excel/asynchronous-user-defined-functions;
+  MTR https://learn.microsoft.com/en-us/office/client-developer/excel/multithreaded-recalculation-in-excel;
+  memory https://learn.microsoft.com/en-us/office/client-developer/excel/memory-management-in-excel;
+  events https://learn.microsoft.com/en-us/office/client-developer/excel/handling-events;
+  creating XLLs https://learn.microsoft.com/en-us/previous-versions/office/bb687861(v=office.14).
+
+## 1. What the three frameworks call
+
+### 1.1 How each reaches Excel [V]
+
+| | Excel-DNA | xlw 6 | xlOil |
+|---|---|---|---|
+| Callback route | `GetProcAddress(GetModuleHandle(NULL),"MdCallBack12")` (`ExcelDna.Loader/XlCallImpl.cs:84-88`); `SetExcel12EntryPt` fallback export | SDK-style `xlcall.cpp`, same lookup (`xlw/src/xlcall.cpp`) | SDK `XLCALL.CPP` (`external/Excel2013SDK/SRC`), same lookup |
+| XLCALL32.DLL | `[DllImport] XLCallVer()` (`XlAddIn.cs:177`, version = result/256); `LoadLibrary` + `LPenHelper` (`ExcelDna.Host.Shared/LPenHelper.cpp:13-15`) | `LoadLibrary("XLCALL32.DLL")` must succeed or `xlAutoOpen` returns 0 (`xlw/src/XlfExcel.cpp`); xlw 5 also needs `Excel4`/`Excel4v` | linked, probably not imported at run time [I] |
+| Excel4 / XLOPER | no | no (xlw 5: yes) | no |
+| xll exports | `xlAutoOpen/Close/Remove`, `xlAutoFree12`, `xlAddInManagerInfo12`, `SetExcel12EntryPt`, `DllRegisterServer/Unregister/GetClassObject/CanUnloadNow`, `SyncMacro`, `RegistrationInfo`, `CalculationCanceled/Ended` (`ExcelDna.Host.Shared/exports.def`) plus 10,000 stubs `f0..f9999` jumping through a thunk table (`ExcelDna/JmpExports64.asm`) | `xlAutoOpen/Close/Remove`, `xlwGenDoc`, one `xl<Name>` per function; no `xlAutoFree12` | `xlAutoOpen/Close/Free12`, `xlAddInManagerInfo12`, `xlAutoAdd/Remove`, `xlHandleCalculationCancelled`; core `xlOil.dll` exports `xloil_stub`, `xloRunInXLLContext`, `localFunctionEntryPoint` |
+| UDF entry points | fixed pool `fN`, registered with the **full xll path** (`XlRegistration.cs:146-171`) | static exports | **one export `xloil_stub` rewritten in xlOil.dll's export table before each `xlfRegister`**, module given as bare file name (`src/xlOil-Dynamic/DynamicRegistration.cpp`) |
+| Runtime | .NET Framework via `CLRCreateInstance`/`ICorRuntimeHost`, AppDomain per add-in (`ExcelDna/ExcelDnaLoader.cpp:229-256`); .NET 6+ via `hostfxr_initialize_for_runtime_config` + `load_assembly_and_get_function_pointer` (`ExcelDna.Host/host.cpp:98-210`); Native AOT (`ExcelDna.Host.NativeAOT/host.cpp`) | C++; xlwDotNet is C++/CLI (Ijwhost) or Native AOT | C++ core, delay-loaded `xlOil.dll`, plugins by `LoadLibrary`, embedded CPython |
+
+### 1.2 Callback table (difficulty for DNA Calc: L low, M medium, H high)
+
+| Callback | Used by | Purpose | Diff. |
+|---|---|---|---|
+| `xlfRegister` (149) Form 1 | all | register UDFs/commands; returns register ID, defines a hidden name evaluating to it [V doc] | M: type strings, export lookup at call time, hidden names, use counts |
+| `xlfUnregister` (201), `xlfSetName` (88) | all | unregister; remove wizard name via fake `"I"` registration of `xlAutoRemove`/`SetExcel12EntryPt` then `xlfSetName` (`XlRegistration.cs:217-231`; xlOil `FuncRegistry.cpp`) | L |
+| `xlFree`, `xlCoerce`, `xlSet` | all / Excel-DNA, xlOil | free Excel memory (must accept any XLOPER12, xlOil frees every result); coerce refs; write ranges from commands | L / M (needs read view) / M (needs command transaction) |
+| `xlfCaller` (89), `xlSheetId`, `xlSheetNm` | all | caller cell/area, sheet ids and names | M: caller per `EvaluationLocus` |
+| `xlfGetWorkspace` (2, 37) | all | version string "16.0"; international settings (xlw) | L |
+| `xlGetName`, `xlGetHwnd`, `xlGetInstPtr` | all / xlOil, Excel-DNA | xll path; XLMAIN window; Excel hInstance | L, but needs "current XLL" context |
+| `xlEventRegister` (Canceled, Ended) | Excel-DNA, xlOil | async life cycle; not raised on programmatic recalc [V doc] | M |
+| `xlAsyncReturn` | Excel-DNA (native async), xlOil | complete an `X` call, from any thread [V doc] | M-H |
+| `xlfRtd` (379) | Excel-DNA (`ExcelAsyncUtil.Run/Observe`, `XlCall.RTD`), xlOil, xlwDotNet | RTD topic subscription from inside a UDF | H (COM RTD client, topic life cycle) |
+| `xlUDF`, `xlfEvaluate`, `xlfCall` | Excel-DNA (`RegistrationInfo.cs:73-74`, `ExcelIntegration.cs:140`), xlOil (IntelliSense refresh) | call another add-in's function by name; evaluate a name to its register ID | M |
+| `xlcRun`, `xlcOnKey`, `xlcMessage`, `xlcAlert`, `xlcNew`, `xlcWorkbookInsert`, `xlcFileClose`, `xlcEcho` | Excel-DNA | macro run; shortcuts; status bar; getting Application with no workbook open (`Excel.cs:329-358`) | M (commands edit the model) |
+| `xlfGetBar`, `xlfAddMenu`, `xlfAddCommand`, `xlfDeleteMenu/Command`, `xlfGetTool` | Excel-DNA (`MenuManager.cs`), xlw | legacy menus | L (map to command model or accept and record) |
+| `xlfFilter(1,1)`, `xlfIndirect`, `xlfGetCell`, `xlfIsformula`, `xlcFormula`, `xlcFormulaArray` | xlOil | dynamic-array probe; address parse; formula read/write | M |
+| `xlAbort`, `xlStack` | xlOil, xlw | Esc check; xlOil detects "outside XLL context" by expecting `xlretInvXlfn` from `xlStack` | L, but exact return codes matter [P] |
+| `xlfVolatile`, `xlRunningOnCluster` | Excel-DNA | volatility toggle; cluster probe | L |
+| `LPenHelper(xlGetFmlaInfo)` (XLCALL32 export) | Excel-DNA | edit-mode check before `Application.Run`; failure is treated as "editing", so queued macros never run (`ExcelSynchronizationContext.cs:513-531`) | L, required |
+| xlw `XlfServices` (`xlfGetFormula`, `xlfReftext`, `xlfTextref`, `xlfAbsref`, `xlfFormulaConvert`, `xlfInput`, `xlfDialogBox`, `xlcSelect`...) | xlw, only if add-in code calls them | services | per function, by Ftab number |
+
+Not used by any of the three: `xlAutoRegister12` (doc: "only supported in Excel 2007" [V]), `xlcOnTime`, `xlDefineBinaryName`.
+User code in all three can call **any** function number (`XlCall.Excel`, `xloil.call`), so the long tail is the
+Ftab/Cetab table: `xlf` numbers are Ftab indices and `xlc` numbers Cetab indices + 0x8000 [I, consistent with
+`xlfRegister`=149, `xlfCaller`=89]. A worksheet function called through `Excel12(xlfSum, ...)` should route by
+Ftab index through `calc-func-catalog` (SYNTHESIS 1.8) to the same kernel.
+
+### 1.3 Registration type strings and XLOPER12 [V]
+
+- Codes used: Excel-DNA `Q U E D% K% L X` (`ExcelDna.Loader/XlTypes.cs:186-192`), return `Q`/`>`; suffixes `! # $ &`
+  (`XlRegistration.cs:342-357`; `$` never with `#`; `&` never with `X`), commands with `>B` (SyncMacro, macro type 2).
+  xlw: return `Q`, args `Q B K% U`, suffixes `! $ & #`, commands `A`. xlOil: `U Q K% X`, return `U K% A >` or digit
+  (in-place), one of `! # $`.
+- Excel rules: `#` and `$` exclusive; `#` + `R`/`U` arguments makes the function volatile by default; `X` with `>`
+  marks async; async and cluster-safe exclusive; up to 255 arguments [V xlfRegister page].
+- Types exchanged: Num, Str (counted UTF-16), Bool, Err, Multi, Missing, Nil, Ref (multi-area), SRef, Int, BigData
+  (`xlGetInstPtr`, async handle), FP12. `xlbitDLLFree` returns: Excel copies, then calls `xlAutoFree12` of **the module
+  named in `xlfRegister`** (xlOil: `xlOil.dll`, not the .xll) [V doc + xlOil]. xlw returns pool memory with no free bit,
+  reset on the next top-level entry on that thread: copy the result before the next call into that module [V].
+
+## 2. How an xll loads, and what DNA Calc must provide
+
+Excel: `LoadLibrary` of the .xll, then `xlAutoOpen` on the main thread inside an XLL call context; Excel12 entry
+points are resolved by name from the host exe [V xlcall.cpp]. For an **unmodified** xll DNA Calc must provide:
+
+1. **`MdCallBack12` exported from the main exe image** (`int __stdcall(int xlfn, int count, LPXLOPER12*, LPXLOPER12)`),
+   since every framework calls `GetModuleHandle(NULL)`. Rust: `#[no_mangle] extern "system"` plus `/EXPORT`. [V/I]
+2. **An `XLCALL32.DLL` shim** beside the exe (app directory wins the search order): `XLCallVer` returning 12*256,
+   `LPenHelper` (edit state; `xlModeReady` when not editing), `Excel4`/`Excel4v` (refuse with `xlretFailed` until legacy
+   XLOPER support exists), `Excel12`/`Excel12v` forwarding. [V needs; layout I]
+3. **Process identity**: version resource `FileMajorPart` >= 15 (Excel-DNA takes pre-15 paths otherwise,
+   `Excel.cs:620-641`; cluster-safe needs >= 14, `LoaderHelpers.cs:41-67`); `xlfGetWorkspace(2)` = "16.0". Excel-DNA
+   treats a process not named EXCEL or ET as an HPC cluster host unless `EXCELDNA_ASSUME_EXCEL_PROCESS=1`
+   (`LoaderHelpers.cs:66-86`, `Host.Shared/utils.cpp:228-243`); that switch only exists since commit 51833b4a
+   (2026-07-06), so older built add-ins see cluster mode in `dna-calc.exe` (effects found: cluster-safe flag, load
+   errors suppressed; full effect [P]).
+4. **Bitness**: x64 loads only x64 xlls. All three ship both builds; 32-bit DNA Calc is an owner decision (sec. 7).
+5. **A "current XLL" context per thread**: `xlGetName`, `xlEventRegister`, `xlfRegister` and the rest carry no module
+   argument, so the host tracks which module it called (xlAutoOpen, UDF, command, event, `Application.Run`) [I]. Calls
+   outside any context must fail with Excel's exact codes: Excel-DNA probes with `xlGetName` (`Excel.cs:288-306`),
+   xlOil with `xlStack` [P].
+6. **Registration semantics**: resolve `GetProcAddress` **at `xlfRegister` time** and keep the pointer per register ID
+   (xlOil rewrites the export between registrations); accept full path (Excel-DNA) or bare name of an already loaded
+   module (xlOil); hidden application-scope name per function so `xlfEvaluate("Name")` and `xlUDF` work.
+7. **No hostile process mitigations**: the CLR JIT, xlOil's `PAGE_EXECUTE_READ` thunks and export patching need
+   dynamic code and writable images: no Arbitrary Code Guard, no Microsoft-signed-only image policy. COM and OLE
+   initialised as STA on the main thread before `xlAutoOpen` [I].
+8. **CLR hosting needs nothing from DNA Calc** beyond the above: the xll hosts its own runtime. One .NET (Core) runtime
+   per process applies as in Excel; DNA Calc itself must not load a .NET runtime [I].
+
+**COM pieces the frameworks use** [V]:
+- **Application object**: Excel-DNA enumerates the main thread's `XLMAIN` windows, their `EXCEL7` children, and calls
+  `AccessibleObjectFromWindow(OBJID_NATIVEOM, IID_IDispatch)`, then late-bound `.Application` (or protected-view
+  `.Workbook.Application`) (`Excel.cs:404-489`, `701-706`); with no workbook window it creates one with `xlcNew`.
+  xlOil: `xlGetHwnd` -> `XLDESK` -> `EXCEL7`, `IID Excel::Window`, `Window.Parent.Application`, retried every second.
+  DNA Calc therefore needs the `XLMAIN > XLDESK > EXCEL7` window hierarchy answering `WM_GETOBJECT`/`OBJID_NATIVEOM`.
+- **Ribbon and task panes** (Excel-DNA `ExcelComAddInHelper.cs:65-146`; xlOil `ComAddin.cpp`): write temporary
+  HKCU `Software\Classes\<ProgID>`, `CLSID\{..}\InProcServer32` = xll path, and
+  `Software\Microsoft\Office\Excel\Addins\<ProgID>` (LoadBehavior 0); set `Application.AutomationSecurity` low;
+  `COMAddIns.Update()`, `.Item(progId)`, `.Connect = false/true`; Excel activates the class through the xll's
+  `DllGetClassObject` (Excel-DNA) or `CoRegisterClassObject` (xlOil). Then `IDTExtensibility2`,
+  `IRibbonExtensibility.GetCustomUI`, `IRibbonUI.Invalidate*`, `ICustomTaskPaneConsumer`/`ICTPFactory.CreateCTP`.
+- **RTD**: Excel-DNA registers a fresh `RtdSrv_<guid>` ProgID per server and session in HKCU and calls
+  `xlfRtd(progId, ...)` (`ExcelRtd.cs:128-148`); xlOil the same with `CoRegisterClassObject` plus volatile keys.
+  DNA Calc must be an `IRtdServer` client: `CLSIDFromProgID`, in-proc activation, `ServerStart(IRTDUpdateEvent)`,
+  `ConnectData`/`RefreshData`/`DisconnectData`/`Heartbeat`, on the main thread.
+- **Macro context from outside**: Excel-DNA `QueueAsMacro` posts to a hidden window, then
+  `Application.Run("SyncMacro_<guid>", 0.0)` and expects `0.0` back (`ExcelSynchronizationContext.cs:339-431`);
+  xlOil `Application.Run("xloRunInXLLContext")`. `Application.Run` must run XLL commands with C API access.
+- xlw: no COM.
+
+## 3. COM object model: what add-ins touch, what comes first
+
+- Late bound (Excel-DNA core; `dynamic` user code): `IDispatch` with Excel's names and DISPIDs.
+- **Early bound against Excel's own type library**: xlOil `#import libid:00020813...` and calls vtables; Excel-DNA user
+  code via the PIA or ExcelDna.Interop QIs for Excel IIDs such as `_Application`; xlOil's AppEvents sink switches on
+  Excel's DISPIDs (SheetChange 0x61c, WorkbookOpen 0x61f, AfterCalculate 0xa34, ...). [V xlOil; PIA I]
+- **Consequence for SYNTHESIS decision 9**: a projection with DNA's own IIDs fails every early-bound add-in at QI. For
+  the Windows add-in surface the facade must answer Excel's IIDs with Excel's vtable order and DISPIDs; members not
+  implemented return a fixed HRESULT and count as refusals. Decision 9's "complete contract" reads as complete
+  layout and identity with honest per-member refusal. DNA's own LIBID can remain for DNA-only extensions.
+- First tier (startup of the three frameworks): Window (`Application`, `Parent`, protected-view `Workbook`),
+  Application (`Run`, `Version`, `Hwnd`, `AutomationSecurity`, `COMAddIns`, `Workbooks`, `ActiveWorkbook`,
+  `ActiveSheet`), COMAddIns/COMAddIn (`Update`, `Item`, `Connect`), AppEvents connection point.
+- Second tier (common at run time, xlOil's list plus Excel-DNA practice [I]): Range (`Value`, `Value2`, `Formula`,
+  `Formula2`, `FormulaArray`, `Address`, `Cells`, `Rows`, `Columns`, `Areas`, `Count`, `Offset`, `Resize`,
+  `SpecialCells`, `Clear`, `HasFormula`, `Worksheet`), Worksheet(s) (`Name`, `Range`, `Cells`, `UsedRange`, `Shapes`),
+  Workbook(s) (`Name`, `FullName`, `Path`, `Open`, `Add`, `Save`, `SaveAs`, `Close`, `Names`), Names (`Add`, `Item`),
+  Application (`Selection`, `ActiveCell`, `Calculate*`, `Calculation`, `ScreenUpdating`, `EnableEvents`,
+  `DisplayAlerts`, `StatusBar`, `Caller`, `Evaluate`, `WorksheetFunction`, `Intersect`, `Union`, `Quit`), Windows.
+- Third tier: ribbon XML (customUI 2009/07) mapped onto the command model (SYNTHESIS 1.5; a ribbon is a command
+  source and a skin projection, never UI logic in the host), `IRibbonControl` callbacks through `IDispatch::Invoke`,
+  task panes (ActiveX host in a native child window), CommandBars (legacy menus, Excel-DNA edit-mode fallback),
+  VBIDE (`VBProject.VBComponents.CodeModule`, xlOil workbook-local functions; needs CalcVBA).
+- Event argument order: xlOil reads AppEvents `rgvarg[0]` as the first declared parameter, the reverse of the usual
+  convention: measure Excel's order [P].
+
+## 4. Persistence of XLL functions
+
+- xlsx: XLL function calls are written with the `_xll.` prefix (`=_xll.MyFunc(A1)`): Microsoft KB 2405796
+  (https://support.microsoft.com/kb/2405796) on `_xll` in client formulas; XLParser's grammar accepts `_xll.`
+  (https://github.com/PerfectXL/XLParser/blob/master/src/XLParser/ExcelFormulaGrammar.cs); DNA Calc's xlsb reader
+  already maps add-in SupBook names to `_xll.` (`calc-doc/src/xlsb/formula.rs:732-739`). [V for the prefix]
+- xlsb/BIFF: PtgNameX into an add-in SupBook's external names (same file). [V in code]
+- On open: with the add-in loaded the name binds to the registered function; without it the cell keeps its cached
+  value until recalculated, then `#NAME?`; an add-in loaded after the workbook does not recalculate those cells by
+  itself (known Excel-DNA support question). Display form, the edit round trip and rebinding rule [P].
+- VBA UDFs: workbook-local procedures are written by plain name; procedures from an .xlam are external references
+  (`[1]!Func`, path-qualified when the add-in is missing) [I, P]. XLL and VBA names therefore resolve through
+  different routes: `_xll.` names through the application callable table, VBA names through the workbook's project
+  and its external-link table.
+- RTD topics are cached in the xlsx volatile-dependencies part; Excel-DNA's ProgIDs are per session, so cached
+  topics never reconnect to the same ProgID [I].
+- Design: the one prefix reader/printer (SYNTHESIS 1.8) owns `_xll.`; the binder produces
+  `Callable::Xll { name }` or an unresolved external name that keeps its text and evaluates to `#NAME?`; the saver
+  writes `_xll.` for both. Registering a function rebinds through `BindingProof` probes of the callable table, the
+  same mechanism as names (SYNTHESIS 1.2); whether Excel recalculates rebound cells is [P].
+
+## 5. Threading and the scheduler
+
+Excel's rules [V MTR page]: one main thread runs xlAutoOpen, XLL and VBA commands, VBA UDFs, XLL functions not marked
+`$`, macro-sheet-equivalent `#` functions, COM add-in calls, CF formulas and **functions inside name definitions**;
+other threads run only thread-safe cells. Thread-safe XLL functions may call `xlCoerce` (not on uncalculated cells),
+`xlFree`, `xlStack`, `xlSheetId`, `xlSheetNm`, `xlAbort`, `xlGetInst`, `xlGetHwnd`, binary names; XLM information
+functions fail `xlretFailed`, `xlfSetName`/unsafe `xlUDF`/unsafe `xlfEvaluate` fail `xlretNotThreadSafe`; no worksheet
+function may call commands. A non-`#` function that coerces an uncalculated cell gets `xlretUncalced` and **is called
+again** once the cell is calculated; a `#` function reads the old value [V xlfRegister page]. Async: only
+`xlAsyncReturn` may be called from non-calculation threads during recalculation; arguments must be deep-copied [V].
+
+Implications for DNA Calc (connects to SYNTHESIS 1.3-1.4):
+- **One application main lane**: VBA's owner lane, the XLL main thread, the COM STA and the thread owning `XLMAIN` must
+  be the same OS thread (Excel-DNA caches `_mainNativeThreadId` and enumerates that thread's windows). It runs non-`$`
+  XLL UDFs, `#` UDFs, name-definition evaluation that calls them, commands, RTD server calls, events, ribbon callbacks.
+- `$` XLL UDFs run on engine pool threads; each pool thread carries the per-thread XLL context and the permitted
+  callback set. Return values are copied before the next call into the module on that thread (xlw's pool).
+- **Uncalced retry is Excel semantics**: a non-`#` UDF that reads an uncalculated cell through `xlCoerce` aborts and is
+  re-invoked later. Under SYNTHESIS 1.3 that is a **new `InvocationId`** in the same pass, not a scheduler retry, and
+  its side effects can happen twice, as in Excel. It discovers a dependency at run time; the engine records it as a
+  dynamic edge for the cell.
+- **Read policies** map directly: `#` functions and `xlCoerce` in commands use `CachedMacroObservation`; non-`#`
+  functions use `RegisteredWorksheetCallback`, whose answer for an uncalculated cell is `xlretUncalced`. Visible-first
+  ordering changes which cells are uncalculated when a UDF reads them, so the observation frontier (decision 13)
+  covers XLL reads as well as VBA reads.
+- **Async** (`X`): the synchronous part runs on its lane; the handle is an `xltypeBigData` wrapping
+  `(InvocationId, EvaluationTarget)`; `xlAsyncReturn` from any thread becomes `ExternalOperation::AsyncReturn` and is
+  rejected if the formula moved, was overwritten or undone (already in SYNTHESIS 1.3). The calculation command waits
+  for outstanding handles before `CalculationEnded`; Esc raises `CalculationCanceled` then `CalculationEnded`;
+  neither is raised for programmatic recalculation [V doc]. Late returns after cancel [P].
+- **RTD** is `ExternalOperation::RtdUpdate`: `UpdateNotify` (any thread) -> main lane calls `RefreshData` subject to
+  the throttle interval -> topics dirty their caller cells. Each evaluation of a cell re-declares its topics; after
+  the command, topics no longer declared are disconnected. Excel-DNA's `ExcelAsyncUtil.Run/Observe` depends on exactly
+  this (disconnect when the formula stops calling `xlfRtd`) [V code comments `ExcelRtdObserver.cs:229-419`, timing P].
+- Reentry: a UDF calling `xlUDF`, `xlfEvaluate` or COM while the main lane waits on calculation is the reentry case of
+  SYNTHESIS 1.4; requests go through the invocation's frame, never the general inbox. COM calls from `$` threads
+  marshal to the STA and need the same rule or they deadlock [I].
+
+## 6. Proposed architecture insertion
+
+### 6.1 Crates (extends SYNTHESIS section 3)
+
+| Crate | Owns | Depends on |
+|---|---|---|
+| `calc-xll-abi` (native-only) | `#[repr(C)]` XLOPER12, FP12, XLREF12, XLMREF12 written from the documented layout (no SDK header in the repo); return codes; type-string parser to `XllSignature`; XLOPER12 <-> calc-value conversion with a per-invocation arena | calc-value, calc-func-catalog (Ftab/Cetab numbers) |
+| `calc-xll-host` (native-only, Windows) | module loading and lifetime; registration table (register ID, use count, hidden name, entry pointer, free module); `MdCallBack12` dispatcher; per-thread call context and permission table; ownership of `xlbitDLLFree`/`xlbitXLFree`; async handle table; event registry; `xlfRtd` bridge; `XLCALL32.DLL` shim as a small cdylib | xll-abi, calc-fml (`CallableTable`, `FunctionContext`), object-model contracts |
+| `calc-com-host` (native-only, Windows) | Excel-IID projection of `calc-object-model` (generated, SYNTHESIS 1.6); `XLMAIN/XLDESK/EXCEL7` windows with `WM_GETOBJECT`; COMAddIns and `IDTExtensibility2`; ribbon and CTP hosts; RTD client; AppEvents/WorkbookEvents connection points; `Application.Run` dispatch to XLL and VBA commands | object-model, xll-host (Run), windows |
+| `dna-calc-desktop` (new app) | Win32 main thread (STA, message loop), shell (WebView2 hosting the Leptos UI is the cheapest path [I]), composition of worker, xll-host, com-host, vba | as today's app plus the above |
+
+Rules: calc-fml never sees an XLOPER; calc-engine never depends on calc-xll-host; the app composes. Since the XLL host
+sits on calc-fml and a host-services trait, **OneCalc on Windows can host XLL UDFs without the engine** (keeps the S8
+honesty check; small first target); its host services refuse `xlSet`, commands and uncalculated reads, typed.
+
+### 6.2 Contracts
+
+- `CallableEntry::External { id, generation, signature: CallableSignature, lane: MainLane | AnyLane, source:
+  Xll { module, register_id } }`; `CallableSignature` carries per-parameter kind (value, value-or-reference,
+  number array, in-place, async handle), return kind, volatile, macro-equivalent, thread-safe, cluster-safe, async.
+  Facts stay separate properties (SYNTHESIS 1.8 policy rule).
+- calc-fml invokes through `FunctionContext.callable_invoker` with calc-value arguments plus reference descriptors
+  for `U`/`R`; the invoker (xll-host) marshals into the arena, calls the entry on the declared lane, copies the result,
+  calls `xlAutoFree12` of the free module, returns calc-value. Reference arguments stay references until the XLL
+  coerces them through the invocation's read view.
+- C API callbacks reach the engine only through `InvocationFrame` (SYNTHESIS 1.6): `xlfCaller` answers from
+  `EvaluationLocus`; `xlCoerce` reads via `ReadRequest` with the function's policy; `xlSet`, `xlcFormula` and other
+  commands produce a `PreparedTransaction` through a `CommandEnvelope` (only in command context); `xlfEvaluate` and
+  `xlUDF` evaluate as nested invocations.
+- Registration events change the callable table at an execution boundary (code+state lease rule of 1.6);
+  `xlfUnregister` decrements use count; module unload waits for outstanding async handles and RTD servers.
+
+### 6.3 Shimming strategy
+
+1. **General shims first**, each backed by an Excel probe and a test: exe export, XLCALL32 shim, version resource and
+   `xlfGetWorkspace` values, window hierarchy and class names, HKCU COM registration as written by the frameworks,
+   Excel IIDs/DISPIDs, exact return codes outside context, `Application.Run` return values.
+2. **Add-in-specific shims** only when a general one cannot work, as data keyed by module name and version, each
+   with a counter and a reason: e.g. Excel-DNA IntelliSense (UI Automation of Excel's formula bar: decline cleanly),
+   xlOil workbook-local functions (VBIDE module writing: route to a native registration once CalcVBA exists).
+3. Never change a user's Trust Center or Office registry settings; read Office keys only where a framework writes
+   them for this load (COM add-in keys). Whether DNA Calc reads Excel's `OPENn` add-in list is an owner decision.
+
+### 6.4 Staged plan
+
+- **X0 probes** (Excel here, AGENTS.md allows add-ins): build a tracing XLL that logs every callback, argument and
+  return code, load Excel-DNA, xlw and xlOil samples behind it in real Excel and keep the traces as the oracle for
+  DNA Calc's dispatcher. Plus the [P] items above: out-of-context codes, uncalced re-call count, `Application.Run`
+  return of a `>B` command, AppEvents argument order, `_xll.` display and rebinding, RTD disconnect timing, async
+  after cancel, `xlfCaller` in names, CF and arrays.
+- **X1 shell**: `dna-calc-desktop` main thread, windows, exe export, XLCALL32 shim; our own fixture XLL in Rust
+  (`Q`, `B`, `$`, `!`, `#`, `X`, `xlbitDLLFree`) on OneCalc first, then DNA Calc.
+- **X2 Excel-DNA hello world**: `=SayHello("x")` under .NET 8, .NET Framework 4.8 and Native AOT; `xlAutoOpen`,
+  `fN` registration, `xlAutoFree12`, `XLCallVer`, `LPenHelper`, `xlEventRegister`, Application via
+  `AccessibleObjectFromWindow`, `QueueAsMacro` via `Application.Run`, `xlAutoClose`/reload.
+- **X3 xlw**: generated C++ sample (`Q B K% U`, `$`, menus via `xlfAddMenu` mapped or recorded), then xlwDotNet.
+- **X4 xlOil**: core UDFs, then xlOil_Python: export-table rewrite, early-bound COM via Excel IIDs, AppEvents,
+  `xloRunInXLLContext`, `CoRegisterClassObject` servers.
+- **X5 concurrency and async**: `$` on the pool with the permission table; native async; RTD client; Excel-DNA
+  `ExcelAsyncUtil.Run/Observe`; cancellation and events. **X6 UI**: COM add-in host, ribbon into commands, task panes.
+- **X7 later**: Excel4/XLOPER (xlw 5, old commercial XLLs), 32-bit build, cluster connector, PyXLL.
+
+### 6.5 Test list
+
+1. Exe export resolves through `GetModuleHandle(NULL)`; `XLCallVer`/256 = 12; `LPenHelper` returns 0 and ready mode.
+2. Register/unregister/re-register: register ID, hidden name evaluating to it, use count, wizard-name removal; the
+   xlOil pattern (one export name, patched between registrations) calls two different entries.
+3. Each type code round trip (`A B E J Q U K% D% C% L` and digit in-place) including Missing, Nil, Multi with blanks
+   as Nil, multi-area Ref, 32,767-character strings, 1,048,576-row Multi.
+4. `xlbitDLLFree` calls `xlAutoFree12` of the registering module once per result, on the calling thread [P]; `xlFree`
+   on every result shape, twice; xlw pool results copied before the next call.
+5. Callback permission table per context (function, `#`, `$`, command, async thread, outside): codes equal Excel's trace.
+6. Uncalced: a non-`#` UDF reading a later cell is re-invoked after it; a `#` UDF sees the old value; counts match Excel.
+7. Volatile `!`, `#`+`U` default volatility, `xlfVolatile(FALSE)`; `$` functions concurrent on the pool, non-`$`
+   only on the main lane (thread-id fixture).
+9. Async: results after overwrite/undo/reload rejected; Esc raises Canceled then Ended; no events on programmatic recalc.
+10. RTD: connect, update throttle, disconnect after the formula stops calling `xlfRtd`, server terminate on unload.
+11. `Application.Run` of an XLL command with C API access and Excel's return value; `QueueAsMacro` drains.
+12. COM: `AccessibleObjectFromWindow` on `EXCEL7`; QI for `_Application`, `Window`, `Range` IIDs; DISPIDs; AppEvents order.
+13. COM add-in load via HKCU keys and `COMAddIns.Update/Item/Connect`; ribbon commands in the command model; callbacks.
+14. Persistence: `_xll.` round trip (xlsx, xlsb); open without the add-in keeps text and cache; later load rebinds as Excel.
+15. Unload: `xlAutoClose`, outstanding handles, `FreeLibrary` after the last use; X2-X4 samples run unmodified vs X0 traces.
+
+## 7. Decisions for the owner
+
+| # | Decision | Recommendation |
+|---|---|---|
+| A1 | Native Windows desktop process with a Win32/STA main thread as the XLL and COM host (no native shell exists today) | Yes; WebView2 shell over the existing worker first |
+| A2 | Excel IIDs, DISPIDs and vtable order in the Windows COM projection (revises decision 9) | Yes for the add-in surface; own LIBID only for DNA-only extensions; layout taken from observing Excel's type library, licence position to confirm |
+| A3 | Process identity: executable name and version resource | Version 16.x now; set `EXCELDNA_ASSUME_EXCEL_PROCESS` in the process environment; naming the exe EXCEL.EXE only after measuring what older Excel-DNA builds lose without it |
+| A4 | 32-bit build | Later (X7), only for 32-bit-only XLLs |
+| A5 | Legacy XLOPER/Excel4 | Later (X7); refuse with `xlretFailed` and count |
+| A6 | Read Excel's own add-in list (`OPENn`) and COM add-in keys | Read COM keys written for the current load; do not share Excel's `OPENn` list; DNA Calc keeps its own |
+| A7 | One main lane for VBA, XLL, COM and windows | Yes (sec. 5); it fixes where `#` and name-definition UDFs run |
+
+## 8. Owner note (2026-10-31): COM activation stays an open design area
+
+Intercepting or virtualising COM activation inside the DNA Calc process is to be investigated, but
+the compatibility design is not chosen yet (BRIEFING 4.10). Candidates to evaluate, none adopted:
+per-process class objects (CoRegisterClassObject), registration-free COM through activation-context
+manifests, a process-local Running Object Table entry for GetObject, and hooking activation calls.
+Hard constraint: nothing may change or shadow the machine's COM registrations for Excel (ProgIDs,
+CLSIDs, type libraries, interfaces) in HKCU or HKLM; Excel must keep working exactly as before.
