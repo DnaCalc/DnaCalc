@@ -476,4 +476,12 @@ fn beta_normalizer_and_fraction_carry_selected_products_into_the_sum() {
         n(f64::from_bits(0xbfff_d2b1_1995_df92)),
         n(f64::from_bits(0x4006_c206_44e9_7df9)),
     ]), f64::from_bits(0x3fce_646a_71b7_08b3));
+    // oc114: the ALNREL boundary includes magnitude 0.375.
+    exact(call("BETA.DIST", vec![n(0.375), n(3.0), n(7.0), b(true)]),
+        f64::from_bits(0x3fe6_fc1b_b000_0000));
+    // oc58 and fcdf-retired_wrapper-022 distinguish beta parameter 2.
+    exact(call("FDIST", vec![n(2.7), n(8.0), n(4.0)]),
+        f64::from_bits(0x3fc6_94c2_ffff_fffe));
+    exact(call("F.DIST", vec![n(4.0), n(4.0), n(8.0), b(true)]),
+        f64::from_bits(0x3fee_8d2b_3183_aff0));
 }

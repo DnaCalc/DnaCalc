@@ -962,7 +962,8 @@ fn bratio_alnrel(a: f64) -> f64 {
     const Q1: f64 = -0.162752256355323e+01;
     const Q2: f64 = 0.747811014037616e+00;
     const Q3: f64 = -0.845104217945565e-01;
-    if a.abs() > 0.375 {
+    // Recorded beta probability 0.375 selects the logarithm at equality.
+    if a.abs() >= 0.375 {
         let x = 1.0 + a;
         return crt_log(x);
     }
@@ -1237,7 +1238,8 @@ fn bratio_betaln(a0: f64, b0: f64) -> f64 {
         return (((-0.5 * crt_log(b) + E) + w) - u) - v;
     }
     if a >= 1.0 {
-        if a <= 2.0 {
+        // At a = 2, the recorded beta and F tails use the reduction arm.
+        if a < 2.0 {
             if b <= 2.0 {
                 return bratio_gamln(a) + bratio_gamln(b) - bratio_gsumln(a, b);
             }
@@ -1247,7 +1249,7 @@ fn bratio_betaln(a0: f64, b0: f64) -> f64 {
             }
             return bratio_gamln(a) + bratio_algdiv(a, b);
         }
-        // a > 2
+        // a >= 2
         if b > 1000.0 {
             let n = bratio_ftoi(a - 1.0);
             let mut w = 1.0;
