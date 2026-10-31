@@ -525,7 +525,7 @@ fn canvas_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
                 active_skin.set(Some("grid".into()));
                 #[cfg(target_arch = "wasm32")]
                 set_timeout(
-                    move || crate::app::focus("[data-dnacalc=grid]"),
+                    move || crate::app::focus("[data-dnacalc=grid][data-grid-active=true]"),
                     std::time::Duration::from_millis(20),
                 );
             }

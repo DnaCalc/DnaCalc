@@ -84,7 +84,7 @@ fn view(
             (XmlEvent::End(_), _) => break,
         }
     }
-    let mut out = tag.rebuilt(&[], false);
+    let mut out = tag.rebuilt(&[("topLeftCell", Some("A1"))], false);
     out.extend(children(&prefix, panes, active, selection.as_deref()));
     out.extend(other);
     out.extend_from_slice(format!("</{prefix}sheetView>").as_bytes());

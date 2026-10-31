@@ -345,6 +345,8 @@ pub enum Request {
 /// The workbook as the page's shell shows it.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Summary {
+    #[serde(default)]
+    pub initial_cell: Option<Key>,
     pub name: String,
     pub changed: bool,
     pub undo: usize,
@@ -408,6 +410,11 @@ pub struct Outcome {
 /// A sheet's sizes as the file states them (calc-host's sheet geometry).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
+    pub top_left: Option<(u32, u32)>,
+    pub pane_top_left: Option<(u32, u32)>,
+    pub active_cell: Option<(u32, u32)>,
+    pub active_pane: u8,
+    pub split: Option<(u64, u64)>,
     pub frozen_rows: u32,
     pub frozen_columns: u32,
     pub split_window: bool,
@@ -423,6 +430,11 @@ pub struct Geometry {
 impl Geometry {
     pub fn of(geometry: &calc_host::SheetGeometry) -> Geometry {
         Geometry {
+            top_left: None,
+            pane_top_left: None,
+            active_cell: None,
+            active_pane: 0,
+            split: None,
             frozen_rows: 0,
             frozen_columns: 0,
             split_window: false,
@@ -728,6 +740,8 @@ pub struct RefusalCells {
 /// One cell of a subscription, as the page shows it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cell {
+    #[serde(default)]
+    pub style: crate::grid::autofit::TextStyle,
     pub at: Key,
     pub text: String,
     pub kind: String,
@@ -752,6 +766,7 @@ impl Cell {
         projected: &calc_host::ProjectedCell,
     ) -> Cell {
         Cell {
+            style: shown.style.clone(),
             at: Key::of(shown.at),
             text: shown.text.clone(),
             kind: shown.kind.to_owned(),
@@ -770,6 +785,7 @@ impl Cell {
     /// The cell as the grid draws it.
     pub fn shown(&self) -> Option<CellShown> {
         Some(CellShown {
+            style: self.style.clone(),
             at: self.at.cell()?,
             text: self.text.clone(),
             kind: match self.kind.as_str() {
@@ -854,6 +870,7 @@ mod tests {
         };
         assert_eq!(decode::<ToServer>(&encode(&request)), Ok(request));
         let cell = Cell {
+            style: Default::default(),
             at,
             text: "0.30000000000000004".to_owned(),
             kind: "number".to_owned(),
@@ -908,6 +925,7 @@ mod tests {
             base_column_width: None,
             columns: vec![(1, 3, Some(1.0 / 3.0), false)],
             rows: vec![(2, Some(f64::MIN_POSITIVE), true)],
+            ..Default::default()
         };
         let back: Reply = decode(&encode(&Reply::Geometry(geometry.clone()))).unwrap();
         assert_eq!(back, Reply::Geometry(geometry));

@@ -903,6 +903,9 @@ pub enum Action {
     /// Prepare an explicitly manual cache fixture with the existing package-part editor.
     ManualDownloadFixture,
     ProtectedDownloadFixture,
+    /// Import a documented OOXML view using the existing package-part fixture editor.
+    ViewDownloadFixture(&'static str),
+    StyledFixture,
     /// Observe delayed external events in fault cases.
     PauseMillis(u64),
     /// A real pointer drag between two rendered elements.
@@ -927,6 +930,7 @@ pub enum Check {
     Before(&'static str, &'static str),
     ViewRetained,
     FitsText(&'static str),
+    TextBounds(&'static str),
     TextContains(&'static str, &'static str),
     /// The element's text.
     Text(&'static str, &'static str),
@@ -2526,7 +2530,7 @@ const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Role("dropdown-list", "listbox"),
-            Check::Attr("#dc-validation-option-1", "aria-selected", "true"),
+            Check::Attr("#dc-validation-option-0-1", "aria-selected", "true"),
             Check::ActiveDescendant("dropdown-list"),
         ],
     },
@@ -3330,8 +3334,8 @@ const CALC_CASES: &[Case] = &[
             Check::Text("selected-value", "8"),
             Check::Role("grid", "grid"),
             Check::Name("grid", "Sheet1 worksheet"),
-            Check::Role("#dc-grid-cell-1-1", "gridcell"),
-            Check::Name("#dc-grid-cell-1-1", "A1, 8, literal"),
+            Check::Role("#dc-grid-cell-0-1-1", "gridcell"),
+            Check::Name("#dc-grid-cell-0-1-1", "A1, 8, literal"),
             Check::Bounded("[role=gridcell]", 5000),
             Check::ActiveDescendant("grid"),
         ],
@@ -3865,7 +3869,7 @@ const CALC_CASES: &[Case] = &[
                 "class",
                 "dc-head dc-on",
             ),
-            Check::Attr("#dc-grid-cell-10-3", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-0-10-3", "aria-selected", "true"),
         ],
     },
     Case {
@@ -4033,9 +4037,9 @@ const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Count("[data-dnacalc=selection]", 2),
-            Check::Attr("#dc-grid-cell-1-1", "aria-selected", "true"),
-            Check::Attr("#dc-grid-cell-3-1", "aria-selected", "true"),
-            Check::Attr("#dc-grid-cell-2-1", "aria-selected", "false"),
+            Check::Attr("#dc-grid-cell-0-1-1", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-0-3-1", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-0-2-1", "aria-selected", "false"),
             Check::Attr(
                 "[data-dnacalc=row-header][data-row='2']",
                 "class",
@@ -4072,8 +4076,8 @@ const CALC_CASES: &[Case] = &[
         actions: &[Action::CtrlClick(cell!("A1"))],
         checks: &[
             Check::Count("[data-dnacalc=selection]", 1),
-            Check::Attr("#dc-grid-cell-1-1", "aria-selected", "false"),
-            Check::Attr("#dc-grid-cell-3-1", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-0-1-1", "aria-selected", "false"),
+            Check::Attr("#dc-grid-cell-0-3-1", "aria-selected", "true"),
         ],
     },
     Case {
@@ -5476,26 +5480,29 @@ const CALC_CASES: &[Case] = &[
         checks: &[Check::TextContains("status", "merged"), Check::ViewRetained],
     },
     Case {
-        name: "axis: AutoFit refuses wrapping until that display is available",
+        name: "axis: AutoFit rows measures the rendered wrapped lines",
         actions: &[
             Action::Into("name-box", "B5\u{E007}"),
             Action::Click("autofit-rows"),
         ],
         checks: &[
-            Check::TextContains("status", "wrapping"),
+            Check::TextContains("status", "Fitted contents"),
+            Check::Computed("[data-cell=B5] .dc-cell-text", "white-space:pre-wrap"),
+            Check::TextBounds(cell!("B5")),
             Check::Absent("cell-editor"),
         ],
     },
     Case {
-        name: "axis: AutoFit diagnoses an unrendered custom font without changing width",
+        name: "axis: AutoFit uses the base font bold variant that the Grid renders",
         actions: &[
             Action::Into("name-box", "A1\u{E007}"),
             Action::RememberView("[data-dnacalc=column-header][data-column=A]"),
             Action::Click("autofit-columns"),
         ],
         checks: &[
-            Check::TextContains("status", "custom fonts"),
-            Check::ViewRetained,
+            Check::TextContains("status", "Fitted contents"),
+            Check::Computed(cell!("A1"), "font-weight:700"),
+            Check::FitsText(cell!("A1")),
         ],
     },
     Case {
@@ -6281,6 +6288,7 @@ const CALC_CASES: &[Case] = &[
                 false,
             ),
             Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Wait(Check::Absent("[data-dnacalc=skin-atlas][disabled]")),
             Action::Click("skin-atlas"),
         ],
         checks: &[
@@ -7016,6 +7024,204 @@ const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "panes: documented split positions import four real worksheet views",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "Book1.xlsx")),
+            Action::Into(BAR, "top\u{E007}"),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Into(BAR, "corner\u{E007}"),
+            Action::Into("name-box", "A100\u{E007}"),
+            Action::Into(BAR, "bottom\u{E007}"),
+            Action::Into("name-box", "D100\u{E007}"),
+            Action::Into(BAR, "bottom-right\u{E007}"),
+            Action::Into("name-box", "C5\u{E007}"),
+            Action::Into(BAR, "fixed\u{E007}"),
+            Action::Into("name-box", "H100\u{E007}"),
+            Action::Into(BAR, "scroll\u{E007}"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::ViewDownloadFixture(
+                "<sheetViews><sheetView workbookViewId=\"0\" topLeftCell=\"A1\"><pane xSplit=\"2400.5\" ySplit=\"2400.5\" topLeftCell=\"D100\" activePane=\"bottomRight\" state=\"split\"/><selection pane=\"bottomRight\" activeCell=\"D100\" sqref=\"D100\"/></sheetView></sheetViews>",
+            ),
+            Action::UploadDownload("view.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Count("grid", 4)),
+        ],
+        checks: &[
+            Check::Text("[data-pane=\"0\"] [data-cell=A1]", "top"),
+            Check::Text("[data-pane=\"1\"] [data-cell=D1]", "corner"),
+            Check::Text("[data-pane=\"2\"] [data-cell=A100]", "bottom"),
+            Check::Text("[data-pane=\"3\"] [data-cell=D100]", "bottom-right"),
+            Check::Attr("[data-pane=\"3\"]", "data-grid-active", "true"),
+            Check::ActiveDescendant("[data-pane=\"3\"]"),
+        ],
+    },
+    Case {
+        name: "panes: navigation moves the active lower band and retains the upper band",
+        actions: &[
+            Action::Click("[data-pane=\"3\"] [data-cell=D100]"),
+            Action::Into("name-box", "H500\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("[data-pane=\"0\"] [data-cell=A1]", "top"),
+            Check::Text("[data-pane=\"1\"] [data-cell=D1]", "corner"),
+            Check::Attr("[data-pane=\"3\"]", "data-grid-active", "true"),
+            Check::ActiveDescendant("[data-pane=\"3\"]"),
+            Check::Bounded("[role=gridcell]", 5000),
+        ],
+    },
+    Case {
+        name: "panes: skin return retains the selected split and its independent scroll",
+        actions: &[
+            Action::RememberView("[data-pane=\"3\"] [data-dnacalc=active-cell]"),
+            Action::Click("skin-tree"),
+            Action::Click("skin-grid"),
+        ],
+        checks: &[
+            Check::Count("grid", 4),
+            Check::Attr("[data-pane=\"3\"]", "data-grid-active", "true"),
+            Check::ActiveDescendant("[data-pane=\"3\"]"),
+            Check::Text("[data-pane=\"0\"] [data-cell=A1]", "top"),
+        ],
+    },
+    Case {
+        name: "panes: scrolled active-cell freezing explains its current limit",
+        actions: &[
+            Action::OpenDetails("pane-tools"),
+            Action::Click("freeze-active"),
+        ],
+        checks: &[
+            Check::TextContains("status", "Return to the top-left"),
+            Check::Count("grid", 4),
+        ],
+    },
+    Case {
+        name: "panes: freezing an active split leaves a working single pane and Undo restores splits",
+        actions: &[
+            Action::OpenDetails("pane-tools"),
+            Action::Click("freeze-row"),
+            Action::Wait(Check::Count("grid", 1)),
+            Action::Wait(Check::Attr("grid", "data-grid-active", "true")),
+            Action::Keys("grid", "\u{E015}"),
+            Action::Click("undo"),
+        ],
+        checks: &[
+            Check::Count("grid", 4),
+            Check::Attr("[data-pane=\"0\"]", "data-grid-active", "true"),
+        ],
+    },
+    Case {
+        name: "panes: a non-leading frozen view imports both fixed and scrolling origins",
+        actions: &[
+            Action::ViewDownloadFixture(
+                "<sheetViews><sheetView workbookViewId=\"0\" topLeftCell=\"C5\"><pane xSplit=\"2\" ySplit=\"2\" topLeftCell=\"H100\" activePane=\"bottomRight\" state=\"frozen\"/><selection pane=\"bottomRight\" activeCell=\"H100\" sqref=\"H100\"/></sheetView></sheetViews>",
+            ),
+            Action::UploadDownload("view.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Count("grid", 1)),
+        ],
+        checks: &[
+            Check::Text(cell!("C5"), "fixed"),
+            Check::Text(cell!("H100"), "scroll"),
+            Check::ActiveDescendant("grid"),
+            Check::Attr("grid", "data-frozen-rows", "6"),
+            Check::Attr("grid", "data-frozen-columns", "4"),
+        ],
+    },
+    Case {
+        name: "panes: offset freeze survives saving and reopening without moving sources",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("view.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "view.xlsx")),
+        ],
+        checks: &[
+            Check::Text(cell!("C5"), "fixed"),
+            Check::Text(cell!("H100"), "scroll"),
+            Check::Attr("grid", "data-frozen-rows", "6"),
+        ],
+    },
+    Case {
+        name: "panes: deleting through an offset frozen band refuses without clearing its source",
+        actions: &[
+            Action::Into("name-box", "5:5\u{E007}"),
+            Action::Click("delete-cells"),
+            Action::Wait(Check::TextContains("status", "Unfreeze this imported view")),
+        ],
+        checks: &[
+            Check::Text(cell!("C5"), "fixed"),
+            Check::Attr("grid", "data-frozen-rows", "6"),
+        ],
+    },
+    Case {
+        name: "panes: unfreezing an imported offset view preserves its cell sources",
+        actions: &[
+            Action::OpenDetails("pane-tools"),
+            Action::Click("unfreeze"),
+            Action::Into("name-box", "C5\u{E007}"),
+        ],
+        checks: &[
+            Check::Attr("grid", "data-frozen-rows", "0"),
+            Check::Attr("grid", "data-frozen-columns", "0"),
+            Check::Text(cell!("C5"), "fixed"),
+        ],
+    },
+    Case {
+        name: "axis: unavailable explicit fonts refuse AutoFit without changing geometry",
+        actions: &[
+            Action::StyledFixture,
+            Action::UploadDownload("styled.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "styled.xlsx")),
+            Action::Into("name-box", "D30\u{E007}"),
+            Action::OpenDetails("axis-tools"),
+            Action::RememberView("[data-dnacalc=column-header][data-column=D]"),
+            Action::Click("autofit-columns"),
+        ],
+        checks: &[
+            Check::TextContains("status", "unavailable font"),
+            Check::Style("[data-dnacalc=column-header][data-column=D]", "width:64px"),
+        ],
+    },
+    Case {
+        name: "axis: indentation and rotation use the displayed font in fitting",
+        actions: &[
+            Action::Into("name-box", "A30:B30\u{E007}"),
+            Action::Click("autofit-columns"),
+            Action::Wait(Check::TextContains("status", "Fitted contents")),
+            Action::Click("autofit-rows"),
+        ],
+        checks: &[
+            Check::TextContains("status", "Fitted contents"),
+            Check::Text(cell!("A30"), "rotated wide text"),
+            Check::Text(cell!("B30"), "indented text"),
+            Check::Computed("[data-cell=A30] .dc-cell-text", "white-space:pre"),
+            Check::TextBounds(cell!("A30")),
+            Check::TextBounds(cell!("B30")),
+        ],
+    },
+    Case {
+        name: "axis: fitted styled dimensions and source formatting survive save and reopen",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("styled.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "styled.xlsx")),
+            Action::Into("name-box", "A30:B30\u{E007}"),
+        ],
+        checks: &[
+            Check::TextBounds(cell!("A30")),
+            Check::TextBounds(cell!("B30")),
+            Check::Computed("[data-cell=A30] .dc-cell-text", "white-space:pre"),
+        ],
+    },
+    Case {
         name: "Notebook: a blank workbook offers visible cell-backed insert and link actions",
         actions: &[
             Action::Click("new"),
@@ -7335,9 +7541,9 @@ const CALC_LATENCY_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Count("[data-dnacalc=selection]", 4),
-            Check::Attr("#dc-grid-cell-1-2", "aria-selected", "true"),
-            Check::Attr("#dc-grid-cell-1-3", "aria-selected", "true"),
-            Check::Attr("#dc-grid-cell-1-4", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-0-1-2", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-0-1-3", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-0-1-4", "aria-selected", "true"),
         ],
     },
     Case {
@@ -7513,6 +7719,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]')?.dataset.sheet,h=(window.__dcViews||{{}})[key];if(!g||!h)return {{ok:false}};var e=document.querySelector(h.selector);if(!e)return {{ok:false,held:h}};var r=e.getBoundingClientRect(),b=g.getBoundingClientRect(),s={{x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent,address:document.querySelector('[data-dnacalc=name-box]')?.value}};var same=['x','y','w','h'].every(k=>Math.abs(s[k]-h[k])<2);return {{ok:same&&({}),held:h,seen:s}};"#,
                 if pinned {"s.left>h.left+1&&s.top>h.top+1"} else {"Math.abs(s.left-h.left)<2&&Math.abs(s.top-h.top)<2&&s.zoom===h.zoom&&s.address===h.address"})
         }
+        Check::TextBounds(name)=>format!("var e={};if(!e)return false;var t=e.querySelector('.dc-cell-text');if(!t)return false;var a=e.getBoundingClientRect(),b=t.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&b.top>=a.top-1&&b.bottom<=a.bottom+1;",q(name)),
         Check::FitsText(name) => format!("var e={};if(!e)return null;var s=getComputedStyle(e),c=document.createElement('canvas').getContext('2d');c.font=s.font;return [c.measureText(e.value||e.textContent).width,e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight)];",q(name)),
         Check::Role(..) | Check::Name(..) => unreachable!(),
         Check::DragExtended => "var g=document.querySelector('[data-dnacalc=grid]'),s=document.querySelector('[data-dnacalc=selection]');if(!g||!s)return false;var a=s.dataset.area, n=Number(a.split(':')[1]?.match(/[0-9]+$/)?.[0]);return a.startsWith('A1:')&&n>g.querySelectorAll('[role=row]').length&&g.scrollTop>0;".to_owned(),
@@ -7623,7 +7830,8 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .iter()
                 .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
         }),
-        Check::Before(_, _)
+        Check::TextBounds(_)
+        | Check::Before(_, _)
         | Check::Absent(_)
         | Check::Focused(_)
         | Check::Contained(_, _)
@@ -7676,6 +7884,7 @@ fn describe(check: &Check) -> String {
         Check::ViewRetained => {
             "the sheet retains its selection, zoom, scroll and active-cell geometry".to_owned()
         }
+        Check::TextBounds(name) => format!("{name}'s rendered text fits within its cell"),
         Check::FitsText(name) => format!("{name} displays its complete text"),
         Check::DragExtended => {
             "selection extends beyond the initial viewport after a real out-of-view drag".to_owned()
@@ -7868,20 +8077,79 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             }
             Ok(())
         }
-        Action::ManualDownloadFixture | Action::ProtectedDownloadFixture => {
+        Action::ManualDownloadFixture
+        | Action::ProtectedDownloadFixture
+        | Action::ViewDownloadFixture(_)
+        | Action::StyledFixture => {
             #[cfg(target_arch = "wasm32")]
             {
                 Err("Package fixture preparation is native-only".to_owned())
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let path = session.downloads.join("Book1.xlsx");
+                let path = if matches!(action, Action::StyledFixture) {
+                    ws.root
+                        .join("crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx")
+                } else {
+                    session.downloads.join("Book1.xlsx")
+                };
                 let started = Instant::now();
                 while !path.is_file() && started.elapsed() < SETTLE {
                     thread::sleep(Duration::from_millis(50));
                 }
                 let bytes = fs::read(&path).map_err(|e| e.to_string())?;
                 let parts = crate::oracle_cases::package_parts(&bytes)?;
+                if let Action::ViewDownloadFixture(view) = action {
+                    let name = "xl/worksheets/sheet1.xml";
+                    let xml = std::str::from_utf8(parts.get(name).ok_or("no worksheet part")?)
+                        .map_err(|e| e.to_string())?;
+                    let xml = if let Some(start) = xml.find("<sheetViews") {
+                        let end = start
+                            + xml[start..].find("</sheetViews>").ok_or("unclosed views")?
+                            + "</sheetViews>".len();
+                        format!("{}{}{}", &xml[..start], view, &xml[end..])
+                    } else {
+                        xml.replacen("<sheetData", &format!("{view}<sheetData"), 1)
+                    };
+                    let bytes = crate::oracle_cases::replace_package_parts(
+                        &bytes,
+                        &std::collections::BTreeMap::from([(name.to_owned(), xml.into_bytes())]),
+                    )?;
+                    return fs::write(session.downloads.join("view.xlsx"), bytes)
+                        .map_err(|e| e.to_string());
+                }
+                if matches!(action, Action::StyledFixture) {
+                    let styles = "xl/styles.xml";
+                    let sheet = "xl/worksheets/sheet1.xml";
+                    let xml = std::str::from_utf8(parts.get(styles).ok_or("no styles")?)
+                        .map_err(|e| e.to_string())?;
+                    let mut xml = xml.replacen(
+                        "<name val=\"Tahoma\"",
+                        "<name val=\"DNA Calc Deliberately Absent Font 971p\"",
+                        1,
+                    );
+                    // Extend the retained fixture's style table: rotation and indentation reuse its base font.
+                    let count = xml
+                        .split("<cellXfs count=\"")
+                        .nth(1)
+                        .and_then(|s| s.split('"').next())
+                        .ok_or("cell formats")?
+                        .parse::<usize>()
+                        .map_err(|e| e.to_string())?;
+                    xml=xml.replacen(&format!("<cellXfs count=\"{count}\""),&format!("<cellXfs count=\"{}\"",count+3),1).replacen("</cellXfs>","<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyAlignment=\"1\"><alignment textRotation=\"45\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyAlignment=\"1\"><alignment indent=\"2\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/></cellXfs>",1);
+                    let sheet_xml = std::str::from_utf8(parts.get(sheet).ok_or("no worksheet")?)
+                        .map_err(|e| e.to_string())?;
+                    let sheet_xml=sheet_xml.replacen("</sheetData>",&format!("<row r=\"30\"><c r=\"A30\" s=\"{count}\" t=\"inlineStr\"><is><t>rotated wide text</t></is></c><c r=\"B30\" s=\"{}\" t=\"inlineStr\"><is><t>indented text</t></is></c><c r=\"D30\" s=\"{}\" t=\"inlineStr\"><is><t>unavailable font</t></is></c></row></sheetData>",count+1,count+2),1);
+                    let bytes = crate::oracle_cases::replace_package_parts(
+                        &bytes,
+                        &std::collections::BTreeMap::from([
+                            (styles.to_owned(), xml.into_bytes()),
+                            (sheet.to_owned(), sheet_xml.into_bytes()),
+                        ]),
+                    )?;
+                    return fs::write(session.downloads.join("styled.xlsx"), bytes)
+                        .map_err(|e| e.to_string());
+                }
                 if matches!(action, Action::ProtectedDownloadFixture) {
                     let name = "xl/worksheets/sheet1.xml";
                     let xml = std::str::from_utf8(parts.get(name).ok_or("no worksheet part")?)

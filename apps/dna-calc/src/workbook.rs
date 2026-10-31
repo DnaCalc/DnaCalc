@@ -91,6 +91,8 @@ pub struct Workbook {
     calculated_on_open: Option<f64>,
     /// Each sheet's conditional formats, prepared for the values as they stand; emptied when an
     /// intent commits an edit or recalculates (dc-6yw).
+    display_metrics:
+        RefCell<std::collections::BTreeMap<SheetId, Rc<crate::grid::geometry::GridMetrics>>>,
     conditional: RefCell<std::collections::BTreeMap<SheetId, Rc<calc_host::ConditionalFormats>>>,
 }
 
@@ -126,6 +128,7 @@ impl Workbook {
             calculated_on_open: None,
             palette: None,
             conditional: RefCell::default(),
+            display_metrics: RefCell::default(),
         };
         let palette: Vec<Option<String>> = (1..=56u8)
             .map(|index| workbook.host().palette_color(index))
@@ -202,10 +205,19 @@ impl Workbook {
         }
         if receipt.committed.is_some() || receipt.recalc.is_some() {
             self.conditional.borrow_mut().clear();
+            self.display_metrics.borrow_mut().clear();
         }
         receipt
     }
 
+    pub fn display_metrics(&self, sheet: SheetId) -> Rc<crate::grid::geometry::GridMetrics> {
+        let mut cache = self.display_metrics.borrow_mut();
+        Rc::clone(cache.entry(sheet).or_insert_with(|| {
+            Rc::new(crate::grid::sheet_metrics(
+                self.host().sheet_geometry(sheet).as_ref(),
+            ))
+        }))
+    }
     /// The conditional formats of a sheet, prepared once for the values as they stand.
     pub fn conditional_formats(&self, sheet: SheetId) -> Rc<calc_host::ConditionalFormats> {
         Rc::clone(
@@ -256,7 +268,13 @@ impl Workbook {
             formats.look(self.host(), at)
         };
         let Some(look) = look else {
-            return cells::shown(cell, self.profile(), self.cell_format(at));
+            let mut shown = cells::shown(cell, self.profile(), self.cell_format(at));
+            shown.style = crate::grid::autofit::text_style(
+                self.host(),
+                at,
+                self.display_metrics(at.sheet()).width(at.column()),
+            );
+            return shown;
         };
         let format = match look.number_format.as_deref() {
             Some(code) => Some(cells::CellFormat {
@@ -267,6 +285,11 @@ impl Workbook {
             None => self.cell_format(at),
         };
         let mut shown = cells::shown(cell, self.profile(), format);
+        shown.style = crate::grid::autofit::text_style(
+            self.host(),
+            at,
+            self.display_metrics(at.sheet()).width(at.column()),
+        );
         let font_color = self.look_color(&look.font_color);
         let bar = look.bar.as_ref().map(|bar| {
             (

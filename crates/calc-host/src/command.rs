@@ -258,6 +258,28 @@ pub fn dispatch(
             _ => None,
         })
         .collect();
+    for edit in &axis_edits {
+        if let Some(view) = host.sheet_view(edit.sheet())
+            && let Some(p) = view.frozen
+        {
+            let origin = if edit.axis() == calc_doc_model::Axis::Rows {
+                view.top_left.unwrap_or((1, 1)).0
+            } else {
+                view.top_left.unwrap_or((1, 1)).1
+            };
+            let count = if edit.axis() == calc_doc_model::Axis::Rows {
+                p.rows()
+            } else {
+                p.columns()
+            };
+            if origin > 1
+                && count > 0
+                && edit.first() <= origin.saturating_add(count).saturating_sub(1)
+            {
+                return Err(CommandError::Document(EditError::SheetOperation("Unfreeze this imported view before inserting or deleting these bands (dc-971p.16)".into())));
+            }
+        }
+    }
     for op in &batch.operations {
         if let WorkbookOp::SetConditionalRules { sheet, rules } = op {
             let invalid = host

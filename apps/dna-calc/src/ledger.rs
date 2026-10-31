@@ -450,7 +450,7 @@ fn ledger_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
                         crate::app::focus(if skin == "canvas" {
                             "[data-dnacalc=canvas]"
                         } else {
-                            "[data-dnacalc=grid]"
+                            "[data-dnacalc=grid][data-grid-active=true]"
                         })
                     },
                     std::time::Duration::from_millis(20),

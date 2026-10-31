@@ -125,7 +125,7 @@ impl Skin for GridSkin {
     }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        grid_view(ctx.controller).into_any()
+        grid_workspace(ctx.controller).into_any()
     }
 }
 
@@ -162,20 +162,161 @@ pub fn extent(
     GridExtent::new(MAX_ROW, MAX_COLUMN)
 }
 
-fn grid_view(controller: Controller) -> impl IntoView {
+#[derive(Clone, Copy, Default, PartialEq)]
+struct SplitAxes {
+    x: [f64; 2],
+    y: [f64; 2],
+}
+#[derive(Clone, Copy)]
+struct PaneContext {
+    index: u8,
+    layout: RwSignal<wire::Geometry>,
+    loaded: RwSignal<bool>,
+    source: RwSignal<Option<(u64, calc_host::value::SheetId)>>,
+    active: RwSignal<u8>,
+    axes: RwSignal<SplitAxes>,
+    zoom: RwSignal<f64>,
+}
+impl PaneContext {
+    fn split(self) -> bool {
+        self.layout.get_untracked().split_window && self.layout.get_untracked().split.is_some()
+    }
+    fn ready(self, controller: Controller) -> bool {
+        self.loaded.get_untracked()
+            && self.source.get_untracked()
+                == controller
+                    .sheet
+                    .get_untracked()
+                    .map(|s| (controller.generation.get_untracked(), s))
+    }
+    fn activate(self, controller: Controller) {
+        if self.active.get_untracked() != self.index {
+            controller.carry_edit_to_bar();
+            self.active.set(self.index);
+        }
+        if let Some(sheet) = controller.sheet.get_untracked() {
+            controller.remember_active_grid_pane(sheet, self.index);
+        }
+    }
+}
+fn grid_workspace(controller: Controller) -> impl IntoView {
+    let layout = RwSignal::new(wire::Geometry::default());
+    let loaded = RwSignal::new(false);
+    let active = RwSignal::new(0u8);
+    let axes = RwSignal::new(SplitAxes::default());
+    let zoom = RwSignal::new(1.);
+    let held = RwSignal::new(None);
+    let epoch = StoredValue::new(0u64);
+    Effect::new(move |_| {
+        controller.revision.track();
+        let generation = controller.generation.get();
+        let Some(sheet) = controller.sheet.get() else {
+            return;
+        };
+        let first = held.get_untracked() != Some((generation, sheet));
+        if first {
+            loaded.set(false);
+        }
+        epoch.update_value(|n| *n += 1);
+        let ticket = epoch.get_value();
+        controller.ask(
+            wire::Request::Geometry(wire::Sheet::of(sheet)),
+            move |reply| {
+                if epoch.try_get_value() != Some(ticket)
+                    || controller.generation.get_untracked() != generation
+                    || controller.sheet.get_untracked() != Some(sheet)
+                {
+                    return;
+                }
+                if let wire::Reply::Geometry(g) = reply {
+                    controller.remember_grid_geometry(sheet, g.clone());
+                    let slots = panes::split_slots(&g);
+                    let selected = if first {
+                        controller.active_grid_pane(sheet).unwrap_or(g.active_pane)
+                    } else {
+                        active.get_untracked()
+                    };
+                    let selected = if slots.contains(&selected) {
+                        selected
+                    } else {
+                        0
+                    };
+                    if active.get_untracked() != selected {
+                        active.set(selected);
+                    }
+                    if first {
+                        let m = sheet_metrics(Some(&g.geometry()));
+                        let a = g.top_left.unwrap_or((1, 1));
+                        let b = g.pane_top_left.unwrap_or(a);
+                        let mut initial = SplitAxes {
+                            x: [m.col_start(a.1), m.col_start(b.1)],
+                            y: [m.row_start(a.0), m.row_start(b.0)],
+                        };
+                        for index in slots {
+                            if let Some(view) = controller.grid_view_for(sheet, index) {
+                                initial.x[usize::from(index & 1)] = view.viewport.scroll_x;
+                                initial.y[usize::from(index >> 1)] = view.viewport.scroll_y;
+                            }
+                        }
+                        axes.set(initial);
+                        zoom.set(
+                            controller
+                                .grid_view_for(sheet, active.get_untracked())
+                                .map_or(1., |v| v.zoom),
+                        );
+                        held.set(Some((generation, sheet)));
+                    }
+                    if layout.get_untracked() != g {
+                        layout.set(g);
+                    }
+                    if !loaded.get_untracked() {
+                        loaded.set(true);
+                    }
+                }
+            },
+        );
+    });
+    let frame = NodeRef::<leptos::html::Div>::new();
+    Effect::new(move |_| {
+        let g = layout.get();
+        if let Some(element) = frame.get() {
+            css(element.into(), panes::split_css(&g));
+        }
+    });
+    let ctx = PaneContext {
+        index: 0,
+        layout,
+        loaded,
+        source: held,
+        active,
+        axes,
+        zoom,
+    };
+    view! {<div class="dc-grid-workspace" class:dc-split=move ||layout.get().split_window&&layout.get().split.is_some() node_ref=frame>
+        <For each=move ||panes::split_slots(&layout.get()) key=|id|*id children=move |index|grid_pane(controller,PaneContext {index,..ctx})/>
+    </div>}
+}
+
+fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     // Firefox may dispatch a native clipboard event at BODY while the worksheet owns focus.
     let paste = window_event_listener(leptos::ev::paste, move |ev| {
-        if crate::clipboard::grid_owns_clipboard(controller) {
+        if ctx.active.get_untracked() == ctx.index
+            && crate::clipboard::grid_owns_clipboard(controller)
+        {
             crate::clipboard::native_paste(controller, ev);
         }
     });
     let copy = window_event_listener(leptos::ev::copy, move |ev| {
-        if crate::clipboard::grid_owns_clipboard(controller) {
+        if ctx.active.get_untracked() == ctx.index
+            && crate::clipboard::grid_owns_clipboard(controller)
+        {
             crate::clipboard::native_copy(controller, ev, false);
         }
     });
     let cut = window_event_listener(leptos::ev::cut, move |ev| {
-        if crate::clipboard::grid_owns_clipboard(controller) {
+        if ctx.active.get_untracked() == ctx.index
+            && crate::clipboard::grid_owns_clipboard(controller)
+        {
             crate::clipboard::native_copy(controller, ev, true);
         }
     });
@@ -187,12 +328,12 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let initial = controller
         .sheet
         .get_untracked()
-        .and_then(|s| controller.grid_view(s));
+        .and_then(|s| controller.grid_view_for(s, ctx.index));
     let initial_geometry = controller
         .sheet
         .get_untracked()
         .and_then(|s| controller.grid_geometry(s));
-    let zoom = RwSignal::new(initial.map_or(1.0, |s| s.zoom));
+    let zoom = ctx.zoom;
     let zoom_text = RwSignal::new(String::new());
     Effect::new(move |_| zoom_text.set(format!("{:.0}", zoom.get() * 100.0)));
     let apply_zoom = move |text: String| match viewport::parse_zoom_percent(&text) {
@@ -205,6 +346,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let viewed_sheet = StoredValue::new(None::<(u64, calc_host::value::SheetId)>);
     let restoring = StoredValue::new(false);
     let skip_reveal = StoredValue::new(false);
+    let held_origin = StoredValue::new(None::<(u32, u32)>);
     let viewport = RwSignal::new(initial.map(|s| s.viewport).unwrap_or(Viewport {
         scroll_x: 0.0,
         scroll_y: 0.0,
@@ -218,10 +360,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let panes = RwSignal::new(
         initial_geometry
             .as_ref()
-            .map_or(Panes::default(), |g| Panes {
-                rows: g.frozen_rows,
-                columns: g.frozen_columns,
-            }),
+            .map_or(Panes::default(), Panes::from_geometry),
     );
     let split_window = RwSignal::new(initial_geometry.as_ref().is_some_and(|g| g.split_window));
     let used: RwSignal<Option<GridArea>> = RwSignal::new(None);
@@ -232,26 +371,6 @@ fn grid_view(controller: Controller) -> impl IntoView {
             return;
         };
         let sheet = wire::Sheet::of(sheet);
-        controller.ask(wire::Request::Geometry(sheet), move |reply| {
-            if controller.sheet.get_untracked() != Some(sheet.id()) {
-                return;
-            }
-            if let wire::Reply::Geometry(g) = reply {
-                controller.remember_grid_geometry(sheet.id(), g.clone());
-                let next = Panes {
-                    rows: g.frozen_rows,
-                    columns: g.frozen_columns,
-                };
-                if panes.try_get_untracked().is_some_and(|old| old != next) {
-                    panes.try_set(next);
-                }
-                split_window.try_set(g.split_window);
-                let g = Some(g.geometry());
-                if geometry.try_get_untracked().is_some_and(|old| old != g) {
-                    geometry.try_set(g);
-                }
-            }
-        });
         controller.ask(wire::Request::UsedArea(sheet), move |reply| {
             if controller.sheet.get_untracked() != Some(sheet.id()) {
                 return;
@@ -273,6 +392,18 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 charts.try_set(drawn);
             }
         });
+    });
+    Effect::new(move |_| {
+        let g = ctx.layout.get();
+        let next = Panes::from_geometry(&g);
+        if panes.get_untracked() != next {
+            panes.set(next);
+        }
+        let geo = Some(g.geometry());
+        if geometry.get_untracked() != geo {
+            geometry.set(geo);
+        }
+        split_window.set(g.split_window);
     });
     let sheet_metrics = Memo::new(move |_| geometry.with(|g| sheet_metrics(g.as_ref())));
     let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
@@ -417,13 +548,30 @@ fn grid_view(controller: Controller) -> impl IntoView {
             if viewport.get_untracked() != next {
                 viewport.set(next);
             }
+            if ctx.ready(controller)
+                && ctx.split()
+                && !restoring.get_value()
+                && viewed_sheet.get_value()
+                    == controller
+                        .sheet
+                        .get_untracked()
+                        .map(|s| (controller.generation.get_untracked(), s))
+            {
+                let mut axes = ctx.axes.get_untracked();
+                axes.x[usize::from(ctx.index & 1)] = next.scroll_x;
+                axes.y[usize::from(ctx.index >> 1)] = next.scroll_y;
+                if ctx.axes.get_untracked() != axes {
+                    ctx.axes.set(axes);
+                }
+            }
             if !restoring.get_value()
                 && let Some((generation, sheet)) = viewed_sheet.get_value()
                 && generation == controller.generation.get_untracked()
                 && Some(sheet) == controller.sheet.get_untracked()
             {
-                controller.remember_grid_view(
+                controller.remember_grid_view_for(
                     sheet,
+                    ctx.index,
                     viewport::GridView {
                         viewport: next,
                         zoom: zoom.get_untracked(),
@@ -439,8 +587,41 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
     });
 
+    Effect::new(move |_| {
+        let axes = ctx.axes.get();
+        let z = zoom.get();
+        ctx.source.track();
+        ctx.loaded.track();
+        if !ctx.ready(controller)
+            || !ctx.split()
+            || restoring.get_value()
+            || viewed_sheet.get_value().is_none()
+        {
+            return;
+        }
+        let _ = z;
+        if let Some(element) = scroller.get() {
+            let v = viewport.get_untracked();
+            let x = axes.x[usize::from(ctx.index & 1)];
+            let y = axes.y[usize::from(ctx.index >> 1)];
+            if (v.scroll_x - x).abs() > 0.5 || (v.scroll_y - y).abs() > 0.5 {
+                let (sx, sy) = scales();
+                element.scroll_to_with_x_and_y(sx.physical(x), sy.physical(y));
+                measure();
+            }
+        }
+    });
     // Scrolls the active cell into view, moving as little as possible.
     let reveal = move |row: u32, col: u32| {
+        if !ctx.ready(controller) || ctx.active.get_untracked() != ctx.index {
+            return;
+        }
+        if let Some(held) = held_origin.get_value() {
+            if held == (row, col) && controller.editing.get_untracked().is_none() {
+                return;
+            }
+            held_origin.set_value(None);
+        }
         let Some(element) = scroller.get_untracked() else {
             return;
         };
@@ -476,23 +657,29 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let Some(sheet) = controller.sheet.get() else {
             return;
         };
-        let Some(element) = scroller.get() else {
-            return;
-        };
-        if viewed_sheet.get_value() == Some((generation, sheet)) {
-            return;
-        }
         if let Some((old_generation, old)) = viewed_sheet.get_value()
             && old_generation == generation
+            && old != sheet
         {
-            controller.remember_grid_view(
+            controller.remember_grid_view_for(
                 old,
+                ctx.index,
                 viewport::GridView {
                     viewport: read_viewport().unwrap_or_else(|| viewport.get_untracked()),
                     zoom: zoom.get_untracked(),
                     active: controller.active.get_untracked(),
                 },
             );
+            viewed_sheet.set_value(None);
+        }
+        if !ctx.loaded.get() || ctx.source.get() != Some((generation, sheet)) {
+            return;
+        }
+        let Some(element) = scroller.get() else {
+            return;
+        };
+        if viewed_sheet.get_value() == Some((generation, sheet)) {
+            return;
         }
         restoring.set_value(true);
         viewed_sheet.set_value(Some((generation, sheet)));
@@ -501,20 +688,33 @@ fn grid_view(controller: Controller) -> impl IntoView {
         panes.set(
             cached_geometry
                 .as_ref()
-                .map_or(Panes::default(), |g| Panes {
-                    rows: g.frozen_rows,
-                    columns: g.frozen_columns,
-                }),
+                .map_or(Panes::default(), Panes::from_geometry),
         );
         split_window.set(cached_geometry.as_ref().is_some_and(|g| g.split_window));
-        let cached = controller.grid_view(sheet);
+        let cached = controller.grid_view_for(sheet, ctx.index);
         zoom.set(cached.map_or(1.0, |view| view.zoom));
-        let (x, y) = cached.map_or((0.0, 0.0), |view| {
+        let imported = Panes::from_geometry(&ctx.layout.get_untracked()).imported_scroll(
+            &ctx.layout.get_untracked(),
+            &metrics.get_untracked(),
+            ctx.index,
+        );
+        let (x, y) = cached.map_or(imported, |view| {
             (view.viewport.scroll_x, view.viewport.scroll_y)
         });
         let (sx, sy) = scales();
         element.scroll_to_with_x_and_y(sx.physical(x), sy.physical(y));
         measure();
+        if cached.is_none()
+            && (ctx.layout.get_untracked().top_left.is_some()
+                || ctx.layout.get_untracked().pane_top_left.is_some())
+        {
+            held_origin.set_value(Some(
+                ctx.layout
+                    .get_untracked()
+                    .active_cell
+                    .unwrap_or_else(|| controller.active.get_untracked()),
+            ));
+        }
         skip_reveal.set_value(
             cached.is_some_and(|view| view.active == controller.active.get_untracked())
                 && controller.editing.get_untracked().is_none(),
@@ -528,8 +728,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
             && generation == controller.generation.get_untracked()
             && Some(sheet) == controller.sheet.get_untracked()
         {
-            controller.remember_grid_view(
+            controller.remember_grid_view_for(
                 sheet,
+                ctx.index,
                 viewport::GridView {
                     viewport: viewport.get_untracked(),
                     zoom: z,
@@ -542,8 +743,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
         if let Some((generation, sheet)) = viewed_sheet.get_value()
             && generation == controller.generation.get_untracked()
         {
-            controller.remember_grid_view(
+            controller.remember_grid_view_for(
                 sheet,
+                ctx.index,
                 viewport::GridView {
                     viewport: read_viewport().unwrap_or_else(|| viewport.get_untracked()),
                     zoom: zoom.get_untracked(),
@@ -556,6 +758,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
     Effect::new(move |_| {
         metrics.track();
         panes.track();
+        ctx.source.track();
+        ctx.loaded.track();
+        ctx.active.track();
+        controller.revision.track();
         controller.editing.track();
         let (row, col) = controller.active.get();
         if restoring.get_value()
@@ -1191,7 +1397,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
 
     // The editor over the active cell takes the focus when it opens, with the caret at the end.
     Effect::new(move |_| {
-        if controller.editing.get() == Some(EditOrigin::Cell)
+        if ctx.active.get() == ctx.index
+            && controller.editing.get() == Some(EditOrigin::Cell)
             && let Some(input) = editor.get()
         {
             controller.activate_editor(EditOrigin::Cell, assist);
@@ -1248,6 +1455,14 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         (false, true) => style.push_str(";text-decoration:line-through"),
                         (false, false) => {}
                     }
+                    let italic=matches!(cell.shown.provenance,cells::Provenance::FileCache|cells::Provenance::Refused);
+                    style.push(';');style.push_str(&autofit::font_css(&cell.shown.style,Some(&conditional),italic,zoom.get()));
+                    let indent=autofit::indent_pixels(&cell.shown.style,Some(&conditional),italic,zoom.get());
+                    if indent>0. {style.push_str(&format!(";padding-inline-start:{}px",4.*zoom.get()+indent));}
+                    if let Some(align)=cell.shown.style.horizontal.as_deref().and_then(|a|match a {"left"=>Some("flex-start"),"right"=>Some("flex-end"),"center"=>Some("center"),_=>None}){style.push_str(&format!(";justify-content:{align}"));}
+                    if let Some(align)=cell.shown.style.vertical.as_deref().and_then(|a|match a {"top"=>Some("flex-start"),"bottom"=>Some("flex-end"),"center"=>Some("center"),_=>None}){style.push_str(&format!(";align-items:{align}"));}
+                    let icon_width=if conditional.icon.is_some(){20.*zoom.get()}else{0.};
+                    let text_style=if cell.shown.style.rotation!=0 {format!("position:absolute;left:50%;top:50%;white-space:pre;transform:translate(-50%,-50%) rotate({}deg);transform-origin:center",cell.shown.style.rotation)}else{format!("display:block;flex-shrink:0;{}",if cell.shown.style.wrap{format!("width:calc(100% - {icon_width}px);white-space:pre-wrap;overflow-wrap:anywhere")}else{"white-space:pre".into()})};
                     let shown = cell.shown.clone();
                     let icon = conditional
                         .icon
@@ -1273,8 +1488,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
                             data-bar=bar
                             use:css=style
                         >
-                            {icon.map(|(_, markup)| view! { <span class="dc-icon" inner_html=markup></span> })}
-                            {text}
+                            {icon.map(|(_, markup)| view! { <span class="dc-icon" use:css=format!("flex:0 0 {icon_width}px;box-sizing:border-box") inner_html=markup></span> })}
+                            <span class="dc-cell-text" use:css=text_style>{text}</span>
                         </div>
                     }
                 })
@@ -1301,7 +1516,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     let label = values.get(&at).map_or_else(|| format!("{address}, empty"), |cell|
                         format!("{address}, {}, {}", cell.text, cell.provenance.name()));
                     let selected = sheet.and_then(|sheet| CellKey::new(sheet,at.0,at.1).ok()).is_some_and(|key| selected_areas.iter().any(|area| area.contains(key)));
-                    view! { <span role="gridcell" id=format!("dc-grid-cell-{}-{}", at.0, at.1)
+                    view! { <span role="gridcell" id=format!("dc-grid-cell-{}-{}-{}",ctx.index, at.0, at.1)
                         aria-colindex=at.1.to_string() aria-selected=selected.to_string()
                         aria-label=label>{address}</span> }
                 }).collect_view();
@@ -1502,6 +1717,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
         });
     });
     let dropdown_view = move || {
+        if ctx.active.get() != ctx.index {
+            return None;
+        }
         let rule = rule.get()?;
         if !rule.dropdown {
             return None;
@@ -1520,7 +1738,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 data-dnacalc="dropdown"
                 title="Pick from the list"
                 aria-label="Pick from the validation list"
-                aria-controls="dc-validation-list"
+                aria-controls=format!("dc-validation-list-{}",ctx.index)
                 aria-expanded=move ||list_open.get().to_string()
                 disabled=move ||controller.editing.get().is_some()
                 use:css=style
@@ -1530,7 +1748,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
         })
     };
     let list_view = move || {
-        if !list_open.get() {
+        if ctx.active.get() != ctx.index || !list_open.get() {
             return None;
         }
         let at = controller.active_key_untracked()?;
@@ -1543,7 +1761,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 let text = item.clone();
                 view! {
                     <li
-                        data-dnacalc="dropdown-item" role="option" id=format!("dc-validation-option-{index}") aria-selected=move ||(list_index.get()==index).to_string()
+                        data-dnacalc="dropdown-item" role="option" id=format!("dc-validation-option-{}-{index}",ctx.index) aria-selected=move ||(list_index.get()==index).to_string()
                         on:click=move |_| {
                             list_open.set(false);
                             controller.enter(at, text.clone(), |_| {});
@@ -1554,7 +1772,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
             })
             .collect_view();
         Some(view! {
-            <ul class="dc-list" id="dc-validation-list" role="listbox" aria-label="Allowed values" tabindex="0" node_ref=listbox aria-activedescendant=move ||format!("dc-validation-option-{}",list_index.get()) data-dnacalc="dropdown-list" use:css=style
+            <ul class="dc-list" id=format!("dc-validation-list-{}",ctx.index) role="listbox" aria-label="Allowed values" tabindex="0" node_ref=listbox aria-activedescendant=move ||format!("dc-validation-option-{}-{}",ctx.index,list_index.get()) data-dnacalc="dropdown-list" use:css=style
                 on:keydown=move |ev:leptos::ev::KeyboardEvent|{
                     ev.stop_propagation();let key=ev.key();let items=rule.get_untracked().map(|r|r.items).unwrap_or_default();
                     if let Some(next)=validation_list_index(list_index.get_untracked(),&key,items.len()){ev.prevent_default();list_index.set(next);
@@ -1568,6 +1786,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
         })
     };
     let prompt_view = move || {
+        if ctx.active.get() != ctx.index {
+            return None;
+        }
+
         let (title, text) = rule.get()?.prompt?;
         if list_open.get() {
             return None;
@@ -1586,7 +1808,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
         })
     };
     let editor_view = move || {
-        (controller.editing.get() == Some(EditOrigin::Cell)).then(|| {
+        (ctx.active.get()==ctx.index && controller.editing.get() == Some(EditOrigin::Cell)).then(|| {
             let mut rect = active_rect();
             let width = (viewport.get().width - metrics.get().header_w).min(320.0).max(120.0);
             rect.x = rect.x.min((viewport.get().width - width).max(metrics.get().header_w));
@@ -1666,6 +1888,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
         <div class="dc-grid-skin" data-skin="grid">
             <div
                 class="dc-grid"
+                data-pane=ctx.index.to_string() data-grid-active=move ||(ctx.active.get()==ctx.index).to_string()
+                style:grid-column=move ||if ctx.layout.get().split_window{(1+(ctx.index&1)).to_string()}else{String::new()}
+                style:grid-row=move ||if ctx.layout.get().split_window{(1+(ctx.index>>1)).to_string()}else{String::new()}
+                on:focusin=move |_|ctx.activate(controller)
                 data-dnacalc="grid" data-resizing=move ||resizing.get().is_some().to_string()
                 data-frozen-rows=move ||panes.get().rows.to_string()
                 data-frozen-columns=move ||panes.get().columns.to_string()
@@ -1673,11 +1899,11 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 aria-label=move || controller.sheet.get().and_then(|id| controller.sheets().into_iter().find(|tab| tab.id == id).map(|tab| format!("{} worksheet", tab.name))).unwrap_or_else(|| "Worksheet".to_owned())
                 aria-rowcount="1048576"
                 aria-colcount="16384"
-                aria-describedby="dc-grid-keyboard"
+                aria-describedby=format!("dc-grid-keyboard-{}",ctx.index)
                 aria-activedescendant=move || {
                     let (row, col) = controller.active.get();
                     plan.with(|plan| (plan.row_headers.iter().any(|r| r.row == row) && plan.col_headers.iter().any(|c| c.col == col))
-                        .then(|| format!("dc-grid-cell-{row}-{col}")))
+                        .then(|| format!("dc-grid-cell-{}-{row}-{col}",ctx.index)))
                 }
                 tabindex="0"
                 node_ref=scroller
@@ -1696,11 +1922,11 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 }
                 on:keydown=on_keydown
                 on:contextmenu=on_contextmenu
-                on:mousedown=on_mousedown
+                on:mousedown=move |ev|{ctx.activate(controller);on_mousedown(ev)}
                 on:dblclick=on_dblclick
             >
                 <div class="dc-sr-only" role="rowgroup">{semantic_cells}</div>
-                <span class="dc-sr-only" id="dc-grid-keyboard">"Arrow keys move cells. F2 edits. F6 leaves the worksheet; Shift+F6 returns to the formula bar."</span>
+                <span class="dc-sr-only" id=format!("dc-grid-keyboard-{}",ctx.index)>"Arrow keys move cells. F2 edits. F6 leaves the worksheet; Shift+F6 returns to the formula bar."</span>
                 <div class="dc-space" style:width=space_width style:height=space_height>
                     <div class="dc-layer" node_ref=layer style:font-size=move ||px(13.0*zoom.get()) style:width=move || px(viewport.get().width) style:height=move || px(viewport.get().height)>
                         {gridlines}
@@ -1737,13 +1963,15 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     </div>
                 </div>
             </div>
+            {(ctx.index==0).then(move ||view!{<>
             {crate::clipboard::controls(controller)}
             {axis::controls(controller)}
             {structure::controls(controller)}
             <details class="dc-clipboard-tools" data-dnacalc="pane-tools" name="worksheet-tools">
                 <summary>"View & panes"</summary>
-                <p data-dnacalc="pane-state">{move ||format!("Frozen: {} rows, {} columns",panes.get().rows,panes.get().columns)}</p>
-                {move ||split_window.get().then(||view!{<p class="dc-note">"This pane layout is retained in the file. This view shows one window; separate splits are unavailable."</p>})}
+                <p data-dnacalc="pane-state">{move ||{let (r,c)=panes.get().counts();format!("Frozen: {r} rows, {c} columns")}}</p>
+                {move ||Panes::layout_warning(&ctx.layout.get()).map(|text|view!{<p class="dc-note" role="status">{text}</p>})}
+                {move ||(split_window.get()&&ctx.layout.get().split.is_some()).then(||view!{<p class="dc-note">"Split panes scroll independently; adjacent panes share their row or column position. Split sizes adapt to the viewport."</p>})}
                 {move || {let (w,h)=panes.get().size(&metrics.get());let m=metrics.get();let v=viewport.get();((w>0.0 && w>=v.width-m.header_w) || (h>0.0 && h>=v.height-m.header_h)).then(||view!{<p class="dc-note">"The frozen area fills this viewport. Unfreeze to reach the cells after it."</p>})}}
                 <div class="dc-command-row">
                     <button data-dnacalc="freeze-active" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("active")>"Freeze above & left of active cell"</button>
@@ -1768,6 +1996,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         on:click=move |_| zoom.update(|z| *z = viewport::clamp_zoom(*z * viewport::ZOOM_STEP))>"+"</button>
                 </span>
             </div>
+            </>})}
         </div>
     }
 }
@@ -1776,7 +2005,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
 /// edit, so the keys go to the grid again.
 pub fn focus_grid() {
     if let Some(element) = leptos::prelude::document()
-        .query_selector("[data-dnacalc=\"grid\"]")
+        .query_selector("[data-dnacalc=\"grid\"][data-grid-active=true]")
         .ok()
         .flatten()
         .or_else(|| document().query_selector(".dc-main").ok().flatten())

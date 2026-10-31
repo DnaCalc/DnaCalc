@@ -147,6 +147,10 @@ pub fn text_width(text: &str, m: &GridMetrics) -> f64 {
 /// its column overflows into the empty cells to its right (`occupied`: the cells that show
 /// something). A number in General, which Excel narrows to fewer digits, is clipped here.
 fn fit(cell: &mut PlannedCell, m: &GridMetrics, occupied: &BTreeSet<(u32, u32)>, extent_cols: u32) {
+    // Wrapped and rotated spans belong to their physical cell, including beside blank cells.
+    if cell.shown.style.wrap || cell.shown.style.rotation != 0 {
+        return;
+    }
     let needed = text_width(&cell.shown.text, m);
     if needed <= cell.rect.w || cell.rect.w <= 0.0 {
         return;
@@ -242,6 +246,7 @@ mod tests {
 
     fn cell(sheet: SheetId, row: u32, col: u32, text: &str) -> CellShown {
         CellShown {
+            style: Default::default(),
             at: CellKey::new(sheet, row, col).unwrap(),
             text: text.to_owned(),
             kind: "number",
@@ -405,5 +410,25 @@ mod tests {
         assert_eq!(plan.cells[0].rect.w, 240.0);
         let plan = build_render_plan(&[long, cell(s, 1, 3, "x")], &m, &v, 10, 10);
         assert_eq!(plan.cells[0].rect.w, 160.0);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn wrapped_and_rotated_text_stays_in_its_own_cell_beside_empty_neighbours() {
+        let s = sheet();
+        let m = GridMetrics::default();
+        let v = viewport(2000., 400.);
+        for rotate in [false, true] {
+            let mut shown = cell(
+                s,
+                1,
+                1,
+                "long text beside empty cells must not widen this cell",
+            );
+            shown.kind = "text";
+            shown.style.wrap = !rotate;
+            shown.style.rotation = if rotate { 45 } else { 0 };
+            let plan = build_render_plan(&[shown], &m, &v, 10, 10);
+            assert_eq!(plan.cells[0].rect.w, m.width(1));
+        }
     }
 }

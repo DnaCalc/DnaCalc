@@ -11,18 +11,31 @@ use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Panes {
+    pub origin_row: u32,
+    pub origin_column: u32,
     pub rows: u32,
     pub columns: u32,
 }
 
 impl Panes {
     pub fn size(self, m: &GridMetrics) -> (f64, f64) {
-        (m.col_start(self.columns + 1), m.row_start(self.rows + 1))
+        (
+            m.col_start(self.columns + 1) - m.col_start(self.origin_column + 1),
+            m.row_start(self.rows + 1) - m.row_start(self.origin_row + 1),
+        )
     }
-    fn view(self, v: &Viewport, frozen_row: bool, frozen_col: bool) -> Viewport {
+    fn view(self, m: &GridMetrics, v: &Viewport, frozen_row: bool, frozen_col: bool) -> Viewport {
         Viewport {
-            scroll_x: if frozen_col { 0.0 } else { v.scroll_x },
-            scroll_y: if frozen_row { 0.0 } else { v.scroll_y },
+            scroll_x: if frozen_col {
+                m.col_start(self.origin_column + 1)
+            } else {
+                v.scroll_x
+            },
+            scroll_y: if frozen_row {
+                m.row_start(self.origin_row + 1)
+            } else {
+                v.scroll_y
+            },
             ..*v
         }
     }
@@ -55,7 +68,7 @@ impl Panes {
     pub fn rect(self, m: &GridMetrics, v: &Viewport, row: u32, col: u32) -> CellRect {
         geometry::cell_rect(
             m,
-            &self.view(v, row <= self.rows, col <= self.columns),
+            &self.view(m, v, row <= self.rows, col <= self.columns),
             row,
             col,
         )
@@ -72,7 +85,7 @@ impl Panes {
         let (width, height) = self.size(m);
         geometry::hit_test(
             m,
-            &self.view(v, y < m.header_h + height, x < m.header_w + width),
+            &self.view(m, v, y < m.header_h + height, x < m.header_w + width),
             rows,
             cols,
             x,
@@ -112,7 +125,7 @@ impl Panes {
     }
     fn domain(self, area: GridArea, r: bool, c: bool) -> Option<GridArea> {
         let top = if r {
-            area.first().row()
+            area.first().row().max(self.origin_row + 1)
         } else {
             area.first().row().max(self.rows + 1)
         };
@@ -122,7 +135,7 @@ impl Panes {
             area.last().row()
         };
         let left = if c {
-            area.first().column()
+            area.first().column().max(self.origin_column + 1)
         } else {
             area.first().column().max(self.columns + 1)
         };
@@ -150,7 +163,7 @@ impl Panes {
         self.categories()
             .filter_map(|(r, c)| {
                 self.domain(
-                    super::interest_area(sheet, m, &self.view(v, r, c), extent)?,
+                    super::interest_area(sheet, m, &self.view(m, v, r, c), extent)?,
                     r,
                     c,
                 )
@@ -174,7 +187,7 @@ impl Panes {
         };
         let (mut col_headers, mut row_headers) = (BTreeMap::new(), BTreeMap::new());
         for (r, c) in self.categories() {
-            let plan = render_plan::build_render_plan(cells, m, &self.view(v, r, c), rows, cols);
+            let plan = render_plan::build_render_plan(cells, m, &self.view(m, v, r, c), rows, cols);
             out.cells.extend(plan.cells.into_iter().filter(|cell| {
                 (cell.row <= self.rows) == r
                     && (cell.col <= self.columns) == c
@@ -271,6 +284,7 @@ mod tests {
             let p = Panes {
                 rows: 1,
                 columns: 1,
+                ..Default::default()
             };
             let v = Viewport {
                 scroll_x: 400.0 * zoom,
@@ -320,6 +334,7 @@ mod tests {
             let p = Panes {
                 rows: 3,
                 columns: 4,
+                ..Default::default()
             };
             let v = Viewport {
                 scroll_x: 500.0 * zoom,
@@ -354,6 +369,7 @@ mod tests {
         let p = Panes {
             rows: 1,
             columns: 1,
+            ..Default::default()
         };
         let v = Viewport {
             scroll_x: 5000.0,
@@ -375,5 +391,178 @@ mod tests {
             && r.y >= m.header_h
             && r.x + r.w <= v.width
             && r.y + r.h <= v.height));
+    }
+}
+
+/// Separate pane IDs use column bit 0 and row bit 1, so adjacent panes can share an axis.
+pub fn split_slots(g: &crate::wire::Geometry) -> Vec<u8> {
+    let Some((x, y)) = g.split.filter(|_| g.split_window) else {
+        return vec![0];
+    };
+    let x = f64::from_bits(x) > 0.;
+    let y = f64::from_bits(y) > 0.;
+    [0, 1, 2, 3]
+        .into_iter()
+        .filter(|i| (*i & 1 == 0 || x) && (*i & 2 == 0 || y))
+        .collect()
+}
+pub fn split_css(g: &crate::wire::Geometry) -> String {
+    let Some((x, y)) = g.split.filter(|_| g.split_window) else {
+        return String::new();
+    };
+    let (x, y) = (f64::from_bits(x) / 15., f64::from_bits(y) / 15.);
+    format!(
+        "grid-template-columns:{};grid-template-rows:{}",
+        if x > 0. {
+            format!("minmax(80px,min({x}px,calc(100% - 80px))) minmax(80px,1fr)")
+        } else {
+            "minmax(0,1fr)".into()
+        },
+        if y > 0. {
+            format!("minmax(80px,min({y}px,35vh)) minmax(80px,1fr)")
+        } else {
+            "minmax(80px,1fr)".into()
+        }
+    )
+}
+impl Panes {
+    pub fn layout_warning(g: &crate::wire::Geometry) -> Option<&'static str> {
+        let (row, col) = g.top_left.unwrap_or((1, 1));
+        if g.frozen_rows > 0 && row.saturating_add(g.frozen_rows) > 1_048_576
+            || g.frozen_columns > 0 && col.saturating_add(g.frozen_columns) > 16_384
+        {
+            return Some(
+                "These frozen bands exceed the worksheet. The original layout is retained; unfreeze to continue.",
+            );
+        }
+        if g.split_window && g.split.is_none() {
+            return Some("These pane positions are unavailable. The original layout is retained.");
+        }
+        None
+    }
+    pub fn from_geometry(g: &crate::wire::Geometry) -> Self {
+        if Self::layout_warning(g).is_some() {
+            return Self::default();
+        }
+        let (row, col) = g.top_left.unwrap_or((1, 1));
+        let r = if g.frozen_rows > 0 { row - 1 } else { 0 };
+        let c = if g.frozen_columns > 0 { col - 1 } else { 0 };
+        Self {
+            rows: if g.frozen_rows > 0 {
+                r.saturating_add(g.frozen_rows).min(1_048_575)
+            } else {
+                0
+            },
+            columns: if g.frozen_columns > 0 {
+                c.saturating_add(g.frozen_columns).min(16_383)
+            } else {
+                0
+            },
+            origin_row: r,
+            origin_column: c,
+        }
+    }
+    pub fn counts(self) -> (u32, u32) {
+        (
+            self.rows.saturating_sub(self.origin_row),
+            self.columns.saturating_sub(self.origin_column),
+        )
+    }
+    pub fn imported_scroll(
+        self,
+        g: &crate::wire::Geometry,
+        m: &GridMetrics,
+        index: u8,
+    ) -> (f64, f64) {
+        let first = g.top_left.unwrap_or((1, 1));
+        let last = g.pane_top_left.unwrap_or(first);
+        let (row, col) = if g.split_window {
+            (
+                if index & 2 != 0 { last.0 } else { first.0 },
+                if index & 1 != 0 { last.1 } else { first.1 },
+            )
+        } else if self.rows > 0 || self.columns > 0 {
+            g.pane_top_left.unwrap_or((self.rows + 1, self.columns + 1))
+        } else {
+            first
+        };
+        let (w, h) = self.size(m);
+        (
+            (m.col_start(col) - w).max(0.),
+            (m.row_start(row) - h).max(0.),
+        )
+    }
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn offset_frozen_bands_share_geometry_hit_testing_and_bounded_interests() {
+        let mut g = crate::wire::Geometry::default();
+        g.top_left = Some((5, 3));
+        g.pane_top_left = Some((100, 8));
+        g.frozen_rows = 2;
+        g.frozen_columns = 2;
+        let p = Panes::from_geometry(&g);
+        assert_eq!(p.counts(), (2, 2));
+        let mut ids = calc_host::value::IdAllocator::<SheetId>::new();
+        let sheet = ids.issue().unwrap();
+        for zoom in [0.5, 1., 1.75, 4.] {
+            let m = GridMetrics::default().scaled(zoom);
+            let (x, y) = p.imported_scroll(&g, &m, 0);
+            let v = Viewport {
+                scroll_x: x,
+                scroll_y: y,
+                width: 1000. * zoom,
+                height: 600. * zoom,
+            };
+            for (row, col) in [(5, 3), (5, 8), (100, 3), (100, 8)] {
+                let r = intersection(p.rect(&m, &v, row, col), p.bounds(&m, &v, row, col)).unwrap();
+                assert_eq!(
+                    p.hit(&m, &v, 1_048_576, 16_384, r.x + r.w / 2., r.y + r.h / 2.),
+                    HitTarget::Cell { row, col }
+                );
+            }
+            let areas = p.interests(sheet, &m, &v, GridExtent::new(1_048_576, 16_384));
+            assert_eq!(areas.len(), 4);
+            assert!(areas.iter().map(|a| a.cell_count()).sum::<u64>() < 5000);
+            assert!(
+                areas
+                    .iter()
+                    .all(|a| a.first().row() >= 5 && a.first().column() >= 3)
+            );
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn separate_splits_retain_twips_and_independent_axis_origins() {
+        let mut g = crate::wire::Geometry::default();
+        g.split_window = true;
+        g.split = Some((2400.5f64.to_bits(), 1800f64.to_bits()));
+        g.top_left = Some((5, 3));
+        g.pane_top_left = Some((100, 8));
+        assert_eq!(split_slots(&g), [0, 1, 2, 3]);
+        let p = Panes::from_geometry(&g);
+        let m = GridMetrics::default();
+        assert_eq!(
+            p.imported_scroll(&g, &m, 0),
+            (m.col_start(3), m.row_start(5))
+        );
+        assert_eq!(
+            p.imported_scroll(&g, &m, 1),
+            (m.col_start(8), m.row_start(5))
+        );
+        assert_eq!(
+            p.imported_scroll(&g, &m, 2),
+            (m.col_start(3), m.row_start(100))
+        );
+        assert_eq!(
+            p.imported_scroll(&g, &m, 3),
+            (m.col_start(8), m.row_start(100))
+        );
+        g.split = Some((0f64.to_bits(), 1800f64.to_bits()));
+        assert_eq!(split_slots(&g), [0, 2]);
     }
 }

@@ -979,6 +979,17 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                 loop {
                     match events.next()? {
                         Some(XmlEvent::Start(child)) if child.name.is(MAIN_NAMESPACE, "pane") => {
+                            view.pane_top_left =
+                                child.attribute("topLeftCell").and_then(address::cell);
+                            let position = |name| {
+                                child
+                                    .attribute(name)
+                                    .unwrap_or("0")
+                                    .trim()
+                                    .parse::<f64>()
+                                    .ok()
+                                    .filter(|n| n.is_finite() && *n >= 0.)
+                            };
                             let count = |name| pane_count(child.attribute(name).unwrap_or("0"));
                             let frozen =
                                 matches!(child.attribute("state"), Some("frozen" | "frozenSplit"));
@@ -991,6 +1002,12 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                             };
                             view.split_window = (!frozen || view.frozen.is_none())
                                 && (count("xSplit") != Some(0) || count("ySplit") != Some(0));
+                            if !frozen {
+                                view.split = position("xSplit")
+                                    .zip(position("ySplit"))
+                                    .filter(|(x, y)| *x > 0. || *y > 0.)
+                                    .map(|(x, y)| (x.to_bits(), y.to_bits()));
+                            }
                             if let Some(pane) = child.attribute("activePane") {
                                 active_pane = pane.trim().to_owned();
                             }
@@ -1016,6 +1033,12 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                         None => return Err(events.invalid("the part ends inside sheetView")),
                     }
                 }
+                view.active_pane = match active_pane.as_str() {
+                    "topRight" => 1,
+                    "bottomLeft" => 2,
+                    "bottomRight" => 3,
+                    _ => 0,
+                };
                 view.active_cell = selections
                     .iter()
                     .find(|(pane, _)| *pane == active_pane)
@@ -1052,5 +1075,25 @@ mod pane_tests {
             assert_eq!(pane_count(text), None, "{text}");
         }
         assert_eq!(pane_count("-0.0"), Some(0));
+    }
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn first_window_origins_and_fractional_twip_splits_remain_distinct() {
+        let xml=crate::xml::XmlPart::new("views.xml".into(),br#"<sheetViews xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetView workbookViewId="0" topLeftCell="C5"><pane xSplit="2400.5" ySplit="1800" topLeftCell="H100" activePane="bottomRight" state="split"/><selection pane="topLeft" activeCell="C5"/><selection pane="bottomRight" activeCell="J101"/></sheetView></sheetViews>"#.to_vec(),Default::default());
+        let mut events = Events::new(&xml);
+        events.root(MAIN_NAMESPACE, "sheetViews", "views").unwrap();
+        let view = read_view(&mut events).unwrap();
+        assert_eq!(view.top_left, Some((5, 3)));
+        assert_eq!(view.pane_top_left, Some((100, 8)));
+        assert_eq!(view.active_cell, Some((101, 10)));
+        assert_eq!(view.active_pane, 3);
+        assert_eq!(view.frozen, None);
+        assert!(view.split_window);
+        assert_eq!(view.split, Some((2400.5f64.to_bits(), 1800f64.to_bits())));
     }
 }

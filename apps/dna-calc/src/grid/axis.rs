@@ -34,7 +34,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
     view! {
         <details class="dc-clipboard-tools" data-dnacalc="axis-tools" name="worksheet-tools">
             <summary>"Rows & columns"</summary>
-            <p class="dc-note">"Applies to the rows or columns in the current rectangle. Zero hides; Show restores the retained size. AutoFit uses selected, unwrapped displayed contents; empty bands retain their size."</p>
+            <p class="dc-note">"Applies to the rows or columns in the current rectangle. Zero hides; Show restores the retained size. AutoFit uses selected displayed contents. Set column width before fitting wrapped rows. Empty bands retain their size."</p>
             <div class="dc-command-row">
                 <label>"New column width (characters)"<input data-dnacalc="column-size" aria-label="New column width in characters" inputmode="decimal" class="dc-axis-size" prop:value=move ||column.get() on:input=move |ev|column.set(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();controller.axis_format(false,Some(column.get_untracked()),None);}}/></label>
                 <button data-dnacalc="set-column-size" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.axis_format(false,Some(column.get_untracked()),None)>"Set width"</button>
@@ -222,6 +222,7 @@ mod drag_tests {
             let plan = Panes {
                 rows: 1,
                 columns: 1,
+                ..Default::default()
             }
             .plan(&[], &m, &v, 100, 100);
             let edge =

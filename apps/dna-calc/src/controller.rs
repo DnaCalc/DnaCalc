@@ -171,7 +171,8 @@ pub struct Controller {
     validation_outcome: StoredValue<Option<Outcome>>,
     pub structural_choice: RwSignal<Option<bool>>,
     sheet_selections: StoredValue<BTreeMap<SheetId, (CellKey, Vec<GridArea>)>>,
-    grid_views: StoredValue<BTreeMap<SheetId, crate::grid::viewport::GridView>>,
+    grid_views: StoredValue<BTreeMap<(SheetId, u8), crate::grid::viewport::GridView>>,
+    grid_active: StoredValue<BTreeMap<SheetId, u8>>,
     grid_geometry: StoredValue<BTreeMap<SheetId, wire::Geometry>>,
     mirrors: StoredValue<BTreeMap<u64, RwSignal<ViewMirror>>, LocalStorage>,
     next_subscription: StoredValue<u64>,
@@ -246,6 +247,7 @@ impl Controller {
             structural_choice: RwSignal::new(None),
             sheet_selections: StoredValue::new(BTreeMap::new()),
             grid_views: StoredValue::new(BTreeMap::new()),
+            grid_active: StoredValue::new(BTreeMap::new()),
             grid_geometry: StoredValue::new(BTreeMap::new()),
             mirrors: StoredValue::new_local(BTreeMap::new()),
             next_subscription: StoredValue::new(1),
@@ -529,7 +531,7 @@ impl Controller {
             .map(|v| v.clone().unchecked_into::<web_sys::Element>())
             .or_else(|| {
                 document()
-                    .query_selector("[data-dnacalc=grid]")
+                    .query_selector("[data-dnacalc=grid][data-grid-active=true]")
                     .ok()
                     .flatten()
             });
@@ -725,9 +727,15 @@ impl Controller {
     fn installed(&self, summary: Summary, message: String) {
         self.sheet_selections.update_value(BTreeMap::clear);
         self.grid_views.update_value(BTreeMap::clear);
+        self.grid_active.update_value(BTreeMap::clear);
         self.grid_geometry.update_value(BTreeMap::clear);
         self.mirrors.update_value(BTreeMap::clear);
         let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
+        let initial = summary
+            .initial_cell
+            .and_then(Key::cell)
+            .filter(|at| Some(at.sheet()) == first)
+            .map_or((1, 1), |at| (at.row(), at.column()));
         self.summary.set(summary);
         self.download_unconfirmed.set(false);
         self.notebook.reset();
@@ -742,11 +750,11 @@ impl Controller {
         });
         self.validation_outcome.set_value(None);
         self.sheet.set(first);
-        self.active.set((1, 1));
-        self.corner.set((1, 1));
+        self.active.set(initial);
+        self.corner.set(initial);
         self.areas.set(
             first
-                .and_then(|sheet| CellKey::new(sheet, 1, 1).ok())
+                .and_then(|sheet| CellKey::new(sheet, initial.0, initial.1).ok())
                 .map(GridArea::cell)
                 .into_iter()
                 .collect(),
@@ -1740,7 +1748,23 @@ impl Controller {
         }
     }
     pub fn grid_view(&self, sheet: SheetId) -> Option<crate::grid::viewport::GridView> {
-        self.grid_views.with_value(|all| all.get(&sheet).copied())
+        self.grid_view_for(sheet, 0)
+    }
+    pub fn grid_view_for(
+        &self,
+        sheet: SheetId,
+        index: u8,
+    ) -> Option<crate::grid::viewport::GridView> {
+        self.grid_views
+            .with_value(|all| all.get(&(sheet, index)).copied())
+    }
+    pub fn active_grid_pane(&self, sheet: SheetId) -> Option<u8> {
+        self.grid_active.with_value(|all| all.get(&sheet).copied())
+    }
+    pub fn remember_active_grid_pane(&self, sheet: SheetId, index: u8) {
+        self.grid_active.update_value(|all| {
+            all.insert(sheet, index);
+        });
     }
     pub fn grid_geometry(&self, sheet: SheetId) -> Option<wire::Geometry> {
         self.grid_geometry
@@ -1751,7 +1775,15 @@ impl Controller {
             all.insert(sheet, geometry);
         });
     }
-    pub fn remember_grid_view(&self, sheet: SheetId, mut view: crate::grid::viewport::GridView) {
+    pub fn remember_grid_view(&self, sheet: SheetId, view: crate::grid::viewport::GridView) {
+        self.remember_grid_view_for(sheet, 0, view);
+    }
+    pub fn remember_grid_view_for(
+        &self,
+        sheet: SheetId,
+        index: u8,
+        mut view: crate::grid::viewport::GridView,
+    ) {
         if self.sheet.get_untracked() != Some(sheet) {
             if let Some(active) = self
                 .sheet_selections
@@ -1761,7 +1793,7 @@ impl Controller {
             }
         }
         self.grid_views.update_value(|all| {
-            all.insert(sheet, view);
+            all.insert((sheet, index), view);
         });
     }
     pub fn axis_format(&self, rows: bool, size: Option<String>, hidden: Option<bool>) {
@@ -1981,6 +2013,30 @@ impl Controller {
             let Some(sheet) = controller.sheet.get_untracked() else {
                 return;
             };
+            if choice != "none" {
+                let offset = controller.grid_geometry(sheet).is_some_and(|g| {
+                    (g.frozen_rows > 0 || g.frozen_columns > 0)
+                        && g.top_left.is_some_and(|at| at != (1, 1))
+                });
+                if offset {
+                    controller.say(
+                        "Unfreeze this imported view before choosing new frozen bands",
+                        true,
+                    );
+                    return;
+                }
+                if choice == "active"
+                    && controller
+                        .grid_view_for(sheet, controller.active_grid_pane(sheet).unwrap_or(0))
+                        .is_some_and(|v| v.viewport.scroll_x > 0.5 || v.viewport.scroll_y > 0.5)
+                {
+                    controller.say(
+                        "Return to the top-left of the sheet before freezing at the active cell",
+                        true,
+                    );
+                    return;
+                }
+            }
             let (row, col) = controller.active.get_untracked();
             let (rows, columns) = match choice {
                 "first-row" => (1, 0),

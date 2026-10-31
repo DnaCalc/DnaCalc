@@ -232,12 +232,14 @@ impl Server {
                         geometry.frozen_rows = panes.rows();
                         geometry.frozen_columns = panes.columns();
                     }
-                    geometry.split_window = self
-                        .book
-                        .host()
-                        .loaded()
-                        .sheet(sheet.id())
-                        .is_some_and(|s| s.view().split_window);
+                    if let Some(view) = self.book.host().sheet_view(sheet.id()) {
+                        geometry.top_left = view.top_left;
+                        geometry.pane_top_left = view.pane_top_left;
+                        geometry.active_cell = view.active_cell;
+                        geometry.active_pane = view.active_pane;
+                        geometry.split = view.split;
+                        geometry.split_window = view.split_window;
+                    }
                     Ok(Reply::Geometry(geometry))
                 }
                 Request::UsedArea(sheet) => Ok(Reply::UsedArea(
@@ -521,6 +523,16 @@ impl Server {
         let iteration = self.book.host().model().definitions().iteration();
         let circular = self.book.host().circular_cells();
         Summary {
+            initial_cell: self
+                .book
+                .host()
+                .sheets()
+                .iter()
+                .find(|s| s.visibility() == calc_host::SheetVisibility::Visible)
+                .and_then(|s| {
+                    let (row, col) = self.book.host().sheet_view(s.id())?.active_cell?;
+                    CellKey::new(s.id(), row, col).ok().map(Key::of)
+                }),
             name: self.book.name().to_owned(),
             changed: self.book.changed(),
             undo: self.book.session().history_depth().0,
@@ -643,36 +655,6 @@ impl Server {
                 }
             }
         }
-        let styles = host.loaded().styles();
-        for at in &keys {
-            let style = host.cell_style(*at);
-            let format = styles.cell_formats.get(style as usize);
-            if format.is_none() && style != 0 {
-                return Err("The cell style is unavailable".to_owned());
-            }
-            if format
-                .into_iter()
-                .chain(format.and_then(|f| {
-                    f.xf_id
-                        .and_then(|i| styles.cell_style_formats.get(i as usize))
-                }))
-                .any(|format| {
-                    format.font_id.unwrap_or(0) != 0
-                        || format.alignment.as_ref().is_some_and(|a| {
-                            a.wrap_text
-                                || a.shrink_to_fit
-                                || a.text_rotation.as_deref().is_some_and(|n| n != "0")
-                                || a.indent.as_deref().is_some_and(|n| n != "0")
-                                || matches!(
-                                    a.horizontal.as_deref(),
-                                    Some("fill" | "justify" | "distributed")
-                                )
-                        })
-                })
-            {
-                return Err("AutoFit of custom fonts, wrapping, rotation or indentation is unavailable here".to_owned());
-            }
-        }
         let projected = calc_host::project(
             host,
             &calc_host::ProjectionRequest {
@@ -683,8 +665,8 @@ impl Server {
         let mut cells = Vec::new();
         for p in projected.cells() {
             let shown = self.book.shown(p);
-            if shown.text.contains(['\n', '\r']) {
-                return Err("AutoFit of multiline cells is unavailable here".to_owned());
+            if let Some(reason) = &shown.style.unsupported {
+                return Err(reason.clone());
             }
             cells.push(Cell::of(
                 &shown,

@@ -687,6 +687,42 @@ impl HostState {
 
 impl HostState {
     /// Review content follows physical axis edits, without inheriting notes on inserted cells.
+    /// The current first window's imported origins. Authored freeze commands use leading bands.
+    pub fn sheet_view(&self, sheet: SheetId) -> Option<calc_doc::SheetView> {
+        let mut view = self.loaded.sheet(sheet)?.view();
+        for edit in self.axis_edits.iter().filter(|e| e.sheet() == sheet) {
+            let move_at = |(row, col): (u32, u32)| {
+                let old = if edit.axis() == calc_doc_model::Axis::Rows {
+                    row
+                } else {
+                    col
+                };
+                let next = calc_doc_model::moved_position(*edit, old).unwrap_or_else(|| {
+                    if edit.change() == calc_doc_model::AxisChange::Delete {
+                        edit.first().min(edit.axis().size())
+                    } else {
+                        edit.axis().size()
+                    }
+                });
+                if edit.axis() == calc_doc_model::Axis::Rows {
+                    (next, col)
+                } else {
+                    (row, next)
+                }
+            };
+            view.top_left = view.top_left.map(move_at);
+            view.pane_top_left = view.pane_top_left.map(move_at);
+            view.active_cell = view.active_cell.map(move_at);
+        }
+        if self.model.definitions().frozen_panes(sheet) != view.frozen {
+            view.top_left = Some((1, 1));
+            view.pane_top_left = None;
+            view.split_window = false;
+            view.split = None;
+        }
+        Some(view)
+    }
+
     pub fn sheet_review(&self, sheet: SheetId) -> calc_doc::SheetReview {
         let mut review = self
             .loaded

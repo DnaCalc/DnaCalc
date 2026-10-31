@@ -49,6 +49,7 @@ impl Provenance {
 /// One cell as a skin shows it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CellShown {
+    pub style: crate::grid::autofit::TextStyle,
     pub at: CellKey,
     /// The text in the cell: the value as a cell of standard width shows it, `refused` for a
     /// refusal, a stale cell's last value, or nothing.
@@ -244,6 +245,7 @@ pub fn shown(
         }
     };
     CellShown {
+        style: Default::default(),
         at: cell.at(),
         text,
         kind,
