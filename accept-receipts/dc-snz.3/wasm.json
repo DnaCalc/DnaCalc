@@ -267,16 +267,16 @@
       "details": {
         "build_script_files_scanned": 0,
         "files_scanned": {
-          "calc-doc": 50,
-          "calc-doc-model": 16,
+          "calc-doc": 54,
+          "calc-doc-model": 18,
           "calc-engine": 12,
           "calc-fml": 25,
           "calc-func": 168,
-          "calc-host": 14,
+          "calc-host": 15,
           "calc-value": 7,
           "calc-vba": 1,
           "calc-verdict": 13,
-          "dna-calc": 27,
+          "dna-calc": 34,
           "dna-formula-ui": 7,
           "dna-onecalc": 9,
           "dna-strand": 6
@@ -286,11 +286,12 @@
           "x86_64-pc-windows-msvc",
           "x86_64-unknown-linux-gnu",
           "wasm32-unknown-unknown"
-        ]
+        ],
+        "wasm_normal_dependency_source": "cargo tree --locked --workspace --all-features --target wasm32-unknown-unknown --edges normal --invert <resolved-package-id> --prefix none --format {p}"
       },
       "findings": [],
       "passed": true,
-      "summary": "355 non-test source files of 13 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "369 non-test source files of 13 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -388,7 +389,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 355,
+        "files_scanned": 369,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -401,7 +402,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "355 non-test source files and 0 build-script files of 13 portable packages against 6 denied phrases and the include macros"
+      "summary": "369 non-test source files and 0 build-script files of 13 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "word-scan",
@@ -497,9 +498,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 771,
+          "commit_messages": 801,
           "files": 29,
-          "tracker_records": 199
+          "tracker_records": 201
         },
         "tracker": {
           "ceng-m7.1": {
@@ -550,7 +551,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 29 files, 3 in 1 of 199 tracker records, 1 in 1 of 771 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 29 files, 3 in 1 of 201 tracker records, 1 in 1 of 801 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
     }
   ],
   "bead": "dc-snz.3",
@@ -595,7 +596,7 @@
           ],
           "browser": "chromium",
           "case": "dc_snz_3__vba@chromium",
-          "duration_s": 16.321,
+          "duration_s": 19.458,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -624,8 +625,8 @@
           "outcome": "passed",
           "package": "dna-onecalc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.58s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53490/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.67s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:59510/`"
         },
         {
           "argv": [
@@ -647,7 +648,7 @@
           ],
           "browser": "firefox",
           "case": "dc_snz_3__vba@firefox",
-          "duration_s": 19.538,
+          "duration_s": 21.32,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -676,12 +677,12 @@
           "outcome": "passed",
           "package": "dna-onecalc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.64s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:51326/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.72s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:60692/`"
         }
       ],
       "case": "dc_snz_3__vba",
-      "duration_s": 35.859,
+      "duration_s": 40.778,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -766,7 +767,7 @@
     "passed": 1,
     "selected": 1
   },
-  "duration_s": 71.985,
+  "duration_s": 69.076,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -777,145 +778,13 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "43e84b43f5bda3926983894fc5e5bcff447ca2ef",
-          "path": ".beads/issues.jsonl",
-          "status": "M"
-        },
-        {
-          "blob": "a6e22a7bd1c43c751b6cfb600eac0c8e62576358",
-          "path": "Cargo.lock",
-          "status": "M"
-        },
-        {
-          "blob": "70db65b0bcbd38c859d711064b4e44c4c05166c7",
-          "path": "Cargo.toml",
-          "status": "M"
-        },
-        {
-          "blob": "ba7c201529be9c41b0c2da82366495f94a738562",
-          "path": "apps/dna-onecalc/Cargo.toml",
-          "status": "M"
-        },
-        {
-          "blob": "df943d542f6010c4e8a4b1e5ddb08602392b95a8",
-          "path": "apps/dna-onecalc/acceptance.json",
-          "status": "M"
-        },
-        {
-          "blob": "55b245deb459abd38045f9a2fcda91affa6417ef",
-          "path": "apps/dna-onecalc/src/display.rs",
-          "status": "M"
-        },
-        {
-          "blob": "1bce6e21f55a4b57dd9bf3ce22d87111eceb1c00",
-          "path": "apps/dna-onecalc/src/fixture.rs",
-          "status": "M"
-        },
-        {
-          "blob": "c6ac21e374324bb8793362aff378e38987ca5184",
-          "path": "apps/dna-onecalc/src/lib.rs",
-          "status": "M"
-        },
-        {
-          "blob": "13627262d25a88a6de3480db5be3926605972906",
-          "path": "apps/dna-onecalc/src/session.rs",
-          "status": "M"
-        },
-        {
-          "blob": "ae352e92b2affc3f56c0af124053c7cc05801be4",
-          "path": "apps/dna-onecalc/src/surface.rs",
-          "status": "M"
-        },
-        {
-          "blob": "f0f12ff9b3231b7cfa04992bccbfb13d67f04b4c",
-          "path": "apps/dna-onecalc/tests/acceptance.rs",
-          "status": "M"
-        },
-        {
-          "blob": "a05bf781e6a9b3f6534f8b8c89b9e8414365b1ff",
-          "path": "crates/calc-fml/src/eval/compile.rs",
-          "status": "M"
-        },
-        {
-          "blob": "de378a4f602421cbfe646f06e6606ff9834f3e5c",
-          "path": "crates/calc-fml/src/eval/mod.rs",
-          "status": "M"
-        },
-        {
-          "blob": "284196623a08307ce8453ed3a2dc9cddfcae0cf0",
-          "path": "crates/calc-fml/src/eval/run.rs",
-          "status": "M"
-        },
-        {
-          "blob": "6824e2c60553a6b5a5db29cb159bf24cce5477e1",
-          "path": "crates/calc-fml/src/lib.rs",
-          "status": "M"
-        },
-        {
-          "blob": "753497cbffcece4e7977b7cda6fd6bc6bc135f4a",
-          "path": "crates/calc-func/src/lib.rs",
-          "status": "M"
-        },
-        {
-          "blob": "ee5b202d81408aff7e447dcb437e8595ce9ca412",
-          "path": "migration/licence-ledger.json",
-          "status": "M"
-        },
-        {
-          "blob": "80d9a2c5bb84852347414046866881b2c01de4f3",
-          "path": "tools/xtask/architecture.json",
-          "status": "M"
-        },
-        {
-          "blob": "121669c0d7bb5f6eca32cbc808a1dd4b84b5486b",
-          "path": "tools/xtask/licenses.json",
-          "status": "M"
-        },
-        {
-          "blob": "50d875af1101f403678b431a1c5316bf5ae9948e",
-          "path": "tools/xtask/src/app.rs",
-          "status": "M"
-        },
-        {
-          "blob": "6e4af0601d503dca9574144fde97c266021f0a2a",
-          "path": "apps/dna-onecalc/examples/vba.rs",
-          "status": "??"
-        },
-        {
-          "blob": "0c410196093b62497e9a610c35de435b992563f6",
-          "path": "apps/dna-onecalc/tests/vba.rs",
-          "status": "??"
-        },
-        {
-          "blob": "eba75595b389e0305904bef0b11374d4e2762b28",
-          "path": "crates/calc-func/src/udf.rs",
-          "status": "??"
-        },
-        {
-          "blob": "6c323b09ce286b6180e219e48b498777b25added",
-          "path": "crates/calc-vba/Cargo.toml",
-          "status": "??"
-        },
-        {
-          "blob": "3fd08f8894ee6418e07dfd499b9aa929977ae51d",
-          "path": "crates/calc-vba/acceptance.json",
-          "status": "??"
-        },
-        {
-          "blob": "b2c67e80e152460caed184cb9d699fb1dfcb8e3c",
-          "path": "crates/calc-vba/src/lib.rs",
-          "status": "??"
-        },
-        {
-          "blob": "b0f0ec65c83203bf9d37b5f0dae7c6d3492357a3",
-          "path": "docs/plan/VBA_UDFS.md",
+          "blob": "6b8d4f13792df5dc700d68935f8e3f56adf880df",
+          "path": "accept-receipts/dc-snz.3/windows.json",
           "status": "??"
         }
       ],
-      "head": "2d5811e9affe114a98720d32998f09bfcb0e8ffc",
-      "receipt_paths_left_out": [
-        "accept-receipts/dc-snz.3/wasm.json"
-      ]
+      "head": "56bb5bcaa507df6fe8de9b0581caf7210a71d0af",
+      "receipt_paths_left_out": []
     },
     "legacy_root": {
       "exists": true,
@@ -956,5 +825,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-31T02:57:36Z"
+  "started_utc": "2026-10-31T10:29:37Z"
 }

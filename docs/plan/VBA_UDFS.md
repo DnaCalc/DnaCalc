@@ -84,3 +84,11 @@ checks live default-type reflection and refusal propagation, with explicit nativ
 selection. Cells/Item currently admit positive indices; other offsets and full Range
 identity/default-format behavior remain open. Final focused browser/acceptance and
 corpus readings are retained in the run-3 report and codex-runs logs.
+
+Final run-3 receipts: final-pin adapter4/controller7 pass in each Chrome/Firefox;
+Windows and wasm dc-snz.3 acceptance pass, including the mounted load/reload/failed
+load/budget/unload cases. Native CLI reports `5:Range:True` for Probe(A1).
+The corpus remains 19,284/20,030 matched, 659 failed, with 73 external-link and14
+circular-rule values separate. The repository-wide acceptance suite was skipped;
+no whole-workset completion or Linux execution claim is made. Exact logs/report are
+under C:/Work/DnaCalc/codex-runs (calcvba-report-3.md).
