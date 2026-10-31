@@ -10,7 +10,7 @@
 
 use crate::cells;
 use crate::wire::{
-    self, Area, Cell, Cells, Chart, ChartPlace, Event, Geometry, Intent, Interest, Key, Outcome,
+    self, Area, Cells, Chart, ChartPlace, Event, Intent, Interest, Key, Outcome,
     Reply, Request, Sheet, Summary, Validation,
 };
 use crate::workbook::Workbook;
@@ -312,7 +312,7 @@ impl Server {
                         .book
                         .host()
                         .sheet_geometry(sheet.id())
-                        .map(|g| Geometry::of(&g))
+                        .map(|g| wire::geometry_of(&g))
                         .unwrap_or_default();
                     if let Some(panes) = self
                         .book
@@ -519,7 +519,7 @@ impl Server {
             },
             PasteSource::External(rows) => calc_host::PasteSource::External(rows),
         };
-        let plan = calc_host::prepare_paste(self.book.host(), source, to, mode.host())?;
+        let plan = calc_host::prepare_paste(self.book.host(), source, to, wire::host_paste_mode(mode))?;
         let target = plan.target();
         let replaces = plan.replaces();
         let id = self.next_clip;
@@ -643,7 +643,7 @@ impl Server {
                 "AutoFit with merged cells is unavailable; choose an unmerged range".to_owned(),
             );
         }
-        let metrics = crate::grid::sheet_metrics(host.sheet_geometry(target.sheet()).as_ref());
+        let metrics = crate::grid::sheet_metrics(host.sheet_geometry(target.sheet()).as_ref().map(wire::geometry_of).as_ref());
         let mut keys = std::collections::BTreeSet::new();
         for occupied in host.occupied_areas(target.sheet()) {
             let top = target.first().row().max(occupied.first().row());
@@ -683,7 +683,7 @@ impl Server {
             if let Some(reason) = &shown.style.unsupported {
                 return Err(reason.clone());
             }
-            cells.push(Cell::of(
+            cells.push(wire::cell_of(
                 &shown,
                 cells::input_text(p.input()),
                 cells::provenance_text(host, p),
@@ -976,7 +976,7 @@ impl Server {
                         });
                     }
                 }
-                let metrics = crate::grid::sheet_metrics(host.sheet_geometry(at.sheet()).as_ref());
+                let metrics = crate::grid::sheet_metrics(host.sheet_geometry(at.sheet()).as_ref().map(wire::geometry_of).as_ref());
                 SkinIntent::Select(crate::grid::selection::navigate(
                     selection,
                     nav,
@@ -1234,7 +1234,7 @@ impl Server {
                     emptied.push(Key::of(projected.at()));
                     continue;
                 }
-                cells.push(Cell::of(
+                cells.push(wire::cell_of(
                     &shown,
                     cells::input_text(projected.input()),
                     cells::provenance_text(self.book.host(), projected),
@@ -1310,7 +1310,7 @@ impl Server {
             .take(crate::notebook::PAGE)
             .map(|(placement, anchor, prose)| {
                 let cell = anchor.and_then(|a| self.book.cell(a.first())).map(|p| {
-                    Cell::of(
+                    wire::cell_of(
                         &self.book.shown(&p),
                         cells::input_text(p.input()),
                         cells::provenance_text(host, &p),
@@ -1550,7 +1550,7 @@ impl Server {
             .project(keys)
             .iter()
             .map(|p| {
-                Cell::of(
+                wire::cell_of(
                     &self.book.shown(p),
                     cells::input_text(p.input()),
                     cells::provenance_text(host, p),
@@ -1688,7 +1688,7 @@ impl Server {
             .project(wanted)
             .iter()
             .map(|projected| {
-                Cell::of(
+                wire::cell_of(
                     &self.book.shown(projected),
                     cells::input_text(projected.input()),
                     cells::provenance_text(host, projected),
@@ -1709,7 +1709,7 @@ impl Server {
     fn charts(&self, sheet: Sheet) -> Vec<Chart> {
         let host = self.book.host();
         let geometry = host.sheet_geometry(sheet.id());
-        let m = crate::grid::sheet_metrics(geometry.as_ref());
+        let m = crate::grid::sheet_metrics(geometry.as_ref().map(wire::geometry_of).as_ref());
         let corner = |c: &calc_host::ChartCorner| {
             let x = m.col_start(c.cell.column()) + c.dx;
             let y = m.row_start(c.cell.row()) + c.dy;

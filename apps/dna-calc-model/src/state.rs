@@ -155,11 +155,13 @@ impl FindMode {
 pub struct Model {
     pub selection: SelectionState,
     pub edit: EditSession,
+    pub editor: crate::EditorState,
     pub views: ViewStateStore,
     pub active_skin: Option<String>,
     pub find: Option<FindMode>,
     pub focus: crate::FocusRegistry,
-    pub command_pending: bool,
+    pub runtime: crate::RuntimeState,
+    pub commands: crate::CommandQueue,
     pub confirmed_selection: Option<(CellKey, Vec<GridArea>)>,
 }
 impl Model {
@@ -173,6 +175,7 @@ impl Model {
         self.selection = SelectionState::default();
         self.confirmed_selection = None;
         self.edit = EditSession::default();
+        self.editor = crate::EditorState::default();
         self.find = None;
         self.focus.observe(None);
         self.views.reset();

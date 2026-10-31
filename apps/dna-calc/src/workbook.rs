@@ -70,12 +70,7 @@ pub fn reserve_for_open(bytes: usize) {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenRefused(pub String);
 
-/// One sheet as the skins list it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SheetTab {
-    pub id: SheetId,
-    pub name: String,
-}
+pub use dna_calc_model::projection::SheetTab;
 
 /// An open workbook.
 pub struct Workbook {
@@ -214,7 +209,7 @@ impl Workbook {
         let mut cache = self.display_metrics.borrow_mut();
         Rc::clone(cache.entry(sheet).or_insert_with(|| {
             Rc::new(crate::grid::sheet_metrics(
-                self.host().sheet_geometry(sheet).as_ref(),
+                self.host().sheet_geometry(sheet).as_ref().map(crate::wire::geometry_of).as_ref(),
             ))
         }))
     }
@@ -517,57 +512,4 @@ impl Workbook {
     }
 }
 
-/// One sheet's formula cells by provenance.
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct SheetCensus {
-    pub name: String,
-    pub identity: Option<crate::wire::Sheet>,
-    /// The used area's label, when the sheet holds anything.
-    pub used: Option<String>,
-    pub inputs: usize,
-    pub formulas: usize,
-    pub calculated: usize,
-    pub refused: usize,
-    pub file_cached: usize,
-    pub stale: usize,
-}
-
-impl SheetCensus {
-    /// Formula cells whose host projection has no calculated, refused, cached or stale value.
-    pub fn pending(&self) -> usize {
-        self.formulas
-            .saturating_sub(self.calculated + self.refused + self.file_cached + self.stale)
-    }
-}
-
-/// The workbook's formula cells by provenance, per sheet, and the refusals by reason.
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Census {
-    pub sheets: Vec<SheetCensus>,
-    pub refusals: std::collections::BTreeMap<String, usize>,
-}
-
-impl Census {
-    pub fn pending(&self) -> usize {
-        self.sheets.iter().map(SheetCensus::pending).sum()
-    }
-    pub fn formulas(&self) -> usize {
-        self.sheets.iter().map(|sheet| sheet.formulas).sum()
-    }
-
-    pub fn calculated(&self) -> usize {
-        self.sheets.iter().map(|sheet| sheet.calculated).sum()
-    }
-
-    pub fn refused(&self) -> usize {
-        self.sheets.iter().map(|sheet| sheet.refused).sum()
-    }
-
-    pub fn file_cached(&self) -> usize {
-        self.sheets.iter().map(|sheet| sheet.file_cached).sum()
-    }
-
-    pub fn stale(&self) -> usize {
-        self.sheets.iter().map(|sheet| sheet.stale).sum()
-    }
-}
+pub use dna_calc_model::projection::{Census,SheetCensus};

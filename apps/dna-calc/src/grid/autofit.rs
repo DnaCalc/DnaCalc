@@ -25,42 +25,8 @@ pub fn fit_sizes(rows: bool, samples: impl IntoIterator<Item = (u32, f64)>) -> V
     sizes.into_iter().map(|(i, n)| (i, n.to_bits())).collect()
 }
 
-/// The text geometry the Grid actually renders. The workbook's base font maps to the app's
-/// system font; other families must be available in the browser before AutoFit can use them.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct TextStyle {
-    pub family: Option<String>,
-    pub pixels: f64,
-    pub bold: bool,
-    pub italic: bool,
-    pub wrap: bool,
-    pub rotation: i16,
-    pub indent: u16,
-    pub horizontal: Option<String>,
-    /// Consecutive blank cells sharing fill/centerContinuous, including the source column.
-    pub alignment_columns: u32,
-    pub vertical: Option<String>,
-    pub width: f64,
-    pub unsupported: Option<String>,
-}
-impl Default for TextStyle {
-    fn default() -> Self {
-        Self {
-            family: None,
-            pixels: 13.,
-            bold: false,
-            italic: false,
-            wrap: false,
-            rotation: 0,
-            indent: 0,
-            horizontal: None,
-            alignment_columns: 1,
-            vertical: None,
-            width: 64.,
-            unsupported: None,
-        }
-    }
-}
+pub use dna_calc_model::projection::TextStyle;
+
 /// Read existing style records in the worker; the UI receives no document handle.
 pub fn text_style(
     host: &calc_host::HostState,

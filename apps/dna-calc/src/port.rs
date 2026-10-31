@@ -35,11 +35,7 @@ struct WorkerLink {
     _on_message: wasm_bindgen::prelude::Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Health {
-    pub state: String,
-    pub pending: usize,
-}
+pub use dna_calc_model::Health;
 
 enum Transport {
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]

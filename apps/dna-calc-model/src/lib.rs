@@ -1,9 +1,16 @@
 //! The skinnable application model: state, commands and keyboard grammar, without a DOM,
 //! reactive toolkit, evaluator or host implementation. Browser adapters execute its effects.
+mod editor;
+pub use editor::{EditorState, TextHistory};
 pub mod command;
+pub mod projection;
 pub mod geometry;
 pub mod selection;
 mod state;
+mod runtime;
+mod outbox;
+pub use runtime::{Health,RuntimeState,Snapshot,Status,Timings,ViewMirror};
+pub use outbox::{CommandDelivery,CommandQueue};
 mod view;
 pub mod viewport;
 pub use calc_value::{CellKey, GridArea, Selection, SheetId};

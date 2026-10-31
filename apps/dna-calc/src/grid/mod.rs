@@ -35,7 +35,6 @@ mod structure;
 pub mod viewport;
 
 use crate::cells;
-use crate::controller::ViewMirror;
 use crate::controller::{Controller, EditOrigin};
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::style::css;
@@ -68,7 +67,7 @@ const DIGIT_PX: f64 = 7.0;
 /// A sheet's metrics from its geometry as the file states it (calc-host's `sheet_geometry`):
 /// Excel's default 64-pixel column and 20-pixel (15-point) row unless the sheet states other
 /// defaults, each sized column and row at its size, and a hidden one at 0.
-pub fn sheet_metrics(geometry: Option<&calc_host::SheetGeometry>) -> GridMetrics {
+pub fn sheet_metrics(geometry: Option<&wire::Geometry>) -> GridMetrics {
     let column_px = |chars: f64| (chars * DIGIT_PX).round();
     let row_px = |points: f64| (points * 96.0 / 72.0).round();
     let col_width = geometry
@@ -82,23 +81,23 @@ pub fn sheet_metrics(geometry: Option<&calc_host::SheetGeometry>) -> GridMetrics
             geometry
                 .columns
                 .iter()
-                .flat_map(|span| {
-                    let size = if span.hidden {
+                .flat_map(|&(first,last,width,hidden)| {
+                    let size = if hidden {
                         0.0
                     } else {
-                        span.width.map_or(col_width, column_px)
+                        width.map_or(col_width, column_px)
                     };
-                    (span.first..=span.last.min(16_384)).map(move |column| (column, size))
+                    (first..=last.min(16_384)).map(move |column| (column, size))
                 })
                 .collect::<Vec<_>>(),
             geometry
                 .rows
                 .iter()
-                .map(|(&row, format)| {
-                    let size = if format.hidden {
+                .map(|&(row,height,hidden)| {
+                    let size = if hidden {
                         0.0
                     } else {
-                        format.height.map_or(row_height, row_px)
+                        height.map_or(row_height, row_px)
                     };
                     (row, size)
                 })
@@ -336,7 +335,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     }));
     // The sheet's sizes, its used area and its charts, asked of the workbook's server again
     // when the sheet or the workbook changes (dc-p96).
-    let geometry: RwSignal<Option<calc_host::SheetGeometry>> =
+    let geometry: RwSignal<Option<wire::Geometry>> =
         RwSignal::new(initial_geometry.as_ref().map(wire::Geometry::geometry));
     let panes = RwSignal::new(
         initial_geometry
@@ -388,7 +387,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     });
     let sheet_metrics = Memo::new(move |_| geometry.with(|g| sheet_metrics(g.as_ref())));
     let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
-    let mirror = RwSignal::new(ViewMirror::default());
+    let mirror = controller.new_mirror();
     let subscription: StoredValue<Option<(u64, u64)>> = StoredValue::new(None);
     let scroller: NodeRef<leptos::html::Div> = NodeRef::new();
     let layer: NodeRef<leptos::html::Div> = NodeRef::new();

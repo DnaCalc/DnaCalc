@@ -81,9 +81,9 @@ pub fn controls(controller: Controller) -> impl IntoView {
             let summary = controller.summary.get_untracked();
             let names: Vec<_> = summary
                 .sheets
-                .into_iter()
-                .map(|(_, n)| n)
-                .chain(summary.hidden_sheets.into_iter().map(|(_, n, _)| n))
+                .iter()
+                .map(|(_, n)| n.clone())
+                .chain(summary.hidden_sheets.iter().map(|(_, n, _)| n.clone()))
                 .collect();
             next_name(&names)
         } else {
@@ -118,7 +118,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
                 </div>
                 <h3>"Hidden worksheets"</h3>
                 <div data-dnacalc="hidden-sheets">{move || {
-                    let hidden=controller.summary.get().hidden_sheets;
+                    let hidden=controller.summary.get().hidden_sheets.clone();
                     if hidden.is_empty() {return view!{<p>"No hidden worksheets"</p>}.into_any();}
                     hidden.into_iter().map(|(sheet,name,very)|view!{
                         <div class="dc-hidden-sheet"><span>{name}</span><button data-dnacalc="sheet-unhide" data-sheet=format!("{}:{}",sheet.0,sheet.1) disabled=very title=if very {"VeryHidden sheets cannot be shown here"} else {"Show this worksheet"}

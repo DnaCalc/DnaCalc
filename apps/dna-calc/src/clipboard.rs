@@ -475,7 +475,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
                         controller
                             .copied
                             .get_untracked()
-                            .map(|c| c.text)
+                            .map(|c| c.text.clone())
                             .unwrap_or_default()
                     } else {
                         String::new()

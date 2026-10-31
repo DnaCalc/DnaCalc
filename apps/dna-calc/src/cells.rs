@@ -15,74 +15,7 @@ use calc_host::{
 use dna_formula_ui::display::{self, SheetNames};
 use dna_formula_ui::result;
 
-/// Where a shown value came from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum Provenance {
-    /// The cell holds nothing.
-    Empty,
-    /// The cell's input is a literal, which is its value.
-    Literal,
-    /// The engine calculated the value, and it still stands.
-    Calculated,
-    /// The value the file stored for the formula; nothing here calculated it.
-    FileCache,
-    /// The engine refused the formula: it has no value.
-    Refused,
-    /// The formula has no value that stands at the current revision.
-    Stale,
-}
-
-impl Provenance {
-    /// The name the page carries in `data-provenance` and the class suffix.
-    pub const fn name(self) -> &'static str {
-        match self {
-            Provenance::Empty => "empty",
-            Provenance::Literal => "literal",
-            Provenance::Calculated => "calculated",
-            Provenance::FileCache => "file-cache",
-            Provenance::Refused => "refused",
-            Provenance::Stale => "stale",
-        }
-    }
-}
-
-/// One cell as a skin shows it.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CellShown {
-    pub style: crate::grid::autofit::TextStyle,
-    pub at: CellKey,
-    /// The text in the cell: the value as a cell of standard width shows it, `refused` for a
-    /// refusal, a stale cell's last value, or nothing.
-    pub text: String,
-    /// The value's type: `number`, `text`, `logical`, `error`, `array`, or empty.
-    pub kind: &'static str,
-    pub provenance: Provenance,
-    /// Whether the cell's input is a formula.
-    pub formula: bool,
-    /// How the cell's number format applied.
-    pub format: FormatShown,
-    /// The color the number format gives the text (`[Red]`, `[Color10]`), as `#rrggbb`.
-    pub color: Option<String>,
-    /// What the sheet's conditional formats give the cell (dc-6yw), its colours resolved.
-    pub conditional: Option<ConditionalShown>,
-}
-
-/// A cell's look under its conditional formats, as the grid draws it: colours as `#rrggbb`.
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct ConditionalShown {
-    pub fill: Option<String>,
-    pub font_color: Option<String>,
-    pub bold: bool,
-    pub italic: bool,
-    pub underline: bool,
-    pub strike: bool,
-    /// A data bar: the share of the cell's width (0 to 1), its colour, whether it is a gradient.
-    pub bar: Option<(f64, String, bool)>,
-    /// An icon: its set's name and its index.
-    pub icon: Option<(String, usize)>,
-    /// The value is hidden (a data bar or icon set that shows no value).
-    pub hide_value: bool,
-}
+pub use dna_calc_model::projection::{CellShown,ConditionalShown,FormatShown,Provenance};
 
 /// The sheet names of a host, for the shared labels ([`dna_formula_ui::display`]).
 pub struct WorkbookNames<'a>(pub &'a HostState);
@@ -124,31 +57,6 @@ fn kind(value: &CalcValue) -> &'static str {
     match value.core() {
         CoreValue::Empty => "",
         _ => result::kind(value),
-    }
-}
-
-/// How a cell's number format applied to what it shows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum FormatShown {
-    /// The General format (or no value to format).
-    General,
-    /// The cell's format code, rendered by calc-func's TEXT renderer.
-    Applied,
-    /// The renderer does not model the code: the value is shown in General instead.
-    NotModelled,
-    /// The value cannot be shown under the code (a negative date): `#` as Excel's cell shows it.
-    Unshowable,
-}
-
-impl FormatShown {
-    /// The name the page carries in `data-format`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            FormatShown::General => "general",
-            FormatShown::Applied => "applied",
-            FormatShown::NotModelled => "not-modelled",
-            FormatShown::Unshowable => "unshowable",
-        }
     }
 }
 

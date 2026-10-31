@@ -134,3 +134,15 @@ mod tests {
         });
     }
 }
+
+impl<M: Send + Sync + 'static,T:Clone+Send+Sync+'static> Field<M,T> {
+    pub fn state_binding(self)->dna_formula_ui::formula_field::StateBinding<T> {
+        dna_formula_ui::formula_field::StateBinding::new(self.read.into(),move |v|self.set(v))
+    }
+}
+impl dna_formula_ui::formula_field::HistoryStore for ModelField<dna_calc_model::TextHistory> {
+    fn available(&self,redo:bool)->bool {self.with_untracked(|h|h.available(redo))}
+    fn start(&self,original:String,text:String,end:usize) {self.update(|h|{let caret=original.encode_utf16().count();h.reset(original,caret);h.record(text,end);});}
+    fn record(&self,text:String,caret:usize) {self.update(|h|h.record(text,caret));}
+    fn step(&self,redo:bool)->Option<(String,usize)> {self.try_update(|h|h.step(redo)).flatten()}
+}
