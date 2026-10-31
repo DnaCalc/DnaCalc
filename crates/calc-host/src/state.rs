@@ -345,6 +345,86 @@ impl HostState {
     /// The area the published result of the array formula anchored at `anchor` fills: its spill
     /// range, a legacy array's area, or the anchor alone; `None` when no array result is
     /// published there (dc-677: what a comparison compares a dynamic array's anchor by).
+    /// The actual published array owner of a current calculated cell.
+    pub fn spill_owner(&self, at: CellKey) -> Option<CellKey> {
+        let owner = self.engine.spill_covering(at)?.anchor();
+        let page = crate::project(self, &crate::ProjectionRequest { cells: vec![at] }).ok()?;
+        matches!(
+            page.cells().first()?.value(),
+            crate::ProjectedValue::Calculated { .. }
+        )
+        .then_some(owner)
+    }
+
+    /// A blocked extent is available only while the projected #SPILL! is current.
+    pub fn blocked_spill_area(&self, at: CellKey) -> Option<GridArea> {
+        let page = crate::project(self, &crate::ProjectionRequest { cells: vec![at] }).ok()?;
+        match page.cells().first()?.value() {
+            crate::ProjectedValue::Calculated { value, .. }
+                if matches!(
+                    value.core(),
+                    crate::value::CoreValue::Error(crate::value::WorksheetErrorCode::Spill)
+                ) =>
+            {
+                self.engine.blocked_spill_area(at)
+            }
+            _ => None,
+        }
+    }
+
+    /// Bounded physical blockers in a current attempted extent; no file-cache inference.
+    pub fn spill_blockers(&self, at: CellKey, limit: usize) -> (Vec<GridArea>, bool) {
+        let Some(extent) = self.blocked_spill_area(at) else {
+            return (Vec::new(), false);
+        };
+        let mut areas = Vec::new();
+        for (cell, _) in self.model.cells(extent).into_iter().flatten() {
+            if cell != at {
+                areas.push(GridArea::cell(cell));
+                if areas.len() > limit {
+                    areas.truncate(limit);
+                    return (areas, true);
+                }
+            }
+        }
+        for (cell, _) in self.model.definitions().unloaded_in(extent) {
+            let area = GridArea::cell(cell);
+            if cell != at && !areas.contains(&area) {
+                areas.push(area);
+                if areas.len() > limit {
+                    areas.truncate(limit);
+                    return (areas, true);
+                }
+            }
+        }
+        for spill in self
+            .engine
+            .spills()
+            .filter(|s| s.anchor() != at && s.anchor().sheet() == at.sheet())
+        {
+            let area = spill.area();
+            let top = extent.first().row().max(area.first().row());
+            let left = extent.first().column().max(area.first().column());
+            let bottom = extent.last().row().min(area.last().row());
+            let right = extent.last().column().min(area.last().column());
+            if top <= bottom && left <= right {
+                let area = GridArea::new(
+                    CellKey::new(at.sheet(), top, left).unwrap(),
+                    CellKey::new(at.sheet(), bottom, right).unwrap(),
+                )
+                .unwrap();
+                if !areas.contains(&area) {
+                    areas.push(area);
+                }
+            }
+            if areas.len() > limit {
+                areas.truncate(limit);
+                return (areas, true);
+            }
+        }
+        (areas, false)
+    }
+
     pub fn spill_area(&self, anchor: CellKey) -> Option<GridArea> {
         self.engine.spill(anchor).map(|spill| spill.area())
     }

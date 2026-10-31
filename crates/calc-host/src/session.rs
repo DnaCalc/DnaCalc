@@ -122,6 +122,12 @@ pub enum SkinIntent {
     /// Text typed into a cell, read as Excel reads a cell entry ([`crate::interpret_entry`]): a
     /// formula, a value, or, for an empty text, a clear. One transaction, one undo step.
     EnterCell { at: CellKey, text: String },
+    /// One validated entry and its layout metadata in the same undo group.
+    EnterCellAndLayout {
+        at: CellKey,
+        text: String,
+        layout: Vec<calc_doc_model::SkinLayoutEdit>,
+    },
     /// Enter one source across the current selection, relocating formulas from its active cell.
     /// All entries are validated before one transaction and one undo step.
     EnterSelection { text: String },
@@ -404,6 +410,12 @@ impl HostSession {
             SkinIntent::EnterCell { at, text } => self
                 .prepare_entries(at, &text, &[GridArea::cell(at)])
                 .and_then(|edits| self.edit(edits, &mut receipt)),
+            SkinIntent::EnterCellAndLayout { at, text, layout } => self
+                .prepare_entries(at, &text, &[GridArea::cell(at)])
+                .and_then(|mut edits| {
+                    edits.extend(layout.into_iter().map(CellEdit::Layout));
+                    self.edit(edits, &mut receipt)
+                }),
             SkinIntent::EnterSelection { text } => match self.selection.active {
                 Some(at) => self
                     .prepare_entries(at, &text, &self.selection.areas)

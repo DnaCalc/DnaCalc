@@ -880,6 +880,8 @@ pub enum Action {
     Choose(&'static str, &'static str),
     /// Clears the field and types this into it.
     Into(&'static str, &'static str),
+    /// Opens a disclosure with a real summary click when it is closed.
+    OpenDetails(&'static str),
     /// Clicks the element.
     Click(&'static str),
     /// Two real pointer clicks at the element's centre.
@@ -1724,7 +1726,7 @@ const CALC_CASES: &[Case] = &[
         name: "the notebook lists the sheet's cells as blocks",
         actions: &[Action::Click("skin-notebook")],
         checks: &[
-            Check::Starts("notebook-page", "7 cells; page 1 of 1"),
+            Check::Starts("notebook-page", "7 blocks; page 1 of 1"),
             Check::Attr(
                 "[data-dnacalc=\"block\"][data-cell=\"B1\"]",
                 "data-provenance",
@@ -1734,10 +1736,13 @@ const CALC_CASES: &[Case] = &[
     },
     Case {
         name: "a block's entry is entered and its dependents recalculate",
-        actions: &[Action::Into(
-            "[data-dnacalc=\"block\"][data-cell=\"A1\"] [data-dnacalc=\"block-input\"]",
-            "6\u{E007}",
-        )],
+        actions: &[
+            Action::Click("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-select]"),
+            Action::Into(
+                "[data-dnacalc=\"block\"][data-cell=\"A1\"] [data-dnacalc=\"block-input\"]",
+                "6\u{E007}",
+            ),
+        ],
         checks: &[Check::Text(
             "[data-dnacalc=\"block\"][data-cell=\"A3\"] [data-dnacalc=\"block-value\"]",
             "61",
@@ -1758,7 +1763,7 @@ const CALC_CASES: &[Case] = &[
         name: "back in the grid, the active cell and the values are as they were",
         actions: &[Action::Click("skin-grid")],
         checks: &[
-            Check::Value("name-box", "D1"),
+            Check::Value("name-box", "A1"),
             Check::Text(cell!("A3"), "61"),
         ],
     },
@@ -2173,10 +2178,7 @@ const CALC_CASES: &[Case] = &[
                 "B3",
             ),
             // Other!B4, B12 and B13 sum ranges that hold Data!B3.
-            Check::Text(
-                "tree-dependents",
-                "read by 3 formulas",
-            ),
+            Check::Text("tree-dependents", "read by 3 formulas"),
         ],
     },
     Case {
@@ -3437,7 +3439,10 @@ const CALC_CASES: &[Case] = &[
         actions: &[Action::Click("skin-notebook")],
         checks: &[
             Check::Text("result-state", "Refused"),
-            Check::Name("[data-dnacalc=block][data-cell=A1] input", "Input for A1"),
+            Check::Name(
+                "[data-dnacalc=block][data-cell=C1] textarea",
+                "Input for C1",
+            ),
         ],
     },
     Case {
@@ -3604,11 +3609,12 @@ const CALC_CASES: &[Case] = &[
         name: "shared states: an uncommitted Notebook draft is protected by New",
         actions: &[
             Action::Click("skin-notebook"),
+            Action::Click("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-select]"),
             Action::Wait(Check::Value(
-                "[data-dnacalc=block][data-cell=A1] input",
+                "[data-dnacalc=block][data-cell=A1] textarea",
                 "9",
             )),
-            Action::Into("[data-dnacalc=block][data-cell=A1] input", "123"),
+            Action::Into("[data-dnacalc=block][data-cell=A1] textarea", "123"),
             Action::Click("new"),
         ],
         checks: &[
@@ -3624,28 +3630,46 @@ const CALC_CASES: &[Case] = &[
             Action::Click("skin-notebook"),
         ],
         checks: &[Check::Value(
-            "[data-dnacalc=block][data-cell=A1] input",
+            "[data-dnacalc=block][data-cell=A1] textarea",
             "123",
         )],
     },
     Case {
-        name: "shared states: Save cannot silently omit a Notebook draft",
-        actions: &[Action::Click("save")],
+        name: "shared states: Save commits the shared Notebook draft",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::Wait(Check::Starts(
+                "status",
+                "Download started: manual-cache.xlsx.",
+            )),
+        ],
         checks: &[
-            Check::Starts("status", "Finish the Notebook draft with Enter"),
-            Check::Focused("[data-dnacalc=block][data-cell=A1] input"),
-            Check::Value("[data-dnacalc=block][data-cell=A1] input", "123"),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "123",
+            ),
+            Check::Value(BAR, "123"),
         ],
     },
     Case {
         name: "shared states: cancelling a Notebook draft restores authored input",
-        actions: &[Action::Keys(
-            "[data-dnacalc=block][data-cell=A1] input",
-            ESCAPE,
-        )],
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::Value(
+                "[data-dnacalc=block][data-cell=A1] textarea",
+                "9",
+            )),
+            Action::Into("[data-dnacalc=block][data-cell=A1] textarea", "456"),
+            Action::Keys("[data-dnacalc=block][data-cell=A1] textarea", ESCAPE),
+        ],
         checks: &[
-            Check::Value("[data-dnacalc=block][data-cell=A1] input", "9"),
-            Check::Absent("notebook-drafts"),
+            Check::Value("[data-dnacalc=block][data-cell=A1] textarea", "9"),
+            Check::Value(BAR, "9"),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "9",
+            ),
         ],
     },
     Case {
@@ -6634,115 +6658,598 @@ const CALC_CASES: &[Case] = &[
     Case {
         name: "canvas: actual dependency chips are labelled keyboard buttons with one literal value",
         actions: &[
-            Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx"),Action::DiscardReplacement,
-            Action::Into("name-box","B1\u{E007}"),Action::Wait(Check::Absent("[data-dnacalc=skin-canvas][disabled]")),Action::Click("skin-canvas"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Wait(Check::Absent("[data-dnacalc=skin-canvas][disabled]")),
+            Action::Click("skin-canvas"),
         ],
         checks: &[
-            Check::Role("[data-dnacalc=canvas-node][data-node=A1]","button"),
-            Check::Name("[data-dnacalc=canvas-node][data-node=A1]","Inspect Data!A1"),
-            Check::Attr("[data-dnacalc=canvas-node][data-node=A1]","aria-description","1; literal"),
+            Check::Role("[data-dnacalc=canvas-node][data-node=A1]", "button"),
+            Check::Name(
+                "[data-dnacalc=canvas-node][data-node=A1]",
+                "Inspect Data!A1",
+            ),
+            Check::Attr(
+                "[data-dnacalc=canvas-node][data-node=A1]",
+                "aria-description",
+                "1; literal",
+            ),
             Check::Absent("[data-dnacalc=canvas-node][data-node=A1] [data-dnacalc=canvas-formula]"),
-            Check::Text("[data-dnacalc=canvas-node][data-node=A1] [data-dnacalc=canvas-value]","1"),
-            Check::Text("[data-dnacalc=canvas-node][data-node=B1] [data-dnacalc=canvas-state]","calculated"),
-            Check::Attr("[data-dnacalc=canvas-node][data-node=B1]","data-selected","true"),
+            Check::Text(
+                "[data-dnacalc=canvas-node][data-node=A1] [data-dnacalc=canvas-value]",
+                "1",
+            ),
+            Check::Text(
+                "[data-dnacalc=canvas-node][data-node=B1] [data-dnacalc=canvas-state]",
+                "calculated",
+            ),
+            Check::Attr(
+                "[data-dnacalc=canvas-node][data-node=B1]",
+                "data-selected",
+                "true",
+            ),
         ],
     },
     Case {
         name: "canvas: Enter follows a cross-sheet chip and restores focus to the selected node",
-        actions:&[Action::Keys("[data-dnacalc=canvas-node][data-node='Other!B3']","\u{E007}")],
-        checks:&[Check::Text("canvas-cell","Other!B3"),Check::Value(BAR,"=Data!B1*2"),Check::Focused("[data-dnacalc=canvas-node][data-center=true]")],
+        actions: &[Action::Keys(
+            "[data-dnacalc=canvas-node][data-node='Other!B3']",
+            "\u{E007}",
+        )],
+        checks: &[
+            Check::Text("canvas-cell", "Other!B3"),
+            Check::Value(BAR, "=Data!B1*2"),
+            Check::Focused("[data-dnacalc=canvas-node][data-center=true]"),
+        ],
     },
     Case {
         name: "canvas: a range can be inspected by keyboard without changing the active formula",
-        actions:&[Action::Into("name-box","Data!B2\u{E007}"),Action::Wait(Check::Text("canvas-cell","Data!B2")),Action::Keys("[data-dnacalc=canvas-node][data-kind=area]","\u{E007}")],
-        checks:&[Check::TextContains("canvas-range","Data!A1:A3"),Check::TextContains("canvas-range","3 cells"),Check::Value(BAR,"=SUM(A1:A3)"),Check::Focused("[data-dnacalc=canvas-node][data-kind=area]"),Check::Attr("[data-dnacalc=canvas-node][data-kind=area]","data-selected","true")],
+        actions: &[
+            Action::Into("name-box", "Data!B2\u{E007}"),
+            Action::Wait(Check::Text("canvas-cell", "Data!B2")),
+            Action::Keys("[data-dnacalc=canvas-node][data-kind=area]", "\u{E007}"),
+        ],
+        checks: &[
+            Check::TextContains("canvas-range", "Data!A1:A3"),
+            Check::TextContains("canvas-range", "3 cells"),
+            Check::Value(BAR, "=SUM(A1:A3)"),
+            Check::Focused("[data-dnacalc=canvas-node][data-kind=area]"),
+            Check::Attr(
+                "[data-dnacalc=canvas-node][data-kind=area]",
+                "data-selected",
+                "true",
+            ),
+        ],
     },
     Case {
-        name:"canvas: Show source selects the actual range in Grid",
-        actions:&[Action::Keys("canvas-show-source","\u{E007}")],
-        checks:&[Check::Value("name-box","A1"),Check::Value(BAR,"1"),Check::Attr("selection","data-area","A1:A3"),Check::Focused("grid")],
+        name: "canvas: Show source selects the actual range in Grid",
+        actions: &[Action::Keys("canvas-show-source", "\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Value(BAR, "1"),
+            Check::Attr("selection", "data-area", "A1:A3"),
+            Check::Focused("grid"),
+        ],
     },
     Case {
-        name:"canvas: depth, zoom, pan and reset controls remain keyboard reachable",
-        actions:&[Action::Click("skin-canvas"),Action::Keys("canvas-zoom-in","\u{E007}"),Action::Keys("canvas-pan-right","\u{E007}"),Action::Keys("canvas-back-more","\u{E007}")],
-        checks:&[Check::Text("canvas-zoom","110%"),Check::Text("canvas-depth","2 back, 1 forward"),Check::Name("canvas-center","Center active cell"),Check::Role("canvas-viewport","region")],
+        name: "canvas: depth, zoom, pan and reset controls remain keyboard reachable",
+        actions: &[
+            Action::Click("skin-canvas"),
+            Action::Keys("canvas-zoom-in", "\u{E007}"),
+            Action::Keys("canvas-pan-right", "\u{E007}"),
+            Action::Keys("canvas-back-more", "\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("canvas-zoom", "110%"),
+            Check::Text("canvas-depth", "2 back, 1 forward"),
+            Check::Name("canvas-center", "Center active cell"),
+            Check::Role("canvas-viewport", "region"),
+        ],
     },
     Case {
-        name:"canvas: Reset restores scale and depth and the inspector fits a phone",
-        actions:&[Action::Keys("canvas-reset","\u{E007}"),Action::Into("name-box","B1\u{E007}"),Action::Wait(Check::Text("canvas-cell","Data!B1")),Action::Window(390,844),Action::Keys("canvas-center","\u{E007}")],
-        checks:&[Check::Text("canvas-zoom","100%"),Check::Text("canvas-depth","1 back, 1 forward"),Check::Fits,Check::Narrow(390),Check::Reachable("canvas-show-source"),Check::Reachable("canvas-center"),Check::Reachable("[data-dnacalc=canvas-node][data-center=true]"),Check::Contained("[data-dnacalc=canvas-node][data-center=true]","[data-dnacalc=canvas] .dc-stage")],
+        name: "canvas: Reset restores scale and depth and the inspector fits a phone",
+        actions: &[
+            Action::Keys("canvas-reset", "\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Wait(Check::Text("canvas-cell", "Data!B1")),
+            Action::Window(390, 844),
+            Action::Keys("canvas-center", "\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("canvas-zoom", "100%"),
+            Check::Text("canvas-depth", "1 back, 1 forward"),
+            Check::Fits,
+            Check::Narrow(390),
+            Check::Reachable("canvas-show-source"),
+            Check::Reachable("canvas-center"),
+            Check::Reachable("[data-dnacalc=canvas-node][data-center=true]"),
+            Check::Contained(
+                "[data-dnacalc=canvas-node][data-center=true]",
+                "[data-dnacalc=canvas] .dc-stage",
+            ),
+        ],
     },
     Case {
-        name:"canvas: a literal without dependencies remains inspectable and editable through the shared formula field",
-        actions:&[Action::Window(1280,1000),Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),Action::Into(BAR,"42\u{E007}"),Action::Into("name-box","A1\u{E007}")],
-        checks:&[Check::Count("canvas-node",1),Check::Text("canvas-inspector-value","42"),Check::Absent("canvas-formula"),Check::Text("canvas-reads","nothing"),Check::Text("canvas-read-by","nothing")],
+        name: "canvas: a literal without dependencies remains inspectable and editable through the shared formula field",
+        actions: &[
+            Action::Window(1280, 1000),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),
+            Action::Into(BAR, "42\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Count("canvas-node", 1),
+            Check::Text("canvas-inspector-value", "42"),
+            Check::Absent("canvas-formula"),
+            Check::Text("canvas-reads", "nothing"),
+            Check::Text("canvas-read-by", "nothing"),
+        ],
     },
     Case {
-        name:"canvas: cycles are finite in the actual worker trace",
-        actions:&[Action::Into(BAR,"=B1\u{E007}"),Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"=A1\u{E007}"),Action::Into("name-box","A1\u{E007}")],
-        checks:&[Check::Count("canvas-node",2),Check::Text("canvas-cell","Sheet1!A1"),Check::Absent("canvas-hidden")],
+        name: "canvas: cycles are finite in the actual worker trace",
+        actions: &[
+            Action::Into(BAR, "=B1\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into(BAR, "=A1\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Count("canvas-node", 2),
+            Check::Text("canvas-cell", "Sheet1!A1"),
+            Check::Absent("canvas-hidden"),
+        ],
     },
     Case {
-        name:"canvas: the blocked spill is an actual worksheet error with an explanation",
-        actions:&[Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),Action::Into("name-box","D2\u{E007}"),Action::Into(BAR,"99\u{E007}"),Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"=SEQUENCE(3,2)\u{E007}"),Action::Into("name-box","C1\u{E007}")],
-        checks:&[Check::Text("canvas-inspector-value","#SPILL!"),Check::TextContains("canvas-reason","cannot spill"),Check::Text("result-state","Worksheet error"),Check::Value(BAR,"=_xlfn.SEQUENCE(3,2)")],
+        name: "canvas: the blocked spill is an actual worksheet error with an explanation",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),
+            Action::Into("name-box", "D2\u{E007}"),
+            Action::Into(BAR, "99\u{E007}"),
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Into(BAR, "=SEQUENCE(3,2)\u{E007}"),
+            Action::Into("name-box", "C1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("canvas-inspector-value", "#SPILL!"),
+            Check::TextContains("canvas-reason", "cannot spill"),
+            Check::Text("result-state", "Worksheet error"),
+            Check::Value(BAR, "=_xlfn.SEQUENCE(3,2)"),
+        ],
     },
     Case {
-        name:"canvas: omitted actual readers are counted with their direction and depth",
-        actions:&[Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),Action::Click("skin-grid"),Action::ExternalClipboard("1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Absent("[data-dnacalc=skin-canvas][disabled]")),Action::Click("skin-canvas")],
-        checks:&[Check::Count("canvas-node",13),Check::Text("canvas-hidden","8 additional readers at depth 1 not shown"),Check::Text("canvas-cell","Sheet1!A1")],
+        name: "canvas: omitted actual readers are counted with their direction and depth",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),
+            Action::Click("skin-grid"),
+            Action::ExternalClipboard(
+                "1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1",
+                false,
+            ),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Wait(Check::Absent("[data-dnacalc=skin-canvas][disabled]")),
+            Action::Click("skin-canvas"),
+        ],
+        checks: &[
+            Check::Count("canvas-node", 13),
+            Check::Text("canvas-hidden", "8 additional readers at depth 1 not shown"),
+            Check::Text("canvas-cell", "Sheet1!A1"),
+        ],
     },
     Case {
-        name:"tree: source search and reveal reach a distant cell without projecting its prefix",
-        actions:&[Action::Window(1440,1000),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx"),Action::DiscardReplacement,Action::Click("skin-tree"),Action::Into("name-box","AZ10000\u{E007}"),Action::Into(BAR,"distant source\u{E007}"),Action::Into("tree-search","distant source")],
-        checks:&[Check::Count("[data-dnacalc=tree-row][data-kind=cell]",1),Check::Text("tree-input","distant source"),Check::ActiveDescendant("tree"),Check::Bounded("tree-row",12)],
+        name: "tree: source search and reveal reach a distant cell without projecting its prefix",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Click("skin-tree"),
+            Action::Into("name-box", "AZ10000\u{E007}"),
+            Action::Into(BAR, "distant source\u{E007}"),
+            Action::Into("tree-search", "distant source"),
+        ],
+        checks: &[
+            Check::Count("[data-dnacalc=tree-row][data-kind=cell]", 1),
+            Check::Text("tree-input", "distant source"),
+            Check::ActiveDescendant("tree"),
+            Check::Bounded("tree-row", 12),
+        ],
     },
     Case {
-        name:"tree: reveal active clears search and keeps the distant source in its window",
-        actions:&[Action::Into("name-box","AZ10000\u{E007}"),Action::Click("tree-reveal")],
-        checks:&[Check::Attr("[data-dnacalc=tree-row][data-cell=AZ10000]","aria-level","4"),Check::Value("tree-search",""),Check::Attr("[data-dnacalc=tree-row][data-focused=true]","data-cell","AZ10000"),Check::Reachable("[data-dnacalc=tree-row][data-cell=AZ10000]"),Check::Bounded("tree-row",80)],
+        name: "tree: reveal active clears search and keeps the distant source in its window",
+        actions: &[
+            Action::Into("name-box", "AZ10000\u{E007}"),
+            Action::Click("tree-reveal"),
+        ],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=tree-row][data-cell=AZ10000]",
+                "aria-level",
+                "4",
+            ),
+            Check::Value("tree-search", ""),
+            Check::Attr(
+                "[data-dnacalc=tree-row][data-focused=true]",
+                "data-cell",
+                "AZ10000",
+            ),
+            Check::Reachable("[data-dnacalc=tree-row][data-cell=AZ10000]"),
+            Check::Bounded("tree-row", 80),
+        ],
     },
     Case {
-        name:"tree: expanded Right enters the first child",
-        actions:&[Action::Keys("tree","\u{E011}\u{E014}")],
-        checks:&[Check::Attr("[data-dnacalc=tree-row][data-focused=true]","data-key","names")],
+        name: "tree: expanded Right enters the first child",
+        actions: &[Action::Keys("tree", "\u{E011}\u{E014}")],
+        checks: &[Check::Attr(
+            "[data-dnacalc=tree-row][data-focused=true]",
+            "data-key",
+            "names",
+        )],
     },
     Case {
-        name:"tree: Left moves a folded branch to its parent",
-        actions:&[Action::Keys("tree","\u{E012}")],
-        checks:&[Check::Attr("[data-dnacalc=tree-row][data-focused=true]","data-key","workbook")],
+        name: "tree: Left moves a folded branch to its parent",
+        actions: &[Action::Keys("tree", "\u{E012}")],
+        checks: &[Check::Attr(
+            "[data-dnacalc=tree-row][data-focused=true]",
+            "data-key",
+            "workbook",
+        )],
     },
     Case {
-        name:"tree: folds and focus survive a skin return",
-        actions:&[Action::Click("[data-dnacalc=tree-row][data-key='sheet:Data'] [data-dnacalc=tree-toggle]"),Action::Click("skin-canvas"),Action::Click("skin-tree")],
-        checks:&[Check::Attr("[data-dnacalc=tree-row][data-key='sheet:Data']","data-folded","true"),Check::Attr("[data-dnacalc=tree-row][data-focused=true]","data-key","sheet:Data"),Check::Absent("[data-dnacalc=tree-row][data-cell=AZ10000]")],
+        name: "tree: folds and focus survive a skin return",
+        actions: &[
+            Action::Click(
+                "[data-dnacalc=tree-row][data-key='sheet:Data'] [data-dnacalc=tree-toggle]",
+            ),
+            Action::Click("skin-canvas"),
+            Action::Click("skin-tree"),
+        ],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=tree-row][data-key='sheet:Data']",
+                "data-folded",
+                "true",
+            ),
+            Check::Attr(
+                "[data-dnacalc=tree-row][data-focused=true]",
+                "data-key",
+                "sheet:Data",
+            ),
+            Check::Absent("[data-dnacalc=tree-row][data-cell=AZ10000]"),
+        ],
     },
     Case {
-        name:"tree: a published array exposes actual spill children and narrow source columns",
-        actions:&[Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-tree][disabled]")),Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"=SEQUENCE(3,2)\u{E007}"),Action::Into("name-box","C1\u{E007}"),Action::Window(390,844)],
-        checks:&[Check::Text("[data-dnacalc=tree-row][data-cell=D3] [data-dnacalc=tree-value]","6"),Check::Text("[data-dnacalc=tree-row][data-cell=D3] [data-dnacalc=tree-input]","Child value"),Check::Fits,Check::Narrow(390),Check::Reachable("tree-search"),Check::Reachable("tree-reveal")],
+        name: "tree: a published array exposes actual spill children and narrow source columns",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Absent("[data-dnacalc=skin-tree][disabled]")),
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Into(BAR, "=SEQUENCE(3,2)\u{E007}"),
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Window(390, 844),
+        ],
+        checks: &[
+            Check::Text(
+                "[data-dnacalc=tree-row][data-cell=D3] [data-dnacalc=tree-value]",
+                "6",
+            ),
+            Check::Text(
+                "[data-dnacalc=tree-row][data-cell=D3] [data-dnacalc=tree-input]",
+                "Child value",
+            ),
+            Check::Fits,
+            Check::Narrow(390),
+            Check::Reachable("tree-search"),
+            Check::Reachable("tree-reveal"),
+        ],
     },
     Case {
-        name:"tree: exact refusal and worksheet error details stay attached to real sources",
-        actions:&[Action::Window(1440,1000),Action::Into("name-box","E20\u{E007}"),Action::Into(BAR,"=NoSheet!A1\u{E007}"),Action::Into("name-box","E20\u{E007}"),Action::Click("tree-details-toggle"),Action::Window(390,844)],
-        checks:&[Check::Contained("[data-dnacalc=tree-row][data-cell=E20]","tree"),Check::Reachable("tree-open-grid"),Check::Contained("tree-open-grid","tree-details"),Check::Attr("[data-dnacalc=tree-row][data-cell=E20]","data-provenance","refused"),Check::TextContains("tree-details","NoSheet"),Check::Text("result-state","Refused")],
+        name: "tree: exact refusal and worksheet error details stay attached to real sources",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Into("name-box", "E20\u{E007}"),
+            Action::Into(BAR, "=NoSheet!A1\u{E007}"),
+            Action::Into("name-box", "E20\u{E007}"),
+            Action::Click("tree-details-toggle"),
+            Action::Window(390, 844),
+        ],
+        checks: &[
+            Check::Contained("[data-dnacalc=tree-row][data-cell=E20]", "tree"),
+            Check::Reachable("tree-open-grid"),
+            Check::Contained("tree-open-grid", "tree-details"),
+            Check::Attr(
+                "[data-dnacalc=tree-row][data-cell=E20]",
+                "data-provenance",
+                "refused",
+            ),
+            Check::TextContains("tree-details", "NoSheet"),
+            Check::Text("result-state", "Refused"),
+        ],
     },
     Case {
-        name:"tree: the shared editor updates the selected source",
-        actions:&[Action::Into(BAR,"=1/0\u{E007}"),Action::Into("name-box","E20\u{E007}")],
-        checks:&[Check::Text("[data-dnacalc=tree-row][data-cell=E20] [data-dnacalc=tree-value]","#DIV/0!"),Check::TextContains("tree-details","zero")],
+        name: "tree: the shared editor updates the selected source",
+        actions: &[
+            Action::Into(BAR, "=1/0\u{E007}"),
+            Action::Into("name-box", "E20\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(
+                "[data-dnacalc=tree-row][data-cell=E20] [data-dnacalc=tree-value]",
+                "#DIV/0!",
+            ),
+            Check::TextContains("tree-details", "zero"),
+        ],
     },
     Case {
-        name:"tree: one workbook Undo restores the refusal source and Redo restores the error",
-        actions:&[Action::Click("undo"),Action::Wait(Check::Value(BAR,"=NoSheet!A1")),Action::Wait(Check::Text("result-state","Refused")),Action::Click("redo"),Action::Wait(Check::Value(BAR,"=1/0"))],
-        checks:&[Check::Text("[data-dnacalc=tree-row][data-cell=E20] [data-dnacalc=tree-value]","#DIV/0!")],
+        name: "tree: one workbook Undo restores the refusal source and Redo restores the error",
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::Value(BAR, "=NoSheet!A1")),
+            Action::Wait(Check::Text("result-state", "Refused")),
+            Action::Click("redo"),
+            Action::Wait(Check::Value(BAR, "=1/0")),
+        ],
+        checks: &[Check::Text(
+            "[data-dnacalc=tree-row][data-cell=E20] [data-dnacalc=tree-value]",
+            "#DIV/0!",
+        )],
     },
     Case {
-        name:"tree: Grid source opens through the shared workbook selection",
-        actions:&[Action::Click("tree-open-grid")],
-        checks:&[Check::Value("name-box","E20"),Check::Value(BAR,"=1/0"),Check::Text(cell!("E20"),"#DIV/0!")],
+        name: "tree: Grid source opens through the shared workbook selection",
+        actions: &[Action::Click("tree-open-grid")],
+        checks: &[
+            Check::Value("name-box", "E20"),
+            Check::Value(BAR, "=1/0"),
+            Check::Text(cell!("E20"), "#DIV/0!"),
+        ],
     },
-
+    Case {
+        name: "Notebook: a blank workbook offers visible cell-backed insert and link actions",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Click("skin-notebook"),
+        ],
+        checks: &[
+            Check::Count("notebook-empty", 1),
+            Check::Reachable("notebook-link"),
+            Check::Reachable("notebook-insert-tools"),
+        ],
+    },
+    Case {
+        name: "Notebook: prose is ordinary visible cell text, including a leading equals sign",
+        actions: &[
+            Action::Into("notebook-address", "A1"),
+            Action::Choose("notebook-kind", "prose"),
+            Action::OpenDetails("notebook-insert-tools"),
+            Action::Into("notebook-content", "=visible prose"),
+            Action::Click("notebook-insert"),
+        ],
+        checks: &[
+            Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "=visible prose",
+            ),
+            Check::Attr(
+                "[data-dnacalc=block][data-cell=A1]",
+                "data-provenance",
+                "literal",
+            ),
+        ],
+    },
+    Case {
+        name: "Notebook: calculation insertion uses the workbook evaluator",
+        actions: &[
+            Action::Into("notebook-address", "A2"),
+            Action::Choose("notebook-kind", "calculation"),
+            Action::Into("notebook-content", "=3*7"),
+            Action::Click("notebook-insert"),
+            Action::Wait(Check::Focused(
+                "[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-select]",
+            )),
+            Action::Window(1440, 1000),
+            Action::Window(390, 844),
+        ],
+        checks: &[
+            Check::Contained(
+                "[data-dnacalc=block][data-selected=true] [data-dnacalc=block-select]",
+                "[data-skin=notebook]",
+            ),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-value]",
+                "21",
+            ),
+            Check::Value(BAR, "=3*7"),
+        ],
+    },
+    Case {
+        name: "Notebook: reordering links leaves worksheet sources in place",
+        actions: &[Action::Click(
+            "[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-up]",
+        )],
+        checks: &[
+            Check::Attr("[data-dnacalc=block]:first-child", "data-cell", "A2"),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "=visible prose",
+            ),
+        ],
+    },
+    Case {
+        name: "Notebook: saved links and prose reopen in their explicit order",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::Wait(Check::Starts("status", "Download started: Book1.xlsx.")),
+            Action::UploadDownload("Book1.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("skin-notebook"),
+        ],
+        checks: &[
+            Check::Attr("[data-dnacalc=block]:first-child", "data-cell", "A2"),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "=visible prose",
+            ),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-value]",
+                "21",
+            ),
+        ],
+    },
+    Case {
+        name: "Notebook: linking existing cells preserves unfinished insertion content",
+        actions: &[
+            Action::OpenDetails("notebook-insert-tools"),
+            Action::Into("notebook-content", "unfinished block"),
+            Action::Into("notebook-address", "A1"),
+            Action::Click("notebook-link"),
+            Action::Click("skin-grid"),
+            Action::Click("skin-notebook"),
+            Action::OpenDetails("notebook-insert-tools"),
+            Action::Click("save"),
+        ],
+        checks: &[
+            Check::Value("notebook-content", "unfinished block"),
+            Check::Starts("status", "Return to Notebook to insert or clear"),
+        ],
+    },
+    Case {
+        name: "Notebook: duplicate source links restore focus to the chosen placement",
+        actions: &[
+            Action::Into("notebook-content", ""),
+            Action::Into("notebook-address", "A1"),
+            Action::Click("notebook-link"),
+            Action::Wait(Check::Count("[data-dnacalc=block]", 4)),
+            Action::Click("[data-dnacalc=block]:last-child [data-dnacalc=block-select]"),
+            Action::Wait(Check::Count("[data-dnacalc=block]:last-child textarea", 1)),
+            Action::Into("[data-dnacalc=block]:last-child textarea", "draft"),
+            Action::Keys("[data-dnacalc=block]:last-child textarea", ESCAPE),
+        ],
+        checks: &[
+            Check::Focused("[data-dnacalc=block]:last-child [data-dnacalc=block-select]"),
+            Check::Count("[data-dnacalc=block] textarea", 1),
+            Check::Value(BAR, "'=visible prose"),
+        ],
+    },
+    Case {
+        name: "Notebook: recalculation preserves command focus after selecting a duplicate source",
+        actions: &[
+            Action::Click("calculate"),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-value]",
+                "21",
+            )),
+        ],
+        checks: &[
+            Check::Focused("calculate"),
+            Check::Count("[data-dnacalc=block] textarea", 1),
+        ],
+    },
+    Case {
+        name: "Notebook: source navigation shares selection and source with Grid",
+        actions: &[Action::Click(
+            "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-grid]",
+        )],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Value(BAR, "'=visible prose"),
+            Check::Text(cell!("A1"), "=visible prose"),
+        ],
+    },
+    Case {
+        name: "Notebook: a blocked array shows its actual worksheet blocker",
+        actions: &[
+            Action::Into("name-box", "D2\u{E007}"),
+            Action::Into(BAR, "99\u{E007}"),
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Into(BAR, "=SEQUENCE(3,2)\u{E007}"),
+            Action::Click("skin-notebook"),
+            Action::Click("[data-dnacalc=block][data-cell=C1] [data-dnacalc=block-details]"),
+        ],
+        checks: &[
+            Check::Text(
+                "[data-dnacalc=block][data-cell=C1] [data-dnacalc=block-value]",
+                "#SPILL!",
+            ),
+            Check::Text("block-spill-blocker", "Open blocker D2:D2"),
+        ],
+    },
+    Case {
+        name: "Notebook: open array details refresh when another cell releases the spill",
+        actions: &[
+            Action::Into("name-box", "D2\u{E007}"),
+            Action::Into(BAR, "\u{E007}"),
+        ],
+        checks: &[
+            Check::Absent("block-spill-blocker"),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=D2] [data-dnacalc=block-value]",
+                "4",
+            ),
+        ],
+    },
+    Case {
+        name: "Notebook: open array details refresh when another cell blocks the spill again",
+        actions: &[
+            Action::Into("name-box", "D2\u{E007}"),
+            Action::Into(BAR, "99\u{E007}"),
+        ],
+        checks: &[Check::Text("block-spill-blocker", "Open blocker D2:D2")],
+    },
+    Case {
+        name: "Notebook: opening a blocker navigates to the actual source",
+        actions: &[Action::Click("block-spill-blocker")],
+        checks: &[Check::Value("name-box", "D2"), Check::Value(BAR, "99")],
+    },
+    Case {
+        name: "Notebook: clearing the blocker shows canonical array values and a read-only child",
+        actions: &[
+            Action::Keys("grid", DELETE),
+            Action::Click("skin-notebook"),
+            Action::Click("[data-dnacalc=block][data-cell=D2] [data-dnacalc=block-select]"),
+            Action::Click("[data-dnacalc=block][data-cell=D2] [data-dnacalc=block-details]"),
+        ],
+        checks: &[
+            Check::Text(
+                "[data-dnacalc=block][data-cell=D2] [data-dnacalc=block-value]",
+                "4",
+            ),
+            Check::Absent("[data-dnacalc=block][data-cell=D2] textarea"),
+            Check::Count("block-owner", 1),
+        ],
+    },
+    Case {
+        name: "Notebook: a large authored sheet is paged and restores the viewed page",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "A1:A85\u{E007}"),
+            Action::Into(BAR, "7\u{E009}\u{E007}\u{E000}"),
+            Action::Click("skin-notebook"),
+            Action::Click("notebook-next"),
+            Action::Click("skin-grid"),
+            Action::Click("skin-notebook"),
+        ],
+        checks: &[
+            Check::Text("notebook-page", "85 blocks; page 2 of 3"),
+            Check::Bounded("[data-dnacalc=block]", 40),
+            Check::Attr("[data-dnacalc=block]:first-child", "data-cell", "A41"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -7329,6 +7836,18 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 Err("The system clipboard did not contain the external test source".to_owned())
             }
         }
+        Action::OpenDetails(name) => {
+            let css = select(app, name);
+            let quoted = serde_json::to_string(&css).unwrap();
+            if session.script(&format!(
+                "return document.querySelector({quoted})?.open===true;"
+            ))? != json!(true)
+            {
+                let element = session.element(&format!("{css} > summary"))?;
+                session.post(&format!("/element/{element}/click"), json!({}))?;
+            }
+            Ok(())
+        }
         Action::Into(name, text) => {
             let css = select(app, name);
             let element = session.element(&css)?;
@@ -7445,7 +7964,9 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     let current = session.element(&selector)?;
                     session.post(&format!("/element/{current}/click"), json!({}))?;
                 }
-                other => { other?; }
+                other => {
+                    other?;
+                }
             }
             Ok(())
         }

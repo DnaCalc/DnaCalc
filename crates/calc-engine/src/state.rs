@@ -390,6 +390,7 @@ pub struct EngineState {
     pub(crate) subtotal_cells: BTreeSet<CellKey>,
     /// The published spills: each array formula's filled cells, by anchor.
     pub(crate) spills: SpillIndex,
+    pub(crate) blocked_spills: BTreeMap<CellKey, GridArea>,
     /// The seed RAND, RANDBETWEEN and RANDARRAY draw from, mixed with each recalculation's tick.
     pub(crate) random_seed: u64,
     /// The plan of each formula template compiled ([`calc_fml::reference::template_key`]), per
@@ -475,6 +476,7 @@ impl EngineState {
             volatile: BTreeSet::new(),
             subtotal_cells: BTreeSet::new(),
             spills: SpillIndex::default(),
+            blocked_spills: BTreeMap::new(),
             random_seed: 0,
             templates: HashMap::new(),
             environment: None,
@@ -716,9 +718,12 @@ impl EngineState {
         self.volatile.contains(&node)
     }
 
-    /// The published spill of the array formula anchored at `anchor`: the cells its last
-    /// calculated result fills. `None` when the formula's result fills only its own cell, is
-    /// blocked (`#SPILL!`), was refused or is not calculated.
+    /// The attempted extent of the last published blocked spill. Callers must check that its result is current.
+    pub fn blocked_spill_area(&self, anchor: CellKey) -> Option<GridArea> {
+        self.blocked_spills.get(&anchor).copied()
+    }
+
+    /// The published spill of the array formula anchored at `anchor`; absent for a scalar or blocked array.
     pub fn spill(&self, anchor: CellKey) -> Option<&Spill> {
         self.spills.get(anchor)
     }
@@ -1010,6 +1015,7 @@ impl EngineState {
         self.results.clear_orphans();
         self.retired.clear();
         self.spills = SpillIndex::default();
+        self.blocked_spills.clear();
         self.spill_epoch += 1;
         self.templates.clear();
         self.subtotal_cells.clear();

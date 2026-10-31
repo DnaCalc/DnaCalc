@@ -101,9 +101,10 @@ pub use calc_doc::{
 pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
-    AxisFormat, AxisFormatEdit, AxisLayouts, CachedValue, CellInput, CellText, DefinedName,
-    Definitions, FileCached, FiniteNumber, FormulaText, FrozenPanes, IterationSettings, ModelRoot,
-    NameScope, RowHidden, SheetEdit, SheetEntry, SheetKey, SheetName, SheetVisibility, SourcePart,
+    AxisFormat, AxisFormatEdit, AxisLayouts, BlockId, BlockKind, CachedValue, CellInput, CellText,
+    DefinedName, Definitions, FileCached, FiniteNumber, FormulaText, FrozenPanes,
+    IterationSettings, ModelRoot, NameScope, PlacementId, RowHidden, SheetEdit, SheetEntry,
+    SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, Spot, ViewKind,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,

@@ -94,7 +94,8 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
-            CellEdit::ConditionalRules { .. }
+            CellEdit::Layout(_)
+            | CellEdit::ConditionalRules { .. }
             | CellEdit::Axis(_)
             | CellEdit::Sheet(_)
             | CellEdit::AxisFormat(_)
@@ -130,6 +131,7 @@ pub(crate) fn inverse(
         matches!(
             edit,
             CellEdit::Axis(_)
+                | CellEdit::Layout(_)
                 | CellEdit::Sheet(
                     calc_doc_model::SheetEdit::Insert { .. }
                         | calc_doc_model::SheetEdit::Rename { .. }

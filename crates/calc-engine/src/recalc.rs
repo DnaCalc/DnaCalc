@@ -85,8 +85,7 @@ use crate::result::{
 use crate::spill::{self, Spill, SpillIndex, SpillOutcome};
 use crate::state::{ArrayRole, Binding, EngineState};
 use calc_doc_model::{
-    ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, IterationSettings,
-    ModelRoot,
+    ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, IterationSettings, ModelRoot,
 };
 use calc_fml::reference::{
     CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape,
@@ -294,6 +293,7 @@ pub struct RecalcWork {
     progress: Progress,
     /// The active spills of the anchors evaluated, and each evaluated anchor's filled area.
     spills: SpillIndex,
+    blocked_spills: BTreeMap<CellKey, GridArea>,
     filled: BySlot<Option<GridArea>>,
     /// Each evaluated node's dynamic prerequisites.
     dynamic: BySlot<Vec<Prerequisite>>,
@@ -577,6 +577,7 @@ pub fn begin_recalc(
         waiting: BTreeMap::new(),
         waits_on: BTreeMap::new(),
         spills: SpillIndex::default(),
+        blocked_spills: BTreeMap::new(),
         filled,
         dynamic,
         rewave: BTreeSet::new(),
@@ -764,9 +765,7 @@ mod parallel {
         }
         let mut level = vec![0u32; order.len()];
         for (at, node) in order.iter().enumerate() {
-            let readers = state
-                .readers_cache
-                .get(*node, live_anchor(state, *node))?;
+            let readers = state.readers_cache.get(*node, live_anchor(state, *node))?;
             let next = level[at] + 1;
             for reader in readers {
                 let to = position[reader.slot() as usize];
@@ -832,8 +831,7 @@ mod parallel {
         let Some(levels) = levels else {
             return;
         };
-        let mut locals: Vec<EvalLocal> =
-            (0..state.threads).map(|_| EvalLocal::default()).collect();
+        let mut locals: Vec<EvalLocal> = (0..state.threads).map(|_| EvalLocal::default()).collect();
         let arrays: Vec<usize> = if inputs.definitions().arrays().next().is_none() {
             Vec::new()
         } else {
@@ -1034,13 +1032,22 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
                 after: after_area,
             });
         }
+        state.blocked_spills.remove(&at);
+        if let Some(extent) = work.blocked_spills.get(&at) {
+            state.blocked_spills.insert(at, *extent);
+        }
         state.results.publish(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
     }
     // The published nodes are no longer pending, nor entered since the last publication: each set
     // is built anew from the nodes that stay, in node order, which builds it in one pass (dc-dxm),
     // rather than by removing the published nodes one at a time.
-    let stays = |node: &NodeId| !published.get(node.slot() as usize).copied().unwrap_or(false);
+    let stays = |node: &NodeId| {
+        !published
+            .get(node.slot() as usize)
+            .copied()
+            .unwrap_or(false)
+    };
     state.pending = std::mem::take(&mut state.pending)
         .into_iter()
         .filter(stays)
@@ -1053,6 +1060,7 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         state.set_dynamic(node, dynamic);
     }
     for at in std::mem::take(&mut state.retired) {
+        state.blocked_spills.remove(&at);
         if let Some((node, _)) = state.results.take_orphan(at) {
             if let Some(spill) = state.spills.remove(at) {
                 spill_changes.push(SpillChange {
@@ -1529,17 +1537,21 @@ fn schedule(
                 #[cfg(debug_assertions)]
                 {
                     let closure = dirty_closure(state, inputs, roots.clone(), areas);
-                    let fresh = order(&closure, |node| live_anchor(state, node), |node| {
-                        live_anchor(state, node)
-                    });
+                    let fresh = order(
+                        &closure,
+                        |node| live_anchor(state, node),
+                        |node| live_anchor(state, node),
+                    );
                     debug_assert_eq!(fresh.as_ref(), Ok(kept), "the kept order stands");
                 }
                 return acyclic(kept.clone());
             }
             let closure = closure_with(state, inputs, roots, Some(&mut *cache), areas);
-            let ordered = order(&closure, |node| cache.rank(node), |node| {
-                live_anchor(state, node)
-            });
+            let ordered = order(
+                &closure,
+                |node| cache.rank(node),
+                |node| live_anchor(state, node),
+            );
             if every && let Ok(kept) = &ordered {
                 cache.full_order = Some(kept.clone());
                 cache.full_levels = std::sync::OnceLock::new();
@@ -1548,9 +1560,11 @@ fn schedule(
         }
         None => {
             let closure = dirty_closure(state, inputs, roots, areas);
-            let ordered = order(&closure, |node| live_anchor(state, node), |node| {
-                live_anchor(state, node)
-            });
+            let ordered = order(
+                &closure,
+                |node| live_anchor(state, node),
+                |node| live_anchor(state, node),
+            );
             (closure, ordered)
         }
     };
@@ -2012,13 +2026,17 @@ fn keep(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: No
                 None
             }
             Some(FormulaResult::FileCached(cache)) => Some((cache.value().to_value(), rule)),
-            None => Some((CalcValue::text(calc_value::ExcelText::from_utf16_code_units(Vec::new())), rule)),
+            None => Some((
+                CalcValue::text(calc_value::ExcelText::from_utf16_code_units(Vec::new())),
+                rule,
+            )),
         }
     };
     let done = match held {
         Some((value, calculation)) => Done {
             result: FormulaResult::Calculated { value, calculation },
             spill: None,
+            blocked: None,
             dynamic: Vec::new(),
         },
         None => refused(work, circular()),
@@ -2049,6 +2067,7 @@ fn refused_by(calculation: &Calculation, refusal: NotModeled) -> Done {
             calculation: calculation.clone(),
         },
         spill: None,
+        blocked: None,
         dynamic: Vec::new(),
     }
 }
@@ -2123,6 +2142,10 @@ fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
         },
     };
     let after = done.spill.as_ref().map(Spill::area);
+    work.blocked_spills.remove(&at);
+    if let Some(extent) = done.blocked {
+        work.blocked_spills.insert(at, extent);
+    }
     work.spills.remove(at);
     if let Some(spill) = done.spill {
         work.spills.insert(spill);
@@ -2244,7 +2267,9 @@ impl calc_fml::HostFacts for Observed<'_, '_> {
     }
 
     fn is_external_sheet(&mut self, sheet: calc_value::SheetId) -> bool {
-        self.cells.host_facts().is_some_and(|host| host.is_external_sheet(sheet))
+        self.cells
+            .host_facts()
+            .is_some_and(|host| host.is_external_sheet(sheet))
     }
 
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
@@ -2334,6 +2359,7 @@ enum Attempt {
 struct Done {
     result: FormulaResult,
     spill: Option<Spill>,
+    blocked: Option<GridArea>,
     dynamic: Vec<Prerequisite>,
 }
 
@@ -2391,26 +2417,23 @@ fn evaluate_with(
             if local.kept_read.get() {
                 return Ok(Attempt::Kept);
             }
-            return Ok(
-                match outcome {
-                    crate::data_table::TableOutcome::Value(value) => {
-                        match NotModeled::publishable(value) {
-                            Ok(value) => Attempt::Done(Done {
-                                result: FormulaResult::Calculated { value, calculation },
-                                spill: None,
-                                dynamic: Vec::new(),
-                            }),
-                            Err(refusal) => Attempt::Done(refused_by(&calculation, refusal)),
-                        }
+            return Ok(match outcome {
+                crate::data_table::TableOutcome::Value(value) => {
+                    match NotModeled::publishable(value) {
+                        Ok(value) => Attempt::Done(Done {
+                            result: FormulaResult::Calculated { value, calculation },
+                            spill: None,
+                            blocked: None,
+                            dynamic: Vec::new(),
+                        }),
+                        Err(refusal) => Attempt::Done(refused_by(&calculation, refusal)),
                     }
-                    crate::data_table::TableOutcome::Refused(refusal) => {
-                        Attempt::Done(refused_by(&calculation, refusal))
-                    }
-                    crate::data_table::TableOutcome::Waits { on, cell } => {
-                        Attempt::Waits { on, cell }
-                    }
-                },
-            );
+                }
+                crate::data_table::TableOutcome::Refused(refusal) => {
+                    Attempt::Done(refused_by(&calculation, refusal))
+                }
+                crate::data_table::TableOutcome::Waits { on, cell } => Attempt::Waits { on, cell },
+            });
         }
     };
     let uncomputed = Cell::new(None);
@@ -2475,7 +2498,10 @@ fn evaluate_with(
             .iter()
             .any(|area| area.is_ok_and(|area| area.contains(cell)));
         let formula_cell = matches!(inputs.cell(cell), Some(CellInput::Formula(_)));
-        if named && formula_cell && !shared.waits_on.contains_key(&on) && !shared.cyclic.contains(&on)
+        if named
+            && formula_cell
+            && !shared.waits_on.contains_key(&on)
+            && !shared.cyclic.contains(&on)
         {
             return Err(RecalcFailure::UnscheduledRead { formula, cell });
         }
@@ -2500,12 +2526,18 @@ fn evaluate_with(
                     calculation,
                 },
                 spill: None,
+                blocked: None,
                 dynamic,
             }));
         }
     };
-    let outcome = match array_outcome(shared.view(state, inputs, local), node, formula, role, value)
-    {
+    let outcome = match array_outcome(
+        shared.view(state, inputs, local),
+        node,
+        formula,
+        role,
+        value,
+    ) {
         Ok(outcome) => outcome,
         Err(Placed::Waits { on, cell }) => return Ok(Attempt::Waits { on, cell }),
         Err(Placed::Refused(refusal)) => {
@@ -2515,6 +2547,7 @@ fn evaluate_with(
                     calculation,
                 },
                 spill: None,
+                blocked: None,
                 dynamic,
             }));
         }
@@ -2527,6 +2560,10 @@ fn evaluate_with(
             }
         }
     }
+    let blocked = match &outcome {
+        SpillOutcome::Blocked { extent } => Some(*extent),
+        _ => None,
+    };
     let shown = outcome.anchor_value();
     let spill = match outcome {
         SpillOutcome::Fills(spill) => Some(spill),
@@ -2541,6 +2578,7 @@ fn evaluate_with(
                     calculation,
                 },
                 spill: None,
+                blocked: None,
                 dynamic,
             }));
         }
@@ -2548,10 +2586,10 @@ fn evaluate_with(
     Ok(Attempt::Done(Done {
         result,
         spill,
+        blocked,
         dynamic,
     }))
 }
-
 
 /// The areas an evaluation read that none of the formula's placed references holds, each once,
 /// as prerequisites.

@@ -93,27 +93,9 @@ impl Server {
                 Request::SelectionStats => Ok(Reply::SelectionStats(
                     crate::search::selection_stats(&self.book, self.book.session().selection()),
                 )),
-                Request::CanEdit(key) => Ok(Reply::CanEdit(
-                    key.cell()
-                        .ok_or_else(|| "The cell is unavailable".to_owned())
-                        .and_then(|at| {
-                            if self.book.host().model().sheet_by_id(at.sheet()).is_none() {
-                                return Err("The worksheet is unavailable".into());
-                            }
-                            if self
-                                .book
-                                .host()
-                                .loaded()
-                                .sheet(at.sheet())
-                                .is_some_and(|s| s.protected() || s.is_macro_sheet())
-                            {
-                                return Err(
-                                    "Editing protected or macro worksheets is unavailable".into()
-                                );
-                            }
-                            Ok(())
-                        }),
-                )),
+                Request::CanEdit(key) => {
+                    Ok(Reply::CanEdit(cell(key).and_then(|at| self.can_edit(at))))
+                }
                 Request::FitContents { area: target } => self.fit_contents(area(target)?),
                 Request::Capture { area: source, keep } => {
                     let from = area(source)?;
@@ -342,6 +324,20 @@ impl Server {
                     reveal.and_then(|k| k.cell()),
                     &query,
                 ))),
+                Request::Notebook {
+                    sheet,
+                    page,
+                    reveal,
+                    placement,
+                } => Ok(Reply::Notebook(self.notebook(
+                    sheet,
+                    usize::try_from(page).unwrap_or(usize::MAX),
+                    reveal.and_then(|k| k.cell()),
+                    placement.as_deref(),
+                ))),
+                Request::BlockDetail(target) => {
+                    Ok(Reply::BlockDetail(self.block_detail(area(target)?)))
+                }
                 Request::Dependents(at) => {
                     let at = cell(at)?;
                     Ok(Reply::Keys(
@@ -571,6 +567,7 @@ impl Server {
     fn outcome(&self, accepted: bool, error: Option<String>, elapsed_ms: f64) -> Outcome {
         let selection = self.book.session().selection();
         Outcome {
+            notebook_placement: None,
             validation: None,
             accepted,
             committed: false,
@@ -1031,6 +1028,16 @@ impl Server {
         }
 
         let intent = match intent {
+            Intent::NotebookLink {
+                anchor,
+                prose,
+                text,
+            } => return self.notebook_link(anchor, prose, text),
+            Intent::NotebookOrder {
+                placement,
+                direction,
+            } => return self.notebook_order(placement, direction),
+
             Intent::Replace {
                 options,
                 replacement,
@@ -1348,7 +1355,8 @@ impl Server {
         if !confirmed {
             self.validation_pending = None;
             let targets = match &intent {
-                SkinIntent::EnterCell { at, text } => vec![(*at, text.as_str())],
+                SkinIntent::EnterCell { at, text }
+                | SkinIntent::EnterCellAndLayout { at, text, .. } => vec![(*at, text.as_str())],
                 SkinIntent::EnterSelection { text } => {
                     let selection = self.book.session().selection();
                     if !selection.areas.iter().any(|a| {
@@ -1433,7 +1441,8 @@ impl Server {
         }
         // What a warning or information rule says about an entry, worked out before it is taken.
         let note = match &intent {
-            SkinIntent::EnterCell { at, text } => {
+            SkinIntent::EnterCell { at, text }
+            | SkinIntent::EnterCellAndLayout { at, text, .. } => {
                 self.book.validation_note(*at, text).map(|failure| {
                     let kind = match failure.style {
                         calc_host::ErrorStyle::Warning => "Warning",
@@ -1444,6 +1453,25 @@ impl Server {
             }
             _ => None,
         };
+        let locate = |edit: &calc_host::SkinLayoutEdit| match edit {
+            calc_host::SkinLayoutEdit::AddPlacement {
+                placement,
+                spot: calc_host::Spot::Notebook { .. },
+                ..
+            } => Some(placement.to_string()),
+            _ => None,
+        };
+        let notebook_placement = match &intent {
+            SkinIntent::EnterCellAndLayout { layout, .. } => layout.iter().find_map(locate),
+            SkinIntent::Edit { edits } => edits.iter().find_map(|e| {
+                if let CellEdit::Layout(edit) = e {
+                    locate(edit)
+                } else {
+                    None
+                }
+            }),
+            _ => None,
+        };
         let started = crate::controller::now_ms();
         let receipt = self.book.dispatch(intent);
         let elapsed = crate::controller::now_ms() - started;
@@ -1452,6 +1480,7 @@ impl Server {
             receipt.error.as_ref().map(ToString::to_string),
             elapsed,
         );
+        outcome.notebook_placement = notebook_placement.filter(|_| receipt.accepted());
         outcome.committed = receipt.committed.is_some();
         outcome.recalculated = receipt.recalc.is_some();
         outcome.recalc = receipt.recalc.as_ref().map(Workbook::recalc_text);
@@ -1503,6 +1532,343 @@ impl Server {
                 cells,
                 emptied,
             }));
+        }
+    }
+
+    fn notebook(
+        &self,
+        sheet: Sheet,
+        requested: usize,
+        reveal: Option<CellKey>,
+        placement: Option<&str>,
+    ) -> wire::Notebook {
+        use calc_host::{BlockKind, ViewKind};
+        let host = self.book.host();
+        let layout = host.model().layout();
+        let mut linked = Vec::new();
+        let mut placed = Vec::new();
+        for placement in layout.view(ViewKind::Notebook) {
+            if let Some(block) = layout.block(placement.block()) {
+                let anchor = block.anchor();
+                if anchor.is_none_or(|a| a.sheet() == sheet.id()) {
+                    if let Some(a) = anchor {
+                        placed.push(a);
+                    }
+                    linked.push((
+                        Some(placement.id().to_string()),
+                        anchor,
+                        block.kind() == BlockKind::Prose,
+                    ));
+                }
+            }
+        }
+        let reveal = reveal.filter(|at| {
+            host.occupied_areas(sheet.id())
+                .iter()
+                .any(|a| a.contains(*at))
+        });
+        let (keys, omitted) =
+            crate::tree::outline_keys(host, sheet.id(), crate::notebook::PAGE, reveal);
+        linked.extend(
+            keys.into_iter()
+                .filter(|at| !placed.iter().any(|a| a.contains(*at)))
+                .map(|at| (None, Some(GridArea::cell(at)), false)),
+        );
+        let total = linked.len();
+        let pages = total.div_ceil(crate::notebook::PAGE).max(1);
+        let page = placement
+            .and_then(|id| linked.iter().position(|(p, _, _)| p.as_deref() == Some(id)))
+            .or_else(|| {
+                reveal.and_then(|at| {
+                    linked
+                        .iter()
+                        .position(|(_, a, _)| a.is_some_and(|a| a.contains(at)))
+                })
+            })
+            .map(|i| i / crate::notebook::PAGE)
+            .unwrap_or(requested)
+            .min(pages - 1);
+        let blocks = linked
+            .into_iter()
+            .skip(page * crate::notebook::PAGE)
+            .take(crate::notebook::PAGE)
+            .map(|(placement, anchor, prose)| {
+                let cell = anchor.and_then(|a| self.book.cell(a.first())).map(|p| {
+                    Cell::of(
+                        &self.book.shown(&p),
+                        cells::input_text(p.input()),
+                        cells::provenance_text(host, &p),
+                        &p,
+                    )
+                });
+                wire::NotebookBlock {
+                    placement,
+                    anchor: anchor.map(Area::of),
+                    prose,
+                    cell,
+                }
+            })
+            .collect();
+        wire::Notebook {
+            total: total as u64,
+            page: page as u64,
+            omitted,
+            blocks,
+        }
+    }
+
+    fn can_edit(&self, at: CellKey) -> Result<(), String> {
+        if self.book.host().model().sheet_by_id(at.sheet()).is_none() {
+            return Err("The worksheet is unavailable".into());
+        }
+        if self
+            .book
+            .host()
+            .loaded()
+            .sheet(at.sheet())
+            .is_some_and(|s| s.protected() || s.is_macro_sheet())
+        {
+            return Err("Editing protected or macro worksheets is unavailable".into());
+        }
+        Ok(())
+    }
+
+    fn notebook_link(
+        &mut self,
+        target: Area,
+        prose: bool,
+        text: Option<String>,
+    ) -> Result<Reply, String> {
+        use calc_host::{BlockId, BlockKind, PlacementId, SkinLayoutEdit, Spot, ViewKind};
+        let target = area(target)?;
+        if text.is_some() {
+            self.can_edit(target.first())?;
+        }
+        let host = self.book.host();
+        let layout = host.model().layout();
+        if text.is_some()
+            && (target.first() != target.last()
+                || host
+                    .occupied_areas(target.sheet())
+                    .iter()
+                    .any(|area| area.contains(target.first())))
+        {
+            return Err("Insert into one empty cell, or link existing cells without replacing their contents".into());
+        }
+        let kind = if prose {
+            BlockKind::Prose
+        } else {
+            BlockKind::Calculation
+        };
+        if prose
+            && host
+                .model()
+                .cells(target)
+                .into_iter()
+                .flatten()
+                .any(|(_, c)| matches!(c, calc_host::CellInput::Formula(_)))
+        {
+            return Err(
+                "Prose uses visible worksheet text; a formula is a calculation block".into(),
+            );
+        }
+        if prose
+            && host.occupied_areas(target.sheet()).iter().any(|a| {
+                a.first() != a.last()
+                    && a.first().row() <= target.last().row()
+                    && a.last().row() >= target.first().row()
+                    && a.first().column() <= target.last().column()
+                    && a.last().column() >= target.first().column()
+            })
+        {
+            return Err("Prose links use worksheet text, not array values".into());
+        }
+        let entry = text.map(|text| if prose { format!("'{text}") } else { text });
+        let mut edits = Vec::new();
+        let block = if let Some(block) = layout
+            .blocks()
+            .iter()
+            .find(|b| b.anchor() == Some(target) && b.kind() == kind)
+        {
+            block.id()
+        } else {
+            let id = BlockId::new(
+                layout
+                    .blocks()
+                    .iter()
+                    .map(|b| b.id().get())
+                    .max()
+                    .unwrap_or(0)
+                    .checked_add(1)
+                    .ok_or("Block identity space exhausted")?,
+            )
+            .ok_or("Block identity space exhausted")?;
+            edits.push(CellEdit::Layout(SkinLayoutEdit::CreateBlock {
+                block: id,
+                kind,
+                anchor: target,
+            }));
+            id
+        };
+        let id = PlacementId::new(
+            ViewKind::ALL
+                .iter()
+                .flat_map(|v| layout.view(*v))
+                .map(|p| p.id().get())
+                .max()
+                .unwrap_or(0)
+                .checked_add(1)
+                .ok_or("Placement identity space exhausted")?,
+        )
+        .ok_or("Placement identity space exhausted")?;
+        let position = std::num::NonZeroU32::new(
+            u32::try_from(layout.view(ViewKind::Notebook).len() + 1)
+                .map_err(|_| "Too many notebook links")?,
+        )
+        .ok_or("Notebook position is zero")?;
+        edits.push(CellEdit::Layout(SkinLayoutEdit::AddPlacement {
+            placement: id,
+            block,
+            spot: Spot::Notebook { position },
+        }));
+        if let Some(text) = entry {
+            let layout = edits
+                .into_iter()
+                .filter_map(|e| {
+                    if let CellEdit::Layout(layout) = e {
+                        Some(layout)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            self.dispatch_entry(
+                SkinIntent::EnterCellAndLayout {
+                    at: target.first(),
+                    text,
+                    layout,
+                },
+                false,
+            )
+        } else {
+            self.dispatch_entry(SkinIntent::Edit { edits }, false)
+        }
+    }
+
+    fn notebook_order(&mut self, id: String, direction: i8) -> Result<Reply, String> {
+        use calc_host::{PlacementId, SkinLayoutEdit, Spot, ViewKind};
+        let id = PlacementId::parse(&id).ok_or("Invalid notebook placement")?;
+        let layout = self.book.host().model().layout();
+        let list = layout.view(ViewKind::Notebook);
+        let index = list
+            .iter()
+            .position(|p| p.id() == id)
+            .ok_or("Notebook link no longer exists")?;
+        let mut edits = Vec::new();
+        if direction == 0 {
+            let block = list[index].block();
+            edits.push(CellEdit::Layout(SkinLayoutEdit::RemovePlacement {
+                placement: id,
+            }));
+            if ViewKind::ALL
+                .iter()
+                .flat_map(|v| layout.view(*v))
+                .filter(|p| p.block() == block)
+                .count()
+                == 1
+            {
+                edits.push(CellEdit::Layout(SkinLayoutEdit::RemoveBlock { block }));
+            }
+        } else {
+            let sheet = layout
+                .block(list[index].block())
+                .and_then(|b| b.anchor())
+                .map(|a| a.sheet());
+            let peer = if direction < 0 {
+                (0..index).rev().find(|i| {
+                    layout
+                        .block(list[*i].block())
+                        .and_then(|b| b.anchor())
+                        .map(|a| a.sheet())
+                        == sheet
+                })
+            } else {
+                (index + 1..list.len()).find(|i| {
+                    layout
+                        .block(list[*i].block())
+                        .and_then(|b| b.anchor())
+                        .map(|a| a.sheet())
+                        == sheet
+                })
+            };
+            let Some(peer) = peer else {
+                return Ok(self.done(true, None, 0.));
+            };
+            edits.push(CellEdit::Layout(SkinLayoutEdit::MovePlacement {
+                placement: id,
+                spot: Spot::Notebook {
+                    position: std::num::NonZeroU32::new(peer as u32 + 1).unwrap(),
+                },
+            }));
+        }
+        self.dispatch_entry(SkinIntent::Edit { edits }, false)
+    }
+    fn block_detail(&self, linked: GridArea) -> wire::BlockDetail {
+        let host = self.book.host();
+        let at = linked.first();
+        let owner = host.spill_owner(at);
+        let blocked = host.blocked_spill_area(at);
+        let area = blocked
+            .or_else(|| owner.and_then(|a| host.spill_area(a)))
+            .unwrap_or(linked);
+        let (blockers, more) = host.spill_blockers(at, 32);
+        let keys = (area.first().row()..=area.last().row())
+            .flat_map(|row| {
+                (area.first().column()..=area.last().column())
+                    .map(move |col| CellKey::new(area.sheet(), row, col).unwrap())
+            })
+            .take(32)
+            .collect::<Vec<_>>();
+        let preview = self
+            .book
+            .project(keys)
+            .iter()
+            .map(|p| {
+                Cell::of(
+                    &self.book.shown(p),
+                    cells::input_text(p.input()),
+                    cells::provenance_text(host, p),
+                    p,
+                )
+            })
+            .collect::<Vec<_>>();
+        let label = cells::area_label(host, area);
+        let summary = if blocked.is_some() {
+            format!(
+                "{} cannot spill into {label}. {} blocking areas shown{}; preview is current worksheet contents.",
+                cells::cell_label(host, at),
+                blockers.len(),
+                if more { " (more not shown)" } else { "" }
+            )
+        } else if let Some(owner) = owner {
+            format!(
+                "Array anchor {}; actual range {label}. Showing {} of {} cells.",
+                cells::cell_label(host, owner),
+                preview.len(),
+                area.cell_count()
+            )
+        } else {
+            format!(
+                "Worksheet source {label}. Showing {} of {} cells.",
+                preview.len(),
+                area.cell_count()
+            )
+        };
+        wire::BlockDetail {
+            summary,
+            anchor: owner.map(Key::of),
+            cells: preview,
+            blockers: blockers.into_iter().map(Area::of).collect(),
         }
     }
 
@@ -1720,6 +2086,9 @@ fn host_interest(interest: Interest) -> Result<calc_host::Interest, String> {
 /// The page's intent as calc-host's.
 fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
     Ok(match intent {
+        Intent::NotebookLink { .. } | Intent::NotebookOrder { .. } => {
+            return Err("notebook layouts need the workbook worker".into());
+        }
         Intent::ShiftCells { .. } => return Err("cell shifts need the workbook worker".to_owned()),
         Intent::EditSheet { .. } => {
             return Err("sheet commands need the workbook worker".to_owned());
@@ -2002,5 +2371,291 @@ mod outline_tests {
         assert_eq!(last.text, "100");
         assert!(last.input.is_empty());
         assert_eq!(last.provenance, cells::Provenance::Calculated);
+    }
+}
+
+#[cfg(test)]
+mod notebook_tests {
+    use super::*;
+    fn apply(server: &mut Server, intent: Intent) {
+        let Reply::Done { outcome, .. } =
+            server.handle(Request::Intent(intent), None).reply.unwrap()
+        else {
+            panic!("an edit receipt")
+        };
+        assert!(outcome.accepted, "{:?}", outcome.error);
+    }
+    fn page(server: &mut Server, sheet: calc_host::value::SheetId, n: u64) -> wire::Notebook {
+        let Reply::Notebook(page) = server
+            .handle(
+                Request::Notebook {
+                    sheet: Sheet::of(sheet),
+                    page: n,
+                    reveal: None,
+                    placement: None,
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        else {
+            panic!("a notebook page")
+        };
+        page
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn newly_linked_duplicate_is_revealed_by_placement_after_the_first_page() {
+        let mut server = Server::new();
+        let sheet = server.book.host().sheets()[0].id();
+        let at = CellKey::new(sheet, 1, 1).unwrap();
+        apply(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(at),
+                text: "7".into(),
+            },
+        );
+        let mut last = None;
+        for _ in 0..45 {
+            let Reply::Done { outcome, .. } = server
+                .handle(
+                    Request::Intent(Intent::NotebookLink {
+                        anchor: Area::of(GridArea::cell(at)),
+                        prose: false,
+                        text: None,
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap()
+            else {
+                panic!("link receipt")
+            };
+            assert!(outcome.accepted);
+            last = outcome.notebook_placement;
+        }
+        let Reply::Notebook(page) = server
+            .handle(
+                Request::Notebook {
+                    sheet: Sheet::of(sheet),
+                    page: 0,
+                    reveal: Some(Key::of(at)),
+                    placement: last.clone(),
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        else {
+            panic!("notebook page")
+        };
+        assert_eq!(page.page, 1);
+        assert_eq!(page.blocks.len(), 5);
+        assert_eq!(page.blocks.last().unwrap().placement, last);
+        assert_eq!(page.blocks.last().unwrap().cell.as_ref().unwrap().text, "7");
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn links_prose_order_structural_moves_and_orphans_round_trip_without_moving_sources() {
+        let mut server = Server::new();
+        let sheet = server.book.host().sheets()[0].id();
+        let key = |row, col| CellKey::new(sheet, row, col).unwrap();
+        apply(
+            &mut server,
+            Intent::NotebookLink {
+                anchor: Area::of(GridArea::cell(key(1, 1))),
+                prose: true,
+                text: Some("=visible prose".into()),
+            },
+        );
+        let first = page(&mut server, sheet, 0);
+        assert_eq!(first.blocks.len(), 1);
+        assert!(first.blocks[0].prose);
+        assert_eq!(
+            first.blocks[0].cell.as_ref().unwrap().text,
+            "=visible prose"
+        );
+        assert!(!first.blocks[0].cell.as_ref().unwrap().formula);
+        apply(
+            &mut server,
+            Intent::NotebookLink {
+                anchor: Area::of(GridArea::cell(key(2, 1))),
+                prose: false,
+                text: Some("=3*7".into()),
+            },
+        );
+        let id = page(&mut server, sheet, 0).blocks[1]
+            .placement
+            .clone()
+            .unwrap();
+        apply(
+            &mut server,
+            Intent::NotebookOrder {
+                placement: id.clone(),
+                direction: -1,
+            },
+        );
+        assert_eq!(
+            page(&mut server, sheet, 0).blocks[0]
+                .cell
+                .as_ref()
+                .unwrap()
+                .text,
+            "21"
+        );
+        assert_eq!(
+            server
+                .book
+                .shown(&server.book.cell(key(1, 1)).unwrap())
+                .text,
+            "=visible prose"
+        );
+        apply(&mut server, Intent::Undo);
+        assert!(page(&mut server, sheet, 0).blocks[0].prose);
+        apply(&mut server, Intent::Redo);
+        apply(
+            &mut server,
+            Intent::EditAxis {
+                sheet: Sheet::of(sheet),
+                rows: true,
+                insert: true,
+                start: 1,
+                count: 1,
+            },
+        );
+        assert_eq!(
+            page(&mut server, sheet, 0).blocks[0]
+                .anchor
+                .unwrap()
+                .area()
+                .unwrap()
+                .first(),
+            key(3, 1)
+        );
+        let bytes = server.book.save().unwrap().0;
+        server
+            .handle(
+                Request::Open {
+                    name: "notebook.xlsx".into(),
+                },
+                Some(bytes),
+            )
+            .reply
+            .unwrap();
+        let sheet = server.book.host().sheets()[0].id();
+        let reopened = page(&mut server, sheet, 0);
+        assert_eq!(reopened.blocks[0].placement.as_deref(), Some(id.as_str()));
+        assert_eq!(reopened.blocks[0].cell.as_ref().unwrap().text, "21");
+        assert_eq!(
+            reopened.blocks[1].cell.as_ref().unwrap().text,
+            "=visible prose"
+        );
+        apply(
+            &mut server,
+            Intent::EditAxis {
+                sheet: Sheet::of(sheet),
+                rows: true,
+                insert: false,
+                start: 3,
+                count: 1,
+            },
+        );
+        assert!(page(&mut server, sheet, 0).blocks[0].anchor.is_none());
+        let bytes = server.book.save().unwrap().0;
+        server
+            .handle(
+                Request::Open {
+                    name: "orphan.xlsx".into(),
+                },
+                Some(bytes),
+            )
+            .reply
+            .unwrap();
+        let sheet = server.book.host().sheets()[0].id();
+        let orphan = page(&mut server, sheet, 0);
+        assert!(orphan.blocks[0].anchor.is_none());
+        assert_eq!(
+            orphan.blocks[1].cell.as_ref().unwrap().text,
+            "=visible prose"
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn bounded_pages_and_current_array_details_do_not_turn_caches_into_calculated_values() {
+        let mut server = Server::new();
+        let sheet = server.book.host().sheets()[0].id();
+        let key = |row, col| CellKey::new(sheet, row, col).unwrap();
+        for row in 1..=85 {
+            apply(
+                &mut server,
+                Intent::EnterCell {
+                    at: Key::of(key(row, 1)),
+                    text: row.to_string(),
+                },
+            );
+        }
+        let first = page(&mut server, sheet, 0);
+        assert_eq!(first.total, 85);
+        assert_eq!(first.blocks.len(), 40);
+        assert_eq!(page(&mut server, sheet, 2).blocks.len(), 5);
+        assert!(server.subscriptions.is_empty());
+        apply(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(key(2, 4)),
+                text: "99".into(),
+            },
+        );
+        apply(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(key(1, 3)),
+                text: "=SEQUENCE(3,2)".into(),
+            },
+        );
+        let detail = server.block_detail(GridArea::cell(key(1, 3)));
+        assert_eq!(detail.blockers, vec![Area::of(GridArea::cell(key(2, 4)))]);
+        assert!(detail.summary.contains("cannot spill"));
+        assert_eq!(detail.cells[3].text, "99");
+        apply(
+            &mut server,
+            Intent::Clear {
+                areas: vec![Area::of(GridArea::cell(key(2, 4)))],
+            },
+        );
+        assert!(
+            server
+                .notebook_link(
+                    Area::of(GridArea::cell(key(2, 4))),
+                    false,
+                    Some("overwrite".into())
+                )
+                .is_err()
+        );
+        assert!(
+            server
+                .notebook_link(Area::of(GridArea::cell(key(2, 4))), true, None)
+                .is_err()
+        );
+        let detail = server.block_detail(GridArea::cell(key(2, 4)));
+        assert_eq!(detail.anchor, Some(Key::of(key(1, 3))));
+        assert!(detail.blockers.is_empty());
+        assert_eq!(detail.cells.len(), 6);
+        assert_eq!(detail.cells[5].text, "6");
+        apply(&mut server, Intent::SetCalcMode { manual: true });
+        apply(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(key(2, 4)),
+                text: "99".into(),
+            },
+        );
+        assert!(
+            server
+                .block_detail(GridArea::cell(key(1, 3)))
+                .blockers
+                .is_empty()
+        );
     }
 }

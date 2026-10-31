@@ -253,6 +253,25 @@ impl FormulaAssist {
         placeholder: &'static str,
         cell_role: Option<&'static str>,
     ) -> impl IntoView {
+        self.field_labelled(
+            diagnostics,
+            on_key,
+            rows,
+            placeholder,
+            cell_role,
+            "Formula".into(),
+        )
+    }
+
+    pub fn field_labelled(
+        self,
+        diagnostics: Signal<Vec<TextSpan>>,
+        on_key: Option<Callback<leptos::ev::KeyboardEvent>>,
+        rows: u32,
+        placeholder: &'static str,
+        cell_role: Option<&'static str>,
+        label: String,
+    ) -> impl IntoView {
         let highlight = move || {
             let diagnostics = diagnostics.get();
             let pair = self.brackets.get();
@@ -278,7 +297,7 @@ impl FormulaAssist {
                     rows=rows.to_string()
                     spellcheck="false"
                     autocomplete="off"
-                    aria-label="Formula"
+                    aria-label=label
                     placeholder=placeholder
                     prop:value=move || text.get()
                     prop:readOnly=move || self.readonly.get()

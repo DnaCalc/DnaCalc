@@ -301,9 +301,13 @@ fn layout_changes(package: &Package, edit: &Edited) -> Result<Option<LayoutChang
     }
     for block in model.blocks() {
         if base.block(block.id()) != Some(block) {
-            let anchor = block
-                .anchor()
-                .expect("a block a revision creates has the anchor it was created over");
+            let Some(anchor) = block.anchor() else {
+                names.added.push((
+                    block.locator().as_str().to_owned(),
+                    "#REF!".encode_utf16().collect(),
+                ));
+                continue;
+            };
             let sheet = edit
                 .model
                 .sheet_by_id(anchor.sheet())

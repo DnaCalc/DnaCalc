@@ -77,6 +77,16 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    NotebookLink {
+        anchor: Area,
+        prose: bool,
+        text: Option<String>,
+    },
+    NotebookOrder {
+        placement: String,
+        direction: i8,
+    },
+
     Replace {
         options: FindOptions,
         replacement: String,
@@ -305,6 +315,13 @@ pub enum Request {
         reveal: Option<Key>,
         query: String,
     },
+    Notebook {
+        sheet: Sheet,
+        page: u64,
+        reveal: Option<Key>,
+        placement: Option<String>,
+    },
+    BlockDetail(Area),
     /// The formula cells that read the cell.
     Dependents(Key),
     /// The canvas around `center`: `back` steps of what it reads, `forward` of what reads it.
@@ -368,6 +385,8 @@ impl dna_formula_ui::display::SheetNames for Summary {
 /// What an intent (or an open, a new workbook, a save) did.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notebook_placement: Option<String>,
     pub validation: Option<ValidationDecision>,
     pub accepted: bool,
     pub committed: bool,
@@ -584,6 +603,8 @@ pub enum Reply {
     Atlas(Atlas),
     AtlasRefusals(RefusalCells),
     Outline(Outline),
+    Notebook(Notebook),
+    BlockDetail(BlockDetail),
     Keys(Vec<Key>),
     Canvas(Canvas),
     Ledger(Ledger),
@@ -943,4 +964,26 @@ pub struct SelectionStats {
     pub average: String,
     pub min: String,
     pub max: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Notebook {
+    pub total: u64,
+    pub page: u64,
+    pub omitted: u64,
+    pub blocks: Vec<NotebookBlock>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NotebookBlock {
+    pub placement: Option<String>,
+    pub anchor: Option<Area>,
+    pub prose: bool,
+    pub cell: Option<Cell>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct BlockDetail {
+    pub summary: String,
+    pub anchor: Option<Key>,
+    pub cells: Vec<Cell>,
+    pub blockers: Vec<Area>,
 }

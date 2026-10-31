@@ -16,6 +16,8 @@ use std::sync::Arc;
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
+    /// Document layout metadata, independent of cell contents.
+    Layout(calc_doc_model::SkinLayoutEdit),
     /// Replaces authored conditional rules, retaining original XML fields.
     ConditionalRules {
         sheet: calc_doc_model::value::SheetId,
@@ -69,6 +71,7 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
+            CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
             CellEdit::ConditionalRules { sheet, rules } => {
                 WorkbookOp::SetConditionalRules { sheet, rules }
             }
@@ -169,6 +172,8 @@ pub enum CommandError {
     /// The document refused the batch (calc-doc's [`calc_doc::prepare_edit`]): a sheet the
     /// workbook does not hold, or a formula a save could not write.
     Document(EditError),
+    /// The layout cannot be saved without replacing unread metadata or a user name.
+    LayoutSave(calc_doc::SaveRefusal),
     /// The engine refused the batch after the document prepared it.
     Engine(PrepareError),
     /// The batch adds formula cells and would leave `formula_cells` of them, more than the host's
@@ -187,6 +192,7 @@ impl fmt::Display for CommandError {
                 command.get(),
                 current.get()
             ),
+            CommandError::LayoutSave(error) => write!(f, "the layout cannot be saved: {error}"),
             CommandError::Document(error) => write!(f, "the document refused the edit: {error}"),
             CommandError::Engine(error) => write!(f, "the engine refused the edit: {error}"),
             CommandError::FormulaBudget {
@@ -241,6 +247,9 @@ pub fn dispatch(
         operations: command.edits.into_iter().map(CellEdit::operation).collect(),
     };
 
+    host.loaded
+        .check_layout_save(&batch.operations)
+        .map_err(CommandError::LayoutSave)?;
     let axis_edits: Vec<AxisEdit> = batch
         .operations
         .iter()

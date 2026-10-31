@@ -50,6 +50,8 @@ pub enum EditOrigin {
     Cell,
     /// The formula bar.
     Bar,
+    /// The active cell-backed Notebook editor.
+    Notebook,
 }
 
 /// A reference being pointed into the draft, separate from the workbook selection.
@@ -218,7 +220,7 @@ pub struct Controller {
     pub download_unconfirmed: RwSignal<bool>,
     pub ledger: crate::ledger::ViewState,
     pub tree: crate::tree::ViewState,
-    pub notebook_drafts: RwSignal<BTreeMap<CellKey, String>>,
+    pub notebook: crate::notebook::ViewState,
     pub pending_actions: RwSignal<usize>,
     pub replacing: RwSignal<bool>,
     pending_changes: RwSignal<usize>,
@@ -281,7 +283,7 @@ impl Controller {
             download_unconfirmed: RwSignal::new(false),
             ledger: crate::ledger::ViewState::new(),
             tree: crate::tree::ViewState::new(),
-            notebook_drafts: RwSignal::new(BTreeMap::new()),
+            notebook: crate::notebook::ViewState::new(),
             pending_actions: RwSignal::new(0),
             replacing: RwSignal::new(false),
             pending_changes: RwSignal::new(0),
@@ -728,7 +730,7 @@ impl Controller {
         let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
         self.summary.set(summary);
         self.download_unconfirmed.set(false);
-        self.notebook_drafts.set(BTreeMap::new());
+        self.notebook.reset();
         self.assist.readonly.set(false);
         self.find_open.set(None);
         self.ledger.reset();
@@ -783,7 +785,7 @@ impl Controller {
             || self.pending_changes.get() > 0
             || self.summary.get().changed
             || self.download_unconfirmed.get()
-            || !self.notebook_drafts.with(BTreeMap::is_empty)
+            || !self.notebook.insert_text.with(String::is_empty)
             || (self.editing.get().is_some()
                 && self.edit_text.get() != self.edit_original.get_value())
     }
@@ -793,30 +795,7 @@ impl Controller {
             self.focus_editor();
             return;
         }
-        #[cfg(target_arch = "wasm32")]
-        {
-            use wasm_bindgen::JsCast;
-            let sheet = self.sheet.get_untracked();
-            let at = self.notebook_drafts.with_untracked(|drafts| {
-                drafts.keys().find(|at| Some(at.sheet()) == sheet).copied()
-            });
-            if let Some(at) = at {
-                let selector = format!(
-                    "[data-dnacalc=block][data-cell={}] input",
-                    crate::cells::address(at.row(), at.column())
-                );
-                if let Some(field) = document()
-                    .query_selector(&selector)
-                    .ok()
-                    .flatten()
-                    .and_then(|field| field.dyn_into::<web_sys::HtmlElement>().ok())
-                {
-                    let _ = field.focus();
-                    return;
-                }
-            }
-            crate::grid::focus_grid();
-        }
+        crate::grid::focus_grid();
     }
 
     pub fn history_available(&self, redo: bool) -> bool {
@@ -2731,9 +2710,11 @@ impl Controller {
             self.enqueue(move || controller.save(saved));
             return;
         }
-        if !self.notebook_drafts.with_untracked(BTreeMap::is_empty) {
-            self.say("Finish the Notebook draft with Enter, or cancel it with Escape, before downloading.", true);
-            self.focus_pending_draft();
+        if !self.notebook.insert_text.with_untracked(String::is_empty) {
+            self.say(
+                "Return to Notebook to insert or clear the new block content before downloading.",
+                true,
+            );
             return;
         }
         let controller = *self;

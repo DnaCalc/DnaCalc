@@ -647,16 +647,6 @@ pub fn app() -> impl IntoView {
                         on:click=move |_| { controller.cancel_edit(); grid::focus_grid(); }>"Cancel"</button>
                 </div>
             })}
-            {move || (!controller.notebook_drafts.with(std::collections::BTreeMap::is_empty)).then(|| view! {
-                <details class="dc-notebook-drafts" data-dnacalc="notebook-drafts">
-                    <summary>{move || format!("Notebook drafts: {} · enter or cancel before downloading", controller.notebook_drafts.with(|drafts| drafts.len()))}</summary>
-                    <div>{move || controller.notebook_drafts.get().into_iter().map(|(at, text)| view! {
-                        <div class="dc-draft-item"><strong>{controller.cell_label(at)}</strong><pre>{text}</pre>
-                            <button type="button" data-dnacalc="discard-notebook-draft" on:click=move |_| controller.notebook_drafts.update(|drafts| { drafts.remove(&at); })>"Discard this draft"</button>
-                        </div>
-                    }).collect_view()}</div>
-                </details>
-            })}
             <main id="dc-workspace" class="dc-main" tabindex="-1" aria-label="Workbook workspace">{skin_view}</main>
             {crate::commands::summary(controller)}
             <div class="dc-sheet-strip"><nav class="dc-tabs" role="tablist" aria-label="Worksheets" data-dnacalc="sheet-tabs">{tabs}</nav>{crate::sheets::controls(controller)}</div>
