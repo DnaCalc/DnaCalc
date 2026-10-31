@@ -51,6 +51,12 @@
 //! repository, which `--bank full` reads as one more bank: a reading that disagrees with a banked
 //! one then shows as a difference. This is the targeted recheck a difference asks for, and the way
 //! new readings are taken; nothing re-reads the banks wholesale on each new build.
+//!
+//! `read --inputs <json>` accepts a function and witnesses (id, scalar args, optional result_index).
+//! It calculates and syncs a labelled prediction file before Excel starts. `--new-only` refuses
+//! any argument identity already in that function's loaded banks, or a bank with unread rows.
+//! Each captured row retains its frozen prediction beside the actual Excel answer. The reader
+//! creates a blank workbook and preserves AutomationSecurity rather than writing macro settings.
 
 use crate::cargo::Workspace;
 use crate::legacy::legacy_root;
@@ -72,7 +78,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only]]";
 
 const CHECKOUT: &str = "OxFunc-Evidence";
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
@@ -108,6 +114,8 @@ struct Request {
     trace: Option<PathBuf>,
     before: Option<PathBuf>,
     after: Option<PathBuf>,
+    inputs: Option<PathBuf>,
+    new_only: bool,
 }
 
 fn parse_args(raw: &[String]) -> Result<Request, String> {
@@ -129,6 +137,8 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         trace: None,
         before: None,
         after: None,
+        inputs: None,
+        new_only: false,
     };
     let mut it = rest.iter();
     while let Some(arg) = it.next() {
@@ -137,6 +147,8 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             "--func" if verb != Verb::Compare => request.function = Some(value()?.to_ascii_uppercase()),
             "--before" if verb == Verb::Compare => request.before = Some(PathBuf::from(value()?)),
             "--after" if verb == Verb::Compare => request.after = Some(PathBuf::from(value()?)),
+            "--inputs" if verb == Verb::Read => request.inputs = Some(PathBuf::from(value()?)),
+            "--new-only" if verb == Verb::Read => request.new_only = true,
             "--trace" if verb == Verb::Judge => request.trace = Some(PathBuf::from(value()?)),
             "--bank" if verb == Verb::Judge => {
                 request.bank = match value()?.as_str() {
@@ -163,6 +175,17 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
     }
     if verb == Verb::Compare && (request.before.is_none() || request.after.is_none()) {
         return Err("compare needs --before and --after".to_owned());
+    }
+    if request.verb == Verb::Read && request.function.as_deref().is_some_and(|names| {
+        names.split(',').any(|name| name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_'))
+    }) {
+        return Err("--func needs worksheet function names (letters, digits, dots or underscores)".into());
+    }
+    if request.new_only && request.inputs.is_none() {
+        return Err("--new-only requires --inputs".into());
+    }
+    if request.inputs.is_some() && request.function.as_deref().is_some_and(|f| f.contains(',')) {
+        return Err("--inputs reads one function at a time".into());
     }
     Ok(request)
 }
@@ -1639,6 +1662,182 @@ fn call_rejected(error: &calc_oracle_excel::CaptureError) -> bool {
         || text.contains("Call was rejected by callee")
 }
 
+/// An input identity ignores numeric-hex letter case and result selection. A new input is
+/// new even before a particular result cell is selected, so any banked use excludes it.
+fn input_key(args: &[Value]) -> String {
+    fn canonical(v: &Value) -> Value {
+        match v {
+            Value::String(s) => match s
+                .strip_prefix("0x")
+                .filter(|h| h.len() == 16)
+                .and_then(|h| u64::from_str_radix(h, 16).ok())
+            {
+                Some(bits) => Value::String(format!("0x{bits:016x}")),
+                None => v.clone(),
+            },
+            Value::Array(a) => Value::Array(a.iter().map(canonical).collect()),
+            _ => v.clone(),
+        }
+    }
+    Value::Array(args.iter().map(canonical).collect()).to_string()
+}
+
+fn supplied_inputs(bytes: &[u8], function: &str) -> Result<(Value, Vec<WitnessRow>), String> {
+    let doc: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    if doc["function"]
+        .as_str()
+        .is_none_or(|f| !f.eq_ignore_ascii_case(function))
+    {
+        return Err("the input document's function differs from --func".into());
+    }
+    let rows = doc["witnesses"]
+        .as_array()
+        .filter(|r| !r.is_empty())
+        .ok_or("inputs need a nonempty witnesses array")?;
+    let mut ids = BTreeSet::new();
+    let mut calls = BTreeSet::new();
+    let mut out = Vec::new();
+    for row in rows {
+        let id = row["id"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .ok_or("an input needs an id")?;
+        if !ids.insert(id.to_owned()) {
+            return Err(format!("duplicate input id {id}"));
+        }
+        let args = row["args"].as_array().ok_or("an input needs args")?.clone();
+        for (i, arg) in args.iter().enumerate() {
+            let value = decode_argument(arg, &format!("{id}.args[{i}]"))?;
+            if value.as_array().is_some() || value.as_number().is_some_and(|n| !n.is_finite()) {
+                return Err(format!(
+                    "{id}: the bulk reader needs finite scalar arguments"
+                ));
+            }
+        }
+        let index = row.as_object().and_then(calc_verdict::result_index);
+        if row.get("result_index").is_some() && index.is_none_or(|(r, c)| r == 0 || c == 0) {
+            return Err(format!("{id}: result_index needs two positive integers"));
+        }
+        if !calls.insert((input_key(&args), index)) {
+            return Err(format!("duplicate input call {id}"));
+        }
+        out.push(WitnessRow {
+            id: id.into(),
+            args,
+            result_index: index,
+            expected: String::new(),
+            reading: "prediction".into(),
+            calc_func: None,
+        });
+    }
+    Ok((doc, out))
+}
+
+/// Calculate and durably freeze every prediction before starting Excel. The frozen file is
+/// explicitly model output, never an Excel reading. Actual readings stay in the existing layout.
+fn predict_inputs(
+    root: &Path,
+    checkout: &Path,
+    function: &str,
+    path: &Path,
+    new_only: bool,
+) -> Result<(WitnessSet, Value), String> {
+    let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let (doc, mut rows) = supplied_inputs(&bytes, function)?;
+    let novelty = if new_only {
+        let (banks, unread_files) = load_full(checkout, Some(function))?;
+        if !unread_files.is_empty() { return Err("cannot establish novelty: some bank records could not be read".into()); }
+        let unread = banks.unread_rows.get(function).copied().unwrap_or(0);
+        if unread > 0 {
+            return Err(format!(
+                "cannot establish novelty: {unread} unread bank rows"
+            ));
+        }
+        let known: BTreeSet<_> = banks.readings.iter().map(|r| input_key(&r.args)).collect();
+        for row in &rows {
+            if known.contains(&input_key(&row.args)) {
+                return Err(format!(
+                    "{} already occurs in the recorded {function} banks",
+                    row.id
+                ));
+            }
+        }
+        serde_json::json!({"bank_rows": banks.readings.len(), "distinct_inputs": known.len(), "bank_files": banks.files_read, "unread_rows": unread})
+    } else {
+        Value::Null
+    };
+    let jobs: Vec<_> = rows
+        .iter()
+        .map(|r| (r.args.clone(), r.result_index))
+        .collect();
+    let actuals = calculate_all(function, &jobs);
+    for (row, actual) in rows.iter_mut().zip(actuals) {
+        row.expected = actual.strip_prefix(SLOW).unwrap_or(&actual).to_owned();
+    }
+    let commit = crate::cargo::git(root, &["rev-parse", "HEAD"])?;
+    let diff = crate::cargo::git(
+        root,
+        &[
+            "diff",
+            "--binary",
+            "HEAD",
+            "--",
+            "crates/calc-func/src",
+            "crates/calc-value/src",
+        ],
+    )?;
+    let frozen = serde_json::json!({
+        "format": "dnacalc-frozen-function-predictions/1", "function": function,
+        "frozen_utc": crate::accept::utc_now(), "calc_func_commit": commit.trim(),
+        "model_source_diff_sha256": calc_oracle_excel::sha256_hex(diff.as_bytes()),
+        "model_source_dirty": !diff.is_empty(), "numeric_mode": "Fast",
+        "inputs_path": path.to_string_lossy(), "inputs_sha256": calc_oracle_excel::sha256_hex(&bytes),
+        "input_document": doc, "novelty": novelty,
+        "predictions": rows.iter().map(|r| serde_json::json!({"id": r.id, "args": r.args,
+            "result_index": r.result_index, "calc_func_prediction": r.expected})).collect::<Vec<_>>()
+    });
+    let dir = root.join("target/witness/frozen");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let frozen_path = dir.join(format!(
+        "{function}-{}.json",
+        crate::accept::utc_now().replace([':', '-'], "")
+    ));
+    let frozen_bytes = serde_json::to_vec_pretty(&frozen).map_err(|e| e.to_string())?;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&frozen_path)
+        .map_err(|e| e.to_string())?;
+    file.write_all(&frozen_bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|e| e.to_string())?;
+    let metadata = serde_json::json!({"frozen_path": frozen_path.to_string_lossy(),
+        "frozen_sha256": calc_oracle_excel::sha256_hex(&frozen_bytes),
+        "inputs_path": path.to_string_lossy(), "inputs_sha256": calc_oracle_excel::sha256_hex(&bytes),
+        "selection": doc["selection"], "calc_func_commit": commit.trim(), "novelty": novelty});
+    println!(
+        "xtask witness: {function}: froze {} model predictions before Excel at {}",
+        rows.len(),
+        frozen_path.display()
+    );
+    Ok((
+        WitnessSet {
+            function: function.into(),
+            selection: "caller inputs; frozen model predictions, not Excel answers".into(),
+            readings: vec![ReadingSource {
+                id: "prediction".into(),
+                source: format!("calc-func {} prediction", commit.trim()),
+                excel_build: None,
+                platform: None,
+                bitness: None,
+                cpu: None,
+            }],
+            witnesses: rows,
+        },
+        metadata,
+    ))
+}
+
 /// `cargo xtask witness read`: Excel's reading of every row of each named function's pinned set,
 /// on the Excel of this host, through calc-oracle-excel's bulk witness mode. The readings are
 /// written as a WitnessSet with their environment under `readings/excel-<build>/` of the evidence
@@ -1655,9 +1854,15 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
         .collect();
     let mut failed = false;
     for function in functions {
-        let sets = pinned_sets(root, Some(&function))?;
-        let Some((_, set)) = sets.into_iter().next() else {
-            return Err(format!("no pinned set of {function} to read; pin it first"));
+        let (set, prediction) = match &request.inputs {
+            Some(path) => { let (set, metadata) = predict_inputs(root, checkout, &function, path, request.new_only)?; (set, Some(metadata)) },
+            None => {
+                let sets = pinned_sets(root, Some(&function))?;
+                let Some((_, set)) = sets.into_iter().next() else {
+                    return Err(format!("no pinned set of {function} to read; pin it first"));
+                };
+                (set, None)
+            }
         };
         let mut calls = Vec::new();
         let mut rows = Vec::new();
@@ -1756,6 +1961,9 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
             if let Some((r, c)) = row.result_index {
                 node.insert("result_index".into(), serde_json::json!([r, c]));
             }
+            if prediction.is_some() {
+                node.insert("calc_func_prediction".into(), Value::String(row.expected.clone()));
+            }
             node.insert("expected_bits".into(), Value::String(value));
             witnesses.push(Value::Object(node));
         }
@@ -1771,7 +1979,11 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
                 "schema_version": "dnacalc-witness-reading/1",
                 "captured_utc": crate::accept::utc_now(),
                 "reader": reader,
-                "inputs": format!("the rows of the pinned set crates/calc-func/tests/witnesses/{function}.json"),
+                "inputs": request.inputs.as_ref().map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| format!("the rows of the pinned set crates/calc-func/tests/witnesses/{function}.json")),
+                "frozen_model_predictions": prediction,
+                "automation_security_before": env.automation_security_before,
+                "automation_security_after": env.automation_security_after,
                 "environment": {
                     "excel_version": env.excel_version,
                     "excel_build": env.excel_build,
@@ -1794,8 +2006,10 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
         }
         let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())? + "\n";
         fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
+        let comparison = if request.inputs.is_some() { "frozen model prediction" } else { "banked reading" };
+        failed |= !unread.is_empty() || skipped > 0;
         println!(
-            "xtask witness: {function}: read {} rows on Excel {} build {build} ({}, {}, {}): {agree} equal the banked reading, {} differ, {} unread, {skipped} not asked (array arguments); wrote {}",
+            "xtask witness: {function}: read {} rows on Excel {} build {build} ({}, {}, {}): {agree} equal the {comparison}, {} differ, {} unread, {skipped} not asked (array arguments); wrote {}",
             outcome.readings.len(),
             env.excel_version,
             env.bitness,
@@ -1822,6 +2036,7 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     fn args(text: &str) -> Vec<String> {
         text.split_whitespace().map(str::to_owned).collect()
@@ -1936,6 +2151,32 @@ mod tests {
         assert!(compare_traces(b"".as_slice(), b"".as_slice()).is_err());
         assert!(compare_traces(b"{}\n".as_slice(), b"{}\n".as_slice()).is_err());
         assert!(compare_traces(b"broken\n".as_slice(), b"broken\n".as_slice()).is_err());
+    }
+
+    #[test]
+    fn supplied_inputs_are_explicit_and_novelty_uses_argument_bits() {
+        let r = parse_args(&args("read --func erf.precise --inputs fresh.json --new-only")).unwrap();
+        assert!(r.new_only && r.inputs == Some(PathBuf::from("fresh.json")));
+        assert!(parse_args(&args("read --func GAMMA --new-only")).is_err());
+        assert!(parse_args(&args("read --func ../outside --inputs fresh.json")).is_err());
+        assert!(parse_args(&args("judge --inputs fresh.json")).is_err());
+        assert!(parse_args(&args("read --func GAMMA,ERF --inputs fresh.json")).is_err());
+        assert_eq!(input_key(&[json!("0x3FF0000000000000")]), input_key(&[json!("0x3ff0000000000000")]));
+        assert_ne!(input_key(&[json!("0x0000000000000000")]), input_key(&[json!("0x8000000000000000")]));
+        let mut doc = json!({"function":"GAMMA", "witnesses":[{"id":"a", "args":["0x3ff0000000000000"]}]});
+        assert_eq!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap().1.len(), 1);
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "ERF.PRECISE").is_err());
+        doc["witnesses"][0]["args"][0] = json!("0x7ff0000000000000");
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").is_err());
+        doc["witnesses"][0]["args"][0] = json!("0x3ff0000000000000");
+        doc["witnesses"][0]["result_index"] = json!([0, 1]);
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").is_err());
+        doc["witnesses"][0].as_object_mut().unwrap().remove("result_index");
+        let duplicate = doc["witnesses"][0].clone();
+        doc["witnesses"].as_array_mut().unwrap().push(duplicate);
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("duplicate input id"));
+        doc["witnesses"][1]["id"] = json!("b");
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("duplicate input call"));
     }
 
     #[test]

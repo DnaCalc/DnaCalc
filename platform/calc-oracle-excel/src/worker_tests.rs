@@ -82,6 +82,26 @@ fn powershell(args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 
+#[test]
+fn the_witness_worker_parses_and_reads_a_one_based_matrix_in_windows_powershell() {
+    let dir = scratch("witness-parser");
+    let script = dir.join("witness-worker.ps1");
+    std::fs::write(&script, crate::WITNESS_SCRIPT).unwrap();
+    // Parse the complete production script without running its Excel startup. Exercise the
+    // extracted column reader on the same one-based object[,] shape that Range.Value2 returns.
+    let command = format!(
+        "$tokens=$null; $errors=$null; $ast=[System.Management.Automation.Language.Parser]::ParseFile({},[ref]$tokens,[ref]$errors); if($errors.Count){{throw ($errors | Out-String)}}; $fn=$ast.Find({{param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Read-Column'}},$true); Invoke-Expression $fn.Extent.Text; function Get-ComProperty($Object,$Name){{return ,($Object.$Name)}}; $matrix=[Array]::CreateInstance([object],[int[]]@(2,1),[int[]]@(1,1)); $matrix.SetValue(1.25,1,1); $matrix.SetValue(-3,2,1); $range=[pscustomobject]@{{Value2=$matrix}}; $read=Read-Column $range 2; if($read.Count -ne 2){{throw 'wrong column size'}}; [Console]::Out.Write((ConvertTo-Json -InputObject @($read[0],$read[1]) -Compress))",
+        quoted(&script.to_string_lossy())
+    );
+    let out = powershell(&["-Command", &command]);
+    assert!(
+        out.status.success(),
+        "witness parser/column reader: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(serde_json::from_slice::<Value>(&out.stdout).unwrap(), json!([1.25, -3]));
+}
+
 /// What the worker's package reader reads from `package`, the refusals it gives, and the failures
 /// it recorded, as JSON.
 fn read_package(package: &Path) -> Value {

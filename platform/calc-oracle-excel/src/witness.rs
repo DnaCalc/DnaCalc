@@ -75,6 +75,8 @@ pub struct WitnessEnvironment {
     pub platform: String,
     pub os_version: String,
     pub cpu: Option<String>,
+    pub automation_security_before: i64,
+    pub automation_security_after: i64,
 }
 
 /// The readings of one request and the run that took them.
@@ -207,6 +209,9 @@ pub fn read_witnesses(request: &WitnessRequest) -> Result<WitnessOutcome, Captur
             }
             let (environment, readings) =
                 convert_result(&result, request.calls.len()).map_err(|message| CaptureError::Result { message })?;
+            if readings.iter().zip(&request.calls).any(|(reading, call)| reading.id != call.id) {
+                return Err(CaptureError::Result { message: "the witness result reordered or renamed input rows".into() });
+            }
             Ok(WitnessOutcome {
                 environment,
                 readings,
@@ -246,6 +251,10 @@ fn convert_result(
         "x86" => "32-bit".to_owned(),
         other => other.to_owned(),
     };
+    let security_before = result["automation_security_before"].as_i64().ok_or("missing initial AutomationSecurity reading")?;
+    let security_after = result["automation_security_after"].as_i64().ok_or("missing final AutomationSecurity reading")?;
+    if !(1..=3).contains(&security_before) { return Err("unknown AutomationSecurity reading".into()); }
+    if security_before != security_after { return Err("AutomationSecurity changed during the reading".into()); }
     let environment = WitnessEnvironment {
         excel_version: text("excel_version")?,
         excel_build: text("excel_build")?,
@@ -253,7 +262,9 @@ fn convert_result(
         bitness,
         platform: "Windows".to_owned(),
         os_version: text("os_version")?,
-        cpu: result["cpu"].as_str().map(str::to_owned),
+        cpu: Some(text("cpu")?),
+        automation_security_before: security_before,
+        automation_security_after: security_after,
     };
     let rows = result["rows"]
         .as_array()
@@ -303,6 +314,7 @@ mod tests {
     fn a_result_converts_and_a_changed_input_is_no_reading() {
         let result = json!({
             "excel_version": "16.0", "excel_build": "20527", "excel_file_version": "16.0.20527.20000",
+            "automation_security_before": 1, "automation_security_after": 1,
             "excel_machine": "x86-64", "os_version": "Microsoft Windows NT 10.0.26200.0", "cpu": "C",
             "rows": [
                 {"id": "a", "value": {"number": "3ff0000000000000"}, "input_kept": true},
@@ -319,5 +331,12 @@ mod tests {
         );
         assert!(readings[2].value.is_err());
         assert!(convert_result(&result, 2).is_err());
+        assert_eq!((env.automation_security_before, env.automation_security_after), (1, 1));
+        let mut changed = result.clone();
+        changed["automation_security_after"] = json!(3);
+        assert!(convert_result(&changed, 3).unwrap_err().contains("AutomationSecurity changed"));
+        changed["automation_security_before"] = Value::Null;
+        assert!(convert_result(&changed, 3).is_err());
+        assert!(!crate::WITNESS_SCRIPT.contains(".AutomationSecurity ="));
     }
 }

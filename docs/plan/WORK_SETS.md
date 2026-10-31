@@ -73,3 +73,16 @@ force pushes), each publish to dnacalc.com (dc-ysl), and archiving legacy reposi
   calc-host: it is the check that the formula layer stays simple and separate. Shared UI lives in
   one library with the same limit. DNA Calc is the full product over calc-host.
 - One evaluator, one catalogue oracle, one corpus harness, one verdict path: extend, never copy.
+
+## Fresh numerical checks, 2026-10-31
+
+`dc-ymjf.5` retained independent readings and pre-reading predictions in
+[OxFunc-Evidence 0f4e1d95](https://github.com/DnaCalc/OxFunc-Evidence/tree/0f4e1d95/probes/2026-10-31-calcvba-run2).
+Against the frozen `379d51f` model, ERF.PRECISE matched 3908/4096 new inputs with
+abs(x)<0.01 (188 misses, worst 3 ULP). GAMMA's `df1215e` changed-input rechecks
+matched 2/97, and 194 new adjacent inputs matched 4; zero inputs changed or went
+unread. All 97 rechecked Excel answers agree with their recorded banks. The
+numerical lane retired that GAMMA fit in `17e42ce`; these frozen counts do not
+describe the later kernel. Current full-bank status now includes the new answers:
+ERF.PRECISE 617129/618437, GAMMA 442/12506, on native Windows at `e3c3669`.
+Both numerical parity areas remain open; ERF's next work stays in `dc-j9k.6`.

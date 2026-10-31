@@ -6,9 +6,9 @@
 # It runs under the capture worker's isolation and reuses its functions (it dot-sources
 # capture-worker.ps1, which then defines its functions and starts nothing): the new Excel instance
 # whose PID it prints before anything else touches it, the session settings (DisplayAlerts,
-# ScreenUpdating, EnableEvents and Interactive off, AutomationSecurity 3), each read back, and the
+# ScreenUpdating, EnableEvents and Interactive off), each read back, and the
 # add-in checks. It opens no file: it adds one empty workbook. It writes no option of the user's
-# profile.
+# profile. AutomationSecurity is only read, preserved and recorded; no file is opened.
 #
 # What it does, in order:
 #   1. starts Excel as above and adds an empty workbook, whose calculation it sets to manual;
@@ -62,6 +62,8 @@ $Output = [ordered]@{
     excel_machine = $null
     os_version = $null
     cpu = $null
+    automation_security_before = $null
+    automation_security_after = $null
     rows = (New-Object System.Collections.ArrayList)
     failures = $Failures
 }
@@ -94,7 +96,7 @@ function Read-Column($Range, [int]$Count) {
     $values = Get-ComProperty $Range 'Value2'
     $list = New-Object System.Collections.ArrayList
     if ($Count -eq 1) { [void]$list.Add($values); return , $list }
-    for ($i = 1; $i -le $Count; $i++) { [void]$list.Add($values[$i, 1]) }
+    for ($i = 1; $i -le $Count; $i++) { [void]$list.Add($values.GetValue($i, 1)) }
     return , $list
 }
 
@@ -119,13 +121,15 @@ try {
     $Output.excel_pid = $excelPid
     Send-Line "excel-pid $excelPid"
 
+    $securityBefore = Get-ComProperty $excel 'AutomationSecurity'
+    if ($securityBefore -notin @(1, 2, 3)) { throw 'AutomationSecurity could not be read as a known value' }
+    $Output.automation_security_before = [long]$securityBefore
     $excel.Visible = $false
     $excel.DisplayAlerts = $false
     $excel.ScreenUpdating = $false
     $excel.EnableEvents = $false
-    $excel.AutomationSecurity = 3
     $excel.Interactive = $false
-    $expected = [ordered]@{ DisplayAlerts = $false; EnableEvents = $false; Interactive = $false; AutomationSecurity = 3 }
+    $expected = [ordered]@{ DisplayAlerts = $false; EnableEvents = $false; Interactive = $false; AutomationSecurity = $securityBefore }
     $notIsolated = New-Object System.Collections.ArrayList
     foreach ($name in $expected.Keys) {
         $want = $expected[$name]
@@ -194,6 +198,9 @@ try {
         [void]$sheet.Cells.Clear()
     }
 
+    $securityAfter = Get-ComProperty $excel 'AutomationSecurity'
+    $Output.automation_security_after = [long]$securityAfter
+    if ([long]$securityAfter -ne [long]$securityBefore) { throw 'AutomationSecurity changed during the reading' }
     $Output.excel_version = [string](Get-ComProperty $excel 'Version')
     $Output.excel_build = [string](Get-ComProperty $excel 'Build')
     $excelPath = (Get-Process -Id $excelPid).Path

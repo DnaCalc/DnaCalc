@@ -165,7 +165,7 @@ EFFECT	full	20228,20430,?	2583	2583	-	exact	6ffafc69c8+changes
 EFFECT	pinned	20228,20430,?	120	120	-	exact	6ffafc69c8+changes
 EOMONTH	full	20430	9838	9838	-	exact	6ffafc69c8+changes
 EOMONTH	pinned	20430	120	120	-	exact	6ffafc69c8+changes
-ERF.PRECISE	full	20131,?	614341	613221	3	last_bit	6ffafc69c8+changes
+ERF.PRECISE	full	20131,20527,?	618437	617129	3	last_bit	e3c3669233
 ERF.PRECISE	pinned	20131,?	120	120	-	exact	6ffafc69c8+changes
 ERFC	full	20430	544	162	32	numeric	6ffafc69c8+changes
 ERFC	pinned	20430	120	38	25	numeric	6ffafc69c8+changes
@@ -211,7 +211,7 @@ FORECAST	full	20131	70	70	-	exact	6ffafc69c8+changes
 FORECAST	pinned	20131	70	70	-	exact	6ffafc69c8+changes
 FV	full	20131,20228,20430,?	2531	2249	9246589774487968976	gross	6ffafc69c8+changes
 FV	pinned	20131,20228,20430	120	106	9246589774487968976	gross	6ffafc69c8+changes
-GAMMA	full	20131,?	12312	437	810173	gross	6ffafc69c8+changes
+GAMMA	full	20131,20527,?	12506	442	810173	gross	e3c3669233+changes
 GAMMA	pinned	20131	120	4	990	numeric	6ffafc69c8+changes
 GAMMA.DIST	full	20131,20430,?	77847	23213	257	numeric	6ffafc69c8+changes
 GAMMA.DIST	pinned	20131	120	34	54	numeric	6ffafc69c8+changes
