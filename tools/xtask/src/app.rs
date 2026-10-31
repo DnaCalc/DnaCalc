@@ -861,6 +861,10 @@ fn select(app: &App, name: &str) -> String {
 
 /// What a case does. A name is a role or a selector ([`select`]).
 pub enum Action {
+    /// A native wheel gesture, with observation of its completed scroll.
+    ScrollGrid(i32, i32),
+    /// Remember actual view/geometry for a later scroll or skin/sheet round trip.
+    RememberView(&'static str),
     /// Put a table on the real system clipboard by copying from a temporary external editor.
     ExternalClipboard(&'static str, bool),
     /// DNA OneCalc: types into a grid cell, after clearing it.
@@ -906,6 +910,9 @@ pub enum Action {
 
 /// What a case expects the page to show. A name is a role or a selector ([`select`]).
 pub enum Check {
+    PinnedCell,
+    ViewRetained,
+    FitsText(&'static str),
     TextContains(&'static str, &'static str),
     /// The element's text.
     Text(&'static str, &'static str),
@@ -1717,24 +1724,24 @@ const CALC_CASES: &[Case] = &[
         checks: &[
             // A is 117 px (16.71 characters), B 180 px (25.71), C hidden, D the default 64 px;
             // row 3 is 40 px (30 points), row 13 hidden, the others 20 px (15 points).
-            Check::Style(cell!("B1"), "left:165px;top:22px;width:180px;height:20px"),
-            Check::Style(cell!("D1"), "left:345px;top:22px;width:64px;height:20px"),
-            Check::Style(cell!("A3"), "left:48px;top:62px;width:117px;height:40px"),
-            Check::Style(cell!("A14"), "left:48px;top:282px;width:117px;height:20px"),
+            Check::Style(cell!("B1"), "left:181px;top:22px;width:180px;height:20px"),
+            Check::Style(cell!("D1"), "left:361px;top:22px;width:64px;height:20px"),
+            Check::Style(cell!("A3"), "left:64px;top:62px;width:117px;height:40px"),
+            Check::Style(cell!("A14"), "left:64px;top:282px;width:117px;height:20px"),
             // A15's negative section is [Color10]: Excel's palette entry 10.
             Check::Style(
                 cell!("A15"),
-                "left:48px;top:302px;width:117px;height:20px;color:#008000",
+                "left:64px;top:302px;width:117px;height:20px;color:#008000",
             ),
             // Column E is 4 characters (33 px): a formatted number too wide shows ####, as in
             // Excel, and a text overflows over the empty F to I.
             Check::Text(cell!("E1"), "####"),
             Check::Text(cell!("E2"), "12"),
-            Check::Style(cell!("E3"), "left:409px;top:62px;width:289px;height:40px"),
+            Check::Style(cell!("E3"), "left:425px;top:62px;width:289px;height:40px"),
             // A4's negative section is [Red].
             Check::Style(
                 cell!("A4"),
-                "left:48px;top:102px;width:117px;height:20px;color:#ff0000",
+                "left:64px;top:102px;width:117px;height:20px;color:#ff0000",
             ),
         ],
     },
@@ -1749,7 +1756,7 @@ const CALC_CASES: &[Case] = &[
             Check::Text(cell!("A3"), "25%"),
             Check::Text(cell!("A4"), "2024-01-31"),
             // The file's 30-point row 3 is now row 4.
-            Check::Style(cell!("A4"), "left:48px;top:82px;width:117px;height:40px"),
+            Check::Style(cell!("A4"), "left:64px;top:82px;width:117px;height:40px"),
         ],
     },
     Case {
@@ -1762,9 +1769,9 @@ const CALC_CASES: &[Case] = &[
             Check::Absent(cell!("B1")),
             // B is 117 px like A; the file's B (180 px) is C, its hidden C is D.
             Check::Text(cell!("C1"), "wide"),
-            Check::Style(cell!("C1"), "left:282px;top:22px;width:180px;height:20px"),
+            Check::Style(cell!("C1"), "left:298px;top:22px;width:180px;height:20px"),
             Check::Text(cell!("E1"), "after hidden"),
-            Check::Style(cell!("E1"), "left:462px;top:22px;width:64px;height:20px"),
+            Check::Style(cell!("E1"), "left:478px;top:22px;width:64px;height:20px"),
         ],
     },
     Case {
@@ -4127,6 +4134,197 @@ const CALC_CASES: &[Case] = &[
             Check::Text("document", "protected.xlsx"),
         ],
     },
+    Case {
+        name: "panes: imported frozen rows and columns remain fixed during a real wheel scroll",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "features.xlsx")),
+            Action::Click("skin-atlas"),
+            Action::Click("skin-grid"),
+            Action::Wait(Check::Attr("grid", "data-frozen-rows", "1")),
+            Action::Wait(Check::Attr("grid", "data-frozen-columns", "1")),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Reachable(cell!("A1"))),
+            Action::RememberView(cell!("A1")),
+            Action::ScrollGrid(180, 300),
+        ],
+        checks: &[Check::PinnedCell, Check::Bounded("[role=gridcell]", 1800)],
+    },
+    Case {
+        name: "panes: a click in the frozen corner edits the original cell after scrolling",
+        actions: &[Action::Click(cell!("A1")), Action::Keys("grid", F2)],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Focused("cell-editor"),
+        ],
+    },
+    Case {
+        name: "panes: Unfreeze changes the viewport through a worker edit",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::Click("[data-dnacalc=pane-tools] summary"),
+            Action::Click("unfreeze"),
+        ],
+        checks: &[
+            Check::Attr("grid", "data-frozen-rows", "0"),
+            Check::Attr("grid", "data-frozen-columns", "0"),
+        ],
+    },
+    Case {
+        name: "panes: Undo restores both imported frozen boundaries",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Attr("grid", "data-frozen-rows", "1"),
+            Check::Attr("grid", "data-frozen-columns", "1"),
+        ],
+    },
+    Case {
+        name: "panes: Redo removes the restored boundaries",
+        actions: &[Action::Click("redo")],
+        checks: &[
+            Check::Attr("grid", "data-frozen-rows", "0"),
+            Check::Attr("grid", "data-frozen-columns", "0"),
+        ],
+    },
+    Case {
+        name: "panes: Freeze above and left resolves the active cell after pending navigation",
+        actions: &[
+            Action::Into("name-box", "C3\u{E007}"),
+            Action::Click("freeze-active"),
+        ],
+        checks: &[
+            Check::Attr("grid", "data-frozen-rows", "2"),
+            Check::Attr("grid", "data-frozen-columns", "2"),
+            Check::Reachable("active-cell"),
+        ],
+    },
+    Case {
+        name: "panes: authored frozen boundaries survive save and reopen",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("features.xlsx"),
+            Action::DiscardReplacement,
+        ],
+        checks: &[
+            Check::Attr("grid", "data-frozen-rows", "2"),
+            Check::Attr("grid", "data-frozen-columns", "2"),
+        ],
+    },
+    Case {
+        name: "panes: first-row and first-column commands replace the frozen axes",
+        actions: &[
+            Action::Click("freeze-row"),
+            Action::Wait(Check::Attr("grid", "data-frozen-rows", "1")),
+            Action::Wait(Check::Attr("grid", "data-frozen-columns", "0")),
+            Action::Click("freeze-column"),
+        ],
+        checks: &[
+            Check::Attr("grid", "data-frozen-rows", "0"),
+            Check::Attr("grid", "data-frozen-columns", "1"),
+        ],
+    },
+    Case {
+        name: "view: an offscreen active selection retains scroll and direct zoom across skins",
+        actions: &[
+            Action::Click("unfreeze"),
+            Action::Click("[data-dnacalc=pane-tools] summary"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "cut-base.xlsx")),
+            Action::Into("name-box", "M100:N102\u{E007}"),
+            Action::Into("zoom-percent", "150\u{E007}"),
+            Action::Wait(Check::Text("zoom", "150%")),
+            Action::ScrollGrid(40, 100),
+            Action::RememberView("active-cell"),
+            Action::Click("skin-atlas"),
+            Action::Click("skin-grid"),
+        ],
+        checks: &[
+            Check::ViewRetained,
+            Check::Attr("selection", "data-area", "M100:N102"),
+            Check::Text("zoom", "150%"),
+        ],
+    },
+    Case {
+        name: "view: each sheet retains its own selection, viewport and zoom",
+        actions: &[
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=Other]"),
+            Action::Into("name-box", "C8:D9\u{E007}"),
+            Action::Into("zoom-percent", "75\u{E007}"),
+            Action::Wait(Check::Text("zoom", "75%")),
+            Action::ScrollGrid(30, 80),
+            Action::RememberView("active-cell"),
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=Data]"),
+        ],
+        checks: &[
+            Check::ViewRetained,
+            Check::Value("name-box", "M100"),
+            Check::Text("zoom", "150%"),
+        ],
+    },
+    Case {
+        name: "view: Ctrl PageDown restores the next worksheet view",
+        actions: &[Action::Keys("grid", "\u{E009}\u{E00F}\u{E000}")],
+        checks: &[
+            Check::ViewRetained,
+            Check::Value("name-box", "C8"),
+            Check::Text("zoom", "75%"),
+            Check::Attr("selection", "data-area", "C8:D9"),
+        ],
+    },
+    Case {
+        name: "view: invalid percentages retain zoom and Reset returns to one hundred percent",
+        actions: &[
+            Action::Into("zoom-percent", "999\u{E007}"),
+            Action::Wait(Check::TextContains(
+                "status",
+                "zoom percentage from 50 to 400",
+            )),
+            Action::Wait(Check::Text("zoom", "75%")),
+            Action::Click("zoom-reset"),
+        ],
+        checks: &[
+            Check::Text("zoom", "100%"),
+            Check::Value("zoom-percent", "100"),
+        ],
+    },
+    Case {
+        name: "view: the full last-row label and address fit at phone width",
+        actions: &[
+            Action::Into("name-box", "XFD1048576\u{E007}"),
+            Action::Wait(Check::Value("name-box", "XFD1048576")),
+            Action::Wait(Check::Reachable("active-cell")),
+            Action::Window(390, 844),
+        ],
+        checks: &[
+            Check::Value("name-box", "XFD1048576"),
+            Check::ScrollAtEnd,
+            Check::ActiveDescendant("grid"),
+            Check::FitsText("name-box"),
+            Check::FitsText("[data-dnacalc=row-header][data-row='1048576']"),
+            Check::Reachable("active-cell"),
+            Check::Fits,
+        ],
+    },
+    Case {
+        name: "view: restore the desktop viewport after layout cases",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Reachable("active-cell"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -4360,6 +4558,12 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         );
     }
     let script = match check {
+        Check::PinnedCell | Check::ViewRetained => {
+            let pinned=matches!(check,Check::PinnedCell);
+            format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]')?.dataset.sheet,h=(window.__dcViews||{{}})[key];if(!g||!h)return {{ok:false}};var e=document.querySelector(h.selector);if(!e)return {{ok:false,held:h}};var r=e.getBoundingClientRect(),b=g.getBoundingClientRect(),s={{x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent,address:document.querySelector('[data-dnacalc=name-box]')?.value}};var same=['x','y','w','h'].every(k=>Math.abs(s[k]-h[k])<2);return {{ok:same&&({}),held:h,seen:s}};"#,
+                if pinned {"s.left>h.left+1&&s.top>h.top+1"} else {"Math.abs(s.left-h.left)<2&&Math.abs(s.top-h.top)<2&&s.zoom===h.zoom&&s.address===h.address"})
+        }
+        Check::FitsText(name) => format!("var e={};if(!e)return null;var s=getComputedStyle(e),c=document.createElement('canvas').getContext('2d');c.font=s.font;return [c.measureText(e.value||e.textContent).width,e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight)];",q(name)),
         Check::Role(..) | Check::Name(..) => unreachable!(),
         Check::DragExtended => "var g=document.querySelector('[data-dnacalc=grid]'),s=document.querySelector('[data-dnacalc=selection]');if(!g||!s)return false;var a=s.dataset.area, n=Number(a.split(':')[1]?.match(/[0-9]+$/)?.[0]);return a.startsWith('A1:')&&n>g.querySelectorAll('[role=row]').length&&g.scrollTop>0;".to_owned(),
         Check::PageAligned => "var g=document.querySelector('[data-dnacalc=grid]'),a=document.querySelector('[data-dnacalc=active-cell]');if(!g||!a)return false;var r=a.getBoundingClientRect(),b=g.getBoundingClientRect();return r.top>b.top+22&&r.bottom<b.bottom-20&&g.scrollTop>0;".to_owned(),
@@ -4419,6 +4623,14 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
 
 fn satisfied(check: &Check, seen: &Value) -> bool {
     match check {
+        Check::PinnedCell | Check::ViewRetained => {
+            seen.get("ok").and_then(Value::as_bool) == Some(true)
+        }
+        Check::FitsText(_) => seen.as_array().is_some_and(|v| {
+            v[0].as_f64()
+                .zip(v[1].as_f64())
+                .is_some_and(|(need, have)| need <= have + 1.0)
+        }),
         Check::Text(_, expected)
         | Check::Value(_, expected)
         | Check::Attr(_, _, expected)
@@ -4502,6 +4714,13 @@ fn describe(check: &Check) -> String {
         Check::Role(name, value) => format!("{name} has computed accessibility role {value}"),
         Check::Name(name, value) => format!("{name} has computed accessible name {value}"),
         Check::Reachable(name) => format!("{name} fits within the viewport"),
+        Check::PinnedCell => {
+            "the frozen cell keeps its rectangle while both scroll axes move".to_owned()
+        }
+        Check::ViewRetained => {
+            "the sheet retains its selection, zoom, scroll and active-cell geometry".to_owned()
+        }
+        Check::FitsText(name) => format!("{name} displays its complete text"),
         Check::DragExtended => {
             "selection extends beyond the initial viewport after a real out-of-view drag".to_owned()
         }
@@ -4546,6 +4765,33 @@ fn faults(app: &App, session: &Session) -> Result<Vec<String>, String> {
 
 fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<(), String> {
     match action {
+        Action::RememberView(name) => {
+            let selector = serde_json::to_string(&select(app, name)).unwrap();
+            session.script(&format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),e=document.querySelector({selector}),r=e.getBoundingClientRect(),b=g.getBoundingClientRect(),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]').dataset.sheet;window.__dcViews=window.__dcViews||{{}};window.__dcViews[key]={{selector:{selector},x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]').textContent,address:document.querySelector('[data-dnacalc=name-box]').value}};return null;"#))?;
+            Ok(())
+        }
+        Action::ScrollGrid(dx, dy) => {
+            let before=session.script("var g=document.querySelector('[data-dnacalc=grid]'),r=g.getBoundingClientRect();return [g.scrollLeft,g.scrollTop,Math.round(r.left+r.width/2),Math.round(r.top+r.height/2)];")?;
+            session.post("/actions",json!({"actions":[{"type":"wheel","id":"wheel","actions":[{"type":"scroll","x":before[2],"y":before[3],"deltaX":dx,"deltaY":dy,"duration":100}]}]}))?;
+            let start = Instant::now();
+            let mut stable = Instant::now();
+            let mut last = Value::Null;
+            while start.elapsed() < SETTLE {
+                let after=session.script("var g=document.querySelector('[data-dnacalc=grid]'),r=g.querySelector('[data-dnacalc=active-cell]')?.getBoundingClientRect();return [g.scrollLeft,g.scrollTop,r?.left,r?.top];")?;
+                if last != after {
+                    stable = Instant::now();
+                    last = after.clone();
+                }
+                if (*dx == 0 || after[0] != before[0])
+                    && (*dy == 0 || after[1] != before[1])
+                    && stable.elapsed() >= Duration::from_millis(100)
+                {
+                    return Ok(());
+                }
+                thread::sleep(Duration::from_millis(20));
+            }
+            Err("The wheel gesture did not settle after scrolling the worksheet".to_owned())
+        }
         Action::Grid(cell, text) => {
             let css = format!("{}[data-cell=\"{cell}\"]", select(app, "grid-cell"));
             session.clear(&css)?;

@@ -342,6 +342,16 @@ impl ModelRoot {
                 }
             });
         let next = Definitions::new(arrays, names, tables, unloaded)
+            .with_panes(definitions.panes().filter_map(|(sheet, panes)| {
+                Some((
+                    sheet,
+                    if sheet == edit.sheet() {
+                        panes.moved(edit)?
+                    } else {
+                        panes
+                    },
+                ))
+            }))
             .with_hidden_rows(hidden.collect::<Vec<_>>())
             .with_macro_enabled(definitions.macro_enabled())
             .with_iteration(definitions.iteration())

@@ -71,7 +71,6 @@ pub use chart::{ChartCorner, ChartKind, ChartPlace, ChartView, PlotView, SeriesV
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
 pub use conditional::{BarLook, CellLook, ConditionalFormats, IconLook, LookColor};
 pub use copy::{COPY_LIMIT, CopyRefusal, CopySnapshot, PasteMode, check_destination};
-pub use validation::{ErrorStyle, ValidationFailure, ValidationRule};
 pub use entry::{EntryRefusal, interpret_entry, interpret_entry_in};
 pub use history::{Irreversible, IrreversibleReason, Selection};
 pub use project::{
@@ -86,18 +85,19 @@ pub use session::{
     UNDO_LIMIT, replay,
 };
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
+pub use validation::{ErrorStyle, ValidationFailure, ValidationRule};
 
-pub use calc_doc::{blank_package, convert_binary_workbook};
 pub use calc_doc::{
     CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
 };
-pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry};
+pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry, SheetView};
+pub use calc_doc::{blank_package, convert_binary_workbook};
 pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
-    CachedValue, CellInput, CellText, DefinedName, FileCached, FiniteNumber, FormulaText,
-    Definitions, IterationSettings, ModelRoot, NameScope, SheetEntry, SourcePart,
+    CachedValue, CellInput, CellText, DefinedName, Definitions, FileCached, FiniteNumber,
+    FormulaText, FrozenPanes, IterationSettings, ModelRoot, NameScope, SheetEntry, SourcePart,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,

@@ -183,7 +183,7 @@ fn col_header_rect(m: &GridMetrics, v: &Viewport, col: u32) -> CellRect {
     CellRect {
         x: data.x,
         y: 0.0,
-        w: m.col_width,
+        w: m.width(col),
         h: m.header_h,
     }
 }
@@ -195,7 +195,7 @@ fn row_header_rect(m: &GridMetrics, v: &Viewport, row: u32) -> CellRect {
         x: 0.0,
         y: data.y,
         w: m.header_w,
-        h: m.row_height,
+        h: m.height(row),
     }
 }
 

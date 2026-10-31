@@ -159,6 +159,9 @@ pub fn now_ms() -> f64 {
 
 #[derive(Clone, Copy)]
 pub struct Controller {
+    sheet_selections: StoredValue<BTreeMap<SheetId, (CellKey, Vec<GridArea>)>>,
+    grid_views: StoredValue<BTreeMap<SheetId, crate::grid::viewport::GridView>>,
+    grid_geometry: StoredValue<BTreeMap<SheetId, wire::Geometry>>,
     mirrors: StoredValue<BTreeMap<u64, RwSignal<ViewMirror>>, LocalStorage>,
     next_subscription: StoredValue<u64>,
     /// The workbook as the shell shows it: name, sheets, calculation mode, revision.
@@ -221,6 +224,9 @@ impl Controller {
         let edit_text = RwSignal::new(String::new());
         let assist = FormulaAssist::new(edit_text);
         let controller = Controller {
+            sheet_selections: StoredValue::new(BTreeMap::new()),
+            grid_views: StoredValue::new(BTreeMap::new()),
+            grid_geometry: StoredValue::new(BTreeMap::new()),
             mirrors: StoredValue::new_local(BTreeMap::new()),
             next_subscription: StoredValue::new(1),
             summary: RwSignal::new(Summary::default()),
@@ -646,7 +652,7 @@ impl Controller {
         self.selection.with(|mirror| mirror.cell(at).cloned())
     }
 
-    fn say(&self, text: impl Into<String>, refused: bool) {
+    pub(crate) fn say(&self, text: impl Into<String>, refused: bool) {
         self.status.set(Status {
             text: text.into(),
             refused,
@@ -672,6 +678,9 @@ impl Controller {
     /// A new workbook is open (an open or a new workbook): a new generation, the first sheet
     /// active at A1, and the application's selection subscription.
     fn installed(&self, summary: Summary, message: String) {
+        self.sheet_selections.update_value(BTreeMap::clear);
+        self.grid_views.update_value(BTreeMap::clear);
+        self.grid_geometry.update_value(BTreeMap::clear);
         self.mirrors.update_value(BTreeMap::clear);
         let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
         self.summary.set(summary);
@@ -950,7 +959,7 @@ impl Controller {
             && let Some(at) = at.cell()
         {
             if Some(at.sheet()) != self.sheet.get_untracked() {
-                self.sheet.set(Some(at.sheet()));
+                self.switch_sheet(at.sheet());
             }
             if (at.row(), at.column()) != self.active.get_untracked() {
                 self.active.set((at.row(), at.column()));
@@ -1082,7 +1091,7 @@ impl Controller {
             self.enqueue(move || controller.select_areas(at, areas));
             return;
         }
-        self.sheet.set(Some(at.sheet()));
+        self.switch_sheet(at.sheet());
         self.active.set((at.row(), at.column()));
         self.areas.set(areas.clone());
         self.dispatch(
@@ -1558,8 +1567,98 @@ impl Controller {
                 return;
             }
         }
-        self.sheet.set(Some(sheet));
-        self.select(1, 1);
+        if self.sheet.get_untracked() == Some(sheet) {
+            return;
+        }
+        let remembered = self
+            .sheet_selections
+            .with_value(|all| all.get(&sheet).cloned());
+        let at = remembered
+            .as_ref()
+            .map(|(at, _)| *at)
+            .unwrap_or_else(|| CellKey::new(sheet, 1, 1).unwrap());
+        let areas = remembered
+            .map(|(_, areas)| areas)
+            .unwrap_or_else(|| vec![GridArea::cell(at)]);
+        self.select_areas(at, areas);
+    }
+
+    fn switch_sheet(&self, sheet: SheetId) {
+        if self.sheet.get_untracked() != Some(sheet) {
+            if let Some(at) = self.active_key_untracked() {
+                let areas = self.areas.get_untracked();
+                self.sheet_selections.update_value(|all| {
+                    all.insert(at.sheet(), (at, areas));
+                });
+            }
+            self.sheet.set(Some(sheet));
+        }
+    }
+    pub fn grid_view(&self, sheet: SheetId) -> Option<crate::grid::viewport::GridView> {
+        self.grid_views.with_value(|all| all.get(&sheet).copied())
+    }
+    pub fn grid_geometry(&self, sheet: SheetId) -> Option<wire::Geometry> {
+        self.grid_geometry
+            .with_value(|all| all.get(&sheet).cloned())
+    }
+    pub fn remember_grid_geometry(&self, sheet: SheetId, geometry: wire::Geometry) {
+        self.grid_geometry.update_value(|all| {
+            all.insert(sheet, geometry);
+        });
+    }
+    pub fn remember_grid_view(&self, sheet: SheetId, mut view: crate::grid::viewport::GridView) {
+        if self.sheet.get_untracked() != Some(sheet) {
+            if let Some(active) = self
+                .sheet_selections
+                .with_value(|all| all.get(&sheet).map(|(at, _)| (at.row(), at.column())))
+            {
+                view.active = active;
+            }
+        }
+        self.grid_views.update_value(|all| {
+            all.insert(sheet, view);
+        });
+    }
+    pub fn freeze_panes(&self, choice: &'static str) {
+        let controller = *self;
+        self.after_input(move || {
+            if controller.editing.get_untracked().is_some() {
+                controller.say(
+                    "Finish or cancel the current entry before changing panes",
+                    true,
+                );
+                return;
+            }
+            let Some(sheet) = controller.sheet.get_untracked() else {
+                return;
+            };
+            let (row, col) = controller.active.get_untracked();
+            let (rows, columns) = match choice {
+                "first-row" => (1, 0),
+                "first-column" => (0, 1),
+                "active" => (row - 1, col - 1),
+                _ => (0, 0),
+            };
+            controller.dispatch(
+                Intent::FreezePanes {
+                    sheet: wire::Sheet::of(sheet),
+                    rows,
+                    columns,
+                },
+                move |outcome| {
+                    if outcome.accepted {
+                        controller.say(
+                            if rows == 0 && columns == 0 {
+                                "Panes unfrozen".to_owned()
+                            } else {
+                                format!("Frozen: {rows} rows, {columns} columns")
+                            },
+                            false,
+                        );
+                    }
+                },
+            );
+        });
     }
 
     /// Makes `at` the active cell, showing its sheet (a skin's jump to a cell: the tree's, the
@@ -1589,7 +1688,7 @@ impl Controller {
         }
         if Some(at.sheet()) != self.sheet.get_untracked() {
             self.cancel_edit();
-            self.sheet.set(Some(at.sheet()));
+            self.switch_sheet(at.sheet());
         }
         self.select(at.row(), at.column());
         arrived(true);
@@ -1957,7 +2056,7 @@ impl Controller {
             self.pointed.set(None);
             self.assist.reset();
             if let Some(at) = target {
-                self.sheet.set(Some(at.sheet()));
+                self.switch_sheet(at.sheet());
                 self.select_areas(at, self.edit_areas.get_value());
             }
             self.say("Edit cancelled", false);
@@ -1982,7 +2081,7 @@ impl Controller {
         if self.active_key_untracked() != Some(at)
             || self.areas.get_untracked() != self.edit_areas.get_value()
         {
-            self.sheet.set(Some(at.sheet()));
+            self.switch_sheet(at.sheet());
             self.select_areas(at, self.edit_areas.get_value());
         }
         if !fill_selection && text == self.edit_original.get_value() {

@@ -51,6 +51,11 @@ pub enum WorkbookOp {
     /// are calculated iteratively, the most iterations and the maximum change, as the workbook
     /// part's `calcPr` holds them. It changes no cell.
     SetIteration(crate::definitions::IterationSettings),
+    /// Freeze the leading rows and columns of a worksheet window; `None` unfreezes it.
+    SetFrozenPanes {
+        sheet: SheetId,
+        panes: Option<FrozenPanes>,
+    },
     /// Insert or delete rows or columns of one sheet.
     EditAxis(AxisEdit),
     /// Insert, rename, move, remove or show or hide a sheet.
@@ -58,6 +63,50 @@ pub enum WorkbookOp {
     /// Create or remove a block with its locator, or add, move or remove one of a block's
     /// placements in a view: document-only metadata, which changes no cell and no calculation.
     EditSkinLayout(SkinLayoutEdit),
+}
+
+/// Leading worksheet bands kept visible while the remaining bands scroll.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct FrozenPanes {
+    rows: u32,
+    columns: u32,
+}
+
+impl FrozenPanes {
+    /// At least one frozen band, leaving a scrollable row and column within the worksheet.
+    pub fn new(rows: u32, columns: u32) -> Option<Self> {
+        ((rows != 0 || columns != 0) && rows < MAX_ROWS && columns < MAX_COLUMNS)
+            .then_some(Self { rows, columns })
+    }
+    pub fn rows(self) -> u32 {
+        self.rows
+    }
+    pub fn columns(self) -> u32 {
+        self.columns
+    }
+    /// The boundary follows insertions and deletions before it.
+    pub fn moved(self, edit: AxisEdit) -> Option<Self> {
+        let boundary = match edit.axis() {
+            Axis::Rows => self.rows,
+            Axis::Columns => self.columns,
+        };
+        let next = if edit.first() > boundary {
+            boundary
+        } else {
+            match edit.change() {
+                AxisChange::Insert => boundary
+                    .saturating_add(edit.count())
+                    .min(edit.axis().size() - 1),
+                AxisChange::Delete => {
+                    boundary.saturating_sub(edit.last().min(boundary) - edit.first() + 1)
+                }
+            }
+        };
+        match edit.axis() {
+            Axis::Rows => Self::new(next, self.columns),
+            Axis::Columns => Self::new(self.rows, next),
+        }
+    }
 }
 
 /// The rows or the columns of a sheet.

@@ -501,6 +501,10 @@ fn describe(op: &WorkbookOp) -> String {
             scope,
             formula,
         } => format!("name {name} {scope:?} {formula:?}"),
+        WorkbookOp::SetFrozenPanes { sheet, panes } => format!(
+            "panes {sheet:?} {:?}",
+            panes.map(|p| (p.rows(), p.columns()))
+        ),
         WorkbookOp::SetIteration(settings) => format!(
             "iteration {} {} {:016x}",
             settings.enabled(),
@@ -628,6 +632,8 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         WorkbookOp::SetNameFormula { .. } => "op:set_name_formula".to_owned(),
         // Nor for the iteration settings (EncodeError::Iteration).
         WorkbookOp::SetIteration(_) => "op:set_iteration".to_owned(),
+        // Wire version 1 has no pane form (EncodeError::FrozenPanes).
+        WorkbookOp::SetFrozenPanes { .. } => "op:set_frozen_panes".to_owned(),
         WorkbookOp::EditAxis(edit) => {
             out.insert("op:edit_axis".to_owned());
             let axis = match edit.axis() {

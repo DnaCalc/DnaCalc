@@ -12,7 +12,7 @@ html,body{height:100%}
 .dc-mast .dc-skins{margin-left:auto;display:flex;gap:4px}
 .dc-mast .dc-skins button[aria-pressed=true]{background:var(--dna-chrome-ink);color:var(--dna-chrome)}
 .dc-bar{display:flex;gap:8px;align-items:flex-start;padding:6px 10px;border-bottom:1px solid var(--dna-line);background:var(--dna-paper-2)}
-.dc-namebox{width:90px;font:13px ui-monospace,Consolas,monospace;border:1px solid var(--dna-ink-3);border-radius:4px;padding:6px}
+.dc-namebox{width:calc(11ch + 14px);flex:0 0 auto;font:13px ui-monospace,Consolas,monospace;border:1px solid var(--dna-ink-3);border-radius:4px;padding:6px}
 .dc-fx{flex:1 1 auto;min-width:0}
 .dc-fx .oc-editor,.dc-fx .oc-editor pre,.dc-fx .oc-editor textarea{min-height:2.2em}
 .dc-fx .oc-editor pre,.dc-fx .oc-editor textarea{padding:4px 8px}
@@ -33,7 +33,7 @@ html,body{height:100%}
 .dc-mast{gap:6px;padding:6px 8px}
 .dc-mast .dc-skins{margin-left:0;flex-wrap:wrap}
 .dc-bar{flex-wrap:wrap;padding:6px 8px}
-.dc-namebox{width:72px}
+.dc-namebox{width:calc(11ch + 14px);flex:0 0 auto}
 .dc-status{flex-wrap:wrap;white-space:normal;gap:2px 12px}
 }
 @media (pointer:coarse){

@@ -191,11 +191,13 @@ fn file_forms(
         let Some(CellInput::Formula(formula)) = input else {
             continue;
         };
-        let form = file_form_with_links(formula, names, links).map_err(|error| SaveRefusal::FormulaFileForm {
-            part: sheet_part.to_owned(),
-            row,
-            column,
-            error,
+        let form = file_form_with_links(formula, names, links).map_err(|error| {
+            SaveRefusal::FormulaFileForm {
+                part: sheet_part.to_owned(),
+                row,
+                column,
+                error,
+            }
         })?;
         forms.insert((row, column), form);
     }
@@ -381,10 +383,12 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     let mut out = Changes::default();
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
+    let panes_changed = base.definitions().panes().ne(model.definitions().panes());
     // The iterative-calculation settings an edit changed (dc-y2o.2), written to the `calcPr`.
     let iteration = Some(model.definitions().iteration())
         .filter(|settings| *settings != base.definitions().iteration());
-    if !cells_changed && layout.is_none() && !names_changed && iteration.is_none() {
+    if !cells_changed && layout.is_none() && !names_changed && !panes_changed && iteration.is_none()
+    {
         return Ok(out);
     }
     let mut chain = None;
@@ -821,6 +825,24 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         && package.part(&chain).is_some()
     {
         out.removed.push(chain);
+    }
+    if panes_changed {
+        for sheet in sheets.iter().filter(|s| {
+            base.definitions().frozen_panes(s.id()) != model.definitions().frozen_panes(s.id())
+        }) {
+            let original = read_part(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|bytes| original.with_bytes(bytes));
+            let xml = current.as_ref().unwrap_or(&original);
+            let bytes = super::panes::rewrite(
+                xml,
+                model.definitions().frozen_panes(sheet.id()),
+                sheet.view().active_cell.unwrap_or((1, 1)),
+            )?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
     }
     Ok(out)
 }
