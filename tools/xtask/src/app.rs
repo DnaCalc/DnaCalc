@@ -26,7 +26,8 @@
 //! it is never skipped.
 //!
 //! With no filters, `smoke` runs the routine core (32 cases across the two apps and all six
-//! Calc skins). `--suite full` runs every case; sweep and site smoke use full. `--group name`
+//! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
+//! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
 //! case. Both flags can repeat, and combine as group AND case. Explicit filters search the
 //! full suite unless `--suite core` is supplied. Earlier cases inside a selected group run

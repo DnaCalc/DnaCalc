@@ -95,7 +95,8 @@ earlier group prerequisites with every assertion intact; failures there fail the
 Output reports selected cases, prerequisite counts and wall time per group, including page
 setup. Browser totals exclude bundle builds. A filter selecting no case fails with exit 2.
 `--list` requires neither browser nor bundle. Full suites also run in `cargo xtask sweep`
-(the `app-smoke` step); site smoke retains full coverage.
+(the `app-smoke` step); site smoke retains every ordinary case. Worker-fault/latency cases
+need a local bundle and run in sweep, not against the site URL.
 
 Run cargo commands sequentially. Bundles are `target/dnacalc-bundle` and
 `target/onecalc-bundle`. For repeat screenshots, serve them in separate terminals:
