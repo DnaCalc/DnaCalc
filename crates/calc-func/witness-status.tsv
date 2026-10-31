@@ -413,9 +413,9 @@ PHI	full	20131,20430,?	14400	14400	-	exact	dd2d82c25f+changes
 PHI	pinned	20131,20430	120	120	-	exact	dd2d82c25f+changes
 PI	full	20430	1	1	-	exact	dd2d82c25f+changes
 PI	pinned	20430	1	1	-	exact	dd2d82c25f+changes
-PMT	full	20131,20228,20527,?	291851	222784	53973	structural	dbcc791331+changes
+PMT	full	20131,20228,20527,?	291851	222784	53973	structural	e6631035f4+changes
 PMT	pinned	20131,20228,?	120	93	3	last_bit	dd2d82c25f+changes
-POISSON.DIST	full	20131,20430,20527,?	49678	39026	18876141089959088	structural	dd2d82c25f+changes
+POISSON.DIST	full	20131,20430,20527,?	49678	39026	18876141089959088	structural	e6631035f4+changes
 POISSON.DIST	pinned	20131,20430	120	93	374	numeric	dd2d82c25f+changes
 POWER	full	20131,20430,?	62623	62580	1	structural	dd2d82c25f+changes
 POWER	pinned	20131,20430	120	120	-	exact	dd2d82c25f+changes
