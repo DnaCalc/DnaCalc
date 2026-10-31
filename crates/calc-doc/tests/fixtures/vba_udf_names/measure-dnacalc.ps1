@@ -23,8 +23,9 @@ miniz_oxide = "=0.8.9"
 serde_json = "=1.0.154"
 "@ | Set-Content -Encoding utf8 (Join-Path $scratch 'Cargo.toml')
 $commit = git -C $repo rev-parse HEAD
+$dirty = if (git -C $repo status --porcelain) { 'true' } else { 'false' }
 $output = if ($OutDir) { [IO.Path]::GetFullPath($OutDir) } else { Join-Path $repo 'target/udfnames/product' }
-cargo run --manifest-path (Join-Path $scratch 'Cargo.toml') --target-dir (Join-Path $repo 'target') -- $PSScriptRoot $output $commit
+cargo run --manifest-path (Join-Path $scratch 'Cargo.toml') --target-dir (Join-Path $repo 'target') -- $PSScriptRoot $output $commit $dirty
 if ($LASTEXITCODE -ne 0) { throw 'Product measurement failed' }
 if ($NoRecord) { exit 0 }
 Copy-Item -LiteralPath (Join-Path $output 'product-observations.json') -Destination $PSScriptRoot -Force

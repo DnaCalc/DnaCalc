@@ -33,6 +33,7 @@ fn main() {
     let out = Path::new(&args[2]);
     std::fs::create_dir_all(out).unwrap();
     let mut data = vec![json!({"kind":"environment","source_commit":args.get(3),
+                               "source_worktree_dirty":args.get(4).map(|s| s=="true"),
                                "os":std::env::consts::OS,"arch":std::env::consts::ARCH})];
     for name in ["local.xlsm", "local.xlsb", "stripped.xlsx", "consumer.xlsx", "consumer.xlsb",
                  "loaded-xml.xlsb", "collision.xlsm", "collision.xlsb", "metadata-after.xlsb",

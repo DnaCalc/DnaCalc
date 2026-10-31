@@ -5,7 +5,7 @@
 
 use super::formula::{self, Context, NameRef, Origin, Xti};
 use super::parts::Shared;
-use super::records::{Cursor, Read, records, text};
+use super::records::{Cursor, Malformed, Read, records, text};
 use super::{MAIN_NAMESPACE, RELATIONSHIPS_NAMESPACE, Xml, refusal};
 use crate::OpenError;
 use crate::opc::Package;
@@ -24,6 +24,15 @@ const BRT_EXTERN_SHEET: u16 = 362;
 const BRT_SUP_ADDIN: u16 = 667;
 const BRT_PLACEHOLDER_NAME: u16 = 361;
 const BRT_ABS_PATH_15: u16 = 2071;
+const BRT_BEGIN_FN_GROUP: u16 = 664;
+const BRT_FN_GROUP: u16 = 665;
+const BRT_NAME_EXT: u16 = 1036;
+
+/// Argument help belongs to an extension, not to the normal formula-name table.
+pub(crate) struct NameExtension {
+    name: String,
+    arguments: Vec<(u32, String)>,
+}
 
 /// One sheet of the workbook.
 pub(crate) struct Sheet {
@@ -97,6 +106,9 @@ pub(crate) struct Book {
     pub(crate) sharing: Option<(bool, u16, String)>,
     /// The original workbook folder, used by Excel to rebase relative external links.
     pub(crate) absolute_path: Option<String>,
+    /// Built-in category count and custom labels, in their saved order.
+    pub(crate) function_groups: Option<(u8, Vec<String>)>,
+    pub(crate) name_extensions: Vec<NameExtension>,
 }
 
 fn malformed(part: &str) -> impl Fn(super::Malformed) -> OpenError + '_ {
@@ -131,11 +143,50 @@ pub(crate) fn read(
         version: None,
         sharing: None,
         absolute_path: None,
+        function_groups: None,
+        name_extensions: Vec::new(),
     };
     let result: Read<()> = (|| {
         for record in &records {
             let mut c = Cursor::new(record.body);
             match record.kind {
+                BRT_BEGIN_FN_GROUP => {
+                    book.function_groups = Some((c.u8("BrtBeginFnGroup")?, Vec::new()));
+                }
+                BRT_FN_GROUP => {
+                    let Some((built_in, groups)) = book.function_groups.as_mut() else {
+                        return Err(Malformed("BrtFnGroup without BrtBeginFnGroup".to_owned()));
+                    };
+                    if usize::from(*built_in) + groups.len() >= 255 {
+                        return Err(Malformed("more than 255 function categories".to_owned()));
+                    }
+                    groups.push(text(&c.wide("BrtFnGroup")?));
+                }
+                BRT_NAME_EXT => {
+                    c.skip(4, "BrtNameExt FRTBlank")?;
+                    let count = c.u32("BrtNameExt")?;
+                    if !(1..=60).contains(&count) {
+                        return Err(Malformed(
+                            "BrtNameExt argument-description count outside 1..=60".to_owned(),
+                        ));
+                    }
+                    let name = text(&c.wide("BrtNameExt")?);
+                    let mut arguments = Vec::new();
+                    for _ in 0..count {
+                        let index = c.u32("ArgDesc")?;
+                        let description = c.wide("ArgDesc")?;
+                        if !(1..=255).contains(&description.len())
+                            || arguments.iter().any(|(held, _)| *held == index)
+                        {
+                            return Err(Malformed(
+                                "an invalid or duplicate BrtNameExt argument description"
+                                    .to_owned(),
+                            ));
+                        }
+                        arguments.push((index, text(&description)));
+                    }
+                    book.name_extensions.push(NameExtension { name, arguments });
+                }
                 BRT_ABS_PATH_15 => {
                     book.absolute_path = Some(text(&c.wide("BrtAbsPath15")?));
                 }
@@ -567,6 +618,18 @@ pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> 
         }
         x.close("definedNames");
     }
+    if let Some((built_in, groups)) = &book.function_groups {
+        let attributes = [("builtInGroupCount", built_in.to_string())];
+        if groups.is_empty() {
+            x.empty("functionGroups", &attributes);
+        } else {
+            x.open("functionGroups", &attributes);
+            for name in groups {
+                x.empty("functionGroup", &[("name", name.clone())]);
+            }
+            x.close("functionGroups");
+        }
+    }
     if let Some((id, mode, count, delta, threads, flags)) = book.calculation {
         let mut attributes = vec![("calcId", id.to_string())];
         match mode {
@@ -605,6 +668,39 @@ pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> 
             attributes.push(("forceFullCalc", "1".to_owned()));
         }
         x.empty("calcPr", &attributes);
+    }
+    if !book.name_extensions.is_empty() {
+        x.open("extLst", &[]);
+        x.open(
+            "ext",
+            &[
+                ("uri", "{8193D73E-4604-4355-AFF4-8A2333D13BE4}".to_owned()),
+                (
+                    "xmlns:x14",
+                    "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main".to_owned(),
+                ),
+            ],
+        );
+        x.open("x14:definedNames", &[]);
+        for metadata in &book.name_extensions {
+            x.open("x14:definedName", &[("name", metadata.name.clone())]);
+            x.open(
+                "x14:argumentDescriptions",
+                &[("count", metadata.arguments.len().to_string())],
+            );
+            for (index, description) in &metadata.arguments {
+                x.element(
+                    "x14:argumentDescription",
+                    &[("index", index.to_string())],
+                    description,
+                );
+            }
+            x.close("x14:argumentDescriptions");
+            x.close("x14:definedName");
+        }
+        x.close("x14:definedNames");
+        x.close("ext");
+        x.close("extLst");
     }
     x.close("workbook");
     Ok(x.out)

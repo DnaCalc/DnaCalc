@@ -1,0 +1,155 @@
+[
+  {
+    "kind": "environment",
+    "pid": 41892,
+    "excel": "16.0",
+    "build": 20527.0,
+    "excel_os": "Windows (64-bit) NT 10.00"
+  },
+  {
+    "kind": "package",
+    "file": "metadata-unqualified-xlsb-saved.xlsm",
+    "sha256": "4d4025977a33d648fa0fbcce2238cb46500a61ba8957e2850c6e249fc5c0c48c"
+  },
+  {
+    "kind": "observe",
+    "scenario": "metadata-unqualified-xlsb-saved.xlsm-before-recalc",
+    "book": "metadata-unqualified-xlsb-saved.xlsm",
+    "calculated": false,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "metadata",
+        "formula": "=MetaFunc(2)",
+        "value": 4002.0,
+        "text": "4002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "metadata-unqualified-xlsb-saved.xlsm",
+    "book": "metadata-unqualified-xlsb-saved.xlsm",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "metadata",
+        "formula": "=MetaFunc(2)",
+        "value": 4002.0,
+        "text": "4002"
+      }
+    ]
+  },
+  {
+    "kind": "metadata-resave",
+    "file": "metadata-unqualified-xlsb-saved.xlsm",
+    "source_binary": "metadata-unqualified.xlsb",
+    "resaved_sha256": "3d4b5dfc3b514268d5a3fbce129a1c6ad6bae34eaa2ff82d8d3a6c84e723ae01",
+    "expected_records": [
+      {
+        "type": 664,
+        "payload_hex": "13"
+      },
+      {
+        "type": 1036,
+        "payload_hex": "00 00 00 00 01 00 00 00 08 00 00 00 4d 00 65 00 74 00 61 00 46 00 75 00 6e 00 63 00 00 00 00 00 10 00 00 00 56 00 42 00 41 00 2d 00 73 00 65 00 74 00 20 00 61 00 72 00 67 00 75 00 6d 00 65 00 6e 00 74 00"
+      }
+    ],
+    "actual_records": [
+      {
+        "type": 664,
+        "payload_hex": "13"
+      },
+      {
+        "type": 1036,
+        "payload_hex": "00 00 00 00 01 00 00 00 08 00 00 00 4d 00 65 00 74 00 61 00 46 00 75 00 6e 00 63 00 00 00 00 00 10 00 00 00 56 00 42 00 41 00 2d 00 73 00 65 00 74 00 20 00 61 00 72 00 67 00 75 00 6d 00 65 00 6e 00 74 00"
+      }
+    ],
+    "exported_attributes": [
+      "Attribute MetaFunc.VB_Description = \"Unqualified COM description\"",
+      "Attribute MetaFunc.VB_ProcData.VB_Invoke_Func = \" \\n3\""
+    ],
+    "matches": true,
+    "scope": "Excel reopens XML and writes binary help metadata; UI display is not read by this script"
+  },
+  {
+    "kind": "package",
+    "file": "metadata-custom-vba-xlsb-saved.xlsm",
+    "sha256": "61f57d23bf88d9796059246ce295e442d10567131ceaa878fac966b015f137bf"
+  },
+  {
+    "kind": "observe",
+    "scenario": "metadata-custom-vba-xlsb-saved.xlsm-before-recalc",
+    "book": "metadata-custom-vba-xlsb-saved.xlsm",
+    "calculated": false,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "metadata",
+        "formula": "=MetaFunc(2)",
+        "value": 4002.0,
+        "text": "4002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "metadata-custom-vba-xlsb-saved.xlsm",
+    "book": "metadata-custom-vba-xlsb-saved.xlsm",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "metadata",
+        "formula": "=MetaFunc(2)",
+        "value": 4002.0,
+        "text": "4002"
+      }
+    ]
+  },
+  {
+    "kind": "metadata-resave",
+    "file": "metadata-custom-vba-xlsb-saved.xlsm",
+    "source_binary": "metadata-custom-vba.xlsb",
+    "resaved_sha256": "08218ee1996cab6503018c2cfdc1d2fc3448a4d3075b10a6d09be6c3b5307d3f",
+    "expected_records": [
+      {
+        "type": 664,
+        "payload_hex": "13"
+      },
+      {
+        "type": 665,
+        "payload_hex": "0e 00 00 00 44 00 4e 00 41 00 20 00 55 00 44 00 46 00 20 00 63 00 75 00 73 00 74 00 6f 00 6d 00"
+      },
+      {
+        "type": 1036,
+        "payload_hex": "00 00 00 00 01 00 00 00 08 00 00 00 4d 00 65 00 74 00 61 00 46 00 75 00 6e 00 63 00 00 00 00 00 18 00 00 00 43 00 75 00 73 00 74 00 6f 00 6d 00 20 00 63 00 61 00 74 00 65 00 67 00 6f 00 72 00 79 00 20 00 61 00 72 00 67 00 75 00 6d 00 65 00 6e 00 74 00"
+      }
+    ],
+    "actual_records": [
+      {
+        "type": 664,
+        "payload_hex": "13"
+      },
+      {
+        "type": 665,
+        "payload_hex": "0e 00 00 00 44 00 4e 00 41 00 20 00 55 00 44 00 46 00 20 00 63 00 75 00 73 00 74 00 6f 00 6d 00"
+      },
+      {
+        "type": 1036,
+        "payload_hex": "00 00 00 00 01 00 00 00 08 00 00 00 4d 00 65 00 74 00 61 00 46 00 75 00 6e 00 63 00 00 00 00 00 18 00 00 00 43 00 75 00 73 00 74 00 6f 00 6d 00 20 00 63 00 61 00 74 00 65 00 67 00 6f 00 72 00 79 00 20 00 61 00 72 00 67 00 75 00 6d 00 65 00 6e 00 74 00"
+      }
+    ],
+    "exported_attributes": [
+      "Attribute MetaFunc.VB_Description = \"Custom category description\"",
+      "Attribute MetaFunc.VB_ProcData.VB_Invoke_Func = \" \\n20\""
+    ],
+    "matches": true,
+    "scope": "Excel reopens XML and writes binary help metadata; UI display is not read by this script"
+  }
+]

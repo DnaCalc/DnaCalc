@@ -3,6 +3,7 @@ from pathlib import Path
 import argparse
 import gc
 import hashlib
+import importlib.util
 import json
 import re
 import shutil
@@ -12,6 +13,15 @@ import win32process
 import measure as m
 
 
+def metadata_records(path):
+    spec=importlib.util.spec_from_file_location('vba_udf_wire',m.HERE/'inspect.py')
+    wire=importlib.util.module_from_spec(spec); spec.loader.exec_module(wire)
+    with zipfile.ZipFile(path) as z:
+        return [dict(type=kind,payload_hex=body.hex(' '))
+                for _,kind,body,_ in wire.records(z.read('xl/workbook.bin'))
+                if kind in (664,665,1036)]
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--product', type=Path)
@@ -19,6 +29,8 @@ def main():
     parser.add_argument('--paths', action='store_true')
     parser.add_argument('--path-variants', action='store_true')
     parser.add_argument('--binding-controls', action='store_true')
+    parser.add_argument('--help-ui', type=Path)
+    parser.add_argument('--metadata-controls', action='store_true')
     args=parser.parse_args()
     original=m.OUT; m.EVENTS=[]
     output=args.out or original/'product-reopen.json'
@@ -34,12 +46,26 @@ def main():
     m.event('environment',pid=pid,excel=x.Version,build=x.Build,excel_os=x.OperatingSystem)
     try:
         x.Visible=False; x.DisplayAlerts=False; x.AskToUpdateLinks=False
-        b=m.open_book(x,'loaded-xml.xlsb')
-        m.observe(x,b,'fresh-reopen-loaded-xml.xlsb'); m.close(b)
-        for name in ['local-xlsm-saved.xlsm','local-xlsb-saved.xlsm','local-xlsb-edited.xlsm',
+        if args.help_ui:
+            stop=output.with_suffix('.stop')
+            stop.unlink(missing_ok=True)
+            b=m.retry(lambda:x.Workbooks.Open(str(args.help_ui.resolve()),UpdateLinks=0))
+            x.Visible=True
+            m.event('help-ui-ready',file=str(args.help_ui.resolve()),hwnd=x.Hwnd,stop=str(stop.resolve()))
+            # UI actions use Computer Use, confined to the recorded owned window.
+            while not stop.exists():
+                m.pythoncom.PumpWaitingMessages(); m.time.sleep(0.2)
+            return
+        if not args.metadata_controls:
+            b=m.open_book(x,'loaded-xml.xlsb')
+            m.observe(x,b,'fresh-reopen-loaded-xml.xlsb'); m.close(b)
+        outputs=['local-xlsm-saved.xlsm','local-xlsb-saved.xlsm','local-xlsb-edited.xlsm',
                      'consumer-xlsx-saved.xlsx','consumer-xlsb-saved.xlsx',
                      'collision-xlsm-reentered.xlsm','collision-xlsb-reentered.xlsm',
-                     'metadata-unqualified-xlsb-saved.xlsm','metadata-custom-vba-xlsb-saved.xlsm']:
+                     'metadata-unqualified-xlsb-saved.xlsm','metadata-custom-vba-xlsb-saved.xlsm']
+        if args.metadata_controls:
+            outputs=[name for name in outputs if name.startswith('metadata-')]
+        for name in outputs:
             providers=[]
             if name.startswith('consumer'):
                 for p in ['provider.xlsm','probe.xlam']:
@@ -54,6 +80,27 @@ def main():
                         B1_text=s.Range('B1').Text,D1=s.Range('D1').Formula2,D1_text=s.Range('D1').Text,
                         B2=s.Range('B2').Formula2,B2_text=s.Range('B2').Text,
                         D2=s.Range('D2').Formula2,D2_text=s.Range('D2').Text)
+            if args.metadata_controls:
+                stem=name.split('-xlsb-')[0]
+                exported=product/(stem+'-excel.bas')
+                exported.unlink(missing_ok=True)
+                m.retry(lambda:b.VBProject.VBComponents('Module1').Export(str(exported)))
+                attributes=lambda data:[line for line in data.splitlines() if line.startswith(b'Attribute MetaFunc.VB_')]
+                expected_attributes=attributes((original/(stem.replace('metadata','Metadata',1)+'.bas')).read_bytes())
+                actual_attributes=attributes(exported.read_bytes())
+                resaved=product/(stem+'-excel.xlsb')
+                resaved.unlink(missing_ok=True)
+                m.retry(lambda:b.SaveAs(str(resaved),50))
+                expected=metadata_records(original/(stem+'.xlsb'))
+                actual=metadata_records(resaved)
+                m.event('metadata-resave',file=name,source_binary=stem+'.xlsb',
+                        resaved_sha256=hashlib.sha256(resaved.read_bytes()).hexdigest(),
+                        expected_records=expected,actual_records=actual,
+                        exported_attributes=[line.decode('cp1252') for line in actual_attributes],
+                        matches=(expected==actual and expected_attributes==actual_attributes),
+                        scope='Excel reopens XML and writes binary help metadata; UI display is not read by this script')
+                assert expected==actual,(expected,actual)
+                assert expected_attributes==actual_attributes,(expected_attributes,actual_attributes)
             m.close(b)
             for p in providers: m.close(p)
         if args.binding_controls:

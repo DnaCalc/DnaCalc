@@ -63,3 +63,11 @@ alternate URLs after restoring that folder, and selecting the absolute primary r
 workbook/module calls with consumer-cell arguments as 2002 (`cdoc-binding-controls.json`).
 The compiler tests use identity adapters to check name/provider binding and argument reads;
 they neither execute VBA nor treat file caches as calculated results.
+
+For dc-snz.13, generate outputs with `measure-dnacalc.ps1 -NoRecord -OutDir <dir>` and run
+`python reopen-product.py --product <dir> --out cdoc-metadata-reopen.json --metadata-controls`.
+The script reuses `inspect.py` to compare Excel's newly saved BrtBeginFnGroup/BrtFnGroup and
+BrtNameExt payloads with the original XLSB witnesses, and checks the exported VBA attributes.
+This verifies Excel's file interpretation of the help metadata, not its visual dialog layout.
+`--help-ui <workbook>` optionally opens one owned visible instance and records its window/PID;
+creating the recorded `.stop` file closes only that instance. UI interaction uses Computer Use.
