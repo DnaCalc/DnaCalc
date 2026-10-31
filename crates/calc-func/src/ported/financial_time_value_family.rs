@@ -271,7 +271,15 @@ pub fn pmt(
         let result = if product.is_finite() {
             product / tf
         } else {
-            (future_value / tf) * periodic_rate
+            let scaled = (future_value / tf) * periodic_rate;
+            if scaled.is_finite() {
+                scaled
+            } else {
+                // With beginning payments and a positive rate, rate/tf <= 1.
+                // This order cannot overflow a finite balance. The previous
+                // order can round MAX/tf upward and overflow its final product.
+                future_value * (periodic_rate / tf)
+            }
         };
         return if result.is_finite() { Ok(result) } else { Err(FinancialError::Num) };
     }

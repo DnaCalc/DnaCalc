@@ -315,6 +315,21 @@ fn pmt_equal_opposite_balances_are_interest_only() {
         f64::from_bits(0xbfa8_6186_1861_8618));
 }
 
+/// Mathematical overflow controls, not additional Excel readings.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pmt_interest_only_keeps_a_finite_factored_payment() {
+    let rate = f64::from_bits(0x7fe8_0458_d015_75b0);
+    for periods in [1.0, 4.0] {
+        // For beginning payments, MAX*rate/(1+rate) rounds to MAX: its
+        // exact difference from MAX is less than two, far below half an ULP.
+        exact(call("PMT", vec![n(rate), n(periods), n(f64::MAX), n(-f64::MAX), n(1.0)]),
+            -f64::MAX);
+        // End payments have no timing divisor; this product really overflows.
+        error(call("PMT", vec![n(rate), n(periods), n(f64::MAX), n(-f64::MAX), n(0.0)]), Num);
+    }
+}
+
 /// Recorded PMT stores in the exponential correction and timing division.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
