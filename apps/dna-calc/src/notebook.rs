@@ -340,6 +340,7 @@ fn notebook_view(controller: Controller) -> impl IntoView {
         let choose=Callback::new({let identity=identity.clone();move |edit:bool|select(at,edit,identity.clone())});
         let is_details=Signal::derive({let identity=identity.clone();move ||open_details.get().as_ref()==Some(&identity)});
         let assist=controller.assist.another_field();
+        controller.register_editor_surface(dna_calc_model::SurfaceDescriptor::editor(crate::controller::EditOrigin::Notebook), assist);
         let on_key=Callback::new(move |ev:leptos::ev::KeyboardEvent| {
             if ev.is_composing()||ev.key_code()==229{return;}
             match ev.key().as_str() {

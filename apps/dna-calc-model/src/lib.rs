@@ -11,10 +11,11 @@ pub use command::{
     Command, CommandContext, CommandId, Effect, RevealTarget, SHELL_KEYMAP, Target, Unavailable,
     resolve_shell_key,
 };
-pub use state::{EditSession, FindMode, Model, PointPick, SelectionState};
+pub use state::{EditSession, FindMode, Model, PointPick, SelectionState, TextSelection};
 pub use view::{
-    AtlasState, Branch, CanvasState, FocusRegistry, GridState, LedgerState, NotebookState,
-    TreeFocus, TreeState, ViewState, ViewStateStore,
+    AtlasState, Branch, CanvasState, ClipboardOwner, EditorContinuation, FocusRegistry, GridState,
+    LedgerState, NotebookState, SurfaceDescriptor, SurfaceRole, TreeFocus, TreeState, ViewState,
+    ViewStateStore,
 };
 
 /// Stable registry identity. A new skin declares its own id without editing this crate.
@@ -49,17 +50,29 @@ impl SkinId {
 }
 /// An editor surface's registered identity; it describes a role, never a DOM selector.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SurfaceId(&'static str);
+pub struct SurfaceId {
+    id: &'static str,
+    navigation: bool,
+}
 #[allow(non_upper_case_globals)]
 impl SurfaceId {
-    pub const Cell: Self = Self("cell");
-    pub const Bar: Self = Self("formula-bar");
-    pub const Notebook: Self = Self("notebook-source");
+    pub const Cell: Self = Self::new("cell");
+    pub const Bar: Self = Self::new("formula-bar");
+    pub const Notebook: Self = Self::new("notebook-source");
     pub const fn new(id: &'static str) -> Self {
-        Self(id)
+        Self {
+            id,
+            navigation: false,
+        }
+    }
+    pub const fn navigation(skin: SkinId) -> Self {
+        Self {
+            id: skin.stable_id(),
+            navigation: true,
+        }
     }
     pub const fn stable_id(self) -> &'static str {
-        self.0
+        self.id
     }
 }
 
@@ -76,6 +89,32 @@ mod tests {
     }
     fn at(row: u32) -> CellKey {
         CellKey::new(SheetId::from_parts(1, 0), row, 1).unwrap()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn editor_and_navigation_roles_register_independently_without_central_skin_ids() {
+        let skin = SkinId::new("same-id");
+        let editor = SurfaceDescriptor::editor(SurfaceId::new("same-id"));
+        let navigation = SurfaceDescriptor::navigation(skin, ClipboardOwner::Workbook);
+        assert_ne!(editor.id, navigation.id);
+        let mut model = Model::default();
+        assert!(model.focus.register_surface(editor));
+        assert!(model.focus.register_surface(navigation));
+        assert!(!model.focus.register_surface(navigation));
+        assert_eq!(model.focus.surface(editor.id), Some(editor));
+        assert_eq!(model.focus.surface(navigation.id), Some(navigation));
+        let overlay = SurfaceDescriptor::editor_with_navigation(SurfaceId::new("overlay"), skin);
+        assert!(model.focus.register_surface(overlay));
+        assert!(!model.focus.register(overlay.id));
+        assert_eq!(model.focus.surface(overlay.id), Some(overlay));
+        let shared = SurfaceDescriptor::selection_editor(SurfaceId::new("shared"));
+        assert!(model.focus.register_surface(shared));
+        assert!(!model.focus.register(shared.id));
+        assert_eq!(model.focus.surface(shared.id), Some(shared));
+        model.reset_workbook();
+        assert_eq!(model.focus.surface(editor.id), Some(editor));
+        assert_eq!(model.focus.surface(navigation.id), Some(navigation));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -129,18 +168,45 @@ mod tests {
             None,
             model.selection.areas.clone(),
         );
+        assert_eq!(
+            model.edit.caret,
+            Some(TextSelection {
+                start: 4,
+                end: 4,
+                backward: false
+            })
+        );
         model.edit.draft = "=1+2".into();
+        model.edit.caret = Some(TextSelection {
+            start: 1,
+            end: 3,
+            backward: true,
+        });
         let session = model.edit.clone();
+        assert_eq!(
+            model.dispatch(
+                Command::SwitchSkin(SkinId::Grid),
+                CommandContext {
+                    readonly: true,
+                    ..context()
+                }
+            ),
+            Err(Unavailable::ReadOnly)
+        );
+        assert_eq!(model.edit, session);
         assert_eq!(
             model.dispatch(Command::Find, context()),
             Err(Unavailable::EditInProgress)
         );
         assert_eq!(model.edit, session);
         model
-            .edit
-            .begin(SurfaceId::Bar, at(2), "ignored".into(), None, Vec::new());
+            .dispatch(Command::SwitchSkin(SkinId::new("new-skin")), context())
+            .unwrap();
+        assert_eq!(model.edit.surface, Some(SurfaceId::Bar));
         assert_eq!(model.edit.target, Some(at(1)));
         assert_eq!(model.edit.draft, "=1+2");
+        assert_eq!(model.edit.caret, session.caret);
+        assert_eq!(model.edit.id, session.id);
         assert_eq!(
             model.dispatch(Command::Undo, context()),
             Ok(Effect::Undo { editor: true })
@@ -149,6 +215,18 @@ mod tests {
         assert_eq!(
             model.dispatch(Command::Undo, context()),
             Ok(Effect::Undo { editor: false })
+        );
+        model
+            .edit
+            .begin(first, at(2), String::new(), Some("😀".into()), Vec::new());
+        assert_ne!(model.edit.id, session.id);
+        assert_eq!(
+            model.edit.caret,
+            Some(TextSelection {
+                start: 2,
+                end: 2,
+                backward: false
+            })
         );
     }
 

@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (32 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (33 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -123,6 +123,8 @@ pub struct App {
     pub scripts: &'static [&'static str],
     /// The stylesheets, relative to the workspace root, in order: the bundle's `app.css` is
     /// Strand's token stylesheet (`dna_strand::stylesheet`) followed by these (dc-xib).
+    /// Other CSS files under the app's web/css folder follow in filename order, so a skin's
+    /// scoped stylesheet needs no additional registration here.
     pub styles: &'static [&'static str],
     /// The default bundle folder, relative to the workspace root.
     pub default_out: &'static str,
@@ -416,10 +418,21 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
         fs::copy(ws.root.join(script), out.join(name))
             .map_err(|e| format!("cannot copy {script}: {e}"))?;
     }
+    let mut styles: Vec<_> = app.styles.iter().map(|style| ws.root.join(style)).collect();
+    let style_dir = ws.root.join(app.page).parent().expect("application page folder").join("css");
+    let mut additional = Vec::new();
+    for entry in fs::read_dir(&style_dir).map_err(|e| format!("cannot list {}: {e}", style_dir.display()))? {
+        let path = entry.map_err(|e| format!("cannot list {}: {e}", style_dir.display()))?.path();
+        if path.extension().is_some_and(|extension| extension == "css") && !styles.contains(&path) {
+            additional.push(path);
+        }
+    }
+    additional.sort();
+    styles.extend(additional);
     let mut sheet = dna_strand::stylesheet();
-    for style in app.styles {
-        let text = fs::read_to_string(ws.root.join(style))
-            .map_err(|e| format!("cannot read {style}: {e}"))?;
+    for style in styles {
+        let text = fs::read_to_string(&style)
+            .map_err(|e| format!("cannot read {}: {e}", style.display()))?;
         sheet.push_str(&text);
     }
     fs::write(out.join("app.css"), sheet).map_err(|e| format!("cannot write app.css: {e}"))?;
@@ -1483,8 +1496,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::Into(name, text) => {
             let css = select(app, name);
-            let element = session.element(&css)?;
-            session.post(&format!("/element/{element}/click"), json!({}))?;
+            act_click(app, session, name)?;
             session.keys(&css, "\u{E009}a\u{E000}")?;
             session.keys(&css, &format!("\u{E003}{text}"))
         }
@@ -1654,22 +1666,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             }
             Ok(())
         }
-        Action::Click(name) => {
-            let selector = select(app, name);
-            let element = session.element(&selector)?;
-            match session.post(&format!("/element/{element}/click"), json!({})) {
-                // A worker reply may replace the control between lookup and click. The
-                // stale-reference response means no click was dispatched; locate it once more.
-                Err(error) if error.contains("stale element reference") => {
-                    let current = session.element(&selector)?;
-                    session.post(&format!("/element/{current}/click"), json!({}))?;
-                }
-                other => {
-                    other?;
-                }
-            }
-            Ok(())
-        }
+        Action::Click(name) => act_click(app, session, name),
         Action::CtrlClick(name) => {
             let element = session.element(&select(app, name))?;
             session.post("/actions",json!({"actions":[
@@ -1864,9 +1861,9 @@ fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Op
 /// record. Returns the failures.
 fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<String> {
     let mut failures = Vec::new();
-    for action in case.actions {
+    for (index, action) in case.actions.iter().enumerate() {
         if let Err(e) = act(ws, app, session, action) {
-            failures.push(format!("action failed: {e}"));
+            failures.push(format!("action {} failed: {e}", index + 1));
             return failures;
         }
     }
@@ -2148,8 +2145,17 @@ fn measure_skins(
 }
 
 fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
-    let element = session.element(&select(app, name))?;
-    session.post(&format!("/element/{element}/click"), json!({}))?;
+    let selector = select(app, name);
+    let element = session.element(&selector)?;
+    match session.post(&format!("/element/{element}/click"), json!({})) {
+        // A worker reply can replace a control between lookup and click. The stale-reference
+        // response means no click was dispatched; reacquire once, including field clicks.
+        Err(error) if error.contains("stale element reference") => {
+            let current = session.element(&selector)?;
+            session.post(&format!("/element/{current}/click"), json!({}))?;
+        }
+        other => { other?; }
+    }
     Ok(())
 }
 

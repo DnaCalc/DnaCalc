@@ -6499,6 +6499,52 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Check::Absent("cell-editor"),
         ],
     },
+    Case {
+        name: "worker latency: a registered Notebook editor retains typing while selection replies arrive",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "cut-base.xlsx")),
+            Action::PauseMillis(800),
+            Action::Click("skin-notebook"),
+            Action::Wait(Check::Count("[data-dnacalc=block][data-cell=A1]", 1)),
+            Action::Click("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-select]"),
+            Action::Into("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "5\u{E007}"),
+            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "5")),
+            Action::Into("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "7\u{E007}"),
+            // Release the modifier at the WebDriver call boundary: Firefox 151 treats an
+            // embedded NULL as Unidentified and otherwise keeps Control for the following text.
+            Action::Keys("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "\u{E009}a\u{E000}"),
+            Action::Keys("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "\u{E003}9\u{E007}"),
+            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "9")),
+            Action::Into("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "5\u{E007}"),
+            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "5")),
+        ],
+        checks: &[
+            Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "5"),
+            Check::Value("name-box", "A1"),
+            Check::Attr("skin-notebook", "aria-pressed", "true"),
+        ],
+    },
+
+    Case {
+        name: "worker latency: registered formula bar preserves consecutive multi-character entries",
+        actions: &[
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "D7\u{E007}"),
+            Action::Wait(Check::Value("name-box", "D7")),
+            Action::PauseMillis(800),
+            Action::Into(BAR, "12\u{E007}34\u{E007}"),
+            Action::Wait(Check::Value("name-box", "D9")),
+        ],
+        checks: &[
+            Check::Text(cell!("D7"), "12"),
+            Check::Text(cell!("D8"), "34"),
+            Check::Absent("cell-editor"),
+            Check::Focused("grid"),
+        ],
+    },
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[

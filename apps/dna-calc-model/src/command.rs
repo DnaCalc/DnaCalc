@@ -184,6 +184,7 @@ impl Model {
             Command::Recalculate => Effect::Recalculate,
             Command::Reveal { target, skin } => Effect::Reveal { target, skin },
             Command::SwitchSkin(skin) => {
+                self.edit.transfer(crate::SurfaceId::Bar);
                 self.reveal_completed(skin);
                 Effect::FocusSkin(skin)
             }
