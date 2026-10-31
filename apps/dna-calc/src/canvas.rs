@@ -40,8 +40,8 @@ pub const MAX_DEPTH: u8 = 6;
 
 const COLUMN_WIDTH: f64 = 230.0;
 const CHIP_WIDTH: f64 = 200.0;
-const ROW_HEIGHT: f64 = 70.0;
-const CHIP_HEIGHT: f64 = 58.0;
+const ROW_HEIGHT: f64 = 124.0;
+const CHIP_HEIGHT: f64 = 110.0;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CanvasSkin;
@@ -56,7 +56,7 @@ impl Skin for CanvasSkin {
     }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        canvas_view(ctx.controller).into_any()
+        canvas_view(ctx.controller, ctx.active_skin).into_any()
     }
 }
 
@@ -222,7 +222,7 @@ fn plane_size(trace: &Trace) -> (f64, f64) {
         .max(1) as f64;
     (
         (columns - 1.0) * COLUMN_WIDTH + CHIP_WIDTH,
-        rows * ROW_HEIGHT + 20.0,
+        rows * ROW_HEIGHT + 64.0,
     )
 }
 
@@ -268,6 +268,8 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
                         column: *column,
                         x,
                         y,
+                        reference: cells::cell_label(host, at),
+                        sheet: wire::Sheet::of(at.sheet()),
                         label,
                         cell: Some(wire::Key::of(at)),
                         input,
@@ -289,6 +291,8 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
                     } else {
                         cells::area_label(host, area)
                     },
+                    reference: cells::area_label(host, area),
+                    sheet: wire::Sheet::of(area.sheet()),
                     cell: None,
                     input: String::new(),
                     value: String::new(),
@@ -311,7 +315,10 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
             (
                 cells::input_text(cell.input()),
                 shown.text,
-                cells::provenance_text(host, cell),
+                match cells::error_meaning(cell) {
+                    Some(meaning) => format!("{}; {meaning}", cells::provenance_text(host, cell)),
+                    None => cells::provenance_text(host, cell),
+                },
             )
         }
         None => (String::new(), String::new(), "empty".to_owned()),
@@ -343,34 +350,158 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
     }
 }
 
-fn canvas_view(controller: Controller) -> impl IntoView {
+fn label_parts(label: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut quoted = false;
+    let mut chars = label.char_indices().peekable();
+    while let Some((i, ch)) = chars.next() {
+        if ch == '\'' {
+            if quoted && chars.peek().is_some_and(|(_, next)| *next == '\'') {
+                chars.next();
+            } else {
+                quoted = !quoted;
+            }
+        } else if !quoted && matches!(ch, '!' | ':') {
+            let end = i + ch.len_utf8();
+            parts.push(label[start..end].to_owned());
+            start = end;
+        }
+    }
+    if start < label.len() {
+        parts.push(label[start..].to_owned());
+    }
+    parts
+}
+
+fn related_summary(items: &[String]) -> String {
+    if items.is_empty() {
+        return "nothing".into();
+    }
+    let shown = items
+        .iter()
+        .take(20)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if items.len() > 20 {
+        format!("{shown}; {} more not shown", items.len() - 20)
+    } else {
+        shown
+    }
+}
+fn zoom_step(current: u16, by: i16) -> u16 {
+    current.saturating_add_signed(by).clamp(50, 200)
+}
+fn pan(dx: i32, dy: i32) {
+    #[cfg(target_arch = "wasm32")]
+    if let Some(view) = web_sys::window().and_then(|w| w.document()).and_then(|d| {
+        d.query_selector("[data-dnacalc=canvas-viewport]")
+            .ok()
+            .flatten()
+    }) {
+        view.set_scroll_left(view.scroll_left().saturating_add(dx));
+        view.set_scroll_top(view.scroll_top().saturating_add(dy));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (dx, dy);
+}
+fn center_view() {
+    #[cfg(target_arch = "wasm32")]
+    if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+        if let (Ok(Some(view)), Ok(Some(node))) = (
+            document.query_selector("[data-dnacalc=canvas-viewport]"),
+            document.query_selector("[data-dnacalc=canvas-node][data-center=true]"),
+        ) {
+            let v = view.get_bounding_client_rect();
+            let n = node.get_bounding_client_rect();
+            pan(
+                (n.x() - v.x() + n.width() / 2.0 - v.width() / 2.0) as i32,
+                (n.y() - v.y() + n.height() / 2.0 - v.height() / 2.0) as i32,
+            );
+        }
+    }
+}
+fn canvas_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> impl IntoView {
     let back = RwSignal::new(1u8);
     let forward = RwSignal::new(1u8);
-    // The canvas around the active cell, asked of the server again after each change.
-    let traced: RwSignal<Option<wire::Canvas>> = RwSignal::new(None);
+    let zoom = RwSignal::new(100u16);
+    let traced = RwSignal::new(None::<wire::Canvas>);
+    let range = RwSignal::new(None::<wire::Chip>);
+    let loading = RwSignal::new(true);
+    let failure = RwSignal::new(String::new());
+    let refresh = RwSignal::new(0u64);
+    let epoch = StoredValue::new(0u64);
+    let focus_center = StoredValue::new(false);
     Effect::new(move |_| {
-        controller.revision.track();
+        let revision = controller.revision.get();
+        let generation = controller.generation.get();
+        refresh.track();
+        let (back, forward) = (back.get(), forward.get());
+        epoch.update_value(|n| *n += 1);
+        let asked = epoch.get_value();
+        traced.set(None);
+        range.set(None);
+        failure.set(String::new());
         let Some(center) = controller.active_key() else {
-            traced.set(None);
+            loading.set(false);
+            failure.set("Choose a cell in Grid or enter its address above.".into());
             return;
         };
-        let (back, forward) = (back.get(), forward.get());
-        controller.ask(
+        loading.set(true);
+        controller.ask_result(
             wire::Request::Canvas {
                 center: wire::Key::of(center),
                 back,
                 forward,
             },
             move |reply| {
-                if let wire::Reply::Canvas(found) = reply {
-                    traced.try_set(Some(found));
+                if epoch.try_get_value() != Some(asked)
+                    || controller.revision.try_get_untracked() != Some(revision)
+                    || controller.generation.try_get_untracked() != Some(generation)
+                {
+                    return;
+                }
+                match reply {
+                    Ok(wire::Reply::Canvas(found)) => {
+                        traced.try_set(Some(found));
+                        loading.try_set(false);
+                        let focus = focus_center.get_value();
+                        focus_center.set_value(false);
+                        #[cfg(target_arch = "wasm32")]
+                        set_timeout(
+                            move || {
+                                center_view();
+                                if focus {
+                                    crate::app::focus(
+                                        "[data-dnacalc=canvas-node][data-center=true]",
+                                    );
+                                }
+                            },
+                            std::time::Duration::from_millis(20),
+                        );
+                        #[cfg(not(target_arch = "wasm32"))]
+                        let _ = focus;
+                    }
+                    Err(error) => {
+                        failure.try_set(format!("Dependency view unavailable: {error}"));
+                        loading.try_set(false);
+                    }
+                    _ => {}
                 }
             },
         );
     });
-
     let grow = move |signal: RwSignal<u8>, by: i8| {
-        signal.update(|depth| *depth = depth.saturating_add_signed(by).clamp(0, MAX_DEPTH));
+        signal.update(|d| *d = d.saturating_add_signed(by).clamp(0, MAX_DEPTH))
+    };
+    let reset = move || {
+        back.set(1);
+        forward.set(1);
+        zoom.set(100);
+        range.set(None);
+        #[cfg(target_arch = "wasm32")]
+        set_timeout(center_view, std::time::Duration::from_millis(20));
     };
     let on_key = move |ev: leptos::ev::KeyboardEvent| match ev.key().as_str() {
         "[" => {
@@ -381,74 +512,64 @@ fn canvas_view(controller: Controller) -> impl IntoView {
             ev.prevent_default();
             grow(forward, 1);
         }
-        "Escape" => {
-            back.set(1);
-            forward.set(1);
-        }
+        "Escape" => reset(),
         "F9" => {
             ev.prevent_default();
             controller.recalculate();
         }
         _ => {}
     };
-
+    let open_source = move |reference: String| {
+        controller.go_to_text(reference, move |ok| {
+            if ok {
+                active_skin.set(Some("grid".into()));
+                #[cfg(target_arch = "wasm32")]
+                set_timeout(
+                    move || crate::app::focus("[data-dnacalc=grid]"),
+                    std::time::Duration::from_millis(20),
+                );
+            }
+        });
+    };
     let chips = move || {
         let Some(canvas) = traced.get() else {
             return ().into_any();
         };
-        let mut chips = Vec::new();
-        for chip in canvas.chips {
-            let style = format!(
-                "left:{:.0}px;top:{:.0}px;width:{CHIP_WIDTH:.0}px;height:{CHIP_HEIGHT:.0}px",
-                chip.x, chip.y
-            );
-            let node_label = chip.label.clone();
-            let view = match chip.cell.and_then(|key| key.cell()) {
-                Some(at) => {
-                    let go = move |_| controller.go_to(at);
-                    view! {
-                        <div class="dc-node" data-dnacalc="canvas-node" data-kind="cell" data-node=node_label
-                            data-column=chip.column.to_string() data-center=(chip.column == 0).to_string()
-                            data-provenance=chip.provenance.name() use:css=style on:click=go>
-                            <b>{chip.label}</b>
-                            <div class="dc-f">{chip.input}</div>
-                            <div class="dc-v" data-dnacalc="canvas-value">{chip.value}</div>
-                        </div>
-                    }
-                    .into_any()
-                }
-                None => view! {
-                    <div class="dc-node" data-dnacalc="canvas-node" data-kind="area" data-node=node_label
-                        data-column=chip.column.to_string() data-center="false" use:css=style>
-                        <b>{chip.label}</b>
-                        <div class="dc-f">{format!("a range of {} cells", chip.count)}</div>
-                    </div>
-                }
-                .into_any(),
+        let nodes=canvas.chips.into_iter().map(|chip| {
+            let style=format!("left:{:.0}px;top:{:.0}px;width:{CHIP_WIDTH:.0}px;height:{CHIP_HEIGHT:.0}px",chip.x,chip.y);
+            let is_range=chip.cell.is_none();
+            let hidden=controller.summary.with(|s|!s.sheets.iter().any(|(id,_)|id.id()==chip.sheet.id()));
+            let reference=chip.reference.clone();
+            let column=chip.column;
+            let selected=Memo::new(move |_|range.with(|chosen|if is_range{chosen.as_ref().is_some_and(|r|r.reference==reference)}else{chosen.is_none()&&column==0}));
+            let accessible=format!("Inspect {}{}",chip.reference,if is_range {" range"}else{""});
+            let address=label_parts(&chip.reference).into_iter().map(|part|view!{<span>{part}</span><wbr/>}).collect_view();
+            let formula=chip.input.starts_with('=').then(||chip.input.clone());
+            let summary=if is_range {format!("{} cells · range summary",chip.count)}else{chip.value.clone()};
+            let state=if is_range {"terminal range"}else{chip.provenance.name()};
+            let description=format!("{summary}; {state}");
+            let selected_chip=chip.clone();
+            let click=move |_| {
+                if hidden&&!is_range {failure.set("This source is on a hidden sheet. Unhide it in Sheet tools before navigation.".into());return;}
+                if let Some(at)=selected_chip.cell.and_then(|k|k.cell()) {controller.navigate_to(at,move |ok|{if ok&&focus_center.try_update_value(|v|*v=true).is_some(){refresh.try_update(|n|*n+=1);}});}
+                else {range.set(Some(selected_chip.clone()));}
             };
-            chips.push(view);
-        }
-        for (_, x, y, count) in canvas.hidden {
-            chips.push(
-                view! {
-                    <div class="dc-hidden" data-dnacalc="canvas-hidden" use:css=format!("left:{x:.0}px;top:{y:.0}px")>
-                        {format!("{count} more not shown")}
-                    </div>
-                }
-                .into_any(),
-            );
-        }
-        let (width, height) = (canvas.width, canvas.height);
-        view! {
-            <div class="dc-plane" use:css=format!("width:{width:.0}px;height:{height:.0}px")>
-                <div inner_html=canvas.wires_svg></div>
-                {chips}
-            </div>
-        }
-        .into_any()
+            view!{<button type="button" class="dc-node" data-dnacalc="canvas-node" data-kind={if is_range{"area"}else{"cell"}} data-node=chip.label data-column=chip.column.to_string() data-center=(chip.column==0).to_string() data-selected=move ||selected.get().to_string() data-provenance=chip.provenance.name() aria-label=accessible aria-description=description aria-disabled=(hidden&&!is_range).to_string() title={if hidden{"Hidden sheet: unhide it in Sheet tools before source navigation."}else{""}} aria-pressed=move ||selected.get().to_string() use:css=style on:click=click>
+                <b>{address}</b>{formula.map(|f|view!{<span class="dc-f" data-dnacalc="canvas-formula">{f}</span>})}<span class="dc-v" data-dnacalc="canvas-value">{summary}</span><span class="dc-node-state" data-dnacalc="canvas-state">{state}</span>
+            </button>}
+        }).collect_view();
+        let omissions=canvas.hidden.into_iter().map(|(column,x,y,count)|view!{<div class="dc-hidden" data-dnacalc="canvas-hidden" use:css=format!("left:{x:.0}px;top:{y:.0}px;width:{CHIP_WIDTH:.0}px")>{format!("{count} additional {} at depth {} not shown",if column<0{"inputs"}else{"readers"},column.unsigned_abs())}</div>}).collect_view();
+        let scale = f64::from(zoom.get()) / 100.0;
+        view!{<div class="dc-plane-space" use:css=format!("width:{:.0}px;height:{:.0}px",canvas.width*scale,canvas.height*scale)><div class="dc-plane" use:css=format!("width:{:.0}px;height:{:.0}px;transform:scale({scale});transform-origin:0 0",canvas.width,canvas.height)><div inner_html=canvas.wires_svg></div>{nodes}{omissions}</div></div>}.into_any()
     };
-
     let inspector = move || {
+        if let Some(chip) = range.get() {
+            let reference = chip.reference.clone();
+            let hidden = controller
+                .summary
+                .with(|s| !s.sheets.iter().any(|(id, _)| id.id() == chip.sheet.id()));
+            return view!{<div data-dnacalc="canvas-range"><h3>{chip.reference}</h3><p>{format!("{} cells. A terminal range summary; its cells are not expanded into this trace.",chip.count)}</p><button data-dnacalc="canvas-show-source" disabled=hidden on:click=move |_|open_source(reference.clone())>"Show source in Grid"</button><p>{if hidden{"Hidden sheet: unhide it in Sheet tools before source navigation."}else{"The active formula remains selected until you open this range in Grid."}}</p></div>}.into_any();
+        }
         let Some(canvas) = traced.get() else {
             return ().into_any();
         };
@@ -461,43 +582,25 @@ fn canvas_view(controller: Controller) -> impl IntoView {
             reads,
             read_by,
         } = canvas.inspector;
-        let list = |items: Vec<String>| {
-            if items.is_empty() {
-                "nothing".to_owned()
-            } else if items.len() > 20 {
-                format!("{} and {} more", items[..20].join(", "), items.len() - 20)
-            } else {
-                items.join(", ")
-            }
-        };
+        let source = label.clone();
         let (reads_count, read_by_count) = (reads.len(), read_by.len());
-        view! {
-            <dl data-dnacalc="canvas-inspector">
-                <dt>"Cell"</dt><dd data-dnacalc="canvas-cell">{label}</dd>
-                <dt>"Entered"</dt><dd>{input}</dd>
-                <dt>"Value"</dt><dd data-dnacalc="canvas-inspector-value">{value}</dd>
-                <dt>"Where the value came from"</dt><dd>{why}</dd>
-                <dt>"Number format"</dt><dd>{format}</dd>
-                <dt>{format!("Reads ({reads_count})")}</dt><dd data-dnacalc="canvas-reads">{list(reads)}</dd>
-                <dt>{format!("Read by ({read_by_count})")}</dt><dd data-dnacalc="canvas-read-by">{list(read_by)}</dd>
-            </dl>
-        }
-        .into_any()
+        let formula = input.starts_with('=').then_some(input);
+        view!{<div data-dnacalc="canvas-inspector"><h3 data-dnacalc="canvas-cell">{label}</h3>{formula.map(|f|view!{<pre class="dc-inspector-formula">{f}</pre>})}<p class="dc-inspector-value" data-dnacalc="canvas-inspector-value">{value}</p><p data-dnacalc="canvas-reason">{why}</p><button data-dnacalc="canvas-show-source" on:click=move |_|open_source(source.clone())>"Show source in Grid"</button><details><summary>"Format and dependency details"</summary><dl><dt>"Number format"</dt><dd>{format}</dd><dt>{format!("Reads ({reads_count})")}</dt><dd data-dnacalc="canvas-reads">{related_summary(&reads)}</dd><dt>{format!("Read by ({read_by_count})")}</dt><dd data-dnacalc="canvas-read-by">{related_summary(&read_by)}</dd></dl></details></div>}.into_any()
     };
-
     view! {
         <section class="dc-canvas" data-skin="canvas" data-dnacalc="canvas" tabindex="0" on:keydown=on_key>
-            <div class="dc-stage">
-                <div class="dc-bar">
-                    <button type="button" data-dnacalc="canvas-back-more" on:click=move |_| grow(back, 1)>"[ reads further"</button>
-                    <button type="button" data-dnacalc="canvas-back-less" on:click=move |_| grow(back, -1)>"fewer"</button>
-                    <span data-dnacalc="canvas-depth">{move || format!("{} back, {} forward", back.get(), forward.get())}</span>
-                    <button type="button" data-dnacalc="canvas-forward-less" on:click=move |_| grow(forward, -1)>"fewer"</button>
-                    <button type="button" data-dnacalc="canvas-forward-more" on:click=move |_| grow(forward, 1)>"read by further ]"</button>
-                </div>
-                {chips}
-            </div>
-            <aside>{inspector}</aside>
+            <div class="dc-stage"><div class="dc-bar" role="group" aria-label="Dependency trace depth">
+                <button data-dnacalc="canvas-back-more" disabled={move ||back.get()>=MAX_DEPTH} on:click=move |_|grow(back,1)>"More inputs ["</button><button data-dnacalc="canvas-back-less" aria-label="Fewer input levels" disabled=move ||back.get()==0 on:click=move |_|grow(back,-1)>"Fewer inputs"</button>
+                <span data-dnacalc="canvas-depth">{move ||format!("{} back, {} forward",back.get(),forward.get())}</span>
+                <button data-dnacalc="canvas-forward-less" aria-label="Fewer reader levels" disabled=move ||forward.get()==0 on:click=move |_|grow(forward,-1)>"Fewer readers"</button><button data-dnacalc="canvas-forward-more" disabled={move ||forward.get()>=MAX_DEPTH} on:click=move |_|grow(forward,1)>"More readers ]"</button>
+            </div><div class="dc-bar" role="group" aria-label="Dependency view position and zoom">
+                <button data-dnacalc="canvas-pan-left" aria-label="Pan dependency view left" on:click=move |_|pan(-180,0)>"←"</button><button data-dnacalc="canvas-pan-right" aria-label="Pan dependency view right" on:click=move |_|pan(180,0)>"→"</button><button aria-label="Pan dependency view up" on:click=move |_|pan(0,-140)>"↑"</button><button aria-label="Pan dependency view down" on:click=move |_|pan(0,140)>"↓"</button>
+                <button data-dnacalc="canvas-zoom-out" aria-label="Zoom dependency view out" disabled=move ||zoom.get()==50 on:click=move |_|zoom.update(|z|*z=zoom_step(*z,-10))>"−"</button><span data-dnacalc="canvas-zoom">{move ||format!("{}%",zoom.get())}</span><button data-dnacalc="canvas-zoom-in" aria-label="Zoom dependency view in" disabled=move ||zoom.get()==200 on:click=move |_|zoom.update(|z|*z=zoom_step(*z,10))>"+"</button><button data-dnacalc="canvas-center" aria-label="Center active cell" on:click=move |_|center_view()>"Center cell"</button><button data-dnacalc="canvas-reset" aria-label="Reset dependency view" on:click=move |_|reset()>"Reset"</button>
+            </div><p class="dc-canvas-contract">{format!("Dependency inspector · inputs left, readers right · up to {MAX_DEPTH} levels and {PER_COLUMN} nodes per column. Ranges are summaries; cell edits use the formula field above.")}</p>
+            <p role="status" data-dnacalc="canvas-status">{move ||if loading.get(){"Loading dependencies…".into()}else{failure.get()}}</p>
+            {move ||(!loading.get()&&!failure.get().is_empty()).then(||view!{<button data-dnacalc="canvas-retry" on:click=move |_|refresh.update(|n|*n+=1)>"Retry dependency view"</button>})}
+            <div class="dc-canvas-viewport" data-dnacalc="canvas-viewport" tabindex="0" role="region" aria-label="Dependency chips; scroll or use pan controls">{chips}</div></div>
+            <aside aria-label="Dependency selection">{inspector}</aside>
         </section>
     }
 }
@@ -507,6 +610,25 @@ mod tests {
     use super::*;
     use calc_host::value::{IdAllocator, SheetId};
 
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn labels_break_at_reference_boundaries_and_zoom_is_bounded() {
+        assert_eq!(
+            label_parts("'Long Sheet'!A1:Z99"),
+            vec!["'Long Sheet'!", "A1:", "Z99"]
+        );
+        assert_eq!(
+            label_parts("'Long!Sheet'' name'!A1:Z99"),
+            vec!["'Long!Sheet'' name'!", "A1:", "Z99"]
+        );
+        let labels = (1..=25).map(|n| format!("A{n}")).collect::<Vec<_>>();
+        let summary = related_summary(&labels);
+        assert!(summary.contains("A20; 5 more not shown"));
+        assert!(!summary.contains("A21"));
+        assert_eq!(zoom_step(50, -10), 50);
+        assert_eq!(zoom_step(200, 10), 200);
+        assert_eq!(zoom_step(100, 10), 110);
+    }
     fn sheet() -> SheetId {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         ids.issue().unwrap()

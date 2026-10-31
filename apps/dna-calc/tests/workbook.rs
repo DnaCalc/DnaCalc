@@ -2153,3 +2153,37 @@ fn dc_971p_12__ledger_reasons_population_and_active_pages_use_the_existing_proje
     );
     assert_eq!((scoped.whole, scoped.keys), (19, 18));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_13__canvas_projects_cross_sheet_ranges_cycles_omissions_and_blocked_spills() {
+    use dna_calc::canvas::{view_model, PER_COLUMN};
+    let imported = Workbook::open("cut-base.xlsx", include_bytes!("../../../crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx").to_vec()).unwrap();
+    let sh = sheet(&imported,"Data");
+    let at = |row,column|CellKey::new(sh,row,column).unwrap();
+    let actual=view_model(&imported,at(1,2),1,1);
+    assert!(actual.chips.iter().any(|c|c.reference=="Other!B3"&&c.column==1));
+    let ranges=view_model(&imported,at(2,2),1,1);
+    assert!(ranges.chips.iter().any(|c|c.reference=="Data!A1:A3"&&c.cell.is_none()&&c.count==3));
+    let mut book=Workbook::new_blank();let sh=book.sheets()[0].id;
+    let at=|row,column|CellKey::new(sh,row,column).unwrap();
+    assert!(book.enter(at(1,1),"1").accepted());
+    for col in 2..=21 {assert!(book.enter(at(1,col),"=A1").accepted());}
+    let limited=view_model(&book,at(1,1),1,1);
+    assert_eq!(limited.chips.iter().filter(|c|c.column==1).count(),PER_COLUMN);
+    assert_eq!(limited.hidden.iter().find(|c|c.0==1).unwrap().3,8);
+    let mut book=Workbook::new_blank();let sh=book.sheets()[0].id;
+    let at=|row,column|CellKey::new(sh,row,column).unwrap();
+    assert!(book.enter(at(2,4),"99").accepted());
+    assert!(book.enter(at(1,3),"=SEQUENCE(3,2)").accepted());
+    let blocked=view_model(&book,at(1,3),1,1);
+    assert_eq!(blocked.inspector.value,"#SPILL!");
+    assert_eq!(blocked.inspector.input,"=_xlfn.SEQUENCE(3,2)");
+    assert!(blocked.inspector.why.contains("cannot spill"));
+    // A cycle is followed once per node rather than recursively expanding forever.
+    assert!(book.enter(at(10,1),"=B10").accepted());
+    assert!(book.enter(at(10,2),"=A10").accepted());
+    let cycle=view_model(&book,at(10,1),6,6);
+    assert_eq!(cycle.chips.len(),2);
+    assert!(cycle.width.is_finite()&&cycle.height.is_finite());
+}
