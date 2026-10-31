@@ -44,8 +44,10 @@ pub fn erf_approx(x: f64) -> f64 {
         // DLMF 7.6.1, https://dlmf.nist.gov/7.6.E1. Recorded rounding intervals
         // constrain Q1/Q2/Q3; P1/P2/P3 follow those Taylor constraints. This is one
         // surviving coefficient set, not a unique identification of Excel's code.
-        // All 612,353 recorded inputs below this cutoff match, including the tiny
-        // range. The cutoff bounds the fitted model, not an identified Excel split.
+        // All 612,353 inputs below this cutoff in the original calibration bank
+        // match. Independent build-20527 readings matched 3,908/4,096; those
+        // fresh answers still expose 188 misses. The cutoff bounds the fitted
+        // model, not an identified Excel split.
         // The two outer additions require PC64-to-binary64 stores too.
         const P1: f64 = f64::from_bits(0x3fc2_01d8_627a_8c9c);
         const P2: f64 = f64::from_bits(0x3fa6_f28a_1efb_4082);

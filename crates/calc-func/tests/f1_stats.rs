@@ -338,6 +338,9 @@ fn gamma_fallbacks_require_large_disagreements() {
         (0x400d_4f88_34b9_3ec3, 0x400f_fe1e_2ca0_074c),
         (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae),
         (0x405c_03e8_db5e_238e, 0x6562_21fb_163a_ffa9),
+        // Positive tgamma refinement, from both grouped-argument halves.
+        (0x3f21_ee1e_5eb2_9a49, 0x40bc_8d91_582d_997d),
+        (0x3f1f_f366_0a69_738e, 0x40c0_0605_98b3_6e3b),
         // The same bound admits reduced reflection and the negative fallback.
         (0xc060_bad0_74be_eaa3, 0x10c5_b33f_ccd8_3432),
         (0xbfff_b384_bc86_8d32, 0x403b_41c1_68e1_0426),
@@ -345,6 +348,8 @@ fn gamma_fallbacks_require_large_disagreements() {
         (0x400c_14f6_1d18_79ae, 0x400a_e3a0_184f_4257),
         (0x400d_7b7b_3b82_609e, 0x4010_6635_56ba_cf83),
         (0xc02d_5a3f_39dd_c52f, 0xbd9e_116c_a682_f364),
+        // Negative inputs retain the larger bound.
+        (0xbff1_1541_05b4_a44e, 0x402c_e385_d327_12a8),
     ] {
         exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
     }

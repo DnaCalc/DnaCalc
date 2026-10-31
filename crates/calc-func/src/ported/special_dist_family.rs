@@ -252,11 +252,11 @@ pub(super) fn gamma_cody_log_normalizer(x: f64) -> Option<f64> {
     rational.map(crt_log)
 }
 
-fn gamma_disagreement_correction(value: f64, candidate: f64) -> f64 {
+fn gamma_disagreement_correction(value: f64, candidate: f64, bound: u64) -> f64 {
     if value.is_normal()
         && candidate.is_normal()
         && value.is_sign_negative() == candidate.is_sign_negative()
-        && value.to_bits().abs_diff(candidate.to_bits()) > 32
+        && value.to_bits().abs_diff(candidate.to_bits()) > bound
     {
         candidate
     } else {
@@ -1035,17 +1035,19 @@ fn gamma_calculation(x: f64, rational_normalizer: &mut Option<f64>) -> Result<f6
                 std::f64::consts::PI
             };
             let reflection = (signed_pi / crt_sin(std::f64::consts::PI * fractional)) / positive;
-            value = gamma_disagreement_correction(value, reflection);
+            value = gamma_disagreement_correction(value, reflection, 32);
         }
     }
     if value.is_normal() {
         // Godfrey's error-compensated Lanczos method, already in libm::tgamma.
-        // Fit only a disagreement bound on the same argument split as above:
-        // 5,843 training / 5,766 validation readings in the positive fallback.
-        // Training controls differ by at most 6 ULP. Four times that maximum,
-        // rounded up to a binary power, freezes 32 ULP before validation.
-        // Positive incremental gains: +58/-0 training and +62/-0 validation.
-        value = gamma_disagreement_correction(value, libm::tgamma(x));
+        // The positive bound is fitted on the same grouped-argument split as
+        // above, not an identified Excel branch. Freeze the smallest binary
+        // power above the harmful training disagreement: 8 ULP. Refining 32
+        // to 8 gains 187/-0 on the original training half and 183/-0 on its
+        // excluded half; the fresh adjacent inputs add 4/-0. Negative inputs
+        // keep 32: lowering their bound loses a recorded training control.
+        let bound = if x > 0.0 { 8 } else { 32 };
+        value = gamma_disagreement_correction(value, libm::tgamma(x), bound);
     }
 
     if !value.is_finite() {
