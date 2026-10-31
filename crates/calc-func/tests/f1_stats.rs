@@ -309,6 +309,11 @@ fn error_function_tails_use_the_recorded_rounded_square() {
             f64::from_bits(0x3c20_95a4_42f6_d57d));
         exact(call(function, vec![n(f64::from_bits(0x401c_c218_61f7_e239))]),
             f64::from_bits(0x3b0a_c48e_8af8_7271));
+        // Residuals between 2^-50 and 2^-49, from both split halves.
+        exact(call(function, vec![n(f64::from_bits(0x4010_5ad1_5827_f62f))]),
+            f64::from_bits(0x3e3f_a6da_a7f6_9fce));
+        exact(call(function, vec![n(f64::from_bits(0x4010_836a_af1b_be42))]),
+            f64::from_bits(0x3e36_a4ab_c77f_b3ec));
     }
     exact(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc026_a496_5d40_5589)), b(true),
@@ -316,6 +321,12 @@ fn error_function_tails_use_the_recorded_rounded_square() {
     exact(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc020_0893_4d02_54c4)), b(true),
     ]), f64::from_bits(0x3cc3_8f68_673d_153e));
+    exact(call("NORM.S.DIST", vec![
+        n(f64::from_bits(0xc016_a24f_cfb0_a98c)), b(true),
+    ]), f64::from_bits(0x3e40_653f_58c2_faf3));
+    exact(call("NORM.S.DIST", vec![
+        n(f64::from_bits(0xc016_aa4e_776d_04bd)), b(true),
+    ]), f64::from_bits(0x3e3f_5501_63f6_fedc));
 }
 
 /// Original GAMMA answers, with each correction represented in both split halves.

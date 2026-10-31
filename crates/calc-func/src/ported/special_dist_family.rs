@@ -165,17 +165,17 @@ fn excel_erfc(x: f64) -> f64 {
     // Recorded tails have the exponent of the rounded square. FMA recovers the
     // exact product residual; q + q*residual corrects that exponent with one
     // rounding (the quadratic term is below binary64 precision in this range).
-    // The conservative 2^-49 bound uses twice the largest harmful residual on
-    // 7,598 training readings, rounded up to a binary power. Its refinement
-    // gained 130 training matches and 149 on 7,578 validation readings, with
-    // no loss. Validation reuses the first bound's half, excluded from fitting.
+    // The fitted 2^-50 bound is the next binary power above the largest harmful
+    // residual on 7,598 training readings. This refinement gained 169 training
+    // matches and 116 on 7,578 validation readings, with no loss. Validation
+    // reuses the earlier bounds' half, excluded from fitting.
     // Readings are grouped by the stored ERFC argument.
     // SplitMix64 finalizer(argument bits ^ 0x444e4143414c4332): low bit 0 trains.
     // It is a fitted error bound, not an identified Excel branch point.
     if libm_v.is_normal() {
         let square = x * x;
         let residual = x.mul_add(x, -square);
-        if residual.abs() >= f64::from_bits(0x3ce0_0000_0000_0000) {
+        if residual.abs() >= f64::from_bits(0x3cd0_0000_0000_0000) {
             return libm_v.mul_add(residual, libm_v);
         }
     }
