@@ -215,6 +215,7 @@ pub struct Controller {
     pending_changes: RwSignal<usize>,
     selection_epoch: StoredValue<u64>,
     deferred: StoredValue<VecDeque<Box<dyn FnOnce()>>, LocalStorage>,
+    command_outbox: StoredValue<VecDeque<Box<dyn FnOnce()>>, LocalStorage>,
     deferred_version: RwSignal<u64>,
     replaying: StoredValue<bool>,
     flush_scheduled: StoredValue<bool>,
@@ -283,6 +284,7 @@ impl Controller {
             pending_changes: RwSignal::new(0),
             selection_epoch: StoredValue::new(0),
             deferred: StoredValue::new_local(VecDeque::new()),
+            command_outbox: StoredValue::new_local(VecDeque::new()),
             deferred_version: RwSignal::new(0),
             replaying: StoredValue::new(false),
             flush_scheduled: StoredValue::new(false),
@@ -293,7 +295,11 @@ impl Controller {
         port::set_health(move |health| {
             controller.transport.try_set(health);
         });
-        controller.new_workbook();
+        controller.ask_result(Request::Summary,move |reply| match reply {
+            Ok(Reply::Summary(summary))=>{controller.summary.set(summary);controller.new_workbook();}
+            Err(message)=>controller.say(format!("New workbook failed: {message}"),true),
+            _=>controller.say("New workbook did not answer",true),
+        });
         controller
     }
 
@@ -348,6 +354,84 @@ impl Controller {
         port::call(request, None, move |reply, _| answer(reply));
     }
 
+    /// Commands leave in user order. Resolve the envelope only after the prior receipt has
+    /// updated the model, including a Select followed by an edit in the same event callback.
+    fn send_command(
+        &self,
+        request: Request,
+        bytes: Option<Vec<u8>>,
+        answer: impl FnOnce(Result<Reply, String>, Option<Vec<u8>>) + 'static,
+    ) {
+        self.send_command_for(request, bytes, self.generation.get_untracked(), answer);
+    }
+    fn send_command_for(
+        &self,
+        request: Request,
+        bytes: Option<Vec<u8>>,
+        generation: u64,
+        answer: impl FnOnce(Result<Reply, String>, Option<Vec<u8>>) + 'static,
+    ) {
+        let controller = *self;
+        if self.model.with_untracked(|model| model.command_pending) {
+            self.command_outbox.update_value(|queue| {
+                queue.push_back(Box::new(move || {
+                    controller.send_command_for(request, bytes, generation, answer)
+                }))
+            });
+            return;
+        }
+        self.model.update(|model| model.command_pending = true);
+        let finished = move |reply, bytes| {
+            answer(reply, bytes);
+            controller
+                .model
+                .update(|model| model.command_pending = false);
+            let next = controller
+                .command_outbox
+                .try_update_value(VecDeque::pop_front)
+                .flatten();
+            if let Some(next) = next {
+                next();
+            }
+        };
+        if generation != self.generation.get_untracked() {
+            finished(
+                Err("This command belongs to a workbook that has been replaced".into()),
+                None,
+            );
+        } else {
+            let request = self.command_request(request);
+            port::call(request, bytes, finished);
+        }
+    }
+
+    fn command_request(&self, request: Request) -> Request {
+        if !request.is_command() {
+            return request;
+        }
+        let mut id = 0;
+        self.model.update(|model| {
+            id = model.issue_command();
+        });
+        let summary = self.summary.get_untracked();
+        Request::Command(wire::CommandEnvelope {
+            session: summary.session.clone(),
+            id,
+            workbook: summary.workbook,
+            base_revision: summary.revision,
+            source: self
+                .active_skin
+                .get_untracked()
+                .unwrap_or_else(|| "shell".into()),
+            undo_group: None,
+            resolved_selection: self.model.with_untracked(|model| {
+                model.confirmed_selection.as_ref().map(|(at, areas)| {
+                    (Key::of(*at), areas.iter().copied().map(Area::of).collect())
+                })
+            }),
+            request: Box::new(request),
+        })
+    }
     /// The sheets, in workbook order.
     pub fn sheets(&self) -> Vec<SheetTab> {
         self.summary.with(|summary| {
@@ -408,6 +492,7 @@ impl Controller {
     /// active at A1, and the application's selection subscription.
     fn installed(&self, summary: Summary, message: String) {
         self.model.update(Model::reset_workbook);
+        self.generation.update(|n| *n += 1);
         self.grid_geometry.update_value(BTreeMap::clear);
         self.mirrors.update_value(BTreeMap::clear);
         let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
@@ -457,7 +542,6 @@ impl Controller {
                 |_| {},
             );
         }
-        self.generation.update(|n| *n += 1);
         self.revision.update(|n| *n += 1);
         self.say(message, false);
     }
@@ -528,7 +612,7 @@ impl Controller {
         self.deferred_version.update(|v| *v += 1);
         self.pending_actions.update(|n| *n += 1);
         let controller = *self;
-        port::call(Request::New, None, move |reply, _| {
+        self.send_command(Request::New, None, move |reply, _| {
             controller
                 .pending_actions
                 .update(|n| *n = n.saturating_sub(1));
@@ -556,7 +640,7 @@ impl Controller {
         let controller = *self;
         let size = bytes.len();
         let name = name.to_owned();
-        port::call(
+        self.send_command(
             Request::Open { name: name.clone() },
             Some(bytes),
             move |reply, _| {
@@ -630,7 +714,7 @@ impl Controller {
             self.pending_changes.update(|n| *n += 1);
         }
         self.pending_actions.update(|n| *n += 1);
-        port::call(Request::Intent(intent), None, move |reply, _| {
+        self.send_command(Request::Intent(intent), None, move |reply, _| {
             if changes {
                 controller
                     .pending_changes
@@ -707,6 +791,7 @@ impl Controller {
     }
 
     fn applied(&self, outcome: &Outcome, apply_selection: bool) {
+        self.model.update(|model| model.confirmed_selection = outcome.selection.as_ref().and_then(|(at,areas)|Some((at.cell()?,areas.iter().filter_map(|a|a.area()).collect()))));
         self.timings
             .update(|timings| timings.last_intent_ms = Some(outcome.elapsed_ms));
         if outcome.summary != self.summary.get_untracked() {
@@ -2432,7 +2517,7 @@ impl Controller {
 
     fn save_package(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
         let controller = *self;
-        port::call(Request::Save, None, move |reply, bytes| {
+        self.send_command(Request::Save, None, move |reply, bytes| {
             controller.revision.update(|n| *n += 1);
             match (reply, bytes) {
                 (

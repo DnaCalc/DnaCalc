@@ -29,6 +29,8 @@ pub struct Answer {
 }
 
 pub struct Server {
+    workbook: u64,
+    commands: calc_host::CommandJournal<(Result<Reply,String>, Option<Vec<u8>>)>,
     validation_pending: Option<(u64, u64, Selection, SkinIntent)>,
     book: Workbook,
     /// The page's subscriptions: its number for each, and calc-host's.
@@ -51,6 +53,8 @@ impl Server {
     pub fn new() -> Server {
         let book = Workbook::new_blank();
         Server {
+            workbook: 0,
+            commands: calc_host::CommandJournal::new(128,16*1024*1024),
             validation_pending: None,
             book,
             subscriptions: BTreeMap::new(),
@@ -80,9 +84,101 @@ impl Server {
 
     /// Answers `request`; `bytes` are those that travel beside it (an open's package).
     pub fn handle(&mut self, request: Request, bytes: Option<Vec<u8>>) -> Answer {
+        if let Request::Command(envelope) = request {return self.command(envelope,bytes);}
+        if request.is_command() {return Answer {reply:Err("A workbook command needs an identity and base revision".into()),bytes:None};}
+        self.handle_admitted(request,bytes)
+    }
+
+    /// Immediate clients resolve their revision and target immediately before delivery. Remote
+    /// clients construct an envelope at submission and retain it unchanged for any retry.
+    pub fn envelope(&self, request: Request) -> Request {
+        Request::Command(wire::CommandEnvelope {
+            session: self.clipboard_session.clone(),
+            id: self.commands.next_id(),
+            workbook: self.workbook,
+            base_revision: self.book.host().revision().get(),
+            source: "headless".into(),
+            undo_group: None,
+            resolved_selection: self.current_selection(),
+            request: Box::new(request),
+        })
+    }
+    pub fn execute_current(&mut self, request: Request, bytes: Option<Vec<u8>>) -> Answer {
+        let request = if request.is_command() {
+            self.envelope(request)
+        } else {
+            request
+        };
+        self.handle(request, bytes)
+    }
+    fn current_selection(&self) -> Option<(Key, Vec<Area>)> {
+        let selection = self.book.session().selection();
+        selection.active.map(|at| {
+            (
+                Key::of(at),
+                selection.areas.iter().copied().map(Area::of).collect(),
+            )
+        })
+    }
+    fn command(&mut self, envelope: wire::CommandEnvelope, bytes: Option<Vec<u8>>) -> Answer {
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut hash);
+        if envelope.session != self.clipboard_session {
+            return Answer {
+                reply: Err("This command belongs to another workbook session".into()),
+                bytes: None,
+            };
+        }
+        let payload = wire::encode(&(envelope.clone(), hash.finish()));
+        let stamp = calc_host::CommandStamp {
+            id: envelope.id,
+            workbook: envelope.workbook,
+            base_revision: envelope.base_revision,
+        };
+        let admission = self.commands.admit(
+            stamp,
+            self.workbook,
+            self.book.host().revision().get(),
+            &payload,
+        );
+        match admission {
+            Ok(Some((reply, bytes))) => return Answer { reply, bytes },
+            Err(reason) => {
+                return Answer {
+                    reply: Err(reason.to_string()),
+                    bytes: None,
+                };
+            }
+            Ok(None) => {}
+        }
+        let answer = if !envelope.request.is_command() {
+            Answer {
+                reply: Err("A command envelope must contain one workbook command".into()),
+                bytes: None,
+            }
+        } else if envelope.resolved_selection != self.current_selection() {
+            Answer {reply:Err("The command's resolved selection has changed; submit it again for the current target".into()),bytes:None}
+        } else {
+            self.handle_admitted(*envelope.request, bytes)
+        };
+        let reply_bytes = wire::encode(&answer.reply)
+            .len()
+            .saturating_add(answer.bytes.as_ref().map_or(0, Vec::len));
+        self.commands.remember(
+            stamp.id,
+            payload,
+            (answer.reply.clone(), answer.bytes.clone()),
+            reply_bytes,
+        );
+        answer
+    }
+    fn handle_admitted(&mut self, request: Request, bytes: Option<Vec<u8>>) -> Answer {
         let mut out = None;
         let reply = (|| -> Result<Reply, String> {
             match request {
+                Request::Summary=>Ok(Reply::Summary(self.summary())),
+                Request::Command(_)=>Err("Nested command envelope".into()),
                 Request::Find(options) => {
                     Ok(Reply::Found(crate::search::find(&self.book, &options)))
                 }
@@ -392,6 +488,7 @@ impl Server {
     /// A new workbook in place of the open one: the page's subscriptions end with it.
     fn install(&mut self, book: Workbook) {
         self.validation_pending = None;
+        self.workbook = self.workbook.checked_add(1).expect("workbook incarnations exhausted");
         self.book = book;
         self.subscriptions.clear();
         self.events.clear();
@@ -439,6 +536,8 @@ impl Server {
         let iteration = self.book.host().model().definitions().iteration();
         let circular = self.book.host().circular_cells();
         Summary {
+            workbook:self.workbook,
+            session:self.clipboard_session.clone(),
             initial_cell: self
                 .book
                 .host()
@@ -1741,9 +1840,9 @@ mod fit_tests {
                 text: text.to_owned(),
             })
         };
-        assert!(server.handle(enter(at, "original"), None).reply.is_ok());
+        assert!(server.execute_current(enter(at, "original"), None).reply.is_ok());
         let Reply::FitContents { revision, cells } = server
-            .handle(
+            .execute_current(
                 Request::FitContents {
                     area: Area::of(GridArea::cell(at)),
                 },
@@ -1758,11 +1857,11 @@ mod fit_tests {
         assert_eq!(cells[0].text, "original");
         assert!(
             server
-                .handle(enter(CellKey::new(sheet, 2, 1).unwrap(), "later"), None)
+                .execute_current(enter(CellKey::new(sheet, 2, 1).unwrap(), "later"), None)
                 .reply
                 .is_ok()
         );
-        let answer = server.handle(
+        let answer = server.execute_current(
             Request::Intent(Intent::FitContents {
                 sheet: Sheet::of(sheet),
                 rows: false,
@@ -1791,7 +1890,7 @@ mod fit_tests {
         let sheet = server.book.host().sheets()[0].id();
         let at = CellKey::new(sheet, 1, 1).unwrap();
         let reply = server
-            .handle(
+            .execute_current(
                 Request::Intent(Intent::EnterCell {
                     at: Key::of(at),
                     text: "=SEQUENCE(10001)".to_owned(),
@@ -1808,7 +1907,7 @@ mod fit_tests {
             }
         ));
         let target = GridArea::new(at, CellKey::new(sheet, 10001, 1).unwrap()).unwrap();
-        let answer = server.handle(
+        let answer = server.execute_current(
             Request::FitContents {
                 area: Area::of(target),
             },
@@ -1839,7 +1938,7 @@ mod outline_tests {
         let data = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx");
         assert!(
             server
-                .handle(
+                .execute_current(
                     Request::Open {
                         name: "cut-base.xlsx".into()
                     },
@@ -1851,7 +1950,7 @@ mod outline_tests {
         let sheet = server.book.host().sheets()[0].id();
         let distant = CellKey::new(sheet, 10000, 52).unwrap();
         server
-            .handle(
+            .execute_current(
                 Request::Intent(Intent::EnterCell {
                     at: Key::of(distant),
                     text: "distant source".into(),
@@ -1864,11 +1963,11 @@ mod outline_tests {
         assert_eq!(outline.cells.len(), 1);
         assert_eq!(outline.cells[0].at, Key::of(distant));
         assert_eq!(outline.cells[0].input, "distant source");
-        server.handle(Request::New, None).reply.unwrap();
+        server.execute_current(Request::New, None).reply.unwrap();
         let sheet = server.book.host().sheets()[0].id();
         let anchor = CellKey::new(sheet, 1, 3).unwrap();
         server
-            .handle(
+            .execute_current(
                 Request::Intent(Intent::EnterCell {
                     at: Key::of(anchor),
                     text: "=SEQUENCE(1000,2)".into(),
@@ -1896,7 +1995,7 @@ mod notebook_tests {
     use super::*;
     fn apply(server: &mut Server, intent: Intent) {
         let Reply::Done { outcome, .. } =
-            server.handle(Request::Intent(intent), None).reply.unwrap()
+            server.execute_current(Request::Intent(intent), None).reply.unwrap()
         else {
             panic!("an edit receipt")
         };
@@ -1904,7 +2003,7 @@ mod notebook_tests {
     }
     fn page(server: &mut Server, sheet: calc_host::value::SheetId, n: u64) -> wire::Notebook {
         let Reply::Notebook(page) = server
-            .handle(
+            .execute_current(
                 Request::Notebook {
                     sheet: Sheet::of(sheet),
                     page: n,
@@ -1936,7 +2035,7 @@ mod notebook_tests {
         let mut last = None;
         for _ in 0..45 {
             let Reply::Done { outcome, .. } = server
-                .handle(
+                .execute_current(
                     Request::Intent(Intent::NotebookLink {
                         anchor: Area::of(GridArea::cell(at)),
                         prose: false,
@@ -1953,7 +2052,7 @@ mod notebook_tests {
             last = outcome.notebook_placement;
         }
         let Reply::Notebook(page) = server
-            .handle(
+            .execute_current(
                 Request::Notebook {
                     sheet: Sheet::of(sheet),
                     page: 0,
@@ -2052,7 +2151,7 @@ mod notebook_tests {
         );
         let bytes = server.book.save().unwrap().0;
         server
-            .handle(
+            .execute_current(
                 Request::Open {
                     name: "notebook.xlsx".into(),
                 },
@@ -2081,7 +2180,7 @@ mod notebook_tests {
         assert!(page(&mut server, sheet, 0).blocks[0].anchor.is_none());
         let bytes = server.book.save().unwrap().0;
         server
-            .handle(
+            .execute_current(
                 Request::Open {
                     name: "orphan.xlsx".into(),
                 },

@@ -6562,6 +6562,71 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
         ],
     },
 
+    Case {
+        name: "worker latency: drag selection and its next entry reach the same worker target",
+        actions: &[
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::PauseMillis(800),
+            Action::Drag(cell!("A1"), cell!("C3")),
+            Action::Keys("grid", "17\u{E009}\u{E007}\u{E000}"),
+            Action::Wait(Check::Text(cell!("C3"), "17")),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "17"),
+            Check::Text(cell!("B2"), "17"),
+            Check::Text(cell!("C3"), "17"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "worker latency: a Notebook insertion at a different address follows its selection receipt",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "Book1.xlsx")),
+            Action::PauseMillis(800),
+            Action::Click("skin-notebook"),
+            Action::Into("notebook-address", "B7"),
+            Action::Choose("notebook-kind", "calculation"),
+            Action::OpenDetails("notebook-insert-tools"),
+            Action::Into("notebook-content", "=6*7"),
+            Action::Click("notebook-insert"),
+            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=B7] [data-dnacalc=block-value]", "42")),
+            Action::Click("undo"),
+            Action::Wait(Check::Count("[data-dnacalc=block]", 0)),
+            Action::Click("redo"),
+            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=B7] [data-dnacalc=block-value]", "42")),
+        ],
+        checks: &[
+            Check::Count("[data-dnacalc=block]", 1),
+            Check::Value("name-box", "B7"),
+        ],
+    },
+
+    Case {
+        name: "worker latency: an old AutoFit preflight cannot change the replacement workbook",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "formats.xlsx")),
+            Action::PauseMillis(1000),
+            Action::Click("skin-grid"),
+            Action::PauseMillis(800),
+            Action::OpenDetails("axis-tools"),
+            Action::Click("autofit-columns"),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "Book1.xlsx")),
+            Action::PauseMillis(1200),
+        ],
+        checks: &[
+            Check::Style("[data-dnacalc=column-header][data-column=A]", "width:64px"),
+            Check::Value("name-box", "A1"),
+            Check::Attr("undo", "disabled", ""),
+        ],
+    },
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[
