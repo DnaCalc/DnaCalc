@@ -151,11 +151,7 @@ impl dna_formula_ui::formula_field::HistoryStore for ModelField<dna_calc_model::
         self.with_untracked(|h| h.available(redo))
     }
     fn start(&self, original: String, text: String, end: usize) {
-        self.update(|h| {
-            let caret = original.encode_utf16().count();
-            h.reset(original, caret);
-            h.record(text, end);
-        });
+        self.update(|h| h.start(original, text, end));
     }
     fn record(&self, text: String, caret: usize) {
         self.update(|h| h.record(text, caret));

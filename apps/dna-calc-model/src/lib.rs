@@ -1,7 +1,8 @@
 //! The skinnable application model: state, commands and keyboard grammar, without a DOM,
 //! reactive toolkit, evaluator or host implementation. Browser adapters execute its effects.
+pub mod address;
 mod editor;
-pub use editor::{EditorState, TextHistory};
+pub use editor::{EditorState, PointEdit, PointSyntax, TextHistory, replace_text};
 pub mod command;
 pub mod geometry;
 mod outbox;

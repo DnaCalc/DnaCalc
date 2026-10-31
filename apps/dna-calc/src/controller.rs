@@ -38,15 +38,13 @@ pub use dna_calc_model::{PointPick, SurfaceId as EditOrigin};
 pub use dna_calc_model::{Status, Timings, ViewMirror};
 pub type MirrorHandle = ModelField<Snapshot<ViewMirror>>;
 use calc_value::{CellKey, GridArea, SheetId};
-use dna_formula_ui::editor::{
-    cycle_anchors, expects_reference, point_reference_span, replace_text,
-};
+use dna_formula_ui::editor::{cycle_anchors, expects_reference, point_reference_span};
 use dna_formula_ui::formula_field::FormulaAssist;
 use leptos::prelude::*;
 use std::collections::{BTreeMap, VecDeque};
 
 fn field_selection(assist: FormulaAssist) -> (usize, usize) {
-    assist.field.get_untracked().map_or_else(
+    assist.field.try_get_untracked().flatten().map_or_else(
         || {
             let at = assist.caret.get_untracked();
             (at, at)
@@ -130,7 +128,6 @@ pub struct Controller {
     edit_areas: ModelField<Vec<GridArea>>,
     pub point_mode: ModelField<bool>,
     pub pointed: ModelField<Option<PointPick>>,
-    pointed_text: ModelField<String>,
     pub timings: ModelField<Timings>,
     pub transport: ModelField<port::Health>,
     pub download_unconfirmed: ModelField<bool>,
@@ -319,11 +316,6 @@ impl Controller {
             edit_areas: Field::new(model, |m| &m.edit.areas, |m| &mut m.edit.areas),
             point_mode: Field::new(model, |m| &m.edit.point_mode, |m| &mut m.edit.point_mode),
             pointed: Field::new(model, |m| &m.edit.pointed, |m| &mut m.edit.pointed),
-            pointed_text: Field::new(
-                model,
-                |m| &m.edit.pointed_text,
-                |m| &mut m.edit.pointed_text,
-            ),
             timings: Field::new(model, |m| &m.runtime.timings, |m| &mut m.runtime.timings),
             transport: Field::new(
                 model,
@@ -2248,12 +2240,9 @@ impl Controller {
             .unwrap_or_default()
     }
 
-    /// Insert/replace a pointed reference without changing the edit's target or selection.
+    /// Syntax and DOM reads feed the model's one pointed-edit transition.
     pub fn point_at(&self, row: u32, column: u32, extend: bool) -> bool {
-        if self.editing.get_untracked().is_none()
-            || self.assist.composing.get_untracked()
-            || self.assist.readonly.get_untracked()
-        {
+        if !self.model.with_untracked(Model::can_point) {
             return false;
         }
         let assist = self.edit_field.get_value();
@@ -2262,60 +2251,41 @@ impl Controller {
         let Some(sheet) = self.sheet.get_untracked() else {
             return false;
         };
-        let previous = self
-            .pointed
-            .get_untracked()
-            .filter(|p| self.pointed_text.get_value() == text && start == end && end == p.end);
-        let slot = previous.map(|p| (p.start, p.end)).or_else(|| {
-            if expects_reference(&text, start, end) {
-                Some((start, end))
-            } else if self.point_mode.get_untracked() {
-                point_reference_span(&text, start, end).map(|s| (s.start, s.end()))
-            } else {
-                None
-            }
-        });
-        let Some((start, end)) = slot else {
+        let Ok(at) = CellKey::new(sheet, row, column) else {
             return false;
         };
-        let anchor = if extend {
-            previous
-                .filter(|p| p.sheet == sheet)
-                .map_or((row, column), |p| p.anchor)
+        let syntax = if expects_reference(&text, start, end) {
+            Some(dna_calc_model::PointSyntax::Insert { start, end })
+        } else if self.point_mode.get_untracked() {
+            point_reference_span(&text, start, end).map(|span| {
+                dna_calc_model::PointSyntax::ReplaceReference {
+                    start: span.start,
+                    end: span.end(),
+                }
+            })
         } else {
-            (row, column)
+            None
         };
-        let near = (anchor.0.min(row), anchor.1.min(column));
-        let far = (anchor.0.max(row), anchor.1.max(column));
-        let first = if self
-            .edit_target
-            .get_untracked()
-            .is_some_and(|at| at.sheet() != sheet)
-        {
-            CellKey::new(sheet, near.0, near.1)
-                .ok()
-                .map(|at| self.cell_label(at))
-                .unwrap_or_default()
-        } else {
-            crate::cells::address(near.0, near.1)
+        let next = self
+            .model
+            .try_update(|model| {
+                model.point_at(
+                    at,
+                    extend,
+                    dna_calc_model::TextSelection {
+                        start,
+                        end,
+                        backward: false,
+                    },
+                    syntax,
+                )
+            })
+            .flatten();
+        let Some(next) = next else {
+            return false;
         };
-        let reference = if near == far {
-            first
-        } else {
-            format!("{}:{}", first, crate::cells::address(far.0, far.1))
-        };
-        let (text, end) = replace_text(&text, start, end, &reference);
-        self.pointed_text.set_value(text.clone());
         assist.reset();
-        assist.place(text, end);
-        self.point_mode.set(true);
-        self.pointed.set(Some(PointPick {
-            sheet,
-            start,
-            end,
-            anchor,
-            corner: (row, column),
-        }));
+        assist.reflect(&next.text, next.caret);
         true
     }
 
@@ -2906,6 +2876,24 @@ impl Controller {
 #[cfg(test)]
 mod projection_lifetime_tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn pointing_a_closed_edit_never_reads_a_retired_editor_handle() {
+        let root = Owner::new();
+        root.with(|| {
+            let controller = Controller::with_transport(std::rc::Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ));
+            let mounted = Owner::new();
+            let retired = mounted.with(|| controller.assist.another_field());
+            controller.edit_field.set_value(retired);
+            mounted.cleanup();
+            assert!(retired.field.try_get_untracked().is_none());
+            assert!(!controller.point_at(1, 1, false));
+            assert!(controller.editing.get_untracked().is_none());
+        });
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn retired_projection_removes_model_data_and_refuses_late_events() {

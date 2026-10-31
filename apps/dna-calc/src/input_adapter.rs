@@ -1,5 +1,7 @@
 //! Browser input and focus effects over registered model surfaces. No workbook rules live here.
 use super::*;
+#[cfg(target_arch = "wasm32")]
+use dna_calc_model::replace_text;
 use dna_calc_model::{ClipboardOwner, SurfaceDescriptor, SurfaceId};
 
 #[cfg(target_arch = "wasm32")]

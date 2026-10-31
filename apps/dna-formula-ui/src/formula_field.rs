@@ -174,11 +174,7 @@ impl HistoryStore for LocalHistory {
         self.0.with_untracked(|s| s.history.available(redo))
     }
     fn start(&self, original: String, text: String, end: usize) {
-        self.0.update(|s| {
-            let caret = original.encode_utf16().count();
-            s.history.reset(original, caret);
-            s.history.record(text, end);
-        });
+        self.0.update(|s| s.history.start(original, text, end));
     }
     fn record(&self, text: String, caret: usize) {
         self.0.update(|s| s.history.record(text, caret));
@@ -363,12 +359,17 @@ impl FormulaAssist {
         self.restore(next, at);
     }
 
-    fn restore(self, next: String, at: usize) {
+    /// Reflects an accepted model edit into the mounted field without writing its journal again.
+    pub fn reflect(self, text: &str, at: usize) {
         if let Some(field) = self.field.get_untracked() {
-            field.set_value(&next);
+            field.set_value(text);
             let _ = field.focus();
             let _ = field.set_selection_range(at as u32, at as u32);
         }
+    }
+
+    fn restore(self, next: String, at: usize) {
+        self.reflect(&next, at);
         self.text.set(next);
         self.caret.set(at);
     }

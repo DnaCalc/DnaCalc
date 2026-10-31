@@ -12,7 +12,7 @@
 use calc_fml::assist::{Completion, Proposal};
 use calc_fml::syntax::{TextSpan, TokenKind, lex};
 
-pub use dna_calc_model::TextHistory;
+pub use dna_calc_model::{TextHistory, replace_text};
 
 /// Pure completion presentation stored by Calc's model through its open view-state registry.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -150,18 +150,6 @@ pub fn insert_call(text: &str, start: usize, end: usize, name: &str) -> (String,
         format!("{name}(")
     };
     let mut out: Vec<u16> = units[..start].to_vec();
-    out.extend(insert.encode_utf16());
-    let caret = out.len();
-    out.extend_from_slice(&units[end..]);
-    (String::from_utf16_lossy(&out), caret)
-}
-
-/// Replace a browser selection, counted in UTF-16, and return the caret after the insertion.
-pub fn replace_text(text: &str, start: usize, end: usize, insert: &str) -> (String, usize) {
-    let units: Vec<u16> = text.encode_utf16().collect();
-    let end = end.min(units.len());
-    let start = start.min(end);
-    let mut out = units[..start].to_vec();
     out.extend(insert.encode_utf16());
     let caret = out.len();
     out.extend_from_slice(&units[end..]);
