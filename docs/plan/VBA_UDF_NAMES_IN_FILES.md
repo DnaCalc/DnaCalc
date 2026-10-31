@@ -268,3 +268,17 @@ output remains XML. The original package backing is retained along with the conv
 This is a partial binary save capability: binary authoring still needs the writer and the
 catalogue's function-index/prefix/call-identity data; no new function-name table was added.
 
+For dc-snz.15, `LoadedWorkbook::read_vba_project` explicitly reads the workbook's related
+project without compiling, registering or executing VBA. It retains module and stream names,
+the directory's module kind/private/read-only flags, help metadata, the project code page,
+raw source bytes and strictly decoded source text, including exported Attribute lines.
+Tests compare the measured XML/binary/disabled-project sources byte for byte with the Excel
+exports, including accented identifiers and function attributes. It uses cfb 0.10.0 for storage,
+nom 7.1.3 for a directory parser ported from ovba 0.7.1 (MIT, notice retained), and codepage
+0.1.3 for encoding labels. The port replaces upstream panic paths with fallible strict decoding
+and full-input parsing; compressed directory/source streams have checked chunk/copy/output
+bounds. Tests cover every truncation of the measured directory, trailing bytes and unknown
+code pages. Normal open/save remains
+opaque and inert. This is a partial source-ingestion step: callable procedure discovery,
+accessibility and project admission through the existing VBA frontend/Host remain open.
+

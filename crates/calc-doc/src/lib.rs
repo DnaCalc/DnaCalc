@@ -78,6 +78,7 @@ mod opc;
 mod policy;
 mod save;
 mod source;
+mod vba;
 mod xlsb;
 mod xml;
 mod zip;
@@ -106,6 +107,7 @@ pub use save::{
     WriteError, conditional_rule, new_conditional_rule, prepare_save, write,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
+pub use vba::{VbaModuleKind, VbaModuleSource, VbaProjectSource, VbaReadError, VbaReadPolicy};
 pub use xml::{
     XmlAttribute, XmlElement, XmlError, XmlEvent, XmlLimits, XmlName, XmlPart, XmlReader, XmlStr,
 };

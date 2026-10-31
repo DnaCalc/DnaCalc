@@ -479,6 +479,15 @@ impl LoadedWorkbook {
         &self.workbook_part
     }
 
+    /// Explicitly read project source without compiling, registering or executing VBA.
+    /// Normal workbook loading and saving preserve the project without calling this reader.
+    pub fn read_vba_project(
+        &self,
+        policy: &crate::VbaReadPolicy,
+    ) -> Result<Option<crate::VbaProjectSource>, crate::VbaReadError> {
+        crate::vba::read(&self.package, &self.workbook_part, policy)
+    }
+
     /// Each sheet's records, in workbook order, as the model's sheets are.
     pub fn sheets(&self) -> &[LoadedSheet] {
         &self.sheets

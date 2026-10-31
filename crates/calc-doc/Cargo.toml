@@ -23,6 +23,12 @@ quick-xml = "=0.37.5"
 # Apache-2.0; its one non-optional dependency, adler2, is 0BSD OR MIT OR Apache-2.0. Pure Rust,
 # so it builds for wasm32-unknown-unknown.
 miniz_oxide = "=0.8.9"
+# Explicit VBA source reader: compound storage and the MS-OVBA project directory (MIT).
+# codepage supplies the existing encoding labels; source decoding refuses replacement text.
+cfb = "=0.10.0"
+nom = { version = "=7.1.3", default-features = false, features = ["alloc"] }
+codepage = "=0.1.3"
+encoding_rs = { version = "=0.8.44", default-features = false, features = ["alloc"] }
 
 # The acceptance cases read the committed wire fixtures and the encoder's output with serde_json.
 # serde_json is also the codec's JSON tokenizer, so that reading is not independent of the codec;

@@ -648,3 +648,120 @@ fn dc_snz_12__binary_links_keep_the_measured_absolute_targets() {
         assert_eq!(part(&saved, &relationships), part(xml, &relationships));
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_15__read_measured_project_sources_without_executing_macros() {
+    for source in [
+        include_bytes!("fixtures/vba_udf_names/local.xlsm").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/local.xlsb").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/disabled-resaved.xlsm").as_slice(),
+    ] {
+        let loaded = load(source);
+        let project = loaded
+            .read_vba_project(&Default::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(project.part, "xl/vbaProject.bin");
+        assert_eq!(project.code_page, 1252);
+        assert_eq!(project.modules.len(), 4);
+        let module = project
+            .modules
+            .iter()
+            .find(|m| m.name == "Module1")
+            .unwrap();
+        assert_eq!(module.stream_name, "Module1");
+        assert_eq!(module.kind, calc_doc::VbaModuleKind::Procedural);
+        assert!(!module.private);
+        assert_eq!(
+            module.source_bytes,
+            include_bytes!("fixtures/vba_udf_names/Module1.bas")
+        );
+        assert!(module.source.contains("Public Function Caf\u{e9}("));
+        assert!(
+            module
+                .source
+                .contains("Public Function \u{c5}ngstr\u{f6}m(")
+        );
+        assert!(module.source.contains("Private Function SecretFunc("));
+        let private = project
+            .modules
+            .iter()
+            .find(|m| m.name == "PrivateModule")
+            .unwrap();
+        assert!(private.private);
+        assert_eq!(
+            private.source_bytes,
+            include_bytes!("fixtures/vba_udf_names/PrivateModule.bas")
+        );
+        assert_eq!(
+            project
+                .modules
+                .iter()
+                .filter(|m| m.kind == calc_doc::VbaModuleKind::DocumentClassOrDesigner)
+                .count(),
+            2
+        );
+        // Merely reading source has neither changed calls nor assigned calculated provenance.
+        let (saved, _) = save_model(&loaded, loaded.model());
+        assert_eq!(
+            part(&saved, "xl/vbaProject.bin"),
+            Some(source_part(source, "xl/vbaProject.bin"))
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_15__project_attributes_and_read_limits() {
+    let loaded = load(include_bytes!(
+        "fixtures/vba_udf_names/metadata-custom-vba.xlsb"
+    ));
+    let project = loaded
+        .read_vba_project(&Default::default())
+        .unwrap()
+        .unwrap();
+    let module = project
+        .modules
+        .iter()
+        .find(|m| m.name == "Module1")
+        .unwrap();
+    assert_eq!(
+        module.source_bytes,
+        include_bytes!("fixtures/vba_udf_names/Metadata-custom-vba.bas")
+    );
+    assert!(module.source.contains("Attribute MetaFunc.VB_Description"));
+    for policy in [
+        calc_doc::VbaReadPolicy {
+            max_project_bytes: 1,
+            ..Default::default()
+        },
+        calc_doc::VbaReadPolicy {
+            max_directory_bytes: 1,
+            ..Default::default()
+        },
+        calc_doc::VbaReadPolicy {
+            max_modules: 1,
+            ..Default::default()
+        },
+        calc_doc::VbaReadPolicy {
+            max_module_source_bytes: 1,
+            ..Default::default()
+        },
+        calc_doc::VbaReadPolicy {
+            max_total_source_bytes: 1,
+            ..Default::default()
+        },
+    ] {
+        assert!(matches!(
+            loaded.read_vba_project(&policy),
+            Err(calc_doc::VbaReadError::Limit(_))
+        ));
+    }
+    assert!(
+        load(include_bytes!("fixtures/vba_udf_names/stripped.xlsx"))
+            .read_vba_project(&Default::default())
+            .unwrap()
+            .is_none()
+    );
+}

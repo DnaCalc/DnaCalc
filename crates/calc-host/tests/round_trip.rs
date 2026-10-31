@@ -50,6 +50,24 @@ fn dc_snz_14__host_save_preserves_unchanged_xlsb_and_refuses_edits() {
     assert!(rejected.is_empty());
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_15__project_reading_leaves_host_file_caches_unexecuted() {
+    let source = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/disabled-resaved.xlsm");
+    let host = open(source);
+    let id = host.sheets()[0].id();
+    let call = at(id, "B1");
+    let before = value(&host, call);
+    assert!(matches!(before, ProjectedValue::FileCached(_)));
+    let project = host.loaded().read_vba_project(&calc_host::VbaReadPolicy::default()).unwrap().unwrap();
+    assert_eq!(project.code_page, 1252);
+    assert_eq!(project.modules.len(), 4);
+    assert_eq!(value(&host, call), before);
+    let mut saved = Vec::new();
+    save(&host, &SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(value(&open(&saved), call), before);
+}
+
 /// The D1 fixture, embedded so the same tests run natively and in the browsers.
 fn fixture() -> Vec<u8> {
     include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx").to_vec()

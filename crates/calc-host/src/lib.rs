@@ -98,7 +98,8 @@ pub use validation::{ErrorStyle, ValidationFailure, ValidationRule};
 
 pub use calc_doc::{
     CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
-    PackageWrite, SaveFormat, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
+    PackageWrite, SaveFormat, SavePolicy, SaveReceipt, SaveRefusal, VbaModuleKind, VbaModuleSource,
+    VbaProjectSource, VbaReadError, VbaReadPolicy, WriteError,
 };
 pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry, SheetView};
 pub use calc_doc::{

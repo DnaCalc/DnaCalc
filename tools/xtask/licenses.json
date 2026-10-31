@@ -7,6 +7,7 @@
     "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
   ],
   "expressions": [
+    {"expression": "(Apache-2.0 OR MIT) AND BSD-3-Clause", "reviewed": "encoding_rs 0.8.44, dc-snz.15: choose MIT for the decoder; COPYRIGHT and LICENSE-WHATWG identify encoding-standard data under BSD-3-Clause. Inspected the published crate's MIT and BSD texts; retain its attribution, terms and disclaimer in release notices."},
     {"expression": "Zlib OR Apache-2.0 OR MIT", "reviewed": "tinyvec 1.13.3 through OxVba/rkyv, dc-snz.3: choice of three permissive licences; choose MIT, inspected the crate LICENSE-MIT"},
     {"expression": "MIT OR Apache-2.0", "reviewed": "either permissive license, at our choice"},
     {"expression": "Apache-2.0 OR MIT", "reviewed": "the same choice, written in the other order"},

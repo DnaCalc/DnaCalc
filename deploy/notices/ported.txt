@@ -366,3 +366,32 @@ and "Excel functions (alphabetical)"
 Each description carries the URL of its function's Microsoft support article (its `source` field).
 Microsoft and Excel are trademarks of Microsoft Corporation. DNA Calc is not affiliated with or
 endorsed by Microsoft.
+
+==============================================================================
+ovba 0.7.1 project directory parser (calc-doc, src/vba/directory.rs)
+https://github.com/tim-weis/ovba (published crate 0.7.1, src/lib.rs and src/parser.rs)
+Changed to use fallible strict text decoding and full-input parsing; compression and compound
+storage are supplied by the existing file reader. No VBA code is compiled or executed here.
+==============================================================================
+
+MIT License
+
+Copyright (c) 2020 Tim Weis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

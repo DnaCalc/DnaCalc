@@ -16,6 +16,10 @@ function-help metadata and a UDF named LAMBDA. `dna-*` packages are actual calc-
 Exported `.bas` files retain Excel's code-page bytes and CRLF; `.gitattributes` prevents normalization.
 JSON/XML text is UTF-8.
 
+The dc-snz.15 source-reader regression compares module bytes from `local.xlsm`, `local.xlsb`,
+`disabled-resaved.xlsm` and `metadata-custom-vba.xlsb` with the committed Excel `.bas` exports.
+Reading this metadata compiles or executes no VBA and does not discover/register procedures.
+
 Reproduce from this directory with Windows Python + pywin32, and Cargo for the product probe:
 
 ```powershell
