@@ -26,7 +26,7 @@ fn dc_971p_4__navigation_range_entry_and_refusal_use_the_worker_message_route() 
     let send = |server: &mut Server, intent| {
         let text = wire::encode(&ToServer {
             id: 1,
-            request: Request::Intent(intent),
+            request: server.envelope(Request::Intent(intent)),
         });
         let (answer, _) = answer_text(server, &text, None);
         let FromServer::Reply {
@@ -121,7 +121,7 @@ fn dc_971p_4__navigation_range_entry_and_refusal_use_the_worker_message_route() 
     assert!(!refused.accepted && !refused.committed);
     assert_eq!(shown(server.book(), cell(3, 2)).text, "42");
 
-    let opened = server.handle(
+    let opened = server.execute_current(
         Request::Open {
             name: "data-validation.xlsx".to_owned(),
         },
@@ -667,7 +667,7 @@ fn dc_971p_7__sheet_lifecycle_worker_history_references_and_saved_package() {
     fn send(server: &mut Server, intent: Intent) -> wire::Outcome {
         let text = wire::encode(&ToServer {
             id: 1,
-            request: Request::Intent(intent),
+            request: server.envelope(Request::Intent(intent)),
         });
         let (answer, _) = answer_text(server, &text, None);
         let FromServer::Reply {
@@ -828,7 +828,7 @@ fn dc_971p_7__cell_shifts_rewrite_sources_with_one_history_step() {
             server,
             &wire::encode(&ToServer {
                 id: 1,
-                request: Request::Intent(intent),
+                request: server.envelope(Request::Intent(intent)),
             }),
             None,
         );
@@ -922,11 +922,11 @@ fn dc_971p_7__cell_shifts_rewrite_sources_with_one_history_step() {
     let revision = server.book().host().revision();
     let text = wire::encode(&ToServer {
         id: 2,
-        request: Request::Intent(Intent::ShiftCells {
+        request: server.envelope(Request::Intent(Intent::ShiftCells {
             area,
             down: true,
             insert: true,
-        }),
+        })),
     });
     let (answer, _) = answer_text(&mut server, &text, None);
     let FromServer::Failed { message, .. } = wire::decode(&answer).unwrap() else {
@@ -1149,14 +1149,14 @@ mod rule_review {
         wire::{self, ConditionalChange as C, Intent, Key, Reply, Request, Sheet},
     };
     fn intent(server: &mut Server, intent: Intent) -> wire::Outcome {
-        match server.handle(Request::Intent(intent), None).reply.unwrap() {
+        match server.execute_current(Request::Intent(intent), None).reply.unwrap() {
             Reply::Done { outcome, .. } => outcome,
             other => panic!("{other:?}"),
         }
     }
     fn details(server: &mut Server, at: CellKey) -> wire::Review {
         match server
-            .handle(Request::Review(Key::of(at)), None)
+            .execute_current(Request::Review(Key::of(at)), None)
             .reply
             .unwrap()
         {
@@ -1165,7 +1165,7 @@ mod rule_review {
         }
     }
     fn open(server: &mut Server, name: &str, bytes: &[u8]) {
-        let answer = server.handle(Request::Open { name: name.into() }, Some(bytes.to_vec()));
+        let answer = server.execute_current(Request::Open { name: name.into() }, Some(bytes.to_vec()));
         assert!(
             matches!(
                 answer.reply,
@@ -1255,7 +1255,7 @@ mod rule_review {
 
         assert!(
             server
-                .handle(
+                .execute_current(
                     Request::Subscribe {
                         id: 42,
                         interest: wire::Interest::Area(wire::Area::of(
@@ -1581,7 +1581,7 @@ mod rule_review {
         );
         assert!(
             server
-                .handle(Request::Intent(Intent::AcceptValidation { token }), None)
+                .execute_current(Request::Intent(Intent::AcceptValidation { token }), None)
                 .reply
                 .is_err(),
             "a later entry expires the pending decision"
@@ -1645,7 +1645,7 @@ mod workbook_commands {
         wire::{self, Area, FindOptions, FindScope, Intent, Key, Reply, Request, Sheet},
     };
     fn request(server: &mut Server, request: Request) -> Reply {
-        server.handle(request, None).reply.unwrap()
+        server.execute_current(request, None).reply.unwrap()
     }
     fn send(server: &mut Server, intent: Intent) -> wire::Outcome {
         match request(server, Request::Intent(intent)) {
@@ -1774,7 +1774,7 @@ mod workbook_commands {
             },
         );
         assert!(!refused.accepted && !refused.committed);
-        let answer = server.handle(Request::Save, None);
+        let answer = server.execute_current(Request::Save, None);
         assert!(matches!(
             answer.reply,
             Ok(Reply::Done { saved: Some(_), .. })
@@ -1782,7 +1782,7 @@ mod workbook_commands {
         let saved = answer.bytes.unwrap();
         assert!(matches!(
             server
-                .handle(
+                .execute_current(
                     Request::Open {
                         name: "replaced.xlsx".into()
                     },
@@ -1943,7 +1943,7 @@ mod workbook_commands {
         assert_eq!(f.rows.len(), 1);
         assert!(f.rows[0].hidden);
         assert!(f.rows[0].label.contains("Hidden inputs"));
-        let answer = server.handle(
+        let answer = server.execute_current(
             Request::Open {
                 name: "validation.xlsx".into(),
             },
@@ -1990,7 +1990,7 @@ fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_message
         wire::{self, FromServer, Intent, Key, Reply, Request, ToServer},
     };
     let mut server = Server::new();
-    let Reply::Atlas(empty) = server.handle(Request::Atlas, None).reply.unwrap() else {
+    let Reply::Atlas(empty) = server.execute_current(Request::Atlas, None).reply.unwrap() else {
         panic!("atlas reply")
     };
     assert_eq!(empty.census.formulas(), 0);
@@ -2005,7 +2005,7 @@ fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_message
             "=1+1".into()
         };
         let Reply::Done { outcome, .. } = server
-            .handle(
+            .execute_current(
                 Request::Intent(Intent::EnterCell {
                     at: Key::of(CellKey::new(sheet, row, 1).unwrap()),
                     text,
@@ -2019,7 +2019,7 @@ fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_message
         };
         assert!(outcome.accepted);
     }
-    let Reply::Atlas(atlas) = server.handle(Request::Atlas, None).reply.unwrap() else {
+    let Reply::Atlas(atlas) = server.execute_current(Request::Atlas, None).reply.unwrap() else {
         panic!("atlas reply")
     };
     assert_eq!(
@@ -2066,11 +2066,11 @@ fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_message
     }
     assert_eq!(seen.len(), 60);
     server
-        .handle(Request::Intent(Intent::SetCalcMode { manual: true }), None)
+        .execute_current(Request::Intent(Intent::SetCalcMode { manual: true }), None)
         .reply
         .unwrap();
     server
-        .handle(
+        .execute_current(
             Request::Intent(Intent::EnterCell {
                 at: Key::of(CellKey::new(sheet, 93, 1).unwrap()),
                 text: "=3+4".into(),
@@ -2079,7 +2079,7 @@ fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_message
         )
         .reply
         .unwrap();
-    let Reply::Atlas(stale) = server.handle(Request::Atlas, None).reply.unwrap() else {
+    let Reply::Atlas(stale) = server.execute_current(Request::Atlas, None).reply.unwrap() else {
         panic!("atlas reply")
     };
     assert_eq!(
@@ -2206,4 +2206,97 @@ fn dc_971p_13__canvas_projects_cross_sheet_ranges_cycles_omissions_and_blocked_s
     let cycle = view_model(&book, at(10, 1), 6, 6);
     assert_eq!(cycle.chips.len(), 2);
     assert!(cycle.width.is_finite() && cycle.height.is_finite());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_26__command_identity_revision_and_target_are_checked_before_effects() {
+    use dna_calc::{server::{Server,answer_text},wire::{self,Request,Intent,Key,ToServer,FromServer}};
+    fn deliver(server:&mut Server,request:&Request)->FromServer {
+        // A new request id is permitted to carry a retry of the same command identity.
+        let (text,_)=answer_text(server,&wire::encode(&ToServer {id:99,request:request.clone()}),None);
+        wire::decode(&text).unwrap()
+    }
+    fn accepted(reply:FromServer) {
+        let FromServer::Reply {reply:wire::Reply::Done {outcome,..},..}=reply else {panic!("{reply:?}")};
+        assert!(outcome.accepted,"{outcome:?}");
+    }
+    fn refused(reply:FromServer,reason:&str) {
+        let FromServer::Failed {message,..}=reply else {panic!("{reply:?}")};
+        assert!(message.contains(reason),"{message}");
+    }
+    let mut server=Server::new();
+    let sheet=server.book().sheets()[0].id;
+    let at=CellKey::new(sheet,1,1).unwrap();
+    let stale=server.envelope(Request::Intent(Intent::EnterCell {at:Key::of(at),text:"stale".into()}));
+    let edit=server.envelope(Request::Intent(Intent::EnterCell {at:Key::of(at),text:"42".into()}));
+    let mut other=Server::new();
+    refused(deliver(&mut other,&edit),"another workbook session");
+    accepted(deliver(&mut server,&edit));
+    server.take_events();
+    let revision=server.book().host().revision();
+    let depth=server.book().session().history_depth();
+    let first=deliver(&mut server,&edit);
+    accepted(first);
+    assert_eq!(server.book().host().revision(),revision);
+    assert_eq!(server.book().session().history_depth(),depth);
+    assert!(server.take_events().is_empty());
+    // The same identity with a different payload cannot be reinterpreted as a new command.
+    refused(deliver(&mut server,&stale),"already used");
+    let mut stale=server.envelope(Request::Intent(Intent::EnterCell {at:Key::of(at),text:"stale".into()}));
+    if let Request::Command(ref mut e)=stale {e.base_revision=revision.get()-1;}
+    refused(deliver(&mut server,&stale),"revision");
+    assert_eq!(shown(server.book(),at).text,"42");
+    assert_eq!(server.book().session().history_depth(),depth);
+    let undo=server.envelope(Request::Intent(Intent::Undo));
+    accepted(deliver(&mut server,&undo));
+    let undone=server.book().host().revision();
+    accepted(deliver(&mut server,&undo));
+    assert_eq!(server.book().host().revision(),undone);
+    assert_eq!(shown(server.book(),at).text,"");
+    let mut moved=server.envelope(Request::Intent(Intent::EnterSelection {text:"wrong target".into()}));
+    if let Request::Command(ref mut e)=moved {e.resolved_selection=Some((Key::of(at),vec![wire::Area::of(GridArea::cell(at))]));}
+    refused(deliver(&mut server,&moved),"resolved selection");
+    let old=server.envelope(Request::Intent(Intent::Recalculate));
+    let new=server.envelope(Request::New);
+    accepted(deliver(&mut server,&new));
+    let workbook=if let FromServer::Reply {reply:wire::Reply::Done {outcome,..},..}=deliver(&mut server,&new) {outcome.summary.workbook}else{panic!()};
+    let mut old=old;
+    if let Request::Command(ref mut e)=old {e.id+=1;}
+    refused(deliver(&mut server,&old),"replaced");
+    let now=server.envelope(Request::Intent(Intent::Recalculate));
+    accepted(deliver(&mut server,&now));
+    assert!(matches!(server.execute_current(Request::Save,None).reply,Ok(wire::Reply::Done {outcome,..}) if outcome.summary.workbook==workbook));
+    // Bare transport commands cannot bypass admission.
+    refused(deliver(&mut server,&Request::Intent(Intent::Undo)),"identity");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_26__evicted_command_and_calculation_retries_never_run_again() {
+    use dna_calc::{server::{Server,answer_text},wire::{self,Request,Intent,Key,ToServer,FromServer}};
+    let mut server=Server::new();
+    let sheet=server.book().sheets()[0].id;
+    let at=CellKey::new(sheet,1,1).unwrap();
+    let command=server.envelope(Request::Intent(Intent::EnterCell {at:Key::of(at),text:"=1+2".into()}));
+    let send=|server:&mut Server,request:&Request| {
+        let (text,_)=answer_text(server,&wire::encode(&ToServer {id:1,request:request.clone()}),None);
+        wire::decode::<FromServer>(&text).unwrap()
+    };
+    assert!(matches!(send(&mut server,&command),FromServer::Reply {..}));
+    let calc=server.envelope(Request::Intent(Intent::Recalculate));
+    assert!(matches!(send(&mut server,&calc),FromServer::Reply {..}));
+    server.take_events();
+    assert!(matches!(send(&mut server,&calc),FromServer::Reply {..}));
+    assert!(server.take_events().is_empty(),"retry published another calculation");
+    let revision=server.book().host().revision();
+    let depth=server.book().session().history_depth();
+    for _ in 0..130 {
+        let select=server.envelope(Request::Intent(Intent::Select {active:Key::of(at),areas:vec![wire::Area::of(GridArea::cell(at))]}));
+        assert!(matches!(send(&mut server,&select),FromServer::Reply {..}));
+    }
+    assert!(matches!(send(&mut server,&command),FromServer::Failed {message,..} if message.contains("expired")));
+    assert_eq!(server.book().host().revision(),revision);
+    assert_eq!(server.book().session().history_depth(),depth);
+    assert_eq!(shown(server.book(),at).text,"3");
 }

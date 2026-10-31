@@ -56,6 +56,8 @@
 mod actions;
 pub mod chart;
 mod command;
+mod envelope;
+pub use envelope::{CommandJournal, CommandRefusal, CommandStamp};
 mod paste;
 pub mod search;
 pub use actions::{ConditionalChange, SheetChange, WorkbookCommand, stored_axis_size};

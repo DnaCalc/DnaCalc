@@ -239,6 +239,20 @@ pub enum SheetChange {
     Show,
 }
 
+/// An identity is issued once by the model and retained for retransmission. The target is
+/// resolved at submission, so a selection-relative command cannot follow a later selection.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CommandEnvelope {
+    pub session: String,
+    pub id: u64,
+    pub workbook: u64,
+    pub base_revision: u64,
+    pub source: String,
+    pub undo_group: Option<u64>,
+    pub resolved_selection: Option<(Key, Vec<Area>)>,
+    pub request: Box<Request>,
+}
+
 /// The page to the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ToServer {
@@ -249,6 +263,8 @@ pub struct ToServer {
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    Summary,
+    Command(CommandEnvelope),
     Find(FindOptions),
     SelectionStats,
     CanEdit(Key),
@@ -342,11 +358,22 @@ pub enum Request {
     },
 }
 
+impl Request {
+    pub fn is_command(&self) -> bool {
+        matches!(
+            self,
+            Self::New | Self::Open { .. } | Self::Save | Self::Intent(_)
+        )
+    }
+}
+
 /// The workbook as the page's shell shows it.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Summary {
+    pub session: String,
     #[serde(default)]
     pub initial_cell: Option<Key>,
+    pub workbook: u64,
     pub name: String,
     pub changed: bool,
     pub undo: usize,
@@ -582,6 +609,7 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    Summary(Summary),
     Found(Result<Found, String>),
     SelectionStats(Result<SelectionStats, String>),
     CanEdit(Result<(), String>),
