@@ -61,6 +61,13 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   old value, Empty or error: keep it; never turn it into a cycle. Two reads differ inside one call: per-read
   advancement exists and the pinned-root rule (contract 5) is wrong.
 
+- **Measured 2026-11-01 (O).** Build 20527, Windows x64/AMD, safe mode; 25 conditions x 10 fresh workbooks.
+  C1-only read the dirty cache 2 with no B1 counter entry; B1 then C1 and contiguous scope yielded 11.
+  Reversed `C1,B1` observed Empty then 11 on re-entry. Warm sheet/application calculation left the clean hidden
+  observer at 2 while updating B1. Self-read: 0 on entry, Empty on forced calls; both PeekTwice reads stayed 2.
+  Settles narrow `CachedMacroObservation` and no hidden edge; provisional re-entry remains a distinct evaluation.
+  [Evidence and scope limits](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P01/README.md).
+
 ### P02 ★ Command scope, forcing and post-command dirtiness (E02; A7 range scope)
 - **Setup.** A1=1, B1=`=A1*2`, C1=`=B1+1` (seeded 2, 3); counter lanes B1'=`=PlainProbe(32,A1)`,
   C1'=`=PlainProbe(33,B1')`; clean counter K1=`=PlainProbe(34,1)`; unrelated dirty branch X1, Y1=`=X1+1`. Variants:

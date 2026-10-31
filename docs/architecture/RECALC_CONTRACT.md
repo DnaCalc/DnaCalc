@@ -35,7 +35,12 @@ not been measured on, it says so; implementing SliceV1 is not evidence of Excel 
   `calc-vba/tests/fixtures/excel-recalculation/probe.bas:37-40,147-157`: `HiddenProbe()` reads **constant** Z1. Measured
   (O, 16.0.20527): changing Z1 does not re-invoke the UDF (no hidden dependency edge), and a forced `Range.Calculate`
   reads the new constant. Whether a VBA read of a **dirty formula** returns its old cache is documented as permitted
-  (D, macro-sheet-equivalent access to uncalculated cells) but unmeasured: P01. Demo 5's D1 = 2 is SliceV1 policy.
+  (D, macro-sheet-equivalent access to uncalculated cells). **P01 now measured (O, 20527, safe mode):**
+  ten fresh workbooks per condition returned the dirty formula's old value 2 when calculating only the observer,
+  with no producer invocation. Demo 5's narrow cached read is observed. Reversed `C1,B1` produced an Empty
+  observation followed by 11 on a second invocation; this is not evidence that the two invocations share a pin.
+  Self-read gave 0 at entry then Empty on forced calls; two reads around WorksheetFunction.Sum stayed at 2.
+  See `calc-engine/tests/fixtures/excel-calc-probes/P01/README.md` for exact scope and retained evidence.
 - **Range.Calculate appears to leave its target dirty.** In the same run (Manual mode, `probe.bas:70`) B1 =
   `PlainProbe(1,A1)` went 4 -> 5 under `B1.Calculate` (a clean target is forced, O) and 5 -> 6 under the following
   `Worksheet.Calculate`, while the equally clean B3 stayed 4; B12 repeated the pattern (`hidden-force` then
@@ -373,7 +378,7 @@ generations, views, draw material, effect outcomes and platform provenance; a se
 | Pass vs phase | A7 pass with reason; A4 `CalcPhaseId` kind | pass carries `PassReason` incl. sizing, sweep, scenario |
 | Read policies | S/A7 four; A4 adds XLL worksheet/macro-equivalent and `ExplicitFreshSnapshot` | XLL variants are `RegisteredWorksheetCallback { registration }` capabilities (`#` gets macro-equivalent reads); fresh snapshot is a save/export policy |
 | Fence extent | A7: pinned root; A4: everything the callback may observe, other workbooks included | pin the `CalculationDomain` root |
-| Cached-read evidence | S/A7 cite a measured stale read | measured only for a constant; stale formula read is D; P01 before freezing |
+| Cached-read evidence | S/A7 cite a measured stale read | P01 (O, 20527 safe mode) confirms old dirty-formula cache for observer-only calculation; reversed-area re-entry sees Empty then the new value |
 | Range.Calculate end state | A7: target satisfied; fixture hints it stays dirty | `RangePostState` profile field; P02 |
 | Edit during calculation | code: cancel all; A7: successor plus revalidated reuse | A7 (demo 4) |
 | Save(false) caches | code: drop stale, Excel recalcs on open; A7: preserve with `ca`/`calcCompleted=false` | both policies exist; default stays drop until P06 |
@@ -386,7 +391,7 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 
 | Open question | SliceV1 choice | Probe |
 |---|---|---|
-| What a VBA read of a dirty formula returns, per command kind; self/caller reads | old cache at the pinned view | P01 |
+| What a VBA read of a dirty formula returns, per command kind; self/caller reads | P01: observer-only reads old 2; reversed areas can return Empty then re-enter with 11; self 0/Empty. Retain cached observation, distinguish new evaluation; other contexts remain open | P01 (O, 20527 safe mode) |
 | Out-of-range precedents in Range/Sheet calculation; post-command dirtiness; mode dependence | exact scope, qualified boundary caches, `Satisfied` | P02 |
 | Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | resume never re-enters; typed reasons | P03 |
 | Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | distinct keys; no guessed retry count | P04 |
