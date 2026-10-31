@@ -3,13 +3,18 @@ param(
     [string]$OxVbaRoot = 'C:/Work/DnaCalc/OxVba',
     [int]$Repetitions = 10,
     [string]$Cases = '',
+    [switch]$Reopen,
+    [string]$ArtifactPrefix = '',
+    [string]$NativePath = '',
+    [switch]$ExternalController,
     [string]$RunId = ('calc-probe-' + [Guid]::NewGuid().ToString('N')),
     [switch]$SafeMode
 )
 $ErrorActionPreference = 'Stop'
 $probe = (Resolve-Path -LiteralPath $ProbeDirectory).Path
 $common = Join-Path $PSScriptRoot 'calculation-common.bas'
-$probeSource = Get-Content -LiteralPath (Join-Path $probe 'probe.bas') -Raw
+$sourceFile = if($Reopen){Join-Path $PSScriptRoot 'reopen-calculation-probe.bas'}else{Join-Path $probe 'probe.bas'}
+$probeSource = Get-Content -LiteralPath $sourceFile -Raw
 $firstProcedure = [regex]::Match($probeSource, '(?m)^(?:Private|Public)\s+(?:Sub|Function)\b')
 if (-not $firstProcedure.Success) {throw 'Probe has no procedures'}
 $declarations = $probeSource.Substring(0,$firstProcedure.Index)
@@ -17,7 +22,9 @@ $procedures = $probeSource.Substring($firstProcedure.Index)
 $source = (Get-Content -LiteralPath $common -Raw).Replace('Public Sub Note(', $declarations + "`nPublic Sub Note(") + "`n" + $procedures
 $source = $source.Replace('__OUTPUT__', $probe.Replace('"','""')).Replace('__REPETITIONS__', [string]$Repetitions)
 $source = $source.Replace('__CASES__', $Cases.Replace('"','""'))
-$native = Join-Path (Split-Path $probe -Parent) 'P03/native-probe.xll'
+$source = $source.Replace('__ARTIFACT_PREFIX__', $ArtifactPrefix.Replace('"','""'))
+$source = $source.Replace('__RUN_ID__', $RunId.Replace('"','""'))
+$native = if($NativePath){(Resolve-Path -LiteralPath $NativePath).Path}else{Join-Path (Split-Path $probe -Parent) 'P03/native-probe.xll'}
 $source = $source.Replace('__NATIVE__', $native.Replace('"','""'))
 $module = Join-Path $probe 'injected.bas'
 [IO.File]::WriteAllText($module, $source)
@@ -31,6 +38,9 @@ $environment = [ordered]@{
     supervisor_commit = (& git -C $OxVbaRoot rev-parse HEAD)
     fixture_ancestor = 'crates/calc-vba/tests/fixtures/excel-recalculation/probe.bas'
     safe_mode_requested = [bool]$SafeMode
+    native_image = $native
+    native_sha256 = if(Test-Path -LiteralPath $native){(Get-FileHash -LiteralPath $native -Algorithm SHA256).Hash}else{$null}
+    excel_file_version = (Get-Item -LiteralPath 'C:/Program Files/Microsoft Office/root/Office16/EXCEL.EXE').VersionInfo.FileVersion
 }
 $environment | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $probe 'machine.json') -Encoding utf8NoBOM
 # Extend the existing owned-PID VBE supervisor. Its worker, containment, compile
@@ -102,7 +112,20 @@ $scriptPath = Join-Path $probe 'selected-supervisor.ps1'
 [IO.File]::WriteAllText($scriptPath, $supervisor)
 $arguments = @('-NoProfile','-File',$scriptPath,'-EnvironmentId','win-x64-dev-oracle-2026-07','-NoMatrixUpdate','-DiagnosticCaseId','windows-scalar-interop','-RunId',$RunId,'-OutputRoot',(Join-Path $probe 'raw'),'-TimeoutSeconds','1500')
 if ($SafeMode) { $arguments += '-SafeMode' }
-& (Join-Path $PSHOME 'pwsh.exe') @arguments
-$supervisorExit = $LASTEXITCODE
+$helper=$null
+try {
+    if($ExternalController){
+        $helperArguments=@('-NoProfile','-STA','-File',(Join-Path $probe 'external-controller.ps1'),'-ProbeDirectory',$probe,'-RunId',$RunId,'-OxVbaRoot',$OxVbaRoot)
+        $helper=Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -ArgumentList $helperArguments -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $probe ("external-"+$RunId+'.stdout.txt')) -RedirectStandardError (Join-Path $probe ("external-"+$RunId+'.stderr.txt'))
+    }
+    & (Join-Path $PSHOME 'pwsh.exe') @arguments
+    $supervisorExit = $LASTEXITCODE
+}finally{
+    if($helper){
+        [IO.File]::WriteAllText((Join-Path $probe ("external-"+$RunId+'.stop')),'stop')
+        if(-not $helper.WaitForExit(5000)){$helper.Kill();$helper.WaitForExit()}
+        [ordered]@{pid=$helper.Id;start_utc=$helper.StartTime.ToUniversalTime().ToString('o');exited=$helper.HasExited}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $probe ("external-"+$RunId+'.cleanup.json')) -Encoding utf8NoBOM
+    }
+}
 $results = @(Get-ChildItem -LiteralPath (Join-Path $probe 'raw') -Filter '*.json' -Recurse | Where-Object Name -eq 'results.json')
 Write-Output "Supervisor exit $supervisorExit; result files $($results.Count); measurement descriptor intentionally has no expected result."

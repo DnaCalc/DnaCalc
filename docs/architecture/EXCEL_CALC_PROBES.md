@@ -103,6 +103,13 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   macro-equivalent registration to `CachedMacroObservation`; ordinary gets uncalced. A single call in one arrangement
   proves nothing about other arrangements.
 
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 110 primary workbooks plus 60 object-type controls.
+  Ordinary and `$` registrations unwind on status 64 and re-enter (all ten reversed-area trials; `$` also on first
+  calculation). `#` coerces successfully there; `xlfVolatile(false)` suppresses clean F9 calls. VBA Range values
+  can be Empty then 11; Double can be 0 then 11; expression arguments may wait. No Null was observed.
+  Keep `XllUncalcedUnwind` and registration-specific capabilities; do not collapse actual entries into retries.
+  [Evidence, native stage table and logger correction](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P03/README.md).
+
 ### P04 ★ Draw identity, LET reuse and volatile spill passes (E05; A7 random/name/LAMBDA)
 - **Setup.** Separate areas: `=RAND()-RAND()`; `=LET(draw,RAND(),draw-draw)`; `=LAMBDA(x,x-x)(RAND())`;
   `=DrawName-DrawName` with name DrawName `=RAND()` used in two cells; `=LET(fn,LAMBDA(RAND()),fn()-fn())`;
@@ -115,6 +122,13 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   `OccurrencePath` boundaries. Alternating sizes give `#SPILL!` while a frozen draw would settle: new draws per
   `SpillShape` pass (contract 3.3); the prefix of SizeUdf calls gives the pass count and stabilization rule that
   replaces `MAX_WAVES = 32`. A single zero difference is inconclusive.
+
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 550 workbooks. LET and a bound LAMBDA argument reused the
+  draw; distinct RAND occurrences, name references and LAMBDA calls did not. A seed-1 volatile SizeUdf alternating
+  2/3 was called eight times before #SPILL! for range/Full/Rebuild in all ten trials each. 2,3,3 stopped at three
+  calls/size 3; 2,2,3 stopped at two/size 2. Seed-2 controls often needed only one call. Set an eight-evaluation
+  bound for this sizing path, not a global graph-wave count; use new evaluations/draws per sizing attempt.
+  [Full arrays, transient-error case and raw evidence](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P04/README.md).
 
 ### P05 ★ Blank occupancy, spill growth/shrink and conflicts (E06; A7 spill contention)
 - **Setup A.** Z1=1, A1=`=SEQUENCE(Z1)`, C10=`=A10+1`, calculated. **Setup B.** Z1=0; A3 and B1 both

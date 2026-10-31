@@ -6,6 +6,42 @@ A better match count does not identify it. No fitted coefficients, residual cuto
 answer tables or switches chosen by disagreement belong in the implementation.
 Published methods remain generic fallbacks until Excel's actual program is identified.
 
+## Method and claim record
+
+Adopt [the Pro review](../architecture/review-2026-10/pro/1-symbolic-search-answer.md).
+For this work, these rules replace conflicting instructions in historical search
+appendices and the witness-fit ranking instruction in `RESEARCH_SOURCES.md`:
+
+- Order proposals by published provenance, size, coherent precision regions and cost.
+  Complete programs survive only exact applicable observations; never rank them by
+  match count or keep a beam by numerical closeness. Resource-pruned programs remain
+  unsearched. Residuals diagnose failures; regional patterns only propose experiments.
+- Zero survivors means audit grammar, helper representation, numeric substrate,
+  observation transport, execution profile, surface and evaluator assumptions.
+  Frozen helpers are conditional hypotheses. Test both concrete helpers and shared
+  unknown-helper intersections on fixed rate/nper/environment groups.
+- Preserve full typed intermediates and alternatives with equal prediction vectors.
+  Distinguish equal-on-witnesses, unresolved within budget and proved equivalent.
+  Validate numeric backends against an independent rational reference suite;
+  finite backend agreement is evidence, not a proof.
+- Record requested, submitted and read-back inputs and publication rules, including
+  unavailable transport metadata. Unsupported observations and harness failures
+  remain failed obligations, separately from trusted semantic contradictions.
+- Freeze requests and predictions separately; choose batches by additional separation
+  of survivors. Independent validation follows a frozen candidate. Uniqueness within
+  a grammar and validation outside discovery are separate claims.
+
+Each function's research unit carries a claim record: surface/aliases/selected
+elements and executable domain; Excel build/architecture/CPU/Compatibility Version;
+transport/coercion/publication contract; strength (published fallback, conditional
+hypothesis, unique grammar survivor, independently validated model or formal
+equivalence); program/grammar/numeric/evidence hashes; bounds and actual coverage;
+versioned helper assumptions; constant/algorithm provenance; surviving alternatives
+and equivalence status; first kills/certificates; discovery/validation exposure;
+frozen questions/predictions; unresolved failures; product mapping/replay; and the
+next experiment for each material uncertainty. Missing fields are explicit unknowns.
+Changing a dependency makes dependent claims stale; it does not invalidate observations.
+
 ## Inputs and execution on this machine
 
 - dna-firehorse: Linux x86_64, AMD family 23/model 1 under KVM, 16 logical CPUs,
@@ -40,7 +76,7 @@ on a finite discovery set permits shared evaluation, not a claim of global equiv
 For continuous nodes retain the full extended value and its precision/provenance tag.
 Reject a candidate on its first exact-bit, kind, error, sign-of-zero or shape contradiction.
 Persist the program, first killing witness and both outcomes; never rescue it by error size.
-Zero survivors means the grammar or a frozen substrate is wrong: report the missing axis.
+Zero survivors triggers the assumption audit above; it does not identify a missing axis.
 Multiple survivors call for inputs where their predictions differ, with exact controls and
 adjacent-value probes around independently suspected branches. Freeze questions/predictions
 before answers, then use the existing `witness read --inputs` route on Windows and cache them.
@@ -78,32 +114,60 @@ Missing: a DnaCalc research interface for private Fpu operations, a bounded/chec
 enumeration command within xtask, canonical typed outcome adapters and reusable exact interval
 joins. No SMT solver, global expression-tree enumerator or loop VM is installed by this plan.
 
-## First four-hour round: PMT's final combine
+## Initial PMT combine scope (historical bounded experiment)
 
 Scope: the finite discount arm, excluding zero rates, nonfinite exponentials and exact
-opposing balances. Freeze the current log1p/expm1 outputs as leaves; do not refit them.
+opposing balances. Frozen log1p/expm1 leaves are hypotheses, never established helpers.
 The earlier certificate found 734 targets unreachable by any binary64 quotient followed by
 the existing stored-PC64 product among 250,730 discount rows; a 54-bit quotient was sufficient
 for those gaps, which does not identify Excel's precision. Include these witnesses first.
 This round therefore admits a resident PC64 quotient through the final product, rather than
 repeating searches that force every quotient to binary64. Keep growth-arm controls separate.
 
-1. Minutes 0–60: adapt the minimal arithmetic DAG/evaluator and witness inputs; prove strict,
-   stored-PC64 and continuous-PC64 semantics against the current native/software operations.
+1. Minutes 0–60: adapt the minimal arithmetic DAG/evaluator and witness inputs; validate strict,
+   stored-PC64 and continuous-PC64 semantics against deliberate independent reference controls.
 2. Minutes 60–105: build two numerator trees, `PV+FV*(1+em)` and `(PV+FV)+FV*em`, with
    `tf=1+r*type`; three combines, `((N/em)/tf)*r`, `(N*r)/(em*tf)` and `(N/tf)*(r/em)`.
    Eight arithmetic sites with three models each give at most `2*3*3^8 = 39,366` programs.
    Constants are exactly 0/1; there are no learned thresholds or coefficients.
 3. Minutes 105–180: stream exact elimination on 32 discriminating discovery rows, then all
    recorded scoped rows. Use at most eight workers and 4 GiB total, with checkpointed IDs.
-   Deduplicate verified identical vectors; record resource truncation as incomplete coverage.
+   Share evaluation of equal vectors while preserving alternatives; record truncation as incomplete coverage.
 4. Minutes 180–240: replay survivors with the software backend and all recorded PMT controls;
    export at most 64 diverse disagreement questions for Windows if several remain. If none
-   remain, retain their first kills and investigate the frozen expm1/numerator scope next round.
+   remain, retain their first kills and audit every assumption before widening one justified axis.
 
 Deliver the grammar hash, coverage, survivor/kill records, exact interval certificates and
-unanswered questions on the bead. Even a surviving graph remains a scoped hypothesis until
-independent probes distinguish it. No search, port of the racer, or Excel run starts here.
+unanswered questions on the bead. These six skeletons omit ordinary associations;
+their count is not coverage of every plausible combine. A survivor remains a scoped
+hypothesis until independent probes distinguish it. Later results follow below.
+
+## Round 9: independent certificates, 2026-11-01
+
+The separate rational checker in `DnaCalc-Research/checker/` reproduces all **734**
+quotient gaps over 250,730 original discount rows, including open/tie endpoints and
+adjacent lattice bounds. All 249,996 reachable targets have constructive quotients;
+all 250,730 original quotient/product calculations replay exactly. A 54-bit lattice
+reaches the gaps; this identifies neither Excel's precision nor a quotient program.
+
+`17e42ce` changed the **growth arm's initial quotient store**. The certificate concerns
+the **discount shell** `RN53(RN64(q*r))` with any binary64 `q` immediately before the
+final product. The scopes differ. That discount shell is excluded universally on
+these witnesses; the retained growth store remains a conditional hypothesis.
+
+Independent grouped preimages reject all 4,860 declared three-model combines even
+with an arbitrary common helper per rate/nper/environment, including nonunit periods
+with timing fixed. The 37,500 five-model profiles are also excluded separately on
+builds 20131 and 20228; the checked 20228 timing cohort includes two lattice exclusions.
+No frozen helper can rescue those families. This excludes specified models, with the
+recorded transport/profile assumptions; it does not identify the defective component.
+
+The ordinary association extension has 212,139 programs and zero survivors after
+eight existing rows, on both backends. Every first-kill trace has an independent
+rational check; no surviving programs justify new discriminator questions. The claim
+record and assumption audit are `DnaCalc-Research/pmt-r9-claim.json`. PMT remains
+unidentified; product code, evidence and pins are unchanged. Full receipts are under
+`/home/ubuntu/codex-runs/dna-firehorse-20261101-round9/`.
 
 
 ## Round 7 result, 2026-10-31

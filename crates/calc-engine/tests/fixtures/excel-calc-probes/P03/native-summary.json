@@ -1,0 +1,472 @@
+{
+  "stages": {
+    "1": "entry",
+    "2": "first calculation",
+    "3": "warm F9",
+    "4": "Full",
+    "5": "Rebuild",
+    "6": "same-value rewrite",
+    "7": "upstream change/equal output",
+    "8": "dirty reversed areas"
+  },
+  "coercions": [
+    {
+      "condition": "xll-inside",
+      "stage": 1,
+      "observations": [
+        {
+          "status": "0",
+          "type": "256",
+          "value": "0",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-inside",
+      "stage": 2,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-inside",
+      "stage": 4,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-inside",
+      "stage": 5,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-inside",
+      "stage": 8,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro",
+      "stage": 1,
+      "observations": [
+        {
+          "status": "0",
+          "type": "256",
+          "value": "0",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro",
+      "stage": 2,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro",
+      "stage": 3,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro",
+      "stage": 4,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro",
+      "stage": 5,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro",
+      "stage": 6,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro",
+      "stage": 7,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro",
+      "stage": 8,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro-nonvolatile",
+      "stage": 1,
+      "observations": [
+        {
+          "status": "0",
+          "type": "256",
+          "value": "0",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro-nonvolatile",
+      "stage": 2,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro-nonvolatile",
+      "stage": 4,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro-nonvolatile",
+      "stage": 5,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro-nonvolatile",
+      "stage": 6,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro-nonvolatile",
+      "stage": 7,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-macro-nonvolatile",
+      "stage": 8,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-ordinary",
+      "stage": 1,
+      "observations": [
+        {
+          "status": "0",
+          "type": "256",
+          "value": "0",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-ordinary",
+      "stage": 2,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-ordinary",
+      "stage": 4,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-ordinary",
+      "stage": 5,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-ordinary",
+      "stage": 6,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-ordinary",
+      "stage": 7,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        },
+        {
+          "status": "64",
+          "type": "0",
+          "value": "0",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "condition": "xll-ordinary",
+      "stage": 8,
+      "observations": [
+        {
+          "status": "64",
+          "type": "0",
+          "value": "0",
+          "count": 10
+        },
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-threadsafe",
+      "stage": 1,
+      "observations": [
+        {
+          "status": "0",
+          "type": "256",
+          "value": "0",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-threadsafe",
+      "stage": 2,
+      "observations": [
+        {
+          "status": "64",
+          "type": "0",
+          "value": "0",
+          "count": 10
+        },
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-threadsafe",
+      "stage": 4,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-threadsafe",
+      "stage": 5,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-threadsafe",
+      "stage": 6,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-threadsafe",
+      "stage": 7,
+      "observations": [
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "condition": "xll-threadsafe",
+      "stage": 8,
+      "observations": [
+        {
+          "status": "64",
+          "type": "0",
+          "value": "0",
+          "count": 10
+        },
+        {
+          "status": "0",
+          "type": "1",
+          "value": "11",
+          "count": 10
+        }
+      ]
+    }
+  ],
+  "observed_thread_ids": {
+    "xll-inside": [
+      "55048"
+    ],
+    "xll-macro": [
+      "55048"
+    ],
+    "xll-macro-nonvolatile": [
+      "55048"
+    ],
+    "xll-ordinary": [
+      "55048"
+    ],
+    "xll-threadsafe": [
+      "11696",
+      "14280",
+      "16184",
+      "17756",
+      "28608",
+      "34980",
+      "36628",
+      "50044",
+      "55048",
+      "5628"
+    ]
+  }
+}
