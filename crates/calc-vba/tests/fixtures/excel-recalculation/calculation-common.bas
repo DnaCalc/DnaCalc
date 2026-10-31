@@ -124,9 +124,13 @@ ComAddInsUnavailable:
 End Sub
 Public Sub SpillInfo(ws As Worksheet, ByVal atCell As String)
     On Error GoTo NoSpill
-    Dim r As Range
+    Dim r As Range, flag As Variant
     Set r = ws.Range(atCell)
-    Note "spill", atCell & ";hasSpill=" & CStr(r.HasSpill) & ";range=" & r.SpillingToRange.Address
+    flag = r.HasSpill
+    Note "spill-flag", atCell & ";" & Typed(flag)
+    If IsNull(flag) Then Exit Sub
+    If Not CBool(flag) Then Exit Sub
+    Note "spill", atCell & ";hasSpill=True;range=" & r.SpillingToRange.Address
     Exit Sub
 NoSpill:
     Note "spill", atCell & ";error=" & CStr(Err.Number) & ";" & Err.Description
