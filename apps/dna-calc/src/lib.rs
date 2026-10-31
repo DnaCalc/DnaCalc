@@ -26,6 +26,7 @@ pub mod cells;
 pub mod clipboard;
 mod commands;
 pub mod controller;
+mod model_adapter;
 pub mod grid;
 pub mod ledger;
 pub mod notebook;

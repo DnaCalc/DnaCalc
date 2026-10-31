@@ -51,19 +51,14 @@ impl Skin for TreeSkin {
         "Tree"
     }
 
+    fn focus_target(&self) -> &'static str { "[data-dnacalc=tree]" }
+
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        tree_view(ctx.controller, ctx.active_skin).into_any()
+        tree_view(ctx.controller).into_any()
     }
 }
 
-/// A branch of the outline, the unit the fold set holds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Branch {
-    Workbook,
-    Names,
-    Sheet(SheetId),
-    Row(SheetId, u32),
-}
+pub use dna_calc_model::{Branch, TreeFocus as Focus};
 
 /// One sheet's cells as the outline groups them: its rows in order, each with its cells in
 /// column order, for the rows shown; and how many rows it holds beyond them.
@@ -128,16 +123,6 @@ impl TreeRow {
             TreeRow::Cell { .. } | TreeRow::MoreCells { .. } => 3,
         }
     }
-}
-
-/// The line the focus is on, by what it shows, so it stays on its line as lines come and go.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Focus {
-    Branch(Branch),
-    Name(usize),
-    Cell(CellKey),
-    MoreRows(SheetId),
-    MoreCells((SheetId, u32)),
 }
 
 /// The lines of `outline`, depth first, without what folded branches hold.
@@ -295,31 +280,23 @@ pub fn outline_sheet(
 /// Page-owned view state; the workbook installation resets it.
 #[derive(Clone, Copy)]
 pub struct ViewState {
-    folded: RwSignal<BTreeSet<Branch>>,
-    shown_rows: RwSignal<BTreeMap<SheetId, usize>>,
-    focus: RwSignal<Option<Focus>>,
-    query: RwSignal<String>,
-    initialized: RwSignal<bool>,
-    last_active: RwSignal<Option<CellKey>>,
+    folded: crate::model_adapter::ModelField<BTreeSet<Branch>>,
+    shown_rows: crate::model_adapter::ModelField<BTreeMap<SheetId, usize>>,
+    focus: crate::model_adapter::ModelField<Option<Focus>>,
+    query: crate::model_adapter::ModelField<String>,
+    initialized: crate::model_adapter::ModelField<bool>,
+    last_active: crate::model_adapter::ModelField<Option<CellKey>>,
 }
 impl ViewState {
-    pub fn new() -> Self {
+    pub fn new(controller: Controller) -> Self {
         Self {
-            folded: RwSignal::new(BTreeSet::new()),
-            shown_rows: RwSignal::new(BTreeMap::new()),
-            focus: RwSignal::new(None),
-            query: RwSignal::new(String::new()),
-            initialized: RwSignal::new(false),
-            last_active: RwSignal::new(None),
+            folded: controller.view_field::<dna_calc_model::TreeState, _>(SkinId::Tree, |s| &s.folded, |s| &mut s.folded),
+            shown_rows: controller.view_field::<dna_calc_model::TreeState, _>(SkinId::Tree, |s| &s.shown_rows, |s| &mut s.shown_rows),
+            focus: controller.view_field::<dna_calc_model::TreeState, _>(SkinId::Tree, |s| &s.focus, |s| &mut s.focus),
+            query: controller.view_field::<dna_calc_model::TreeState, _>(SkinId::Tree, |s| &s.query, |s| &mut s.query),
+            initialized: controller.view_field::<dna_calc_model::TreeState, _>(SkinId::Tree, |s| &s.initialized, |s| &mut s.initialized),
+            last_active: controller.view_field::<dna_calc_model::TreeState, _>(SkinId::Tree, |s| &s.last_active, |s| &mut s.last_active),
         }
-    }
-    pub fn reset(self) {
-        self.folded.set(BTreeSet::new());
-        self.shown_rows.set(BTreeMap::new());
-        self.focus.set(None);
-        self.query.set(String::new());
-        self.initialized.set(false);
-        self.last_active.set(None);
     }
 }
 
@@ -396,7 +373,7 @@ pub fn next_focus(lines: &[TreeRow], focus: Option<Focus>, key: &str) -> Option<
 }
 
 #[cfg(target_arch = "wasm32")]
-fn reveal_focus(focus: RwSignal<Option<Focus>>) {
+fn reveal_focus(focus: crate::model_adapter::ModelField<Option<Focus>>) {
     if let Some(selected) = focus.get_untracked() {
         request_animation_frame(move || {
             use wasm_bindgen::JsCast;
@@ -432,7 +409,7 @@ fn reveal_focus(focus: RwSignal<Option<Focus>>) {
     }
 }
 
-fn tree_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> impl IntoView {
+fn tree_view(controller: Controller) -> impl IntoView {
     let ViewState {
         folded,
         shown_rows,
@@ -440,7 +417,7 @@ fn tree_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> i
         query,
         initialized,
         last_active,
-    } = controller.tree;
+    } = ViewState::new(controller);
     if !initialized.get_untracked() {
         let active = controller.sheet.get_untracked();
         folded.set(controller.summary.with_untracked(|s| {
@@ -643,8 +620,7 @@ fn tree_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> i
             shown_rows.update(|s| *s.entry(*sheet).or_insert(ROW_PAGE) += ROW_PAGE)
         }
         TreeRow::MoreCells { first, .. } => {
-            controller.go_to(*first);
-            active_skin.set(Some("grid".into()));
+            controller.reveal(*first, SkinId::Grid);
         }
         _ => {}
     };
@@ -806,7 +782,7 @@ fn tree_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> i
         <div class="dc-tree-head" aria-hidden="true"><span>"Outline / address"</span><span>"Input"</span><span>"Result"</span><span>"State"</span></div>
         <div class="dc-tree" node_ref=tree_node data-dnacalc="tree" role="tree" aria-label="Workbook outline" aria-activedescendant=move ||focus.get().filter(|f|rows.with(|r|r.iter().any(|r|r.focus()==*f))).map(item_id) tabindex="0" on:keydown=on_key><ul role="none">{move ||{shown_cells.track();rows.get().into_iter().map(line).collect_view()}}</ul></div>
         {move ||(omitted.get()>0).then(||view!{<p data-dnacalc="tree-omitted">{format!("{} occupied cells beyond the spill window; reveal an address or open Grid.",omitted.get())}</p>})}
-        {move ||details.get().then(||view!{<aside class="dc-tree-detail" data-dnacalc="tree-details">{move ||inspected().map(|cell|view!{<p>{cell.why}{cell.error_meaning.map(|s|format!(" {s}")).unwrap_or_default()}</p><p data-dnacalc="tree-dependents">{move ||read_by.get()}</p><button data-dnacalc="tree-open-grid" on:click=move |_|{if let Some(at)=cell.at.cell(){controller.go_to(at);active_skin.set(Some("grid".into()));}}>"Open source in Grid"</button>})}</aside>})}
+        {move ||details.get().then(||view!{<aside class="dc-tree-detail" data-dnacalc="tree-details">{move ||inspected().map(|cell|view!{<p>{cell.why}{cell.error_meaning.map(|s|format!(" {s}")).unwrap_or_default()}</p><p data-dnacalc="tree-dependents">{move ||read_by.get()}</p><button data-dnacalc="tree-open-grid" on:click=move |_|{if let Some(at)=cell.at.cell(){controller.reveal(at, SkinId::Grid);}}>"Open source in Grid"</button>})}</aside>})}
     </section>}
 }
 

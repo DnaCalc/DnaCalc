@@ -106,7 +106,8 @@ pub fn app() -> impl IntoView {
     let controller = Controller::new();
     controller.install_input_queue();
     let registry = registry();
-    let active_skin: RwSignal<Option<String>> = RwSignal::new(None);
+    controller.register_skins(registry.clone());
+    let active_skin = controller.active_skin;
     let assist = controller.assist;
     let file_input = NodeRef::<leptos::html::Input>::new();
     let replace_dialog = NodeRef::<leptos::html::Dialog>::new();
@@ -257,7 +258,7 @@ pub fn app() -> impl IntoView {
                         title=format!("{title} (Alt+{slot})")
                         on:click=move |_| {
                             controller.carry_edit_to_bar();
-                            switch_skin(active_skin, &registry, slot);
+                            switch_skin(controller, &registry, slot);
                         }
                     >
                         {title}
@@ -271,7 +272,7 @@ pub fn app() -> impl IntoView {
         let registry = registry.clone();
         move || {
             match resolve_active_skin(&registry, active_skin.get().as_deref()) {
-            SkinResolution::Mount(skin) => skin.mount(SkinContext { controller, active_skin }),
+            SkinResolution::Mount(skin) => skin.mount(SkinContext { controller }),
             SkinResolution::Unavailable { active } => view! {
                 <div class="dc-unavailable" data-dnacalc="skin-unavailable">
                     {format!("The skin {:?} is not available in DNA Calc.", active.unwrap_or_default())}
@@ -285,6 +286,19 @@ pub fn app() -> impl IntoView {
     let on_app_key = move |ev: leptos::ev::KeyboardEvent| {
         if ev.is_composing() || assist.composing.get_untracked() {
             return;
+        }
+        if ev.default_prevented() { return; }
+        let chord = dna_calc_model::selection::KeyChord::new(ev.key(), ev.shift_key(), ev.ctrl_key() || ev.meta_key(), ev.alt_key());
+        if let Some(id) = dna_calc_model::resolve_shell_key(&chord) {
+            use wasm_bindgen::JsCast;
+            let native_text = ev.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()).is_some_and(|element| {
+                matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA") || element.closest("[contenteditable=true]").ok().flatten().is_some()
+            });
+            if !native_text || !matches!(id, dna_calc_model::CommandId::Undo | dna_calc_model::CommandId::Redo) {
+                ev.prevent_default();
+                if let Some(command) = dna_calc_model::Command::simple(id) { controller.command(command); }
+                return;
+            }
         }
         let ctrl = ev.ctrl_key() || ev.meta_key();
         if ev.key() == "F6" && !ctrl && !ev.alt_key() {
@@ -335,7 +349,7 @@ pub fn app() -> impl IntoView {
             && !controller.input_pending()
             && !ctrl
             && let Ok(slot) = ev.key().parse::<u8>()
-            && switch_skin(active_skin, &registry_for_keys, slot).is_some()
+            && switch_skin(controller, &registry_for_keys, slot).is_some()
         {
             ev.prevent_default();
             controller.carry_edit_to_bar();
@@ -477,10 +491,10 @@ pub fn app() -> impl IntoView {
                         }
                     />
                 <button type="button" data-dnacalc="save" disabled=move || assist.readonly.get() on:click=save>"Save"</button>
-                <button type="button" data-dnacalc="undo" disabled=move || !controller.history_available(false) title="Undo (Ctrl+Z)" on:click=move |_| controller.undo()>"Undo"</button>
-                <button type="button" data-dnacalc="redo" disabled=move || !controller.history_available(true) title="Redo (Ctrl+Y)" on:click=move |_| controller.redo()>"Redo"</button>
+                <button type="button" data-dnacalc="undo" disabled=move || controller.command_availability(dna_calc_model::CommandId::Undo).is_err() title="Undo (Ctrl+Z)" on:click=move |_| controller.undo()>"Undo"</button>
+                <button type="button" data-dnacalc="redo" disabled=move || controller.command_availability(dna_calc_model::CommandId::Redo).is_err() title="Redo (Ctrl+Y)" on:click=move |_| controller.redo()>"Redo"</button>
                 <button type="button" data-dnacalc="calculate" title="Calculate now (F9)" on:click=move |_| controller.recalculate()>"Calculate"</button>
-                <button type="button" data-dnacalc="find-tools" disabled=move ||controller.assist.readonly.get() || controller.editing.get().is_some() on:click=move |_|controller.find_open.set(Some("find".into()))>"Find…"</button>
+                <button type="button" data-dnacalc="find-tools" disabled=move ||controller.command_availability(dna_calc_model::CommandId::Find).is_err() on:click=move |_|controller.command(dna_calc_model::Command::Find)>"Find…"</button>
                 <button type="button" data-dnacalc="review-tools" disabled=move ||controller.assist.readonly.get() || controller.editing.get().is_some() on:click=move |_|controller.review_open.set(true)>"Rules & review"</button>
                 <select
                     data-dnacalc="calc-mode"

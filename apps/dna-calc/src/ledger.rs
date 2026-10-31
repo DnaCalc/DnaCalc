@@ -48,7 +48,7 @@ impl Skin for LedgerSkin {
     }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        ledger_view(ctx.controller, ctx.active_skin).into_any()
+        ledger_view(ctx.controller).into_any()
     }
 }
 
@@ -71,31 +71,23 @@ pub struct Entry {
 /// Page-owned controls that survive skin changes; a new workbook resets them.
 #[derive(Clone, Copy)]
 pub struct ViewState {
-    filter: RwSignal<String>,
-    text: RwSignal<String>,
-    sort: RwSignal<String>,
-    grouped: RwSignal<bool>,
-    this_sheet: RwSignal<bool>,
-    page: RwSignal<usize>,
+    filter: crate::model_adapter::ModelField<String>,
+    text: crate::model_adapter::ModelField<String>,
+    sort: crate::model_adapter::ModelField<String>,
+    grouped: crate::model_adapter::ModelField<bool>,
+    this_sheet: crate::model_adapter::ModelField<bool>,
+    page: crate::model_adapter::ModelField<usize>,
 }
 impl ViewState {
-    pub fn new() -> Self {
+    pub fn new(controller: Controller) -> Self {
         Self {
-            filter: RwSignal::new(String::new()),
-            text: RwSignal::new(String::new()),
-            sort: RwSignal::new(String::new()),
-            grouped: RwSignal::new(false),
-            this_sheet: RwSignal::new(false),
-            page: RwSignal::new(0),
+            filter: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.filter, |s| &mut s.filter),
+            text: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.text, |s| &mut s.text),
+            sort: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.sort, |s| &mut s.sort),
+            grouped: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.grouped, |s| &mut s.grouped),
+            this_sheet: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.this_sheet, |s| &mut s.this_sheet),
+            page: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.page, |s| &mut s.page),
         }
-    }
-    pub fn reset(self) {
-        self.filter.set(String::new());
-        self.text.set(String::new());
-        self.sort.set(String::new());
-        self.grouped.set(false);
-        self.this_sheet.set(false);
-        self.page.set(0);
     }
 }
 fn short_reason(reason: &str) -> String {
@@ -359,8 +351,8 @@ pub fn view_model(
     }
 }
 
-fn ledger_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> impl IntoView {
-    let state = controller.ledger;
+fn ledger_view(controller: Controller) -> impl IntoView {
+    let state = ViewState::new(controller);
     let filter_choice = state.filter;
     let text = state.text;
     let sort_choice = state.sort;
@@ -440,24 +432,7 @@ fn ledger_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
         });
     });
     let pages = move || ledger.with(|l| (l.rows as usize).div_ceil(PAGE).max(1));
-    let open_source = move |at, skin: &'static str| {
-        controller.navigate_to(at, move |ok| {
-            if ok {
-                active_skin.set(Some(skin.into()));
-                #[cfg(target_arch = "wasm32")]
-                set_timeout(
-                    move || {
-                        crate::app::focus(if skin == "canvas" {
-                            "[data-dnacalc=canvas]"
-                        } else {
-                            "[data-dnacalc=grid][data-grid-active=true]"
-                        })
-                    },
-                    std::time::Duration::from_millis(20),
-                );
-            }
-        })
-    };
+    let open_source = move |at, skin| controller.reveal(at, skin);
     let row_view = move |row: wire::LedgerRow| {
         let Some(at) = row.at.cell() else {
             return ().into_any();
@@ -483,7 +458,7 @@ fn ledger_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
             <td class="dc-mono"><button data-dnacalc="ledger-select" aria-label=select_name aria-current=move ||active().to_string() disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();controller.navigate_to(at,move |ok|{if ok&&reveal.try_update_value(|v|*v=true).is_some(){refresh.try_update(|n|*n+=1);}});}>{row.label.clone()}</button></td>
             <td class="dc-mono dc-ledger-formula">{row.formula}</td><td class="dc-mono" data-dnacalc="ledger-value">{row.value}</td>
             <td><span class="dc-chip" data-provenance=row.provenance.name()>{if row.error&&row.provenance==Provenance::Calculated{"calculated error"}else{row.provenance.name()}}</span>{concise.map(|note|view!{<p class="dc-ledger-reason" data-dnacalc="ledger-reason">{note}</p>})}</td>
-            <td class="dc-ledger-actions"><button data-dnacalc="ledger-open-grid" aria-label=grid_name disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();open_source(at,"grid");}>"Grid"</button><button data-dnacalc="ledger-open-canvas" aria-label=canvas_name disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();open_source(at,"canvas");}>"Canvas"</button>
+            <td class="dc-ledger-actions"><button data-dnacalc="ledger-open-grid" aria-label=grid_name disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();open_source(at, SkinId::Grid);}>"Grid"</button><button data-dnacalc="ledger-open-canvas" aria-label=canvas_name disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();open_source(at, SkinId::Canvas);}>"Canvas"</button>
                 <details data-dnacalc="ledger-details" on:click=move |ev|ev.stop_propagation()><summary>"Details"</summary><p>{note}</p><dl><dt>"Number format"</dt><dd>{row.format}</dd><dt>"Read areas"</dt><dd>{row.reads}</dd><dt>"Dependent cells"</dt><dd>{row.read_by}</dd></dl></details>
             </td>
         </tr>}.into_any()

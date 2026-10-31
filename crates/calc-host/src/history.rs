@@ -18,22 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 
-/// A cell or area selection: the active cell and the selected areas.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Selection {
-    pub active: Option<CellKey>,
-    pub areas: Vec<GridArea>,
-}
-
-impl Selection {
-    /// One cell, active and selected.
-    pub fn cell(at: CellKey) -> Selection {
-        Selection {
-            active: Some(at),
-            areas: vec![GridArea::cell(at)],
-        }
-    }
-}
+pub use calc_doc_model::value::Selection;
 
 /// Why an edit cannot be undone: what it removed that no cell edit can put back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

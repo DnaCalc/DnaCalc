@@ -125,6 +125,8 @@ impl Skin for GridSkin {
         "Grid"
     }
 
+    fn focus_target(&self) -> &'static str { "[data-dnacalc=grid][data-grid-active=true][data-surface-ready=true]" }
+
     fn mount(&self, ctx: SkinContext) -> AnyView {
         grid_workspace(ctx.controller).into_any()
     }
@@ -347,6 +349,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let viewed_sheet = StoredValue::new(None::<(u64, calc_host::value::SheetId)>);
     let restoring = StoredValue::new(false);
     let skip_reveal = StoredValue::new(false);
+    let last_reveal_epoch = StoredValue::new(controller.reveal_epoch.get_untracked());
     let held_origin = StoredValue::new(None::<(u32, u32)>);
     let viewport = RwSignal::new(initial.map(|s| s.viewport).unwrap_or(Viewport {
         scroll_x: 0.0,
@@ -757,6 +760,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     });
     // However the active cell moves (keys, the name box, an undo), it is brought into view.
     Effect::new(move |_| {
+        let epoch = controller.reveal_epoch.get();
+        let explicit = epoch != last_reveal_epoch.get_value();
+        last_reveal_epoch.set_value(epoch);
+        if explicit { held_origin.set_value(None); }
         metrics.track();
         panes.track();
         ctx.source.track();
@@ -772,7 +779,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         }
         if skip_reveal.get_value() {
             skip_reveal.set_value(false);
-            return;
+            if !explicit { return; }
         }
         if scroller.get().is_some() {
             measure();
@@ -901,18 +908,6 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         }
         let ctrl = ev.ctrl_key() || ev.meta_key();
         let chord = KeyChord::new(ev.key(), ev.shift_key(), ctrl, ev.alt_key());
-        if !ev.alt_key()
-            && ((ctrl && matches!(chord.key.as_str(), "f" | "h" | "g")) || chord.key == "F5")
-        {
-            ev.prevent_default();
-            let mode = match chord.key.as_str() {
-                "h" => "replace",
-                "g" | "F5" => "goto",
-                _ => "find",
-            };
-            controller.after_input(move || controller.find_open.set(Some(mode.into())));
-            return;
-        }
         if chord.key == "F10" && ev.shift_key() && !ctrl && !ev.alt_key() {
             ev.prevent_default();
             controller.after_input(move || {
@@ -951,16 +946,6 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         }
         if ctrl && !ev.alt_key() {
             match chord.key.as_str() {
-                "z" => {
-                    ev.prevent_default();
-                    controller.undo();
-                    return;
-                }
-                "y" => {
-                    ev.prevent_default();
-                    controller.redo();
-                    return;
-                }
                 "c" => {
                     ev.prevent_default();
                     controller.copy();
@@ -995,11 +980,6 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 }
                 _ => {}
             }
-        }
-        if chord.key == "F9" {
-            ev.prevent_default();
-            controller.recalculate();
-            return;
         }
         // Alt+Down opens the active cell's validation list, as in Excel; Escape closes it.
         if ev.alt_key() && chord.key == "ArrowDown" {
@@ -1891,6 +1871,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 style:grid-column=move ||if ctx.layout.get().split_window{(1+(ctx.index&1)).to_string()}else{String::new()}
                 style:grid-row=move ||if ctx.layout.get().split_window{(1+(ctx.index>>1)).to_string()}else{String::new()}
                 on:focusin=move |_|ctx.activate(controller)
+                data-surface-ready=move ||ctx.loaded.get().to_string()
                 data-dnacalc="grid" data-resizing=move ||resizing.get().is_some().to_string()
                 data-frozen-rows=move ||panes.get().rows.to_string()
                 data-frozen-columns=move ||panes.get().columns.to_string()

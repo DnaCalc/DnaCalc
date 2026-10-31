@@ -31,12 +31,33 @@ use calc_fml::syntax::TextSpan;
 use calc_func::{FunctionCallTarget, help};
 use leptos::prelude::*;
 
+/// A text field can edit either an ordinary signal or one field of a portable model.
+/// The binding holds reactive accessors; the owning application retains the text.
+#[derive(Clone, Copy)]
+pub struct TextBinding {
+    read: Signal<String>,
+    write: Callback<String>,
+}
+impl TextBinding {
+    pub fn new(read: Signal<String>, write: impl Fn(String) + Send + Sync + 'static) -> Self {
+        Self { read, write: Callback::new(write) }
+    }
+    pub fn get(self) -> String { self.read.get() }
+    pub fn get_untracked(self) -> String { self.read.get_untracked() }
+    pub fn with<U>(self, f: impl FnOnce(&String) -> U) -> U { self.read.with(f) }
+    pub fn track(self) { self.read.track(); }
+    pub fn set(self, text: String) { self.write.run(text); }
+}
+impl From<RwSignal<String>> for TextBinding {
+    fn from(text: RwSignal<String>) -> Self { Self::new(text.into(), move |next| text.set(next)) }
+}
+
 /// The formula field's state over its owner's text signal. Every part is a signal, a memo or a node
 /// reference, so the whole is `Copy` and its views can be placed anywhere in the owner's view.
 #[derive(Clone, Copy)]
 pub struct FormulaAssist {
     /// The field's text, kept by the owner.
-    pub text: RwSignal<String>,
+    pub text: TextBinding,
     /// The caret, in UTF-16 code units.
     pub caret: RwSignal<usize>,
     pub popup: RwSignal<Popup>,
@@ -55,7 +76,8 @@ pub struct FormulaAssist {
 
 impl FormulaAssist {
     /// The field's state over `text`, with the caret at the start and the popup hidden.
-    pub fn new(text: RwSignal<String>) -> FormulaAssist {
+    pub fn new(text: impl Into<TextBinding>) -> FormulaAssist {
+        let text = text.into();
         let mut history = TextHistory::default();
         history.reset(text.get_untracked(), 0);
         let caret = RwSignal::new(0usize);

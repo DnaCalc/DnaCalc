@@ -24,8 +24,11 @@
 //! `src/dnacalc-skin-leptos/src/state_handles.rs` (shared state behind one handle), onto calc-host's
 //! session.
 
-use crate::grid::selection::{GridExtent, NavAction, next_active, opposite};
+use dna_calc_model::selection::{GridExtent, NavAction, next_active, opposite};
 use crate::port;
+use crate::model_adapter::{Field, ModelField};
+use dna_calc_model::{Model, Command, CommandContext, CommandId, Effect as CommandEffect, FindMode, GridState, RevealTarget, SkinId, ViewState};
+pub use dna_calc_model::{SurfaceId as EditOrigin, PointPick};
 use crate::wire::{self, Area, Cells, Event, Intent, Key, Outcome, Reply, Request, Sheet, Summary};
 use crate::workbook::SheetTab;
 use calc_host::value::{CellKey, GridArea, SheetId};
@@ -41,27 +44,6 @@ use std::collections::{BTreeMap, VecDeque};
 pub struct Status {
     pub text: String,
     pub refused: bool,
-}
-
-/// Where the text being edited is typed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EditOrigin {
-    /// The editor over the active cell.
-    Cell,
-    /// The formula bar.
-    Bar,
-    /// The active cell-backed Notebook editor.
-    Notebook,
-}
-
-/// A reference being pointed into the draft, separate from the workbook selection.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PointPick {
-    pub sheet: SheetId,
-    pub start: usize,
-    pub end: usize,
-    pub anchor: (u32, u32),
-    pub corner: (u32, u32),
 }
 
 fn field_selection(assist: FormulaAssist) -> (usize, usize) {
@@ -163,16 +145,19 @@ type ValidationCallback = Box<dyn FnOnce(Result<Outcome, String>)>;
 
 #[derive(Clone, Copy)]
 pub struct Controller {
-    pub find_open: RwSignal<Option<String>>,
+    model: RwSignal<Model>,
+    skin_registry: StoredValue<crate::skin::SkinRegistry>,
+    pub active_skin: ModelField<Option<String>>,
+    pub find_open: ModelField<Option<FindMode>>,
     pub context_menu: RwSignal<Option<(f64, f64)>>,
     pub review_open: RwSignal<bool>,
     pub validation_decision: RwSignal<Option<wire::ValidationDecision>>,
     validation_callback: StoredValue<Option<ValidationCallback>, LocalStorage>,
     validation_outcome: StoredValue<Option<Outcome>>,
     pub structural_choice: RwSignal<Option<bool>>,
-    sheet_selections: StoredValue<BTreeMap<SheetId, (CellKey, Vec<GridArea>)>>,
-    grid_views: StoredValue<BTreeMap<(SheetId, u8), crate::grid::viewport::GridView>>,
-    grid_active: StoredValue<BTreeMap<SheetId, u8>>,
+    sheet_selections: ModelField<BTreeMap<SheetId, (CellKey, Vec<GridArea>)>>,
+    grid_views: ModelField<BTreeMap<(SheetId, u8), crate::grid::viewport::GridView>>,
+    grid_active: ModelField<BTreeMap<SheetId, u8>>,
     grid_geometry: StoredValue<BTreeMap<SheetId, wire::Geometry>>,
     mirrors: StoredValue<BTreeMap<u64, RwSignal<ViewMirror>>, LocalStorage>,
     next_subscription: StoredValue<u64>,
@@ -182,13 +167,14 @@ pub struct Controller {
     pub revision: RwSignal<u64>,
     /// Advances with every workbook opened: subscriptions belong to one generation.
     pub generation: RwSignal<u64>,
-    pub sheet: RwSignal<Option<SheetId>>,
+    pub sheet: ModelField<Option<SheetId>>,
     /// The active cell's row and column on the active sheet.
-    pub active: RwSignal<(u32, u32)>,
+    pub active: ModelField<(u32, u32)>,
+    pub reveal_epoch: ModelField<u64>,
     /// The selected range's corner opposite the active cell: the range is the rectangle of the
     /// two (one cell when they are the same).
-    pub corner: RwSignal<(u32, u32)>,
-    pub areas: RwSignal<Vec<GridArea>>,
+    pub corner: ModelField<(u32, u32)>,
+    pub areas: ModelField<Vec<GridArea>>,
     /// The range copied (Ctrl+C), which a paste copies from.
     pub clipboard: RwSignal<Option<GridArea>>,
     pub copied: RwSignal<Option<wire::Clipboard>>,
@@ -205,23 +191,20 @@ pub struct Controller {
     pub selection: RwSignal<ViewMirror>,
     pub status: RwSignal<Status>,
     /// Where an edit is in progress, if one is.
-    pub editing: RwSignal<Option<EditOrigin>>,
+    pub editing: ModelField<Option<EditOrigin>>,
     /// The text being edited, or the active cell's input when nothing is.
-    pub edit_text: RwSignal<String>,
+    pub edit_text: ModelField<String>,
     pub assist: FormulaAssist,
     edit_field: StoredValue<FormulaAssist>,
-    edit_target: RwSignal<Option<CellKey>>,
-    edit_original: StoredValue<String>,
-    edit_areas: StoredValue<Vec<GridArea>>,
-    pub point_mode: RwSignal<bool>,
-    pub pointed: RwSignal<Option<PointPick>>,
-    pointed_text: StoredValue<String>,
+    edit_target: ModelField<Option<CellKey>>,
+    edit_original: ModelField<String>,
+    edit_areas: ModelField<Vec<GridArea>>,
+    pub point_mode: ModelField<bool>,
+    pub pointed: ModelField<Option<PointPick>>,
+    pointed_text: ModelField<String>,
     pub timings: RwSignal<Timings>,
     pub transport: RwSignal<port::Health>,
     pub download_unconfirmed: RwSignal<bool>,
-    pub ledger: crate::ledger::ViewState,
-    pub tree: crate::tree::ViewState,
-    pub notebook: crate::notebook::ViewState,
     pub pending_actions: RwSignal<usize>,
     pub replacing: RwSignal<bool>,
     pending_changes: RwSignal<usize>,
@@ -235,29 +218,34 @@ pub struct Controller {
 impl Controller {
     /// A controller over a new workbook.
     pub fn new() -> Controller {
-        let edit_text = RwSignal::new(String::new());
-        let assist = FormulaAssist::new(edit_text);
+        let model = RwSignal::new(Model::default());
+        let edit_text = Field::new(model, |m| &m.edit.draft, |m| &mut m.edit.draft);
+        let assist = FormulaAssist::new(edit_text.text_binding());
         let controller = Controller {
-            find_open: RwSignal::new(None),
+            model,
+            skin_registry: StoredValue::new(crate::skin::SkinRegistry::new()),
+            active_skin: Field::new(model, |m| &m.active_skin, |m| &mut m.active_skin),
+            find_open: Field::new(model, |m| &m.find, |m| &mut m.find),
             context_menu: RwSignal::new(None),
             review_open: RwSignal::new(false),
             validation_decision: RwSignal::new(None),
             validation_callback: StoredValue::new_local(None),
             validation_outcome: StoredValue::new(None),
             structural_choice: RwSignal::new(None),
-            sheet_selections: StoredValue::new(BTreeMap::new()),
-            grid_views: StoredValue::new(BTreeMap::new()),
-            grid_active: StoredValue::new(BTreeMap::new()),
+            sheet_selections: Field::new(model, |m| &m.selection.remembered, |m| &mut m.selection.remembered),
+            grid_views: model_view_field::<GridState, _>(model, SkinId::Grid, |s| &s.views, |s| &mut s.views),
+            grid_active: model_view_field::<GridState, _>(model, SkinId::Grid, |s| &s.active, |s| &mut s.active),
             grid_geometry: StoredValue::new(BTreeMap::new()),
             mirrors: StoredValue::new_local(BTreeMap::new()),
             next_subscription: StoredValue::new(1),
             summary: RwSignal::new(Summary::default()),
             revision: RwSignal::new(0),
             generation: RwSignal::new(0),
-            sheet: RwSignal::new(None),
-            active: RwSignal::new((1, 1)),
-            corner: RwSignal::new((1, 1)),
-            areas: RwSignal::new(Vec::new()),
+            sheet: Field::new(model, |m| &m.selection.sheet, |m| &mut m.selection.sheet),
+            reveal_epoch: Field::new(model, |m| &m.selection.reveal_epoch, |m| &mut m.selection.reveal_epoch),
+            active: Field::new(model, |m| &m.selection.active, |m| &mut m.selection.active),
+            corner: Field::new(model, |m| &m.selection.corner, |m| &mut m.selection.corner),
+            areas: Field::new(model, |m| &m.selection.areas, |m| &mut m.selection.areas),
             clipboard: RwSignal::new(None),
             copied: RwSignal::new(None),
             copy_pending: RwSignal::new(0),
@@ -270,22 +258,19 @@ impl Controller {
             cut: RwSignal::new(false),
             selection: RwSignal::new(ViewMirror::default()),
             status: RwSignal::new(Status::default()),
-            editing: RwSignal::new(None),
+            editing: Field::new(model, |m| &m.edit.surface, |m| &mut m.edit.surface),
             edit_text,
             assist,
             edit_field: StoredValue::new(assist),
-            edit_target: RwSignal::new(None),
-            edit_original: StoredValue::new(String::new()),
-            edit_areas: StoredValue::new(Vec::new()),
-            point_mode: RwSignal::new(false),
-            pointed: RwSignal::new(None),
-            pointed_text: StoredValue::new(String::new()),
+            edit_target: Field::new(model, |m| &m.edit.target, |m| &mut m.edit.target),
+            edit_original: Field::new(model, |m| &m.edit.original, |m| &mut m.edit.original),
+            edit_areas: Field::new(model, |m| &m.edit.areas, |m| &mut m.edit.areas),
+            point_mode: Field::new(model, |m| &m.edit.point_mode, |m| &mut m.edit.point_mode),
+            pointed: Field::new(model, |m| &m.edit.pointed, |m| &mut m.edit.pointed),
+            pointed_text: Field::new(model, |m| &m.edit.pointed_text, |m| &mut m.edit.pointed_text),
             timings: RwSignal::new(Timings::default()),
             transport: RwSignal::new(port::Health::default()),
             download_unconfirmed: RwSignal::new(false),
-            ledger: crate::ledger::ViewState::new(),
-            tree: crate::tree::ViewState::new(),
-            notebook: crate::notebook::ViewState::new(),
             pending_actions: RwSignal::new(0),
             replacing: RwSignal::new(false),
             pending_changes: RwSignal::new(0),
@@ -725,9 +710,7 @@ impl Controller {
     /// A new workbook is open (an open or a new workbook): a new generation, the first sheet
     /// active at A1, and the application's selection subscription.
     fn installed(&self, summary: Summary, message: String) {
-        self.sheet_selections.update_value(BTreeMap::clear);
-        self.grid_views.update_value(BTreeMap::clear);
-        self.grid_active.update_value(BTreeMap::clear);
+        self.model.update(Model::reset_workbook);
         self.grid_geometry.update_value(BTreeMap::clear);
         self.mirrors.update_value(BTreeMap::clear);
         let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
@@ -738,11 +721,8 @@ impl Controller {
             .map_or((1, 1), |at| (at.row(), at.column()));
         self.summary.set(summary);
         self.download_unconfirmed.set(false);
-        self.notebook.reset();
         self.assist.readonly.set(false);
         self.find_open.set(None);
-        self.ledger.reset();
-        self.tree.reset();
         self.context_menu.set(None);
         self.validation_decision.set(None);
         self.validation_callback.update_value(|callback| {
@@ -793,7 +773,7 @@ impl Controller {
             || self.pending_changes.get() > 0
             || self.summary.get().changed
             || self.download_unconfirmed.get()
-            || !self.notebook.insert_text.with(String::is_empty)
+            || self.model.with(|m| m.views.pending_reason().is_some())
             || (self.editing.get().is_some()
                 && self.edit_text.get() != self.edit_original.get_value())
     }
@@ -803,7 +783,7 @@ impl Controller {
             self.focus_editor();
             return;
         }
-        crate::grid::focus_grid();
+        self.focus_active_skin();
     }
 
     pub fn history_available(&self, redo: bool) -> bool {
@@ -1023,7 +1003,7 @@ impl Controller {
                 self.deferred.update_value(VecDeque::clear);
                 self.deferred_version.update(|v| *v += 1);
                 self.cancel_edit();
-                crate::grid::focus_grid();
+                self.focus_active_skin();
             } else {
                 self.focus_editor();
             }
@@ -1112,6 +1092,7 @@ impl Controller {
     }
 
     fn set_range(&self, active: (u32, u32), corner: (u32, u32), reveal_active: bool) {
+        if reveal_active { self.model.update(|model| model.selection.request_reveal()); }
         if reveal_active || self.active.get_untracked() != active {
             self.active.set(active);
         }
@@ -1190,9 +1171,7 @@ impl Controller {
             self.enqueue(move || controller.select_areas(at, areas));
             return;
         }
-        self.switch_sheet(at.sheet());
-        self.active.set((at.row(), at.column()));
-        self.areas.set(areas.clone());
+        self.model.update(|m| m.selection.select(at, areas.clone()));
         self.dispatch(
             Intent::Select {
                 active: Key::of(at),
@@ -1525,7 +1504,7 @@ impl Controller {
                 controller.copied.set(None);
                 controller.cut.set(false);
             }
-            crate::grid::focus_grid();
+            controller.focus_active_skin();
         });
     }
 
@@ -2176,7 +2155,6 @@ impl Controller {
             self.say("Wait for the workbook before editing", true);
             return;
         }
-        let replacing = seed.is_some();
         let original = self
             .active_key_untracked()
             .and_then(|at| {
@@ -2184,18 +2162,15 @@ impl Controller {
                     .with_untracked(|mirror| mirror.cell(at).map(|cell| cell.input.clone()))
             })
             .unwrap_or_default();
-        let text = seed.unwrap_or_else(|| original.clone());
-        self.edit_text.set(text);
-        self.edit_target.set(self.active_key_untracked());
-        self.point_mode.set(replacing);
-        self.pointed.set(None);
-        self.edit_original.set_value(original.clone());
-        self.edit_areas.set_value(self.areas.get_untracked());
+        let target = self.active_key_untracked().expect("checked active cell");
+        let areas = self.areas.get_untracked();
+        self.model.update(|m| m.edit.begin(origin, target, original.clone(), seed, areas));
         self.assist.start_edit(original);
         self.editing.set(Some(origin));
     }
 
     pub fn activate_editor(&self, origin: EditOrigin, assist: FormulaAssist) {
+        self.model.update(|m| m.focus.register(origin));
         self.begin_edit(origin, None);
         self.edit_field.set_value(assist);
     }
@@ -2245,7 +2220,7 @@ impl Controller {
             let controller = *self;
             self.commit_edit_as(true, move |accepted| {
                 if accepted {
-                    crate::grid::focus_grid();
+                    controller.focus_active_skin();
                 } else {
                     controller.focus_editor();
                 }
@@ -2276,7 +2251,7 @@ impl Controller {
                 ev.prevent_default();
                 ev.stop_propagation();
                 self.cancel_edit();
-                crate::grid::focus_grid();
+                self.focus_active_skin();
             }
             "F2" if !ev.alt_key() => {
                 ev.prevent_default();
@@ -2442,7 +2417,7 @@ impl Controller {
                     false,
                     0,
                 );
-                crate::grid::focus_grid();
+                controller.focus_active_skin();
             } else {
                 controller.focus_editor();
             }
@@ -2623,7 +2598,7 @@ impl Controller {
         self.dispatch_result(intent, move |result| {
             if result.is_ok_and(|outcome| outcome.accepted) {
                 controller.structural_choice.set(None);
-                crate::grid::focus_grid();
+                controller.focus_active_skin();
             }
         });
     }
@@ -2650,37 +2625,9 @@ impl Controller {
         }
     }
 
-    pub fn undo(&self) {
-        if self.waiting_input() {
-            let controller = *self;
-            self.enqueue(move || controller.undo());
-            return;
-        }
-        if self.editing.get_untracked().is_some() {
-            self.pointed.set(None);
-            self.edit_field.get_value().undo(false);
-            return;
-        }
-        self.dispatch(Intent::Undo, |_| {});
-    }
-
-    pub fn redo(&self) {
-        if self.waiting_input() {
-            let controller = *self;
-            self.enqueue(move || controller.redo());
-            return;
-        }
-        if self.editing.get_untracked().is_some() {
-            self.pointed.set(None);
-            self.edit_field.get_value().undo(true);
-            return;
-        }
-        self.dispatch(Intent::Redo, |_| {});
-    }
-
-    pub fn recalculate(&self) {
-        self.dispatch(Intent::Recalculate, |_| {});
-    }
+    pub fn undo(&self) { self.command(Command::Undo); }
+    pub fn redo(&self) { self.command(Command::Redo); }
+    pub fn recalculate(&self) { self.command(Command::Recalculate); }
 
     /// Whether the workbook calculates manually.
     pub fn manual(&self) -> bool {
@@ -2766,11 +2713,8 @@ impl Controller {
             self.enqueue(move || controller.save(saved));
             return;
         }
-        if !self.notebook.insert_text.with_untracked(String::is_empty) {
-            self.say(
-                "Return to Notebook to insert or clear the new block content before downloading.",
-                true,
-            );
+        if let Some(reason) = self.model.with_untracked(|m| m.views.pending_reason()) {
+            self.say(reason, true);
             return;
         }
         let controller = *self;
@@ -2869,5 +2813,174 @@ fn fill_parts(area: GridArea, down: bool) -> Option<(GridArea, GridArea)> {
         )
         .ok()?;
         Some((source, target))
+    }
+}
+
+fn model_view_field<S, T>(
+    model: RwSignal<Model>, skin: SkinId,
+    get: fn(&S) -> &T, get_mut: fn(&mut S) -> &mut T,
+) -> ModelField<T>
+where S: ViewState, T: Clone + PartialEq + Send + Sync + 'static {
+    model.maybe_update(|m| m.views.register::<S>(skin));
+    Field::new(model,
+        move |m| get(m.views.get::<S>(skin).expect("registered view schema")),
+        move |m| get_mut(m.views.get_mut::<S>(skin).expect("registered view schema")),
+    )
+}
+
+impl Controller {
+    /// A skin registers a pure state schema and holds reactive accessors into that state.
+    pub fn view_field<S, T>(&self, skin: SkinId, get: fn(&S) -> &T, get_mut: fn(&mut S) -> &mut T) -> ModelField<T>
+    where S: ViewState, T: Clone + PartialEq + Send + Sync + 'static {
+        model_view_field(self.model, skin, get, get_mut)
+    }
+
+    pub fn update_view<S: ViewState>(&self, skin: SkinId, update: impl FnOnce(&mut S)) {
+        self.model.update(|model| {
+            model.views.register::<S>(skin);
+            update(model.views.get_mut::<S>(skin).expect("registered view schema"));
+        });
+    }
+
+    pub fn register_skins(&self, registry: crate::skin::SkinRegistry) {
+        self.skin_registry.set_value(registry);
+    }
+
+    fn command_context(&self) -> CommandContext {
+        CommandContext {
+            ready: self.sheet.get().is_some(), readonly: self.assist.readonly.get(),
+            undo: self.history_available(false), redo: self.history_available(true),
+        }
+    }
+    pub fn command_availability(&self, id: CommandId) -> Result<(), dna_calc_model::Unavailable> {
+        let context = self.command_context();
+        self.model.with(|model| model.availability(id, context))
+    }
+
+    /// Menus, shell keys and skin gestures all enter here. The model decides the effect;
+    /// this adapter executes it against the one worker and the registered focus surfaces.
+    pub fn command(&self, command: Command) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.command(command));
+            return;
+        }
+        if let Command::SwitchSkin(_) = command { self.carry_edit_to_bar(); }
+        let context = untrack(|| self.command_context());
+        let result = self.model.try_update(|model| model.dispatch(command, context));
+        let Some(result) = result else { return; };
+        match result {
+            Err(reason) => self.say(reason.to_string(), true),
+            Ok(CommandEffect::Undo { editor }) | Ok(CommandEffect::Redo { editor }) => {
+                let redo = matches!(result, Ok(CommandEffect::Redo { .. }));
+                if editor {
+                    self.pointed.set(None);
+                    self.edit_field.get_value().undo(redo);
+                } else {
+                    self.dispatch(if redo { Intent::Redo } else { Intent::Undo }, |_| {});
+                }
+            }
+            Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
+            Ok(CommandEffect::Dialog) => {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    let controller = *self;
+                    request_animation_frame(move || {
+                        if let Some(mode) = controller.find_open.try_get_untracked().flatten() {
+                            let selector = if mode == FindMode::GoTo { "[data-dnacalc=goto-target]" } else { "[data-dnacalc=find-query]" };
+                            use wasm_bindgen::JsCast;
+                            if let Some(field) = document().query_selector(selector).ok().flatten()
+                                .and_then(|field| field.dyn_into::<web_sys::HtmlInputElement>().ok())
+                            {
+                                let _ = field.focus();
+                                field.select();
+                            }
+                        }
+                    });
+                }
+            },
+            Ok(CommandEffect::FocusSkin(skin)) => self.focus_after_mount(skin, false),
+            Ok(CommandEffect::Reveal { target, skin }) => {
+                let controller = *self;
+                let arrived = move |ok| {
+                    if ok {
+                        controller.model.update(|model| model.reveal_completed(skin));
+                        controller.focus_after_mount(skin, true);
+                    }
+                };
+                match target {
+                    RevealTarget::Cell(at) => self.navigate_to(at, arrived),
+                    RevealTarget::Reference(text) => self.go_to_text(text, arrived),
+                }
+            }
+        }
+    }
+
+    pub fn reveal(&self, at: CellKey, skin: SkinId) {
+        self.command(Command::Reveal { target: RevealTarget::Cell(at), skin });
+    }
+    pub fn reveal_reference(&self, text: String, skin: SkinId) {
+        self.command(Command::Reveal { target: RevealTarget::Reference(text), skin });
+    }
+
+    fn focus_after_mount(&self, skin: SkinId, reveal: bool) {
+        #[cfg(target_arch = "wasm32")]
+        self.focus_skin_frame(skin, reveal, self.generation.get_untracked(),
+            self.selection_epoch.get_value(), self.reveal_epoch.get_untracked(), now_ms() + 3000.0);
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = (skin, reveal);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn focus_skin_frame(&self, skin: SkinId, reveal: bool, generation: u64, selection: u64, epoch: u64, until: f64) {
+        let controller = *self;
+        request_animation_frame(move || {
+            if controller.generation.try_get_untracked() != Some(generation)
+                || controller.active_skin_id() != Some(skin)
+                || controller.selection_epoch.get_value() != selection
+                || (reveal && controller.reveal_epoch.get_untracked() != epoch)
+            { return; }
+            if controller.editing.get_untracked().is_some() {
+                controller.focus_editor();
+            } else if let Some(element) = controller.active_skin_element() {
+                if reveal { controller.model.update(|model| model.selection.request_reveal()); }
+                let _ = element.focus();
+            } else if now_ms() < until {
+                controller.focus_skin_frame(skin, reveal, generation, selection, epoch, until);
+            }
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn active_skin_id(&self) -> Option<SkinId> {
+        let active = self.active_skin.try_get_untracked()?;
+        self.skin_registry.try_with_value(|registry| match active.as_deref() {
+            Some(id) => registry.skins().iter().find(|skin| skin.id().stable_id() == id),
+            None => registry.skins().first(),
+        }.map(|skin| skin.id())).flatten()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn active_skin_element(&self) -> Option<web_sys::HtmlElement> {
+        use wasm_bindgen::JsCast;
+        let active = self.active_skin.get_untracked();
+        let selector = self.skin_registry.with_value(|registry| {
+            let skin = match active.as_deref() {
+                Some(id) => registry.skins().iter().find(|skin| skin.id().stable_id() == id),
+                None => registry.skins().first(),
+            };
+            skin.map_or("#dc-workspace", |skin| skin.focus_target())
+        });
+        selector.split(", ").find_map(|selector| document().query_selector(selector).ok().flatten())
+            .and_then(|element| element.dyn_into().ok())
+    }
+
+    pub fn focus_active_skin(&self) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(element) = self.active_skin_element() {
+            let _ = element.focus();
+        } else if let Some(skin) = self.active_skin_id() {
+            self.focus_after_mount(skin, false);
+        }
     }
 }

@@ -52,7 +52,7 @@ pub fn fold_parameter_name(text: &str) -> String {
     name_case::fold_parameter_name(text)
 }
 
-pub use grid::{CellKey, GridArea, GridError, MAX_COLUMNS, MAX_ROWS};
+pub use grid::{CellKey, GridArea, GridError, Selection, MAX_COLUMNS, MAX_ROWS};
 pub use id::{IdAllocator, IdError, NameId, NodeId, SheetId, TableId, WorkbookId};
 pub use numeric::{NumericMode, NumericTargetId};
 pub use value::{

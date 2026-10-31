@@ -697,6 +697,7 @@ version = "0.1.0"
 dependencies = [
  "calc-func",
  "calc-host",
+ "dna-calc-model",
  "dna-formula-ui",
  "js-sys",
  "leptos",
@@ -706,6 +707,16 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "dna-calc-model"
+version = "0.1.0"
+dependencies = [
+ "calc-value",
+ "serde",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]

@@ -204,3 +204,20 @@ mod tests {
         assert_eq!(GridArea::cell(b3).first(), b3);
     }
 }
+
+/// A cell or area selection: the active cell and the selected areas.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Selection {
+    pub active: Option<CellKey>,
+    pub areas: Vec<GridArea>,
+}
+
+impl Selection {
+    /// One cell, active and selected.
+    pub fn cell(at: CellKey) -> Selection {
+        Selection {
+            active: Some(at),
+            areas: vec![GridArea::cell(at)],
+        }
+    }
+}

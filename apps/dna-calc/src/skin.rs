@@ -5,16 +5,27 @@
 //! notebook, the atlas, the tree, the canvas and the ledger. The application shows exactly one
 //! skin at a time.
 //!
-//! - **Switching re-projects, it never reloads.** [`switch_skin`] writes the active skin's
-//!   identity and nothing else: no intent reaches the workbook, so the session's intent log does
-//!   not grow, and the active sheet, the active cell, the edit history and the subscriptions of
-//!   the application stay as they were.
+//! - **Switching re-projects, it never reloads.** [`switch_skin`] dispatches the model's skin
+//!   command. A live edit transfers to the shared formula bar; workbook state and history stay
+//!   intact. Mounted views release and renew their subscriptions.
 //! - **A skin reaches the workbook only through its [`SkinContext`]**: the controller, whose every
 //!   read is a calc-host projection or a subscription's delta and whose every change is a
 //!   [`calc_host::SkinIntent`].
 //! - **A skin that cannot be shown says so**: [`resolve_active_skin`] gives
 //!   [`SkinResolution::Unavailable`] for an identity the registry does not hold, which the
 //!   application shows as a card naming it, never a blank or another skin.
+//!
+//! U1's current authoring surface:
+//! - Implement `Skin` with a stable `SkinId::new("your-id")`, `mount` and a focus target.
+//!   Declare the module and register it together in `app.rs`; an additional skin does not extend
+//!   a central identity enum or the controller's state/reset list.
+//! - Register pure, workbook-relative view data with `Controller::view_field` and a `ViewState`
+//!   schema. The model retains it across mounts and resets it on workbook replacement.
+//! - Submit `dna_calc_model::Command` for common actions and `Controller::reveal` for source
+//!   navigation. The shell supplies Undo/Redo, Find/Replace/Go to and F9 to every mounted skin.
+//! - Reuse existing projections through the controller. Additional projection families, browser
+//!   input registration and automatic stylesheet inclusion remain U1 work; a new stylesheet
+//!   still needs an entry in the existing bundle list.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-shell/src/stage.rs` (`StageId`,
 //! `StageSurface`, `StageRegistry`, `StageResolution`, `resolve_active_stage`, `switch_stage`,
@@ -26,65 +37,20 @@ use crate::controller::Controller;
 use leptos::prelude::*;
 use std::sync::Arc;
 
-/// The skins DNA Calc has.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SkinId {
-    /// The Excel grid: sheets, cells, the formula bar.
-    Grid,
-    /// The workbook's cells as a column of blocks, each with its formula and value.
-    Notebook,
-    /// The workbook's map: its sheets, what each holds, and how its formulas were calculated.
-    Atlas,
-    /// The workbook as a foldable outline: its names, sheets, rows and cells.
-    Tree,
-    /// The active cell's calculation as a flow: what it reads to the left, what reads it to the
-    /// right.
-    Canvas,
-    /// The formula cells as one audit table, filtered and sorted.
-    Ledger,
-}
-
-impl SkinId {
-    /// Every skin, in the order the switcher lists them.
-    pub const ALL: [SkinId; 6] = [
-        SkinId::Grid,
-        SkinId::Notebook,
-        SkinId::Atlas,
-        SkinId::Tree,
-        SkinId::Canvas,
-        SkinId::Ledger,
-    ];
-
-    /// The skin's stable name: the page's `data-skin` and the switcher's value.
-    pub const fn stable_id(self) -> &'static str {
-        match self {
-            SkinId::Grid => "grid",
-            SkinId::Notebook => "notebook",
-            SkinId::Atlas => "atlas",
-            SkinId::Tree => "tree",
-            SkinId::Canvas => "canvas",
-            SkinId::Ledger => "ledger",
-        }
-    }
-
-    /// The skin a stable name names.
-    pub fn from_stable_id(id: &str) -> Option<SkinId> {
-        SkinId::ALL.into_iter().find(|skin| skin.stable_id() == id)
-    }
-}
+pub use dna_calc_model::SkinId;
 
 /// What a skin is given when it is shown.
 #[derive(Clone, Copy)]
 pub struct SkinContext {
     pub controller: Controller,
-    /// The shell owns the active skin; navigation keeps the shared workbook selection.
-    pub active_skin: RwSignal<Option<String>>,
 }
 
 /// The contract of a skin.
 pub trait Skin: Send + Sync + 'static {
     fn id(&self) -> SkinId;
     fn title(&self) -> &'static str;
+    /// A focusable surface belonging to this skin. The shell owns focus timing.
+    fn focus_target(&self) -> &'static str { "#dc-workspace" }
     /// The skin's view over the workbook. It is dropped when another skin is shown, so a skin
     /// releases what it holds (its subscriptions) in `on_cleanup`.
     fn mount(&self, ctx: SkinContext) -> AnyView;
@@ -139,7 +105,7 @@ pub enum SkinResolution {
 /// [`SkinResolution::Unavailable`] when the name is not a registered skin.
 pub fn resolve_active_skin(registry: &SkinRegistry, active: Option<&str>) -> SkinResolution {
     match active {
-        Some(id) => match SkinId::from_stable_id(id).and_then(|skin| registry.by_id(skin)) {
+        Some(id) => match registry.skins().iter().find(|skin| skin.id().stable_id() == id).cloned() {
             Some(skin) => SkinResolution::Mount(skin),
             None => SkinResolution::Unavailable {
                 active: Some(id.to_owned()),
@@ -152,15 +118,14 @@ pub fn resolve_active_skin(registry: &SkinRegistry, active: Option<&str>) -> Ski
     }
 }
 
-/// Shows the skin at 1-based `slot`: writes its stable name to `active` and nothing else. It takes
-/// no controller, so it cannot reach the workbook.
+/// Shows the skin at 1-based `slot` through the shared model dispatch path.
 pub fn switch_skin(
-    active: RwSignal<Option<String>>,
+    controller: Controller,
     registry: &SkinRegistry,
     slot: u8,
 ) -> Option<SkinId> {
     let skin = registry.slot(slot)?;
-    active.set(Some(skin.id().stable_id().to_owned()));
+    controller.command(dna_calc_model::Command::SwitchSkin(skin.id()));
     Some(skin.id())
 }
 
@@ -245,10 +210,11 @@ mod tests {
     fn switching_writes_only_the_active_skin() {
         let owner = Owner::new();
         owner.with(|| {
-            let active = RwSignal::new(None);
-            assert_eq!(switch_skin(active, &registry(), 2), Some(SkinId::Notebook));
+            let controller = Controller::new();
+            let active = controller.active_skin;
+            assert_eq!(switch_skin(controller, &registry(), 2), Some(SkinId::Notebook));
             assert_eq!(active.get_untracked().as_deref(), Some("notebook"));
-            assert_eq!(switch_skin(active, &registry(), 5), None);
+            assert_eq!(switch_skin(controller, &registry(), 5), None);
             assert_eq!(active.get_untracked().as_deref(), Some("notebook"));
         });
     }

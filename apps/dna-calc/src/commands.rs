@@ -4,6 +4,7 @@ use crate::{
     wire::{self, Intent, Reply, Request},
 };
 use leptos::prelude::*;
+use dna_calc_model::{Command, FindMode};
 use wasm_bindgen::JsCast;
 
 pub fn controls(controller: Controller) -> impl IntoView {
@@ -57,11 +58,11 @@ pub fn controls(controller: Controller) -> impl IntoView {
             epoch.update_value(|n| *n += 1);
         }
         if let Some(dialog) = dialog.get() {
-            if let Some(mode) = mode.as_deref()
+            if let Some(mode) = mode
                 && !dialog.open()
             {
                 let _ = dialog.show_modal();
-                if mode == "goto" {
+                if mode == FindMode::GoTo {
                     if let Some(field) = goto_field.get() {
                         let _ = field.focus();
                         field.select();
@@ -75,8 +76,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
             }
         }
     });
-    Effect::new(move |_| match controller.find_open.get().as_deref() {
-        Some("goto") => {
+    Effect::new(move |_| match controller.find_open.get() {
+        Some(FindMode::GoTo) => {
             if let Some(field) = goto_field.get() {
                 let _ = field.focus();
                 field.select();
@@ -95,7 +96,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
             dialog.close();
         }
         controller.find_open.set(None);
-        crate::grid::focus_grid();
+        controller.focus_active_skin();
     };
     let options = move || {
         anchor.get_value().map(|at| wire::FindOptions {
@@ -232,7 +233,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
             menu.close();
         }
         controller.context_menu.set(None);
-        crate::grid::focus_grid();
+        controller.focus_active_skin();
     };
     let writable = move || permission.get().is_some_and(|p| p.is_ok());
     let unavailable = move || {
@@ -250,8 +251,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
             "clear" => controller.clear_active(),
             "insert" => controller.edit_axis(true),
             "delete" => controller.edit_axis(false),
-            "find" => controller.find_open.set(Some("find".into())),
-            "goto" => controller.find_open.set(Some("goto".into())),
+            "find" => controller.command(Command::Find),
+            "goto" => controller.command(Command::GoTo),
             "review" => controller.review_open.set(true),
             _ => {}
         }
@@ -290,17 +291,17 @@ pub fn controls(controller: Controller) -> impl IntoView {
     };
     view! {
         <dialog class="dc-replace dc-find-dialog" node_ref=dialog data-dnacalc="find-dialog" aria-labelledby="dc-find-title" on:cancel=move |ev:leptos::ev::Event|{ev.prevent_default();close();}>
-            <div class="dc-review-heading"><h2 id="dc-find-title">{move ||match controller.find_open.get().as_deref(){Some("replace")=>"Find & replace",Some("goto")=>"Go to cell or range",_=>"Find in workbook"}}</h2><button data-dnacalc="find-close" on:click=move |_|close()>"Close"</button></div>
-            {move ||(controller.find_open.get().as_deref()==Some("goto")).then(||view!{
+            <div class="dc-review-heading"><h2 id="dc-find-title">{move ||match controller.find_open.get(){Some(FindMode::Replace)=>"Find & replace",Some(FindMode::GoTo)=>"Go to cell or range",_=>"Find in workbook"}}</h2><button data-dnacalc="find-close" on:click=move |_|close()>"Close"</button></div>
+            {move ||(controller.find_open.get()==Some(FindMode::GoTo)).then(||view!{
                 <label>"Address, range or defined name"<input node_ref=goto_field data-dnacalc="goto-target" prop:value=move ||target.get() on:input=move |ev|target.set(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter"{ev.prevent_default();controller.go_to_text(target.get_untracked(),move |ok|{if ok{close();}});}}/></label>
                 <button data-dnacalc="goto-apply" on:click=move |_|controller.go_to_text(target.get_untracked(),move |ok|{if ok{close();}})>"Go"</button><p role="status">{move ||controller.status.get().text}</p>
             })}
-            <div hidden=move ||controller.find_open.get().as_deref()==Some("goto")>
+            <div hidden=move ||controller.find_open.get()==Some(FindMode::GoTo)>
                 <label>"Find"<input node_ref=query_field data-dnacalc="find-query" prop:value=move ||query.get() on:input=move |ev|{query.set(event_target_value(&ev));invalidate();} on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter"{ev.prevent_default();run();}}/></label>
                 <div class="dc-find-options"><label>"Within"<select data-dnacalc="find-scope" on:change=move |ev|{scope.set(event_target_value(&ev));invalidate();}><option value="sheet">"Worksheet"</option><option value="selection">"Original selection"</option><option value="workbook">"Workbook, including hidden sheets"</option></select></label><label>"Look in"<select data-dnacalc="find-look" on:change=move |ev|{formulas.set(event_target_value(&ev)=="formulas");invalidate();}><option value="formulas">"Formulas & entries"</option><option value="values">"Displayed values"</option></select></label></div>
                 <div class="dc-find-toggles"><label><input type="checkbox" data-dnacalc="find-case" on:change=move |ev|{case.set(event_target_checked(&ev));invalidate();}/ >"Match case"</label><label><input type="checkbox" data-dnacalc="find-whole" on:change=move |ev|{whole.set(event_target_checked(&ev));invalidate();}/ >"Whole cell"</label><label><input type="checkbox" data-dnacalc="find-wildcards" on:change=move |ev|{wildcards.set(event_target_checked(&ev));invalidate();}/ >"Wildcards (* ? ~)"</label></div>
-                <div class="dc-dialog-actions"><button data-dnacalc="find-all" on:click=move |_|run()>"Find all"</button><button data-dnacalc="find-next" disabled=move ||stale()||found.get().is_none_or(|f|f.rows.is_empty()) on:click=move |_|{if let Some(found)=found.get_untracked(){let len=found.rows.len();for step in 1..=len{let next=(selected.get_untracked()+step)%len;if !found.rows[next].hidden{navigate(next);break;}}}}>"Next match"</button><button data-dnacalc="find-replace-mode" on:click=move |_|controller.find_open.set(Some("replace".into()))>"Replace…"</button></div>
-                {move ||(controller.find_open.get().as_deref()==Some("replace")).then(||view!{
+                <div class="dc-dialog-actions"><button data-dnacalc="find-all" on:click=move |_|run()>"Find all"</button><button data-dnacalc="find-next" disabled=move ||stale()||found.get().is_none_or(|f|f.rows.is_empty()) on:click=move |_|{if let Some(found)=found.get_untracked(){let len=found.rows.len();for step in 1..=len{let next=(selected.get_untracked()+step)%len;if !found.rows[next].hidden{navigate(next);break;}}}}>"Next match"</button><button data-dnacalc="find-replace-mode" on:click=move |_|controller.command(Command::Replace)>"Replace…"</button></div>
+                {move ||(controller.find_open.get()==Some(FindMode::Replace)).then(||view!{
                     <label>"Replace with"<input data-dnacalc="replace-text" prop:value=move ||replacement.get() on:input=move |ev|replacement.set(event_target_value(&ev))/></label>
                     <p class="dc-muted">"Replacement changes literal formulas and entries. Choose Formulas & entries and turn off wildcards. Validation failures stop the whole command."</p>
                     <div class="dc-dialog-actions"><button data-dnacalc="replace-one" disabled=move ||stale()||found.get().is_none_or(|f|f.rows.is_empty()||f.partial)||!formulas.get()||wildcards.get() on:click=move |_|replace(false)>"Replace selected match"</button><button data-dnacalc="replace-all" disabled=move ||stale()||found.get().is_none_or(|f|f.rows.is_empty()||f.partial)||!formulas.get()||wildcards.get() on:click=move |_|replace(true)>"Replace all matches"</button></div>

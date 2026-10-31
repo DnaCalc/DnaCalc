@@ -25,7 +25,7 @@ impl Skin for NotebookSkin {
     }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        notebook_view(ctx.controller, ctx.active_skin).into_any()
+        notebook_view(ctx.controller).into_any()
     }
 }
 
@@ -41,35 +41,27 @@ pub fn block_kind(shown: &cells::CellShown, has_input: bool) -> &'static str {
 /// Pages are session state; cell edits and layout have workbook history.
 #[derive(Clone, Copy)]
 pub struct ViewState {
-    pub insert_text: RwSignal<String>,
-    address: RwSignal<String>,
-    prose: RwSignal<bool>,
-    pages: RwSignal<std::collections::BTreeMap<calc_host::value::SheetId, usize>>,
-    selected: RwSignal<Option<String>>,
-    last_active: RwSignal<Option<calc_host::value::CellKey>>,
+    pub insert_text: crate::model_adapter::ModelField<String>,
+    address: crate::model_adapter::ModelField<String>,
+    prose: crate::model_adapter::ModelField<bool>,
+    pages: crate::model_adapter::ModelField<std::collections::BTreeMap<calc_host::value::SheetId, usize>>,
+    selected: crate::model_adapter::ModelField<Option<String>>,
+    last_active: crate::model_adapter::ModelField<Option<calc_host::value::CellKey>>,
 }
 impl ViewState {
-    pub fn new() -> Self {
+    pub fn new(controller: Controller) -> Self {
         Self {
-            insert_text: RwSignal::new(String::new()),
-            address: RwSignal::new(String::new()),
-            prose: RwSignal::new(false),
-            selected: RwSignal::new(None),
-            pages: RwSignal::new(std::collections::BTreeMap::new()),
-            last_active: RwSignal::new(None),
+            insert_text: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.insert_text, |s| &mut s.insert_text),
+            address: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.address, |s| &mut s.address),
+            prose: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.prose, |s| &mut s.prose),
+            pages: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.pages, |s| &mut s.pages),
+            selected: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.selected, |s| &mut s.selected),
+            last_active: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.last_active, |s| &mut s.last_active),
         }
     }
-    pub fn reset(self) {
-        self.insert_text.set(String::new());
-        self.address.set(String::new());
-        self.prose.set(false);
-        self.selected.set(None);
-        self.pages.set(std::collections::BTreeMap::new());
-        self.last_active.set(None);
-    }
 }
-fn notebook_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> impl IntoView {
-    let state = controller.notebook;
+fn notebook_view(controller: Controller) -> impl IntoView {
+    let state = ViewState::new(controller);
     let notebook = RwSignal::new(wire::Notebook::default());
     let reveal = RwSignal::new(None);
     let reveal_placement = StoredValue::new(None::<(String, calc_host::value::CellKey)>);
@@ -283,13 +275,7 @@ fn notebook_view(controller: Controller, active_skin: RwSignal<Option<String>>) 
             }
         });
     };
-    let show_source = move |at, skin: &'static str| {
-        controller.navigate_to(at, move |ok| {
-            if ok {
-                active_skin.set(Some(skin.into()));
-            }
-        })
-    };
+    let show_source = move |at, skin| controller.reveal(at, skin);
     let linked =
         move |done: &wire::Outcome, at: calc_host::value::CellKey, submitted: Option<String>| {
             let same_draft = submitted
@@ -390,10 +376,10 @@ fn notebook_view(controller: Controller, active_skin: RwSignal<Option<String>>) 
             {move ||(!literal&&!selected.get()).then(||view!{<code class="dc-block-source" data-dnacalc="block-source">{source.clone()}</code>})}
             <div class="dc-value" data-dnacalc="block-value">{value}</div>
             {(cell.provenance==Provenance::Refused||cell.kind=="error").then(||view!{<p class="dc-why">{meaning.unwrap_or_else(||why.clone())}</p>})}
-            <nav class="dc-block-actions" aria-label="Block actions"><button data-dnacalc="block-grid" on:click=move |_|show_source(at,"grid")>"Grid"</button><button data-dnacalc="block-canvas" on:click=move |_|show_source(at,"canvas")>"Canvas"</button><button data-dnacalc="block-details" aria-expanded=move ||is_details.get().to_string() on:click=details>"Details"</button>
+            <nav class="dc-block-actions" aria-label="Block actions"><button data-dnacalc="block-grid" on:click=move |_|show_source(at, SkinId::Grid)>"Grid"</button><button data-dnacalc="block-canvas" on:click=move |_|show_source(at, SkinId::Canvas)>"Canvas"</button><button data-dnacalc="block-details" aria-expanded=move ||is_details.get().to_string() on:click=details>"Details"</button>
                 {if block.placement.is_some(){view!{<button data-dnacalc="block-up" on:click=move |_|order.run(-1)>"Move up"</button><button data-dnacalc="block-down" on:click=move |_|order.run(1)>"Move down"</button><button data-dnacalc="block-unlink" on:click=move |_|order.run(0)>"Unlink"</button>}.into_any()}else{view!{<button data-dnacalc="block-link" on:click=link_existing>"Link into notebook"</button>}.into_any()}}
             </nav>
-            {move ||is_details.get().then(||view!{<div class="dc-block-detail" data-dnacalc="block-detail"><p>{detail_why.clone()}</p>{move ||detail.get().map(|d|view!{<p>{d.summary}</p>{d.anchor.and_then(|key|key.cell()).filter(|owner|*owner!=at).map(|owner|view!{<button data-dnacalc="block-owner" on:click=move |_|show_source(owner,"grid")>"Open array anchor"</button>})}<div class="dc-array-preview">{d.cells.into_iter().map(|c|view!{<span>{format!("{}: {}",cells::address(c.at.2,c.at.3),c.text)}</span>}).collect_view()}</div>{d.blockers.into_iter().map(|key|view!{<button data-dnacalc="block-spill-blocker" on:click=move |_|if let Some(area)=key.area(){show_source(area.first(),"grid");}>{format!("Open blocker {}",key.area().map(|a|format!("{}:{}",cells::address(a.first().row(),a.first().column()),cells::address(a.last().row(),a.last().column()))).unwrap_or_default())}</button>}).collect_view()}})}</div>})}
+            {move ||is_details.get().then(||view!{<div class="dc-block-detail" data-dnacalc="block-detail"><p>{detail_why.clone()}</p>{move ||detail.get().map(|d|view!{<p>{d.summary}</p>{d.anchor.and_then(|key|key.cell()).filter(|owner|*owner!=at).map(|owner|view!{<button data-dnacalc="block-owner" on:click=move |_|show_source(owner, SkinId::Grid)>"Open array anchor"</button>})}<div class="dc-array-preview">{d.cells.into_iter().map(|c|view!{<span>{format!("{}: {}",cells::address(c.at.2,c.at.3),c.text)}</span>}).collect_view()}</div>{d.blockers.into_iter().map(|key|view!{<button data-dnacalc="block-spill-blocker" on:click=move |_|if let Some(area)=key.area(){show_source(area.first(), SkinId::Grid);}>{format!("Open blocker {}",key.area().map(|a|format!("{}:{}",cells::address(a.first().row(),a.first().column()),cells::address(a.last().row(),a.last().column()))).unwrap_or_default())}</button>}).collect_view()}})}</div>})}
         </article>}.into_any()
     }).collect_view()
     };

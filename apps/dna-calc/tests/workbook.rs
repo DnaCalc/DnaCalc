@@ -381,8 +381,7 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         controller.open("d1.saved.xlsx", fixture(), move |ok| seen.set(Some(ok)));
         assert_eq!(opened.get(), Some(true));
         assert!(!controller.has_dirty_work());
-        controller
-            .notebook
+        dna_calc::notebook::ViewState::new(controller)
             .insert_text
             .set("not entered".to_owned());
         assert!(controller.has_dirty_work());
@@ -393,7 +392,7 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
             !downloaded.get(),
             "a Notebook draft cannot be silently omitted from a download"
         );
-        controller.notebook.insert_text.set(String::new());
+        dna_calc::notebook::ViewState::new(controller).insert_text.set(String::new());
         assert!(!controller.has_dirty_work());
         assert_eq!(controller.generation.get_untracked(), generation + 1);
         assert_eq!(controller.active.get_untracked(), (1, 1));

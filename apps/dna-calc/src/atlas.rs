@@ -31,7 +31,7 @@ impl Skin for AtlasSkin {
     }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        atlas_view(ctx.controller, ctx.active_skin).into_any()
+        atlas_view(ctx.controller).into_any()
     }
 }
 
@@ -50,7 +50,7 @@ fn reason_rows(census: &crate::workbook::Census, page: usize) -> Vec<(String, us
         .collect()
 }
 
-fn atlas_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> impl IntoView {
+fn atlas_view(controller: Controller) -> impl IntoView {
     let atlas = RwSignal::new(None::<wire::Atlas>);
     let failure = RwSignal::new(String::new());
     let epoch = StoredValue::new(0u64);
@@ -79,9 +79,13 @@ fn atlas_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> 
     let census = Memo::new(move |_| {
         atlas.with(|a| a.as_ref().map(|a| a.census.clone()).unwrap_or_default())
     });
-    let reason_page = RwSignal::new(0usize);
-    let selected = RwSignal::new(None::<String>);
-    let cell_page = RwSignal::new(0usize);
+    let reason_page = controller.view_field::<dna_calc_model::AtlasState, _>(SkinId::Atlas, |s| &s.reason_page, |s| &mut s.reason_page);
+    let selected = controller.view_field::<dna_calc_model::AtlasState, _>(SkinId::Atlas, |s| &s.selected, |s| &mut s.selected);
+    let cell_page = controller.view_field::<dna_calc_model::AtlasState, _>(SkinId::Atlas, |s| &s.cell_page, |s| &mut s.cell_page);
+    Effect::new(move |_| {
+        let revision = controller.revision.get();
+        controller.update_view::<dna_calc_model::AtlasState>(SkinId::Atlas, |state| state.observe_revision(revision));
+    });
     let affected = RwSignal::new(None::<wire::RefusalCells>);
     let affected_error = RwSignal::new(String::new());
     let cell_epoch = StoredValue::new(0u64);
@@ -131,24 +135,13 @@ fn atlas_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> 
             },
         );
     });
-    let jump = move |at, skin: &'static str| {
-        controller.navigate_to(at, move |ok| {
-            if ok {
-                active_skin.set(Some(skin.into()));
-                #[cfg(target_arch = "wasm32")]
-                set_timeout(
-                    move || crate::app::focus("[data-dnacalc=grid][data-grid-active=true]"),
-                    std::time::Duration::from_millis(20),
-                );
-            }
-        })
-    };
+    let jump = move |at, skin| controller.reveal(at, skin);
     let sheets = move || {
         census.with(|c|c.sheets.iter().map(|s| {
         let at=s.identity.and_then(|s|calc_host::value::CellKey::new(s.id(),1,1).ok());
         let hidden=s.identity.is_some_and(|id|controller.summary.with(|v|v.hidden_sheets.iter().any(|(s,_,_)|*s==id)));
         view!{<tr data-dnacalc="atlas-sheet" data-sheet=s.name.clone()>
-            <td><button data-dnacalc="atlas-sheet-jump" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at,"grid");}>{s.name.clone()}</button>{hidden.then_some(" (hidden; unhide in Sheet tools)")}</td>
+            <td><button data-dnacalc="atlas-sheet-jump" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at, SkinId::Grid);}>{s.name.clone()}</button>{hidden.then_some(" (hidden; unhide in Sheet tools)")}</td>
             <td>{s.used.clone().unwrap_or_else(||"empty".into())}</td><td>{s.inputs}</td><td>{s.formulas}</td><td>{s.calculated}</td><td>{s.refused}</td><td>{s.file_cached}</td><td>{s.stale}</td><td>{s.pending()}</td>
         </tr>}
     }).collect_view())
@@ -175,7 +168,7 @@ fn atlas_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> 
                     let at=key.cell();
                     let hidden=at.is_some_and(|at|controller.summary.with(|v|v.hidden_sheets.iter().any(|(s,_,_)|s.id()==at.sheet())));
                     let label=if hidden{format!("{label} (hidden; unhide in Sheet tools)")}else{label};
-                    view!{<li data-dnacalc="atlas-affected-cell"><span class="dc-mono">{label}</span><button data-dnacalc="atlas-open-grid" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at,"grid");}>"Open in Grid"</button></li>}
+                    view!{<li data-dnacalc="atlas-affected-cell"><span class="dc-mono">{label}</span><button data-dnacalc="atlas-open-grid" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at, SkinId::Grid);}>"Open in Grid"</button></li>}
                 }).collect_view());
                 view!{<div class="dc-atlas-affected"><p role="status" data-dnacalc="atlas-affected-count">{if affected.with(Option::is_none){"Loading affected cells…".into()}else{format!("{total} affected {} · page {} of {}",if total==1{"cell"}else{"cells"},cell_page.get()+1,total.div_ceil(50).max(1))}}</p><p role="status">{move ||affected_error.get()}</p><ul>{cells}</ul><div class="dc-atlas-pages"><button data-dnacalc="atlas-cells-previous" disabled=move ||cell_page.get()==0 on:click=move |_|cell_page.update(|p|*p=p.saturating_sub(1))>"Previous cells"</button><button data-dnacalc="atlas-cells-next" disabled=move ||affected.with(|p|p.as_ref().is_none_or(|p|(cell_page.get()+1).saturating_mul(50)>=p.total)) on:click=move |_|cell_page.update(|p|*p+=1)>"Next cells"</button></div></div>}
             })}

@@ -55,8 +55,10 @@ impl Skin for CanvasSkin {
         "Canvas"
     }
 
+    fn focus_target(&self) -> &'static str { "[data-dnacalc=canvas]" }
+
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        canvas_view(ctx.controller, ctx.active_skin).into_any()
+        canvas_view(ctx.controller).into_any()
     }
 }
 
@@ -424,10 +426,10 @@ fn center_view() {
         }
     }
 }
-fn canvas_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> impl IntoView {
-    let back = RwSignal::new(1u8);
-    let forward = RwSignal::new(1u8);
-    let zoom = RwSignal::new(100u16);
+fn canvas_view(controller: Controller) -> impl IntoView {
+    let back = controller.view_field::<dna_calc_model::CanvasState, _>(SkinId::Canvas, |s| &s.back, |s| &mut s.back);
+    let forward = controller.view_field::<dna_calc_model::CanvasState, _>(SkinId::Canvas, |s| &s.forward, |s| &mut s.forward);
+    let zoom = controller.view_field::<dna_calc_model::CanvasState, _>(SkinId::Canvas, |s| &s.zoom, |s| &mut s.zoom);
     let traced = RwSignal::new(None::<wire::Canvas>);
     let range = RwSignal::new(None::<wire::Chip>);
     let loading = RwSignal::new(true);
@@ -494,7 +496,7 @@ fn canvas_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
             },
         );
     });
-    let grow = move |signal: RwSignal<u8>, by: i8| {
+    let grow = move |signal: crate::model_adapter::ModelField<u8>, by: i8| {
         signal.update(|d| *d = d.saturating_add_signed(by).clamp(0, MAX_DEPTH))
     };
     let reset = move || {
@@ -515,24 +517,9 @@ fn canvas_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
             grow(forward, 1);
         }
         "Escape" => reset(),
-        "F9" => {
-            ev.prevent_default();
-            controller.recalculate();
-        }
         _ => {}
     };
-    let open_source = move |reference: String| {
-        controller.go_to_text(reference, move |ok| {
-            if ok {
-                active_skin.set(Some("grid".into()));
-                #[cfg(target_arch = "wasm32")]
-                set_timeout(
-                    move || crate::app::focus("[data-dnacalc=grid][data-grid-active=true]"),
-                    std::time::Duration::from_millis(20),
-                );
-            }
-        });
-    };
+    let open_source = move |reference: String| controller.reveal_reference(reference, SkinId::Grid);
     let chips = move || {
         let Some(canvas) = traced.get() else {
             return ().into_any();

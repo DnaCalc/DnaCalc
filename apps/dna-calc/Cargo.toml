@@ -19,6 +19,7 @@ portability = "portable"
 # manifest): Leptos 0.8.19 on wasm-bindgen 0.2.117, web-sys and js-sys 0.3.94. The views compile
 # on every target and run only in a browser.
 [dependencies]
+dna-calc-model = { path = "../dna-calc-model" }
 calc-host = { path = "../../crates/calc-host" }
 # The one number-format renderer (calc-func's cell_text, which TEXT renders with), for cells' number
 # formats (dc-09v).
