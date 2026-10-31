@@ -6,6 +6,274 @@ use calc_doc::model::value::CellKey;
 use calc_doc::model::{CellInput, OpBatch, WorkbookOp};
 use cdoc_m1_1_support::d1::{load, part, part_text, save_model, save_untouched};
 
+struct FunctionCatalog;
+impl calc_fml::ReferenceCatalog for FunctionCatalog {
+    fn workbook_name(&self) -> Option<&str> {
+        Some("local.xlsm")
+    }
+    fn sheet_named(&self, _: &str) -> Option<calc_doc::model::value::SheetId> {
+        None
+    }
+    fn defined_name(
+        &self,
+        _: &str,
+        _: calc_fml::reference::NameScope,
+    ) -> calc_fml::reference::NameDefinition {
+        calc_fml::reference::NameDefinition::Unknown
+    }
+}
+
+struct LinkedCatalog<'a>(&'a calc_doc::model::Definitions);
+impl calc_fml::ReferenceCatalog for LinkedCatalog<'_> {
+    fn sheet_named(&self, _: &str) -> Option<calc_doc::model::value::SheetId> {
+        None
+    }
+    fn defined_name(
+        &self,
+        _: &str,
+        _: calc_fml::reference::NameScope,
+    ) -> calc_fml::reference::NameDefinition {
+        calc_fml::reference::NameDefinition::Unknown
+    }
+    fn external_function_target(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+    ) -> Option<String> {
+        let calc_fml::reference::ExternalBookRef::Number(index) = book else {
+            return None;
+        };
+        let held = self.0.external_book(*index)?;
+        held.absolute_target.clone().or_else(|| held.target.clone())
+    }
+}
+
+struct NoReads;
+impl calc_fml::reference::ReferenceReader for NoReads {
+    fn read_area(
+        &mut self,
+        _: calc_func::value::GridArea,
+        _: &mut dyn FnMut(calc_fml::reference::CellRun<'_>) -> std::ops::ControlFlow<()>,
+    ) {
+        panic!("the measured call arguments are literals, never file caches");
+    }
+}
+
+fn evaluate(
+    plan: &std::sync::Arc<calc_fml::CompiledPlan>,
+    at: CellKey,
+    functions: &calc_func::UserFunctions,
+) -> calc_func::value::CalcValue {
+    evaluate_with_reader(plan, at, functions, &mut NoReads)
+}
+
+fn evaluate_with_reader(
+    plan: &std::sync::Arc<calc_fml::CompiledPlan>,
+    at: CellKey,
+    functions: &calc_func::UserFunctions,
+    reader: &mut dyn calc_fml::reference::ReferenceReader,
+) -> calc_func::value::CalcValue {
+    let instance = calc_fml::instantiate(plan, calc_fml::reference::FormulaAnchor::new(at));
+    let mut scratch = calc_fml::EvalScratch::new();
+    calc_fml::evaluate(
+        calc_fml::EvalFrame::new(&instance, &mut scratch),
+        &mut calc_fml::EvaluationServices::new(&calc_func::value::NumericMode::Fast, reader)
+            .with_functions(functions),
+    )
+    .unwrap()
+}
+
+struct WorkbookLiteral<'a>(&'a calc_doc::model::ModelRoot);
+impl calc_fml::reference::ReferenceReader for WorkbookLiteral<'_> {
+    fn read_area(
+        &mut self,
+        area: calc_func::value::GridArea,
+        sink: &mut dyn FnMut(calc_fml::reference::CellRun<'_>) -> std::ops::ControlFlow<()>,
+    ) {
+        assert_eq!(area.first(), area.last());
+        let Some(CellInput::Number(value)) = self.0.cell(area.first()) else {
+            panic!("an authored numeric input")
+        };
+        let values = [calc_func::value::CalcValue::number(value.get())];
+        let _ = sink(calc_fml::reference::CellRun::Values(&values));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_9__qualified_arguments_read_the_consumer_workbook() {
+    use calc_fml::ReferenceCatalog;
+    let loaded = load(include_bytes!(
+        "fixtures/vba_udf_names/binding-arguments.xlsx"
+    ));
+    let catalog = LinkedCatalog(loaded.model().definitions());
+    let book = calc_fml::reference::ExternalBookRef::Number(1);
+    let provider = catalog.external_function_target(&book).unwrap();
+    let mut functions = calc_func::UserFunctions::new();
+    for name in ["OtherFunc", "Module1.OtherFunc"] {
+        functions
+            .register_for(Some(&provider), name, std::rc::Rc::new(Identity))
+            .unwrap();
+    }
+    for row in 1..=2 {
+        let at = CellKey::new(loaded.model().sheets()[0].id(), row, 2).unwrap();
+        let CellInput::Formula(formula) = loaded.model().cell(at).unwrap() else {
+            panic!("formula")
+        };
+        let tree = calc_fml::parse_formula(&format!("={}", formula.text().to_string_lossy()));
+        let plan = calc_fml::compile_loaded_with_functions(
+            &tree,
+            calc_fml::reference::ReferenceNotation::A1,
+            calc_fml::reference::FormulaAnchor::new(at),
+            &catalog,
+            &mut calc_fml::PlanCache::new(),
+            calc_fml::FormulaForm::Dynamic,
+            &functions,
+        )
+        .unwrap();
+        assert_eq!(
+            evaluate_with_reader(&plan, at, &functions, &mut WorkbookLiteral(loaded.model()))
+                .as_number(),
+            Some(2.0)
+        );
+    }
+}
+
+#[derive(Debug)]
+struct Identity;
+impl calc_func::UserFunction for Identity {
+    fn call(
+        &self,
+        arguments: &[calc_func::value::CalcValue],
+    ) -> Result<calc_func::value::CalcValue, String> {
+        Ok(arguments
+            .first()
+            .cloned()
+            .unwrap_or_else(calc_func::value::CalcValue::empty))
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_9__own_workbook_calls_bind_the_registered_procedure() {
+    for bytes in [
+        include_bytes!("fixtures/vba_udf_names/local.xlsm").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/local.xlsb").as_slice(),
+    ] {
+        let loaded = load(bytes);
+        let sheet = loaded.model().sheets()[0].id();
+        let mut functions = calc_func::UserFunctions::new();
+        functions
+            .register("MyFunc", std::rc::Rc::new(Identity))
+            .unwrap();
+        functions
+            .register("Module1.MyFunc", std::rc::Rc::new(Identity))
+            .unwrap();
+        for row in [3, 4] {
+            let at = CellKey::new(sheet, row, 2).unwrap();
+            let CellInput::Formula(formula) = loaded.model().cell(at).unwrap() else {
+                panic!("formula")
+            };
+            let tree = calc_fml::parse_formula(&format!("={}", formula.text().to_string_lossy()));
+            let mut cache = calc_fml::PlanCache::new();
+            let plan = calc_fml::compile_with_functions(
+                &tree,
+                calc_fml::reference::ReferenceNotation::A1,
+                calc_fml::reference::FormulaAnchor::new(at),
+                &FunctionCatalog,
+                &mut cache,
+                calc_fml::FormulaForm::Dynamic,
+                &functions,
+            )
+            .unwrap();
+            assert_eq!(plan.user_calls().count(), 1);
+            let (_, source) = plan.user_call_sources().next().unwrap();
+            assert_eq!(
+                source.unwrap().book,
+                calc_fml::reference::ExternalBookRef::Number(0)
+            );
+            // An identity adapter proves binding and the shared evaluator route, not VBA execution.
+            assert_eq!(evaluate(&plan, at, &functions).as_number(), Some(2.0));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_9__external_calls_keep_link_and_provider_identity() {
+    use calc_fml::ReferenceCatalog;
+    for bytes in [
+        include_bytes!("fixtures/vba_udf_names/consumer.xlsx").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/consumer.xlsb").as_slice(),
+    ] {
+        let loaded = load(bytes);
+        let sheet = loaded.model().sheets()[0].id();
+        let catalog = LinkedCatalog(loaded.model().definitions());
+        for (row, index, name) in [
+            (1, 1, "OtherFunc"),
+            (2, 1, "Module1.OtherFunc"),
+            (4, 1, "HiddenOther"),
+            (5, 1, "PrivateOther"),
+            (6, 2, "AddFunc"),
+            (7, 2, "AddFunc"),
+            (8, 2, "Module1.AddFunc"),
+        ] {
+            let book = calc_fml::reference::ExternalBookRef::Number(index);
+            let provider = catalog.external_function_target(&book).unwrap();
+            assert!(
+                provider.starts_with("file:///C:"),
+                "the measured absolute target: {provider}"
+            );
+            let mut functions = calc_func::UserFunctions::new();
+            functions
+                .register_for(Some(&provider), name, std::rc::Rc::new(Identity))
+                .unwrap();
+            // The same procedure spelling in another provider never satisfies this call.
+            let wrong = format!(
+                "file:///C:/wrong-folder/{}",
+                loaded
+                    .model()
+                    .definitions()
+                    .external_book(index)
+                    .unwrap()
+                    .file_name
+                    .as_ref()
+                    .unwrap()
+            );
+            let mut wrong_functions = calc_func::UserFunctions::new();
+            wrong_functions
+                .register(name, std::rc::Rc::new(Identity))
+                .unwrap();
+            wrong_functions
+                .register_for(Some(&wrong), name, std::rc::Rc::new(Identity))
+                .unwrap();
+            let at = CellKey::new(sheet, row, 2).unwrap();
+            let CellInput::Formula(formula) = loaded.model().cell(at).unwrap() else {
+                panic!("formula")
+            };
+            let tree = calc_fml::parse_formula(&format!("={}", formula.text().to_string_lossy()));
+            let plan = calc_fml::compile_loaded_with_functions(
+                &tree,
+                calc_fml::reference::ReferenceNotation::A1,
+                calc_fml::reference::FormulaAnchor::new(at),
+                &catalog,
+                &mut calc_fml::PlanCache::new(),
+                calc_fml::FormulaForm::Dynamic,
+                &functions,
+            )
+            .unwrap();
+            let (spelling, source) = plan.user_call_sources().next().unwrap();
+            assert_eq!(spelling, name.to_ascii_uppercase());
+            assert_eq!(source.unwrap().book, book);
+            assert_eq!(source.unwrap().target.as_deref(), Some(provider.as_str()));
+            assert_eq!(evaluate(&plan, at, &functions).as_number(), Some(2.0));
+            assert_eq!(
+                evaluate(&plan, at, &wrong_functions),
+                calc_func::value::CalcValue::error(calc_func::value::WorksheetErrorCode::Name)
+            );
+        }
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_snz_8__reentered_forced_udf_keeps_ordinary_arguments() {

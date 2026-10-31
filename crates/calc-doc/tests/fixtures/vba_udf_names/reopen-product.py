@@ -18,6 +18,7 @@ def main():
     parser.add_argument('--out', type=Path)
     parser.add_argument('--paths', action='store_true')
     parser.add_argument('--path-variants', action='store_true')
+    parser.add_argument('--binding-controls', action='store_true')
     args=parser.parse_args()
     original=m.OUT; m.EVENTS=[]
     output=args.out or original/'product-reopen.json'
@@ -55,6 +56,15 @@ def main():
                         D2=s.Range('D2').Formula2,D2_text=s.Range('D2').Text)
             m.close(b)
             for p in providers: m.close(p)
+        if args.binding_controls:
+            provider=m.open_book(x,'provider.xlsm')
+            b=m.book_new(x)
+            m.retry(lambda:setattr(b.Worksheets(1).Range('C1'),'Value2',2))
+            m.enter(b,[('qualified-reference-argument',"='provider.xlsm'!OtherFunc(C1)"),
+                       ('module-reference-argument',"='provider.xlsm'!Module1.OtherFunc(C1)")])
+            m.observe(x,b,'qualified-reference-arguments')
+            m.save(b,'binding-arguments.xlsx',51)
+            m.close(b); m.close(provider)
         if args.paths:
             # Same-folder control and a relocated output. Never overwrite the old witnesses.
             local=original/'cdoc-fixed-consumer.xlsx'

@@ -83,6 +83,10 @@ pub struct DefinedName {
 /// file's formula writes `[1]Sheet1!A1` for cell A1 of sheet Sheet1 of the first such book.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExternalBook {
+    /// The main external-link relationship target, without reducing it to a file name.
+    pub target: Option<String>,
+    /// The file's explicit absolute fallback relationship target, when present.
+    pub absolute_target: Option<String>,
     /// The file name of the book the link targets (`Book2.xlsx`), the last part of its
     /// relationship's target, when the part names one: a typed formula names the book by it
     /// (`[Book2.xlsx]Sheet1!A1`).

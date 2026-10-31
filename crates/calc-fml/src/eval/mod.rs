@@ -45,8 +45,8 @@ mod run;
 /// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.
 pub(crate) use compile::file_unprefixed;
 pub use compile::{
-    CompileError, compile, compile_loaded, compile_loaded_with, compile_with,
-    compile_with_functions,
+    CompileError, compile, compile_loaded, compile_loaded_with, compile_loaded_with_functions,
+    compile_with, compile_with_functions,
 };
 pub use run::{EvalFault, MAX_CALL_DEPTH, evaluate};
 
@@ -168,6 +168,28 @@ impl CompiledPlan {
                 _ => None,
             })
     }
+
+    /// User calls with their source workbook and exact provider target. Unqualified calls
+    /// have no source; `[0]!` retains index zero with no external target.
+    pub fn user_call_sources(&self) -> impl Iterator<Item = (&str, Option<&UserFunctionSource>)> {
+        self.blocks
+            .iter()
+            .flatten()
+            .filter_map(|instruction| match instruction {
+                Instruction::UserCall { name, source, .. } => {
+                    Some((name.as_str(), source.as_ref()))
+                }
+                _ => None,
+            })
+    }
+}
+
+/// The source identity of a workbook-qualified procedure, preserved in the compiled plan.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct UserFunctionSource {
+    pub book: crate::reference::ExternalBookRef,
+    /// Exact external-link target; `None` for this workbook.
+    pub target: Option<String>,
 }
 
 /// Effects observed while evaluating one formula, separate from its immutable plan and result.
@@ -232,7 +254,11 @@ enum Admission {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum Instruction {
     /// An engine-neutral eager user function, resolved against the current host registry.
-    UserCall { name: String, argc: usize },
+    UserCall {
+        name: String,
+        source: Option<UserFunctionSource>,
+        argc: usize,
+    },
     /// Pushes the literal's value.
     Literal(Literal),
     /// Pushes an omitted argument ([`CalcValue::missing`]).
