@@ -244,3 +244,8 @@ Host integration must use the provider-scoped `registrations()` inventory and th
 workbook location. Without that location, binding currently uses the retained absolute
 fallback; moving consumer and provider together has not been measured here.
 
+For dc-snz.11, registry registration, lookup, duplicate detection and invocation now use
+`calc-value`'s shared workbook-name key. Plans use that same key instead of a separate ASCII
+case policy; the stored formula spelling stays unchanged. The regression covers typed café/CAFÉ and
+ångström/ÅNGSTRÖM and the actual saved spellings from three measured XML/binary packages.
+
