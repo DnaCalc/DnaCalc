@@ -656,6 +656,29 @@ fn gratio_after40(
         }
         // The series product is stored from x87 PC64 before binary64 publication.
         let p = crate::ported::excel_numeric::excel_x87_mul(r_series / a, ans);
+        let p = if a == 2.0 || a == 3.0 {
+            // Here Gamma(a) is an exact power of two. Keep the stored product
+            // a*log(x), but recover the following subtraction's exact residual
+            // with TwoSum. The first-order exponential correction is an
+            // empirical Excel model, not an identified branch or a claim of
+            // improved mathematical accuracy. The fitted strict 2^-51 bound
+            // was frozen on grouped (a,x) half 0: +2734/-0; excluded half 1:
+            // +2824/-0. SplitMix64 seed 0x444e4147414d4d32. Other shapes keep
+            // their existing normalization and publication.
+            let product = a * crt_log(x);
+            let difference = product - x;
+            let virtual_negative = difference - product;
+            let subtraction_residual =
+                (product - (difference - virtual_negative)) + (-x - virtual_negative);
+            let fitted_subtraction_bound = 4.440_892_098_500_626e-16;
+            if subtraction_residual.abs() > fitted_subtraction_bound {
+                p.mul_add(subtraction_residual, p)
+            } else {
+                p
+            }
+        } else {
+            p
+        };
         return (p, 0.5 + (0.5 - p));
     }
     if x < x0 {

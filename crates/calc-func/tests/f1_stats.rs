@@ -442,6 +442,25 @@ fn gamma_cumulative_stores_the_final_series_product() {
     exact(call("GAMMA.DIST", vec![n(f64::from_bits(0x3ee4e69846c122d8)), n(f64::from_bits(0x4000000000000000)), n(f64::from_bits(0x3ff0000000000000)), b(true)]), f64::from_bits(0x3dcb4d6c2d100466));
 }
 
+/// Recorded lower-series gains and protected controls from both argument halves.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_cumulative_preserves_the_product_before_subtraction() {
+    for (x, shape, expected) in [
+        // oc820 (excluded half 1), oc837 (fitting half 0).
+        (0x3e45_bfed_3f9f_5d2c, 2.0, 0x3c8d_90cd_01b5_dad1),
+        (0x3e46_4f60_ae25_7bea, 3.0, 0x3acc_eb10_4395_7fa3),
+        // oc41045 / oc40295: unbounded correction would lose these matches.
+        (0x3fb0_eec1_cb3a_8a9b, 3.0, 0x3f08_1056_fc2c_909a),
+        (0x3fb0_e0e8_3a02_c89a, 3.0, 0x3f07_d671_a72d_b3af),
+    ] {
+        for function in ["GAMMA.DIST", "GAMMADIST"] {
+            exact(call(function, vec![n(f64::from_bits(x)), n(shape), n(1.0), b(true)]),
+                f64::from_bits(expected));
+        }
+    }
+}
+
 /// Recorded oc3066 distinguishes the logarithm composed into the lognormal CDF.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
