@@ -1638,3 +1638,348 @@ mod rule_review {
         assert_eq!(review.links[0].area.first().row(), 2);
     }
 }
+
+mod workbook_commands {
+    use super::*;
+    use dna_calc::{
+        server::Server,
+        wire::{self, Area, FindOptions, FindScope, Intent, Key, Reply, Request, Sheet},
+    };
+    fn request(server: &mut Server, request: Request) -> Reply {
+        server.handle(request, None).reply.unwrap()
+    }
+    fn send(server: &mut Server, intent: Intent) -> wire::Outcome {
+        match request(server, Request::Intent(intent)) {
+            Reply::Done { outcome, .. } => outcome,
+            other => panic!("{other:?}"),
+        }
+    }
+    fn stats(server: &mut Server) -> wire::SelectionStats {
+        match request(server, Request::SelectionStats) {
+            Reply::SelectionStats(Ok(stats)) => stats,
+            other => panic!("{other:?}"),
+        }
+    }
+    fn found(server: &mut Server, options: FindOptions) -> wire::Found {
+        match request(server, Request::Find(options)) {
+            Reply::Found(Ok(found)) => found,
+            other => panic!("{other:?}"),
+        }
+    }
+    fn options(sheet: SheetId, area: GridArea, text: &str) -> FindOptions {
+        FindOptions {
+            sheet: Sheet::of(sheet),
+            areas: vec![Area::of(area)],
+            text: text.into(),
+            case_sensitive: false,
+            whole: false,
+            wildcards: false,
+            formulas: true,
+            scope: FindScope::Selection,
+        }
+    }
+    fn set(server: &mut Server, at: CellKey, text: &str) {
+        let out = send(
+            server,
+            Intent::EnterCell {
+                at: Key::of(at),
+                text: text.into(),
+            },
+        );
+        assert!(out.accepted, "{:?}", out.error);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_9__search_replace_grouped_history_and_stale_results_use_worker_messages() {
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let at = |r, c| CellKey::new(sheet, r, c).unwrap();
+        let selected = GridArea::new(at(1, 1), at(3, 2)).unwrap();
+        set(&mut server, at(1, 1), "1");
+        set(&mut server, at(2, 1), "2");
+        set(&mut server, at(1, 2), "=SUM(A1:A2)");
+        set(&mut server, at(2, 2), "=SUM(A1:A2)");
+        let o = options(sheet, selected, "sum(");
+        let first = found(&mut server, o.clone());
+        assert_eq!(first.rows.len(), 2);
+        assert!(
+            first
+                .rows
+                .iter()
+                .all(|r| r.provenance == Provenance::Calculated)
+        );
+        let mut displayed = options(sheet, selected, "3");
+        displayed.formulas = false;
+        displayed.whole = true;
+        assert_eq!(found(&mut server, displayed.clone()).rows.len(), 2);
+        assert!(
+            found(
+                &mut server,
+                FindOptions {
+                    formulas: true,
+                    ..displayed
+                }
+            )
+            .rows
+            .is_empty()
+        );
+        let out = send(
+            &mut server,
+            Intent::Replace {
+                options: o.clone(),
+                replacement: "AVERAGE(".into(),
+                revision: first.revision,
+                only: None,
+            },
+        );
+        assert!(out.committed, "{:?}", out.error);
+        assert_eq!(shown(server.book(), at(1, 2)).text, "1.5");
+        assert_eq!(shown(server.book(), at(2, 2)).text, "1.5");
+        let stale = send(
+            &mut server,
+            Intent::Replace {
+                options: o.clone(),
+                replacement: "MAX(".into(),
+                revision: first.revision,
+                only: None,
+            },
+        );
+        assert!(!stale.accepted && !stale.committed);
+        assert!(send(&mut server, Intent::Undo).accepted);
+        assert_eq!(shown(server.book(), at(1, 2)).text, "3");
+        assert_eq!(shown(server.book(), at(2, 2)).text, "3");
+        let hits = found(&mut server, o.clone());
+        let out = send(
+            &mut server,
+            Intent::Replace {
+                options: o.clone(),
+                replacement: "MAX(".into(),
+                revision: hits.revision,
+                only: Some(Key::of(at(2, 2))),
+            },
+        );
+        assert!(out.committed);
+        assert_eq!(shown(server.book(), at(1, 2)).text, "3");
+        assert_eq!(shown(server.book(), at(2, 2)).text, "2");
+        let hits = found(&mut server, o.clone());
+        let refused = send(
+            &mut server,
+            Intent::Replace {
+                options: FindOptions {
+                    wildcards: true,
+                    ..o
+                },
+                replacement: "MIN(".into(),
+                revision: hits.revision,
+                only: None,
+            },
+        );
+        assert!(!refused.accepted && !refused.committed);
+        let answer = server.handle(Request::Save, None);
+        assert!(matches!(
+            answer.reply,
+            Ok(Reply::Done { saved: Some(_), .. })
+        ));
+        let saved = answer.bytes.unwrap();
+        assert!(matches!(
+            server
+                .handle(
+                    Request::Open {
+                        name: "replaced.xlsx".into()
+                    },
+                    Some(saved)
+                )
+                .reply,
+            Ok(Reply::Done {
+                outcome: wire::Outcome { accepted: true, .. },
+                ..
+            })
+        ));
+        let sheet = server.book().sheets()[0].id;
+        assert_eq!(
+            shown(server.book(), CellKey::new(sheet, 2, 2).unwrap()).text,
+            "2"
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_9__selection_arithmetic_deduplicates_and_separates_provenance() {
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let at = |r, c| CellKey::new(sheet, r, c).unwrap();
+        for (r, c, text) in [
+            (1, 1, "1"),
+            (2, 1, "2"),
+            (3, 1, "text"),
+            (4, 1, "TRUE"),
+            (1, 2, "=SUM(A1:A2)"),
+            (2, 2, "=1/0"),
+            (3, 2, "=WEBSERVICE(\"https://example.com\")"),
+            (4, 2, "=\"\""),
+        ] {
+            set(&mut server, at(r, c), text);
+        }
+        let area = GridArea::new(at(1, 1), at(5, 2)).unwrap();
+        assert!(
+            send(
+                &mut server,
+                Intent::Select {
+                    active: Key::of(at(1, 1)),
+                    areas: vec![Area::of(area), Area::of(GridArea::cell(at(1, 1)))]
+                }
+            )
+            .accepted
+        );
+        let s = stats(&mut server);
+        assert_eq!(
+            (
+                s.selected,
+                s.count,
+                s.numeric,
+                s.errors,
+                s.blank,
+                s.empty_text,
+                s.refused
+            ),
+            (10, 7, 3, 1, 2, 1, 1)
+        );
+        assert_eq!(
+            (
+                s.sum.as_str(),
+                s.average.as_str(),
+                s.min.as_str(),
+                s.max.as_str()
+            ),
+            ("6", "2", "1", "3")
+        );
+        assert!(send(&mut server, Intent::SetCalcMode { manual: true }).accepted);
+        set(&mut server, at(1, 1), "10");
+        let s = stats(&mut server);
+        assert_eq!((s.numeric, s.stale, s.refused), (2, 1, 1));
+        assert_eq!(s.sum, "12");
+        let whole = GridArea::new(at(1, 1), at(calc_host::value::MAX_ROWS, 1)).unwrap();
+        assert!(
+            send(
+                &mut server,
+                Intent::Select {
+                    active: Key::of(at(1, 1)),
+                    areas: vec![Area::of(whole)]
+                }
+            )
+            .accepted
+        );
+        assert!(
+            matches!(request(&mut server,Request::SelectionStats),Reply::SelectionStats(Err(message)) if message.contains("10000"))
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_9__spill_values_and_tiny_search_scope_use_cell_projections() {
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let at = |r| CellKey::new(sheet, r, 1).unwrap();
+        set(&mut server, at(1), "=SEQUENCE(100001)");
+        let range = GridArea::new(at(1), at(3)).unwrap();
+        assert!(
+            send(
+                &mut server,
+                Intent::Select {
+                    active: Key::of(at(1)),
+                    areas: vec![Area::of(range)]
+                }
+            )
+            .accepted
+        );
+        let s = stats(&mut server);
+        assert_eq!((s.count, s.numeric, s.sum.as_str()), (3, 3, "6"));
+        let o = FindOptions {
+            formulas: false,
+            whole: true,
+            ..options(sheet, GridArea::cell(at(100001)), "100001")
+        };
+        let f = found(&mut server, o);
+        assert!(!f.partial);
+        assert_eq!(f.scanned, 1);
+        assert_eq!(f.rows.len(), 1);
+        assert_eq!(f.rows[0].at, Key::of(at(100001)));
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_9__workbook_search_identifies_hidden_sheets_and_validation_stops_replacement() {
+        let mut server = Server::new();
+        let first = server.book().sheets()[0].id;
+        assert!(
+            send(
+                &mut server,
+                Intent::EditSheet {
+                    sheet: None,
+                    change: wire::SheetChange::Add {
+                        name: "Hidden inputs".into()
+                    }
+                }
+            )
+            .accepted
+        );
+        let hidden = server.book().sheets()[1].id;
+        set(&mut server, CellKey::new(hidden, 1, 1).unwrap(), "café");
+        assert!(
+            send(
+                &mut server,
+                Intent::EditSheet {
+                    sheet: Some(Sheet::of(hidden)),
+                    change: wire::SheetChange::Hide
+                }
+            )
+            .accepted
+        );
+        let o = FindOptions {
+            scope: FindScope::Workbook,
+            ..options(
+                first,
+                GridArea::cell(CellKey::new(first, 1, 1).unwrap()),
+                "CAFÉ",
+            )
+        };
+        let f = found(&mut server, o);
+        assert_eq!(f.rows.len(), 1);
+        assert!(f.rows[0].hidden);
+        assert!(f.rows[0].label.contains("Hidden inputs"));
+        let answer = server.handle(
+            Request::Open {
+                name: "validation.xlsx".into(),
+            },
+            Some(
+                include_bytes!(
+                    "../../../crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx"
+                )
+                .to_vec(),
+            ),
+        );
+        assert!(matches!(
+            answer.reply,
+            Ok(Reply::Done {
+                outcome: wire::Outcome { accepted: true, .. },
+                ..
+            })
+        ));
+        let sheet = server.book().sheets()[0].id;
+        let at = CellKey::new(sheet, 4, 4).unwrap();
+        set(&mut server, at, "2");
+        let o = FindOptions {
+            whole: true,
+            ..options(sheet, GridArea::cell(at), "2")
+        };
+        let f = found(&mut server, o.clone());
+        let out = send(
+            &mut server,
+            Intent::Replace {
+                options: o,
+                replacement: "-1".into(),
+                revision: f.revision,
+                only: None,
+            },
+        );
+        assert!(!out.accepted && !out.committed);
+        assert_eq!(shown(server.book(), at).text, "2");
+    }
+}

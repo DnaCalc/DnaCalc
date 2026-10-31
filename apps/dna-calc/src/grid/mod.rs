@@ -694,6 +694,37 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
         let ctrl = ev.ctrl_key() || ev.meta_key();
         let chord = KeyChord::new(ev.key(), ev.shift_key(), ctrl, ev.alt_key());
+        if !ev.alt_key()
+            && ((ctrl && matches!(chord.key.as_str(), "f" | "h" | "g")) || chord.key == "F5")
+        {
+            ev.prevent_default();
+            let mode = match chord.key.as_str() {
+                "h" => "replace",
+                "g" | "F5" => "goto",
+                _ => "find",
+            };
+            controller.after_input(move || controller.find_open.set(Some(mode.into())));
+            return;
+        }
+        if chord.key == "F10" && ev.shift_key() && !ctrl && !ev.alt_key() {
+            ev.prevent_default();
+            controller.after_input(move || {
+                let (row, col) = controller.active.get_untracked();
+                let cell = panes.get_untracked().rect(
+                    &metrics.get_untracked(),
+                    &viewport.get_untracked(),
+                    row,
+                    col,
+                );
+                if let Some(layer) = layer.get_untracked() {
+                    let rect = layer.get_bounding_client_rect();
+                    controller
+                        .context_menu
+                        .set(Some((rect.left() + cell.x, rect.top() + cell.y + cell.h)));
+                }
+            });
+            return;
+        }
         if ctrl && !ev.alt_key() && matches!(chord.key.as_str(), "PageUp" | "PageDown") {
             ev.prevent_default();
             let sheets = controller.sheets();
@@ -936,6 +967,41 @@ fn grid_view(controller: Controller) -> impl IntoView {
         } else {
             press(target, shift, ctrl);
         }
+    };
+    let on_contextmenu = move |ev: leptos::ev::MouseEvent| {
+        if ev.shift_key() {
+            return;
+        }
+        ev.prevent_default();
+        let hit = point(&ev);
+        let x = f64::from(ev.client_x());
+        let y = f64::from(ev.client_y());
+        controller.after_input(move || {
+            if controller.editing.get_untracked().is_some() {
+                controller.focus_editor();
+                return;
+            }
+            if let Some(HitTarget::Cell { row, col }) = hit {
+                if let Some(sheet) = controller.sheet.get_untracked()
+                    && let Ok(at) = CellKey::new(sheet, row, col)
+                    && !controller
+                        .areas
+                        .with_untracked(|areas| areas.iter().any(|a| a.contains(at)))
+                {
+                    controller.select(row, col);
+                }
+            }
+            match hit {
+                Some(
+                    hit @ (HitTarget::ColumnHeader { .. }
+                    | HitTarget::RowHeader { .. }
+                    | HitTarget::Corner),
+                ) => press(hit, false, false),
+                None | Some(HitTarget::Outside) => return,
+                _ => {}
+            }
+            controller.context_menu.set(Some((x, y)));
+        });
     };
     let on_mousedown = move |ev: leptos::ev::MouseEvent| {
         if ev.button() != 0 {
@@ -1629,6 +1695,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     }
                 }
                 on:keydown=on_keydown
+                on:contextmenu=on_contextmenu
                 on:mousedown=on_mousedown
                 on:dblclick=on_dblclick
             >

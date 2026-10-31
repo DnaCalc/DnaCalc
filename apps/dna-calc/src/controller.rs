@@ -161,6 +161,8 @@ type ValidationCallback = Box<dyn FnOnce(Result<Outcome, String>)>;
 
 #[derive(Clone, Copy)]
 pub struct Controller {
+    pub find_open: RwSignal<Option<String>>,
+    pub context_menu: RwSignal<Option<(f64, f64)>>,
     pub review_open: RwSignal<bool>,
     pub validation_decision: RwSignal<Option<wire::ValidationDecision>>,
     validation_callback: StoredValue<Option<ValidationCallback>, LocalStorage>,
@@ -231,6 +233,8 @@ impl Controller {
         let edit_text = RwSignal::new(String::new());
         let assist = FormulaAssist::new(edit_text);
         let controller = Controller {
+            find_open: RwSignal::new(None),
+            context_menu: RwSignal::new(None),
             review_open: RwSignal::new(false),
             validation_decision: RwSignal::new(None),
             validation_callback: StoredValue::new_local(None),
@@ -639,10 +643,19 @@ impl Controller {
     /// Asks the server; `answer` gets the reply when it comes (a failure goes to the status line).
     pub fn ask(&self, request: Request, answer: impl FnOnce(Reply) + 'static) {
         let controller = *self;
-        port::call(request, None, move |reply, _| match reply {
+        self.ask_result(request, move |reply| match reply {
             Ok(reply) => answer(reply),
             Err(message) => controller.say(format!("The workbook did not answer: {message}"), true),
         });
+    }
+
+    /// A local query owns its unavailable state without overwriting the last workbook action.
+    pub fn ask_result(
+        &self,
+        request: Request,
+        answer: impl FnOnce(Result<Reply, String>) + 'static,
+    ) {
+        port::call(request, None, move |reply, _| answer(reply));
     }
 
     /// The sheets, in workbook order.
@@ -713,6 +726,8 @@ impl Controller {
         self.download_unconfirmed.set(false);
         self.notebook_drafts.set(BTreeMap::new());
         self.assist.readonly.set(false);
+        self.find_open.set(None);
+        self.context_menu.set(None);
         self.validation_decision.set(None);
         self.validation_callback.update_value(|callback| {
             callback.take();

@@ -77,6 +77,12 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    Replace {
+        options: FindOptions,
+        replacement: String,
+        revision: u64,
+        only: Option<Key>,
+    },
     EditConditional {
         sheet: Sheet,
         revision: u64,
@@ -233,6 +239,9 @@ pub struct ToServer {
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    Find(FindOptions),
+    SelectionStats,
+    CanEdit(Key),
     FitContents {
         area: Area,
     },
@@ -535,6 +544,9 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    Found(Result<Found, String>),
+    SelectionStats(Result<SelectionStats, String>),
+    CanEdit(Result<(), String>),
     Review(Review),
     ReviewMarkers(Vec<(Key, String)>),
     Clipboard(Clipboard),
@@ -855,4 +867,56 @@ mod tests {
         let back: Reply = decode(&encode(&Reply::Geometry(geometry.clone()))).unwrap();
         assert_eq!(back, Reply::Geometry(geometry));
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FindScope {
+    Sheet,
+    Selection,
+    Workbook,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FindOptions {
+    pub sheet: Sheet,
+    pub areas: Vec<Area>,
+    pub text: String,
+    pub case_sensitive: bool,
+    pub whole: bool,
+    pub wildcards: bool,
+    pub formulas: bool,
+    pub scope: FindScope,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Found {
+    pub revision: u64,
+    pub rows: Vec<FoundRow>,
+    pub scanned: u64,
+    pub partial: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FoundRow {
+    pub at: Key,
+    pub label: String,
+    pub source: String,
+    pub display: String,
+    pub provenance: Provenance,
+    pub hidden: bool,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SelectionStats {
+    pub selected: u64,
+    pub count: u64,
+    pub numeric: u64,
+    pub literal: u64,
+    pub calculated: u64,
+    pub blank: u64,
+    pub empty_text: u64,
+    pub errors: u64,
+    pub cached: u64,
+    pub stale: u64,
+    pub refused: u64,
+    pub sum: String,
+    pub average: String,
+    pub min: String,
+    pub max: String,
 }

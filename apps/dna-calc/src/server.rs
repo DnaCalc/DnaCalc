@@ -85,6 +85,35 @@ impl Server {
         let mut out = None;
         let reply = (|| -> Result<Reply, String> {
             match request {
+                Request::Find(options) => {
+                    Ok(Reply::Found(search_selection(&options).and_then(
+                        |selection| crate::search::find(&self.book, &selection, &options),
+                    )))
+                }
+                Request::SelectionStats => Ok(Reply::SelectionStats(
+                    crate::search::selection_stats(&self.book, self.book.session().selection()),
+                )),
+                Request::CanEdit(key) => Ok(Reply::CanEdit(
+                    key.cell()
+                        .ok_or_else(|| "The cell is unavailable".to_owned())
+                        .and_then(|at| {
+                            if self.book.host().model().sheet_by_id(at.sheet()).is_none() {
+                                return Err("The worksheet is unavailable".into());
+                            }
+                            if self
+                                .book
+                                .host()
+                                .loaded()
+                                .sheet(at.sheet())
+                                .is_some_and(|s| s.protected() || s.is_macro_sheet())
+                            {
+                                return Err(
+                                    "Editing protected or macro worksheets is unavailable".into()
+                                );
+                            }
+                            Ok(())
+                        }),
+                )),
                 Request::FitContents { area: target } => self.fit_contents(area(target)?),
                 Request::Capture { area: source, keep } => {
                     let from = area(source)?;
@@ -988,6 +1017,34 @@ impl Server {
         }
 
         let intent = match intent {
+            Intent::Replace {
+                options,
+                replacement,
+                revision,
+                only,
+            } => {
+                if revision != self.book.host().revision().get() {
+                    return Ok(self.done(
+                        false,
+                        Some("The workbook changed; run Find again before replacing".into()),
+                        0.0,
+                    ));
+                }
+                let prepared = search_selection(&options).and_then(|selection| {
+                    crate::search::replace_edits(
+                        &self.book,
+                        &selection,
+                        &options,
+                        &replacement,
+                        only.map(cell).transpose()?,
+                    )
+                });
+                match prepared {
+                    Ok(edits) if !edits.is_empty() => SkinIntent::Edit { edits },
+                    Ok(_) => return Ok(self.done(false, Some("No entries changed".into()), 0.0)),
+                    Err(error) => return Ok(self.done(false, Some(error), 0.0)),
+                }
+            }
             Intent::EditConditional {
                 sheet,
                 revision,
@@ -1604,7 +1661,9 @@ fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
         Intent::AxisFormat { .. } => return Err("dimensions need the workbook worker".to_owned()),
         Intent::FreezePanes { .. } => return Err("pane editing needs the workbook view".to_owned()),
         Intent::ApplyPaste { .. } => return Err("paste needs its worker preview".to_owned()),
-        Intent::EditConditional { .. } | Intent::AcceptValidation { .. } => {
+        Intent::Replace { .. }
+        | Intent::EditConditional { .. }
+        | Intent::AcceptValidation { .. } => {
             return Err("Validation decisions are handled by the worker".into());
         }
         Intent::EnterCell { at, text } => SkinIntent::EnterCell {
@@ -1799,4 +1858,20 @@ mod fit_tests {
             None
         );
     }
+}
+
+fn search_selection(options: &wire::FindOptions) -> Result<Selection, String> {
+    let areas = options
+        .areas
+        .iter()
+        .copied()
+        .map(area)
+        .collect::<Result<Vec<_>, _>>()?;
+    if areas.len() > 1024 {
+        return Err("Search supports at most1024 selection areas".into());
+    }
+    Ok(Selection {
+        active: areas.first().map(|a| a.first()),
+        areas,
+    })
 }

@@ -881,6 +881,7 @@ pub enum Action {
     Click(&'static str),
     /// Two real pointer clicks at the element's centre.
     DoubleClick(&'static str),
+    ContextClick(&'static str, bool),
     /// Two real clicks on a trailing row or column header boundary.
     DoubleClickEdge(&'static str, bool),
     CtrlClick(&'static str),
@@ -5623,6 +5624,335 @@ const CALC_CASES: &[Case] = &[
         ],
         checks: &[Check::Focused("grid")],
     },
+    Case {
+        name: "summary: mixed current values show six aggregates and explicit exclusions",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("status", "New workbook")),
+            Action::ExternalClipboard(
+                "1\t=SUM(A1:A2)\ttext\n2\t=1/0\tTRUE\n\t=WEBSERVICE(\"https://example.com\")\t=\"\"",
+                false,
+            ),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Wait(Check::Text(cell!("B1"), "3")),
+            Action::Into("name-box", "A1:C4\u{E007}"),
+            Action::Click("selection-summary-toggle"),
+        ],
+        checks: &[
+            Check::Text("summary-count", "7"),
+            Check::Text("summary-numeric", "3"),
+            Check::Text("summary-sum", "6"),
+            Check::Text("summary-average", "2"),
+            Check::Text("summary-min", "1"),
+            Check::Text("summary-max", "3"),
+            Check::TextContains(
+                "summary-provenance",
+                "4 blanks · 1 empty text values · 1 errors",
+            ),
+            Check::TextContains("summary-provenance", "1 refused"),
+        ],
+    },
+    Case {
+        name: "summary: stale results are counted apart after a manual edit",
+        actions: &[
+            Action::Choose("calc-mode", "manual"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "10\u{E007}"),
+            Action::Wait(Check::Text(cell!("A1"), "10")),
+            Action::Into("name-box", "A1:C4\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("summary-count", "6"),
+            Check::Text("summary-numeric", "2"),
+            Check::Text("summary-sum", "12"),
+            Check::TextContains("summary-provenance", "1 stale · 1 refused"),
+        ],
+    },
+    Case {
+        name: "summary: downloaded manual caches never enter current numeric totals",
+        actions: &[
+            Action::Choose("calc-mode", "automatic"),
+            Action::Click("calculate"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::Wait(Check::Starts("status", "Download started: Book1.xlsx.")),
+            Action::ManualDownloadFixture,
+            Action::UploadDownload("manual-cache.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "manual-cache.xlsx")),
+            Action::Into("name-box", "A1:C4\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("summary-count", "4"),
+            Check::Text("summary-numeric", "2"),
+            Check::Text("summary-sum", "12"),
+            Check::TextContains("summary-provenance", "3 file caches"),
+        ],
+    },
+    Case {
+        name: "local menu: protected worksheets disclose why editing commands are disabled",
+        actions: &[
+            Action::ProtectedDownloadFixture,
+            Action::UploadDownload("protected.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "protected.xlsx")),
+            Action::Keys("grid", "\u{E008}\u{E03A}\u{E000}"),
+            Action::Wait(Check::TextContains("context-reason", "protected")),
+        ],
+        checks: &[
+            Check::Attr("context-cut", "disabled", ""),
+            Check::Attr("context-clear", "disabled", ""),
+            Check::Focused("context-copy"),
+        ],
+    },
+    Case {
+        name: "local menu: disabled commands are skipped by keyboard navigation",
+        actions: &[
+            Action::Keys("context-copy", "\u{E015}"),
+            Action::Wait(Check::Focused("context-find")),
+            Action::Keys("context-find", ESCAPE),
+        ],
+        checks: &[
+            Check::Focused("grid"),
+            Check::Absent("[data-dnacalc=context-menu][open]"),
+        ],
+    },
+    Case {
+        name: "summary: whole-column requests explain their bounded cost without expanding the grid",
+        actions: &[Action::Into("name-box", "A:A\u{E007}")],
+        checks: &[
+            Check::TextContains("selection-summary-toggle", "limited to 10000 cells"),
+            Check::Absent("[data-dnacalc=summary-sum]"),
+        ],
+    },
+    Case {
+        name: "find: Ctrl F opens a focused workbook dialog and searches authored formulas in the original range",
+        actions: &[
+            Action::Click("selection-summary-toggle"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "cut-base.xlsx")),
+            Action::Into("name-box", "A1:C3\u{E007}"),
+            Action::Keys("grid", "\u{E009}f\u{E000}"),
+            Action::Wait(Check::Focused("find-query")),
+            Action::Choose("find-scope", "selection"),
+            Action::Into("find-query", "SUM("),
+            Action::Keys("find-query", ENTER),
+        ],
+        checks: &[
+            Check::Role("find-dialog", "dialog"),
+            Check::Count("find-hit", 2),
+            Check::TextContains("find-results", "Data!B2"),
+            Check::TextContains("find-results", "Data!C2"),
+            Check::Reachable("find-dialog"),
+        ],
+    },
+    Case {
+        name: "find: displayed values and hit navigation retain the captured selection scope",
+        actions: &[
+            Action::Choose("find-look", "values"),
+            Action::Into("find-query", "6"),
+            Action::Click("find-whole"),
+            Action::Click("find-all"),
+            Action::Wait(Check::Count("find-hit", 3)),
+            Action::Click("[data-dnacalc=find-results] li:last-child [data-dnacalc=find-hit]"),
+            Action::Click("find-all"),
+        ],
+        checks: &[
+            Check::Count("find-hit", 3),
+            Check::Value("name-box", "C3"),
+            Check::TextContains("find-results", "calculated"),
+        ],
+    },
+    Case {
+        name: "find: a completed search explains no matches",
+        actions: &[
+            Action::Into("find-query", "not present anywhere"),
+            Action::Click("find-all"),
+        ],
+        checks: &[
+            Check::Text("find-message", "No matches"),
+            Check::Count("find-hit", 0),
+        ],
+    },
+    Case {
+        name: "find: workbook scope can navigate to another worksheet",
+        actions: &[
+            Action::Choose("find-scope", "workbook"),
+            Action::Into("find-query", "100"),
+            Action::Click("find-all"),
+            Action::Wait(Check::Count("find-hit", 1)),
+            Action::Click("find-hit"),
+        ],
+        checks: &[
+            Check::TextContains("find-results", "Other!A1"),
+            Check::Value("name-box", "A1"),
+            Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]", "Other"),
+        ],
+    },
+    Case {
+        name: "find: Escape returns focus and Ctrl G opens the existing reference resolver",
+        actions: &[
+            Action::Keys("find-query", ESCAPE),
+            Action::Wait(Check::Focused("grid")),
+            Action::Keys("grid", "\u{E009}g\u{E000}"),
+            Action::Wait(Check::Focused("goto-target")),
+            Action::Into("goto-target", "Data!A1:C3\u{E007}"),
+        ],
+        checks: &[
+            Check::Absent("[data-dnacalc=find-dialog][open]"),
+            Check::Value("name-box", "A1"),
+            Check::Attr("selection", "data-area", "A1:C3"),
+        ],
+    },
+    Case {
+        name: "replace: Ctrl H replaces matching formulas as one workbook command",
+        actions: &[
+            Action::Keys("grid", "\u{E009}h\u{E000}"),
+            Action::Wait(Check::Focused("find-query")),
+            Action::Choose("find-scope", "selection"),
+            Action::Choose("find-look", "formulas"),
+            Action::Click("find-whole"),
+            Action::Into("find-query", "SUM("),
+            Action::Into("replace-text", "AVERAGE("),
+            Action::Click("find-all"),
+            Action::Wait(Check::Count("find-hit", 2)),
+            Action::Click("replace-all"),
+            Action::Wait(Check::Text("find-message", "No matches")),
+            Action::Click("find-close"),
+        ],
+        checks: &[
+            Check::Text(cell!("B2"), "2"),
+            Check::Text(cell!("C2"), "2"),
+            Check::Text(cell!("D3"), "6"),
+        ],
+    },
+    Case {
+        name: "replace: one Undo restores every replacement and Redo restores the formulas",
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::Text(cell!("B2"), "6")),
+            Action::Wait(Check::Text(cell!("C2"), "6")),
+            Action::Click("redo"),
+        ],
+        checks: &[Check::Text(cell!("B2"), "2"), Check::Text(cell!("C2"), "2")],
+    },
+    Case {
+        name: "replace: edited formulas survive the application's saved package route",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::Wait(Check::Starts("status", "Download started: cut-base.xlsx.")),
+            Action::UploadDownload("cut-base.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "cut-base.xlsx")),
+            Action::Into("name-box", "B2\u{E007}"),
+        ],
+        checks: &[
+            Check::Value("[data-onecalc=formula]", "=AVERAGE(A1:A3)"),
+            Check::Text(cell!("B2"), "2"),
+            Check::Text(cell!("C2"), "2"),
+        ],
+    },
+    Case {
+        name: "local menu: Shift F10 exposes named commands with keyboard focus",
+        actions: &[
+            Action::Into("name-box", "A1:A3\u{E007}"),
+            Action::Keys("grid", "\u{E008}\u{E03A}\u{E000}"),
+        ],
+        checks: &[
+            Check::Role("context-menu", "menu"),
+            Check::Focused("context-copy"),
+            Check::Role("context-clear", "menuitem"),
+            Check::Reachable("context-menu"),
+        ],
+    },
+    Case {
+        name: "local menu: arrows move between enabled commands and Escape restores the grid",
+        actions: &[
+            Action::Wait(Check::Text("context-reason", "")),
+            Action::Keys("context-copy", "\u{E015}"),
+            Action::Wait(Check::Focused("context-cut")),
+            Action::Keys("context-cut", ESCAPE),
+        ],
+        checks: &[
+            Check::Absent("[data-dnacalc=context-menu][open]"),
+            Check::Focused("grid"),
+            Check::Attr("selection", "data-area", "A1:A3"),
+        ],
+    },
+    Case {
+        name: "local menu: a pointer menu inside a selected range keeps that range",
+        actions: &[Action::ContextClick(cell!("A2"), false)],
+        checks: &[
+            Check::Attr("selection", "data-area", "A1:A3"),
+            Check::Focused("context-copy"),
+            Check::Value("name-box", "A1"),
+        ],
+    },
+    Case {
+        name: "local menu: Clear uses the existing selected-range command and one Undo",
+        actions: &[
+            Action::Click("context-clear"),
+            Action::Wait(Check::Absent(cell!("A1"))),
+            Action::Wait(Check::Absent(cell!("A2"))),
+            Action::Click("undo"),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Text(cell!("A2"), "2"),
+            Check::Text(cell!("A3"), "3"),
+        ],
+    },
+    Case {
+        name: "local menu: right click outside the range makes the pointed cell active",
+        actions: &[Action::ContextClick(cell!("B1"), false)],
+        checks: &[
+            Check::Value("name-box", "B1"),
+            Check::TextContains("context-menu", "Data!B1"),
+        ],
+    },
+    Case {
+        name: "local menu: Shift right click preserves the browser command alternative",
+        actions: &[
+            Action::Keys("context-copy", ESCAPE),
+            Action::ContextClick(cell!("B1"), true),
+            Action::Keys("grid", ESCAPE),
+        ],
+        checks: &[
+            Check::Absent("[data-dnacalc=context-menu][open]"),
+            Check::Text(cell!("B1"), "10"),
+        ],
+    },
+    Case {
+        name: "find: the dialog and complete results remain reachable at phone width",
+        actions: &[
+            Action::Window(390, 844),
+            Action::Click("find-tools"),
+            Action::Choose("find-scope", "sheet"),
+            Action::Choose("find-look", "formulas"),
+            Action::Into("find-query", "AVERAGE"),
+            Action::Click("find-all"),
+        ],
+        checks: &[
+            Check::Narrow(390),
+            Check::Fits,
+            Check::Reachable("find-dialog"),
+            Check::Count("find-hit", 2),
+        ],
+    },
+    Case {
+        name: "find: phone Escape restores the workbook",
+        actions: &[
+            Action::Keys("find-query", ESCAPE),
+            Action::Window(1280, 1000),
+        ],
+        checks: &[Check::Focused("grid"), Check::Fits],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -6314,6 +6644,17 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 {"type":"pointerDown","button":0},{"type":"pointerUp","button":0},
                 {"type":"pointerDown","button":0},{"type":"pointerUp","button":0}
             ]}]}))?;
+            Ok(())
+        }
+        Action::ContextClick(name, shift) => {
+            let element = session.element(&select(app, name))?;
+            let mut actions = vec![
+                json!({"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":element},"x":0,"y":0},{"type":"pointerDown","button":2},{"type":"pointerUp","button":2}]}),
+            ];
+            if *shift {
+                actions.push(json!({"type":"key","id":"context-modifier","actions":[{"type":"keyDown","value":"\u{E008}"},{"type":"pause"},{"type":"pause"},{"type":"keyUp","value":"\u{E008}"}]}));
+            }
+            session.post("/actions", json!({"actions":actions}))?;
             Ok(())
         }
         Action::DoubleClick(name) => {
