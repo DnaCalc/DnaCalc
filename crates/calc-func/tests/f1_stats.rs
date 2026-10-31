@@ -185,6 +185,11 @@ fn distributions_match_excel_examples() {
     close(call("ERF", vec![n(0.0), n(1.0)]), 0.8427007929497149, 1e-14);
     // A cumulative flag is read as a number.
     error(call("NORM.S.DIST", vec![n(1.0), t("yes")]), Value);
+    // Recorded GAMMA controls distinguish the global Lanczos coefficient model.
+    exact(call("GAMMA", vec![n(f64::from_bits(0x4038_5a42_c006_98e1))]),
+        f64::from_bits(0x44b0_b505_e5e9_f3bd));
+    exact(call("GAMMA", vec![n(f64::from_bits(0x4005_90fe_1f15_0189))]),
+        f64::from_bits(0x3ff8_a1e7_f6b3_4d46));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
