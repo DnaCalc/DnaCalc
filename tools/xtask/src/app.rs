@@ -835,6 +835,9 @@ fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
             .and_then(Value::as_str)
             .map(str::to_owned),
     };
+    // Required controls may mount after a worker reply. Use the WebDriver lookup timeout;
+    // assertions retain their own settling deadline and still fail on missing controls.
+    session.post("/timeouts", json!({"implicit":1000}))?;
     Ok((driver, session))
 }
 
@@ -6401,6 +6404,228 @@ const CALC_CASES: &[Case] = &[
                 "atlas-agreement",
                 "Agreement with Excel has not been measured",
             ),
+        ],
+    },
+    Case {
+        name: "ledger: a mixed calculation/error/refusal list exposes primary fields and keyboard controls",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Click("skin-grid"),
+            Action::ExternalClipboard(
+                "=1/0\n=NoSheet!A1\n=3\n=4\n=5\n=6\n=7\n=8\n=9\n=10\n=11\n=12\n=13\n=14\n=15\n=16\n=17\n=18\n=19\n=20\n=21\n=22\n=23\n=24\n=25\n=26\n=27\n=28\n=29\n=30\n=31\n=32\n=33\n=34\n=35\n=36\n=37\n=38\n=39\n=40\n=41\n=42\n=43\n=44\n=45\n=46\n=47\n=48\n=49\n=50\n=51\n=52\n=53\n=54\n=55\n=56\n=57\n=58\n=59\n=60\n=61\n=62\n=63\n=64\n=65\n=66\n=67\n=68\n=69\n=70\n=71\n=72\n=73\n=74\n=75\n=76\n=77\n=78\n=79\n=80\n=81\n=82\n=83\n=84\n=85\n=86\n=87\n=88\n=89\n=90\n=91\n=92\n=93\n=94\n=95\n=96\n=97\n=98\n=99\n=100\n=101\n=102\n=103\n=104\n=105",
+                false,
+            ),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Wait(Check::Absent("[data-dnacalc=skin-ledger][disabled]")),
+            Action::Click("skin-ledger"),
+        ],
+        checks: &[
+            Check::Starts("ledger-count", "105 of 105 formula cells; page 1 of 2"),
+            Check::Text(
+                "ledger-population",
+                "105 formulas in this workbook · 105 in scope · 105 match the active filters",
+            ),
+            Check::Name("ledger-filter", "Formula filter"),
+            Check::Name("ledger-select", "Inspect Sheet1!A1"),
+            Check::Text(
+                "[data-dnacalc=ledger-row][data-cell='Sheet1!A1'] .dc-chip",
+                "calculated error",
+            ),
+            Check::TextContains(
+                "[data-dnacalc=ledger-row][data-cell='Sheet1!A1'] [data-dnacalc=ledger-reason]",
+                "division by zero",
+            ),
+            Check::TextContains(
+                "[data-dnacalc=ledger-row][data-cell='Sheet1!A2'] [data-dnacalc=ledger-reason]",
+                "NoSheet",
+            ),
+            Check::Absent("[data-dnacalc=ledger-details][open]"),
+        ],
+    },
+    Case {
+        name: "ledger: full details on a different row keep their disclosure and keyboard focus",
+        actions: &[Action::Keys(
+            "[data-dnacalc=ledger-row][data-cell='Sheet1!A2'] summary",
+            "\u{E007}",
+        )],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=ledger-row][data-cell='Sheet1!A2'] [data-dnacalc=ledger-details]",
+                "open",
+                "",
+            ),
+            Check::Value("name-box", "A1"),
+            Check::Value(BAR, "=1/0"),
+            Check::Focused("[data-dnacalc=ledger-row][data-cell='Sheet1!A2'] summary"),
+        ],
+    },
+    Case {
+        name: "ledger: inspecting the already-active row still permits the next page",
+        actions: &[
+            Action::Keys("ledger-select", "\u{E007}"),
+            Action::Wait(Check::Absent("[data-dnacalc=ledger-next][disabled]")),
+            Action::Keys("ledger-next", "\u{E007}"),
+            Action::Wait(Check::Count("ledger-row", 5)),
+            Action::Keys("ledger-previous", "\u{E007}"),
+        ],
+        checks: &[
+            Check::Count("ledger-row", 100),
+            Check::Starts("ledger-count", "105 of 105 formula cells; page 1 of 2"),
+        ],
+    },
+    Case {
+        name: "ledger: keyboard paging reaches every remaining formula and selects its actual source",
+        actions: &[
+            Action::Keys("ledger-next", "\u{E007}"),
+            Action::Wait(Check::Count("ledger-row", 5)),
+            Action::Keys("ledger-select", "\u{E007}"),
+        ],
+        checks: &[
+            Check::Starts("ledger-count", "105 of 105 formula cells; page 2 of 2"),
+            Check::Value(BAR, "=101"),
+            Check::Attr(
+                "[data-dnacalc=ledger-row][data-cell='Sheet1!A101']",
+                "data-active",
+                "true",
+            ),
+        ],
+    },
+    Case {
+        name: "ledger: source recovery opens Grid at the current row",
+        actions: &[Action::Keys("ledger-open-grid", "\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "A101"),
+            Check::Value(BAR, "=101"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "ledger: returning preserves the page and reveals the active row",
+        actions: &[Action::Click("skin-ledger")],
+        checks: &[
+            Check::Starts("ledger-count", "105 of 105 formula cells; page 2 of 2"),
+            Check::Count("ledger-row", 5),
+            Check::Focused(
+                "[data-dnacalc=ledger-row][data-cell='Sheet1!A101'] [data-dnacalc=ledger-select]",
+            ),
+        ],
+    },
+    Case {
+        name: "ledger: name-box navigation reveals an active row on another page",
+        actions: &[Action::Into("name-box", "A1\u{E007}")],
+        checks: &[
+            Check::Starts("ledger-count", "105 of 105 formula cells; page 1 of 2"),
+            Check::Focused(
+                "[data-dnacalc=ledger-row][data-cell='Sheet1!A1'] [data-dnacalc=ledger-select]",
+            ),
+        ],
+    },
+    Case {
+        name: "ledger: a refused row keeps its reason and opens the same source in Canvas",
+        actions: &[
+            Action::Choose("ledger-filter", "refused"),
+            Action::Wait(Check::Count("ledger-row", 1)),
+            Action::Keys("ledger-open-canvas", "\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("canvas-cell", "Sheet1!A2"),
+            Check::Text("result-state", "Refused"),
+            Check::Focused("canvas"),
+        ],
+    },
+    Case {
+        name: "ledger: refusal filters persist after Canvas inspection",
+        actions: &[Action::Click("skin-ledger")],
+        checks: &[
+            Check::Value("ledger-filter", "refused"),
+            Check::Starts("ledger-count", "1 of 105 formula cells"),
+            Check::TextContains("ledger-reason", "NoSheet"),
+        ],
+    },
+    Case {
+        name: "ledger: scope, text, sort and grouping expose active-filter and workbook populations",
+        actions: &[
+            Action::Choose("ledger-filter", "text"),
+            Action::Into("ledger-text", "=10"),
+            Action::Choose("ledger-sort", "address-desc"),
+            Action::Choose("ledger-scope", "sheet"),
+            Action::Click("ledger-group-toggle"),
+        ],
+        checks: &[
+            Check::Starts("ledger-count", "7 of 105 formula cells"),
+            Check::TextContains("ledger-population", "105 in scope · 7 match"),
+            Check::Count("ledger-group", 1),
+            Check::Attr("ledger-row", "data-cell", "Sheet1!A105"),
+        ],
+    },
+    Case {
+        name: "ledger: all audit controls survive a source round trip",
+        actions: &[
+            Action::Click("ledger-open-grid"),
+            Action::Click("skin-ledger"),
+        ],
+        checks: &[
+            Check::Value("ledger-filter", "text"),
+            Check::Value("ledger-text", "=10"),
+            Check::Value("ledger-sort", "address-desc"),
+            Check::Value("ledger-scope", "sheet"),
+            Check::Count("ledger-group", 1),
+            Check::Attr(
+                "[data-dnacalc=ledger-row][data-cell='Sheet1!A105']",
+                "data-active",
+                "true",
+            ),
+        ],
+    },
+    Case {
+        name: "ledger: phone scrolling retains an address and visible population controls",
+        actions: &[
+            Action::Click("ledger-clear-filter"),
+            Action::Window(390, 844),
+        ],
+        checks: &[
+            Check::Fits,
+            Check::Narrow(390),
+            Check::Role("ledger-table", "region"),
+            Check::TextContains("ledger-population", "105 match the active filters"),
+            Check::Name("ledger-open-grid", "Open Sheet1!A105 in Grid"),
+        ],
+    },
+    Case {
+        name: "ledger: cached manual values have an explicit provenance reason",
+        actions: &[
+            Action::Window(1280, 1000),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Click("skin-grid"),
+            Action::Into(BAR, "=2+3\u{E007}"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::ManualDownloadFixture,
+            Action::UploadDownload("manual-cache.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("skin-ledger"),
+            Action::Choose("ledger-filter", "file-cache"),
+        ],
+        checks: &[
+            Check::Text("ledger-value", "5"),
+            Check::TextContains("ledger-reason", "not calculated by DNA Calc"),
+            Check::Attr("ledger-row", "data-provenance", "file-cache"),
+        ],
+    },
+    Case {
+        name: "ledger: stale recovery exposes the old value and recalculation reason",
+        actions: &[
+            Action::Click("ledger-open-grid"),
+            Action::Into(BAR, "=3+4\u{E007}"),
+            Action::Click("skin-ledger"),
+            Action::Choose("ledger-filter", "stale"),
+        ],
+        checks: &[
+            Check::Text("ledger-value", "5"),
+            Check::TextContains("ledger-reason", "awaiting recalculation"),
+            Check::Attr("ledger-row", "data-provenance", "stale"),
         ],
     },
 ];

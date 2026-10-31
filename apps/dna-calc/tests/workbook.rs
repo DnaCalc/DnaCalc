@@ -2092,3 +2092,64 @@ fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_message
         (1, 0, 92)
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_12__ledger_reasons_population_and_active_pages_use_the_existing_projection() {
+    use dna_calc::ledger::view_model;
+    let mut book = Workbook::new_blank();
+    let sh = book.sheets()[0].id;
+    let cell = |r| CellKey::new(sh, r, 1).unwrap();
+    for row in 1..=205 {
+        let formula = match row {
+            1 => "=1/0".into(),
+            2 => "=NoSheet!A1".into(),
+            _ => format!("={row}"),
+        };
+        assert!(book.enter(cell(row), &formula).accepted());
+    }
+    let first = view_model(&book, None, "", "", "", 0, Some(cell(205)));
+    assert_eq!(
+        (
+            first.whole,
+            first.keys,
+            first.rows,
+            first.page.len(),
+            first.active_page
+        ),
+        (205, 205, 205, 100, Some(2))
+    );
+    assert!(first.page[0].error);
+    assert_eq!(first.page[0].provenance, Provenance::Calculated);
+    assert!(first.page[0].reason.contains("division by zero"));
+    assert_eq!(first.page[1].provenance, Provenance::Refused);
+    assert!(first.page[1].reason.contains("NoSheet"));
+    let last = view_model(&book, None, "", "", "", usize::MAX, Some(cell(205)));
+    assert_eq!((last.page_index, last.page.len()), (2, 5));
+    assert_eq!(last.page.last().unwrap().at.cell(), Some(cell(205)));
+    let refused = view_model(&book, None, "refused", "", "", 0, Some(cell(205)));
+    assert_eq!(
+        (refused.rows, refused.whole, refused.active_page),
+        (1, 205, None)
+    );
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
+            .accepted()
+    );
+    assert!(book.enter(cell(3), "=300").accepted());
+    let stale = view_model(&book, None, "stale", "", "", 0, Some(cell(3)));
+    assert_eq!(stale.rows, 1);
+    assert_eq!(stale.page[0].value, "3");
+    assert!(stale.page[0].reason.contains("awaiting recalculation"));
+    let imported = Workbook::open("d1.saved.xlsx", fixture()).unwrap();
+    let scoped = view_model(
+        &imported,
+        Some(sheet(&imported, "Calc")),
+        "",
+        "",
+        "",
+        0,
+        None,
+    );
+    assert_eq!((scoped.whole, scoped.keys), (19, 18));
+}

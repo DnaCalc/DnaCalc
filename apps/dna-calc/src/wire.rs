@@ -591,6 +591,9 @@ pub enum Reply {
 /// and the page's rows.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Ledger {
+    pub whole: u64,
+    pub page_index: u64,
+    pub active_page: Option<u64>,
     pub keys: u64,
     pub rows: u64,
     pub page: Vec<LedgerRow>,
@@ -599,6 +602,8 @@ pub struct Ledger {
 /// One formula cell as the ledger's row shows it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LedgerRow {
+    pub reason: String,
+    pub error: bool,
     pub at: Key,
     pub label: String,
     pub formula: String,

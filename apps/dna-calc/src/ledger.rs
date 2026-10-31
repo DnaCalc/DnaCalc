@@ -48,7 +48,7 @@ impl Skin for LedgerSkin {
     }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        ledger_view(ctx.controller).into_any()
+        ledger_view(ctx.controller, ctx.active_skin).into_any()
     }
 }
 
@@ -66,6 +66,45 @@ pub struct Entry {
     pub number: Option<f64>,
     pub error: bool,
     pub provenance: Provenance,
+}
+
+/// Page-owned controls that survive skin changes; a new workbook resets them.
+#[derive(Clone, Copy)]
+pub struct ViewState {
+    filter: RwSignal<String>,
+    text: RwSignal<String>,
+    sort: RwSignal<String>,
+    grouped: RwSignal<bool>,
+    this_sheet: RwSignal<bool>,
+    page: RwSignal<usize>,
+}
+impl ViewState {
+    pub fn new() -> Self {
+        Self {
+            filter: RwSignal::new(String::new()),
+            text: RwSignal::new(String::new()),
+            sort: RwSignal::new(String::new()),
+            grouped: RwSignal::new(false),
+            this_sheet: RwSignal::new(false),
+            page: RwSignal::new(0),
+        }
+    }
+    pub fn reset(self) {
+        self.filter.set(String::new());
+        self.text.set(String::new());
+        self.sort.set(String::new());
+        self.grouped.set(false);
+        self.this_sheet.set(false);
+        self.page.set(0);
+    }
+}
+fn short_reason(reason: &str) -> String {
+    let mut chars = reason.chars();
+    let mut short: String = chars.by_ref().take(120).collect();
+    if chars.next().is_some() {
+        short.push('…');
+    }
+    short
 }
 
 /// Which formula cells the ledger keeps.
@@ -249,23 +288,15 @@ pub fn view_model(
 ) -> wire::Ledger {
     let host = book.host();
     let mut keys: Vec<CellKey> = Vec::new();
+    let mut whole = 0u64;
     for tab in book.sheets() {
+        let sheet_keys = host.formula_cells(tab.id);
+        whole += sheet_keys.len() as u64;
         if sheet.is_none_or(|only| only == tab.id) {
-            keys.extend(host.formula_cells(tab.id));
+            keys.extend(sheet_keys);
         }
     }
-    let names: std::collections::BTreeMap<_, _> = book
-        .sheets()
-        .into_iter()
-        .map(|tab| (tab.id, tab.name))
-        .collect();
-    let label = |at: CellKey| {
-        format!(
-            "{}!{}",
-            names.get(&at.sheet()).cloned().unwrap_or_default(),
-            cells::address(at.row(), at.column())
-        )
-    };
+    let label = |at| cells::cell_label(host, at);
     let filter = filter_for_choice(filter_choice, text);
     let sort = sort_for_choice(sort_choice);
     let readers: BTreeSet<CellKey> = match (&filter, active) {
@@ -282,6 +313,10 @@ pub fn view_model(
     } else {
         key_rows(&keys, &filter, sort, &readers)
     };
+    let active_page = active
+        .and_then(|active| rows.iter().position(|i| keys[*i] == active))
+        .map(|i| (i / PAGE) as u64);
+    let page = page.min(rows.len().saturating_sub(1) / PAGE);
     let chosen: Vec<CellKey> = rows
         .iter()
         .skip(page * PAGE)
@@ -294,7 +329,15 @@ pub fn view_model(
         .map(|cell| {
             let entry = entry(cell, label(cell.at()));
             let at = entry.at;
+            let reason = match cells::error_meaning(cell) {
+                Some(meaning) if entry.provenance == Provenance::Calculated => {
+                    format!("Calculated worksheet error: {meaning}")
+                }
+                _ => cells::provenance_text(host, cell),
+            };
             wire::LedgerRow {
+                reason,
+                error: entry.error,
                 at: wire::Key::of(at),
                 label: entry.label,
                 formula: entry.formula,
@@ -307,77 +350,148 @@ pub fn view_model(
         })
         .collect();
     wire::Ledger {
+        whole,
+        page_index: page as u64,
+        active_page,
         keys: keys.len() as u64,
         rows: rows.len() as u64,
         page: shown,
     }
 }
 
-fn ledger_view(controller: Controller) -> impl IntoView {
-    let filter_choice = RwSignal::new(String::new());
-    let text = RwSignal::new(String::new());
-    let sort_choice = RwSignal::new(String::new());
-    let grouped = RwSignal::new(false);
-    let this_sheet = RwSignal::new(false);
-    let page = RwSignal::new(0usize);
-    // A new filter, sort or scope starts at the first page.
+fn ledger_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> impl IntoView {
+    let state = controller.ledger;
+    let filter_choice = state.filter;
+    let text = state.text;
+    let sort_choice = state.sort;
+    let grouped = state.grouped;
+    let this_sheet = state.this_sheet;
+    let page = state.page;
+    let previous = StoredValue::new((
+        filter_choice.get_untracked(),
+        text.get_untracked(),
+        sort_choice.get_untracked(),
+        this_sheet.get_untracked(),
+    ));
     Effect::new(move |_| {
-        filter_choice.track();
-        text.track();
-        sort_choice.track();
-        this_sheet.track();
-        page.set(0);
+        let next = (
+            filter_choice.get(),
+            text.get(),
+            sort_choice.get(),
+            this_sheet.get(),
+        );
+        if previous.get_value() != next {
+            previous.set_value(next);
+            page.set(0);
+        }
     });
-    let ledger: RwSignal<wire::Ledger> = RwSignal::new(wire::Ledger::default());
+    let ledger = RwSignal::new(wire::Ledger::default());
+    let failure = RwSignal::new(String::new());
+    let loading = RwSignal::new(true);
+    let available = RwSignal::new(false);
+    let epoch = StoredValue::new(0u64);
+    let reveal = StoredValue::new(true);
+    let refresh = RwSignal::new(0u64);
+    let last_active = StoredValue::new(controller.active_key_untracked());
     Effect::new(move |_| {
-        controller.revision.track();
+        let revision = controller.revision.get();
+        let generation = controller.generation.get();
+        refresh.track();
         let sheet = this_sheet
             .get()
             .then(|| controller.sheet.get())
             .flatten()
             .map(wire::Sheet::of);
-        let filter = filter_choice.get();
-        let active = if filter == "reads-active" {
-            controller.active_key().map(wire::Key::of)
-        } else {
-            None
-        };
+        let active = controller.active_key();
+        if last_active.get_value() != active {
+            last_active.set_value(active);
+            reveal.set_value(true);
+        }
         let request = wire::Request::Ledger {
             sheet,
-            filter,
+            filter: filter_choice.get(),
             text: text.get(),
             sort: sort_choice.get(),
             page: page.get() as u64,
-            active,
+            active: active.map(wire::Key::of),
         };
-        controller.ask(request, move |reply| {
-            if let wire::Reply::Ledger(found) = reply {
-                ledger.try_set(found);
+        epoch.update_value(|n| *n += 1);
+        let asked = epoch.get_value();
+        loading.set(true);
+        available.set(false);
+        failure.set(String::new());
+        controller.ask_result(request,move |reply| {
+            if epoch.try_get_value()!=Some(asked)||controller.revision.try_get_untracked()!=Some(revision)||controller.generation.try_get_untracked()!=Some(generation){return;}
+            match reply {
+                Ok(wire::Reply::Ledger(found))=>{
+                    if reveal.get_value() {
+                        if let Some(active)=found.active_page {if active!=found.page_index {page.set(active as usize);return;}}
+                        reveal.set_value(false);
+                        if found.active_page.is_none(){failure.set(if found.whole==0 {"No formulas yet. Enter a formula in Grid or open a workbook."}else if found.rows==0 {"No formulas match these filters. Clear filters to see the full list."}else{"The active cell is outside the current formula list or filters."}.into());}
+                        #[cfg(target_arch="wasm32")]
+                        set_timeout(move ||crate::app::focus("[data-dnacalc=ledger-row][data-active=true] [data-dnacalc=ledger-select]"),std::time::Duration::from_millis(20));
+                    }
+                    if found.page_index!=page.get_untracked() as u64 {page.set(found.page_index as usize);}
+                    ledger.try_set(found);available.try_set(true);loading.try_set(false);
+                },
+                Err(error)=>{failure.try_set(format!("Formula list unavailable: {error}"));loading.try_set(false);},
+                _=>{}
             }
         });
     });
     let pages = move || ledger.with(|l| (l.rows as usize).div_ceil(PAGE).max(1));
-
+    let open_source = move |at, skin: &'static str| {
+        controller.navigate_to(at, move |ok| {
+            if ok {
+                active_skin.set(Some(skin.into()));
+                #[cfg(target_arch = "wasm32")]
+                set_timeout(
+                    move || {
+                        crate::app::focus(if skin == "canvas" {
+                            "[data-dnacalc=canvas]"
+                        } else {
+                            "[data-dnacalc=grid]"
+                        })
+                    },
+                    std::time::Duration::from_millis(20),
+                );
+            }
+        })
+    };
     let row_view = move |row: wire::LedgerRow| {
         let Some(at) = row.at.cell() else {
             return ().into_any();
         };
         let active = move || controller.active_key() == Some(at);
-        view! {
-            <tr data-dnacalc="ledger-row" data-cell=row.label.clone() data-provenance=row.provenance.name()
-                data-active=move || active().to_string() on:click=move |_| controller.go_to(at)>
-                <td class="dc-mono">{row.label.clone()}</td>
-                <td class="dc-mono">{row.formula.clone()}</td>
-                <td class="dc-mono" data-dnacalc="ledger-value">{row.value.clone()}</td>
-                <td><span class="dc-chip" data-provenance=row.provenance.name()>{row.provenance.name()}</span></td>
-                <td class="dc-mono">{row.format.clone()}</td>
-                <td>{row.reads}</td>
-                <td>{row.read_by}</td>
-            </tr>
-        }
-        .into_any()
+        let hidden = controller
+            .summary
+            .with(|s| !s.sheets.iter().any(|(s, _)| s.id() == at.sheet()));
+        let note = if hidden {
+            format!(
+                "{} Hidden sheet: unhide it in Sheet tools to navigate.",
+                row.reason
+            )
+        } else {
+            row.reason
+        };
+        let concise = (hidden || row.provenance != Provenance::Calculated || row.error)
+            .then(|| short_reason(&note));
+        let select_name = format!("Inspect {}", row.label);
+        let grid_name = format!("Open {} in Grid", row.label);
+        let canvas_name = format!("Open {} in Canvas", row.label);
+        view!{<tr data-dnacalc="ledger-row" data-cell=row.label.clone() data-provenance=row.provenance.name() data-active=move ||active().to_string() on:click=move |_|if !hidden&&!loading.get_untracked(){controller.go_to(at);}>
+            <td class="dc-mono"><button data-dnacalc="ledger-select" aria-label=select_name aria-current=move ||active().to_string() disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();controller.navigate_to(at,move |ok|{if ok&&reveal.try_update_value(|v|*v=true).is_some(){refresh.try_update(|n|*n+=1);}});}>{row.label.clone()}</button></td>
+            <td class="dc-mono dc-ledger-formula">{row.formula}</td><td class="dc-mono" data-dnacalc="ledger-value">{row.value}</td>
+            <td><span class="dc-chip" data-provenance=row.provenance.name()>{if row.error&&row.provenance==Provenance::Calculated{"calculated error"}else{row.provenance.name()}}</span>{concise.map(|note|view!{<p class="dc-ledger-reason" data-dnacalc="ledger-reason">{note}</p>})}</td>
+            <td class="dc-ledger-actions"><button data-dnacalc="ledger-open-grid" aria-label=grid_name disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();open_source(at,"grid");}>"Grid"</button><button data-dnacalc="ledger-open-canvas" aria-label=canvas_name disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();open_source(at,"canvas");}>"Canvas"</button>
+                <details data-dnacalc="ledger-details" on:click=move |ev|ev.stop_propagation()><summary>"Details"</summary><p>{note}</p><dl><dt>"Number format"</dt><dd>{row.format}</dd><dt>"Read areas"</dt><dd>{row.reads}</dd><dt>"Dependent cells"</dt><dd>{row.read_by}</dd></dl></details>
+            </td>
+        </tr>}.into_any()
     };
     let body = move || {
+        if !available.get() {
+            return ().into_any();
+        }
         let shown = ledger.with(|l| l.page.clone());
         if !grouped.get() {
             return shown.into_iter().map(row_view).collect_view().into_any();
@@ -396,7 +510,7 @@ fn ledger_view(controller: Controller) -> impl IntoView {
                 let count = members.len();
                 view! {
                     <tr class="dc-group" data-dnacalc="ledger-group" data-provenance=provenance.name()>
-                        <td colspan="7">{format!("{} ({count})", provenance.name())}</td>
+                        <td colspan="5">{format!("{} ({count})", provenance.name())}</td>
                     </tr>
                     {members.into_iter().map(row_view).collect_view()}
                 }
@@ -408,11 +522,11 @@ fn ledger_view(controller: Controller) -> impl IntoView {
     view! {
         <section class="dc-ledger" data-skin="ledger" data-dnacalc="ledger">
             <div class="dc-cleave">
-                <select data-dnacalc="ledger-scope" aria-label="Formula scope" on:change=move |ev| this_sheet.set(event_target_value(&ev) == "sheet")>
+                <select prop:value={move ||if this_sheet.get(){"sheet"}else{"workbook"}} data-dnacalc="ledger-scope" aria-label="Formula scope" on:change=move |ev| this_sheet.set(event_target_value(&ev) == "sheet")>
                     <option value="workbook">"Workbook"</option>
                     <option value="sheet">"This sheet"</option>
                 </select>
-                <select data-dnacalc="ledger-filter" aria-label="Formula filter" on:change=move |ev| filter_choice.set(event_target_value(&ev))>
+                <select prop:value=move ||filter_choice.get() data-dnacalc="ledger-filter" aria-label="Formula filter" on:change=move |ev| filter_choice.set(event_target_value(&ev))>
                     <option value="">"Every formula cell"</option>
                     <option value="errors">"Errors"</option>
                     <option value="calculated">"Calculated"</option>
@@ -424,30 +538,33 @@ fn ledger_view(controller: Controller) -> impl IntoView {
                 </select>
                 <input type="text" data-dnacalc="ledger-text" aria-label="Filter formula text" placeholder="text" spellcheck="false"
                     prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
-                <select data-dnacalc="ledger-sort" aria-label="Formula sort" on:change=move |ev| sort_choice.set(event_target_value(&ev))>
+                <select prop:value=move ||sort_choice.get() data-dnacalc="ledger-sort" aria-label="Formula sort" on:change=move |ev| sort_choice.set(event_target_value(&ev))>
                     <option value="">"By address"</option>
                     <option value="address-desc">"By address, last first"</option>
                     <option value="value-asc">"By value, smallest first"</option>
                     <option value="value-desc">"By value, largest first"</option>
                 </select>
-                <label><input type="checkbox" data-dnacalc="ledger-group-toggle"
+                <label><input type="checkbox" data-dnacalc="ledger-group-toggle" prop:checked=move ||grouped.get()
                     on:change=move |ev| grouped.set(event_target_checked(&ev)) />" Group by provenance"</label>
-                <button type="button" data-dnacalc="ledger-previous"
+                <button type="button" data-dnacalc="ledger-previous" disabled=move ||loading.get()||!available.get()||page.get()==0
                     on:click=move |_| page.update(|p| *p = p.saturating_sub(1))>"Previous"</button>
                 <span data-dnacalc="ledger-count">
-                    {move || format!("{} of {} formula cells; page {} of {}",
-                        ledger.with(|l| l.rows), ledger.with(|l| l.keys), page.get() + 1, pages())}
+                    {move || if !available.get(){if loading.get(){"Loading formula list…".into()}else{"Formula counts unavailable".into()}}else{format!("{} of {} formula cells; page {} of {}",
+                        ledger.with(|l| l.rows), ledger.with(|l| l.keys), page.get() + 1, pages())}}
                 </span>
-                <button type="button" data-dnacalc="ledger-next"
+                <button type="button" data-dnacalc="ledger-next" disabled={move ||loading.get()||!available.get()||page.get()+1>=pages()}
                     on:click=move |_| page.update(|p| if *p + 1 < pages() { *p += 1 })>"Next"</button>
             </div>
-            <table>
+            <p class="dc-ledger-population" data-dnacalc="ledger-population">{move ||if !available.get(){if loading.get(){"Loading formula population…".into()}else{"Formula counts unavailable".into()}}else{format!("{} formulas in this workbook · {} in scope · {} match the active filters",ledger.with(|l|l.whole),ledger.with(|l|l.keys),ledger.with(|l|l.rows))}}</p>
+            <p role="status" data-dnacalc="ledger-status">{move ||failure.get()}</p>
+            <div class="dc-ledger-recovery"><button data-dnacalc="ledger-show-active" on:click=move |_|{reveal.set_value(true);refresh.update(|n|*n+=1);}>"Show active cell"</button><button data-dnacalc="ledger-clear-filter" on:click=move |_|batch(||{filter_choice.set(String::new());text.set(String::new());this_sheet.set(false);page.set(0);})>"Clear filters"</button></div>
+            <div class="dc-ledger-table" data-dnacalc="ledger-table" tabindex="0" role="region" aria-label="Formula audit rows; scroll horizontally for source and recovery actions"><table>
                 <thead>
                     <tr><th>"Cell"</th><th>"Formula"</th><th>"Value"</th><th>"Provenance"</th>
-                        <th>"Format"</th><th>"Reads"</th><th>"Read by"</th></tr>
+                        <th>"Recovery & details"</th></tr>
                 </thead>
                 <tbody>{body}</tbody>
-            </table>
+            </table></div>
         </section>
     }
 }
@@ -569,6 +686,24 @@ mod tests {
                 (Provenance::Calculated, vec![0, 1]),
                 (Provenance::Refused, vec![2]),
             ]
+        );
+    }
+}
+
+#[cfg(test)]
+mod concise_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn concise_reasons_keep_unicode_and_leave_the_full_detail_unchanged() {
+        let text = "é".repeat(125);
+        let short = short_reason(&text);
+        assert_eq!(short.chars().count(), 121);
+        assert!(short.ends_with('…'));
+        assert_eq!(text.chars().count(), 125);
+        assert_eq!(
+            short_reason("awaiting recalculation"),
+            "awaiting recalculation"
         );
     }
 }
