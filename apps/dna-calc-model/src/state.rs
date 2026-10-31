@@ -52,14 +52,33 @@ impl SelectionState {
 /// Registered surfaces share one target, draft and cancel/commit boundary.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EditSession {
+    /// Changes on a new session, retaining identity across surface transfers and completion.
+    pub id: u64,
     pub surface: Option<SurfaceId>,
     pub target: Option<CellKey>,
     pub original: String,
     pub draft: String,
+    pub caret: Option<TextSelection>,
     pub areas: Vec<GridArea>,
     pub point_mode: bool,
     pub pointed: Option<PointPick>,
     pub pointed_text: String,
+}
+/// UTF-16 offsets, matching the shared formula editor's text operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TextSelection {
+    pub start: usize,
+    pub end: usize,
+    pub backward: bool,
+}
+impl TextSelection {
+    pub fn bounded(self, len: usize) -> Self {
+        Self {
+            start: self.start.min(len),
+            end: self.end.min(len).max(self.start.min(len)),
+            backward: self.backward,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PointPick {
@@ -82,18 +101,37 @@ impl EditSession {
             self.surface = Some(surface);
             return;
         }
+        self.id = self
+            .id
+            .checked_add(1)
+            .expect("edit session identity exhausted");
         self.point_mode = seed.is_some();
         self.draft = seed.unwrap_or_else(|| original.clone());
         self.original = original;
         self.target = Some(target);
         self.areas = areas;
         self.pointed = None;
+        let end = self.draft.encode_utf16().count();
+        self.caret = Some(TextSelection {
+            start: end,
+            end,
+            backward: false,
+        });
         self.surface = Some(surface);
+    }
+    /// A transfer changes only the registered surface, retaining the original target and draft.
+    pub fn transfer(&mut self, surface: SurfaceId) -> bool {
+        if self.surface.is_none() || self.surface == Some(surface) {
+            return false;
+        }
+        self.surface = Some(surface);
+        true
     }
     pub fn finish(&mut self) {
         self.surface = None;
         self.target = None;
         self.pointed = None;
+        self.caret = None;
     }
 }
 

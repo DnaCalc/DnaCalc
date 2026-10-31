@@ -23,9 +23,16 @@
 //!   schema. The model retains it across mounts and resets it on workbook replacement.
 //! - Submit `dna_calc_model::Command` for common actions and `Controller::reveal` for source
 //!   navigation. The shell supplies Undo/Redo, Find/Replace/Go to and F9 to every mounted skin.
-//! - Reuse existing projections through the controller. Additional projection families, browser
-//!   input registration and automatic stylesheet inclusion remain U1 work; a new stylesheet
-//!   still needs an entry in the existing bundle list.
+//! - For a shared formula editor, call `Controller::register_editor_surface` with an open
+//!   `SurfaceDescriptor` and its `FormulaAssist`. Declare whether later keys retain the target,
+//!   follow the active selection, or continue through the skin's navigation surface.
+//!   The browser adapter binds each mount and queues its input without Grid or formula-bar DOM
+//!   markers. Give simultaneously mounted logical editors distinct surface ids. Native controls
+//!   retain their own keys.
+//! - Declare the navigation surface's clipboard ownership and optional input target when it
+//!   differs from the readiness-aware focus target. The model stores those surface roles.
+//! - Reuse existing projections through the controller. Scoped CSS under `web/css` is included
+//!   automatically. New projection families and the protocol/transport split remain U1 work.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-shell/src/stage.rs` (`StageId`,
 //! `StageSurface`, `StageRegistry`, `StageResolution`, `resolve_active_stage`, `switch_stage`,
@@ -49,6 +56,10 @@ pub struct SkinContext {
 pub trait Skin: Send + Sync + 'static {
     fn id(&self) -> SkinId;
     fn title(&self) -> &'static str;
+    /// Input surface while worker-backed content is still mounting. Defaults to the focus target.
+    fn input_target(&self) -> &'static str { self.focus_target() }
+    /// Clipboard routing for this skin's navigation surface; registered editors retain native text.
+    fn clipboard_owner(&self) -> dna_calc_model::ClipboardOwner { dna_calc_model::ClipboardOwner::Native }
     /// A focusable surface belonging to this skin. The shell owns focus timing.
     fn focus_target(&self) -> &'static str { "#dc-workspace" }
     /// The skin's view over the workbook. It is dropped when another skin is shown, so a skin

@@ -64,16 +64,90 @@ impl ViewStateStore {
     }
 }
 
+/// How a mounted surface routes input. DOM elements belong to its browser adapter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SurfaceRole {
+    Navigation { skin: SkinId },
+    Editor { continuation: EditorContinuation },
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditorContinuation {
+    SameTarget,
+    Selection,
+    Navigation(SkinId),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClipboardOwner {
+    Native,
+    Workbook,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SurfaceDescriptor {
+    pub id: SurfaceId,
+    pub role: SurfaceRole,
+    pub clipboard: ClipboardOwner,
+}
+impl SurfaceDescriptor {
+    pub const fn editor(id: SurfaceId) -> Self {
+        Self {
+            id,
+            role: SurfaceRole::Editor {
+                continuation: EditorContinuation::SameTarget,
+            },
+            clipboard: ClipboardOwner::Native,
+        }
+    }
+    /// Overlay editors return subsequent queued keys to their skin after a commit closes them.
+    pub const fn editor_with_navigation(id: SurfaceId, skin: SkinId) -> Self {
+        Self {
+            id,
+            role: SurfaceRole::Editor {
+                continuation: EditorContinuation::Navigation(skin),
+            },
+            clipboard: ClipboardOwner::Native,
+        }
+    }
+    pub const fn selection_editor(id: SurfaceId) -> Self {
+        Self {
+            id,
+            role: SurfaceRole::Editor {
+                continuation: EditorContinuation::Selection,
+            },
+            clipboard: ClipboardOwner::Native,
+        }
+    }
+    pub const fn navigation(skin: SkinId, clipboard: ClipboardOwner) -> Self {
+        Self {
+            id: SurfaceId::navigation(skin),
+            role: SurfaceRole::Navigation { skin },
+            clipboard,
+        }
+    }
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FocusRegistry {
-    surfaces: BTreeSet<SurfaceId>,
+    surfaces: BTreeMap<SurfaceId, SurfaceDescriptor>,
 }
 impl FocusRegistry {
-    pub fn register(&mut self, id: SurfaceId) {
-        self.surfaces.insert(id);
+    pub fn register(&mut self, id: SurfaceId) -> bool {
+        if self.contains(id) {
+            false
+        } else {
+            self.register_surface(SurfaceDescriptor::editor(id))
+        }
+    }
+    pub fn register_surface(&mut self, descriptor: SurfaceDescriptor) -> bool {
+        if self.surfaces.get(&descriptor.id) == Some(&descriptor) {
+            return false;
+        }
+        self.surfaces.insert(descriptor.id, descriptor);
+        true
     }
     pub fn contains(&self, id: SurfaceId) -> bool {
-        self.surfaces.contains(&id)
+        self.surfaces.contains_key(&id)
+    }
+    pub fn surface(&self, id: SurfaceId) -> Option<SurfaceDescriptor> {
+        self.surfaces.get(&id).copied()
     }
 }
 

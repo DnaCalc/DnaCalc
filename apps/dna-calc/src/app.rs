@@ -19,7 +19,7 @@ use crate::atlas::AtlasSkin;
 use crate::canvas::CanvasSkin;
 use crate::cells;
 use crate::controller::{Controller, EditOrigin};
-use crate::grid::{self, GridSkin};
+use crate::grid::GridSkin;
 use crate::ledger::LedgerSkin;
 use crate::notebook::NotebookSkin;
 use crate::skin::{SkinContext, SkinRegistry, SkinResolution, resolve_active_skin, switch_skin};
@@ -207,7 +207,7 @@ pub fn app() -> impl IntoView {
             let (row, col) = controller.active.get_untracked();
             name_box.set(cells::address(row, col));
             if accepted {
-                grid::focus_grid();
+                controller.focus_active_skin();
             }
         })
     };
@@ -257,7 +257,6 @@ pub fn app() -> impl IntoView {
                         aria-pressed=pressed
                         title=format!("{title} (Alt+{slot})")
                         on:click=move |_| {
-                            controller.carry_edit_to_bar();
                             switch_skin(controller, &registry, slot);
                         }
                     >
@@ -284,7 +283,7 @@ pub fn app() -> impl IntoView {
     };
     let registry_for_keys = registry.clone();
     let on_app_key = move |ev: leptos::ev::KeyboardEvent| {
-        if ev.is_composing() || assist.composing.get_untracked() {
+        if ev.is_composing() || ev.key_code() == 229 || assist.composing.get_untracked() {
             return;
         }
         if ev.default_prevented() { return; }
@@ -306,7 +305,7 @@ pub fn app() -> impl IntoView {
             let selectors = [
                 "[data-dnacalc=new]",
                 "[data-onecalc=formula]",
-                "[data-dnacalc=grid], [data-dnacalc=tree], .dc-main",
+                "#dc-workspace",
                 "[data-dnacalc=sheet-tab][aria-selected=true]",
             ];
             let active = document().active_element();
@@ -342,7 +341,7 @@ pub fn app() -> impl IntoView {
             {
                 settings.set_open(false);
             }
-            focus(selectors[next]);
+            if next == 2 { controller.focus_active_skin(); } else { focus(selectors[next]); }
             return;
         }
         if ev.alt_key()
@@ -352,7 +351,6 @@ pub fn app() -> impl IntoView {
             && switch_skin(controller, &registry_for_keys, slot).is_some()
         {
             ev.prevent_default();
-            controller.carry_edit_to_bar();
         }
     };
 
@@ -662,7 +660,7 @@ pub fn app() -> impl IntoView {
                         on:click=move |_| controller.finish_edit(crate::grid::selection::NavAction::CommitDown)>"Enter"</button>
                     <button type="button" data-dnacalc="cancel-edit"
                         disabled=move || assist.readonly.get()
-                        on:click=move |_| { controller.cancel_edit(); grid::focus_grid(); }>"Cancel"</button>
+                        on:click=move |_| { controller.cancel_edit(); controller.focus_active_skin(); }>"Cancel"</button>
                 </div>
             })}
             <main id="dc-workspace" class="dc-main" tabindex="-1" aria-label="Workbook workspace">{skin_view}</main>

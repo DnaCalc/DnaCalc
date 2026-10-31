@@ -446,20 +446,6 @@ pub fn native_copy(controller: Controller, event: web_sys::ClipboardEvent, cut: 
     }
 }
 
-pub fn grid_owns_clipboard(controller: Controller) -> bool {
-    if controller.editing.get_untracked().is_some() {
-        return false;
-    }
-    document().active_element().is_some_and(|element| {
-        element.tag_name() != "TEXTAREA"
-            && element
-                .closest("[data-dnacalc=grid]")
-                .ok()
-                .flatten()
-                .is_some()
-    })
-}
-
 pub fn native_paste(controller: Controller, event: web_sys::ClipboardEvent) {
     if controller.editing.get_untracked().is_some() {
         return;

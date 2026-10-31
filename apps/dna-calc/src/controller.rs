@@ -141,12 +141,17 @@ pub fn now_ms() -> f64 {
     }
 }
 
+#[path = "input_adapter.rs"]
+mod input_adapter;
+
 type ValidationCallback = Box<dyn FnOnce(Result<Outcome, String>)>;
 
 #[derive(Clone, Copy)]
 pub struct Controller {
     model: RwSignal<Model>,
     skin_registry: StoredValue<crate::skin::SkinRegistry>,
+    #[cfg(target_arch = "wasm32")]
+    input_surfaces: StoredValue<input_adapter::Surfaces, LocalStorage>,
     pub active_skin: ModelField<Option<String>>,
     pub find_open: ModelField<Option<FindMode>>,
     pub context_menu: RwSignal<Option<(f64, f64)>>,
@@ -224,6 +229,8 @@ impl Controller {
         let controller = Controller {
             model,
             skin_registry: StoredValue::new(crate::skin::SkinRegistry::new()),
+            #[cfg(target_arch = "wasm32")]
+            input_surfaces: StoredValue::new_local(input_adapter::Surfaces::default()),
             active_skin: Field::new(model, |m| &m.active_skin, |m| &mut m.active_skin),
             find_open: Field::new(model, |m| &m.find, |m| &mut m.find),
             context_menu: RwSignal::new(None),
@@ -280,6 +287,7 @@ impl Controller {
             replaying: StoredValue::new(false),
             flush_scheduled: StoredValue::new(false),
         };
+        controller.register_editor_surface(dna_calc_model::SurfaceDescriptor::selection_editor(EditOrigin::Bar), assist);
         port::start();
         port::set_events(move |event| controller.receive(event));
         port::set_health(move |health| {
@@ -320,317 +328,6 @@ impl Controller {
         self.replaying.set_value(true);
         action();
         self.replaying.set_value(prior);
-    }
-
-    /// Serialize input behind worker selection and edit replies. A timer between keys lets the
-    /// actual editor mount before its next event; all replay uses the application's handlers.
-    pub fn install_input_queue(self) {
-        #[cfg(target_arch = "wasm32")]
-        {
-            use wasm_bindgen::{JsCast, closure::Closure};
-            // A source copied in a text field or another skin supersedes an earlier system write.
-            let copied = window_event_listener(leptos::ev::copy, move |_| {
-                if !crate::clipboard::grid_owns_clipboard(self) {
-                    self.system_clipboard_changed();
-                }
-            });
-            let cut = window_event_listener(leptos::ev::cut, move |_| {
-                if !crate::clipboard::grid_owns_clipboard(self) {
-                    self.system_clipboard_changed();
-                }
-            });
-            on_cleanup(move || {
-                copied.remove();
-                cut.remove();
-            });
-            Effect::new(move |_| {
-                let pending = self.pending_actions.get();
-                self.deferred_version.track();
-                if pending == 0
-                    && self.validation_decision.get().is_none()
-                    && self.has_deferred()
-                    && !self.flush_scheduled.get_value()
-                {
-                    self.flush_scheduled.set_value(true);
-                    set_timeout(
-                        move || {
-                            if self.pending_actions.try_get_untracked() != Some(0)
-                                || self
-                                    .validation_decision
-                                    .try_get_untracked()
-                                    .flatten()
-                                    .is_some()
-                            {
-                                let _ = self.flush_scheduled.try_set_value(false);
-                                return;
-                            }
-                            let mut action = None;
-                            self.deferred
-                                .update_value(|queue| action = queue.pop_front());
-                            if let Some(action) = action {
-                                self.perform(action);
-                            }
-                            self.flush_scheduled.set_value(false);
-                            self.deferred_version.update(|v| *v += 1);
-                        },
-                        std::time::Duration::ZERO,
-                    );
-                }
-            });
-            let keys = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(
-                move |event: web_sys::KeyboardEvent| {
-                    if matches!(
-                        event.key().as_str(),
-                        "F6" | "Unidentified"
-                            | "Control"
-                            | "Shift"
-                            | "Alt"
-                            | "Meta"
-                            | "CapsLock"
-                            | "NumLock"
-                            | "ScrollLock"
-                    ) {
-                        return;
-                    }
-                    let Some(target) = event
-                        .target()
-                        .and_then(|v| v.dyn_into::<web_sys::Element>().ok())
-                    else {
-                        return;
-                    };
-                    // A live local pointer gesture owns Escape even during a worker reply.
-                    if target.get_attribute("data-resizing").as_deref() == Some("true") {
-                        return;
-                    }
-                    let opening_editor = self.editing.get_untracked().is_some()
-                        && target.get_attribute("data-dnacalc").as_deref() == Some("grid");
-                    // Let the real clipboard event carry its data even while a worker reply is pending.
-                    if (event.ctrl_key() || event.meta_key())
-                        && matches!(event.key().to_ascii_lowercase().as_str(), "c" | "v" | "x")
-                        && target.get_attribute("data-dnacalc").as_deref() == Some("grid")
-                        && self.editing.get_untracked().is_none()
-                    {
-                        return;
-                    }
-                    if !self.waiting_input() && !opening_editor {
-                        return;
-                    }
-                    if !target
-                        .closest("[data-dnacalc=grid], [data-dnacalc=formula-bar]")
-                        .ok()
-                        .flatten()
-                        .is_some()
-                    {
-                        return;
-                    }
-                    if event.is_composing() || event.key_code() == 229 {
-                        return;
-                    }
-                    if target.dyn_ref::<web_sys::HtmlTextAreaElement>().is_some()
-                        && self.editing.get_untracked().is_some()
-                        && !self.assist.readonly.get_untracked()
-                        && !self.has_deferred()
-                    {
-                        return;
-                    }
-                    let bar = target
-                        .closest("[data-dnacalc=formula-bar]")
-                        .ok()
-                        .flatten()
-                        .is_some();
-                    let init = web_sys::KeyboardEventInit::new();
-                    init.set_key(&event.key());
-                    init.set_code(&event.code());
-                    init.set_ctrl_key(event.ctrl_key());
-                    init.set_meta_key(event.meta_key());
-                    init.set_shift_key(event.shift_key());
-                    init.set_alt_key(event.alt_key());
-                    init.set_bubbles(true);
-                    init.set_cancelable(true);
-                    event.prevent_default();
-                    event.stop_immediate_propagation();
-                    self.enqueue(move || self.replay_key(init, bar));
-                },
-            );
-            let _ = document().add_event_listener_with_callback_and_bool(
-                "keydown",
-                keys.as_ref().unchecked_ref(),
-                true,
-            );
-            let keys = StoredValue::new_local(keys);
-            on_cleanup(move || {
-                keys.with_value(|keys| {
-                    let _ = document().remove_event_listener_with_callback_and_bool(
-                        "keydown",
-                        keys.as_ref().unchecked_ref(),
-                        true,
-                    );
-                })
-            });
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn replay_key(self, init: web_sys::KeyboardEventInit, bar: bool) {
-        use wasm_bindgen::JsCast;
-        let Ok(event) = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
-        else {
-            return;
-        };
-        if matches!(
-            event.key().as_str(),
-            "Unidentified"
-                | "Control"
-                | "Shift"
-                | "Alt"
-                | "Meta"
-                | "CapsLock"
-                | "NumLock"
-                | "ScrollLock"
-        ) {
-            return;
-        }
-        let editing = self.editing.get_untracked().is_some();
-        if !editing && bar {
-            self.activate_editor(EditOrigin::Bar, self.assist);
-            self.deferred.update_value(|queue| {
-                queue.push_front(Box::new(move || self.replay_key(init, true)))
-            });
-            self.deferred_version.update(|v| *v += 1);
-            return;
-        }
-        let field = if editing {
-            self.edit_field.get_value().field.get_untracked()
-        } else {
-            None
-        };
-        if editing && field.is_none() {
-            self.deferred.update_value(|queue| {
-                queue.push_front(Box::new(move || self.replay_key(init, bar)))
-            });
-            self.deferred_version.update(|v| *v += 1);
-            return;
-        }
-        let target: Option<web_sys::Element> = field
-            .as_ref()
-            .map(|v| v.clone().unchecked_into::<web_sys::Element>())
-            .or_else(|| {
-                document()
-                    .query_selector("[data-dnacalc=grid][data-grid-active=true]")
-                    .ok()
-                    .flatten()
-            });
-        let Some(target) = target else {
-            self.say("Return to the grid to continue queued navigation", true);
-            return;
-        };
-        let _ = target.dispatch_event(&event);
-        if event.default_prevented() || !editing {
-            return;
-        }
-        let Some(field) = field else {
-            return;
-        };
-        let assist = self.edit_field.get_value();
-        let text = field.value();
-        let (mut start, mut end) = field_selection(assist);
-        let len = text.encode_utf16().count();
-        let key = event.key();
-        let ctrl = event.ctrl_key() || event.meta_key();
-        let insert = if !ctrl && !event.alt_key() && key.chars().count() == 1 {
-            Some(key.as_str())
-        } else if event.alt_key() && key == "Enter" {
-            Some("\n")
-        } else if !ctrl && !event.alt_key() && matches!(key.as_str(), "Backspace" | "Delete") {
-            if start == end {
-                let boundaries: Vec<usize> = std::iter::once(0)
-                    .chain(text.chars().scan(0, |n, c| {
-                        *n += c.len_utf16();
-                        Some(*n)
-                    }))
-                    .collect();
-                if key == "Backspace" {
-                    start = boundaries
-                        .iter()
-                        .copied()
-                        .filter(|n| *n < start)
-                        .next_back()
-                        .unwrap_or(0);
-                } else {
-                    end = boundaries.iter().copied().find(|n| *n > end).unwrap_or(len);
-                }
-            }
-            Some("")
-        } else {
-            None
-        };
-        if let Some(insert) = insert {
-            let (next, caret) = replace_text(&text, start, end, insert);
-            assist.place(next, caret);
-            assist.sync_from_field(false);
-            self.edit_changed();
-        } else if ctrl && key.eq_ignore_ascii_case("a") {
-            let _ = field.set_selection_range(0, len as u32);
-            assist.sync_from_field(false);
-        } else if matches!(key.as_str(), "ArrowLeft" | "ArrowRight" | "Home" | "End")
-            && (!ctrl || matches!(key.as_str(), "Home" | "End"))
-        {
-            let boundaries: Vec<usize> = std::iter::once(0)
-                .chain(text.chars().scan(0, |n, c| {
-                    *n += c.len_utf16();
-                    Some(*n)
-                }))
-                .collect();
-            let backward =
-                field.selection_direction().ok().flatten().as_deref() == Some("backward");
-            let (anchor, focus) = if backward { (end, start) } else { (start, end) };
-            let units: Vec<u16> = text.encode_utf16().collect();
-            let caret = match key.as_str() {
-                "Home" if ctrl => 0,
-                "End" if ctrl => len,
-                "Home" => units[..focus]
-                    .iter()
-                    .rposition(|u| *u == 10)
-                    .map_or(0, |n| n + 1),
-                "End" => units[focus..]
-                    .iter()
-                    .position(|u| *u == 10)
-                    .map_or(len, |n| focus + n),
-                "ArrowLeft" if start != end && !event.shift_key() => start,
-                "ArrowRight" if start != end && !event.shift_key() => end,
-                "ArrowLeft" => boundaries
-                    .iter()
-                    .copied()
-                    .filter(|n| *n < focus)
-                    .next_back()
-                    .unwrap_or(0),
-                _ => boundaries
-                    .iter()
-                    .copied()
-                    .find(|n| *n > focus)
-                    .unwrap_or(len),
-            };
-            let (a, b, direction) = if event.shift_key() {
-                (
-                    anchor.min(caret),
-                    anchor.max(caret),
-                    if caret < anchor {
-                        "backward"
-                    } else {
-                        "forward"
-                    },
-                )
-            } else {
-                (caret, caret, "none")
-            };
-            let _ = field.set_selection_range_with_direction(a as u32, b as u32, direction);
-            assist.sync_from_field(false);
-        } else if !matches!(key.as_str(), "Control" | "Shift" | "Alt" | "Meta") {
-            self.say(
-                "Workbook reply delayed this editor shortcut; repeat it after Pending clears",
-                true,
-            );
-        }
     }
 
     /// Asks the server; `answer` gets the reply when it comes (a failure goes to the status line).
@@ -747,7 +444,6 @@ impl Controller {
         self.copy_pending.set(0);
         self.clipboard_fallback.set(None);
         self.paste_preview.set(None);
-        self.editing.set(None);
         self.selection.set(ViewMirror::default());
         self.subscribe(wire::Interest::Selection, self.selection);
         if let Some(at) = self.active_key_untracked()
@@ -2142,7 +1838,7 @@ impl Controller {
     pub fn begin_edit(&self, origin: EditOrigin, seed: Option<String>) {
         if self.editing.get_untracked().is_some() {
             if self.editing.get_untracked() != Some(origin) {
-                self.editing.set(Some(origin));
+                self.model.maybe_update(|model| model.edit.transfer(origin));
             }
             return;
         }
@@ -2166,11 +1862,10 @@ impl Controller {
         let areas = self.areas.get_untracked();
         self.model.update(|m| m.edit.begin(origin, target, original.clone(), seed, areas));
         self.assist.start_edit(original);
-        self.editing.set(Some(origin));
     }
 
     pub fn activate_editor(&self, origin: EditOrigin, assist: FormulaAssist) {
-        self.model.update(|m| m.focus.register(origin));
+        self.bind_editor_surface(origin, assist);
         self.begin_edit(origin, None);
         self.edit_field.set_value(assist);
     }
@@ -2178,22 +1873,22 @@ impl Controller {
     /// Keep the draft and its target when its cell overlay is about to unmount.
     pub fn carry_edit_to_bar(&self) {
         if self.editing.get_untracked().is_some() {
-            self.editing.set(Some(EditOrigin::Bar));
+            self.model.maybe_update(|model| model.edit.transfer(EditOrigin::Bar));
             self.edit_field.set_value(self.assist);
             #[cfg(target_arch = "wasm32")]
             {
                 let controller = *self;
+                let generation = self.generation.get_untracked();
+                let session = self.model.with_untracked(|model| model.edit.id);
                 leptos::prelude::set_timeout(
                     move || {
-                        if controller.editing.try_get_untracked().flatten() != Some(EditOrigin::Bar)
+                        if controller.generation.try_get_untracked() != Some(generation)
+                            || controller.editing.try_get_untracked().flatten() != Some(EditOrigin::Bar)
+                            || controller.model.with_untracked(|model| model.edit.id) != session
                         {
                             return;
                         }
-                        let assist = controller.assist;
-                        assist.place(
-                            controller.edit_text.get_untracked(),
-                            assist.caret.get_untracked(),
-                        );
+                        controller.focus_mounted_editor(controller.assist);
                     },
                     std::time::Duration::ZERO,
                 );
@@ -2203,7 +1898,7 @@ impl Controller {
 
     pub fn focus_editor(&self) {
         let assist = self.edit_field.get_value();
-        if let Some(field) = assist.field.get_untracked() {
+        if let Some(field) = assist.field.try_get_untracked().flatten() {
             let _ = field.focus();
         }
     }
@@ -2320,6 +2015,7 @@ impl Controller {
 
     pub fn edit_changed(&self) {
         self.pointed.set(None);
+        self.remember_editor_selection();
     }
 
     pub fn edit_label(&self) -> String {
@@ -2431,9 +2127,7 @@ impl Controller {
         }
         if self.editing.get_untracked().is_some() {
             let target = self.edit_target.get_untracked();
-            self.editing.set(None);
-            self.edit_target.set(None);
-            self.pointed.set(None);
+            self.model.update(|model| model.edit.finish());
             self.assist.reset();
             if let Some(at) = target {
                 self.switch_sheet(at.sheet());
@@ -2465,9 +2159,7 @@ impl Controller {
             self.select_areas(at, self.edit_areas.get_value());
         }
         if !fill_selection && text == self.edit_original.get_value() {
-            self.editing.set(None);
-            self.edit_target.set(None);
-            self.pointed.set(None);
+            self.model.update(|model| model.edit.finish());
             self.assist.reset();
             then(true);
             return;
@@ -2487,9 +2179,7 @@ impl Controller {
                 controller.assist.readonly.set(false);
                 let accepted = result.is_ok_and(|outcome| outcome.accepted);
                 if accepted {
-                    controller.editing.set(None);
-                    controller.edit_target.set(None);
-                    controller.pointed.set(None);
+                    controller.model.update(|model| model.edit.finish());
                     controller.assist.reset();
                 }
                 then(accepted);
@@ -2842,10 +2532,6 @@ impl Controller {
         });
     }
 
-    pub fn register_skins(&self, registry: crate::skin::SkinRegistry) {
-        self.skin_registry.set_value(registry);
-    }
-
     fn command_context(&self) -> CommandContext {
         CommandContext {
             ready: self.sheet.get().is_some(), readonly: self.assist.readonly.get(),
@@ -2865,7 +2551,6 @@ impl Controller {
             self.enqueue(move || controller.command(command));
             return;
         }
-        if let Command::SwitchSkin(_) = command { self.carry_edit_to_bar(); }
         let context = untrack(|| self.command_context());
         let result = self.model.try_update(|model| model.dispatch(command, context));
         let Some(result) = result else { return; };
@@ -2881,25 +2566,11 @@ impl Controller {
                 }
             }
             Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
-            Ok(CommandEffect::Dialog) => {
-                #[cfg(target_arch = "wasm32")]
-                {
-                    let controller = *self;
-                    request_animation_frame(move || {
-                        if let Some(mode) = controller.find_open.try_get_untracked().flatten() {
-                            let selector = if mode == FindMode::GoTo { "[data-dnacalc=goto-target]" } else { "[data-dnacalc=find-query]" };
-                            use wasm_bindgen::JsCast;
-                            if let Some(field) = document().query_selector(selector).ok().flatten()
-                                .and_then(|field| field.dyn_into::<web_sys::HtmlInputElement>().ok())
-                            {
-                                let _ = field.focus();
-                                field.select();
-                            }
-                        }
-                    });
-                }
-            },
-            Ok(CommandEffect::FocusSkin(skin)) => self.focus_after_mount(skin, false),
+            Ok(CommandEffect::Dialog) => self.focus_command_dialog(),
+            Ok(CommandEffect::FocusSkin(skin)) => {
+                self.carry_edit_to_bar();
+                self.focus_after_mount(skin, false);
+            }
             Ok(CommandEffect::Reveal { target, skin }) => {
                 let controller = *self;
                 let arrived = move |ok| {
@@ -2923,64 +2594,4 @@ impl Controller {
         self.command(Command::Reveal { target: RevealTarget::Reference(text), skin });
     }
 
-    fn focus_after_mount(&self, skin: SkinId, reveal: bool) {
-        #[cfg(target_arch = "wasm32")]
-        self.focus_skin_frame(skin, reveal, self.generation.get_untracked(),
-            self.selection_epoch.get_value(), self.reveal_epoch.get_untracked(), now_ms() + 3000.0);
-        #[cfg(not(target_arch = "wasm32"))]
-        let _ = (skin, reveal);
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn focus_skin_frame(&self, skin: SkinId, reveal: bool, generation: u64, selection: u64, epoch: u64, until: f64) {
-        let controller = *self;
-        request_animation_frame(move || {
-            if controller.generation.try_get_untracked() != Some(generation)
-                || controller.active_skin_id() != Some(skin)
-                || controller.selection_epoch.get_value() != selection
-                || (reveal && controller.reveal_epoch.get_untracked() != epoch)
-            { return; }
-            if controller.editing.get_untracked().is_some() {
-                controller.focus_editor();
-            } else if let Some(element) = controller.active_skin_element() {
-                if reveal { controller.model.update(|model| model.selection.request_reveal()); }
-                let _ = element.focus();
-            } else if now_ms() < until {
-                controller.focus_skin_frame(skin, reveal, generation, selection, epoch, until);
-            }
-        });
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn active_skin_id(&self) -> Option<SkinId> {
-        let active = self.active_skin.try_get_untracked()?;
-        self.skin_registry.try_with_value(|registry| match active.as_deref() {
-            Some(id) => registry.skins().iter().find(|skin| skin.id().stable_id() == id),
-            None => registry.skins().first(),
-        }.map(|skin| skin.id())).flatten()
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn active_skin_element(&self) -> Option<web_sys::HtmlElement> {
-        use wasm_bindgen::JsCast;
-        let active = self.active_skin.get_untracked();
-        let selector = self.skin_registry.with_value(|registry| {
-            let skin = match active.as_deref() {
-                Some(id) => registry.skins().iter().find(|skin| skin.id().stable_id() == id),
-                None => registry.skins().first(),
-            };
-            skin.map_or("#dc-workspace", |skin| skin.focus_target())
-        });
-        selector.split(", ").find_map(|selector| document().query_selector(selector).ok().flatten())
-            .and_then(|element| element.dyn_into().ok())
-    }
-
-    pub fn focus_active_skin(&self) {
-        #[cfg(target_arch = "wasm32")]
-        if let Some(element) = self.active_skin_element() {
-            let _ = element.focus();
-        } else if let Some(skin) = self.active_skin_id() {
-            self.focus_after_mount(skin, false);
-        }
-    }
 }

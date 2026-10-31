@@ -125,6 +125,10 @@ impl Skin for GridSkin {
         "Grid"
     }
 
+    fn input_target(&self) -> &'static str { "[data-dnacalc=grid][data-grid-active=true]" }
+
+    fn clipboard_owner(&self) -> dna_calc_model::ClipboardOwner { dna_calc_model::ClipboardOwner::Workbook }
+
     fn focus_target(&self) -> &'static str { "[data-dnacalc=grid][data-grid-active=true][data-surface-ready=true]" }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
@@ -301,33 +305,6 @@ fn grid_workspace(controller: Controller) -> impl IntoView {
 }
 
 fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
-    // Firefox may dispatch a native clipboard event at BODY while the worksheet owns focus.
-    let paste = window_event_listener(leptos::ev::paste, move |ev| {
-        if ctx.active.get_untracked() == ctx.index
-            && crate::clipboard::grid_owns_clipboard(controller)
-        {
-            crate::clipboard::native_paste(controller, ev);
-        }
-    });
-    let copy = window_event_listener(leptos::ev::copy, move |ev| {
-        if ctx.active.get_untracked() == ctx.index
-            && crate::clipboard::grid_owns_clipboard(controller)
-        {
-            crate::clipboard::native_copy(controller, ev, false);
-        }
-    });
-    let cut = window_event_listener(leptos::ev::cut, move |ev| {
-        if ctx.active.get_untracked() == ctx.index
-            && crate::clipboard::grid_owns_clipboard(controller)
-        {
-            crate::clipboard::native_copy(controller, ev, true);
-        }
-    });
-    on_cleanup(move || {
-        paste.remove();
-        copy.remove();
-        cut.remove();
-    });
     let initial = controller
         .sheet
         .get_untracked()
@@ -416,6 +393,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let scroller: NodeRef<leptos::html::Div> = NodeRef::new();
     let layer: NodeRef<leptos::html::Div> = NodeRef::new();
     let assist = controller.assist.another_field();
+    controller.register_editor_surface(dna_calc_model::SurfaceDescriptor::editor_with_navigation(EditOrigin::Cell, SkinId::Grid), assist);
     let editor = assist.field;
     let note = RwSignal::new(String::new());
     // Whether the active cell's validation list is open.
@@ -1380,12 +1358,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     Effect::new(move |_| {
         if ctx.active.get() == ctx.index
             && controller.editing.get() == Some(EditOrigin::Cell)
-            && let Some(input) = editor.get()
+            && editor.get().is_some()
         {
             controller.activate_editor(EditOrigin::Cell, assist);
-            let _ = input.focus();
-            let end = assist.caret.get_untracked() as u32;
-            let _ = input.set_selection_range(end, end);
+            controller.focus_mounted_editor(assist);
         }
     });
     let on_editor_key = Callback::new(move |ev| controller.editor_key(ev, assist));
