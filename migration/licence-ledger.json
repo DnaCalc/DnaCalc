@@ -4691,7 +4691,7 @@
    "reason": "written here (dc-ymjf.2): the WitnessSet codec of witness readings and the ODR-FN-005 severity classes of a calculated result against one"
   },
   {
-   "path": "tools/xtask/src/witness.rs",
+   "path": "tools/xtask-harness/src/witness.rs",
    "class": "own-work",
    "reason": "written here (dc-ymjf.2, dc-ymjf.3): cargo xtask witness judge, pin and read"
   },

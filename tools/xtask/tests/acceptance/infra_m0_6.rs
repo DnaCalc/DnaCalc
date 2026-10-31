@@ -121,7 +121,7 @@ fn registered(case: &str) {
         vec![
             argv("cargo xtask accept --id infra-m0.6 --platform windows --require-all"),
             argv("cargo xtask accept --id infra-m0.6 --platform linux --require-all"),
-            argv("cargo test -p xtask --bins"),
+            argv("cargo test -p xtask -p xtask-harness --lib --bins"),
         ],
         "{BEAD} must register exactly its two Acceptance commands and the evidence unit tests"
     );

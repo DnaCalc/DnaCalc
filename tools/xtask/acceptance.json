@@ -7,7 +7,7 @@
       "commands": [
         ["cargo", "metadata", "--no-deps", "--format-version", "1"],
         ["cargo", "check", "--workspace"],
-        ["cargo", "check", "--workspace", "--target", "wasm32-unknown-unknown", "--exclude", "calc-platform-desktop", "--exclude", "calc-oracle-excel", "--exclude", "xtask"]
+        ["cargo", "check", "--workspace", "--target", "wasm32-unknown-unknown", "--exclude", "calc-platform-desktop", "--exclude", "calc-oracle-excel", "--exclude", "xtask", "--exclude", "xtask-harness"]
       ],
       "cases": [
         "infra_m0_1__workspace_builds",
@@ -23,7 +23,7 @@
       "test": "acceptance",
       "commands": [
         ["cargo", "test", "-p", "xtask", "--features", "acceptance", "--test", "acceptance", "infra_m0_3", "--", "--nocapture"],
-        ["cargo", "test", "-p", "xtask", "--bins"],
+        ["cargo", "test", "-p", "xtask", "-p", "xtask-harness", "--lib", "--bins"],
         ["cargo", "xtask", "accept", "--id", "infra-m0.3", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "infra-m0.3", "--platform", "linux", "--require-all"]
       ],
@@ -41,7 +41,7 @@
       "test": "acceptance",
       "commands": [
         ["cargo", "test", "-p", "xtask", "--features", "acceptance", "--test", "acceptance", "infra_m0_2", "--", "--nocapture"],
-        ["cargo", "test", "-p", "xtask", "--bins"]
+        ["cargo", "test", "-p", "xtask", "-p", "xtask-harness", "--lib", "--bins"]
       ],
       "cases": [
         "infra_m0_2__browser_failure_is_red",
@@ -56,7 +56,7 @@
       "id": "dc-e8ql",
       "test": "acceptance",
       "commands": [
-        ["cargo", "test", "-p", "xtask", "--bins"],
+        ["cargo", "test", "-p", "xtask", "-p", "xtask-harness", "--lib", "--bins"],
         ["cargo", "xtask", "accept", "--id", "dc-e8ql", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-e8ql", "--platform", "linux", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "infra-m0.3", "--platform", "windows", "--require-all"],
@@ -75,7 +75,7 @@
       "commands": [
         ["cargo", "xtask", "accept", "--id", "infra-m0.6", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "infra-m0.6", "--platform", "linux", "--require-all"],
-        ["cargo", "test", "-p", "xtask", "--bins"]
+        ["cargo", "test", "-p", "xtask", "-p", "xtask-harness", "--lib", "--bins"]
       ],
       "cases": [
         "infra_m0_6__restore_roundtrip",
@@ -105,7 +105,7 @@
       "id": "dc-kt3l",
       "test": "acceptance",
       "commands": [
-        ["cargo", "test", "-p", "xtask", "--bins"],
+        ["cargo", "test", "-p", "xtask", "-p", "xtask-harness", "--lib", "--bins"],
         ["cargo", "xtask", "accept", "--id", "dc-kt3l", "--platform", "windows", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-kt3l", "--platform", "linux", "--require-all"],
         ["cargo", "xtask", "accept", "--id", "dc-kt3l", "--platform", "excel", "--require-all"]

@@ -46,7 +46,7 @@
 //!   saying so, and classes A1 to A3 and C1 plainly matched. The host applies the date system the
 //!   package declares (calc-host's `RecalcContext`), so no package makes a run leave it unapplied;
 //!   that path is `cargo xtask compare`'s unit test `a_declared_context_the_run_does_not_apply_is_context`
-//!   and the declared-key tests beside it (`cargo test -p xtask --bins`);
+//!   and the declared-key tests beside it (`cargo test -p xtask -p xtask-harness --lib --bins`);
 //! - a variant with a circular reference (Calc!C1 = C1+1) and iteration off: since dc-m3u the
 //!   engine refuses the formula on the cycle, not the recalculation, so C1 must be a typed
 //!   not-modelled root (no Excel value is authored for it: the capture leaves it unobserved) and
@@ -60,7 +60,7 @@
 //! - a capture of other bytes must be refused with nothing written.
 //!
 //! A recalculation that fails after evaluations were recorded is `cargo xtask compare`'s unit test
-//! `a_recalculation_failing_after_evaluations_drops_them` (`cargo test -p xtask --bins`, a command
+//! `a_recalculation_failing_after_evaluations_drops_them` (`cargo test -p xtask -p xtask-harness --lib --bins`, a command
 //! the bead registers): no workbook makes the product's own observer stop a recalculation, and
 //! since dc-m3u no workbook makes the engine refuse one (a cycle refuses only its formulas).
 //!

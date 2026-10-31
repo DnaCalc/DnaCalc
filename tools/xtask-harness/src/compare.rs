@@ -1112,7 +1112,7 @@ pub fn run(args: &[String]) -> ExitCode {
 
 /// The dc-kt3l cases' workbook generator, shared with the unit tests below.
 #[cfg(test)]
-#[path = "../tests/acceptance/dc_kt3l_package.rs"]
+#[path = "../../xtask/tests/acceptance/dc_kt3l_package.rs"]
 mod test_package;
 
 #[cfg(test)]

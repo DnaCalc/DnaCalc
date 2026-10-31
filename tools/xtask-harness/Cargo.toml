@@ -1,0 +1,51 @@
+[package]
+name = "xtask-harness"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Product-linked commands run by the lightweight cargo xtask command."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+# The command crate owns metadata and source checks. This harness owns commands that
+# execute product code, including calc-verdict, the single verdict path.
+# calc-host is the route `cargo xtask compare` opens, recalculates and projects a workbook through
+# (HostState::open, step, project); calc-engine, calc-fml and calc-func supply the types its read
+# observer is shown (ObservedEvaluation, ExecutedCall) and the typed refusals its triage reads
+# (NotModeled's CompileError, EvalFault and FunctionFault, and the catalogue that spells a
+# FunctionId).
+[dependencies]
+calc-engine = { path = "../../crates/calc-engine" }
+# calc-doc reads the parts of an oracle workbook and of the package Excel saved, stored or
+# deflated, for the section captures (`oracle_cases.rs`).
+calc-doc = { path = "../../crates/calc-doc" }
+calc-fml = { path = "../../crates/calc-fml" }
+calc-func = { path = "../../crates/calc-func" }
+calc-host = { path = "../../crates/calc-host" }
+calc-verdict = { path = "../calc-verdict" }
+# The token stylesheet the app bundles start with (`cargo xtask app bundle`, dc-xib).
+dna-strand = { path = "../../apps/dna-strand" }
+# `cargo xtask witness judge --bank full` reads the evidence repository's gzip blobs in place with
+# the DEFLATE decoder calc-doc already uses (dc-ymjf.2).
+miniz_oxide = "=0.8.9"
+serde_json = "1"
+
+# calc-oracle-excel is the one Excel capture adapter `cargo xtask capture` runs. It is native-only
+# and refuses wasm32 itself, so it is left out of a wasm32 build of xtask (and so is the capture
+# command, in main.rs), which must fail through xtask's own compile_error! alone.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+xtask = { path = "../xtask" }
+# WebDriver BiDi sets a real Firefox viewport below the desktop window minimum.
+tungstenite = { version = "=0.30.0", default-features = false, features = ["handshake"] }
+calc-oracle-excel = { path = "../../platform/calc-oracle-excel" }
+# The desktop platform adapter gives `cargo xtask bench` the default number of recalculation threads.
+calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
+
+# `cargo xtask bench` reads its own process's peak memory (GetProcessMemoryInfo) and its thread
+# cycles (QueryThreadCycleTime); `cargo xtask collation` asks Windows for sort keys (LCMapStringEx,
+# CompareStringEx) and the ICU Windows ships for the CLDR root collation. windows-sys is already in the workspace lock (calc-oracle-excel's
+# isolation uses it).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Globalization", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }

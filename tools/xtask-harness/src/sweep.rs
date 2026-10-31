@@ -153,7 +153,7 @@ fn acceptance(ws: &Workspace, log: &Path) -> (bool, String) {
             "--target-dir",
         ])
         .arg(ws.accept_target_dir())
-        .args(["--", "--test-threads=1"])
+        .args(["--", "--test-threads=1", "--show-output"])
         .current_dir(&ws.root);
     let out = match cargo::output(&mut command) {
         Ok(out) => out,
@@ -167,14 +167,19 @@ fn acceptance(ws: &Workspace, log: &Path) -> (bool, String) {
         .lines()
         .filter(|line| line.starts_with("test ") && line.ends_with("... FAILED"))
         .collect();
-    let result = text
-        .lines()
-        .find(|line| line.starts_with("test result: "))
-        .unwrap_or("no libtest result line");
-    let passed = out.status.success() && failing.is_empty();
+    let report = xtask::test_output::summarize(&text);
+    let passed = out.status.success() && failing.is_empty() && report.counts.failed == 0;
     (
         passed,
-        format!("{result}; failing {failing:?}; log {}", ws.rel(log)),
+        format!(
+            "{} passed, {} failed, {} ignored, {} not run in {} harnesses; failing {failing:?}; log {}",
+            report.counts.passed,
+            report.counts.failed,
+            report.counts.ignored,
+            report.not_run,
+            report.harnesses,
+            ws.rel(log)
+        ),
     )
 }
 

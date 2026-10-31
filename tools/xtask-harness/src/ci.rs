@@ -6,8 +6,8 @@
 //!   workspace package's native tests: `cargo test --workspace --lib --bins --test <t>...` for every
 //!   integration test target except the acceptance targets, then `cargo test --workspace --doc`.
 //!   Each package's acceptance target holds the beads' cases, which `cargo xtask accept` runs per
-//!   bead: under a plain `cargo test` a case that prints `ACCEPT-NOT-RUN` reports passed, and only
-//!   the runner records it `not_run`. The manifest lists the target under `excluded_targets`. Then, for each bead ID in
+//!   bead: per-bead receipts distinguish cases that cannot run on this host. The shared
+//!   transcript reader also removes explicit `ACCEPT-NOT-RUN` cases from test pass counts. The manifest lists the target under `excluded_targets`. Then, for each bead ID in
 //!   `DNACALC_CI_ACCEPT` that declares a case for the platform, `cargo xtask accept --id <id>
 //!   --platform <job> --require-all`, whose receipt the manifest names.
 //! - `wasm`: every portable package's wasm test targets (the same selection, for
@@ -118,9 +118,11 @@ const TOOLCHAIN_FILE: &str = "rust-toolchain.toml";
 /// What the desktop job does, as its output and `packaging.json` say it.
 const DESKTOP_WHAT: &str = "a release build of the native-only packages, not a packaging smoke: no desktop application package exists yet, so nothing is packaged, installed or started; bead dc-x704 replaces this with a real packaging smoke once the desktop application exists (it depends on dnacalc-m2.1)";
 
-/// Every test run passes `--nocapture` to the harness, so the transcript keeps what each test
-/// printed (on wasm, the console of the browser that ran it).
+/// Browser runs keep console output with `--nocapture`; native runs use `--show-output` so
+/// successful cases retain output under their own test names.
 const NOCAPTURE: [&str; 2] = ["--", "--nocapture"];
+// Native libtest retains each test's output under its own name, even with parallel tests.
+const SHOW_OUTPUT: [&str; 2] = ["--", "--show-output"];
 
 /// The variables no cargo or accept run started here inherits.
 const CI_VARIABLES: [&str; 3] = [ACCEPT_VARIABLE, INJECT_VARIABLE, COMMIT_VARIABLE];
@@ -194,39 +196,7 @@ impl Outcome {
     }
 }
 
-/// The counts of one libtest result line.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Counts {
-    pub passed: u64,
-    pub failed: u64,
-    pub ignored: u64,
-}
-
-impl Counts {
-    fn add(&mut self, other: Counts) {
-        self.passed += other.passed;
-        self.failed += other.failed;
-        self.ignored += other.ignored;
-    }
-}
-
-/// The counts libtest's `test result: ...` line reports, or `None` when it lacks one of them.
-pub fn result_counts(line: &str) -> Option<Counts> {
-    let rest = line.trim().strip_prefix("test result: ")?;
-    let count = |label: &str| {
-        rest.split(';').find_map(|part| {
-            let mut words = part.split_whitespace().rev();
-            let named = words.next() == Some(label);
-            let number = words.next().and_then(|n| n.parse::<u64>().ok());
-            if named { number } else { None }
-        })
-    };
-    Some(Counts {
-        passed: count("passed")?,
-        failed: count("failed")?,
-        ignored: count("ignored")?,
-    })
-}
+pub use xtask::test_output::{Counts, result_counts};
 
 /// One compiler-artifact message of a cargo run.
 #[derive(Clone, Debug)]
@@ -350,6 +320,7 @@ fn parse_transcript(text: &str) -> Transcript {
 pub struct Evaluated {
     pub outcome: Outcome,
     pub counts: Counts,
+    pub not_run: u64,
     pub result_line: Option<String>,
     /// wasm-bindgen-test-runner reported that the module holds no tests, so no browser started.
     pub no_tests: bool,
@@ -378,13 +349,19 @@ fn evaluate(output: &[String], browser: Option<&Browser>) -> Evaluated {
     let mut evaluated = Evaluated {
         outcome: Outcome::Failed,
         counts: Counts::default(),
+        not_run: 0,
         result_line: results.last().map(|line| (*line).to_owned()),
         no_tests,
         banner: banner.clone(),
         reason: None,
     };
+    let report = xtask::test_output::summarize(&text);
+    evaluated.not_run = report.not_run;
     let counts = match results.as_slice() {
-        [line] => result_counts(line),
+        [line] => result_counts(line).map(|mut counts| {
+            counts.passed = counts.passed.saturating_sub(report.not_run);
+            counts
+        }),
         _ => None,
     };
     if let Some(counts) = counts {
@@ -444,8 +421,8 @@ fn evaluate(output: &[String], browser: Option<&Browser>) -> Evaluated {
     } else {
         evaluated.outcome = Outcome::ZeroTests;
         evaluated.reason = Some(format!(
-            "the harness ran 0 tests ({} ignored)",
-            counts.ignored
+            "the harness has 0 executed tests ({} ignored, {} explicitly not run)",
+            counts.ignored, evaluated.not_run
         ));
     }
     evaluated
@@ -480,6 +457,7 @@ impl TargetRun {
             evaluated: Evaluated {
                 outcome: Outcome::Failed,
                 counts: Counts::default(),
+                not_run: 0,
                 result_line: None,
                 no_tests: false,
                 banner: None,
@@ -501,6 +479,7 @@ impl TargetRun {
             "passed": e.counts.passed,
             "failed": e.counts.failed,
             "ignored": e.counts.ignored,
+            "not_run": e.not_run,
             "result_line": e.result_line,
             "runner_reported_no_tests": e.no_tests,
             "runner_banner": e.banner.as_ref().map(|(_, line)| line),
@@ -571,6 +550,15 @@ impl PackageRun {
         fields.insert("passed".into(), json!(counts.passed));
         fields.insert("failed".into(), json!(counts.failed));
         fields.insert("ignored".into(), json!(counts.ignored));
+        fields.insert(
+            "not_run".into(),
+            json!(
+                self.targets
+                    .iter()
+                    .map(|t| t.evaluated.not_run)
+                    .sum::<u64>()
+            ),
+        );
         fields.insert("status".into(), json!(self.outcome().as_str()));
         fields.insert(
             "targets".into(),
@@ -738,7 +726,7 @@ fn excluded_json(member: &Member, excluded: &BTreeSet<String>) -> Value {
             .map(|name| {
                 json!({
                     "target": name,
-                    "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs do not run it",
+                    "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs leave those targets to the per-bead runner",
                 })
             })
             .collect(),
@@ -1288,7 +1276,7 @@ fn print_package_line(
         text
     });
     println!(
-        "CI {} {package} on {on}: built {}, harness ran {} of {} targets, {} tests run, {} passed, {} failed, {} ignored{route}",
+        "CI {} {package} on {on}: built {}, harness ran {} of {} targets, {} tests run, {} passed, {} failed, {} ignored, {} not run{route}",
         status.as_str(),
         run.built,
         run.targets.iter().filter(|t| t.ran).count(),
@@ -1296,7 +1284,8 @@ fn print_package_line(
         counts.passed + counts.failed,
         counts.passed,
         counts.failed,
-        counts.ignored
+        counts.ignored,
+        run.targets.iter().map(|t| t.evaluated.not_run).sum::<u64>()
     );
     for target in run
         .targets
@@ -1368,7 +1357,7 @@ fn native_job(
     let mut runs = Vec::new();
     let mut args = vec!["--workspace".to_owned()];
     args.extend(target_selection(&members, &excluded));
-    args.extend(NOCAPTURE.map(str::to_owned));
+    args.extend(SHOW_OUTPUT.map(str::to_owned));
     let tests = test_run(
         ws,
         "tests",
@@ -1384,7 +1373,7 @@ fn native_job(
             ws,
             &["--workspace", "--doc"]
                 .into_iter()
-                .chain(NOCAPTURE)
+                .chain(SHOW_OUTPUT)
                 .map(str::to_owned)
                 .collect::<Vec<_>>(),
         ),
@@ -1624,6 +1613,7 @@ fn wasm_job(
                     Evaluated {
                         outcome: Outcome::Failed,
                         counts: Counts::default(),
+                        not_run: 0,
                         result_line: None,
                         no_tests: false,
                         banner: None,
@@ -1678,6 +1668,7 @@ fn wasm_job(
                 "outcome": evaluated.outcome.as_str(),
                 "passed": evaluated.counts.passed,
                 "failed": evaluated.counts.failed,
+                "not_run": evaluated.not_run,
                 "result_line": evaluated.result_line,
                 "runner_banner": evaluated.banner.as_ref().map(|(_, line)| line),
                 "executed_in": executed_in,
@@ -2205,6 +2196,18 @@ mod tests {
 
     fn lines(text: &str) -> Vec<String> {
         text.lines().map(str::to_owned).collect()
+    }
+
+    #[test]
+    fn an_explicitly_unavailable_case_is_removed_from_ci_passes() {
+        let run = evaluate(
+            &lines(
+                "test a ... ok\nACCEPT-NOT-RUN: a: no Excel\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n",
+            ),
+            None,
+        );
+        assert_eq!((run.counts.passed, run.not_run), (0, 1));
+        assert_ne!(run.outcome, Outcome::Passed);
     }
 
     #[test]

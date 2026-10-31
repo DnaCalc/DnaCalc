@@ -24,8 +24,8 @@
 //! or a test failed, 2 for a usage error, and 0 otherwise.
 
 use crate::cargo::{self, Resolved, Workspace};
-use crate::ci;
 use crate::licence;
+use crate::test_output::{self, Counts};
 use crate::words;
 use std::collections::BTreeSet;
 use std::fs;
@@ -229,7 +229,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         }
     };
 
-    let mut tested = String::from("no package touched, so no tests");
+    let mut tested = String::from("no package touched, so no tests (0 not run)");
     if !packages.is_empty() {
         let shown: Vec<&str> = packages.iter().map(String::as_str).collect();
         println!(
@@ -243,17 +243,21 @@ pub fn run(raw: &[String]) -> ExitCode {
         for package in &packages {
             test.args(["-p", package]);
         }
+        // Successful cases' output must remain visible: libtest otherwise hides their
+        // ACCEPT-NOT-RUN markers and reports them as passes.
+        test.args(["--", "--show-output"]);
         match run_logged(&ws, test, &log) {
             Ok((code, text)) => {
-                let (mut passed, mut failures, mut ignored, mut harnesses) = (0, 0, 0, 0);
-                for counts in text.lines().filter_map(ci::result_counts) {
-                    harnesses += 1;
-                    passed += counts.passed;
-                    failures += counts.failed;
-                    ignored += counts.ignored;
-                }
+                let report = test_output::summarize(&text);
+                let Counts {
+                    passed,
+                    failed: failures,
+                    ignored,
+                } = report.counts;
+                let harnesses = report.harnesses;
+                let not_run = report.not_run;
                 let counts = format!(
-                    "{passed} passed, {failures} failed, {ignored} ignored in {harnesses} harnesses of {} packages; log {}",
+                    "{passed} passed, {failures} failed, {ignored} ignored, {not_run} not run in {harnesses} harnesses of {} packages; log {}",
                     packages.len(),
                     ws.rel(&log)
                 );

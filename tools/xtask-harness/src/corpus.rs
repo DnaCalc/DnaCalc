@@ -464,7 +464,7 @@ pub(crate) fn compare_program() -> Result<(PathBuf, String), String> {
             "--release",
             "--locked",
             "-p",
-            "xtask",
+            "xtask-harness",
             "--target-dir",
         ])
         .arg(&target);
@@ -478,7 +478,7 @@ pub(crate) fn compare_program() -> Result<(PathBuf, String), String> {
     }
     let exe = target
         .join("release")
-        .join(format!("xtask{}", std::env::consts::EXE_SUFFIX));
+        .join(format!("xtask-harness{}", std::env::consts::EXE_SUFFIX));
     Ok((
         exe,
         format!("a release build of xtask in {RELEASE_TARGET_DIR}"),

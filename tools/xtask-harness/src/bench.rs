@@ -822,7 +822,7 @@ fn workbook_stats(dna: &[Value], excel: &Value) -> Value {
 
 fn markdown(run: &Value, workbooks: &[Value]) -> String {
     let mut out = String::from("# DNA Calc and Excel: open, calculation and memory\n\n");
-    out.push_str("Each cell: median (lowest–highest, n = samples). Seconds, or MB of 2^20 bytes. The method is in `tools/xtask/src/bench.rs` and `platform/calc-oracle-excel/worker/timing-worker.ps1`.\n\n");
+    out.push_str("Each cell: median (lowest–highest, n = samples). Seconds, or MB of 2^20 bytes. The method is in `tools/xtask-harness/src/bench.rs` and `platform/calc-oracle-excel/worker/timing-worker.ps1`.\n\n");
     for (key, value) in run.as_object().into_iter().flatten() {
         out.push_str(&format!("- {key}: {value}\n"));
     }
