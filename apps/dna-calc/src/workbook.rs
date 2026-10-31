@@ -422,6 +422,7 @@ impl Workbook {
                 used: self
                     .used_area(tab.id)
                     .map(|area| cells::area_label(self.host(), area)),
+                identity: Some(crate::wire::Sheet::of(tab.id)),
                 name: tab.name,
                 ..SheetCensus::default()
             };
@@ -454,6 +455,33 @@ impl Workbook {
         census
     }
 
+    /// Project through the same host route as the census; no cached value becomes a result.
+    pub fn refusal_cells(&self, reason: &str, page: usize) -> crate::wire::RefusalCells {
+        let mut found = crate::wire::RefusalCells {
+            page,
+            ..Default::default()
+        };
+        let start = page.saturating_mul(50);
+        for tab in self.sheets() {
+            for cell in self.project(self.host().formula_cells(tab.id).into_iter().collect()) {
+                let calc_host::ProjectedValue::NotModeled { refusal, .. } = cell.value() else {
+                    continue;
+                };
+                if cells::refusal_text(self.host(), refusal) != reason {
+                    continue;
+                }
+                if found.total >= start && found.cells.len() < 50 {
+                    found.cells.push((
+                        crate::wire::Key::of(cell.at()),
+                        cells::cell_label(self.host(), cell.at()),
+                    ));
+                }
+                found.total += 1;
+            }
+        }
+        found
+    }
+
     /// The outcome of the last recalculation an intent ran, in words.
     pub fn recalc_text(progress: &HostProgress) -> String {
         match progress {
@@ -470,6 +498,7 @@ impl Workbook {
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SheetCensus {
     pub name: String,
+    pub identity: Option<crate::wire::Sheet>,
     /// The used area's label, when the sheet holds anything.
     pub used: Option<String>,
     pub inputs: usize,
@@ -480,6 +509,14 @@ pub struct SheetCensus {
     pub stale: usize,
 }
 
+impl SheetCensus {
+    /// Formula cells whose host projection has no calculated, refused, cached or stale value.
+    pub fn pending(&self) -> usize {
+        self.formulas
+            .saturating_sub(self.calculated + self.refused + self.file_cached + self.stale)
+    }
+}
+
 /// The workbook's formula cells by provenance, per sheet, and the refusals by reason.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Census {
@@ -488,6 +525,9 @@ pub struct Census {
 }
 
 impl Census {
+    pub fn pending(&self) -> usize {
+        self.sheets.iter().map(SheetCensus::pending).sum()
+    }
     pub fn formulas(&self) -> usize {
         self.sheets.iter().map(|sheet| sheet.formulas).sum()
     }

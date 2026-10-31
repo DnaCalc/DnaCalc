@@ -90,7 +90,7 @@ enum Replacement {
     Open(String, Vec<u8>),
 }
 
-fn focus(selector: &str) {
+pub(crate) fn focus(selector: &str) {
     use wasm_bindgen::JsCast;
     if let Some(element) = selector
         .split(", ")
@@ -271,7 +271,7 @@ pub fn app() -> impl IntoView {
         let registry = registry.clone();
         move || {
             match resolve_active_skin(&registry, active_skin.get().as_deref()) {
-            SkinResolution::Mount(skin) => skin.mount(SkinContext { controller }),
+            SkinResolution::Mount(skin) => skin.mount(SkinContext { controller, active_skin }),
             SkinResolution::Unavailable { active } => view! {
                 <div class="dc-unavailable" data-dnacalc="skin-unavailable">
                     {format!("The skin {:?} is not available in DNA Calc.", active.unwrap_or_default())}

@@ -1,8 +1,7 @@
 //! The atlas skin: the workbook's map. Its structure (each sheet with its used area, its inputs and
 //! its formula cells) and its calculation (the mode, the authored revision, the undo and redo
 //! depth, the last timings, and every formula cell counted by provenance: calculated, refused,
-//! the file's stored value, stale) with the refusals grouped by reason. The skin only reads: it
-//! dispatches no intent.
+//! the file's stored value, stale) with the refusals grouped by reason. Navigation uses the shared selection through worker messages.
 //!
 //! A formula cell is one Excel counts as holding a formula (calc-host's `holds_formula`: legacy
 //! array members and data-table cells included, a dynamic array's spilled cells not), the set a
@@ -32,83 +31,156 @@ impl Skin for AtlasSkin {
     }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        atlas_view(ctx.controller).into_any()
+        atlas_view(ctx.controller, ctx.active_skin).into_any()
     }
 }
 
-fn atlas_view(controller: Controller) -> impl IntoView {
-    // Nothing is counted until the server's first answer: the totals stay empty until then.
-    let atlas: RwSignal<Option<wire::Atlas>> = RwSignal::new(None);
+const REASON_PAGE: usize = 30;
+fn reason_rows(census: &crate::workbook::Census, page: usize) -> Vec<(String, usize)> {
+    let mut reasons: Vec<_> = census
+        .refusals
+        .iter()
+        .map(|(reason, n)| (reason.clone(), *n))
+        .collect();
+    reasons.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    reasons
+        .into_iter()
+        .skip(page.saturating_mul(REASON_PAGE))
+        .take(REASON_PAGE)
+        .collect()
+}
+
+fn atlas_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> impl IntoView {
+    let atlas = RwSignal::new(None::<wire::Atlas>);
+    let failure = RwSignal::new(String::new());
+    let epoch = StoredValue::new(0u64);
     Effect::new(move |_| {
         controller.revision.track();
         controller.summary.track();
-        controller.ask(wire::Request::Atlas, move |reply| {
-            if let wire::Reply::Atlas(found) = reply {
-                atlas.try_set(Some(found));
+        epoch.update_value(|n| *n += 1);
+        let requested = epoch.get_value();
+        atlas.set(None);
+        failure.set(String::new());
+        controller.ask_result(wire::Request::Atlas, move |reply| {
+            if epoch.try_get_value() != Some(requested) {
+                return;
+            }
+            match reply {
+                Ok(wire::Reply::Atlas(found)) => {
+                    atlas.try_set(Some(found));
+                }
+                Err(error) => {
+                    failure.try_set(format!("Workbook overview unavailable: {error}"));
+                }
+                _ => {}
             }
         });
     });
     let census = Memo::new(move |_| {
-        atlas.with(|atlas| {
-            atlas
-                .as_ref()
-                .map(|atlas| atlas.census.clone())
-                .unwrap_or_default()
-        })
+        atlas.with(|a| a.as_ref().map(|a| a.census.clone()).unwrap_or_default())
     });
-    let sheets = move || {
-        census.with(|census| {
-            census
-                .sheets
-                .iter()
-                .map(|sheet| {
-                    view! {
-                        <tr data-dnacalc="atlas-sheet" data-sheet=sheet.name.clone()>
-                            <td>{sheet.name.clone()}</td>
-                            <td>{sheet.used.clone().unwrap_or_else(|| "empty".to_owned())}</td>
-                            <td>{sheet.inputs}</td>
-                            <td>{sheet.formulas}</td>
-                            <td>{sheet.calculated}</td>
-                            <td>{sheet.refused}</td>
-                            <td>{sheet.file_cached}</td>
-                            <td>{sheet.stale}</td>
-                        </tr>
+    let reason_page = RwSignal::new(0usize);
+    let selected = RwSignal::new(None::<String>);
+    let cell_page = RwSignal::new(0usize);
+    let affected = RwSignal::new(None::<wire::RefusalCells>);
+    let affected_error = RwSignal::new(String::new());
+    let cell_epoch = StoredValue::new(0u64);
+    Effect::new(move |_| {
+        if atlas.with(Option::is_none) {
+            return;
+        }
+        let count = census.with(|c| c.refusals.len());
+        reason_page.update(|p| *p = (*p).min(count.saturating_sub(1) / REASON_PAGE));
+    });
+    Effect::new(move |_| {
+        let revision = controller.revision.get();
+        let reason = selected.get();
+        let page = cell_page.get();
+        cell_epoch.update_value(|n| *n += 1);
+        let requested = cell_epoch.get_value();
+        affected.set(None);
+        affected_error.set(String::new());
+        let Some(reason) = reason else {
+            return;
+        };
+        controller.ask_result(
+            wire::Request::AtlasRefusals {
+                reason,
+                page: page as u64,
+            },
+            move |reply| {
+                if cell_epoch.try_get_value() != Some(requested)
+                    || controller.revision.try_get_untracked() != Some(revision)
+                {
+                    return;
+                }
+                match reply {
+                    Ok(wire::Reply::AtlasRefusals(found)) => {
+                        let last = found.total.saturating_sub(1) / 50;
+                        if found.page > last {
+                            cell_page.try_set(last);
+                        } else {
+                            affected.try_set(Some(found));
+                        }
                     }
-                })
-                .collect_view()
+                    Err(error) => {
+                        affected_error.try_set(format!("Affected cells unavailable: {error}"));
+                    }
+                    _ => {}
+                }
+            },
+        );
+    });
+    let jump = move |at, skin: &'static str| {
+        controller.navigate_to(at, move |ok| {
+            if ok {
+                active_skin.set(Some(skin.into()));
+                #[cfg(target_arch = "wasm32")]
+                set_timeout(
+                    move || crate::app::focus("[data-dnacalc=grid]"),
+                    std::time::Duration::from_millis(20),
+                );
+            }
         })
+    };
+    let sheets = move || {
+        census.with(|c|c.sheets.iter().map(|s| {
+        let at=s.identity.and_then(|s|calc_host::value::CellKey::new(s.id(),1,1).ok());
+        let hidden=s.identity.is_some_and(|id|controller.summary.with(|v|v.hidden_sheets.iter().any(|(s,_,_)|*s==id)));
+        view!{<tr data-dnacalc="atlas-sheet" data-sheet=s.name.clone()>
+            <td><button data-dnacalc="atlas-sheet-jump" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at,"grid");}>{s.name.clone()}</button>{hidden.then_some(" (hidden; unhide in Sheet tools)")}</td>
+            <td>{s.used.clone().unwrap_or_else(||"empty".into())}</td><td>{s.inputs}</td><td>{s.formulas}</td><td>{s.calculated}</td><td>{s.refused}</td><td>{s.file_cached}</td><td>{s.stale}</td><td>{s.pending()}</td>
+        </tr>}
+    }).collect_view())
     };
     let totals = move || {
         if atlas.with(Option::is_none) {
-            return "Counting the workbook's cells".to_owned();
+            return "Counting the workbook's cells".into();
         }
-        census.with(|census| {
-            let formulas = census.formulas();
-            let calculated = census.calculated();
-            let rate = if formulas == 0 {
-                "no formula cells".to_owned()
-            } else {
-                format!("{:.2}% calculated", 100.0 * calculated as f64 / formulas as f64)
-            };
-            format!(
-                "{formulas} formula cells: {calculated} calculated, {} refused, {} file cache, {} stale; {rate}",
-                census.refused(),
-                census.file_cached(),
-                census.stale()
-            )
+        census.with(|c| {
+            let f=c.formulas();let n=c.calculated();
+            let rate=if f==0 {"no formula cells".into()}else{format!("{:.2}% calculated",100.0*n as f64/f as f64)};
+            format!("{f} formula cells: {n} calculated, {} refused, {} file cache, {} stale, {} pending; {rate}",c.refused(),c.file_cached(),c.stale(),c.pending())
         })
     };
-    let refusals = move || {
-        census.with(|census| {
-            let mut reasons: Vec<(String, usize)> =
-                census.refusals.iter().map(|(reason, n)| (reason.clone(), *n)).collect();
-            reasons.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-            reasons
-                .into_iter()
-                .take(30)
-                .map(|(reason, n)| view! { <li data-dnacalc="atlas-refusal">{format!("{n} x {reason}")}</li> })
-                .collect_view()
-        })
+    let reasons = move || {
+        reason_rows(&census.get(),reason_page.get()).into_iter().map(|(reason,n)| {
+        let select_reason=reason.clone();let detail_reason=reason.clone();let pressed_reason=reason.clone();
+        view!{<li data-dnacalc="atlas-refusal">
+            <button data-dnacalc="atlas-reason" data-reason=reason.clone() aria-expanded=move ||(selected.get().as_ref()==Some(&pressed_reason)).to_string() on:click=move |_|batch(||{selected.set(Some(select_reason.clone()));cell_page.set(0);})>{format!("{n} {} — {reason}",if n==1{"cell"}else{"cells"})}</button>
+            {move ||(selected.get().as_ref()==Some(&detail_reason)).then(|| {
+                let found=affected.get();
+                let total=found.as_ref().map_or(0,|p|p.total);
+                let cells=found.map(|p|p.cells.into_iter().map(|(key,label)| {
+                    let at=key.cell();
+                    let hidden=at.is_some_and(|at|controller.summary.with(|v|v.hidden_sheets.iter().any(|(s,_,_)|s.id()==at.sheet())));
+                    let label=if hidden{format!("{label} (hidden; unhide in Sheet tools)")}else{label};
+                    view!{<li data-dnacalc="atlas-affected-cell"><span class="dc-mono">{label}</span><button data-dnacalc="atlas-open-grid" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at,"grid");}>"Open in Grid"</button></li>}
+                }).collect_view());
+                view!{<div class="dc-atlas-affected"><p role="status" data-dnacalc="atlas-affected-count">{if affected.with(Option::is_none){"Loading affected cells…".into()}else{format!("{total} affected {} · page {} of {}",if total==1{"cell"}else{"cells"},cell_page.get()+1,total.div_ceil(50).max(1))}}</p><p role="status">{move ||affected_error.get()}</p><ul>{cells}</ul><div class="dc-atlas-pages"><button data-dnacalc="atlas-cells-previous" disabled=move ||cell_page.get()==0 on:click=move |_|cell_page.update(|p|*p=p.saturating_sub(1))>"Previous cells"</button><button data-dnacalc="atlas-cells-next" disabled=move ||affected.with(|p|p.as_ref().is_none_or(|p|(cell_page.get()+1).saturating_mul(50)>=p.total)) on:click=move |_|cell_page.update(|p|*p+=1)>"Next cells"</button></div></div>}
+            })}
+        </li>}
+    }).collect_view()
     };
     let hud = move || {
         let wire::Atlas {
@@ -142,23 +214,43 @@ fn atlas_view(controller: Controller) -> impl IntoView {
     };
 
     view! {
-        <section class="dc-atlas" data-skin="atlas">
-            <h2>"Calculation"</h2>
-            <details data-dnacalc="atlas-diagnostics"><summary>"Calculation diagnostics"</summary>{hud}</details>
-            <p data-dnacalc="atlas-totals">{totals}</p>
+        <section class="dc-atlas" data-skin="atlas" aria-label="Workbook overview">
+            <h2>"Workbook overview"</h2>
+            <p role="status" data-dnacalc="atlas-totals">{totals}</p>
+            <p class="dc-atlas-agreement" data-dnacalc="atlas-agreement">"Calculated coverage counts formulas DNA Calc evaluated. Agreement with Excel has not been measured in this view."</p>
+            <p role="status">{move ||failure.get()}</p>
+            {move ||(atlas.with(Option::is_some)&&census.with(|c|c.formulas()==0)).then(||view!{<p data-dnacalc="atlas-empty">"No formulas yet. Open a workbook, or choose a sheet and enter a formula in Grid."</p>})}
             <h2>"Sheets"</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>"Sheet"</th><th>"Used area"</th><th>"Inputs"</th><th>"Formulas"</th>
-                        <th>"Calculated"</th><th>"Refused"</th><th>"File cache"</th><th>"Stale"</th>
-                    </tr>
-                </thead>
-                <tbody>{sheets}</tbody>
-            </table>
-            <h2>"Refusals by reason"</h2>
-            <ul class="dc-refusals">{refusals}</ul>
-            {move || census.with(|census| census.refusals.is_empty()).then(|| view! { <p data-dnacalc="atlas-no-refusals">"No formula is refused."</p> })}
+            <div class="dc-atlas-table" tabindex="0" role="region" aria-label="Sheet calculation counts; scroll horizontally for all columns"><table><thead><tr><th>"Sheet"</th><th>"Used area"</th><th>"Inputs"</th><th>"Formulas"</th><th>"Calculated"</th><th>"Refused"</th><th>"File cache"</th><th>"Stale"</th><th>"Pending"</th></tr></thead><tbody>{sheets}</tbody></table></div>
+            <h2>"What needs attention"</h2><p>"Choose a refusal reason, then open an affected cell to inspect or edit its source. Cached and stale values need Calculate. Pending formulas have no published value."</p>
+            <p data-dnacalc="atlas-reason-count">{move ||census.with(|c|{if atlas.with(Option::is_none){return "Counting refusal reasons…".into();}let total=c.refusals.len();if total==0 {"0 refusal reasons".into()}else{format!("Reasons {}–{} of {total} · up to 30 per page; most affected first",reason_page.get()*REASON_PAGE+1,((reason_page.get()+1)*REASON_PAGE).min(total))}})}</p>
+            <ul class="dc-refusals">{reasons}</ul>
+            <div class="dc-atlas-pages"><button data-dnacalc="atlas-reasons-previous" disabled=move ||reason_page.get()==0 on:click=move |_|reason_page.update(|p|*p=p.saturating_sub(1))>"Previous reasons"</button><button data-dnacalc="atlas-reasons-next" disabled=move ||census.with(|c|(reason_page.get()+1)*REASON_PAGE>=c.refusals.len()) on:click=move |_|reason_page.update(|p|*p+=1)>"Next reasons"</button></div>
+            {move ||(atlas.with(Option::is_some)&&census.with(|c|c.refusals.is_empty())).then(||view!{<p data-dnacalc="atlas-no-refusals">"No formula is refused."</p>})}
+            <details data-dnacalc="atlas-diagnostics"><summary>"Calculation diagnostics"</summary>{hud}</details>
         </section>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn every_reason_is_reachable_in_count_then_text_order() {
+        let mut census = crate::workbook::Census::default();
+        for n in 0..33 {
+            census.refusals.insert(format!("reason {n:02}"), 1);
+        }
+        census.refusals.insert("most affected".into(), 60);
+        let first = reason_rows(&census, 0);
+        let rest = reason_rows(&census, 1);
+        assert_eq!(first.len(), 30);
+        assert_eq!(rest.len(), 4);
+        assert_eq!(first[0], ("most affected".into(), 60));
+        let all: std::collections::BTreeSet<_> =
+            first.into_iter().chain(rest).map(|(r, _)| r).collect();
+        assert_eq!(all, census.refusals.keys().cloned().collect());
+        assert!(reason_rows(&census, usize::MAX).is_empty());
     }
 }

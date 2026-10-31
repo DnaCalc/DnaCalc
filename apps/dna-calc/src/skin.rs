@@ -77,6 +77,8 @@ impl SkinId {
 #[derive(Clone, Copy)]
 pub struct SkinContext {
     pub controller: Controller,
+    /// The shell owns the active skin; navigation keeps the shared workbook selection.
+    pub active_skin: RwSignal<Option<String>>,
 }
 
 /// The contract of a skin.

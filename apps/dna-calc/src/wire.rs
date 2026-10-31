@@ -292,6 +292,11 @@ pub enum Request {
     Validation(Key),
     /// The atlas: the census and the session's state.
     Atlas,
+    /// A bounded page of cells with this exact projected refusal reason.
+    AtlasRefusals {
+        reason: String,
+        page: u64,
+    },
     /// The tree's outline: each sheet's first rows (`shown`, per sheet; [`crate::tree::ROW_PAGE`]
     /// for a sheet not named) and the cells of the rows of the `open` sheets.
     Outline {
@@ -575,6 +580,7 @@ pub enum Reply {
     Charts(Vec<Chart>),
     Validation(Option<Validation>),
     Atlas(Atlas),
+    AtlasRefusals(RefusalCells),
     Outline(Outline),
     Keys(Vec<Key>),
     Canvas(Canvas),
@@ -678,6 +684,14 @@ pub struct Atlas {
     pub changed: bool,
     /// The server's wasm linear memory, in bytes (the calculation worker's, in a browser).
     pub memory: Option<f64>,
+}
+
+/// One page of actual refused formula cells, in workbook address order.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct RefusalCells {
+    pub total: usize,
+    pub page: usize,
+    pub cells: Vec<(Key, String)>,
 }
 
 /// One cell of a subscription, as the page shows it.

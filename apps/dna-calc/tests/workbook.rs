@@ -1983,3 +1983,112 @@ mod workbook_commands {
         assert_eq!(shown(server.book(), at).text, "2");
     }
 }
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_11__atlas_counts_and_paged_recovery_are_host_projections_over_messages() {
+    use dna_calc::{
+        server::{Server, answer_text},
+        wire::{self, FromServer, Intent, Key, Reply, Request, ToServer},
+    };
+    let mut server = Server::new();
+    let Reply::Atlas(empty) = server.handle(Request::Atlas, None).reply.unwrap() else {
+        panic!("atlas reply")
+    };
+    assert_eq!(empty.census.formulas(), 0);
+    assert_eq!(empty.census.pending(), 0);
+    let sheet = server.book().sheets()[0].id;
+    for row in 1..=93 {
+        let text = if row <= 60 {
+            "=Lost!A1".into()
+        } else if row <= 92 {
+            format!("=Missing{:02}!A1", row - 61)
+        } else {
+            "=1+1".into()
+        };
+        let Reply::Done { outcome, .. } = server
+            .handle(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(CellKey::new(sheet, row, 1).unwrap()),
+                    text,
+                }),
+                None,
+            )
+            .reply
+            .unwrap()
+        else {
+            panic!("entry reply")
+        };
+        assert!(outcome.accepted);
+    }
+    let Reply::Atlas(atlas) = server.handle(Request::Atlas, None).reply.unwrap() else {
+        panic!("atlas reply")
+    };
+    assert_eq!(
+        (
+            atlas.census.formulas(),
+            atlas.census.calculated(),
+            atlas.census.refused(),
+            atlas.census.pending()
+        ),
+        (93, 1, 92, 0)
+    );
+    assert_eq!(atlas.census.refusals.len(), 33);
+    let reason = atlas
+        .census
+        .refusals
+        .iter()
+        .find(|(_, n)| **n == 60)
+        .unwrap()
+        .0
+        .clone();
+    let mut seen = std::collections::BTreeSet::new();
+    for (page, count) in [(0, 50), (1, 10), (2, 0)] {
+        let text = wire::encode(&ToServer {
+            id: 42,
+            request: Request::AtlasRefusals {
+                reason: reason.clone(),
+                page,
+            },
+        });
+        let (answer, _) = answer_text(&mut server, &text, None);
+        let FromServer::Reply {
+            reply: Reply::AtlasRefusals(found),
+            ..
+        } = wire::decode(&answer).unwrap()
+        else {
+            panic!("refusal cells reply")
+        };
+        assert_eq!(found.total, 60);
+        assert_eq!(found.cells.len(), count);
+        for (key, label) in found.cells {
+            assert!(label.starts_with("Sheet1!A"));
+            assert!(seen.insert(key));
+        }
+    }
+    assert_eq!(seen.len(), 60);
+    server
+        .handle(Request::Intent(Intent::SetCalcMode { manual: true }), None)
+        .reply
+        .unwrap();
+    server
+        .handle(
+            Request::Intent(Intent::EnterCell {
+                at: Key::of(CellKey::new(sheet, 93, 1).unwrap()),
+                text: "=3+4".into(),
+            }),
+            None,
+        )
+        .reply
+        .unwrap();
+    let Reply::Atlas(stale) = server.handle(Request::Atlas, None).reply.unwrap() else {
+        panic!("atlas reply")
+    };
+    assert_eq!(
+        (
+            stale.census.stale(),
+            stale.census.calculated(),
+            stale.census.refused()
+        ),
+        (1, 0, 92)
+    );
+}

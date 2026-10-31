@@ -5,3 +5,24 @@
 .dc-atlas td,.dc-atlas th{border:1px solid var(--dna-line);padding:3px 8px;text-align:right}
 .dc-atlas td:first-child,.dc-atlas th:first-child{text-align:left}
 .dc-atlas .dc-refusals li{margin:2px 0}
+
+/* dc-971p.11: actionable counts, deliberate narrow scrolling and local recovery links. */
+.dc-atlas{min-width:0;overflow-x:hidden;padding:18px;line-height:1.5}
+.dc-atlas h2{font-size:16px;margin:18px 0 8px}.dc-atlas>h2:first-child{margin-top:0}
+.dc-atlas [data-dnacalc=atlas-totals]{font-size:15px;font-weight:600;overflow-wrap:anywhere}
+.dc-atlas-agreement{padding:10px 12px;border-left:3px solid var(--dna-accent-ink);background:var(--dna-paper-2);max-width:760px}
+.dc-atlas-table{overflow:auto;max-width:100%;border:1px solid var(--dna-line);border-radius:6px}
+.dc-atlas table{width:100%;min-width:790px}.dc-atlas th{background:var(--dna-paper-2);white-space:nowrap}
+.dc-atlas td{font-variant-numeric:tabular-nums}.dc-atlas td:nth-child(2){text-align:left}
+.dc-atlas button{font:inherit;cursor:pointer;border:1px solid var(--dna-ink-3);border-radius:4px;background:var(--dna-paper);color:var(--dna-accent-ink);padding:5px 8px;text-align:left}
+.dc-atlas button:disabled{cursor:default;color:var(--dna-ink-3)}
+.dc-atlas button:focus-visible,.dc-atlas [tabindex]:focus-visible{outline:2px solid var(--dna-accent-ink);outline-offset:2px}
+.dc-atlas .dc-refusals{list-style:none;padding:0;margin:8px 0;max-width:980px}
+.dc-atlas .dc-refusals>li{margin:8px 0}.dc-atlas [data-dnacalc=atlas-reason]{width:100%;overflow-wrap:anywhere}
+.dc-atlas [data-dnacalc=atlas-reason][aria-expanded=true]{background:var(--dna-paper-2);border-color:var(--dna-accent-ink)}
+.dc-atlas-affected{padding:10px 12px;border:1px solid var(--dna-line);border-top:0}.dc-atlas-affected>ul{list-style:none;padding:0}
+.dc-atlas [data-dnacalc=atlas-affected-cell]{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:6px 0}
+.dc-atlas [data-dnacalc=atlas-affected-cell]>span{min-width:120px;overflow-wrap:anywhere}
+.dc-atlas-pages{display:flex;gap:8px;margin:10px 0}.dc-atlas>details{margin-top:24px;border-top:1px solid var(--dna-line);padding-top:12px}
+@media(max-width:700px){.dc-atlas{padding:12px}.dc-atlas [data-dnacalc=atlas-affected-cell]>span{flex-basis:100%}}
+.dc-atlas [data-dnacalc=atlas-totals]{position:sticky;top:0;z-index:1;background:var(--dna-paper);padding:8px 0}

@@ -306,6 +306,10 @@ impl Server {
                     ))
                 }
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
+                Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
+                    self.book
+                        .refusal_cells(&reason, usize::try_from(page).unwrap_or(usize::MAX)),
+                )),
                 Request::Atlas => {
                     let census = self.book.census();
                     let session = self.book.session();

@@ -1744,7 +1744,7 @@ const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Text(
                 "atlas-totals",
-                "3 formula cells: 2 calculated, 1 refused, 0 file cache, 0 stale; 66.67% calculated",
+                "3 formula cells: 2 calculated, 1 refused, 0 file cache, 0 stale, 0 pending; 66.67% calculated",
             ),
             Check::Text("atlas-mode", "Calculation: automatic"),
         ],
@@ -2593,6 +2593,7 @@ const CALC_CASES: &[Case] = &[
         actions: &[
             Action::Keys("grid", "-"),
             Action::Keys("cell-editor", "1\u{E007}"),
+            Action::Wait(Check::Attr("validation-dialog", "open", "")),
             Action::Click("validation-keep"),
         ],
         checks: &[
@@ -2632,6 +2633,7 @@ const CALC_CASES: &[Case] = &[
         actions: &[
             Action::Keys("grid", "a"),
             Action::Keys("cell-editor", "bcdef\u{E007}"),
+            Action::Wait(Check::Attr("validation-dialog", "open", "")),
             Action::Click("validation-keep"),
         ],
         checks: &[
@@ -6218,6 +6220,188 @@ const CALC_CASES: &[Case] = &[
             Action::Window(1280, 1000),
         ],
         checks: &[Check::Focused("grid"), Check::Fits],
+    },
+    Case {
+        name: "atlas: zero formulas gives useful copy and explicitly unmeasured Excel agreement",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Click("skin-atlas"),
+        ],
+        checks: &[
+            Check::Starts("atlas-totals", "0 formula cells: 0 calculated"),
+            Check::TextContains("atlas-empty", "choose a sheet"),
+            Check::TextContains(
+                "atlas-agreement",
+                "Agreement with Excel has not been measured",
+            ),
+            Check::Absent("[data-dnacalc=atlas-diagnostics][open]"),
+        ],
+    },
+    Case {
+        name: "atlas: a keyboard sheet jump opens the shared Grid selection",
+        actions: &[Action::Keys("atlas-sheet-jump", "\u{E007}")],
+        checks: &[Check::Value("name-box", "A1"), Check::Focused("grid")],
+    },
+    Case {
+        name: "atlas: all 33 actual refusal reasons are counted, with an explicit first page",
+        actions: &[
+            Action::ExternalClipboard(
+                "=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Lost!A1\n=Missing00!A1\n=Missing01!A1\n=Missing02!A1\n=Missing03!A1\n=Missing04!A1\n=Missing05!A1\n=Missing06!A1\n=Missing07!A1\n=Missing08!A1\n=Missing09!A1\n=Missing10!A1\n=Missing11!A1\n=Missing12!A1\n=Missing13!A1\n=Missing14!A1\n=Missing15!A1\n=Missing16!A1\n=Missing17!A1\n=Missing18!A1\n=Missing19!A1\n=Missing20!A1\n=Missing21!A1\n=Missing22!A1\n=Missing23!A1\n=Missing24!A1\n=Missing25!A1\n=Missing26!A1\n=Missing27!A1\n=Missing28!A1\n=Missing29!A1\n=Missing30!A1\n=Missing31!A1\n=1+1",
+                false,
+            ),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Click("skin-atlas"),
+        ],
+        checks: &[
+            Check::Text(
+                "atlas-totals",
+                "93 formula cells: 1 calculated, 92 refused, 0 file cache, 0 stale, 0 pending; 1.08% calculated",
+            ),
+            Check::Count("atlas-reason", 30),
+            Check::TextContains("atlas-reason-count", "Reasons 1–30 of 33"),
+        ],
+    },
+    Case {
+        name: "atlas: Enter opens an actual refusal group and its first 50 affected cells",
+        actions: &[Action::Keys("atlas-reason", "\u{E007}")],
+        checks: &[
+            Check::Count("atlas-affected-cell", 50),
+            Check::Text("atlas-affected-count", "60 affected cells · page 1 of 2"),
+        ],
+    },
+    Case {
+        name: "atlas: the second affected-cell page exposes its remaining ten cells",
+        actions: &[Action::Click("atlas-cells-next")],
+        checks: &[
+            Check::Count("atlas-affected-cell", 10),
+            Check::Text("atlas-affected-count", "60 affected cells · page 2 of 2"),
+            Check::TextContains("atlas-affected-cell", "Sheet1!A51"),
+        ],
+    },
+    Case {
+        name: "atlas: an affected-cell link enters Grid at the actual refused source",
+        actions: &[Action::Keys("atlas-open-grid", "\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "A51"),
+            Check::Value(BAR, "=Lost!A1"),
+            Check::Text("result-state", "Refused"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "atlas: reasons after the first thirty remain keyboard reachable",
+        actions: &[
+            Action::Click("skin-atlas"),
+            Action::Click("atlas-reasons-next"),
+        ],
+        checks: &[
+            Check::Count("atlas-reason", 3),
+            Check::TextContains("atlas-reason-count", "Reasons 31–33 of 33"),
+        ],
+    },
+    Case {
+        name: "atlas: counts and a later reason stay useful at phone width",
+        actions: &[
+            Action::Window(390, 844),
+            Action::Keys("atlas-reason", "\u{E007}"),
+        ],
+        checks: &[
+            Check::Fits,
+            Check::Narrow(390),
+            Check::Text("atlas-affected-count", "1 affected cell · page 1 of 1"),
+            Check::Count("atlas-affected-cell", 1),
+            Check::Reachable("atlas-totals"),
+        ],
+    },
+    Case {
+        name: "atlas: hidden refused sources are counted and explicitly unavailable until unhidden",
+        actions: &[
+            Action::Window(1280, 1000),
+            Action::Click("skin-grid"),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Into("sheet-new-name", "Hidden recovery"),
+            Action::Click("sheet-add"),
+            Action::Into(BAR, "=NoSheet!A1\u{E007}"),
+            Action::Click("sheet-hide"),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Click("skin-atlas"),
+            Action::Click("[data-dnacalc=atlas-reason][data-reason*=NoSheet]"),
+        ],
+        checks: &[
+            Check::Count("atlas-sheet", 2),
+            Check::Count("sheet-tab", 1),
+            Check::TextContains("atlas-affected-cell", "hidden; unhide in Sheet tools"),
+            Check::Attr("atlas-open-grid", "disabled", ""),
+        ],
+    },
+    Case {
+        name: "atlas: unhiding enables recovery to the same actual source",
+        actions: &[
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Click("sheet-unhide"),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Wait(Check::Absent("[data-dnacalc=atlas-open-grid][disabled]")),
+            Action::Keys("atlas-open-grid", "\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(
+                "[data-dnacalc=sheet-tab][aria-selected=true]",
+                "Hidden recovery",
+            ),
+            Check::Value(BAR, "=NoSheet!A1"),
+            Check::Text("result-state", "Refused"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "atlas: a manual workbook reports file-cache provenance and never calculated coverage",
+        actions: &[
+            Action::Window(1280, 1000),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Click("skin-grid"),
+            Action::Into(BAR, "=2+3\u{E007}"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::ManualDownloadFixture,
+            Action::UploadDownload("manual-cache.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("skin-atlas"),
+        ],
+        checks: &[
+            Check::Text(
+                "atlas-totals",
+                "1 formula cells: 0 calculated, 0 refused, 1 file cache, 0 stale, 0 pending; 0.00% calculated",
+            ),
+            Check::Text("atlas-mode", "Calculation: manual"),
+        ],
+    },
+    Case {
+        name: "atlas: editing that manual formula changes the census to stale until Calculate",
+        actions: &[
+            Action::Click("skin-grid"),
+            Action::Into(BAR, "=3+4\u{E007}"),
+            Action::Click("skin-atlas"),
+        ],
+        checks: &[Check::Text(
+            "atlas-totals",
+            "1 formula cells: 0 calculated, 0 refused, 0 file cache, 1 stale, 0 pending; 0.00% calculated",
+        )],
+    },
+    Case {
+        name: "atlas: Calculate publishes a result without claiming Excel agreement",
+        actions: &[Action::Click("calculate")],
+        checks: &[
+            Check::Text(
+                "atlas-totals",
+                "1 formula cells: 1 calculated, 0 refused, 0 file cache, 0 stale, 0 pending; 100.00% calculated",
+            ),
+            Check::TextContains(
+                "atlas-agreement",
+                "Agreement with Excel has not been measured",
+            ),
+        ],
     },
 ];
 
