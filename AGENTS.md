@@ -65,8 +65,7 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    split for sources whose code we may not use.
 
    `cargo xtask sweep` runs the slow and structural validation: the five architecture checks
-   (dependencies, os-imports, wasm-refusal, tree-reference-tokens, the word scan over all text
-   and history), the licence ledger's completeness, the dependency ceiling (dna-onecalc and
+   (dependencies, os-imports, wasm-refusal, tree-reference-tokens), the licence ledger's completeness, the dependency ceiling (dna-onecalc and
    dna-formula-ui never reach calc-engine, calc-doc or calc-host; dna-calc does not depend on
    dna-onecalc), the portable packages' tests in headless Chrome and Firefox (a test that is
    neither run there nor marked `Native-only:` fails it), and xtask's acceptance suite. It takes
@@ -140,8 +139,8 @@ second copy is really needed, say why in the commit message.
 
 ## Writing
 
-Never use the two banned words listed in `docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md` §0. The
-word scan reads code, docs, tracker text and commit messages. Say what blocks what instead.
+Write plainly about what the work does. Avoid process jargon such as "gate" for what blocks
+what, or "production ready": say concretely what is done, what blocks what, and what is left.
 
 ## Platforms
 

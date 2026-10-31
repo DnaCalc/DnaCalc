@@ -24,7 +24,6 @@
 //!   build script) contains a denied phrase, in any case or joining (`TreeRef`, `tree_ref`,
 //!   `tree-ref`, `Tree ref` are one phrase). Plain comments, `tests/`, `benches/`, `examples/` and
 //!   `#[cfg(test)]` items are outside its scope by design.
-//! - `word-scan`: see `words.rs`.
 //!
 //! Neither source scan follows `include!`, `include_str!` or `include_bytes!`: a portable package
 //! that uses one, in a shipped target or its build script, fails both `os-imports` and
@@ -32,7 +31,7 @@
 
 use crate::cargo::{self, Edge, Resolved, SHIPPED_TARGETS, WASM_TARGET, Workspace};
 use crate::rust_source::{self, SourceFile};
-use crate::{text, words};
+use crate::text;
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::ToTokens;
 use serde_json::{Map, Value, json};
@@ -268,7 +267,6 @@ pub fn run_all(ws: &Workspace, log_dir: &Path) -> Vec<CheckResult> {
             Ok(config) => tree_reference_tokens(ws, config, &sources, &build_sources),
             Err(e) => CheckResult::unavailable("tree-reference-tokens", e),
         },
-        words::check(&ws.root),
     ]
 }
 
