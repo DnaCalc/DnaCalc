@@ -113,16 +113,97 @@ impl InputOrigin {
 }
 
 impl Controller {
+    pub fn selection_focus_snapshot(&self) -> dna_calc_model::FocusTicket {
+        self.model.with_untracked(|m| {
+            m.runtime
+                .selection_focus
+                .unwrap_or_else(|| m.focus.snapshot())
+        })
+    }
+    pub fn focus_snapshot(&self) -> dna_calc_model::FocusTicket {
+        self.captured_command_focus()
+            .unwrap_or_else(|| self.model.with_untracked(|m| m.focus.snapshot()))
+    }
+    pub(super) fn with_response_focus(
+        &self,
+        ticket: dna_calc_model::FocusTicket,
+        answer: impl FnOnce(),
+    ) {
+        let Some(prior) = self
+            .model
+            .try_update(|m| m.runtime.callback_focus.replace(ticket))
+        else {
+            return;
+        };
+        answer();
+        self.model.try_update(|m| m.runtime.callback_focus = prior);
+    }
     pub(super) fn captured_command_focus(&self) -> Option<dna_calc_model::FocusTicket> {
         #[cfg(target_arch = "wasm32")]
+        if let Some(ticket) = self
+            .input_surfaces
+            .try_with_value(|s| s.replay_focus)
+            .flatten()
         {
-            self.input_surfaces
-                .with_value(|surfaces| surfaces.replay_focus)
+            return Some(ticket);
         }
+        self.model
+            .try_with_untracked(|m| m.runtime.callback_focus)
+            .flatten()
+    }
+    /// The browser adapter is the sole owner of projection focus timing and admission.
+    /// A skin chooses a target; a response cannot renew the submission's focus lease.
+    pub fn focus_projection(
+        &self,
+        skin: SkinId,
+        selector: String,
+        ticket: dna_calc_model::FocusTicket,
+    ) {
+        #[cfg(target_arch = "wasm32")]
+        self.focus_projection_frame(
+            skin,
+            selector,
+            ticket,
+            self.generation.get_untracked(),
+            now_ms() + 3000.,
+        );
         #[cfg(not(target_arch = "wasm32"))]
-        {
-            None
-        }
+        let _ = (skin, selector, ticket);
+    }
+    #[cfg(target_arch = "wasm32")]
+    fn focus_projection_frame(
+        &self,
+        skin: SkinId,
+        selector: String,
+        ticket: dna_calc_model::FocusTicket,
+        generation: u64,
+        until: f64,
+    ) {
+        let controller = *self;
+        request_animation_frame(move || {
+            if controller.generation.try_get_untracked() != Some(generation)
+                || controller.active_skin_id() != Some(skin)
+                || controller
+                    .model
+                    .try_with_untracked(|m| m.focus.accepts(ticket))
+                    != Some(true)
+            {
+                return;
+            }
+            use wasm_bindgen::JsCast;
+            if let Some(element) = document()
+                .query_selector(&selector)
+                .ok()
+                .flatten()
+                .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                controller.restoring_editor(|| {
+                    let _ = element.focus();
+                });
+            } else if now_ms() < until {
+                controller.focus_projection_frame(skin, selector, ticket, generation, until);
+            }
+        });
     }
     pub(super) fn remember_editor_selection(&self) {
         #[cfg(target_arch = "wasm32")]
@@ -1057,10 +1138,16 @@ impl Controller {
     pub fn focus_active_skin(&self) {
         #[cfg(target_arch = "wasm32")]
         {
-            // Imperative callers request focus at this call; older async callers still need
-            // to inherit submission tickets as the wider command migration continues.
-            let Some(ticket) = self.model.try_update(|model| model.focus.request()) else {
-                return;
+            let ticket = if let Some(ticket) = self.captured_command_focus() {
+                if self.model.try_with_untracked(|m| m.focus.accepts(ticket)) != Some(true) {
+                    return;
+                }
+                ticket
+            } else {
+                let Some(ticket) = self.model.try_update(|m| m.focus.request()) else {
+                    return;
+                };
+                ticket
             };
             if let Some(element) = self.active_skin_element() {
                 self.restoring_editor(|| {

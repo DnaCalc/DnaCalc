@@ -6627,6 +6627,68 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
         ],
     },
 
+    Case {
+        name: "worker latency: a completed entry preserves newer native field focus",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::PauseMillis(800),
+            Action::Into(BAR, "17\u{E009}\u{E007}\u{E000}"),
+            Action::Into("name-box", "M4"),
+            Action::PauseMillis(1200),
+        ],
+        checks: &[
+            Check::Focused("name-box"),
+            Check::Value("name-box", "M4"),
+            Check::Text(cell!("A1"), "17"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "worker latency: a Notebook projection preserves newer native field focus",
+        actions: &[
+            Action::Click("skin-notebook"),
+            Action::PauseMillis(1000),
+            Action::Click("block-select"),
+            Action::Into("name-box", "Q12"),
+            Action::PauseMillis(1200),
+        ],
+        checks: &[
+            Check::Focused("name-box"),
+            Check::Value("name-box", "Q12"),
+            Check::Count("block", 1),
+        ],
+    },
+
+    Case {
+        name: "worker latency: Ledger page correction preserves newer native field focus",
+        actions: &[
+            Action::Click("skin-grid"),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Absent("[data-dnacalc=replace-dialog][open]")),
+            Action::PauseMillis(800),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::Into("name-box", "A1:A150\u{E007}"),
+            Action::PauseMillis(800),
+            Action::Into(BAR, "=1\u{E009}\u{E007}\u{E000}"),
+            Action::PauseMillis(800),
+            Action::Into("name-box", "A150\u{E007}"),
+            Action::PauseMillis(800),
+            Action::Click("skin-ledger"),
+            Action::PauseMillis(100),
+            Action::Into("name-box", "M4"),
+            Action::PauseMillis(1500),
+        ],
+        checks: &[
+            Check::Focused("name-box"),
+            Check::Value("name-box", "M4"),
+            Check::Count("ledger-row", 50),
+        ],
+    },
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[

@@ -116,6 +116,8 @@ pub struct App {
     /// The package and binary of the browser entry.
     pub package: &'static str,
     pub entry: &'static str,
+    /// Optional separate worker package and binary, built into the same asset folder.
+    pub worker: Option<(&'static str, &'static str)>,
     /// The page, relative to the workspace root.
     pub page: &'static str,
     /// Further scripts copied beside the page, relative to the workspace root (DNA Calc's
@@ -154,6 +156,7 @@ pub static APPS: [App; 2] = [
         label: "ONECALC",
         package: "dna-onecalc",
         entry: "dna-onecalc-web",
+        worker: None,
         page: "apps/dna-onecalc/web/index.html",
         scripts: &[],
         styles: &[
@@ -173,6 +176,7 @@ pub static APPS: [App; 2] = [
         label: "DNACALC",
         package: "dna-calc",
         entry: "dna-calc-web",
+        worker: Some(("dna-calc-worker", "dna-calc-worker-web")),
         page: "apps/dna-calc/web/index.html",
         scripts: &["apps/dna-calc/web/worker.js"],
         styles: &[
@@ -360,50 +364,52 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
             bindgen.display()
         ));
     }
-    println!(
-        "{} building {} for {WASM_TARGET} (profile {PROFILE})",
-        app.label, app.entry
-    );
-    let target_dir = ws.accept_target_dir();
-    let mut build = Command::new(cargo::cargo_program());
-    build
-        .current_dir(&ws.root)
-        .args([
-            "build",
-            "--locked",
-            "--profile",
-            PROFILE,
-            "-p",
-            app.package,
-            "--bin",
-            app.entry,
-        ])
-        .args(["--target", WASM_TARGET])
-        .arg("--target-dir")
-        .arg(&target_dir);
-    let built = cargo::output(&mut build)?;
-    if !built.status.success() {
-        return Err(format!(
-            "cargo build failed:\n{}",
-            cargo::tail(&built.stderr, 40)
-        ));
-    }
-    let wasm = target_dir
-        .join(WASM_TARGET)
-        .join(PROFILE)
-        .join(format!("{}.wasm", app.entry));
     fs::create_dir_all(out).map_err(|e| format!("cannot create {}: {e}", out.display()))?;
-    let generated = cargo::output(
-        Command::new(&bindgen)
-            .args(["--target", "web", "--no-typescript", "--out-dir"])
-            .arg(out)
-            .arg(&wasm),
-    )?;
-    if !generated.status.success() {
-        return Err(format!(
-            "wasm-bindgen failed:\n{}",
-            cargo::tail(&generated.stderr, 40)
-        ));
+    for (package, entry) in std::iter::once((app.package, app.entry)).chain(app.worker) {
+        println!(
+            "{} building {} for {WASM_TARGET} (profile {PROFILE})",
+            app.label, entry
+        );
+        let target_dir = ws.accept_target_dir();
+        let mut build = Command::new(cargo::cargo_program());
+        build
+            .current_dir(&ws.root)
+            .args([
+                "build",
+                "--locked",
+                "--profile",
+                PROFILE,
+                "-p",
+                package,
+                "--bin",
+                entry,
+            ])
+            .args(["--target", WASM_TARGET])
+            .arg("--target-dir")
+            .arg(&target_dir);
+        let built = cargo::output(&mut build)?;
+        if !built.status.success() {
+            return Err(format!(
+                "cargo build failed:\n{}",
+                cargo::tail(&built.stderr, 40)
+            ));
+        }
+        let wasm = target_dir
+            .join(WASM_TARGET)
+            .join(PROFILE)
+            .join(format!("{}.wasm", entry));
+        let generated = cargo::output(
+            Command::new(&bindgen)
+                .args(["--target", "web", "--no-typescript", "--out-dir"])
+                .arg(out)
+                .arg(&wasm),
+        )?;
+        if !generated.status.success() {
+            return Err(format!(
+                "wasm-bindgen failed:\n{}",
+                cargo::tail(&generated.stderr, 40)
+            ));
+        }
     }
     fs::copy(ws.root.join(app.page), out.join("index.html"))
         .map_err(|e| format!("cannot copy {}: {e}", app.page))?;
@@ -419,10 +425,19 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
             .map_err(|e| format!("cannot copy {script}: {e}"))?;
     }
     let mut styles: Vec<_> = app.styles.iter().map(|style| ws.root.join(style)).collect();
-    let style_dir = ws.root.join(app.page).parent().expect("application page folder").join("css");
+    let style_dir = ws
+        .root
+        .join(app.page)
+        .parent()
+        .expect("application page folder")
+        .join("css");
     let mut additional = Vec::new();
-    for entry in fs::read_dir(&style_dir).map_err(|e| format!("cannot list {}: {e}", style_dir.display()))? {
-        let path = entry.map_err(|e| format!("cannot list {}: {e}", style_dir.display()))?.path();
+    for entry in
+        fs::read_dir(&style_dir).map_err(|e| format!("cannot list {}: {e}", style_dir.display()))?
+    {
+        let path = entry
+            .map_err(|e| format!("cannot list {}: {e}", style_dir.display()))?
+            .path();
         if path.extension().is_some_and(|extension| extension == "css") && !styles.contains(&path) {
             additional.push(path);
         }
@@ -437,13 +452,23 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
     }
     fs::write(out.join("app.css"), sheet).map_err(|e| format!("cannot write app.css: {e}"))?;
     let mut files = Vec::new();
-    for name in [
+    let mut names = vec![
         "index.html".to_owned(),
         "app.css".to_owned(),
         "boot.js".to_owned(),
         format!("{}.js", app.entry),
         format!("{}_bg.wasm", app.entry),
-    ] {
+    ];
+    names.extend(
+        app.scripts
+            .iter()
+            .filter_map(|p| Path::new(p).file_name())
+            .map(|n| n.to_string_lossy().into_owned()),
+    );
+    if let Some((_, entry)) = app.worker {
+        names.extend([format!("{entry}.js"), format!("{entry}_bg.wasm")]);
+    }
+    for name in names {
         let size = fs::metadata(out.join(&name))
             .map_err(|e| format!("the bundle has no {name}: {e}"))?
             .len();
@@ -2154,7 +2179,9 @@ fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
             let current = session.element(&selector)?;
             session.post(&format!("/element/{current}/click"), json!({}))?;
         }
-        other => { other?; }
+        other => {
+            other?;
+        }
     }
     Ok(())
 }

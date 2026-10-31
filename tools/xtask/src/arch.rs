@@ -985,8 +985,34 @@ mod tests {
             rule("calc-fml").forbidden,
             ["calc-engine", "calc-host", "calc-doc", "calc-vba"]
         );
-        assert_eq!(rule("dna-calc").forbidden, ["calc-engine"]);
-        assert!(rule("dna-calc").direct);
+        assert_eq!(
+            rule("dna-calc").forbidden,
+            [
+                "calc-host",
+                "calc-engine",
+                "calc-doc",
+                "dna-calc-worker",
+                "dna-onecalc"
+            ]
+        );
+        assert!(!rule("dna-calc").direct);
+        assert_eq!(
+            rule("dna-calc-protocol").forbidden,
+            [
+                "calc-host",
+                "calc-engine",
+                "calc-doc",
+                "dna-calc-worker",
+                "dna-calc",
+                "dna-formula-ui"
+            ]
+        );
+        assert!(!rule("dna-calc-protocol").direct);
+        assert_eq!(
+            rule("dna-calc-worker").forbidden,
+            ["dna-calc", "dna-onecalc"]
+        );
+        assert!(!rule("dna-calc-worker").direct);
         assert!(config.os_binding_crates.contains("windows-sys"));
     }
 }

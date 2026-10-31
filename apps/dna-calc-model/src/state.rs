@@ -167,13 +167,19 @@ pub struct Model {
 impl Model {
     pub fn issue_command(&mut self) -> u64 {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-        NEXT.fetch_update(std::sync::atomic::Ordering::Relaxed,std::sync::atomic::Ordering::Relaxed,|n|n.checked_add(1)).expect("command identities exhausted")
+        NEXT.fetch_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |n| n.checked_add(1),
+        )
+        .expect("command identities exhausted")
     }
 
     /// A workbook replacement resets workbook-relative state, retaining registered schemas.
     pub fn reset_workbook(&mut self) {
         self.selection = SelectionState::default();
         self.confirmed_selection = None;
+        self.runtime.selection_focus = None;
         self.edit = EditSession::default();
         self.editor = crate::EditorState::default();
         self.find = None;

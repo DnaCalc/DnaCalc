@@ -87,7 +87,7 @@ pub struct Workbook {
     /// Each sheet's conditional formats, prepared for the values as they stand; emptied when an
     /// intent commits an edit or recalculates (dc-6yw).
     display_metrics:
-        RefCell<std::collections::BTreeMap<SheetId, Rc<crate::grid::geometry::GridMetrics>>>,
+        RefCell<std::collections::BTreeMap<SheetId, Rc<dna_calc_model::geometry::GridMetrics>>>,
     conditional: RefCell<std::collections::BTreeMap<SheetId, Rc<calc_host::ConditionalFormats>>>,
 }
 
@@ -132,9 +132,9 @@ impl Workbook {
             workbook.palette = Some(palette);
         }
         if workbook.session.calc_mode() != CalcMode::Manual {
-            let started = crate::controller::now_ms();
+            let started = crate::services::now_ms();
             workbook.session.dispatch(SkinIntent::Recalculate);
-            workbook.calculated_on_open = Some(crate::controller::now_ms() - started);
+            workbook.calculated_on_open = Some(crate::services::now_ms() - started);
         }
         Ok(workbook)
     }
@@ -205,11 +205,15 @@ impl Workbook {
         receipt
     }
 
-    pub fn display_metrics(&self, sheet: SheetId) -> Rc<crate::grid::geometry::GridMetrics> {
+    pub fn display_metrics(&self, sheet: SheetId) -> Rc<dna_calc_model::geometry::GridMetrics> {
         let mut cache = self.display_metrics.borrow_mut();
         Rc::clone(cache.entry(sheet).or_insert_with(|| {
-            Rc::new(crate::grid::sheet_metrics(
-                self.host().sheet_geometry(sheet).as_ref().map(crate::wire::geometry_of).as_ref(),
+            Rc::new(dna_calc_model::geometry::sheet_metrics(
+                self.host()
+                    .sheet_geometry(sheet)
+                    .as_ref()
+                    .map(crate::wire::geometry_of)
+                    .as_ref(),
             ))
         }))
     }
@@ -264,7 +268,7 @@ impl Workbook {
         };
         let Some(look) = look else {
             let mut shown = cells::shown(cell, self.profile(), self.cell_format(at));
-            shown.style = crate::grid::autofit::text_style(
+            shown.style = crate::autofit::text_style(
                 self.host(),
                 at,
                 self.display_metrics(at.sheet()).width(at.column()),
@@ -280,7 +284,7 @@ impl Workbook {
             None => self.cell_format(at),
         };
         let mut shown = cells::shown(cell, self.profile(), format);
-        shown.style = crate::grid::autofit::text_style(
+        shown.style = crate::autofit::text_style(
             self.host(),
             at,
             self.display_metrics(at.sheet()).width(at.column()),
@@ -512,4 +516,4 @@ impl Workbook {
     }
 }
 
-pub use dna_calc_model::projection::{Census,SheetCensus};
+pub use dna_calc_model::projection::{Census, SheetCensus};

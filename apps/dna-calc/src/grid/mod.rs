@@ -2,7 +2,7 @@
 //! numbers, the active cell, an editor over it, scrolling, zoom, and Excel's keys.
 //!
 //! "Viewing is subscribing": the skin subscribes to the area of the sheet in view
-//! ([`calc_host::Interest::Area`]), moves the subscription's interest as the view scrolls, and draws
+//! (`wire::Interest::Area`), moves the subscription's interest as the view scrolls, and draws
 //! the cells its mirror holds, each with its value's provenance (`data-provenance`): a refused
 //! formula shows as refused, a value the file stored as a file cache, a value awaiting
 //! recalculation as stale. The subscription ends when the skin is no longer shown.
@@ -25,7 +25,6 @@
 mod alignment;
 pub mod autofit;
 pub mod axis;
-pub mod chart;
 pub mod geometry;
 pub mod icons;
 pub mod panes;
@@ -39,7 +38,7 @@ use crate::controller::{Controller, EditOrigin};
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::style::css;
 use crate::wire;
-use calc_host::value::{CellKey, GridArea};
+use calc_value::{CellKey, GridArea};
 use geometry::{GridMetrics, HitTarget, Viewport, cell_rect, visible_col_range, visible_row_range};
 use leptos::prelude::*;
 use panes::Panes;
@@ -62,58 +61,11 @@ const MAX_COLUMN: u32 = 16_384;
 
 /// The maximum digit width of Excel's default font (Calibri 11) at 100%, in pixels: a column's
 /// width in characters, as the file writes it, times this is its width in pixels.
-const DIGIT_PX: f64 = 7.0;
 
 /// A sheet's metrics from its geometry as the file states it (calc-host's `sheet_geometry`):
 /// Excel's default 64-pixel column and 20-pixel (15-point) row unless the sheet states other
 /// defaults, each sized column and row at its size, and a hidden one at 0.
-pub fn sheet_metrics(geometry: Option<&wire::Geometry>) -> GridMetrics {
-    let column_px = |chars: f64| (chars * DIGIT_PX).round();
-    let row_px = |points: f64| (points * 96.0 / 72.0).round();
-    let col_width = geometry
-        .and_then(|g| g.default_column_width)
-        .map_or(64.0, column_px);
-    let row_height = geometry
-        .and_then(|g| g.default_row_height)
-        .map_or(20.0, row_px);
-    let (columns, rows) = match geometry {
-        Some(geometry) => (
-            geometry
-                .columns
-                .iter()
-                .flat_map(|&(first,last,width,hidden)| {
-                    let size = if hidden {
-                        0.0
-                    } else {
-                        width.map_or(col_width, column_px)
-                    };
-                    (first..=last.min(16_384)).map(move |column| (column, size))
-                })
-                .collect::<Vec<_>>(),
-            geometry
-                .rows
-                .iter()
-                .map(|&(row,height,hidden)| {
-                    let size = if hidden {
-                        0.0
-                    } else {
-                        height.map_or(row_height, row_px)
-                    };
-                    (row, size)
-                })
-                .collect::<Vec<_>>(),
-        ),
-        None => (Vec::new(), Vec::new()),
-    };
-    GridMetrics {
-        row_height,
-        col_width,
-        header_h: 22.0,
-        header_w: 64.0,
-        rows: geometry::Sizes::new(row_height, rows),
-        cols: geometry::Sizes::new(col_width, columns),
-    }
-}
+pub use dna_calc_model::geometry::sheet_metrics;
 
 impl Skin for GridSkin {
     fn id(&self) -> SkinId {
@@ -124,11 +76,17 @@ impl Skin for GridSkin {
         "Grid"
     }
 
-    fn input_target(&self) -> &'static str { "[data-dnacalc=grid][data-grid-active=true]" }
+    fn input_target(&self) -> &'static str {
+        "[data-dnacalc=grid][data-grid-active=true]"
+    }
 
-    fn clipboard_owner(&self) -> dna_calc_model::ClipboardOwner { dna_calc_model::ClipboardOwner::Workbook }
+    fn clipboard_owner(&self) -> dna_calc_model::ClipboardOwner {
+        dna_calc_model::ClipboardOwner::Workbook
+    }
 
-    fn focus_target(&self) -> &'static str { "[data-dnacalc=grid][data-grid-active=true][data-surface-ready=true]" }
+    fn focus_target(&self) -> &'static str {
+        "[data-dnacalc=grid][data-grid-active=true][data-surface-ready=true]"
+    }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
         grid_workspace(ctx.controller).into_any()
@@ -137,7 +95,7 @@ impl Skin for GridSkin {
 
 /// The area to subscribe to for a view: its visible rows and columns rounded out to whole blocks.
 pub fn interest_area(
-    sheet: calc_host::value::SheetId,
+    sheet: calc_value::SheetId,
     m: &GridMetrics,
     v: &Viewport,
     extent: GridExtent,
@@ -178,7 +136,7 @@ struct PaneContext {
     index: u8,
     layout: RwSignal<wire::Geometry>,
     loaded: RwSignal<bool>,
-    source: RwSignal<Option<(u64, calc_host::value::SheetId)>>,
+    source: RwSignal<Option<(u64, calc_value::SheetId)>>,
     active: RwSignal<u8>,
     axes: RwSignal<SplitAxes>,
     zoom: RwSignal<f64>,
@@ -322,7 +280,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             zoom_text.set(format!("{:.0}", zoom.get_untracked() * 100.0));
         }
     };
-    let viewed_sheet = StoredValue::new(None::<(u64, calc_host::value::SheetId)>);
+    let viewed_sheet = StoredValue::new(None::<(u64, calc_value::SheetId)>);
     let restoring = StoredValue::new(false);
     let skip_reveal = StoredValue::new(false);
     let last_reveal_epoch = StoredValue::new(controller.reveal_epoch.get_untracked());
@@ -392,7 +350,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let scroller: NodeRef<leptos::html::Div> = NodeRef::new();
     let layer: NodeRef<leptos::html::Div> = NodeRef::new();
     let assist = controller.assist.another_field();
-    controller.register_editor_surface(dna_calc_model::SurfaceDescriptor::editor_with_navigation(EditOrigin::Cell, SkinId::Grid), assist);
+    controller.register_editor_surface(
+        dna_calc_model::SurfaceDescriptor::editor_with_navigation(EditOrigin::Cell, SkinId::Grid),
+        assist,
+    );
     let editor = assist.field;
     let note = RwSignal::new(String::new());
     // Whether the active cell's validation list is open.
@@ -740,7 +701,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         let epoch = controller.reveal_epoch.get();
         let explicit = epoch != last_reveal_epoch.get_value();
         last_reveal_epoch.set_value(epoch);
-        if explicit { held_origin.set_value(None); }
+        if explicit {
+            held_origin.set_value(None);
+        }
         metrics.track();
         panes.track();
         ctx.source.track();
@@ -756,7 +719,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         }
         if skip_reveal.get_value() {
             skip_reveal.set_value(false);
-            if !explicit { return; }
+            if !explicit {
+                return;
+            }
         }
         if scroller.get().is_some() {
             measure();
@@ -1529,7 +1494,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             return None;
         }
         let area = controller.selected_area()?;
-        if area.cell_count() > calc_host::COPY_LIMIT {
+        if area.cell_count() > calc_value::COPY_LIMIT {
             return None;
         }
         let rect = panes.get().rect(
@@ -1973,7 +1938,7 @@ pub fn focus_grid() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use calc_host::value::{IdAllocator, SheetId};
+    use calc_value::{IdAllocator, SheetId};
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

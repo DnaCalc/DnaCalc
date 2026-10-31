@@ -402,7 +402,13 @@ impl SheetNames for dna_calc_model::projection::Summary {
     }
 }
 
+impl<T: SheetNames> SheetNames for dna_calc_model::Snapshot<T> {
+    fn sheet_name_of(&self, sheet: SheetId) -> Option<String> {
+        (**self).sheet_name_of(sheet)
+    }
+}
 
-impl<T:SheetNames> SheetNames for dna_calc_model::Snapshot<T> {
-    fn sheet_name_of(&self,sheet:SheetId)->Option<String> {(**self).sheet_name_of(sheet)}
+/// A cell address without a worksheet qualifier.
+pub fn address(row: u32, column: u32) -> String {
+    format!("{}{row}", column_letters(column))
 }

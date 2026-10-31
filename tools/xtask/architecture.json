@@ -3,43 +3,81 @@
     {
       "package": "calc-func",
       "scope": "closure",
-      "forbidden": ["calc-fml", "calc-engine", "calc-host", "calc-vba"],
+      "forbidden": [
+        "calc-fml",
+        "calc-engine",
+        "calc-host",
+        "calc-vba"
+      ],
       "reason": "plan 1.3: CalcFunc cannot depend on CalcFml, CalcEngine or CalcHost"
     },
     {
       "package": "calc-fml",
       "scope": "closure",
-      "forbidden": ["calc-engine", "calc-host", "calc-doc", "calc-vba"],
+      "forbidden": [
+        "calc-engine",
+        "calc-host",
+        "calc-doc",
+        "calc-vba"
+      ],
       "reason": "plan 1.3: CalcFml cannot depend on CalcEngine, CalcHost or the CalcDoc codec"
     },
     {
       "package": "calc-engine",
       "scope": "closure",
-      "forbidden": ["calc-doc", "calc-host", "dna-onecalc", "dna-calc"],
+      "forbidden": [
+        "calc-doc",
+        "calc-host",
+        "dna-onecalc",
+        "dna-calc"
+      ],
       "reason": "plan 1.3: CalcEngine may depend on the CalcDoc model, never its codec, the applications or the skins"
     },
     {
       "package": "dna-onecalc",
       "scope": "closure",
-      "forbidden": ["calc-engine", "calc-host"],
+      "forbidden": [
+        "calc-engine",
+        "calc-host"
+      ],
       "reason": "plan 1.3: OneCalc's transitive dependency closure contains no CalcEngine or CalcHost"
     },
     {
       "package": "dna-calc",
-      "scope": "direct",
-      "forbidden": ["calc-engine"],
-      "reason": "plan 1.3: skins depend on the skin contract and controller layer, never engine internals"
+      "scope": "closure",
+      "forbidden": [
+        "calc-host",
+        "calc-engine",
+        "calc-doc",
+        "dna-calc-worker",
+        "dna-onecalc"
+      ],
+      "reason": "U1: the page and skins use the model and transport contract; workbook composition is a separate worker binary"
     },
     {
       "package": "calc-doc-model",
       "scope": "closure",
-      "forbidden": ["calc-engine", "calc-fml", "calc-host", "calc-doc"],
+      "forbidden": [
+        "calc-engine",
+        "calc-fml",
+        "calc-host",
+        "calc-doc"
+      ],
       "reason": "plan 1.3 and 2.1: CalcEngine may depend on CalcDoc's neutral model, and the model depends only on the CalcFunc value types and service contracts, never on CalcEngine, CalcFml, CalcHost or the CalcDoc codec"
     },
     {
       "package": "calc-verdict",
       "scope": "closure",
-      "forbidden": ["calc-func", "calc-fml", "calc-engine", "calc-host", "calc-doc-model", "calc-doc", "dna-onecalc", "dna-calc"],
+      "forbidden": [
+        "calc-func",
+        "calc-fml",
+        "calc-engine",
+        "calc-host",
+        "calc-doc-model",
+        "calc-doc",
+        "dna-onecalc",
+        "dna-calc"
+      ],
       "reason": "plan 10.1 and infra-m1.1: the portable verdict library depends on neither calc-func (the function library whose results it judges) nor any CalcFml, CalcEngine, CalcHost, CalcDoc or application package, so the code under test is never part of its own judge; calc-value supplies its value types"
     },
     {
@@ -62,7 +100,9 @@
         "dna-strand",
         "calc-oracle-excel",
         "calc-platform-desktop",
-        "dna-calc-model"
+        "dna-calc-model",
+        "dna-calc-worker",
+        "dna-calc-protocol"
       ],
       "reason": "dc-qeeu: the command and its checks have no product normal/build dependencies; linked commands execute the separate harness"
     },
@@ -76,9 +116,33 @@
         "dna-calc",
         "dna-formula-ui",
         "dna-onecalc",
-        "dna-strand"
+        "dna-strand",
+        "dna-calc-worker",
+        "dna-calc-protocol"
       ],
       "reason": "U1: portable application state and command decisions contain no host, skin or browser implementation"
+    },
+    {
+      "package": "dna-calc-protocol",
+      "scope": "closure",
+      "forbidden": [
+        "calc-host",
+        "calc-engine",
+        "calc-doc",
+        "dna-calc-worker",
+        "dna-calc",
+        "dna-formula-ui"
+      ],
+      "reason": "U1: the wire codec depends only on the neutral model contract"
+    },
+    {
+      "package": "dna-calc-worker",
+      "scope": "closure",
+      "forbidden": [
+        "dna-calc",
+        "dna-onecalc"
+      ],
+      "reason": "U1: workbook execution cannot depend on a page or a skin"
     }
   ],
   "os_binding_crates": [
@@ -95,9 +159,18 @@
     "windows-targets",
     "winreg"
   ],
-  "os_import_paths": ["std::fs", "std::process", "std::os", "std::net"],
-  "os_import_abis": ["system"],
-  "os_import_attributes": ["link"],
+  "os_import_paths": [
+    "std::fs",
+    "std::process",
+    "std::os",
+    "std::net"
+  ],
+  "os_import_abis": [
+    "system"
+  ],
+  "os_import_attributes": [
+    "link"
+  ],
   "tree_reference_phrases": [
     "tree reference",
     "TreeRef",

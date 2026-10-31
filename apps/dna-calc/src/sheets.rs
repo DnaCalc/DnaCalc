@@ -9,7 +9,7 @@ pub fn next_name(names: &[String]) -> String {
         .find(|name| {
             names
                 .iter()
-                .all(|held| !calc_host::value::workbook_names_equal(held, name))
+                .all(|held| !calc_value::workbook_names_equal(held, name))
         })
         .expect("an unused sheet name")
 }

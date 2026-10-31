@@ -16,6 +16,8 @@ members = [
     "apps/dna-onecalc",
     "apps/dna-calc",
     "apps/dna-calc-model",
+    "apps/dna-calc-protocol",
+    "apps/dna-calc-worker",
     "apps/dna-strand",
     "platform/calc-platform-desktop",
     "platform/calc-oracle-excel",

@@ -6,9 +6,9 @@
 //! cell; a sort orders them by address or by value (numbers before the rest); the rows can be
 //! grouped by provenance. A click on a row makes that cell the active cell.
 //!
-//! A formula cell is one Excel counts as holding a formula ([`calc_host::HostState::holds_formula`],
+//! A formula cell is one Excel counts as holding a formula (the worker's formula catalogue,
 //! the atlas's and the corpus comparison's set). After each change the skin reads which cells
-//! those are ([`calc_host::HostState::formula_cells`], from the document, without projecting
+//! those are (from the document, without projecting
 //! them) and projects only the [`PAGE`] rows it shows; a filter or a sort that reads values (errors,
 //! a provenance, a text, by value) projects every formula cell of its scope, which on a workbook
 //! of a hundred thousand formulas takes seconds per change (measured, dc-gf0). The skin changes
@@ -22,18 +22,20 @@
 //! cleave state across lenses, the multi-select and the bulk content and number-format edits,
 //! which calc-host has no intent for yet.
 
-use crate::cells::{self, Provenance};
+#[cfg(test)]
+use crate::cells;
+use crate::cells::Provenance;
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::wire;
-use crate::workbook::Workbook;
-use calc_host::value::{CellKey, CoreValue};
-use calc_host::{ProjectedCell, ProjectedValue};
+#[cfg(test)]
+use calc_value::CellKey;
 use leptos::prelude::*;
+#[cfg(test)]
 use std::collections::BTreeSet;
 
 /// The rows one page shows.
-pub const PAGE: usize = 100;
+pub use dna_calc_model::ledger::*;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LedgerSkin;
@@ -52,22 +54,6 @@ impl Skin for LedgerSkin {
     }
 }
 
-/// One formula cell as the ledger filters and sorts it.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Entry {
-    pub at: CellKey,
-    /// `Sheet1!B3`.
-    pub label: String,
-    /// The formula as entered, with its `=`.
-    pub formula: String,
-    /// The value as a cell shows it (General).
-    pub value: String,
-    /// The value when it is a number.
-    pub number: Option<f64>,
-    pub error: bool,
-    pub provenance: Provenance,
-}
-
 /// Page-owned controls that survive skin changes; a new workbook resets them.
 #[derive(Clone, Copy)]
 pub struct ViewState {
@@ -81,12 +67,36 @@ pub struct ViewState {
 impl ViewState {
     pub fn new(controller: Controller) -> Self {
         Self {
-            filter: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.filter, |s| &mut s.filter),
-            text: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.text, |s| &mut s.text),
-            sort: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.sort, |s| &mut s.sort),
-            grouped: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.grouped, |s| &mut s.grouped),
-            this_sheet: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.this_sheet, |s| &mut s.this_sheet),
-            page: controller.view_field::<dna_calc_model::LedgerState, _>(SkinId::Ledger, |s| &s.page, |s| &mut s.page),
+            filter: controller.view_field::<dna_calc_model::LedgerState, _>(
+                SkinId::Ledger,
+                |s| &s.filter,
+                |s| &mut s.filter,
+            ),
+            text: controller.view_field::<dna_calc_model::LedgerState, _>(
+                SkinId::Ledger,
+                |s| &s.text,
+                |s| &mut s.text,
+            ),
+            sort: controller.view_field::<dna_calc_model::LedgerState, _>(
+                SkinId::Ledger,
+                |s| &s.sort,
+                |s| &mut s.sort,
+            ),
+            grouped: controller.view_field::<dna_calc_model::LedgerState, _>(
+                SkinId::Ledger,
+                |s| &s.grouped,
+                |s| &mut s.grouped,
+            ),
+            this_sheet: controller.view_field::<dna_calc_model::LedgerState, _>(
+                SkinId::Ledger,
+                |s| &s.this_sheet,
+                |s| &mut s.this_sheet,
+            ),
+            page: controller.view_field::<dna_calc_model::LedgerState, _>(
+                SkinId::Ledger,
+                |s| &s.page,
+                |s| &mut s.page,
+            ),
         }
     }
 }
@@ -97,258 +107,6 @@ fn short_reason(reason: &str) -> String {
         short.push('…');
     }
     short
-}
-
-/// Which formula cells the ledger keeps.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Filter {
-    All,
-    /// Those whose value is an error.
-    Errors,
-    /// Those of one provenance.
-    Provenance(Provenance),
-    /// Those whose address, formula or value holds this text (any case).
-    Text(String),
-    /// Those whose formulas read the active cell.
-    ReadsActive,
-}
-
-/// The order of the ledger's rows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Sort {
-    /// The workbook's order: sheet, then row, then column.
-    Address,
-    AddressDescending,
-    /// Numbers first, smallest first; then the rest in address order.
-    ValueAscending,
-    /// Numbers first, largest first; then the rest in address order.
-    ValueDescending,
-}
-
-/// The bar's choice for a filter, and back: ported from ledger.rs `cleave_filter_choice` and
-/// `cleave_filter_for_choice`.
-pub fn filter_for_choice(choice: &str, text: &str) -> Filter {
-    match choice {
-        "errors" => Filter::Errors,
-        "calculated" => Filter::Provenance(Provenance::Calculated),
-        "refused" => Filter::Provenance(Provenance::Refused),
-        "file-cache" => Filter::Provenance(Provenance::FileCache),
-        "stale" => Filter::Provenance(Provenance::Stale),
-        "text" => Filter::Text(text.to_owned()),
-        "reads-active" => Filter::ReadsActive,
-        _ => Filter::All,
-    }
-}
-
-pub fn sort_for_choice(choice: &str) -> Sort {
-    match choice {
-        "address-desc" => Sort::AddressDescending,
-        "value-asc" => Sort::ValueAscending,
-        "value-desc" => Sort::ValueDescending,
-        _ => Sort::Address,
-    }
-}
-
-/// The entries `filter` keeps, in `sort`'s order, as indexes into `entries` (which are in
-/// address order). `readers` are the cells whose formulas read the active cell.
-pub fn ledger_rows(
-    entries: &[Entry],
-    filter: &Filter,
-    sort: Sort,
-    readers: &BTreeSet<CellKey>,
-) -> Vec<usize> {
-    let needle = match filter {
-        Filter::Text(text) => text.to_lowercase(),
-        _ => String::new(),
-    };
-    let mut rows: Vec<usize> = entries
-        .iter()
-        .enumerate()
-        .filter(|(_, entry)| match filter {
-            Filter::All => true,
-            Filter::Errors => entry.error,
-            Filter::Provenance(provenance) => entry.provenance == *provenance,
-            Filter::Text(_) => {
-                needle.is_empty()
-                    || entry.label.to_lowercase().contains(&needle)
-                    || entry.formula.to_lowercase().contains(&needle)
-                    || entry.value.to_lowercase().contains(&needle)
-            }
-            Filter::ReadsActive => readers.contains(&entry.at),
-        })
-        .map(|(index, _)| index)
-        .collect();
-    match sort {
-        Sort::Address => {}
-        Sort::AddressDescending => rows.reverse(),
-        Sort::ValueAscending | Sort::ValueDescending => {
-            let descending = sort == Sort::ValueDescending;
-            rows.sort_by(|a, b| {
-                match (entries[*a].number, entries[*b].number) {
-                    (Some(x), Some(y)) => {
-                        let order = x.total_cmp(&y);
-                        if descending { order.reverse() } else { order }
-                    }
-                    (Some(_), None) => std::cmp::Ordering::Less,
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    (None, None) => std::cmp::Ordering::Equal,
-                }
-                .then(a.cmp(b))
-            });
-        }
-    }
-    rows
-}
-
-/// The rows in groups by provenance, each group in the rows' order and the groups in the order
-/// of their first row: ported from ledger.rs `group_rows_by_calc_class`.
-pub fn group_by_provenance(entries: &[Entry], rows: &[usize]) -> Vec<(Provenance, Vec<usize>)> {
-    let mut groups: Vec<(Provenance, Vec<usize>)> = Vec::new();
-    for &row in rows {
-        let provenance = entries[row].provenance;
-        match groups.iter_mut().find(|(p, _)| *p == provenance) {
-            Some((_, members)) => members.push(row),
-            None => groups.push((provenance, vec![row])),
-        }
-    }
-    groups
-}
-
-/// The rows of a filter and a sort that read no value, as indexes into `keys` (in address
-/// order): every cell, or those whose formulas read the active cell (`readers`).
-pub fn key_rows(
-    keys: &[CellKey],
-    filter: &Filter,
-    sort: Sort,
-    readers: &BTreeSet<CellKey>,
-) -> Vec<usize> {
-    let mut rows: Vec<usize> = (0..keys.len())
-        .filter(|index| !matches!(filter, Filter::ReadsActive) || readers.contains(&keys[*index]))
-        .collect();
-    if sort == Sort::AddressDescending {
-        rows.reverse();
-    }
-    rows
-}
-
-/// Whether a filter or a sort reads the cells' values, so every formula cell is projected.
-pub fn reads_values(filter: &Filter, sort: Sort) -> bool {
-    matches!(
-        filter,
-        Filter::Errors | Filter::Provenance(_) | Filter::Text(_)
-    ) || matches!(sort, Sort::ValueAscending | Sort::ValueDescending)
-}
-
-/// A projected formula cell as a ledger entry.
-pub fn entry(cell: &ProjectedCell, label: String) -> Entry {
-    let shown = cells::shown(cell, None, None);
-    let core = match cell.value() {
-        ProjectedValue::Calculated { value, .. } => Some(value.core().clone()),
-        ProjectedValue::FileCached(cache) => Some(cache.value().to_value().core().clone()),
-        _ => None,
-    };
-    Entry {
-        at: cell.at(),
-        label,
-        formula: cells::input_text(cell.input()),
-        value: if shown.provenance == Provenance::Refused {
-            "refused".to_owned()
-        } else {
-            shown.text
-        },
-        number: match core {
-            Some(CoreValue::Number(number)) => Some(number),
-            _ => None,
-        },
-        error: matches!(core, Some(CoreValue::Error(_))),
-        provenance: shown.provenance,
-    }
-}
-
-/// One page of the ledger as the page shows it (the workbook's server works it out, dc-p96): the
-/// formula cells of the scope ([`calc_host::HostState::formula_cells`]), kept and ordered by the
-/// filter and the sort (a filter or a sort that reads values projects every formula cell of the
-/// scope), and the page's rows projected with their format and their read counts.
-pub fn view_model(
-    book: &Workbook,
-    sheet: Option<calc_host::value::SheetId>,
-    filter_choice: &str,
-    text: &str,
-    sort_choice: &str,
-    page: usize,
-    active: Option<CellKey>,
-) -> wire::Ledger {
-    let host = book.host();
-    let mut keys: Vec<CellKey> = Vec::new();
-    let mut whole = 0u64;
-    for tab in book.sheets() {
-        let sheet_keys = host.formula_cells(tab.id);
-        whole += sheet_keys.len() as u64;
-        if sheet.is_none_or(|only| only == tab.id) {
-            keys.extend(sheet_keys);
-        }
-    }
-    let label = |at| cells::cell_label(host, at);
-    let filter = filter_for_choice(filter_choice, text);
-    let sort = sort_for_choice(sort_choice);
-    let readers: BTreeSet<CellKey> = match (&filter, active) {
-        (Filter::ReadsActive, Some(at)) => host.dependents(at).into_iter().collect(),
-        _ => BTreeSet::new(),
-    };
-    let rows = if reads_values(&filter, sort) {
-        let entries: Vec<Entry> = book
-            .project(keys.clone())
-            .iter()
-            .map(|cell| entry(cell, label(cell.at())))
-            .collect();
-        ledger_rows(&entries, &filter, sort, &readers)
-    } else {
-        key_rows(&keys, &filter, sort, &readers)
-    };
-    let active_page = active
-        .and_then(|active| rows.iter().position(|i| keys[*i] == active))
-        .map(|i| (i / PAGE) as u64);
-    let page = page.min(rows.len().saturating_sub(1) / PAGE);
-    let chosen: Vec<CellKey> = rows
-        .iter()
-        .skip(page * PAGE)
-        .take(PAGE)
-        .map(|i| keys[*i])
-        .collect();
-    let shown = book
-        .project(chosen)
-        .iter()
-        .map(|cell| {
-            let entry = entry(cell, label(cell.at()));
-            let at = entry.at;
-            let reason = match cells::error_meaning(cell) {
-                Some(meaning) if entry.provenance == Provenance::Calculated => {
-                    format!("Calculated worksheet error: {meaning}")
-                }
-                _ => cells::provenance_text(host, cell),
-            };
-            wire::LedgerRow {
-                reason,
-                error: entry.error,
-                at: wire::Key::of(at),
-                label: entry.label,
-                formula: entry.formula,
-                value: entry.value,
-                provenance: entry.provenance,
-                format: host.number_format(at).unwrap_or("General").to_owned(),
-                reads: host.precedents(at).map_or(0, |areas| areas.len()) as u64,
-                read_by: host.dependents(at).len() as u64,
-            }
-        })
-        .collect();
-    wire::Ledger {
-        whole,
-        page_index: page as u64,
-        active_page,
-        keys: keys.len() as u64,
-        rows: rows.len() as u64,
-        page: shown,
-    }
 }
 
 fn ledger_view(controller: Controller) -> impl IntoView {
@@ -383,6 +141,12 @@ fn ledger_view(controller: Controller) -> impl IntoView {
     let available = RwSignal::new(false);
     let epoch = StoredValue::new(0u64);
     let reveal = StoredValue::new(true);
+    let reveal_focus = controller.view_field::<dna_calc_model::LedgerState, _>(
+        SkinId::Ledger,
+        |s| &s.pending_focus,
+        |s| &mut s.pending_focus,
+    );
+    reveal_focus.set(Some(controller.focus_snapshot()));
     let refresh = RwSignal::new(0u64);
     let last_active = StoredValue::new(controller.active_key_untracked());
     Effect::new(move |_| {
@@ -398,6 +162,7 @@ fn ledger_view(controller: Controller) -> impl IntoView {
         if last_active.get_value() != active {
             last_active.set_value(active);
             reveal.set_value(true);
+            reveal_focus.set(Some(controller.selection_focus_snapshot()));
         }
         let request = wire::Request::Ledger {
             sheet,
@@ -412,6 +177,9 @@ fn ledger_view(controller: Controller) -> impl IntoView {
         loading.set(true);
         available.set(false);
         failure.set(String::new());
+        let focus_ticket = reveal_focus
+            .get_untracked()
+            .unwrap_or_else(|| controller.selection_focus_snapshot());
         controller.ask_result(request,move |reply| {
             if epoch.try_get_value()!=Some(asked)||controller.revision.try_get_untracked()!=Some(revision)||controller.generation.try_get_untracked()!=Some(generation){return;}
             match reply {
@@ -421,7 +189,7 @@ fn ledger_view(controller: Controller) -> impl IntoView {
                         reveal.set_value(false);
                         if found.active_page.is_none(){failure.set(if found.whole==0 {"No formulas yet. Enter a formula in Grid or open a workbook."}else if found.rows==0 {"No formulas match these filters. Clear filters to see the full list."}else{"The active cell is outside the current formula list or filters."}.into());}
                         #[cfg(target_arch="wasm32")]
-                        set_timeout(move ||crate::app::focus("[data-dnacalc=ledger-row][data-active=true] [data-dnacalc=ledger-select]"),std::time::Duration::from_millis(20));
+                        controller.focus_projection(SkinId::Ledger,"[data-dnacalc=ledger-row][data-active=true] [data-dnacalc=ledger-select]".into(),focus_ticket);
                     }
                     if found.page_index!=page.get_untracked() as u64 {page.set(found.page_index as usize);}
                     ledger.try_set(found);available.try_set(true);loading.try_set(false);
@@ -547,7 +315,7 @@ fn ledger_view(controller: Controller) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use calc_host::value::{IdAllocator, SheetId};
+    use calc_value::{IdAllocator, SheetId};
 
     fn entries() -> Vec<Entry> {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();

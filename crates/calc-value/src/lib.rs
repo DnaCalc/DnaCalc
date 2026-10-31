@@ -52,7 +52,7 @@ pub fn fold_parameter_name(text: &str) -> String {
     name_case::fold_parameter_name(text)
 }
 
-pub use grid::{CellKey, GridArea, GridError, Selection, MAX_COLUMNS, MAX_ROWS};
+pub use grid::{CellKey, GridArea, GridError, MAX_COLUMNS, MAX_ROWS, Selection};
 pub use id::{IdAllocator, IdError, NameId, NodeId, SheetId, TableId, WorkbookId};
 pub use numeric::{NumericMode, NumericTargetId};
 pub use value::{
@@ -60,3 +60,42 @@ pub use value::{
     EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, OpaqueCallable, ReferenceError, ReferenceLike,
     WorksheetErrorCode,
 };
+
+/// Maximum cells in one clipboard table.
+pub const COPY_LIMIT: u64 = 1_000_000;
+pub fn matrix_shape(rows: &[Vec<String>]) -> Result<(u32, u32), String> {
+    let width = rows.first().map_or(0, Vec::len);
+    if width == 0 || rows.is_empty() || rows.iter().any(|row| row.len() != width) {
+        return Err("Paste a rectangular table".to_owned());
+    }
+    if rows.len() as u64 * width as u64 > COPY_LIMIT {
+        return Err("The clipboard table is too large".to_owned());
+    }
+    Ok((rows.len() as u32, width as u32))
+}
+
+/// Excel's documented points/characters input, with zero meaning Hide. Small character widths
+/// below one need a separate default-font measurement and are explicitly unavailable here.
+pub fn stored_axis_size(rows: bool, value: f64) -> Result<Option<f64>, &'static str> {
+    let limit = if rows { 409.0 } else { 255.0 };
+    if !value.is_finite() || value < 0.0 || value > limit {
+        return Err(if rows {
+            "Use a row height from 0 to 409 points"
+        } else {
+            "Use a column width from 1 to 255 characters, or 0 to hide"
+        });
+    }
+    if value == 0.0 {
+        return Ok(None);
+    }
+    if !rows && value < 1.0 {
+        return Err("Column widths below one character are not available here; use 0 to hide");
+    }
+    // The retained grid uses Excel's default maximum digit width, seven pixels. The file's
+    // character width includes five pixels of padding (ECMA-376 18.3.1.13).
+    Ok(Some(if rows {
+        value
+    } else {
+        ((value * 7.0 + 5.0) / 7.0 * 256.0).trunc() / 256.0
+    }))
+}

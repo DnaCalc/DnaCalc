@@ -1,7 +1,7 @@
 //! The application's controller: the workbook's server behind reactive signals, shared by the
 //! shell and every skin. It is `Copy`, so any view can hold it.
 //!
-//! The workbook itself lives with its server ([`crate::server`]), reached through
+//! The workbook lives in the separate worker composition, reached through
 //! [`crate::port`] by messages ([`crate::wire`], dc-p96): the controller sends a request and
 //! applies the reply when it comes, so nothing here waits for the server.
 //!
@@ -24,17 +24,20 @@
 //! `src/dnacalc-skin-leptos/src/state_handles.rs` (shared state behind one handle), onto calc-host's
 //! session.
 
-use dna_calc_model::selection::{GridExtent, NavAction, next_active, opposite};
-use crate::port;
 use crate::model_adapter::{Field, ModelField};
-use dna_calc_model::{Model, Command, CommandContext, CommandId, Effect as CommandEffect, FindMode, GridState, RevealTarget, SkinId, ViewState};
-pub use dna_calc_model::{SurfaceId as EditOrigin, PointPick};
+use crate::port;
 use crate::wire::{self, Area, Event, Intent, Key, Outcome, Reply, Request, Sheet, Summary};
-use dna_calc_model::projection::SheetTab;
-pub use dna_calc_model::{Status,Timings,ViewMirror};
 use dna_calc_model::Snapshot;
-pub type MirrorHandle=ModelField<Snapshot<ViewMirror>>;
-use calc_host::value::{CellKey, GridArea, SheetId};
+use dna_calc_model::projection::SheetTab;
+use dna_calc_model::selection::{GridExtent, NavAction, next_active, opposite};
+use dna_calc_model::{
+    Command, CommandContext, CommandId, Effect as CommandEffect, FindMode, GridState, Model,
+    RevealTarget, SkinId, ViewState,
+};
+pub use dna_calc_model::{PointPick, SurfaceId as EditOrigin};
+pub use dna_calc_model::{Status, Timings, ViewMirror};
+pub type MirrorHandle = ModelField<Snapshot<ViewMirror>>;
+use calc_value::{CellKey, GridArea, SheetId};
 use dna_formula_ui::editor::{
     cycle_anchors, expects_reference, point_reference_span, replace_text,
 };
@@ -57,48 +60,19 @@ fn field_selection(assist: FormulaAssist) -> (usize, usize) {
     )
 }
 
-/// The bytes of the wasm instance's linear memory; `None` off the browser.
-pub fn memory_bytes() -> Option<f64> {
-    #[cfg(target_arch = "wasm32")]
-    {
-        use wasm_bindgen::JsCast;
-        let memory: js_sys::WebAssembly::Memory = wasm_bindgen::memory().dyn_into().ok()?;
-        let buffer: js_sys::ArrayBuffer = memory.buffer().dyn_into().ok()?;
-        Some(f64::from(buffer.byte_length()))
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        None
-    }
-}
-
-/// Milliseconds on a clock: the browser's, or off the browser the time since the first call.
-pub fn now_ms() -> f64 {
-    #[cfg(target_arch = "wasm32")]
-    {
-        js_sys::Date::now()
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
-        START
-            .get_or_init(std::time::Instant::now)
-            .elapsed()
-            .as_secs_f64()
-            * 1000.0
-    }
-}
+pub use dna_formula_ui::web::{memory_bytes, now_ms};
 
 #[path = "input_adapter.rs"]
 mod input_adapter;
 
-type CommandAnswer=Box<dyn FnOnce(Result<Reply,String>,Option<Vec<u8>>)>;
+type CommandAnswer = Box<dyn FnOnce(Result<Reply, String>, Option<Vec<u8>>)>;
 
 type ValidationCallback = Box<dyn FnOnce(Result<Outcome, String>)>;
 
 #[derive(Clone, Copy)]
 pub struct Controller {
     model: RwSignal<Model>,
+    service: StoredValue<std::rc::Rc<dyn dna_calc_model::WorkbookTransport>, LocalStorage>,
     skin_registry: StoredValue<crate::skin::SkinRegistry>,
     #[cfg(target_arch = "wasm32")]
     input_surfaces: StoredValue<input_adapter::Surfaces, LocalStorage>,
@@ -165,7 +139,7 @@ pub struct Controller {
     pending_changes: ModelField<usize>,
     selection_epoch: ModelField<u64>,
     deferred: StoredValue<VecDeque<Box<dyn FnOnce()>>, LocalStorage>,
-    command_answers: StoredValue<BTreeMap<u64,CommandAnswer>,LocalStorage>,
+    command_answers: StoredValue<BTreeMap<u64, CommandAnswer>, LocalStorage>,
     deferred_version: ModelField<u64>,
     replaying: ModelField<bool>,
     flush_scheduled: ModelField<bool>,
@@ -174,53 +148,167 @@ pub struct Controller {
 impl Controller {
     /// A controller over a new workbook.
     pub fn new() -> Controller {
+        Self::with_transport(std::rc::Rc::new(port::BrowserTransport))
+    }
+    pub fn with_transport(
+        service: std::rc::Rc<dyn dna_calc_model::WorkbookTransport>,
+    ) -> Controller {
+        // Mounting normally installs this executor. Injected transports can compose the
+        // browser controller directly, so initialize it before registering reactive effects.
+        #[cfg(target_arch = "wasm32")]
+        let _ = any_spawner::Executor::init_wasm_bindgen();
         let model = RwSignal::new(Model::default());
         let edit_text = Field::new(model, |m| &m.edit.draft, |m| &mut m.edit.draft);
-        let assist = FormulaAssist::new_with_state(edit_text.text_binding(),dna_formula_ui::formula_field::AssistBindings {
-            caret:Field::new(model,|m|&m.editor.caret,|m|&mut m.editor.caret).state_binding(),
-            dismissed:Field::new(model,|m|&m.editor.dismissed,|m|&mut m.editor.dismissed).state_binding(),
-            composing:Field::new(model,|m|&m.editor.composing,|m|&mut m.editor.composing).state_binding(),
-            readonly:Field::new(model,|m|&m.editor.readonly,|m|&mut m.editor.readonly).state_binding(),
-            history:dna_formula_ui::formula_field::HistoryBinding::new(Field::new(model,|m|&m.editor.history,|m|&mut m.editor.history)),
-        });
+        let assist = FormulaAssist::new_with_state(
+            edit_text.text_binding(),
+            dna_formula_ui::formula_field::AssistBindings {
+                caret: Field::new(model, |m| &m.editor.caret, |m| &mut m.editor.caret)
+                    .state_binding(),
+                dismissed: Field::new(model, |m| &m.editor.dismissed, |m| &mut m.editor.dismissed)
+                    .state_binding(),
+                composing: Field::new(model, |m| &m.editor.composing, |m| &mut m.editor.composing)
+                    .state_binding(),
+                readonly: Field::new(model, |m| &m.editor.readonly, |m| &mut m.editor.readonly)
+                    .state_binding(),
+                history: dna_formula_ui::formula_field::HistoryBinding::new(Field::new(
+                    model,
+                    |m| &m.editor.history,
+                    |m| &mut m.editor.history,
+                )),
+                popup: model_view_field::<dna_formula_ui::editor::CompletionState, _>(
+                    model,
+                    SkinId::new("shared-editor"),
+                    |s| &s.popup,
+                    |s| &mut s.popup,
+                )
+                .state_binding(),
+            },
+        );
         let controller = Controller {
             model,
+            service: StoredValue::new_local(service.clone()),
             skin_registry: StoredValue::new(crate::skin::SkinRegistry::new()),
             #[cfg(target_arch = "wasm32")]
             input_surfaces: StoredValue::new_local(input_adapter::Surfaces::default()),
             active_skin: Field::new(model, |m| &m.active_skin, |m| &mut m.active_skin),
             find_open: Field::new(model, |m| &m.find, |m| &mut m.find),
-            context_menu: Field::new(model, |m| &m.runtime.context_menu, |m| &mut m.runtime.context_menu),
-            review_open: Field::new(model, |m| &m.runtime.review_open, |m| &mut m.runtime.review_open),
-            validation_decision: Field::new(model, |m| &m.runtime.validation_decision, |m| &mut m.runtime.validation_decision),
+            context_menu: Field::new(
+                model,
+                |m| &m.runtime.context_menu,
+                |m| &mut m.runtime.context_menu,
+            ),
+            review_open: Field::new(
+                model,
+                |m| &m.runtime.review_open,
+                |m| &mut m.runtime.review_open,
+            ),
+            validation_decision: Field::new(
+                model,
+                |m| &m.runtime.validation_decision,
+                |m| &mut m.runtime.validation_decision,
+            ),
             validation_callback: StoredValue::new_local(None),
-            validation_outcome: Field::new(model, |m| &m.runtime.validation_outcome, |m| &mut m.runtime.validation_outcome),
-            structural_choice: Field::new(model, |m| &m.runtime.structural_choice, |m| &mut m.runtime.structural_choice),
-            sheet_selections: Field::new(model, |m| &m.selection.remembered, |m| &mut m.selection.remembered),
-            grid_views: model_view_field::<GridState, _>(model, SkinId::Grid, |s| &s.views, |s| &mut s.views),
-            grid_active: model_view_field::<GridState, _>(model, SkinId::Grid, |s| &s.active, |s| &mut s.active),
-            grid_geometry: Field::new(model, |m| &m.runtime.grid_geometry, |m| &mut m.runtime.grid_geometry),
+            validation_outcome: Field::new(
+                model,
+                |m| &m.runtime.validation_outcome,
+                |m| &mut m.runtime.validation_outcome,
+            ),
+            structural_choice: Field::new(
+                model,
+                |m| &m.runtime.structural_choice,
+                |m| &mut m.runtime.structural_choice,
+            ),
+            sheet_selections: Field::new(
+                model,
+                |m| &m.selection.remembered,
+                |m| &mut m.selection.remembered,
+            ),
+            grid_views: model_view_field::<GridState, _>(
+                model,
+                SkinId::Grid,
+                |s| &s.views,
+                |s| &mut s.views,
+            ),
+            grid_active: model_view_field::<GridState, _>(
+                model,
+                SkinId::Grid,
+                |s| &s.active,
+                |s| &mut s.active,
+            ),
+            grid_geometry: Field::new(
+                model,
+                |m| &m.runtime.grid_geometry,
+                |m| &mut m.runtime.grid_geometry,
+            ),
             mirrors: StoredValue::new_local(BTreeMap::new()),
-            next_subscription: Field::new(model, |m| &m.runtime.next_subscription, |m| &mut m.runtime.next_subscription),
+            next_subscription: Field::new(
+                model,
+                |m| &m.runtime.next_subscription,
+                |m| &mut m.runtime.next_subscription,
+            ),
             summary: Field::new(model, |m| &m.runtime.summary, |m| &mut m.runtime.summary),
             revision: Field::new(model, |m| &m.runtime.revision, |m| &mut m.runtime.revision),
-            generation: Field::new(model, |m| &m.runtime.generation, |m| &mut m.runtime.generation),
+            generation: Field::new(
+                model,
+                |m| &m.runtime.generation,
+                |m| &mut m.runtime.generation,
+            ),
             sheet: Field::new(model, |m| &m.selection.sheet, |m| &mut m.selection.sheet),
-            reveal_epoch: Field::new(model, |m| &m.selection.reveal_epoch, |m| &mut m.selection.reveal_epoch),
+            reveal_epoch: Field::new(
+                model,
+                |m| &m.selection.reveal_epoch,
+                |m| &mut m.selection.reveal_epoch,
+            ),
             active: Field::new(model, |m| &m.selection.active, |m| &mut m.selection.active),
             corner: Field::new(model, |m| &m.selection.corner, |m| &mut m.selection.corner),
             areas: Field::new(model, |m| &m.selection.areas, |m| &mut m.selection.areas),
-            clipboard: Field::new(model, |m| &m.runtime.clipboard, |m| &mut m.runtime.clipboard),
+            clipboard: Field::new(
+                model,
+                |m| &m.runtime.clipboard,
+                |m| &mut m.runtime.clipboard,
+            ),
             copied: Field::new(model, |m| &m.runtime.copied, |m| &mut m.runtime.copied),
-            copy_pending: Field::new(model, |m| &m.runtime.copy_pending, |m| &mut m.runtime.copy_pending),
-            copy_epoch: Field::new(model, |m| &m.runtime.copy_epoch, |m| &mut m.runtime.copy_epoch),
-            clipboard_fallback: Field::new(model, |m| &m.runtime.clipboard_fallback, |m| &mut m.runtime.clipboard_fallback),
-            paste_preview: Field::new(model, |m| &m.runtime.paste_preview, |m| &mut m.runtime.paste_preview),
-            paste_cut: Field::new(model, |m| &m.runtime.paste_cut, |m| &mut m.runtime.paste_cut),
-            paste_mode: Field::new(model, |m| &m.runtime.paste_mode, |m| &mut m.runtime.paste_mode),
-            fill_series: Field::new(model, |m| &m.runtime.fill_series, |m| &mut m.runtime.fill_series),
+            copy_pending: Field::new(
+                model,
+                |m| &m.runtime.copy_pending,
+                |m| &mut m.runtime.copy_pending,
+            ),
+            copy_epoch: Field::new(
+                model,
+                |m| &m.runtime.copy_epoch,
+                |m| &mut m.runtime.copy_epoch,
+            ),
+            clipboard_fallback: Field::new(
+                model,
+                |m| &m.runtime.clipboard_fallback,
+                |m| &mut m.runtime.clipboard_fallback,
+            ),
+            paste_preview: Field::new(
+                model,
+                |m| &m.runtime.paste_preview,
+                |m| &mut m.runtime.paste_preview,
+            ),
+            paste_cut: Field::new(
+                model,
+                |m| &m.runtime.paste_cut,
+                |m| &mut m.runtime.paste_cut,
+            ),
+            paste_mode: Field::new(
+                model,
+                |m| &m.runtime.paste_mode,
+                |m| &mut m.runtime.paste_mode,
+            ),
+            fill_series: Field::new(
+                model,
+                |m| &m.runtime.fill_series,
+                |m| &mut m.runtime.fill_series,
+            ),
             cut: Field::new(model, |m| &m.runtime.cut, |m| &mut m.runtime.cut),
-            selection: Field::new(model, |m| &m.runtime.selection, |m| &mut m.runtime.selection),
+            selection: Field::new(
+                model,
+                |m| &m.runtime.selection,
+                |m| &mut m.runtime.selection,
+            ),
             status: Field::new(model, |m| &m.runtime.status, |m| &mut m.runtime.status),
             editing: Field::new(model, |m| &m.edit.surface, |m| &mut m.edit.surface),
             edit_text,
@@ -231,30 +319,76 @@ impl Controller {
             edit_areas: Field::new(model, |m| &m.edit.areas, |m| &mut m.edit.areas),
             point_mode: Field::new(model, |m| &m.edit.point_mode, |m| &mut m.edit.point_mode),
             pointed: Field::new(model, |m| &m.edit.pointed, |m| &mut m.edit.pointed),
-            pointed_text: Field::new(model, |m| &m.edit.pointed_text, |m| &mut m.edit.pointed_text),
+            pointed_text: Field::new(
+                model,
+                |m| &m.edit.pointed_text,
+                |m| &mut m.edit.pointed_text,
+            ),
             timings: Field::new(model, |m| &m.runtime.timings, |m| &mut m.runtime.timings),
-            transport: Field::new(model, |m| &m.runtime.transport, |m| &mut m.runtime.transport),
-            download_unconfirmed: Field::new(model, |m| &m.runtime.download_unconfirmed, |m| &mut m.runtime.download_unconfirmed),
-            pending_actions: Field::new(model, |m| &m.runtime.pending_actions, |m| &mut m.runtime.pending_actions),
-            replacing: Field::new(model, |m| &m.runtime.replacing, |m| &mut m.runtime.replacing),
-            pending_changes: Field::new(model, |m| &m.runtime.pending_changes, |m| &mut m.runtime.pending_changes),
-            selection_epoch: Field::new(model, |m| &m.runtime.selection_epoch, |m| &mut m.runtime.selection_epoch),
+            transport: Field::new(
+                model,
+                |m| &m.runtime.transport,
+                |m| &mut m.runtime.transport,
+            ),
+            download_unconfirmed: Field::new(
+                model,
+                |m| &m.runtime.download_unconfirmed,
+                |m| &mut m.runtime.download_unconfirmed,
+            ),
+            pending_actions: Field::new(
+                model,
+                |m| &m.runtime.pending_actions,
+                |m| &mut m.runtime.pending_actions,
+            ),
+            replacing: Field::new(
+                model,
+                |m| &m.runtime.replacing,
+                |m| &mut m.runtime.replacing,
+            ),
+            pending_changes: Field::new(
+                model,
+                |m| &m.runtime.pending_changes,
+                |m| &mut m.runtime.pending_changes,
+            ),
+            selection_epoch: Field::new(
+                model,
+                |m| &m.runtime.selection_epoch,
+                |m| &mut m.runtime.selection_epoch,
+            ),
             deferred: StoredValue::new_local(VecDeque::new()),
             command_answers: StoredValue::new_local(BTreeMap::new()),
-            deferred_version: Field::new(model, |m| &m.runtime.deferred_version, |m| &mut m.runtime.deferred_version),
-            replaying: Field::new(model, |m| &m.runtime.replaying, |m| &mut m.runtime.replaying),
-            flush_scheduled: Field::new(model, |m| &m.runtime.flush_scheduled, |m| &mut m.runtime.flush_scheduled),
+            deferred_version: Field::new(
+                model,
+                |m| &m.runtime.deferred_version,
+                |m| &mut m.runtime.deferred_version,
+            ),
+            replaying: Field::new(
+                model,
+                |m| &m.runtime.replaying,
+                |m| &mut m.runtime.replaying,
+            ),
+            flush_scheduled: Field::new(
+                model,
+                |m| &m.runtime.flush_scheduled,
+                |m| &mut m.runtime.flush_scheduled,
+            ),
         };
-        controller.register_editor_surface(dna_calc_model::SurfaceDescriptor::selection_editor(EditOrigin::Bar), assist);
-        port::start();
-        port::set_events(move |event| controller.receive(event));
-        port::set_health(move |health| {
+        controller.register_editor_surface(
+            dna_calc_model::SurfaceDescriptor::selection_editor(EditOrigin::Bar),
+            assist,
+        );
+        service.start();
+        service.set_events(std::rc::Rc::new(move |event| controller.receive(event)));
+        service.set_health(std::rc::Rc::new(move |health| {
             controller.transport.try_set(health);
-        });
-        controller.ask_result(Request::Summary,move |reply| match reply {
-            Ok(Reply::Summary(summary))=>{controller.summary.set(summary.into());controller.new_workbook();}
-            Err(message)=>controller.say(format!("New workbook failed: {message}"),true),
-            _=>controller.say("New workbook did not answer",true),
+        }));
+        controller.ask_result(Request::Summary, move |reply| match reply {
+            Ok(Reply::Summary(summary)) => {
+                controller.summary.set(summary.into());
+                controller.new_workbook();
+            }
+            Err(message) => controller.say(format!("New workbook failed: {message}"), true),
+            _ => controller.say("New workbook did not answer", true),
         });
         controller
     }
@@ -292,6 +426,23 @@ impl Controller {
         self.replaying.set_value(prior);
     }
 
+    fn call(
+        &self,
+        request: Request,
+        bytes: Option<Vec<u8>>,
+        answer: impl FnOnce(Result<Reply, String>, Option<Vec<u8>>) + 'static,
+    ) {
+        let service = self.service.get_value();
+        let controller = *self;
+        let focus = self.focus_snapshot();
+        service.call(
+            request,
+            bytes,
+            Box::new(move |reply, bytes| {
+                controller.with_response_focus(focus, || answer(reply, bytes))
+            }),
+        );
+    }
     /// Asks the server; `answer` gets the reply when it comes (a failure goes to the status line).
     pub fn ask(&self, request: Request, answer: impl FnOnce(Reply) + 'static) {
         let controller = *self;
@@ -307,31 +458,65 @@ impl Controller {
         request: Request,
         answer: impl FnOnce(Result<Reply, String>) + 'static,
     ) {
-        port::call(request, None, move |reply, _| answer(reply));
+        let controller = *self;
+        let ticket = self.focus_snapshot();
+        self.call(request, None, move |reply, _| {
+            controller.with_response_focus(ticket, || answer(reply))
+        });
     }
 
     /// Model submission owns identities, ordering and replacement checks; callbacks and the
     /// browser-authorised effects that consume receipts stay in this adapter.
-    fn send_command(&self,request:Request,bytes:Option<Vec<u8>>,answer:impl FnOnce(Result<Reply,String>,Option<Vec<u8>>)+'static) {
-        let answer:CommandAnswer=Box::new(answer);
-        match self.model.try_update(|model|model.submit_command(request,bytes)) {
-            Some(Ok(id))=>{self.command_answers.update_value(|answers|{answers.insert(id,answer);});self.pump_commands();}
-            Some(Err(reason))=>answer(Err(reason),None),
-            None=>answer(Err("The application session has closed".into()),None),
+    fn send_command(
+        &self,
+        request: Request,
+        bytes: Option<Vec<u8>>,
+        answer: impl FnOnce(Result<Reply, String>, Option<Vec<u8>>) + 'static,
+    ) {
+        let answer: CommandAnswer = Box::new(answer);
+        let focus = self.focus_snapshot();
+        match self
+            .model
+            .try_update(|model| model.submit_command_with_focus(request, bytes, focus))
+        {
+            Some(Ok(id)) => {
+                self.command_answers.update_value(|answers| {
+                    answers.insert(id, answer);
+                });
+                self.pump_commands();
+            }
+            Some(Err(reason)) => answer(Err(reason), None),
+            None => answer(Err("The application session has closed".into()), None),
         }
     }
     fn pump_commands(&self) {
-        let Some(delivery)=self.model.try_update(Model::take_command).flatten() else{return;};
-        let controller=*self;
-        let id=delivery.id();
-        let finished=move |reply,bytes| {
-            let answer=controller.command_answers.try_update_value(|answers|answers.remove(&id)).flatten();
-            if let Some(answer)=answer {answer(reply,bytes);}
-            if controller.model.try_update(|model|model.finish_command(id)).is_some() {controller.pump_commands();}
+        let Some(delivery) = self.model.try_update(Model::take_command).flatten() else {
+            return;
+        };
+        let controller = *self;
+        let id = delivery.id();
+        let focus = delivery.focus();
+        let finished = move |reply, bytes| {
+            let answer = controller
+                .command_answers
+                .try_update_value(|answers| answers.remove(&id))
+                .flatten();
+            if let Some(answer) = answer {
+                controller.with_response_focus(focus, || answer(reply, bytes));
+            }
+            if controller
+                .model
+                .try_update(|model| model.finish_command(id))
+                .is_some()
+            {
+                controller.pump_commands();
+            }
         };
         match delivery {
-            dna_calc_model::CommandDelivery::Ready {envelope,bytes}=>port::call(Request::Command(envelope),bytes,finished),
-            dna_calc_model::CommandDelivery::Refused {reason,..}=>finished(Err(reason),None),
+            dna_calc_model::CommandDelivery::Ready {
+                envelope, bytes, ..
+            } => self.call(Request::Command(envelope), bytes, finished),
+            dna_calc_model::CommandDelivery::Refused { reason, .. } => finished(Err(reason), None),
         }
     }
 
@@ -394,9 +579,18 @@ impl Controller {
     /// A new workbook is open (an open or a new workbook): a new generation, the first sheet
     /// active at A1, and the application's selection subscription.
     fn installed(&self, summary: Summary, message: String) {
+        let restore_focus = self
+            .captured_command_focus()
+            .is_none_or(|ticket| self.model.with_untracked(|m| m.focus.accepts(ticket)));
+        let prior_focus = self.model.with_untracked(|m| m.runtime.callback_focus);
         self.model.update(Model::reset_workbook);
+        if restore_focus {
+            let fresh = self.model.with_untracked(|m| m.focus.snapshot());
+            self.model
+                .update(|m| m.runtime.callback_focus = Some(fresh));
+        }
         self.generation.update(|n| *n += 1);
-        self.grid_geometry.update_value(|all|all.clear());
+        self.grid_geometry.update_value(|all| all.clear());
         self.mirrors.update_value(BTreeMap::clear);
         let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
         let initial = summary
@@ -447,6 +641,8 @@ impl Controller {
         }
         self.revision.update(|n| *n += 1);
         self.say(message, false);
+        self.model
+            .update(|m| m.runtime.callback_focus = prior_focus);
     }
 
     /// Replacing a workbook also risks an uncommitted draft or an unconfirmed download.
@@ -609,6 +805,9 @@ impl Controller {
             Intent::Select { .. } | Intent::Navigate { .. } | Intent::Undo | Intent::Redo
         );
         if selects {
+            let ticket = self.focus_snapshot();
+            self.model
+                .update(|m| m.runtime.selection_focus = Some(ticket));
             self.selection_epoch.update_value(|v| *v += 1);
         }
         let epoch = self.selection_epoch.get_value();
@@ -694,7 +893,11 @@ impl Controller {
     }
 
     fn applied(&self, outcome: &Outcome, apply_selection: bool) {
-        self.model.update(|model| model.confirmed_selection = outcome.selection.as_ref().and_then(|(at,areas)|Some((at.cell()?,areas.iter().filter_map(|a|a.area()).collect()))));
+        self.model.update(|model| {
+            model.confirmed_selection = outcome.selection.as_ref().and_then(|(at, areas)| {
+                Some((at.cell()?, areas.iter().filter_map(|a| a.area()).collect()))
+            })
+        });
         self.timings
             .update(|timings| timings.last_intent_ms = Some(outcome.elapsed_ms));
         if &outcome.summary != &*self.summary.get_untracked() {
@@ -776,7 +979,9 @@ impl Controller {
     }
 
     fn set_range(&self, active: (u32, u32), corner: (u32, u32), reveal_active: bool) {
-        if reveal_active { self.model.update(|model| model.selection.request_reveal()); }
+        if reveal_active {
+            self.model.update(|model| model.selection.request_reveal());
+        }
         if reveal_active || self.active.get_untracked() != active {
             self.active.set(active);
         }
@@ -943,7 +1148,7 @@ impl Controller {
             let generation = self.generation.get_untracked();
             self.pending_actions.update(|n| *n += 1);
             let keep = self.copied.get_untracked().map(|c| c.token);
-            port::call(
+            self.call(
                 Request::Capture {
                     area: Area::of(area),
                     keep,
@@ -1146,7 +1351,7 @@ impl Controller {
         };
         self.pending_actions.update(|n| *n += 1);
         self.pending_changes.update(|n| *n += 1);
-        port::call(
+        self.call(
             Request::PreparePaste {
                 source,
                 to: Area::of(to),
@@ -1213,7 +1418,7 @@ impl Controller {
             let generation = controller.generation.get_untracked();
             let series = controller.fill_series.get_untracked() == "series";
             controller.pending_actions.update(|n| *n += 1);
-            port::call(
+            controller.call(
                 Request::ResolveReference {
                     anchor: Key::of(from.first()),
                     text,
@@ -1620,7 +1825,7 @@ impl Controller {
         let controller = *self;
         let generation = self.generation.get_untracked();
         self.pending_actions.update(|n| *n += 1);
-        port::call(
+        self.call(
             Request::FitContents {
                 area: Area::of(area),
             },
@@ -1739,7 +1944,12 @@ impl Controller {
     pub fn navigate_to(&self, at: CellKey, arrived: impl FnOnce(bool) + 'static) {
         self.navigate_to_with_ticket(at, arrived, None);
     }
-    fn navigate_to_with_ticket(&self, at: CellKey, arrived: impl FnOnce(bool) + 'static, ticket: Option<dna_calc_model::FocusTicket>) {
+    fn navigate_to_with_ticket(
+        &self,
+        at: CellKey,
+        arrived: impl FnOnce(bool) + 'static,
+        ticket: Option<dna_calc_model::FocusTicket>,
+    ) {
         if self.waiting_input() {
             let controller = *self;
             self.enqueue(move || controller.navigate_to_with_ticket(at, arrived, ticket));
@@ -1768,7 +1978,12 @@ impl Controller {
     pub fn go_to_text(&self, text: String, arrived: impl FnOnce(bool) + 'static) {
         self.go_to_text_with_ticket(text, arrived, None);
     }
-    fn go_to_text_with_ticket(&self, text: String, arrived: impl FnOnce(bool) + 'static, ticket: Option<dna_calc_model::FocusTicket>) {
+    fn go_to_text_with_ticket(
+        &self,
+        text: String,
+        arrived: impl FnOnce(bool) + 'static,
+        ticket: Option<dna_calc_model::FocusTicket>,
+    ) {
         let controller = *self;
         if self.waiting_input() {
             self.enqueue(move || controller.go_to_text_with_ticket(text, arrived, ticket));
@@ -1792,7 +2007,7 @@ impl Controller {
         self.selection_epoch.update_value(|v| *v += 1);
         let epoch = self.selection_epoch.get_value();
         self.pending_actions.update(|n| *n += 1);
-        port::call(
+        self.call(
             Request::ResolveReference {
                 anchor: Key::of(at),
                 text,
@@ -1854,7 +2069,8 @@ impl Controller {
             .unwrap_or_default();
         let target = self.active_key_untracked().expect("checked active cell");
         let areas = self.areas.get_untracked();
-        self.model.update(|m| m.edit.begin(origin, target, original.clone(), seed, areas));
+        self.model
+            .update(|m| m.edit.begin(origin, target, original.clone(), seed, areas));
         self.assist.start_edit(original);
     }
 
@@ -1867,7 +2083,8 @@ impl Controller {
     /// Keep the draft and its target when its cell overlay is about to unmount.
     pub fn carry_edit_to_bar(&self) {
         if self.editing.get_untracked().is_some() {
-            self.model.maybe_update(|model| model.edit.transfer(EditOrigin::Bar));
+            self.model
+                .maybe_update(|model| model.edit.transfer(EditOrigin::Bar));
             self.edit_field.set_value(self.assist);
             #[cfg(target_arch = "wasm32")]
             {
@@ -1877,7 +2094,8 @@ impl Controller {
                 leptos::prelude::set_timeout(
                     move || {
                         if controller.generation.try_get_untracked() != Some(generation)
-                            || controller.editing.try_get_untracked().flatten() != Some(EditOrigin::Bar)
+                            || controller.editing.try_get_untracked().flatten()
+                                != Some(EditOrigin::Bar)
                             || controller.model.with_untracked(|model| model.edit.id) != session
                         {
                             return;
@@ -1891,10 +2109,18 @@ impl Controller {
     }
 
     pub fn focus_editor(&self) {
+        if self
+            .captured_command_focus()
+            .is_some_and(|ticket| !self.model.with_untracked(|m| m.focus.accepts(ticket)))
+        {
+            return;
+        }
         let assist = self.edit_field.get_value();
         if let Some(field) = assist.field.try_get_untracked().flatten() {
             #[cfg(target_arch = "wasm32")]
-            self.restoring_editor(|| { let _ = field.focus(); });
+            self.restoring_editor(|| {
+                let _ = field.focus();
+            });
             #[cfg(not(target_arch = "wasm32"))]
             let _ = field.focus();
         }
@@ -2221,8 +2447,8 @@ impl Controller {
             return;
         };
         let (first, last) = (area.first(), area.last());
-        let whole_rows = first.column() == 1 && last.column() == calc_host::value::MAX_COLUMNS;
-        let whole_columns = first.row() == 1 && last.row() == calc_host::value::MAX_ROWS;
+        let whole_rows = first.column() == 1 && last.column() == calc_value::MAX_COLUMNS;
+        let whole_columns = first.row() == 1 && last.row() == calc_value::MAX_ROWS;
         let (rows, start, count) = if whole_rows && !whole_columns {
             (true, first.row(), area.row_count())
         } else if whole_columns && !whole_rows {
@@ -2312,9 +2538,15 @@ impl Controller {
         }
     }
 
-    pub fn undo(&self) { self.command(Command::Undo); }
-    pub fn redo(&self) { self.command(Command::Redo); }
-    pub fn recalculate(&self) { self.command(Command::Recalculate); }
+    pub fn undo(&self) {
+        self.command(Command::Undo);
+    }
+    pub fn redo(&self) {
+        self.command(Command::Redo);
+    }
+    pub fn recalculate(&self) {
+        self.command(Command::Recalculate);
+    }
 
     /// Whether the workbook calculates manually.
     pub fn manual(&self) -> bool {
@@ -2368,16 +2600,32 @@ impl Controller {
         });
     }
 
-    pub fn new_mirror(&self)->MirrorHandle {
-        let mut id=0;
+    pub fn new_mirror(&self) -> MirrorHandle {
+        let mut id = 0;
         self.model.update(|model| {
-            id=model.runtime.next_projection;
-            model.runtime.next_projection+=1;
-            model.runtime.projected_views.insert(id,ViewMirror::default().into());
+            id = model.runtime.next_projection;
+            model.runtime.next_projection += 1;
+            model
+                .runtime
+                .projected_views
+                .insert(id, ViewMirror::default().into());
         });
-        let model=self.model;
-        on_cleanup(move ||{model.try_update(|model|{model.runtime.projected_views.remove(&id);});});
-        Field::new(model,move |m|m.runtime.projected_views.get(&id).expect("live projection"),move |m|m.runtime.projected_views.get_mut(&id).expect("live projection"))
+        let model = self.model;
+        on_cleanup(move || {
+            model.try_update(|model| {
+                model.runtime.projected_views.remove(&id);
+            });
+        });
+        Field::new(
+            model,
+            move |m| m.runtime.projected_views.get(&id).expect("live projection"),
+            move |m| {
+                m.runtime
+                    .projected_views
+                    .get_mut(&id)
+                    .expect("live projection")
+            },
+        )
     }
 
     /// Registers a subscription whose cells go to `mirror`; its number for later changes.
@@ -2516,12 +2764,18 @@ fn fill_parts(area: GridArea, down: bool) -> Option<(GridArea, GridArea)> {
 }
 
 fn model_view_field<S, T>(
-    model: RwSignal<Model>, skin: SkinId,
-    get: fn(&S) -> &T, get_mut: fn(&mut S) -> &mut T,
+    model: RwSignal<Model>,
+    skin: SkinId,
+    get: fn(&S) -> &T,
+    get_mut: fn(&mut S) -> &mut T,
 ) -> ModelField<T>
-where S: ViewState, T: Clone + PartialEq + Send + Sync + 'static {
+where
+    S: ViewState,
+    T: Clone + PartialEq + Send + Sync + 'static,
+{
     model.maybe_update(|m| m.views.register::<S>(skin));
-    Field::new(model,
+    Field::new(
+        model,
         move |m| get(m.views.get::<S>(skin).expect("registered view schema")),
         move |m| get_mut(m.views.get_mut::<S>(skin).expect("registered view schema")),
     )
@@ -2529,22 +2783,37 @@ where S: ViewState, T: Clone + PartialEq + Send + Sync + 'static {
 
 impl Controller {
     /// A skin registers a pure state schema and holds reactive accessors into that state.
-    pub fn view_field<S, T>(&self, skin: SkinId, get: fn(&S) -> &T, get_mut: fn(&mut S) -> &mut T) -> ModelField<T>
-    where S: ViewState, T: Clone + PartialEq + Send + Sync + 'static {
+    pub fn view_field<S, T>(
+        &self,
+        skin: SkinId,
+        get: fn(&S) -> &T,
+        get_mut: fn(&mut S) -> &mut T,
+    ) -> ModelField<T>
+    where
+        S: ViewState,
+        T: Clone + PartialEq + Send + Sync + 'static,
+    {
         model_view_field(self.model, skin, get, get_mut)
     }
 
     pub fn update_view<S: ViewState>(&self, skin: SkinId, update: impl FnOnce(&mut S)) {
         self.model.update(|model| {
             model.views.register::<S>(skin);
-            update(model.views.get_mut::<S>(skin).expect("registered view schema"));
+            update(
+                model
+                    .views
+                    .get_mut::<S>(skin)
+                    .expect("registered view schema"),
+            );
         });
     }
 
     fn command_context(&self) -> CommandContext {
         CommandContext {
-            ready: self.sheet.get().is_some(), readonly: self.assist.readonly.get(),
-            undo: self.history_available(false), redo: self.history_available(true),
+            ready: self.sheet.get().is_some(),
+            readonly: self.assist.readonly.get(),
+            undo: self.history_available(false),
+            redo: self.history_available(true),
         }
     }
     pub fn command_availability(&self, id: CommandId) -> Result<(), dna_calc_model::Unavailable> {
@@ -2556,7 +2825,10 @@ impl Controller {
     /// this adapter executes it against the one worker and the registered focus surfaces.
     pub fn command(&self, command: Command) {
         let captured = self.captured_command_focus();
-        if let Some(request) = self.model.try_update(|model| model.prepare_command_with_focus(command, captured)) {
+        if let Some(request) = self
+            .model
+            .try_update(|model| model.prepare_command_with_focus(command, captured))
+        {
             self.dispatch_command(request);
         }
     }
@@ -2567,8 +2839,12 @@ impl Controller {
             return;
         }
         let context = untrack(|| self.command_context());
-        let result = self.model.try_update(|model| model.dispatch_request(request, context));
-        let Some(result) = result else { return; };
+        let result = self
+            .model
+            .try_update(|model| model.dispatch_request(request, context));
+        let Some(result) = result else {
+            return;
+        };
         match result {
             Err(reason) => self.say(reason.to_string(), true),
             Ok(CommandEffect::Undo { editor }) | Ok(CommandEffect::Redo { editor }) => {
@@ -2587,50 +2863,86 @@ impl Controller {
                 self.edit_field.set_value(self.assist);
                 self.focus_after_mount(skin, false, ticket);
             }
-            Ok(CommandEffect::Reveal { target, skin, ticket }) => {
+            Ok(CommandEffect::Reveal {
+                target,
+                skin,
+                ticket,
+            }) => {
                 let controller = *self;
                 let arrived = move |ok| {
                     if ok {
-                        controller.model.update(|model| model.reveal_completed(skin));
+                        controller
+                            .model
+                            .update(|model| model.reveal_completed(skin));
                         controller.focus_after_mount(skin, true, ticket);
                     }
                 };
                 match target {
-                    RevealTarget::Cell(at) => self.navigate_to_with_ticket(at, arrived, Some(ticket)),
-                    RevealTarget::Reference(text) => self.go_to_text_with_ticket(text, arrived, Some(ticket)),
+                    RevealTarget::Cell(at) => {
+                        self.navigate_to_with_ticket(at, arrived, Some(ticket))
+                    }
+                    RevealTarget::Reference(text) => {
+                        self.go_to_text_with_ticket(text, arrived, Some(ticket))
+                    }
                 }
             }
         }
     }
 
     pub fn reveal(&self, at: CellKey, skin: SkinId) {
-        self.command(Command::Reveal { target: RevealTarget::Cell(at), skin });
+        self.command(Command::Reveal {
+            target: RevealTarget::Cell(at),
+            skin,
+        });
     }
     pub fn reveal_reference(&self, text: String, skin: SkinId) {
-        self.command(Command::Reveal { target: RevealTarget::Reference(text), skin });
+        self.command(Command::Reveal {
+            target: RevealTarget::Reference(text),
+            skin,
+        });
     }
-
 }
 
 #[cfg(test)]
 mod projection_lifetime_tests {
     use super::*;
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn retired_projection_removes_model_data_and_refuses_late_events() {
-        let root=Owner::new();
+        let root = Owner::new();
         root.with(|| {
-            let controller=Controller::new();
-            let mounted=Owner::new();
-            let mirror=mounted.with(||controller.new_mirror());
-            let id=controller.subscribe(wire::Interest::Selection,mirror);
-            assert_eq!(controller.model.with_untracked(|m|m.runtime.projected_views.len()),1);
+            let controller = Controller::with_transport(std::rc::Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ));
+            let mounted = Owner::new();
+            let mirror = mounted.with(|| controller.new_mirror());
+            let id = controller.subscribe(wire::Interest::Selection, mirror);
+            assert_eq!(
+                controller
+                    .model
+                    .with_untracked(|m| m.runtime.projected_views.len()),
+                1
+            );
             mounted.cleanup();
-            assert!(controller.model.with_untracked(|m|m.runtime.projected_views.is_empty()));
+            assert!(
+                controller
+                    .model
+                    .with_untracked(|m| m.runtime.projected_views.is_empty())
+            );
             assert!(mirror.try_get_untracked().is_none());
-            assert!(mirror.try_update(|_|()).is_none());
-            controller.receive(Event::Cells(wire::Cells {id,seq:1,reset:true,cells:Vec::new(),emptied:Vec::new()}));
-            assert!(controller.model.with_untracked(|m|m.runtime.projected_views.is_empty()));
+            assert!(mirror.try_update(|_| ()).is_none());
+            controller.receive(Event::Cells(wire::Cells {
+                id,
+                seq: 1,
+                reset: true,
+                cells: Vec::new(),
+                emptied: Vec::new(),
+            }));
+            assert!(
+                controller
+                    .model
+                    .with_untracked(|m| m.runtime.projected_views.is_empty())
+            );
             controller.unsubscribe(id);
         });
     }

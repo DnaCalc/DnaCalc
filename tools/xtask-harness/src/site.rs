@@ -671,11 +671,16 @@ fn notices(ws: &Workspace, app: &App) -> Result<String, String> {
         .flatten()
         .filter_map(|n| Some((n["id"].as_str()?.to_owned(), n)))
         .collect();
-    let root = packages
-        .iter()
-        .find(|(_, p)| p["name"] == app.package && p["source"].is_null())
-        .map(|(id, _)| id.clone())
-        .ok_or_else(|| format!("cargo metadata has no package {}", app.package))?;
+    let roots = std::iter::once(app.package)
+        .chain(app.worker.map(|(package, _)| package))
+        .map(|name| {
+            packages
+                .iter()
+                .find(|(_, p)| p["name"] == name && p["source"].is_null())
+                .map(|(id, _)| id.clone())
+                .ok_or_else(|| format!("cargo metadata has no package {name}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let is_macro = |id: &str| {
         packages.get(id).is_some_and(|p| {
             p["targets"].as_array().into_iter().flatten().any(|t| {
@@ -687,8 +692,8 @@ fn notices(ws: &Workspace, app: &App) -> Result<String, String> {
             })
         })
     };
-    let mut seen = BTreeSet::from([root.clone()]);
-    let mut pending = vec![root];
+    let mut seen = roots.iter().cloned().collect::<BTreeSet<_>>();
+    let mut pending = roots;
     while let Some(id) = pending.pop() {
         for dep in nodes
             .get(&id)
@@ -809,7 +814,7 @@ fn notices(ws: &Workspace, app: &App) -> Result<String, String> {
         .map_err(|_| format!("{PORTED_NOTICES} is not UTF-8"))?;
     let rule = "=".repeat(78);
     let mut out = format!(
-        "Third-party notices for {} (dnacalc.com).\n\nDNA Calc's own code is under the MIT licence in LICENSE. The release also carries\ncode ported from third parties into DNA Calc's crates, and the crates below, compiled\ninto its WebAssembly module. Their notices follow.\n\n{rule}\nPart 1. Code ported into DNA Calc's crates\n{rule}\n\n{}\n\n{rule}\nPart 2. Crates compiled into the module ({} crates)\n{rule}\n\n",
+        "Third-party notices for {} (dnacalc.com).\n\nDNA Calc's own code is under the MIT licence in LICENSE. The release also carries\ncode ported from third parties into DNA Calc's crates, and the crates below, compiled\ninto its WebAssembly modules. Their notices follow.\n\n{rule}\nPart 1. Code ported into DNA Calc's crates\n{rule}\n\n{}\n\n{rule}\nPart 2. Crates compiled into the modules ({} crates)\n{rule}\n\n",
         app.package,
         ported.trim_end(),
         crates.len()

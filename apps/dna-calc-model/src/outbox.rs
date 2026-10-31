@@ -7,6 +7,7 @@ use crate::{
 use std::collections::VecDeque;
 
 struct Submission {
+    focus: crate::FocusTicket,
     id: u64,
     generation: u64,
     source: String,
@@ -20,15 +21,22 @@ pub struct CommandQueue {
 }
 pub enum CommandDelivery {
     Ready {
+        focus: crate::FocusTicket,
         envelope: CommandEnvelope,
         bytes: Option<Vec<u8>>,
     },
     Refused {
         id: u64,
+        focus: crate::FocusTicket,
         reason: String,
     },
 }
 impl CommandDelivery {
+    pub fn focus(&self) -> crate::FocusTicket {
+        match self {
+            Self::Ready { focus, .. } | Self::Refused { focus, .. } => *focus,
+        }
+    }
     pub fn id(&self) -> u64 {
         match self {
             Self::Ready { envelope, .. } => envelope.id,
@@ -42,11 +50,24 @@ impl Model {
         request: Request,
         bytes: Option<Vec<u8>>,
     ) -> Result<u64, String> {
+        let focus = self
+            .runtime
+            .callback_focus
+            .unwrap_or_else(|| self.focus.snapshot());
+        self.submit_command_with_focus(request, bytes, focus)
+    }
+    pub fn submit_command_with_focus(
+        &mut self,
+        request: Request,
+        bytes: Option<Vec<u8>>,
+        focus: crate::FocusTicket,
+    ) -> Result<u64, String> {
         if !request.is_command() {
             return Err("This operation is a query, not a workbook command".into());
         }
         let id = self.issue_command();
         self.commands.pending.push_back(Submission {
+            focus,
             id,
             generation: self.runtime.generation,
             source: self.active_skin.clone().unwrap_or_else(|| "shell".into()),
@@ -66,10 +87,12 @@ impl Model {
         if next.generation != self.runtime.generation {
             return Some(CommandDelivery::Refused {
                 id: next.id,
+                focus: next.focus,
                 reason: "This command belongs to a workbook that has been replaced".into(),
             });
         }
         Some(CommandDelivery::Ready {
+            focus: next.focus,
             envelope: CommandEnvelope {
                 id: next.id,
                 session: self.runtime.summary.session.clone(),

@@ -14,6 +14,7 @@ portability = "portable"
 # graph and calculates (HOST to ENG); calc-fml supplies the cell runs a read observer passed to
 # step is shown (HOST to FML).
 [dependencies]
+calc-value = { path = "../calc-value" }
 calc-doc = { path = "../calc-doc" }
 calc-doc-model = { path = "../calc-doc-model" }
 calc-engine = { path = "../calc-engine" }

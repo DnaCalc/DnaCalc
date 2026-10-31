@@ -2,7 +2,7 @@
 use crate::controller::Controller;
 use leptos::prelude::*;
 
-pub use calc_host::stored_axis_size as stored_size;
+pub use calc_value::stored_axis_size as stored_size;
 
 pub fn controls(controller: Controller) -> impl IntoView {
     let column = RwSignal::new("8.43".to_owned());
@@ -116,7 +116,7 @@ pub fn input_for_pixels(rows: bool, pixels: f64, zoom: f64) -> f64 {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ResizeDrag {
     pub band: BandEdge,
-    pub sheet: calc_host::value::SheetId,
+    pub sheet: calc_value::SheetId,
     pub generation: u64,
     pub start: f64,
     pub current: f64,
@@ -142,7 +142,7 @@ impl ResizeDrag {
         self.band.edge + pixels * self.zoom - self.band.pixels
     }
 }
-pub fn selected_bands(areas: &[calc_host::value::GridArea], rows: bool, index: u32) -> (u32, u32) {
+pub fn selected_bands(areas: &[calc_value::GridArea], rows: bool, index: u32) -> (u32, u32) {
     if let [area] = areas {
         let a = area.first();
         let b = area.last();
@@ -164,7 +164,7 @@ mod drag_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn resize_groups_only_a_single_whole_axis_selection_containing_the_edge() {
-        use calc_host::value::{CellKey, GridArea, SheetId};
+        use calc_value::{CellKey, GridArea, SheetId};
         let sheet = SheetId::from_parts(0, 0);
         let area = |r, c, rr, cc| {
             GridArea::new(

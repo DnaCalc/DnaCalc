@@ -262,6 +262,7 @@ dependencies = [
  "calc-doc-model",
  "calc-engine",
  "calc-fml",
+ "calc-value",
  "calc-verdict",
  "miniz_oxide",
  "wasm-bindgen",
@@ -732,14 +733,16 @@ dependencies = [
 name = "dna-calc"
 version = "0.1.0"
 dependencies = [
+ "any_spawner",
  "calc-func",
  "calc-host",
+ "calc-value",
  "dna-calc-model",
+ "dna-calc-protocol",
+ "dna-calc-worker",
  "dna-formula-ui",
  "js-sys",
  "leptos",
- "serde",
- "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -754,6 +757,34 @@ dependencies = [
  "serde",
  "wasm-bindgen",
  "wasm-bindgen-test",
+]
+
+[[package]]
+name = "dna-calc-protocol"
+version = "0.1.0"
+dependencies = [
+ "dna-calc-model",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
+name = "dna-calc-worker"
+version = "0.1.0"
+dependencies = [
+ "calc-func",
+ "calc-host",
+ "calc-value",
+ "dna-calc-model",
+ "dna-calc-protocol",
+ "dna-formula-ui",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "web-sys",
 ]
 
 [[package]]

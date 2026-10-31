@@ -10,7 +10,7 @@ use crate::wire;
 use leptos::prelude::*;
 
 /// The blocks one page shows.
-pub const PAGE: usize = 40;
+pub use dna_calc_model::projection::NOTEBOOK_PAGE as PAGE;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NotebookSkin;
@@ -44,19 +44,43 @@ pub struct ViewState {
     pub insert_text: crate::model_adapter::ModelField<String>,
     address: crate::model_adapter::ModelField<String>,
     prose: crate::model_adapter::ModelField<bool>,
-    pages: crate::model_adapter::ModelField<std::collections::BTreeMap<calc_host::value::SheetId, usize>>,
+    pages: crate::model_adapter::ModelField<std::collections::BTreeMap<calc_value::SheetId, usize>>,
     selected: crate::model_adapter::ModelField<Option<String>>,
-    last_active: crate::model_adapter::ModelField<Option<calc_host::value::CellKey>>,
+    last_active: crate::model_adapter::ModelField<Option<calc_value::CellKey>>,
 }
 impl ViewState {
     pub fn new(controller: Controller) -> Self {
         Self {
-            insert_text: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.insert_text, |s| &mut s.insert_text),
-            address: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.address, |s| &mut s.address),
-            prose: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.prose, |s| &mut s.prose),
-            pages: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.pages, |s| &mut s.pages),
-            selected: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.selected, |s| &mut s.selected),
-            last_active: controller.view_field::<dna_calc_model::NotebookState, _>(SkinId::Notebook, |s| &s.last_active, |s| &mut s.last_active),
+            insert_text: controller.view_field::<dna_calc_model::NotebookState, _>(
+                SkinId::Notebook,
+                |s| &s.insert_text,
+                |s| &mut s.insert_text,
+            ),
+            address: controller.view_field::<dna_calc_model::NotebookState, _>(
+                SkinId::Notebook,
+                |s| &s.address,
+                |s| &mut s.address,
+            ),
+            prose: controller.view_field::<dna_calc_model::NotebookState, _>(
+                SkinId::Notebook,
+                |s| &s.prose,
+                |s| &mut s.prose,
+            ),
+            pages: controller.view_field::<dna_calc_model::NotebookState, _>(
+                SkinId::Notebook,
+                |s| &s.pages,
+                |s| &mut s.pages,
+            ),
+            selected: controller.view_field::<dna_calc_model::NotebookState, _>(
+                SkinId::Notebook,
+                |s| &s.selected,
+                |s| &mut s.selected,
+            ),
+            last_active: controller.view_field::<dna_calc_model::NotebookState, _>(
+                SkinId::Notebook,
+                |s| &s.last_active,
+                |s| &mut s.last_active,
+            ),
         }
     }
 }
@@ -64,7 +88,7 @@ fn notebook_view(controller: Controller) -> impl IntoView {
     let state = ViewState::new(controller);
     let notebook = RwSignal::new(wire::Notebook::default());
     let reveal = RwSignal::new(None);
-    let reveal_placement = StoredValue::new(None::<(String, calc_host::value::CellKey)>);
+    let reveal_placement = StoredValue::new(None::<(String, calc_value::CellKey)>);
     let epoch = StoredValue::new(0u64);
     let pending = RwSignal::new(true);
     let address = state.address;
@@ -73,7 +97,11 @@ fn notebook_view(controller: Controller) -> impl IntoView {
     let open_details = RwSignal::new(None::<String>);
     let detail = RwSignal::new(None::<wire::BlockDetail>);
     #[cfg(target_arch = "wasm32")]
-    let desired_focus = StoredValue::new(None::<String>);
+    let desired_focus = controller.view_field::<dna_calc_model::NotebookState, _>(
+        SkinId::Notebook,
+        |s| &s.pending_focus,
+        |s| &mut s.pending_focus,
+    );
     let root: NodeRef<leptos::html::Section> = NodeRef::new();
     #[cfg(target_arch = "wasm32")]
     {
@@ -132,6 +160,7 @@ fn notebook_view(controller: Controller) -> impl IntoView {
         let sent = epoch.get_value();
         let generation = controller.generation.get_untracked();
         pending.set(true);
+        let focus_ticket = controller.focus_snapshot();
         controller.ask(
             wire::Request::Notebook {
                 sheet: wire::Sheet::of(sheet),
@@ -158,7 +187,22 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                     let restore_focus = desired_focus
                         .try_update_value(|s| s.take())
                         .flatten()
-                        .or_else(focused_block_selector);
+                        .map(|(id, edit, ticket)| {
+                            (
+                                format!(
+                                    "[data-dnacalc=block][data-block-key=\"{id}\"] {}",
+                                    if edit {
+                                        "textarea"
+                                    } else {
+                                        "[data-dnacalc=block-select]"
+                                    }
+                                ),
+                                ticket,
+                            )
+                        })
+                        .or_else(|| {
+                            focused_block_selector().map(|selector| (selector, focus_ticket))
+                        });
                     let active = controller.active_key_untracked();
                     let id = |b: &wire::NotebookBlock| {
                         b.placement
@@ -192,8 +236,8 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                     pending.try_set(false);
                     #[cfg(target_arch = "wasm32")]
                     {
-                        if let Some(selector) = restore_focus {
-                            request_animation_frame(move || crate::app::focus(&selector));
+                        if let Some((selector, ticket)) = restore_focus {
+                            controller.focus_projection(SkinId::Notebook, selector, ticket);
                         } else if let Some(id) = state.selected.get_untracked() {
                             let selector = format!("[data-dnacalc=block][data-block-key=\"{id}\"]");
                             request_animation_frame(move || reveal_block(&selector));
@@ -238,7 +282,8 @@ fn notebook_view(controller: Controller) -> impl IntoView {
             }
         });
     });
-    let select = move |at: calc_host::value::CellKey, edit: bool, identity: String| {
+    let select = move |at: calc_value::CellKey, edit: bool, identity: String| {
+        let ticket = controller.focus_snapshot();
         controller.navigate_to(at, move |ok| {
             if ok {
                 state.selected.set(Some(identity.clone()));
@@ -258,45 +303,31 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                             "[data-dnacalc=block-select]"
                         }
                     );
-                    desired_focus.set_value(Some(selector.clone()));
-                    request_animation_frame(move || {
-                        if desired_focus.try_get_value().flatten().as_ref() == Some(&selector)
-                            && document()
-                                .query_selector(&selector)
-                                .ok()
-                                .flatten()
-                                .is_some()
-                        {
-                            desired_focus.set_value(None);
-                            crate::app::focus(&selector);
-                        }
-                    });
+                    desired_focus.set_value(Some((identity.clone(), edit, ticket)));
+                    controller.focus_projection(SkinId::Notebook, selector, ticket);
                 }
             }
         });
     };
     let show_source = move |at, skin| controller.reveal(at, skin);
-    let linked =
-        move |done: &wire::Outcome, at: calc_host::value::CellKey, submitted: Option<String>| {
-            let same_draft = submitted
-                .as_ref()
-                .is_none_or(|text| insert_text.get_untracked() == *text);
-            if done.accepted
-                && same_draft
-                && let Some(id) = &done.notebook_placement
-            {
-                state.selected.set(Some(id.clone()));
-                reveal_placement.set_value(Some((id.clone(), at)));
-                #[cfg(target_arch = "wasm32")]
-                desired_focus.set_value(Some(format!(
-                    "[data-dnacalc=block][data-block-key=\"{id}\"] [data-dnacalc=block-select]"
-                )));
-                reveal.set(Some(at));
-            }
-            if submitted.is_some() && same_draft && done.accepted {
-                insert_text.try_set(String::new());
-            }
-        };
+    let linked = move |done: &wire::Outcome, at: calc_value::CellKey, submitted: Option<String>| {
+        let same_draft = submitted
+            .as_ref()
+            .is_none_or(|text| insert_text.get_untracked() == *text);
+        if done.accepted
+            && same_draft
+            && let Some(id) = &done.notebook_placement
+        {
+            state.selected.set(Some(id.clone()));
+            reveal_placement.set_value(Some((id.clone(), at)));
+            #[cfg(target_arch = "wasm32")]
+            desired_focus.set_value(Some((id.clone(), false, controller.focus_snapshot())));
+            reveal.set(Some(at));
+        }
+        if submitted.is_some() && same_draft && done.accepted {
+            insert_text.try_set(String::new());
+        }
+    };
     let link = move |insert: bool| {
         let reference = address.get_untracked();
         let text = insert_text.get_untracked();

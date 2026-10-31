@@ -103,7 +103,13 @@ pub(crate) fn focus(selector: &str) {
 
 /// The application.
 pub fn app() -> impl IntoView {
-    let controller = Controller::new();
+    app_with_transport(std::rc::Rc::new(crate::port::BrowserTransport))
+}
+/// The shell over an injected transport. Native compositions keep the worker outside the UI.
+pub fn app_with_transport(
+    transport: std::rc::Rc<dyn dna_calc_model::WorkbookTransport>,
+) -> impl IntoView {
+    let controller = Controller::with_transport(transport);
     controller.install_input_queue();
     let registry = registry();
     controller.register_skins(registry.clone());
@@ -170,7 +176,7 @@ pub fn app() -> impl IntoView {
     let result_details = NodeRef::<leptos::html::Details>::new();
     let result_open = RwSignal::new(false);
     Effect::new(
-        move |previous: Option<(Option<calc_host::value::CellKey>, Option<cells::Provenance>)>| {
+        move |previous: Option<(Option<calc_value::CellKey>, Option<cells::Provenance>)>| {
             let cell = controller.active_cell();
             let key = (
                 controller.active_key(),
@@ -286,16 +292,38 @@ pub fn app() -> impl IntoView {
         if ev.is_composing() || ev.key_code() == 229 || assist.composing.get_untracked() {
             return;
         }
-        if ev.default_prevented() { return; }
-        let chord = dna_calc_model::selection::KeyChord::new(ev.key(), ev.shift_key(), ev.ctrl_key() || ev.meta_key(), ev.alt_key());
+        if ev.default_prevented() {
+            return;
+        }
+        let chord = dna_calc_model::selection::KeyChord::new(
+            ev.key(),
+            ev.shift_key(),
+            ev.ctrl_key() || ev.meta_key(),
+            ev.alt_key(),
+        );
         if let Some(id) = dna_calc_model::resolve_shell_key(&chord) {
             use wasm_bindgen::JsCast;
-            let native_text = ev.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()).is_some_and(|element| {
-                matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA") || element.closest("[contenteditable=true]").ok().flatten().is_some()
-            });
-            if !native_text || !matches!(id, dna_calc_model::CommandId::Undo | dna_calc_model::CommandId::Redo) {
+            let native_text = ev
+                .target()
+                .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+                .is_some_and(|element| {
+                    matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA")
+                        || element
+                            .closest("[contenteditable=true]")
+                            .ok()
+                            .flatten()
+                            .is_some()
+                });
+            if !native_text
+                || !matches!(
+                    id,
+                    dna_calc_model::CommandId::Undo | dna_calc_model::CommandId::Redo
+                )
+            {
                 ev.prevent_default();
-                if let Some(command) = dna_calc_model::Command::simple(id) { controller.command(command); }
+                if let Some(command) = dna_calc_model::Command::simple(id) {
+                    controller.command(command);
+                }
                 return;
             }
         }
@@ -341,7 +369,11 @@ pub fn app() -> impl IntoView {
             {
                 settings.set_open(false);
             }
-            if next == 2 { controller.focus_active_skin(); } else { focus(selectors[next]); }
+            if next == 2 {
+                controller.focus_active_skin();
+            } else {
+                focus(selectors[next]);
+            }
             return;
         }
         if ev.alt_key()
