@@ -1084,7 +1084,7 @@ impl<'c> Lowering<'c> {
         tasks.push(Task::Emit {
             block,
             instruction: Instruction::UserCall {
-                name: name.to_ascii_uppercase(),
+                name: calc_func::value::fold_workbook_name(name),
                 source,
                 argc: arguments.len(),
             },

@@ -11,7 +11,8 @@ Load a standard module in **VBA functions**, enter 40 in A1 and `=Add2(A1,2)` in
 formula field to obtain 42. Load again to replace registrations and start fresh module
 state; a compile failure leaves the prior module active. Unload removes registrations.
 Nothing is persisted to a workbook. Public Functions register bare and qualified names
-with ASCII case matching; Private functions and Subs stay private, and Main never runs.
+with the shared workbook-name comparison (dc-snz.11; measured Café/Ångström case pairs);
+Private functions and Subs stay private, and Main never runs.
 
 The caller-owned calc-func registry and calc-fml resolver still own function registration
 and invocation. Built-ins, locals and known defined names keep precedence. Plans retain

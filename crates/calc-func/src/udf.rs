@@ -46,11 +46,18 @@ pub trait UserFunctionContext {
     ) -> Result<CalcValue, String>;
 }
 
-/// Per-host registrations, matched by ASCII case. Built-ins and local formula names keep their
+/// Per-host registrations, matched by the shared workbook-name comparison. Built-ins and local formula names keep their
 /// existing precedence. Hosts replace this registry atomically when loading a new module.
 #[derive(Clone, Debug, Default)]
 pub struct UserFunctions {
-    entries: BTreeMap<(Option<String>, String), Rc<dyn UserFunction>>,
+    entries: BTreeMap<(Option<String>, String), Registration>,
+}
+
+#[derive(Clone, Debug)]
+struct Registration {
+    /// Retain the inventory spelling separately from its shared comparison key.
+    name: String,
+    function: Rc<dyn UserFunction>,
 }
 
 impl UserFunctions {
@@ -76,7 +83,13 @@ impl UserFunctions {
         if key.1.is_empty() || provider == Some("") || self.entries.contains_key(&key) {
             return Err(format!("duplicate or empty user function: {name}"));
         }
-        self.entries.insert(key, function);
+        self.entries.insert(
+            key,
+            Registration {
+                name: name.to_ascii_uppercase(),
+                function,
+            },
+        );
         Ok(())
     }
 
@@ -89,21 +102,24 @@ impl UserFunctions {
     }
 
     fn key(provider: Option<&str>, name: &str) -> (Option<String>, String) {
-        (provider.map(str::to_owned), name.to_ascii_uppercase())
+        (
+            provider.map(str::to_owned),
+            crate::value::fold_workbook_name(name),
+        )
     }
 
     /// Names registered in this workbook, including explicit module qualifications.
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.entries
-            .keys()
-            .filter_map(|(provider, name)| provider.is_none().then_some(name.as_str()))
+            .iter()
+            .filter_map(|((provider, _), entry)| provider.is_none().then_some(entry.name.as_str()))
     }
 
     /// All registrations, retaining external provider identity for host inventories.
     pub fn registrations(&self) -> impl Iterator<Item = (Option<&str>, &str)> {
         self.entries
-            .keys()
-            .map(|(provider, name)| (provider.as_deref(), name.as_str()))
+            .iter()
+            .map(|((provider, _), entry)| (provider.as_deref(), entry.name.as_str()))
     }
 
     /// Invoke with live reference/caller services. A missing function remains #NAME?.
@@ -125,7 +141,7 @@ impl UserFunctions {
         context: &mut dyn UserFunctionContext,
     ) -> Result<CalcValue, String> {
         let value = match self.entries.get(&Self::key(provider, name)) {
-            Some(function) => function.call_with_context(arguments, context)?,
+            Some(entry) => entry.function.call_with_context(arguments, context)?,
             None => CalcValue::error(WorksheetErrorCode::Name),
         };
         if value.is_missing() {
@@ -138,8 +154,8 @@ impl UserFunctions {
     /// Missing registrations yield #NAME?, including a plan retained after module removal.
     pub fn call(&self, name: &str, arguments: &[CalcValue]) -> Result<CalcValue, String> {
         match self.entries.get(&Self::key(None, name)) {
-            Some(function) => {
-                let value = function.call(arguments)?;
+            Some(entry) => {
+                let value = entry.function.call(arguments)?;
                 if value.is_missing() {
                     Err("a user function returned a missing argument".to_owned())
                 } else {
