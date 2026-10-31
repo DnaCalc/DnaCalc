@@ -37,6 +37,8 @@ pub struct TextStyle {
     pub rotation: i16,
     pub indent: u16,
     pub horizontal: Option<String>,
+    /// Consecutive blank cells sharing fill/centerContinuous, including the source column.
+    pub alignment_columns: u32,
     pub vertical: Option<String>,
     pub width: f64,
     pub unsupported: Option<String>,
@@ -52,6 +54,7 @@ impl Default for TextStyle {
             rotation: 0,
             indent: 0,
             horizontal: None,
+            alignment_columns: 1,
             vertical: None,
             width: 64.,
             unsupported: None,
@@ -107,14 +110,25 @@ pub fn text_style(
     } else if font_id != 0 {
         out.unsupported = Some("The font record is unavailable".into());
     }
-    if let Some(a) = format
-        .alignment
-        .as_ref()
-        .or_else(|| parent.and_then(|p| p.alignment.as_ref()))
-    {
+    if let Some(a) = host.cell_alignment(at) {
         out.wrap = a.wrap_text;
         out.horizontal = a.horizontal.clone();
         out.vertical = a.vertical.clone();
+        if matches!(a.horizontal.as_deref(), Some("centerContinuous" | "fill")) {
+            for column in at.column() + 1..=16_384 {
+                let next = calc_host::value::CellKey::new(at.sheet(), at.row(), column).unwrap();
+                if host.model().cell(next).is_some()
+                    || host
+                        .cell_alignment(next)
+                        .and_then(|next| next.horizontal.as_deref())
+                        != a.horizontal.as_deref()
+                {
+                    break;
+                }
+                out.alignment_columns += 1;
+            }
+        }
+
         if let Some(n) = a.indent.as_deref() {
             match n.parse::<u16>() {
                 Ok(n) if n <= 250 => out.indent = n,
@@ -196,7 +210,7 @@ pub fn font_css(
     )
 }
 /// A shared DOM font probe. Its inline declarations are assigned through CSSOM under the CSP.
-fn probe(font: &str, text: &str) -> Result<(f64, f64), String> {
+pub(super) fn probe(font: &str, text: &str) -> Result<(f64, f64), String> {
     use leptos::prelude::*;
     use wasm_bindgen::JsCast;
     let node = document()
@@ -219,17 +233,18 @@ fn probe(font: &str, text: &str) -> Result<(f64, f64), String> {
     node.remove();
     Ok((rect.width(), rect.height()))
 }
-/// Space width comes from the same font as the rendered text, rather than a digit-width estimate.
+/// Indentation uses measured spaces of the normal font, rather than a digit-width estimate.
 pub fn indent_pixels(
     style: &TextStyle,
-    conditional: Option<&crate::cells::ConditionalShown>,
-    italic: bool,
+    _conditional: Option<&crate::cells::ConditionalShown>,
+    _italic: bool,
     zoom: f64,
 ) -> f64 {
     if style.indent == 0 {
         return 0.;
     }
-    let font = font_css(style, conditional, italic, zoom);
+    // OOXML indent uses three spaces of the normal font, which the Grid maps to its base font.
+    let font = font_css(&TextStyle::default(), None, false, zoom);
     probe(&font, "   ")
         .map(|(w, _)| w * f64::from(style.indent))
         .unwrap_or(0.)

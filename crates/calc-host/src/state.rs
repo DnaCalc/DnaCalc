@@ -656,6 +656,13 @@ impl HostState {
         }
     }
 
+    /// The effective workbook alignment, through the same resolver CELL("prefix") uses.
+    /// Absent horizontal/vertical values mean General/Bottom; the stored record also carries
+    /// wrapping, rotation and indentation for consumers of that same alignment.
+    pub fn cell_alignment(&self, at: CellKey) -> Option<&calc_doc_model::Alignment> {
+        crate::facts::alignment(self.loaded.styles(), self.cell_style(at))
+    }
+
     /// The RGB (`#rrggbb`) of entry `index` (1 to 56) of the workbook's color palette when the file
     /// redefines it (`<indexedColors>`, whose entry `index + 7` it is); `None` when it does not,
     /// and the default palette applies (dc-09v).

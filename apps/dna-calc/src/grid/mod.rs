@@ -22,6 +22,7 @@
 //! positioned elements, and the legacy projection and dispatcher by calc-host's subscription and
 //! intents.
 
+mod alignment;
 pub mod autofit;
 pub mod axis;
 pub mod chart;
@@ -1457,18 +1458,13 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     }
                     let italic=matches!(cell.shown.provenance,cells::Provenance::FileCache|cells::Provenance::Refused);
                     style.push(';');style.push_str(&autofit::font_css(&cell.shown.style,Some(&conditional),italic,zoom.get()));
-                    let indent=autofit::indent_pixels(&cell.shown.style,Some(&conditional),italic,zoom.get());
-                    if indent>0. {style.push_str(&format!(";padding-inline-start:{}px",4.*zoom.get()+indent));}
-                    if let Some(align)=cell.shown.style.horizontal.as_deref().and_then(|a|match a {"left"=>Some("flex-start"),"right"=>Some("flex-end"),"center"=>Some("center"),_=>None}){style.push_str(&format!(";justify-content:{align}"));}
-                    if let Some(align)=cell.shown.style.vertical.as_deref().and_then(|a|match a {"top"=>Some("flex-start"),"bottom"=>Some("flex-end"),"center"=>Some("center"),_=>None}){style.push_str(&format!(";align-items:{align}"));}
-                    let icon_width=if conditional.icon.is_some(){20.*zoom.get()}else{0.};
-                    let text_style=if cell.shown.style.rotation!=0 {format!("position:absolute;left:50%;top:50%;white-space:pre;transform:translate(-50%,-50%) rotate({}deg);transform-origin:center",cell.shown.style.rotation)}else{format!("display:block;flex-shrink:0;{}",if cell.shown.style.wrap{format!("width:calc(100% - {icon_width}px);white-space:pre-wrap;overflow-wrap:anywhere")}else{"white-space:pre".into()})};
+                    let layout = alignment::layout(cell, &conditional, italic, zoom.get());
+                    style.push_str(&layout.container);
                     let shown = cell.shown.clone();
                     let icon = conditional
                         .icon
                         .as_ref()
                         .map(|(set, index)| (format!("{set}:{index}"), icons::icon_svg(set, *index)));
-                    let text = if conditional.hide_value { String::new() } else { shown.text.clone() };
                     let icon_name = icon.as_ref().map(|(name, _)| name.clone());
                     let bar = conditional
                         .bar
@@ -1488,8 +1484,11 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                             data-bar=bar
                             use:css=style
                         >
-                            {icon.map(|(_, markup)| view! { <span class="dc-icon" use:css=format!("flex:0 0 {icon_width}px;box-sizing:border-box") inner_html=markup></span> })}
-                            <span class="dc-cell-text" use:css=text_style>{text}</span>
+                            {icon.map(|(_, markup)| view! { <span class="dc-icon" use:css=layout.icon inner_html=markup></span> })}
+                            <span class="dc-cell-text" use:css=layout.span>{layout.lines.into_iter().map(|line| {
+                                let contents=match line.segments { Some(parts)=>parts.into_iter().map(|part| view!{<span>{part}</span>}.into_any()).collect_view().into_any(), None=>line.text.into_any() };
+                                view! { <span use:css=line.css>{contents}</span> }
+                            }).collect_view()}</span>
                         </div>
                     }
                 })

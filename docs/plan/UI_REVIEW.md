@@ -78,9 +78,24 @@ needs no new browser-binary option.
 cd ~/projects/DnaCalc/DnaCalc
 source ~/codex-runs/ui-browser-env.sh
 # Sets PATH, CHROMEDRIVER, GECKODRIVER and LD_LIBRARY_PATH to the home installs.
-cargo xtask app smoke calc
-cargo xtask app smoke onecalc
+cargo xtask app smoke calc       # routine core, all six skins
+cargo xtask app smoke onecalc    # routine formula/session core
+# Reuse an existing bundle during a UI iteration; a filter searches all cases.
+cargo xtask app smoke calc --bundle target/dnacalc-bundle --group alignment
+cargo xtask app smoke onecalc --bundle target/onecalc-bundle --case "replace its code"
+cargo xtask app smoke calc --suite full
+cargo xtask app smoke onecalc --suite full
+cargo xtask app smoke calc --suite full --list
 ```
+
+The core has 32 cases across both apps. `--group` and `--case` can repeat; groups match their
+exact names, and case names match a substring without regard to case. Each group starts a fresh
+page with cleared storage/downloads and a restored viewport. A filtered later case runs its
+earlier group prerequisites with every assertion intact; failures there fail the run too.
+Output reports selected cases, prerequisite counts and wall time per group, including page
+setup. Browser totals exclude bundle builds. A filter selecting no case fails with exit 2.
+`--list` requires neither browser nor bundle. Full suites also run in `cargo xtask sweep`
+(the `app-smoke` step); site smoke retains full coverage.
 
 Run cargo commands sequentially. Bundles are `target/dnacalc-bundle` and
 `target/onecalc-bundle`. For repeat screenshots, serve them in separate terminals:

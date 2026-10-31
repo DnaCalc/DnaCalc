@@ -77,6 +77,18 @@ fn shown_characters(width: f64, mdw: f64) -> f64 {
     (((pixels - 5.0) / mdw * 100.0 + 0.5).trunc() / 100.0).max(0.0)
 }
 
+/// The one alignment lookup for workbook facts and visual consumers. Cell records override
+/// their named style; a missing alignment inherits the named style's record.
+pub(crate) fn alignment(styles: &StyleTable, style: u32) -> Option<&calc_doc_model::Alignment> {
+    let format = styles.cell_formats.get(usize::try_from(style).ok()?)?;
+    format.alignment.as_ref().or_else(|| {
+        format
+            .xf_id
+            .and_then(|id| styles.cell_style_formats.get(id as usize))
+            .and_then(|parent| parent.alignment.as_ref())
+    })
+}
+
 impl HostFacts {
     fn sheet(&self, id: SheetId) -> Option<&LoadedSheet> {
         self.sheets.iter().find(|sheet| sheet.id() == id)
@@ -111,8 +123,7 @@ impl WorkbookFacts for HostFacts {
             .iter()
             .any(|declared| declared.id == id))
         .then_some(id);
-        let horizontal = match format
-            .and_then(|format| format.alignment.as_ref())
+        let horizontal = match alignment(&self.styles, style)
             .and_then(|alignment| alignment.horizontal.as_deref())
             .map(str::trim)
         {
@@ -235,6 +246,43 @@ impl HostState {
 #[cfg(test)]
 mod tests {
     use super::shown_characters;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn alignment_resolves_one_record_for_cell_facts_and_visual_consumers() {
+        use calc_doc_model::{Alignment, CellFormat, StyleTable};
+        let inherited = Alignment {
+            horizontal: Some("right".into()),
+            vertical: Some("top".into()),
+            indent: Some("2".into()),
+            ..Default::default()
+        };
+        let direct = Alignment {
+            horizontal: Some("center".into()),
+            ..Default::default()
+        };
+        let table = StyleTable {
+            cell_style_formats: vec![CellFormat {
+                alignment: Some(inherited.clone()),
+                ..Default::default()
+            }],
+            cell_formats: vec![
+                CellFormat {
+                    xf_id: Some(0),
+                    ..Default::default()
+                },
+                CellFormat {
+                    xf_id: Some(0),
+                    alignment: Some(direct.clone()),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        assert_eq!(super::alignment(&table, 0), Some(&inherited));
+        assert_eq!(super::alignment(&table, 1), Some(&direct));
+        assert_eq!(super::alignment(&table, 9), None);
+    }
 
     /// File widths Excel wrote for column widths set in characters (Calibri 11, 7 pixels).
     #[cfg_attr(not(target_arch = "wasm32"), test)]

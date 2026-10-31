@@ -15,6 +15,7 @@
 //! - `wasm`: `cargo xtask ci wasm`, the portable packages' tests in headless Chrome and Firefox,
 //!   with one line per package of where its tests ran; a test neither run in the browsers nor
 //!   marked `Native-only:` fails the wasm job, and so this step;
+//! - `app-smoke`: both applications' full browser smoke suites, including all case groups;
 //! - `acceptance`: xtask's acceptance suite (`cargo test -p xtask --features acceptance --test
 //!   acceptance`, one case at a time), which builds copies of the workspace and lane clones and
 //!   takes hours. `infra_m0_1__independent_lanes` refuses a tree with uncommitted files, so run
@@ -32,14 +33,14 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 use std::time::Instant;
 
-pub const USAGE: &str =
-    "usage: cargo xtask sweep [--skip architecture|provenance|ceiling|wasm|acceptance]...";
+pub const USAGE: &str = "usage: cargo xtask sweep [--skip architecture|provenance|ceiling|wasm|app-smoke|acceptance]...";
 
-const STEPS: [&str; 5] = [
+const STEPS: [&str; 6] = [
     "architecture",
     "provenance",
     "ceiling",
     "wasm",
+    "app-smoke",
     "acceptance",
 ];
 
@@ -249,6 +250,22 @@ pub fn run(raw: &[String]) -> ExitCode {
                 let passed = ci::run(&["wasm".to_owned()]) == ExitCode::SUCCESS;
                 print_browser_coverage(&ws);
                 (passed, "record target/ci/wasm".to_owned())
+            }
+            "app-smoke" => {
+                let mut passed = true;
+                for application in &crate::app::APPS {
+                    passed &= crate::app::smoke(
+                        &ws,
+                        application,
+                        crate::app::SmokeTarget::Bundle(None),
+                        None,
+                        None,
+                    ) == ExitCode::SUCCESS;
+                }
+                (
+                    passed,
+                    "Full app suites; group timings printed above".into(),
+                )
             }
             _ => acceptance(&ws, &log_dir.join("acceptance.log")),
         };

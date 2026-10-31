@@ -5,7 +5,7 @@
 //! - **Determinism**: equal inputs give an equal plan; cells are sorted by `(row, col)`, so the
 //!   plan never depends on the order the cells arrived in.
 //! - **Faithfulness**: the plan holds exactly the given cells that lie in the extent and meet the
-//!   viewport, never a cell calc-host did not project, and never drops one that is on screen.
+//!   viewport (including text spilling from an adjacent cell), never a cell calc-host did not project.
 //!
 //! Gridlines are not in the plan: they follow from the metrics and the scroll, which the view
 //! draws as a background.
@@ -28,6 +28,8 @@ pub struct PlannedCell {
     pub row: u32,
     pub col: u32,
     pub rect: CellRect,
+    /// Physical cell before text extends over blank neighbours.
+    pub anchor: CellRect,
     pub shown: CellShown,
 }
 
@@ -62,9 +64,9 @@ pub struct RenderPlan {
 
 /// The plan of `cells` under `m` and `v` over an extent of `extent_rows` by `extent_cols`.
 ///
-/// A cell is planned when it lies in the extent and its rectangle meets the viewport. A planned
-/// cell is always hittable: [`super::geometry::hit_test`] with this plan's extent maps every point
-/// inside its rectangle back to it.
+/// A cell is planned when it lies in the extent and its displayed rectangle meets the viewport.
+/// Its physical `anchor` remains the worksheet cell; hit testing uses physical geometry, so a
+/// click on text spilling into a blank neighbour selects that neighbour.
 #[must_use]
 pub fn build_render_plan<'a>(
     cells: impl IntoIterator<Item = &'a CellShown>,
@@ -76,7 +78,11 @@ pub fn build_render_plan<'a>(
     let cells: Vec<&CellShown> = cells.into_iter().collect();
     let occupied: std::collections::BTreeSet<(u32, u32)> = cells
         .iter()
-        .filter(|shown| !shown.text.is_empty())
+        .filter(|shown| {
+            !shown.text.is_empty()
+                || shown.formula
+                || shown.provenance != crate::cells::Provenance::Empty
+        })
         .map(|shown| (shown.at.row(), shown.at.column()))
         .collect();
     let mut planned: Vec<PlannedCell> = cells
@@ -87,16 +93,15 @@ pub fn build_render_plan<'a>(
                 return None;
             }
             let rect = cell_rect(m, v, row, col);
-            rect_intersects_viewport(&rect, v).then(|| {
-                let mut cell = PlannedCell {
-                    row,
-                    col,
-                    rect,
-                    shown: shown.clone(),
-                };
-                fit(&mut cell, m, &occupied, extent_cols);
-                cell
-            })
+            let mut cell = PlannedCell {
+                row,
+                col,
+                rect,
+                anchor: rect,
+                shown: shown.clone(),
+            };
+            fit(&mut cell, m, &occupied, extent_cols);
+            rect_intersects_viewport(&cell.rect, v).then_some(cell)
         })
         .collect();
     planned.sort_by_key(|cell| (cell.row, cell.col));
@@ -144,11 +149,35 @@ pub fn text_width(text: &str, m: &GridMetrics) -> f64 {
 
 /// Fits a planned cell's text to its column, as Excel's grid does: a number shown under a
 /// format that is wider than its column shows as a row of `#` filling it, and a text wider than
-/// its column overflows into the empty cells to its right (`occupied`: the cells that show
+/// its column overflows into the empty cells in its alignment direction (`occupied`: the cells that show
 /// something). A number in General, which Excel narrows to fewer digits, is clipped here.
 fn fit(cell: &mut PlannedCell, m: &GridMetrics, occupied: &BTreeSet<(u32, u32)>, extent_cols: u32) {
+    if matches!(
+        cell.shown.style.horizontal.as_deref(),
+        Some("centerContinuous" | "fill")
+    ) {
+        for col in cell.col + 1
+            ..=cell
+                .col
+                .saturating_add(cell.shown.style.alignment_columns - 1)
+                .min(extent_cols)
+        {
+            if occupied.contains(&(cell.row, col)) {
+                break;
+            }
+            cell.rect.w += m.width(col);
+        }
+        cell.anchor = cell.rect;
+        return;
+    }
     // Wrapped and rotated spans belong to their physical cell, including beside blank cells.
-    if cell.shown.style.wrap || cell.shown.style.rotation != 0 {
+    if cell.shown.style.wrap
+        || cell.shown.style.rotation != 0
+        || matches!(
+            cell.shown.style.horizontal.as_deref(),
+            Some("fill" | "justify" | "distributed")
+        )
+    {
         return;
     }
     let needed = text_width(&cell.shown.text, m);
@@ -164,13 +193,28 @@ fn fit(cell: &mut PlannedCell, m: &GridMetrics, occupied: &BTreeSet<(u32, u32)>,
             cell.shown.text = "#".repeat(count);
         }
         "text" => {
+            let horizontal = cell.shown.style.horizontal.as_deref().unwrap_or("general");
+            let (left, right) = match horizontal {
+                "right" => (needed - cell.rect.w, 0.0),
+                "center" => ((needed - cell.rect.w) / 2.0, (needed - cell.rect.w) / 2.0),
+                _ => (0.0, needed - cell.rect.w),
+            };
             let mut col = cell.col;
-            while cell.rect.w < needed
-                && col < extent_cols
-                && !occupied.contains(&(cell.row, col + 1))
-            {
+            let mut grown = 0.0;
+            while grown < left && col > 1 && !occupied.contains(&(cell.row, col - 1)) {
+                col -= 1;
+                let width = m.width(col);
+                grown += width;
+                cell.rect.x -= width;
+                cell.rect.w += width;
+            }
+            col = cell.col;
+            grown = 0.0;
+            while grown < right && col < extent_cols && !occupied.contains(&(cell.row, col + 1)) {
                 col += 1;
-                cell.rect.w += m.width(col);
+                let width = m.width(col);
+                grown += width;
+                cell.rect.w += width;
             }
         }
         _ => {}
@@ -411,6 +455,73 @@ mod tests {
         let plan = build_render_plan(&[long, cell(s, 1, 3, "x")], &m, &v, 10, 10);
         assert_eq!(plan.cells[0].rect.w, 160.0);
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn directional_overflow_retains_the_source_anchor_and_stops_at_empty_formula_results() {
+        let s = sheet();
+        let m = GridMetrics::default();
+        let v = viewport(2000., 400.);
+        let source = cell(
+            s,
+            1,
+            4,
+            "long text that extends into several adjacent columns",
+        );
+        for (alignment, first, last) in [("left", 4, 5), ("right", 3, 4), ("center", 3, 5)] {
+            let mut text = source.clone();
+            text.kind = "text";
+            text.style.horizontal = Some(alignment.into());
+            let mut blank_formula = cell(s, 1, 2, "");
+            blank_formula.kind = "text";
+            let plan = build_render_plan(
+                &[text, blank_formula, cell(s, 1, 6, "stop")],
+                &m,
+                &v,
+                10,
+                10,
+            );
+            let shown = plan.cells.iter().find(|c| c.col == 4).unwrap();
+            assert_eq!(shown.rect.x, cell_rect(&m, &v, 1, first).x);
+            assert_eq!(
+                shown.rect.x + shown.rect.w,
+                cell_rect(&m, &v, 1, last).x + m.width(last)
+            );
+            assert_eq!(shown.anchor, cell_rect(&m, &v, 1, 4));
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn centered_clipping_does_not_move_the_anchor_when_only_one_side_can_extend() {
+        let s = sheet();
+        let m = GridMetrics::default();
+        let v = viewport(2000., 400.);
+        let mut text = cell(s, 1, 4, "long centred text wider than one column");
+        text.kind = "text";
+        text.style.horizontal = Some("center".into());
+        let plan = build_render_plan(&[text, cell(s, 1, 5, "stop")], &m, &v, 10, 10);
+        let shown = &plan.cells[0];
+        assert!(shown.rect.x < shown.anchor.x);
+        assert_eq!(shown.rect.x + shown.rect.w, shown.anchor.x + shown.anchor.w);
+        let offset = shown.anchor.x + shown.anchor.w / 2. - shown.rect.x - shown.rect.w / 2.;
+        assert!(offset > 0.);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn right_aligned_source_just_outside_the_view_can_spill_into_it() {
+        let s = sheet();
+        let m = GridMetrics::default();
+        let v = viewport(240., 400.);
+        let mut text = cell(s, 1, 4, "text overflowing from the offscreen right");
+        text.kind = "text";
+        text.style.horizontal = Some("right".into());
+        let plan = build_render_plan(&[text], &m, &v, 10, 10);
+        assert_eq!(plan.cells.len(), 1);
+        assert!(plan.cells[0].anchor.x >= v.width);
+        assert!(plan.cells[0].rect.x < v.width);
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn wrapped_and_rotated_text_stays_in_its_own_cell_beside_empty_neighbours() {

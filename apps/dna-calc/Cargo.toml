@@ -58,6 +58,7 @@ web-sys = { version = "=0.3.94", features = [
     "WorkerType",
     "Document",
     "DomRect",
+    "Range",
     "Element",
     "File",
     "FileList",
