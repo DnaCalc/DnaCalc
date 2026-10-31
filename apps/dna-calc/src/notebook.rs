@@ -383,7 +383,7 @@ fn notebook_view(controller: Controller, active_skin: RwSignal<Option<String>>) 
         let range=(anchor.first()!=anchor.last()).then(||format!(" to {}",cells::address(anchor.last().row(),anchor.last().column())));
         view! {<article class="dc-block" data-dnacalc="block" data-cell=address data-block-key=block_key data-block-kind=kind data-provenance=cell.provenance.name() data-selected=move ||selected.get().to_string() data-placement=block.placement.clone()>
             <header><button data-dnacalc="block-select" aria-current=move ||selected.get().to_string() on:click=move |_|choose.run(false)>{label}{range}</button><span>{kind}</span>{(!literal).then(||view!{<span class="dc-chip" data-provenance=cell.provenance.name()>{cell.provenance.name()}</span>})}</header>
-            {move ||(selected.get()&&editable).then(||view!{<div class="dc-block-editor" on:focusin=move |_|controller.activate_editor(crate::controller::EditOrigin::Notebook,assist) on:input=move |_|controller.edit_changed()>
+            {move ||(selected.get()&&editable).then(||view!{<div class="dc-block-editor" on:focusin=move |_|controller.activate_editor(crate::controller::EditOrigin::Notebook,assist) on:beforeinput=move |_|controller.activate_editor(crate::controller::EditOrigin::Notebook,assist) on:input=move |_|controller.edit_changed()>
                 {assist.field_labelled(Signal::derive(Vec::new),Some(on_key),if prose_block{3}else{1},"",Some("block-input"),format!("Input for {}",cells::address(at.row(),at.column())))}
                 {move ||(controller.editing.get()==Some(crate::controller::EditOrigin::Notebook)).then(||view!{{assist.popup()}{assist.signature()}})}
             </div>})}

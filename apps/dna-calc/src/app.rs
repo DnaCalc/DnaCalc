@@ -599,6 +599,10 @@ pub fn app() -> impl IntoView {
                 <div
                     class="dc-fx"
                     data-dnacalc="formula-bar"
+                    // Input can arrive without focusin after Firefox's download UI, or
+                    // after a commit leaves the same field focused. Capture its target
+                    // before FormulaAssist reads the changed DOM value.
+                    on:beforeinput=move |_| controller.activate_editor(EditOrigin::Bar, assist)
                     on:input=move |_| controller.edit_changed()
                     on:focusin=move |_| {
                         controller.activate_editor(EditOrigin::Bar, assist);

@@ -206,6 +206,24 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 "[data-dnacalc=\"block\"][data-cell=\"A1\"] [data-dnacalc=\"block-input\"]",
                 "6\u{E007}",
             ),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=\"block\"][data-cell=\"A3\"] [data-dnacalc=\"block-value\"]",
+                "61",
+            )),
+            // The editor can still have browser focus after committing. A subsequent input
+            // must open a new edit session even when no focus event is delivered.
+            Action::Keys(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]",
+                "0\u{E007}",
+            ),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=block][data-cell=A3] [data-dnacalc=block-value]",
+                "601",
+            )),
+            Action::Into(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]",
+                "6\u{E007}",
+            ),
         ],
         checks: &[Check::Text(
             "[data-dnacalc=\"block\"][data-cell=\"A3\"] [data-dnacalc=\"block-value\"]",
@@ -1363,6 +1381,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
         actions: &[
             Action::Keys("cell-editor", ESCAPE),
             Action::Into("name-box", "B3\u{E007}"),
+            // Firefox 151 can return from its download UI without a focusin event.
+            Action::Click("save"),
             Action::Into(BAR, "=A1+"),
             Action::Click(cell!("A2")),
         ],
