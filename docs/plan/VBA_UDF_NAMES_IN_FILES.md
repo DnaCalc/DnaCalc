@@ -249,3 +249,13 @@ For dc-snz.11, registry registration, lookup, duplicate detection and invocation
 case policy; the stored formula spelling stays unchanged. The regression covers typed café/CAFÉ and
 ångström/ÅNGSTRÖM and the actual saved spellings from three measured XML/binary packages.
 
+For dc-snz.13, conversion now writes custom function categories and argument help from the
+binary records into `functionGroups` and the x14 defined-name extension. Untouched and
+unrelated-value-edit saves match the measured XML subtrees and retain the original VBA bytes.
+`cdoc-metadata-reopen.json` records Excel reopening the corrected files, calculating MetaFunc,
+and saving the same binary category/help payloads; exported description/category attributes
+also match. These properties remain preserved file metadata, without new fields in the normal
+defined-name model or invented procedure registrations. The corrected function-help dialog
+was not inspected: Computer Use was stopped with the physical Escape key after the original
+dialog was observed; the owned inspection instance was closed.
+

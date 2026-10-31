@@ -6,6 +6,75 @@ use calc_doc::model::value::CellKey;
 use calc_doc::model::{CellInput, OpBatch, WorkbookOp};
 use cdoc_m1_1_support::d1::{load, part, part_text, save_model, save_untouched};
 
+fn xml_fragment<'a>(xml: &'a str, tag: &str) -> &'a str {
+    let start = xml
+        .find(&format!("<{tag}"))
+        .unwrap_or_else(|| panic!("missing {tag}"));
+    let opening_end = start + xml[start..].find('>').unwrap() + 1;
+    if xml[start..opening_end].ends_with("/>") {
+        return &xml[start..opening_end];
+    }
+    let close = format!("</{tag}>");
+    let end = opening_end + xml[opening_end..].find(&close).unwrap() + close.len();
+    &xml[start..end]
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_13__binary_conversion_keeps_categories_and_argument_help() {
+    for (binary, twin) in [
+        (
+            include_bytes!("fixtures/vba_udf_names/metadata-unqualified.xlsb").as_slice(),
+            include_bytes!("fixtures/vba_udf_names/metadata-unqualified.xlsm").as_slice(),
+        ),
+        (
+            include_bytes!("fixtures/vba_udf_names/metadata-custom-vba.xlsb").as_slice(),
+            include_bytes!("fixtures/vba_udf_names/metadata-custom-vba.xlsm").as_slice(),
+        ),
+    ] {
+        let loaded = load(binary);
+        assert!(loaded.model().definitions().macro_enabled());
+        // Help metadata is separate from normal formula definitions and procedure discovery.
+        assert!(
+            !loaded
+                .model()
+                .definitions()
+                .names()
+                .iter()
+                .any(|name| name.name == "MetaFunc")
+        );
+        let expected = part_text(twin, "xl/workbook.xml");
+        let archive = cdoc_m1_1_support::parse_zip(binary);
+        let entry = archive.entry("xl/vbaProject.bin");
+        let vba = match entry.method {
+            0 => entry.payload(binary).to_vec(),
+            8 => miniz_oxide::inflate::decompress_to_vec(entry.payload(binary)).unwrap(),
+            _ => panic!("unsupported fixture compression"),
+        };
+        let edited = cdoc_m1_1_support::d1::edited(
+            &loaded,
+            vec![WorkbookOp::SetCell {
+                at: CellKey::new(loaded.model().sheets()[0].id(), 50, 4).unwrap(),
+                input: cdoc_m1_1_support::d1::number(7.0),
+            }],
+        );
+        for saved in [save_untouched(binary), save_model(&loaded, &edited).0] {
+            let written = part_text(&saved, "xl/workbook.xml");
+            for tag in ["functionGroups", "x14:definedNames"] {
+                assert_eq!(
+                    xml_fragment(&written, tag),
+                    xml_fragment(&expected, tag),
+                    "{tag}"
+                );
+            }
+            assert_eq!(
+                part(&saved, "xl/vbaProject.bin").as_deref(),
+                Some(vba.as_slice())
+            );
+        }
+    }
+}
+
 struct FunctionCatalog;
 impl calc_fml::ReferenceCatalog for FunctionCatalog {
     fn workbook_name(&self) -> Option<&str> {
