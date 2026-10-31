@@ -6,11 +6,7 @@ use calc_func::value::{CellKey, GridArea, ReferenceLike, SheetId};
 use calc_func::{UserFunction, UserFunctionContext, UserFunctions};
 pub use oxvba_embed::Backend;
 use oxvba_embed::{CodeCache, Module, OwnedSession, Range, SpreadsheetContext, Value};
-use std::{
-    cell::{Cell, RefCell},
-    fmt,
-    rc::Rc,
-};
+use std::{cell::RefCell, fmt, rc::Rc};
 
 thread_local! {
     static CODE_CACHE: RefCell<CodeCache> = RefCell::new(CodeCache::new(16,8*1024*1024));
@@ -93,7 +89,6 @@ fn load_module_selected(
         let function = Rc::new(VbaFunction {
             session: session.clone(),
             sheets: sheets.clone(),
-            volatile: Cell::new(false),
             name: metadata.qualified_name.clone(),
             max_steps,
         });
@@ -106,7 +101,6 @@ fn load_module_selected(
 struct VbaFunction {
     session: Rc<OwnedSession>,
     sheets: Rc<RefCell<Sheets>>,
-    volatile: Cell<bool>,
     name: String,
     max_steps: u64,
 }
@@ -117,7 +111,6 @@ impl fmt::Debug for VbaFunction {
             .field("name", &self.name)
             .field("max_steps", &self.max_steps)
             .field("backend", &self.session.backend())
-            .field("volatile_requested", &self.volatile.get())
             .finish()
     }
 }
@@ -142,7 +135,6 @@ impl UserFunction for VbaFunction {
         let mut bridge = ContextBridge {
             context: RefCell::new(context),
             sheets: self.sheets.clone(),
-            volatile: &self.volatile,
         };
         let arguments = arguments
             .iter()
@@ -343,6 +335,71 @@ mod tests {
             );
         }
     }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn volatility_requests_belong_to_the_invocation_context() {
+        #[derive(Default)]
+        struct Context(Vec<bool>);
+        impl UserFunctionContext for Context {
+            fn caller(&self) -> Option<CellKey> {
+                None
+            }
+            fn set_volatile(&mut self, value: bool) {
+                self.0.push(value);
+            }
+            fn refuse(&mut self, reason: &'static str) -> String {
+                reason.into()
+            }
+            fn values_of(&mut self, _: &ReferenceLike) -> Result<CalcValue, String> {
+                Err("no sheet".into())
+            }
+            fn worksheet_function(
+                &mut self,
+                _: &str,
+                _: &[CalcValue],
+            ) -> Result<CalcValue, String> {
+                Err("no callback".into())
+            }
+        }
+        let source = "Private n As Long\nPublic Function Toggle(ByVal flag As Boolean) As Long\n Application.Volatile flag\n n = n + 1\n Toggle = n\nEnd Function\nPublic Function Conditional(ByVal flag As Boolean) As Long\n If flag Then Application.Volatile\n Conditional = n\nEnd Function\nPublic Function Nested() As Long\n Mark\n Nested = n\nEnd Function\nPrivate Sub Mark()\n Application.Volatile True\n Application.Volatile False\nEnd Sub\n";
+        let mut backends = vec![Backend::Interpreter];
+        #[cfg(not(target_arch = "wasm32"))]
+        backends.push(Backend::Jit);
+        for backend in backends {
+            let functions = load_module_with_backend("Effects", source, 1000, backend).unwrap();
+            let mut first = Context::default();
+            let mut second = Context::default();
+            assert_eq!(
+                functions
+                    .call_with_context("Toggle", &[CalcValue::logical(true)], &mut first)
+                    .unwrap(),
+                CalcValue::number(1.0)
+            );
+            assert_eq!(
+                functions
+                    .call_with_context("Toggle", &[CalcValue::logical(false)], &mut second)
+                    .unwrap(),
+                CalcValue::number(2.0)
+            );
+            assert_eq!(first.0, [true]);
+            assert_eq!(second.0, [false]);
+            let mut conditional = Context::default();
+            functions
+                .call_with_context(
+                    "Conditional",
+                    &[CalcValue::logical(false)],
+                    &mut conditional,
+                )
+                .unwrap();
+            assert!(conditional.0.is_empty());
+            let mut nested = Context::default();
+            functions
+                .call_with_context("Nested", &[], &mut nested)
+                .unwrap();
+            assert_eq!(nested.0, [true, false]);
+        }
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn admission_fallback_starts_once_and_preserves_rich_errors_in_the_interpreter() {
@@ -404,7 +461,6 @@ impl Sheets {
 struct ContextBridge<'a> {
     context: RefCell<&'a mut dyn UserFunctionContext>,
     sheets: Rc<RefCell<Sheets>>,
-    volatile: &'a Cell<bool>,
 }
 impl ContextBridge<'_> {
     fn refuse(&self, reason: &'static str) -> String {
@@ -486,7 +542,10 @@ impl SpreadsheetContext for ContextBridge<'_> {
         })
     }
     fn set_volatile(&self, value: bool) -> Result<(), String> {
-        self.volatile.set(value);
+        self.context
+            .try_borrow_mut()
+            .map_err(|_| "reentrant volatility request")?
+            .set_volatile(value);
         Ok(())
     }
 }

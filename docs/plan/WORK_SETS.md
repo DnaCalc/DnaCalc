@@ -76,6 +76,13 @@ force pushes), each publish to dnacalc.com (dc-ysl), and archiving legacy reposi
 
 ## Fresh numerical checks, 2026-10-31
 
+Run4 blind firehorse answers were committed before predictions were opened:
+[OxFunc-Evidence 0df452ec](https://github.com/DnaCalc/OxFunc-Evidence/tree/0df452ec/probes/2026-10-31-calcvba-run4),
+then [frozen scores 3f021224](https://github.com/DnaCalc/OxFunc-Evidence/tree/3f021224/probes/2026-10-31-calcvba-run4).
+Retained frozen models match PMT78/132, GAMMA.DIST A34/128, BINOM.DIST25/120 and
+POISSON.DIST31/161. Poisson includes four changed subnormal inputs as unread
+failures. These targeted questions are separate from a whole-function pass rate.
+
 `dc-ymjf.5` retained independent readings and pre-reading predictions in
 [OxFunc-Evidence 0f4e1d95](https://github.com/DnaCalc/OxFunc-Evidence/tree/0f4e1d95/probes/2026-10-31-calcvba-run2).
 Against the frozen `379d51f` model, ERF.PRECISE matched 3908/4096 new inputs with

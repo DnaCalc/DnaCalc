@@ -32,6 +32,9 @@ pub trait UserFunction: fmt::Debug {
 /// adapters can retain reference identities, and must read their values through this context.
 pub trait UserFunctionContext {
     fn caller(&self) -> Option<CellKey>;
+    /// Set this formula cell's volatility for the current evaluation. The last executed
+    /// request wins; a host that only performs explicit calls may ignore scheduling effects.
+    fn set_volatile(&mut self, _volatile: bool) {}
     /// Record a host capability refusal. It must survive VBA error handlers and formula IFERROR.
     fn refuse(&mut self, reason: &'static str) -> String;
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String>;

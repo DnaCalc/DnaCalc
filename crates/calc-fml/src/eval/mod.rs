@@ -150,15 +150,40 @@ impl CompiledPlan {
     /// "Excel Recalculation" page lists these as volatile). A call a lazy function may never ask
     /// for counts too, as it does in Excel.
     pub fn volatile(&self) -> bool {
+        self.calls().any(|target| {
+            VOLATILE_FUNCTIONS
+                .iter()
+                .any(|name| strip_future_prefix(target.spelling()).eq_ignore_ascii_case(name))
+        })
+    }
+
+    /// User-function names the plan may call, including untaken lazy branches. A user call
+    /// alone is nonvolatile; actual Application.Volatile requests are evaluation effects.
+    pub fn user_calls(&self) -> impl Iterator<Item = &str> {
         self.blocks
             .iter()
             .flatten()
-            .any(|i| matches!(i, Instruction::UserCall { .. }))
-            || self.calls().any(|target| {
-                VOLATILE_FUNCTIONS
-                    .iter()
-                    .any(|name| strip_future_prefix(target.spelling()).eq_ignore_ascii_case(name))
+            .filter_map(|instruction| match instruction {
+                Instruction::UserCall { name, .. } => Some(name.as_str()),
+                _ => None,
             })
+    }
+}
+
+/// Effects observed while evaluating one formula, separate from its immutable plan and result.
+/// Each evaluation starts nonvolatile; the last executed host request sets the final value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct UserFunctionEffects {
+    pub(crate) calls: usize,
+    pub(crate) volatile: bool,
+}
+
+impl UserFunctionEffects {
+    pub fn calls(&self) -> usize {
+        self.calls
+    }
+    pub fn volatile(&self) -> bool {
+        self.volatile
     }
 }
 
@@ -460,6 +485,7 @@ pub struct EvaluationServices<'s> {
     random: Option<&'s mut dyn RandomSource>,
     functions: Option<&'s calc_func::UserFunctions>,
     function_diagnostics: Option<&'s mut Vec<String>>,
+    user_function_effects: Option<&'s mut UserFunctionEffects>,
 }
 
 impl<'s> EvaluationServices<'s> {
@@ -472,6 +498,7 @@ impl<'s> EvaluationServices<'s> {
             random: None,
             functions: None,
             function_diagnostics: None,
+            user_function_effects: None,
         }
     }
 
@@ -484,6 +511,13 @@ impl<'s> EvaluationServices<'s> {
 
     pub fn with_function_diagnostics(mut self, diagnostics: &'s mut Vec<String>) -> Self {
         self.function_diagnostics = Some(diagnostics);
+        self
+    }
+
+    /// Observe actual UDF calls and volatility requests in this evaluation, including a call
+    /// that returns a worksheet error. Reusing the output starts a fresh observation each time.
+    pub fn with_user_function_effects(mut self, effects: &'s mut UserFunctionEffects) -> Self {
+        self.user_function_effects = Some(effects);
         self
     }
 

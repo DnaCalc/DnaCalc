@@ -165,6 +165,9 @@ pub fn evaluate(
     services: &mut EvaluationServices<'_>,
 ) -> Result<CalcValue, EvalFault> {
     let EvalFrame { instance, scratch } = frame;
+    if let Some(effects) = services.user_function_effects.as_deref_mut() {
+        *effects = super::UserFunctionEffects::default();
+    }
     let reader = SharedReader::new(&mut *services.reader);
     let random = match services.random.as_mut() {
         Some(source) => Some(SharedRandom {
@@ -187,6 +190,7 @@ pub fn evaluate(
         catalog: services.catalog,
         functions: services.functions,
         function_diagnostics: services.function_diagnostics.as_deref_mut(),
+        user_function_effects: services.user_function_effects.as_deref_mut(),
         // Reborrowed for this evaluation only: the coercion shortens the observer's lifetime to
         // the run's, which `Option::as_deref_mut` cannot.
         observer: match services.observer.as_mut() {
@@ -245,6 +249,7 @@ struct Run<'a, 'r> {
     catalog: Option<&'a dyn ReferenceCatalog>,
     functions: Option<&'a calc_func::UserFunctions>,
     function_diagnostics: Option<&'a mut Vec<String>>,
+    user_function_effects: Option<&'a mut super::UserFunctionEffects>,
     observer: Option<&'a mut dyn EvaluationObserver>,
 }
 
@@ -262,6 +267,11 @@ impl Run<'_, '_> {
         let arguments = self.stack.split_off(start);
         let result = match self.functions {
             Some(functions) => {
+                if functions.contains(name) {
+                    if let Some(effects) = self.user_function_effects.as_deref_mut() {
+                        effects.calls += 1;
+                    }
+                }
                 let mut context = UserCallContext {
                     run: self,
                     fault: None,
@@ -1406,6 +1416,102 @@ mod tests {
         CalcValue::text(ExcelText::from_interop_assignment(s))
     }
 
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn user_volatility_is_an_executed_formula_effect() {
+        use calc_func::{UserFunction, UserFunctionContext, UserFunctions};
+        use std::rc::Rc;
+
+        struct UserCatalog;
+        impl ReferenceCatalog for UserCatalog {
+            fn sheet_named(&self, _: &str) -> Option<SheetId> {
+                None
+            }
+            fn defined_name(
+                &self,
+                _: &str,
+                _: crate::reference::NameScope,
+            ) -> crate::reference::NameDefinition {
+                crate::reference::NameDefinition::Unknown
+            }
+        }
+
+        #[derive(Debug)]
+        struct Requests(Vec<bool>, bool);
+        impl UserFunction for Requests {
+            fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+                Ok(CalcValue::number(1.0))
+            }
+            fn call_with_context(
+                &self,
+                _: &[CalcValue],
+                context: &mut dyn UserFunctionContext,
+            ) -> Result<CalcValue, String> {
+                for request in &self.0 {
+                    context.set_volatile(*request);
+                }
+                if self.1 {
+                    Err("measured error path".into())
+                } else {
+                    self.call(&[])
+                }
+            }
+        }
+        let mut functions = UserFunctions::new();
+        for (name, requests, fail) in [
+            ("TurnOn", vec![true], false),
+            ("TurnOff", vec![false], false),
+            ("Plain", vec![], false),
+            ("LastWins", vec![true, false], false),
+            ("VolFailure", vec![true], true),
+        ] {
+            functions
+                .register(name, Rc::new(Requests(requests, fail)))
+                .unwrap();
+        }
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let anchor = FormulaAnchor::new(CellKey::new(ids.issue().unwrap(), 5, 5).unwrap());
+        let mut cache = PlanCache::new();
+        let mut scratch = EvalScratch::new();
+        let mut effects = super::super::UserFunctionEffects::default();
+        for (formula, calls, volatile, builtin) in [
+            ("=TurnOn()+TurnOff()", 2, false, false),
+            ("=TurnOff()+TurnOn()", 2, true, false),
+            ("=TurnOn()+Plain()", 2, true, false),
+            ("=Plain()", 1, false, false),
+            ("=LastWins()", 1, false, false),
+            ("=IF(TRUE,Plain(),TurnOn())", 1, false, false),
+            ("=IF(FALSE,Plain(),TurnOn())", 1, true, false),
+            ("=IFERROR(VolFailure(),7)", 1, true, false),
+            ("=IF(TRUE,Plain(),RAND())", 1, false, true),
+            ("=1", 0, false, false),
+        ] {
+            let plan = crate::compile_with_functions(
+                &parse_formula(formula),
+                ReferenceNotation::A1,
+                anchor,
+                &UserCatalog,
+                &mut cache,
+                FormulaForm::Dynamic,
+                &functions,
+            )
+            .unwrap();
+            assert_eq!(plan.volatile(), builtin, "{formula}");
+            let instance = instantiate(&plan, anchor);
+            let mut reader = Everywhere(CalcValue::empty());
+            let value = evaluate(
+                EvalFrame::new(&instance, &mut scratch),
+                &mut EvaluationServices::new(&NumericMode::Fast, &mut reader)
+                    .with_functions(&functions)
+                    .with_user_function_effects(&mut effects),
+            )
+            .unwrap();
+            assert!(value.as_number().is_some(), "{formula}");
+            assert_eq!(effects.calls(), calls, "{formula}");
+            assert_eq!(effects.volatile(), volatile, "{formula}");
+        }
+    }
+
     /// What an observer is shown of one evaluation: each call, in order, as its spelling and
     /// notation with `*` appended when it is synthetic, and each report: its anchor, numeric mode
     /// and outcome.
@@ -1761,6 +1867,12 @@ struct UserCallContext<'b, 'a, 'r> {
 impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     fn caller(&self) -> Option<CellKey> {
         Some(self.run.instance.anchor.cell())
+    }
+
+    fn set_volatile(&mut self, volatile: bool) {
+        if let Some(effects) = self.run.user_function_effects.as_deref_mut() {
+            effects.volatile = volatile;
+        }
     }
 
     fn refuse(&mut self, reason: &'static str) -> String {

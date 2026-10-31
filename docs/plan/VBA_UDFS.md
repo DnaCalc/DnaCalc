@@ -60,9 +60,45 @@ Excel run-3 evidence is retained in OxVba CORE-8/udf-run3 and udf-run3-objects. 
 16.0 build 20527, nonvolatile state stayed unchanged on ordinary recalculation without
 changed inputs, advanced on changed input/explicit Range.Calculate, and volatile state
 advanced each time. Initial calls happened twice; no fixed initial count is assumed.
-Application.Volatile requests are recorded, but all UDF plans still conservatively mark
-themselves volatile: precise dependency/effects scheduling remains open. Do not infer
-Excel recalculation parity from the persistent-storage tests.
+Application.Volatile requests now reach the formula caller as evaluation effects.
+An ordinary UDF plan is nonvolatile; its executed requests determine the caller cell's
+volatility, separately from built-in volatility. Precise engine scheduling is still
+in progress under dc-snz.6. Do not infer recalculation parity from persistent-storage tests.
+
+Fresh observations are retained in
+`crates/calc-vba/tests/fixtures/excel-recalculation/` (17 stages, 23 formula cells).
+The existing VBE supervisor compiled explicitly with command578 and watched owned
+dialogs before runtime. Normal startup crashed in the installed TestCrashGuard add-in;
+the successful observations use safe mode and retain zero owned-process residue.
+No security, Trust Center or registry setting changed. Raw results, source and hashes
+remain separate from the derived observations. The exploratory expected text was
+OBSERVATION_ONLY, so the supervisor's overall passed flag is false despite clean
+compile/run; these are development observations, not certification.
+
+Clean ordinary calculation and unrelated edits preserve a nonvolatile UDF's state.
+Rewriting a referenced input with the same value still calls it again. A dirty upstream
+formula also calls its UDF dependent even when the upstream result stays unchanged.
+Explicit Range.Calculate and full/rebuild calculation call nonvolatile UDFs too.
+Thus caching by argument values would be wrong. A zero-argument nonvolatile function
+with Static state also remains unchanged during clean calculation.
+
+Volatility is local to the formula cell, including calls of the same VBA procedure
+with different flags. The last executed Application.Volatile request in the formula
+wins; an ordinary call after a volatile call does not clear the request. An untaken
+branch makes no request. Each reevaluation starts nonvolatile, so a conditional UDF
+that stops requesting volatility becomes nonvolatile. A nested VBA helper's request
+affects its caller; a request made outside a worksheet UDF has no scheduling effect.
+Internal VBA reads of a cell absent from the formula's arguments did not create an
+Excel dependency; its old value persisted until explicit calculation. Wider saved-Range
+dependency behavior in the adapter remains an open parity question.
+
+OneCalc deliberately calculates its one formula whenever its controller is asked.
+That explicit call advances state even with unchanged inputs, like a forced range
+calculation. It does not acquire a workbook graph or infer automatic dirty scheduling.
+Workbook invalidation and ordinary/full recalculation belong to CalcEngine/CalcHost.
+Microsoft's [Application.Volatile documentation](https://learn.microsoft.com/en-us/office/vba/api/excel.application.volatile)
+and [recalculation documentation](https://learn.microsoft.com/en-us/office/client-developer/excel/excel-recalculation)
+describe the broad rule; the retained observations specify the cases above.
 
 Still open under dc-snz.5/OxVba bd-59co.2.10.6: exact volatility/effects and scheduling,
 full Range/Caller/WorksheetFunction surfaces, locale-sensitive names, general object
