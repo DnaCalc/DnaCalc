@@ -403,22 +403,14 @@ fn modulo(
             return Err(Exit::Error(WorksheetErrorCode::Num));
         }
         let remainder = number % divisor;
-        // Recorded underflow reduction differs for binary-power divisors: it
-        // permits a subnormal intermediate only below the smaller quotient limit.
+        // The recorded banks distinguish binary-power and general divisors
+        // when reduction produces a subnormal intermediate.
         let binary_divisor = divisor.abs().to_bits() & 0x000f_ffff_ffff_ffff == 0;
-        if remainder.is_subnormal()
-            && (!binary_divisor || quotient.abs() >= MOD_BINARY_REDUCTION_LIMIT)
-        {
+        if remainder.is_subnormal() && !binary_divisor {
             return Err(Exit::Error(WorksheetErrorCode::Num));
         }
         let result = if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
-            // The same recorded binary reduction reverses the adjustment below
-            // 2^-1026. This can publish a magnitude greater than the divisor.
-            let adjusted = if binary_divisor && remainder.abs() < MOD_TINY_REMAINDER_LIMIT {
-                site.subtract(divisor, remainder)?
-            } else {
-                site.add(remainder, divisor)?
-            };
+            let adjusted = site.add(remainder, divisor)?;
             // A remainder the divisor absorbs is 0 (dc-bd5: MOD(-5,9.99999999999999E+307) is 0
             // in Excel 16.0.20430).
             if adjusted == divisor { 0.0 } else { adjusted }
@@ -437,11 +429,6 @@ fn modulo(
 /// The magnitude of number/divisor at and above which Excel's MOD is #NUM!, measured by bisection
 /// (dc-j9k).
 const MOD_QUOTIENT_LIMIT: f64 = 1.1259e12;
-
-/// Recorded binary-divisor reduction with a subnormal intermediate stops at 2^26.
-const MOD_BINARY_REDUCTION_LIMIT: f64 = 67_108_864.0;
-/// Below 2^-1026 the recorded opposite-sign adjustment is divisor minus remainder.
-const MOD_TINY_REMAINDER_LIMIT: f64 = f64::MIN_POSITIVE / 16.0;
 
 /// QUOTIENT: the integer part of the binary64 quotient numerator / denominator, toward zero. A
 /// zero denominator is #DIV/0!.

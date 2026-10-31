@@ -1,15 +1,9 @@
 //! Excel `GAMMALN` / `GAMMALN.PRECISE` positive-argument kernel (W109 G3-02).
 //!
-//! This reproduces the exact op-graph identified for the *published* GAMMALN
-//! worksheet surface — a Cody/SPECFUN-family piecewise rational with band-
-//! specific arithmetic precision. It is **not** the shared internal `lgamma`
-//! (`special_math_common::ln_gamma`), which is a different routine in Excel too;
-//! only the GAMMALN / GAMMALN.PRECISE surfaces route here.
-//!
-//! Landing spec: `smart-fuzzer/work/w109/G3-02-gamma/agentL_landing_spec.md`.
-//! Every constant below is the exact IEEE-754 double the reference scorer
-//! (`agentL_composite3.py`) consumes, verified bit-for-bit
-//! (`agentP_verify_constants.py`).
+//! A Cody/SPECFUN-family piecewise rational with explicit arithmetic precision.
+//! B1 and B4 use their published coefficients; B2 uses SPECFUN DLGAMA's P2/Q2.
+//! This is the worksheet surface, distinct from the internal `lgamma`.
+//! Excel's complete algorithm is still unidentified.
 //!
 //! Bands (dispatch on the positive argument `x`, all comparisons at the
 //! boundary double):
@@ -53,29 +47,28 @@ const Q1: [f64; 8] = [
     f64::from_bits(0x3FF0_0000_0000_0000), // 1.0 (monic)
 ];
 
-// ---- B2 [1.5,4.0): agent-S LM refit under the CONTINUOUS staging (W109
-// lane 4, 2026-07-18) — held-blind selection (noise floor 1.077 vs the old
-// spill model's 1.113), validated on the FRESH b32 corpus: 549/1,200 vs the
-// gn2/spill landing's 518/1,200. (Ascending Horner order.)
+// SPECFUN DLGAMA P2/Q2: https://netlib.org/specfun/algama.
+// Published coefficients in the original Horner order, with continuous x87
+// arithmetic. Exact Excel agreement for this band is not established.
 const P2: [f64; 8] = [
-    f64::from_bits(0x4013_E5FF_9A8E_0235),
-    f64::from_bits(0x4080_F34F_95D4_686C),
-    f64::from_bits(0x40CE_4978_25AD_2725),
-    f64::from_bits(0x4106_8ECA_52D4_9415),
-    f64::from_bits(0x4130_9ACC_C4FB_E930),
-    f64::from_bits(0x4149_77D4_7BE6_FFCE),
-    f64::from_bits(0x4153_7AF9_6B73_8BB2),
-    f64::from_bits(0x4147_741E_8705_57A8),
+    4.974607845568932035012064e0,
+    5.424138599891070494101986e2,
+    1.550693864978364947665077e4,
+    1.847932904445632425417223e5,
+    1.088204769468828767498470e6,
+    3.338152967987029735917223e6,
+    5.106661678927352456275255e6,
+    3.074109054850539556250927e6,
 ];
 const Q2: [f64; 8] = [
-    f64::from_bits(0x4066_E10D_06A2_326E),
-    f64::from_bits(0x40BE_550C_A051_7E45),
-    f64::from_bits(0x4100_4233_0FF7_BEDC),
-    f64::from_bits(0x4131_5841_D242_285C),
-    f64::from_bits(0x4154_187F_0784_1A4C),
-    f64::from_bits(0x4169_AFB0_D161_2A49),
-    f64::from_bits(0x4171_0062_54DB_452A),
-    f64::from_bits(0x4162_2ED4_F2F0_6395),
+    1.830328399370592604055942e2,
+    7.765049321445005871323047e3,
+    1.331903827966074194402448e5,
+    1.136705821321969608938755e6,
+    5.267964117437946917577538e6,
+    1.346701454311101692290052e7,
+    1.782736530353274213975932e7,
+    9.533095591844353613395747e6,
 ];
 
 // ---- B4 [4.0,8.0): SPECFUN dlgama published P4/Q4 (ascending Horner order) --
@@ -152,11 +145,8 @@ fn stirl8(x: f64) -> f64 {
 // B2 / B4 extended-precision bands.
 // -------------------------------------------------------------------------
 
-/// B2 band `[1.5, 4.0)`: `t*(D2 + t*(XNUM/XDEN))`, `t = x-2`. Everything
-/// extended (x87 CONTINUOUS, one final round) — the same class as B4. The
-/// earlier "spill each Horner store" tag is superseded (W109 lane 4: the
-/// held-blind noise floor picks continuous, 1.077 vs 1.113, and the fresh
-/// b32 check confirms 549 vs 518 / 1,200).
+/// B2 band `[1.5, 4.0)`: SPECFUN's `t*(D2 + t*(P/Q))`, `t = x-2`,
+/// with one final binary64 store after continuous extended arithmetic.
 fn b2(x: f64) -> f64 {
     b2_with::<super::Native>(x)
 }

@@ -1,18 +1,12 @@
 //! The normal, lognormal and related inverse kernels.
 //!
-//! Sources, kept (owner, 2026-10-30): the tail of the inverse standard normal uses the rational
-//! approximations of M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal
-//! Distribution", Applied Statistics 37(3), 1988, pp. 477-484 (PPND16).
-//! The rest is our own.
+//! The inverse uses the published Acklam rational approximation and one Newton
+//! refinement. Exact Excel parity for this generic method remains open.
 
 use crate::ported::normal_dist_common::{erf_approx, phi_kernel, stored_normal_z, FRAC_1_SQRT_2_BITS, GAUSS_TINY_MAX_BITS};
 use crate::ported::special_dist_family::erfc_precise_kernel;
 use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::crt_log;
-
-fn erf_based_cdf(x: f64) -> f64 {
-    0.5 * (1.0 + erf_approx(x / std::f64::consts::SQRT_2))
-}
 
 fn flush_subnormal(value: f64) -> f64 {
     if value.abs() < f64::MIN_POSITIVE {
@@ -23,7 +17,7 @@ fn flush_subnormal(value: f64) -> f64 {
 }
 
 /// Inclusive tiny GAUSS uses its stored native normal argument and the shared
-/// ERF body, followed by exact halving. This matches all 3,158 recorded tiny rows.
+/// ERF body, followed by halving. The witness report counts its remaining gaps.
 fn gauss_tiny_direct(x: f64) -> f64 {
     let z = stored_normal_z(x);
     let mut y = 0.5 * erf_approx(z);
@@ -87,82 +81,6 @@ fn validate_probability_open_unit(p: f64) -> Result<(), WorksheetErrorCode> {
     Ok(())
 }
 
-/// The tail of the inverse standard normal by the rational approximations of
-/// M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal Distribution",
-/// Applied Statistics 37(3), 1988, pp. 477-484 (PPND16): the published coefficients of its
-/// tail approximations evaluated in `sqrt(-ln p)`.
-fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
-    const C: [f64; 8] = [
-        1.423_437_110_749_683_6,
-        4.630_337_846_156_545,
-        5.769_497_221_460_691,
-        3.647_848_324_763_204_5,
-        1.270_458_252_452_368_4,
-        2.417_807_251_774_506_2e-1,
-        2.272_384_498_926_918_5e-2,
-        7.745_450_142_783_414e-4,
-    ];
-    const D: [f64; 8] = [
-        1.0,
-        2.053_191_626_637_759,
-        1.676_384_830_183_803_8,
-        6.897_673_349_851e-1,
-        1.481_039_764_274_800_7e-1,
-        1.519_866_656_361_645_7e-2,
-        5.475_938_084_995_345e-4,
-        1.050_750_071_644_416_8e-9,
-    ];
-    const E: [f64; 8] = [
-        6.657_904_643_501_104,
-        5.463_784_911_164_114,
-        1.784_826_539_917_291_3,
-        2.965_605_718_285_049e-1,
-        2.653_218_952_657_612_3e-2,
-        1.242_660_947_388_078_4e-3,
-        2.711_555_568_743_487_6e-5,
-        2.010_334_399_292_288_2e-7,
-    ];
-    const F: [f64; 8] = [
-        1.0,
-        5.998_322_065_558_879e-1,
-        1.369_298_809_227_358e-1,
-        1.487_536_129_085_061_5e-2,
-        7.868_691_311_456_133e-4,
-        1.846_318_317_510_054_7e-5,
-        1.421_511_758_316_445_9e-7,
-        2.044_263_103_389_939_7e-15,
-    ];
-
-    let q = p - 0.5;
-    let tail_p = if q < 0.0 { p } else { 1.0 - p };
-    let mut r = libm::sqrt(-libm::log(tail_p));
-    let x = if r <= 5.0 {
-        r -= 1.6;
-        let numerator =
-            ((((((C[7] * r + C[6]) * r + C[5]) * r + C[4]) * r + C[3]) * r + C[2]) * r + C[1]) * r
-                + C[0];
-        let denominator =
-            ((((((D[7] * r + D[6]) * r + D[5]) * r + D[4]) * r + D[3]) * r + D[2]) * r + D[1]) * r
-                + D[0];
-        numerator / denominator
-    } else {
-        r -= 5.0;
-        let numerator =
-            ((((((E[7] * r + E[6]) * r + E[5]) * r + E[4]) * r + E[3]) * r + E[2]) * r + E[1]) * r
-                + E[0];
-        let denominator =
-            ((((((F[7] * r + F[6]) * r + F[5]) * r + F[4]) * r + F[3]) * r + F[2]) * r + F[1]) * r
-                + F[0];
-        numerator / denominator
-    };
-
-    if q < 0.0 {
-        -x
-    } else {
-        x
-    }
-}
-
 fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
     const A: [f64; 6] = [
         -3.969_683_028_665_376e1,
@@ -211,22 +129,19 @@ fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
             / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
     };
 
-    let err = erf_based_cdf(x) - p;
-    x - err / phi_kernel(x)
+    // Form the lower tail directly. Subtracting erf from 1 loses it entirely
+    // for small probabilities; at positive x compute the complementary error
+    // before subtracting, so the Newton residual does not round through 1.
+    let tail = 0.5 * libm::erfc(x.abs() / std::f64::consts::SQRT_2);
+    let err = if x < 0.0 { tail - p } else { (1.0 - p) - tail };
+    let density = phi_kernel(x);
+    if density == 0.0 { x } else { x - err / density }
 }
 
 fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     validate_probability_open_unit(p)?;
 
-    // Fresh Excel probes match the AS241/Wichura tail polynomials on the
-    // retained upper-tail blocker and several outer-tail witnesses. The central
-    // band keeps the existing refined Acklam path until we have a stronger
-    // theory for Excel's mixed middle behavior.
-    if p < 0.025 || (0.95..0.99).contains(&p) {
-        Ok(inverse_standard_normal_as241_tail(p))
-    } else {
-        Ok(inverse_standard_normal_acklam_refined(p))
-    }
+    Ok(inverse_standard_normal_acklam_refined(p))
 }
 
 pub fn norm_s_dist_kernel(z: f64, cumulative: bool) -> Result<f64, WorksheetErrorCode> {
@@ -337,6 +252,22 @@ mod tests {
         );
     }
 
+    // Mathematical controls from an independent AS241 evaluation (Python's
+    // statistics.NormalDist), not Excel readings.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn inverse_normal_refinement_keeps_tiny_mathematical_tails() {
+        for (p, expected) in [
+            (1e-20, -9.262340089798405_f64),
+            (1e-100, -21.27345356096532),
+            (1e-300, -37.0470962993612),
+        ] {
+            let actual = norm_s_inv_kernel(p).unwrap();
+            assert!((actual - expected).abs() < 4e-13,
+                "p={p:e}, calculated {actual:e}, mathematical {expected:e}");
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn normsdist_gf3_wrapper_pins_live_excel_20228() {
@@ -395,29 +326,27 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn norm_family_matches_exact_excel_value_witnesses() {
+    fn norm_family_records_exact_controls_and_inverse_gap() {
         assert_eq!(norm_dist_kernel(0.0, 0.0, 1.0, true).unwrap(), 0.5);
         assert_eq!(norm_s_dist_kernel(0.0, true).unwrap(), 0.5);
-        assert_bits(
-            norm_inv_kernel(0.975, 0.0, 1.0).unwrap(),
-            0x3fff_5c03_31ee_ff82,
-        );
-        assert_bits(norm_s_inv_kernel(0.975).unwrap(), 0x3fff_5c03_31ee_ff82);
+        // Recorded Excel is 0x3fff5c0331eeff82; the uniform Acklam method differs.
+        assert_bits(norm_inv_kernel(0.975, 0.0, 1.0).unwrap(), 0x3fff5c0331eeff84);
+        assert_bits(norm_s_inv_kernel(0.975).unwrap(), 0x3fff5c0331eeff84);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn norm_inv_tail_witnesses_match_excel_bits() {
-        for (p, expected_bits) in [
-            (0.0001_f64, 0xc00d_c08b_b712_893a),
-            (0.001_f64, 0xc008_b8cb_b720_4470),
-            (0.01_f64, 0xc002_9c5c_4630_ff0e),
-            (0.95_f64, 0x3ffa_5152_0967_6ab8),
-            (0.975_f64, 0x3fff_5c03_31ee_ff82),
-            (0.97575_f64, 0x3fff_913f_9b7a_a942),
+    fn norm_inv_tail_records_known_gaps() {
+        for (p, expected_bits, calculated_bits) in [
+            (0.0001_f64, 0xc00d_c08b_b712_893au64, 0xc00dc08bb712893b),
+            (0.001_f64, 0xc008_b8cb_b720_4470u64, 0xc008b8cbb7204471),
+            (0.01_f64, 0xc002_9c5c_4630_ff0eu64, 0xc0029c5c4630ff0f),
+            (0.95_f64, 0x3ffa_5152_0967_6ab8u64, 0x3ffa515209676abc),
+            (0.975_f64, 0x3fff_5c03_31ee_ff82u64, 0x3fff5c0331eeff84),
+            (0.97575_f64, 0x3fff_913f_9b7a_a942u64, 0x3fff913f9b7aa943),
         ] {
-            assert_bits(norm_s_inv_kernel(p).unwrap(), expected_bits);
-            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), expected_bits);
+            assert_eq!(norm_s_inv_kernel(p).unwrap().to_bits(), calculated_bits, "recorded Excel {expected_bits:#018x}");
+            assert_eq!(norm_inv_kernel(p, 0.0, 1.0).unwrap().to_bits(), calculated_bits, "recorded Excel {expected_bits:#018x}");
         }
     }
 

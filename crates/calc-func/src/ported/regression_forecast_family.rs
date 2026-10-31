@@ -412,18 +412,8 @@ fn prediction_input_from_optional(
 ///    the later columns.
 /// 4. The intercept is `my - b_1*m_1 - b_2*m_2 - ...`, subtracted in predictor order.
 ///
-/// 5. Collinear, zero and surplus predictors (Excel 16.0.20430, 2026-10-25): a predictor whose
-///    remaining sum of squares at its step is below `COLLINEAR` times its sum of squares before
-///    the steps is dropped (coefficient 0, standard error 0, not counted in the degrees of
-///    freedom), as is every predictor once no rows remain; a predictor that is zero from the
-///    start (or constant, with a constant) is kept with coefficient 0 and counted.
-/// The relative remainder below which a predictor counts as in the span of those before it.
-/// Measured on `x2 = 2*x1 + d` (four rows): without a constant Excel keeps the column at a
-/// remainder of 5.6e-13 of its sum of squares and drops it at 3.5e-13; with a constant it keeps
-/// it at 1.0e-12 and drops it at 6.5e-13, so between 4.5e-13 and 6.5e-13 this keeps a column
-/// that Excel, with a constant, drops.
-const COLLINEAR: f64 = 4.5e-13;
-
+/// 5. Zero and surplus predictors retain their structural handling. Numerical
+/// rank detection beyond an exactly zero remainder is not identified.
 fn least_squares(
     columns: &[Vec<f64>],
     y: &[f64],
@@ -477,11 +467,9 @@ fn least_squares(
     let mut scale: Vec<(Option<usize>, f64)> =
         matrix.iter().map(|(predictor, _)| *predictor).zip(initial).collect();
     let mut diagonal = vec![0.0; p];
-    // Each step takes the best remaining column (the ones column first). A column whose remaining
-    // sum of squares is below `COLLINEAR` times its sum before the steps is dropped (coefficient
-    // 0, not counted in the degrees of freedom), and the step tries the next; a column that was
-    // zero from the start is kept as it is (coefficient 0, counted), with no reflection; once no
-    // rows remain, every column left is dropped.
+    // Pivot by the remaining sum of squares; drop an exactly eliminated column
+    // only when it was nonzero before the reflections. Initially zero columns
+    // retain their zero coefficient and count in the degrees of freedom.
     let mut j = 0;
     while j < matrix.len() {
         if j >= n {
@@ -505,7 +493,7 @@ fn least_squares(
         let x0 = matrix[j].1[j];
         let rest = squares_from(&matrix[j].1, j + 1);
         let squares = squares_from(&matrix[j].1, j);
-        if squares < COLLINEAR * scale[j].1 {
+        if squares == 0.0 && scale[j].1 > 0.0 {
             matrix.remove(j);
             scale.remove(j);
             continue;

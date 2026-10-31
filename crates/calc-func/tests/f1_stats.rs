@@ -18,6 +18,20 @@ use calc_func::value::CalcValue;
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_small_inputs_record_known_gaps() {
+    // Original recorded answers: one gain from each grouped-input half and a
+    // matched control three ULP from the unconditional Taylor-series result.
+    for (input, expected, calculated) in [
+        (0x3f1a_529c_35ef_4724, 0x40c3_7323_fd56_1ac3, 0x40c37323fd561abd),
+        (0x3f1b_2638_e4e6_7c49, 0x40c2_db88_6b75_1adc, 0x40c2db886b751ad7),
+        (0x3f8f_e551_0015_81b1, 0x404f_d2d4_c62f_1d4e, 0x404fd2d4c62f1d4e),
+    ] {
+        recorded_calculation(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn deviations_and_means() {
     exact(call("AVEDEV", vec![data()]), 1.5);
     exact(call("DEVSQ", vec![data()]), 32.0);
@@ -294,88 +308,81 @@ fn normal_error_functions_publish_recorded_underflows() {
     }
 }
 
-/// Recorded ERFC dependencies and normal-CDF tails from Excel build 20131.
+/// Recorded ERFC dependencies and normal tails; original answers and known gaps.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn error_function_tails_use_the_recorded_rounded_square() {
+fn error_function_tails_record_known_gaps() {
     // These ERFC arguments belong to different halves of the frozen split.
     for function in ["ERFC", "ERFC.PRECISE"] {
-        exact(call(function, vec![n(f64::from_bits(0x4021_0c8a_deec_196e))]),
-            f64::from_bits(0x3922_d992_80b1_9df9));
-        exact(call(function, vec![n(f64::from_bits(0x4024_2bc8_1cf3_8194))]),
-            f64::from_bits(0x3680_fa89_4f89_d6df));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4021_0c8a_deec_196e))]), f64::from_bits(0x3922_d992_80b1_9df9), f64::from_bits(0x3922d99280b19e1e));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4024_2bc8_1cf3_8194))]), f64::from_bits(0x3680_fa89_4f89_d6df), f64::from_bits(0x3680fa894f89d6ff));
         // Residuals between 2^-49 and 2^-48, from both split halves.
-        exact(call(function, vec![n(f64::from_bits(0x4019_3db4_8c78_fb1d))]),
-            f64::from_bits(0x3c20_95a4_42f6_d57d));
-        exact(call(function, vec![n(f64::from_bits(0x401c_c218_61f7_e239))]),
-            f64::from_bits(0x3b0a_c48e_8af8_7271));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4019_3db4_8c78_fb1d))]), f64::from_bits(0x3c20_95a4_42f6_d57d), f64::from_bits(0x3c2095a442f6d571));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x401c_c218_61f7_e239))]), f64::from_bits(0x3b0a_c48e_8af8_7271), f64::from_bits(0x3b0ac48e8af87259));
         // Residuals between 2^-50 and 2^-49, from both split halves.
-        exact(call(function, vec![n(f64::from_bits(0x4010_5ad1_5827_f62f))]),
-            f64::from_bits(0x3e3f_a6da_a7f6_9fce));
-        exact(call(function, vec![n(f64::from_bits(0x4010_836a_af1b_be42))]),
-            f64::from_bits(0x3e36_a4ab_c77f_b3ec));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_5ad1_5827_f62f))]), f64::from_bits(0x3e3f_a6da_a7f6_9fce), f64::from_bits(0x3e3fa6daa7f69fc5));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_836a_af1b_be42))]), f64::from_bits(0x3e36_a4ab_c77f_b3ec), f64::from_bits(0x3e36a4abc77fb3f7));
     }
-    exact(call("NORM.S.DIST", vec![
+    recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc026_a496_5d40_5589)), b(true),
-    ]), f64::from_bits(0x39da_0ca4_2246_3668));
-    exact(call("NORM.S.DIST", vec![
+    ]), f64::from_bits(0x39da_0ca4_2246_3668), f64::from_bits(0x39da0ca422463696));
+    recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc020_0893_4d02_54c4)), b(true),
-    ]), f64::from_bits(0x3cc3_8f68_673d_153e));
-    exact(call("NORM.S.DIST", vec![
+    ]), f64::from_bits(0x3cc3_8f68_673d_153e), f64::from_bits(0x3cc38f68673d1530));
+    recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc016_a24f_cfb0_a98c)), b(true),
-    ]), f64::from_bits(0x3e40_653f_58c2_faf3));
-    exact(call("NORM.S.DIST", vec![
+    ]), f64::from_bits(0x3e40_653f_58c2_faf3), f64::from_bits(0x3e40653f58c2faeb));
+    recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc016_aa4e_776d_04bd)), b(true),
-    ]), f64::from_bits(0x3e3f_5501_63f6_fedc));
+    ]), f64::from_bits(0x3e3f_5501_63f6_fedc), f64::from_bits(0x3e3f550163f6fee8));
     // Recorded oc10307 distinguishes the PC64 square in the residual.
-    exact(call("NORM.S.DIST", vec![n(-17.145244843201656), b(true)]),
-        f64::from_bits(0x3256_fcaf_346e_9729));
+    recorded_calculation(call("NORM.S.DIST", vec![n(-17.145244843201656), b(true)]), f64::from_bits(0x3256_fcaf_346e_9729), f64::from_bits(0x3256fcaf346e96cd));
     // The same staging reaches the normal wrappers (recorded oc2613).
     for function in ["NORM.DIST", "NORMDIST"] {
-        exact(call(function, vec![n(-33.26358352947733), n(-3.934034287489425),
-            n(3.7542580713919134), b(true)]), f64::from_bits(0x3ce9_47e8_34b5_2568));
+        recorded_calculation(call(function, vec![n(-33.26358352947733), n(-3.934034287489425),
+            n(3.7542580713919134), b(true)]), f64::from_bits(0x3ce9_47e8_34b5_2568), f64::from_bits(0x3ce947e834b5255b));
     }
 }
 
-/// Original GAMMA answers, with each correction represented in both split halves.
+/// Original GAMMA answers from both former fitting halves, with known gaps.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn gamma_fallbacks_require_large_disagreements() {
-    for (input, expected) in [
-        (0x400d_1554_af11_39b0, 0x400e_f676_6ccb_fa92),
-        (0x400d_4f88_34b9_3ec3, 0x400f_fe1e_2ca0_074c),
-        (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae),
-        (0x405c_03e8_db5e_238e, 0x6562_21fb_163a_ffa9),
+fn gamma_generic_body_records_known_gaps() {
+    for (input, expected, calculated) in [
+        (0x400d_1554_af11_39b0, 0x400e_f676_6ccb_fa92, 0x400ef6766ccbfaa8),
+        (0x400d_4f88_34b9_3ec3, 0x400f_fe1e_2ca0_074c, 0x400ffe1e2ca00761),
+        (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae, 0x4a0b1f259b34f3eb),
+        (0x405c_03e8_db5e_238e, 0x6562_21fb_163a_ffa9, 0x656221fb163afdea),
         // Positive tgamma refinement, from both grouped-argument halves.
-        (0x3f21_ee1e_5eb2_9a49, 0x40bc_8d91_582d_997d),
-        (0x3f1f_f366_0a69_738e, 0x40c0_0605_98b3_6e3b),
+        (0x3f21_ee1e_5eb2_9a49, 0x40bc_8d91_582d_997d, 0x40bc8d91582d9972),
+        (0x3f1f_f366_0a69_738e, 0x40c0_0605_98b3_6e3b, 0x40c0060598b36e30),
         // The same bound admits reduced reflection and the negative fallback.
-        (0xc060_bad0_74be_eaa3, 0x10c5_b33f_ccd8_3432),
-        (0xbfff_b384_bc86_8d32, 0x403b_41c1_68e1_0426),
+        (0xc060_bad0_74be_eaa3, 0x10c5_b33f_ccd8_3432, 0x10c5b33fccd837a2),
+        (0xbfff_b384_bc86_8d32, 0x403b_41c1_68e1_0426, 0x403b41c168e103dc),
         // Old matches differ from the rational by one ULP; keep their route.
-        (0x400c_14f6_1d18_79ae, 0x400a_e3a0_184f_4257),
-        (0x400d_7b7b_3b82_609e, 0x4010_6635_56ba_cf83),
-        (0xc02d_5a3f_39dd_c52f, 0xbd9e_116c_a682_f364),
+        (0x400c_14f6_1d18_79ae, 0x400a_e3a0_184f_4257, 0x400ae3a0184f4257),
+        (0x400d_7b7b_3b82_609e, 0x4010_6635_56ba_cf83, 0x4010663556bacf83),
+        (0xc02d_5a3f_39dd_c52f, 0xbd9e_116c_a682_f364, 0xbd9e116ca682f364),
         // Negative inputs retain the larger bound.
-        (0xbff1_1541_05b4_a44e, 0x402c_e385_d327_12a8),
+        (0xbff1_1541_05b4_a44e, 0x402c_e385_d327_12a8, 0x402ce385d32712a8),
     ] {
-        exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        recorded_calculation(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
     }
 }
 
-/// Recorded density answers distinguish admitted and retained Gamma normalizers.
+/// Recorded densities retain the gaps exposed by removing normalizer selection.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn gamma_density_admits_the_recorded_normalizer() {
-    for (x, alpha, expected) in [
-        (0.12417919307712058, 6.423680034363982, 0x3e67_0863_f2ee_9357),
-        (0.8537609680018344, 7.171703572068208, 0x3f25_2274_a7b8_6ecb),
-        (9.563436515180983, 6.15888078874286, 0x3faa_1da4_7b5c_d5ed),
+fn gamma_density_records_known_gaps() {
+    for (x, alpha, expected, calculated) in [
+        (0.12417919307712058, 6.423680034363982, 0x3e67_0863_f2ee_9357, 0x3e670863f2ee9340),
+        (0.8537609680018344, 7.171703572068208, 0x3f25_2274_a7b8_6ecb, 0x3f252274a7b86eab),
+        (9.563436515180983, 6.15888078874286, 0x3faa_1da4_7b5c_d5ed, 0x3faa1da47b5cd5d3),
         // A lower scalar-Gamma bound would lose these original PDF matches.
-        (0.0003421170430624811, 0.943075920351938, 0x3ff8_4f92_2b67_1613),
-        (0.007825340264827977, 0.622814265063597, 0x4011_2efe_0987_a993),
+        (0.0003421170430624811, 0.943075920351938, 0x3ff8_4f92_2b67_1613, 0x3ff84f922b671613),
+        (0.007825340264827977, 0.622814265063597, 0x4011_2efe_0987_a993, 0x40112efe0987a993),
     ] {
-        exact(call("GAMMA.DIST", vec![n(x), n(alpha), n(1.0), b(false)]), f64::from_bits(expected));
+        recorded_calculation(call("GAMMA.DIST", vec![n(x), n(alpha), n(1.0), b(false)]), f64::from_bits(expected), f64::from_bits(calculated));
     }
 }
 
@@ -402,8 +409,9 @@ fn mod_reports_a_subnormal_remainder_as_num() {
     error(call("MOD", vec![n(f64::from_bits(1)), n(0.0)]), Div0);
     exact(call("MOD", vec![n(f64::from_bits(1)), n(0.1)]), 0.0);
     // W111 tiny-00005 and refinement-00006/01014 separate both binary boundaries.
-    exact(call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0001)), n(f64::from_bits(0x8010_0000_0000_0000))]),
-        f64::from_bits(0x8010_0000_0000_0001));
+    // Excel records 0x8010000000000001 here. Without the fitted reversed
+    // adjustment the final remainder is subnormal and this method returns NUM.
+    error(call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0001)), n(f64::from_bits(0x8010_0000_0000_0000))]), Num);
     error(call("MOD", vec![n(f64::from_bits(0x0011_0000_0000_0000)), n(f64::from_bits(0x8010_0000_0000_0000))]), Num);
     error(call("MOD", vec![n(f64::from_bits(0x01b0_0000_0000_0001)), n(f64::from_bits(0x8010_0000_0000_0000))]), Num);
     // A binary-power divisor preserves a tiny intermediate with a normal final remainder.
@@ -475,18 +483,18 @@ fn gamma_cumulative_stores_the_final_series_product() {
 /// Recorded lower-series gains and protected controls from both argument halves.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn gamma_cumulative_preserves_the_product_before_subtraction() {
-    for (x, shape, expected) in [
+fn gamma_cumulative_records_known_subtraction_gaps() {
+    for (x, shape, expected, calculated) in [
         // oc820 (excluded half 1), oc837 (fitting half 0).
-        (0x3e45_bfed_3f9f_5d2c, 2.0, 0x3c8d_90cd_01b5_dad1),
-        (0x3e46_4f60_ae25_7bea, 3.0, 0x3acc_eb10_4395_7fa3),
+        (0x3e45_bfed_3f9f_5d2c, 2.0, 0x3c8d_90cd_01b5_dad1, 0x3c8d90cd01b5dae0),
+        (0x3e46_4f60_ae25_7bea, 3.0, 0x3acc_eb10_4395_7fa3, 0x3acceb1043957f91),
         // oc41045 / oc40295: unbounded correction would lose these matches.
-        (0x3fb0_eec1_cb3a_8a9b, 3.0, 0x3f08_1056_fc2c_909a),
-        (0x3fb0_e0e8_3a02_c89a, 3.0, 0x3f07_d671_a72d_b3af),
+        (0x3fb0_eec1_cb3a_8a9b, 3.0, 0x3f08_1056_fc2c_909a, 0x3f081056fc2c909a),
+        (0x3fb0_e0e8_3a02_c89a, 3.0, 0x3f07_d671_a72d_b3af, 0x3f07d671a72db3af),
     ] {
         for function in ["GAMMA.DIST", "GAMMADIST"] {
-            exact(call(function, vec![n(f64::from_bits(x)), n(shape), n(1.0), b(true)]),
-                f64::from_bits(expected));
+            recorded_calculation(call(function, vec![n(f64::from_bits(x)), n(shape), n(1.0), b(true)]),
+                f64::from_bits(expected), f64::from_bits(calculated));
         }
     }
 }
@@ -526,46 +534,46 @@ fn binomial_mass_uses_the_internal_normalization_logarithm() {
     }
 }
 
-/// Recorded tiny ERF rows independently distinguish the multiply and divide stores.
+/// Recorded tiny ERF answers retain constraints for a future program search.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn tiny_erf_stores_both_rational_operations() {
-    for (input, expected) in [
-        (0x3d70_5e80_0000_0000, 0x3d72_7879_0ff4_a4d4),
-        (0x3d73_5c29_021a_4811, 0x3d75_d86d_8b33_b7f4),
+fn tiny_erf_records_known_gaps() {
+    for (input, expected, calculated) in [
+        (0x3d70_5e80_0000_0000, 0x3d72_7879_0ff4_a4d4, 0x3d7278790ff4a4d3),
+        (0x3d73_5c29_021a_4811, 0x3d75_d86d_8b33_b7f4, 0x3d75d86d8b33b7f3),
     ] {
-        exact(call("ERF.PRECISE", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
-        exact(call("ERF", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        recorded_calculation(call("ERF.PRECISE", vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
+        recorded_calculation(call("ERF", vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
     }
     // gauss-discovery-00059: the tiny wrapper uses the same ERF calculation.
-    exact(call("GAUSS", vec![n(f64::from_bits(0x005f_e189_b32b_8147))]),
-        f64::from_bits(0x0049_6ff7_0f27_3fff));
+    recorded_calculation(call("GAUSS", vec![n(f64::from_bits(0x005f_e189_b32b_8147))]),
+        f64::from_bits(0x0049_6ff7_0f27_3fff), f64::from_bits(0x00496ff70f273ffe));
 }
 
-/// Recorded b17-s20-03582 and b16-g25-01840 distinguish the two polynomial stores.
+/// Recorded b17-s20-03582 and b16-g25-01840 retain their original answers.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn small_erf_stores_both_polynomial_additions() {
-    for (input, expected) in [
-        (0x3eb4_5231_7b1d_dc40, 0x3eb6_ee0b_e91e_09f3),
-        (0x3e61_cc00_0000_0000, 0x3e64_14e5_3e86_1661),
+fn small_erf_records_known_polynomial_gaps() {
+    for (input, expected, calculated) in [
+        (0x3eb4_5231_7b1d_dc40, 0x3eb6_ee0b_e91e_09f3, 0x3eb6ee0be91e09f2),
+        (0x3e61_cc00_0000_0000, 0x3e64_14e5_3e86_1661, 0x3e6414e53e86165f),
     ] {
         for function in ["ERF.PRECISE", "ERF"] {
-            exact(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+            recorded_calculation(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
         }
     }
 }
 
-/// Recorded oc1302 and smallz-0018 extend the same rational model beyond 1e-4.
+/// Recorded oc1302 and smallz-0018 retain the removed model's curvature clues.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn small_erf_retains_recorded_curvature_through_the_cubic_terms() {
-    for (input, expected) in [
-        (0x3f1c_0000_0000_0000, 0x3f1f_9838_ca70_8460),
-        (0x3f83_0000_0000_0000, 0x3f85_7047_602b_fba1),
+fn small_erf_records_known_curvature_gaps() {
+    for (input, expected, calculated) in [
+        (0x3f1c_0000_0000_0000, 0x3f1f_9838_ca70_8460, 0x3f1f9838ca70845f),
+        (0x3f83_0000_0000_0000, 0x3f85_7047_602b_fba1, 0x3f857047602bfba0),
     ] {
         for function in ["ERF.PRECISE", "ERF"] {
-            exact(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+            recorded_calculation(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
         }
     }
 }

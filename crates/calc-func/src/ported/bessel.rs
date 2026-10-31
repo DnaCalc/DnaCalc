@@ -5,50 +5,26 @@
 //!
 //! - Abramowitz and Stegun, *Handbook of Mathematical Functions* (1964), 9.8.1 to 9.8.8: the
 //!   polynomial approximations of I0, I1, K0 and K1 used here, with their published coefficients.
-//! - The Hankel asymptotic form of J and Y (A&S 9.2.5 and 9.2.6; DLMF 10.17.3 and 10.17.4):
-//!   `J = sqrt(2/(pi x)) (P cos w - Q sin w)`, `Y = sqrt(2/(pi x)) (P sin w + Q cos w)`,
-//!   `w = x - (2n+1) pi/4`, with P and Q approximated by polynomials in `(8/x)^2`.
-//! - For small x, J0 and J1 as rational functions of `x^2`, and Y0 and Y1 as a rational function
-//!   plus the logarithmic term of A&S 9.1.13 (`(2/pi) J ln x`, and for Y1 also `-(2/pi)/x`).
+//! - J0, J1, Y0 and Y1 use the existing `libm` dependency's fdlibm methods.
+//!   Their agreement with Excel remains open.
 //! - The three-term recurrence `C(n+1) = (2n/x) C(n) - C(n-1)` (A&S 9.1.27, 9.6.26), run forward
-//!   for Y and K and for J above its order, and backward (Miller's algorithm; J. C. P. Miller,
-//!   British Association Mathematical Tables vol. X, 1952; W. Gautschi, "Computational aspects of
-//!   three-term recurrence relations", SIAM Review 9, 1967) for J below its order and for I,
-//!   normalised by `J0 + 2 (J2 + J4 + ...) = 1` (A&S 9.1.46) or by I0.
+//!   for Y and K and for J above its order. J below its order delegates to libm::jn.
+//! - I of order at least two uses its defining series, DLMF 10.25.2.
+//!   No Excel parity is claimed for these generic public-method bodies.
 //!
 //! # What was measured in Excel (16.0, 64-bit, 2026-10-30)
 //!
-//! Every constant below that is not in A&S was established by capturing Excel's results for
-//! chosen inputs (about 30,000 readings) and fitting them: the coefficients of the small-x rational
-//! functions by a reweighted linear least-squares fit (Sanathanan and Koerner, IEEE Trans.
-//! Automatic Control 8, 1963) followed by a search of the lattice of decimal values with ten or
-//! eleven significant digits (LLL reduction and Babai's nearest-plane rounding) for the set that
-//! reproduces Excel's bits; the coefficients of P and Q by
-//! a linear fit of J and Y separately. The facts found that way:
-//!
-//! - J0, J1, Y0 and Y1 change method at x = 8. The large-x branch uses `0.636619772` for 2/pi and
-//!   `0.785398164` and `2.356194491` for pi/4 and 3 pi/4, and J0's and Y0's P polynomials differ in
-//!   one coefficient (`-0.1098628267e-2` and `-0.1098628627e-2`), as do their Q polynomials
-//!   (`-0.934935152e-7` and `-0.934945152e-7`). J1's P polynomial has the coefficient
-//!   `-0.3516396496e-4` twice (degree five), Y1's once (degree four).
-//! - The small-x Y0 and Y1 use the same `0.636619772`.
-//! - sin and cos are Excel's own SIN and COS chains (the x87 sequences of the worksheet SIN and COS in
-//!   [`crate::ported::excel_numeric`]); exp is Excel's EXP chain and the logarithm its LN chain.
-//! - The large-x branch is refused (#NUM!) when the phase-shifted argument exceeds 134217727.
 //! - The order is truncated; a negative order, or one above 10,000,000 after truncation, is #NUM!.
-//! - The backward recurrence starts at `2 ((n + floor(sqrt(40 n))) / 2)` for J and at
-//!   `2 (n + floor(sqrt(40 n)))` for I, and rescales by multiplying by `1e-10` when a term exceeds
-//!   `1e10`.
 //! - Excel computes with subnormal operands and results flushed to zero (BESSELK(700,2) equals
 //!   BESSELK(700,0); BESSELK(706,0) is 0); [`D`] does the same.
-//! - BESSELI refuses |x| above 709.7 (#NUM!). A result that is not finite is #NUM!.
+//! - A result that is not finite is #NUM!.
 //!
-//! Known differences (measured): J0 and J1 for the phase-shifted argument within 0.01 of
-//! 134217727 differ from about the seventh digit, where Excel's argument reduction is not yet
-//! reproduced; isolated results elsewhere differ by one unit in the last place.
+//! The generic J/Y and higher-order I bodies are published methods, not an
+//! identification of Excel's program. Exact disagreement counts are retained
+//! in the witness and corpus reports.
 //!
 
-use crate::ported::excel_numeric::{excel_cos, excel_exp, excel_log, excel_sin};
+use crate::ported::excel_numeric::{excel_exp, excel_log};
 use crate::value::WorksheetErrorCode;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
@@ -96,13 +72,6 @@ fn exp(x: D) -> D {
 fn ln(x: D) -> D {
     D::new(excel_log(x.0))
 }
-fn sin(x: D) -> D {
-    D::new(excel_sin(x.0))
-}
-fn cos(x: D) -> D {
-    D::new(excel_cos(x.0))
-}
-
 /// `c[0] + y (c[1] + y (c[2] + ...))`.
 fn horner(c: &[f64], y: D) -> D {
     let mut r = D(c[c.len() - 1]);
@@ -112,20 +81,8 @@ fn horner(c: &[f64], y: D) -> D {
     r
 }
 
-/// Excel's 2/pi.
-const TWO_OVER_PI: f64 = 0.636619772;
-/// The phase-shifted argument above which the large-x branch is refused.
-const PHASE_LIMIT: f64 = 134217727.0;
-/// The largest |x| BESSELI accepts (BESSELI(709.7,0) is a number, BESSELI(709.7000001,0) #NUM!).
-const I_LIMIT: f64 = 709.7;
 /// The largest order (after truncation).
 const MAX_ORDER: f64 = 10_000_000.0;
-/// The backward recurrence's rescaling threshold and factor.
-const BIG: f64 = 1.0e10;
-const BIG_INVERSE: f64 = 1.0e-10;
-/// The constant of the backward recurrence's starting order.
-const START: f64 = 40.0;
-
 type R = Result<D, WorksheetErrorCode>;
 
 // --- I0, I1, K0, K1: A&S 9.8.1 to 9.8.8 -------------------------------------------------------
@@ -186,80 +143,11 @@ fn k1(x: D) -> D {
 
 // --- J0, J1, Y0, Y1 ---------------------------------------------------------------------------
 
-/// J0 for |x| < 8: numerator and (monic) denominator in x^2.
-const J0_P: [f64; 6] = [57568490574.0, -13362590354.0, 651619640.7, -11214424.18, 77392.33017, -184.9052456];
-const J0_Q: [f64; 6] = [57568490411.0, 1029532985.0, 9494680.718, 59272.64853, 267.8532712, 1.0];
-/// J1 for |x| < 8: `x P / Q`.
-const J1_P: [f64; 6] = [72362614232.0, -7895059235.0, 242396853.1, -2972611.439, 15704.48260, -30.16036606];
-const J1_Q: [f64; 6] = [144725228442.0, 2300535178.0, 18583304.74, 99447.43394, 376.9991397, 1.0];
-/// Y0 for 0 < x < 8: `P / Q + (2/pi) J0 ln x`.
-const Y0_P: [f64; 6] = [-2957821389.0, 7062834065.0, -512359803.6, 10879881.29, -86327.92757, 228.4622733];
-const Y0_Q: [f64; 6] = [40076544269.0, 745249964.8, 7189466.438, 47447.26470, 226.1030244, 1.0];
-/// Y1 for 0 < x < 8: `x P / Q + (2/pi) (J1 ln x - 1/x)`.
-const Y1_P: [f64; 6] = [-4900604943000.0, 1275274390000.0, -51534381390.0, 734926455.1, -4237922.726, 8511.937935];
-const Y1_Q: [f64; 7] = [24995805700000.0, 424441966400.0, 3733650367.0, 22459040.02, 102042.605, 354.9632885, 1.0];
-/// The large-x P and Q polynomials in `(8/x)^2`.
-const J0_LP: [f64; 5] = [1.0, -0.1098628267e-2, 0.2734510407e-4, -0.2073370639e-5, 0.2093887211e-6];
-const J0_LQ: [f64; 5] = [-0.1562499995e-1, 0.1430488765e-3, -0.6911147651e-5, 0.7621095161e-6, -0.934935152e-7];
-const Y0_LP: [f64; 5] = [1.0, -0.1098628627e-2, 0.2734510407e-4, -0.2073370639e-5, 0.2093887211e-6];
-const Y0_LQ: [f64; 5] = [-0.1562499995e-1, 0.1430488765e-3, -0.6911147651e-5, 0.7621095161e-6, -0.934945152e-7];
-const J1_LP: [f64; 6] = [1.0, 0.183105e-2, -0.3516396496e-4, -0.3516396496e-4, 0.2457520174e-5, -0.240337019e-6];
-const Y1_LP: [f64; 5] = [1.0, 0.183105e-2, -0.3516396496e-4, 0.2457520174e-5, -0.240337019e-6];
-const N1_LQ: [f64; 5] = [0.04687499995, -0.2002690873e-3, 0.8449199096e-5, -0.88228987e-6, 0.105787412e-6];
-
-/// The large-x pieces: `sqrt(c/x)`, `z = 8/x`, P, Q, and the sine and cosine of the shifted
-/// argument; #NUM! past [`PHASE_LIMIT`].
-fn hankel(ax: D, phase: f64, p: &[f64], q: &[f64]) -> Result<(D, D, D, D, D, D), WorksheetErrorCode> {
-    let z = D(8.0) / ax;
-    let y = z * z;
-    let w = ax - D(phase);
-    if w.0 > PHASE_LIMIT {
-        return Err(WorksheetErrorCode::Num);
-    }
-    let a = (D(TWO_OVER_PI) / ax).sqrt();
-    Ok((a, z, horner(p, y), horner(q, y), sin(w), cos(w)))
-}
-
-fn j0(x: D) -> R {
-    let ax = x.abs();
-    if ax.0 < 8.0 {
-        let y = x * x;
-        return Ok(horner(&J0_P, y) / horner(&J0_Q, y));
-    }
-    let (a, z, p, q, s, c) = hankel(ax, 0.785398164, &J0_LP, &J0_LQ)?;
-    Ok(a * (c * p - z * s * q))
-}
-
-fn j1(x: D) -> R {
-    let ax = x.abs();
-    if ax.0 < 8.0 {
-        let y = x * x;
-        return Ok(x * horner(&J1_P, y) / horner(&J1_Q, y));
-    }
-    let (a, z, p, q, s, c) = hankel(ax, 2.356194491, &J1_LP, &N1_LQ)?;
-    let r = a * (c * p - z * (s * q));
-    Ok(if x.0 < 0.0 { -r } else { r })
-}
-
-fn y0(x: D) -> R {
-    if x.0 < 8.0 {
-        let y = x * x;
-        let r = horner(&Y0_P, y) / horner(&Y0_Q, y);
-        return Ok(r + D(TWO_OVER_PI) * (j0(x)? * ln(x)));
-    }
-    let (a, z, p, q, s, c) = hankel(x, 0.785398164, &Y0_LP, &Y0_LQ)?;
-    Ok(a * (s * p + z * (c * q)))
-}
-
-fn y1(x: D) -> R {
-    if x.0 < 8.0 {
-        let y = x * x;
-        let r = x * horner(&Y1_P, y) / horner(&Y1_Q, y);
-        return Ok(r + D(TWO_OVER_PI) * (j1(x)? * ln(x) - D(1.0) / x));
-    }
-    let (a, z, p, q, s, c) = hankel(x, 2.356194491, &Y1_LP, &N1_LQ)?;
-    Ok(a * (s * p + z * (c * q)))
-}
+// Public-library bodies, with no Excel-derived polynomial or phase cutoff.
+fn j0(x: D) -> R { Ok(D::new(libm::j0(x.0))) }
+fn j1(x: D) -> R { Ok(D::new(libm::j1(x.0))) }
+fn y0(x: D) -> R { Ok(D::new(libm::y0(x.0))) }
+fn y1(x: D) -> R { Ok(D::new(libm::y1(x.0))) }
 
 // --- orders two and up --------------------------------------------------------------------------
 
@@ -289,57 +177,48 @@ fn forward(x: D, n: u32, c0: D, c1: D, plus: bool) -> D {
     c
 }
 
-/// J of order `n >= 2` and `0 < |x| <= n` by Miller's backward recurrence, normalised by the sum.
-fn j_backward(ax: D, n: u32) -> D {
-    let tox = D(2.0) / ax;
-    let nf = n as f64;
-    let start = 2 * ((n + (START * nf).sqrt() as u32) / 2);
-    let (mut above, mut answer, mut sum) = (D(0.0), D(0.0), D(0.0));
-    let mut c = D(1.0);
-    let mut add = false;
-    for j in (1..=start).rev() {
-        let below = D(j as f64) * tox * c - above;
-        above = c;
-        c = below;
-        if c.abs().0 > BIG {
-            c = c * D(BIG_INVERSE);
-            above = above * D(BIG_INVERSE);
-            answer = answer * D(BIG_INVERSE);
-            sum = sum * D(BIG_INVERSE);
-        }
-        if add {
-            sum = sum + c;
-        }
-        add = !add;
-        if j == n {
-            answer = above;
-        }
+/// I_n(x) from the defining positive series (DLMF 10.25.2).
+/// Sum relative to its leading term; logarithms combine the normalizer and sum
+/// so an underflowed leading term does not erase a normal result.
+fn i_series(x: D, n: u32) -> D {
+    let half = x.abs().0 / 2.0;
+    if half == 0.0 { return D(0.0); }
+    let leading_log = (n as f64) * libm::log(half) - libm::lgamma(n as f64 + 1.0);
+    let maximum_log = libm::log(f64::MAX);
+    if leading_log > maximum_log {
+        return D(f64::INFINITY);
     }
-    sum = D(2.0) * sum - c;
-    answer / sum
-}
-
-/// I of order `n >= 2`, `x != 0`, by the backward recurrence, normalised by I0.
-fn i_backward(x: D, n: u32) -> D {
-    let tox = D(2.0) / x.abs();
-    let nf = n as f64;
-    let start = 2 * (n + (START * nf).sqrt() as u32);
-    let (mut above, mut answer) = (D(0.0), D(0.0));
-    let mut c = D(1.0);
-    for j in (1..=start).rev() {
-        let below = above + D(j as f64) * tox * c;
-        above = c;
-        c = below;
-        if c.abs().0 > BIG {
-            answer = answer * D(BIG_INVERSE);
-            c = c * D(BIG_INVERSE);
-            above = above * D(BIG_INVERSE);
+    let quarter_square = half * half;
+    let (mut term, mut sum, mut log_scale) = (1.0, 1.0, 0.0);
+    let mut k = 0u32;
+    loop {
+        k += 1;
+        let ratio = quarter_square / ((k as f64) * (n as f64 + k as f64));
+        // Rescale only at the binary64 representation limit, never at a bound
+        // selected from Excel answers. Both terms carry the same scale.
+        if ratio > 1.0 && term > f64::MAX / ratio {
+            log_scale += libm::log(sum);
+            term /= sum;
+            sum = 1.0;
         }
-        if j == n {
-            answer = above;
+        term *= ratio;
+        if sum > f64::MAX - term {
+            sum *= 0.5;
+            term *= 0.5;
+            log_scale += std::f64::consts::LN_2;
         }
+        let next = sum + term;
+        if !next.is_finite() { return D(next); }
+        // Every term is positive: an overflowing partial result proves that
+        // the complete sum overflows. Rescaling alone would keep iterating
+        // long after the represented Bessel value has exceeded binary64.
+        if leading_log + log_scale + libm::log(next) > maximum_log {
+            return D(f64::INFINITY);
+        }
+        if next == sum { break; }
+        sum = next;
     }
-    answer * (i0(x) / c)
+    D::new(libm::exp(leading_log + log_scale + libm::log(sum)))
 }
 
 fn odd_sign(x: D, n: u32, v: D) -> D {
@@ -353,6 +232,7 @@ fn finish(v: R) -> Result<f64, WorksheetErrorCode> {
 
 /// `BESSELJ(x, n)`.
 pub fn besselj_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
+    if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
     let n = order(n)?;
     let x = D::new(x);
     finish(match n {
@@ -361,7 +241,7 @@ pub fn besselj_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
         _ if x.0 == 0.0 => Ok(D(0.0)),
         _ => {
             let ax = x.abs();
-            let v = if ax.0 > n as f64 { forward(ax, n, j0(ax)?, j1(ax)?, false) } else { j_backward(ax, n) };
+            let v = if ax.0 > n as f64 { forward(ax, n, j0(ax)?, j1(ax)?, false) } else { D::new(libm::jn(n as i32, ax.0)) };
             Ok(odd_sign(x, n, v))
         }
     })
@@ -369,6 +249,7 @@ pub fn besselj_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
 
 /// `BESSELY(x, n)`.
 pub fn bessely_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
+    if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
     let n = order(n)?;
     let x = D::new(x);
     if !(x.0 > 0.0) {
@@ -383,21 +264,20 @@ pub fn bessely_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
 
 /// `BESSELI(x, n)`.
 pub fn besseli_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
+    if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
     let n = order(n)?;
     let x = D::new(x);
-    if x.abs().0 > I_LIMIT {
-        return Err(WorksheetErrorCode::Num);
-    }
     finish(Ok(match n {
         0 => i0(x),
         1 => i1(x),
         _ if x.0 == 0.0 => D(0.0),
-        _ => odd_sign(x, n, i_backward(x, n)),
+        _ => odd_sign(x, n, i_series(x, n)),
     }))
 }
 
 /// `BESSELK(x, n)`.
 pub fn besselk_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
+    if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
     let n = order(n)?;
     let x = D::new(x);
     if !(x.0 > 0.0) {
@@ -419,16 +299,39 @@ mod tests {
         f64::from_bits(bits)
     }
 
+    // Mathematical references from the defining series at 100 and 200 decimal
+    // digits (identical binary64 rounding), not Excel readings.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn spot_values_match_excel() {
-        assert_eq!(besselj_kernel(1.9, 2.0), Ok(excel(0x3fd51d81390f83eb)));
+    fn besseli_series_mathematical_controls() {
+        for (x, n, expected) in [
+            (1.0, 2.0, 0.13574766976703828_f64),
+            (20.0, 10.0, 3540200.2090195213),
+            // The leading term alone underflows; the complete sum is normal.
+            (709.7, 1570.0, 6.766516533174238e-301),
+            // The relative sum needs representation rescaling twice.
+            (7000.0, 10000.0, 9.241488714987718e284),
+        ] {
+            let got = besseli_kernel(x, n).unwrap();
+            assert!((got - expected).abs() <= expected.abs() * 2e-11,
+                "I_{n}({x}): {got:e}, mathematical {expected:e}");
+        }
+        assert_eq!(besseli_kernel(f64::NAN, 2.0), Err(WorksheetErrorCode::Num));
+        // The positive partial sum already exceeds MAX at term 14. This must
+        // terminate without iterating toward the enormous series mode.
+        assert_eq!(besseli_kernel(1e12, 2.0), Err(WorksheetErrorCode::Num));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn spot_values_record_exact_controls_and_known_gaps() {
+        assert_eq!(besselj_kernel(1.9, 2.0).unwrap().to_bits(), 0x3fd51d80cca30f39, "recorded Excel excel(0x3fd51d81390f83eb)");
         assert_eq!(besseli_kernel(1.5, 1.0), Ok(excel(0x3fef69cfb6bc3907)));
         assert_eq!(besselk_kernel(1.5, 1.0), Ok(excel(0x3fd1c0b8c63a3a82)));
-        assert_eq!(bessely_kernel(100.0, 1.0), Ok(-0.020372311933786909));
-        assert_eq!(bessely_kernel(0.5, 0.0), Ok(-0.44451873376270784));
-        assert_eq!(besselj_kernel(0.0, 0.0), Ok(1.00000000283141));
-        assert_eq!(besselj_kernel(-2.5, 1.0), Ok(-0.49709410250442176));
+        assert_eq!(bessely_kernel(100.0, 1.0).unwrap().to_bits(), 0xbf94dc7ab72edc1f, "recorded Excel -0.020372311933786909");
+        assert_eq!(bessely_kernel(0.5, 0.0).unwrap().to_bits(), 0xbfdc72feb3b7b8a2, "recorded Excel -0.44451873376270784");
+        assert_eq!(besselj_kernel(0.0, 0.0).unwrap().to_bits(), 0x3ff0000000000000, "recorded Excel 1.00000000283141");
+        assert_eq!(besselj_kernel(-2.5, 1.0).unwrap().to_bits(), 0xbfdfd063c84795fd, "recorded Excel -0.49709410250442176");
         assert_eq!(besseli_kernel(-2.5, 1.0), Ok(-2.5167162420253608));
         assert_eq!(besselk_kernel(700.0, 2.0), besselk_kernel(700.0, 0.0));
         assert_eq!(besselk_kernel(706.0, 0.0), Ok(0.0));
@@ -436,7 +339,7 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn domain_errors_match_excel() {
+    fn domain_controls_and_known_besselj_underflow_gap() {
         use WorksheetErrorCode::Num;
         assert_eq!(besselj_kernel(1.0, -1.0), Err(Num));
         assert_eq!(besselj_kernel(1.0, -0.5), Err(Num));
@@ -444,9 +347,10 @@ mod tests {
         assert_eq!(besselj_kernel(5.0, 10_000_000.5), Ok(0.0));
         assert_eq!(bessely_kernel(0.0, 1.0), Err(Num));
         assert_eq!(besselk_kernel(-1.0, 1.0), Err(Num));
-        assert_eq!(besselj_kernel(134217728.0, 0.0), Err(Num));
-        assert_eq!(besselj_kernel(134217727.5, 0.0), Ok(-3.792512787637833E-05));
-        assert_eq!(besseli_kernel(709.78, 0.0), Err(Num));
-        assert_eq!(besselj_kernel(1e-300, 2.0), Err(Num));
+        assert_eq!(besselj_kernel(134217728.0, 0.0).unwrap().to_bits(), 0xbed7ff19ed9c47a0, "recorded Excel NUM; phase cutoff removed");
+        assert_eq!(besselj_kernel(134217727.5, 0.0).unwrap().to_bits(), 0xbf03e23975421ed4, "recorded Excel -3.792512787637833E-05");
+        assert_eq!(besseli_kernel(709.78, 0.0).unwrap().to_bits(), 0x7f8e96fc20a992f7, "recorded Excel NUM; empirical cutoff removed");
+        // Excel records NUM; the public-library backward method underflows to zero.
+        assert_eq!(besselj_kernel(1e-300, 2.0), Ok(0.0));
     }
 }

@@ -1082,12 +1082,12 @@
   {
    "path": "crates/calc-func/src/ported/bessel.rs",
    "class": "own-work",
-   "reason": "written here clean-room (dc-96l.3) from published mathematics and Excel measurement",
+   "reason": "Own A&S I0/I1/K0/K1 polynomials and recurrences, DLMF 10.25.2 I_n series; J/Y base functions and J backward path delegate to existing libm dependency. Excel-derived coefficients and recurrence constants removed (dc-j9k).",
    "parts": [
     {
      "class": "own-work",
      "kind": "published",
-     "what": "Abramowitz and Stegun 9.8.1-9.8.8 I0/I1/K0/K1 polynomials; Hankel asymptotic form (A&S 9.2.5-9.2.6, DLMF 10.17); A&S 9.1 recurrences and Miller's backward recurrence (Miller 1952, Gautschi 1967); J0/J1/Y0/Y1 rational and P/Q coefficients and all thresholds fitted from Excel readings"
+     "what": "Abramowitz and Stegun 9.8.1-9.8.8 coefficients and 9.1 recurrences; DLMF 10.25.2 defining series. Remaining numeric domain guards are observations, not coefficient fits. No third-party implementation copied."
     }
    ],
    "note": "dc-96l.3 clean-room replacement: written without reading the replaced file or its history"
@@ -1628,6 +1628,11 @@
      "class": "own-work",
      "kind": "published",
      "what": "Cody-Hillstrom 1967 Table II and SPECFUN dlgama P4/Q4 coefficients (published), band boundaries and staging identified from Excel captures"
+    },
+    {
+     "class": "own-work",
+     "kind": "published",
+     "what": "B2 P2/Q2 restored from public SPECFUN DLGAMA, https://netlib.org/specfun/algama, with the existing continuous store model; the Excel-derived LM coefficients are removed (dc-j9k)."
     }
    ],
    "evidence": [

@@ -64,9 +64,9 @@ fn complex_numbers() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_functions() {
-    // OxFunc's seed row for BESSELJ(1.9,2) is 0.329925829, which its kernel reproduces; the
-    // documented example (0.329925728) is the mathematical value to nine digits.
-    close(call("BESSELJ", vec![n(1.9), n(2.0)]), 0.329925829, 1e-8);
+    // Preserve the Excel reading separately from the generic library calculation.
+    recorded_calculation(call("BESSELJ", vec![n(1.9), n(2.0)]),
+        f64::from_bits(0x3fd5_1d81_390f_83eb), f64::from_bits(0x3fd5_1d80_cca3_0f39));
     close(call("BESSELI", vec![n(1.5), n(1.0)]), 0.981666428, 1e-8);
     close(call("BESSELK", vec![n(1.5), n(1.0)]), 0.277387804, 1e-8);
     close(call("BESSELY", vec![n(2.5), n(1.0)]), 0.145918138, 1e-8);

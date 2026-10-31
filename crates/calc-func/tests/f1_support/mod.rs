@@ -242,6 +242,16 @@ pub fn exact(result: Result<CalcValue, FunctionFault>, expected: f64) {
     assert_eq!(got.to_bits(), expected.to_bits(), "got {got:e}, expected {expected:e}");
 }
 
+/// Pin a calculation while retaining the recorded Excel answer as a separate fact.
+/// A known mismatch remains a failure in the witness and corpus summaries.
+#[track_caller]
+pub fn recorded_calculation(result: Result<CalcValue, FunctionFault>, excel: f64, calculated: f64) {
+    let got = number(result);
+    assert_eq!(got.to_bits(), calculated.to_bits(),
+        "calculated {got:e}; pinned calculation {calculated:e}; recorded Excel {excel:e} ({:#018x})",
+        excel.to_bits());
+}
+
 /// Asserts the call computed this worksheet error.
 #[track_caller]
 pub fn error(result: Result<CalcValue, FunctionFault>, code: WorksheetErrorCode) {

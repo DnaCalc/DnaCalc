@@ -29,6 +29,8 @@
 //! `judge --trace <path>` also writes the selected input, expected and calculated result of
 //! every decoded row as JSONL, for comparisons that check individual gains and losses.
 //! Unread rows still count as failures in the summary; they have no decoded trace row.
+//! A reading file's explicit `unread` array also counts, including inputs Excel changed
+//! during the Value2 write. Those responses are not answers to the requested calls.
 //! `witness compare --before <trace> --after <trace>` streams two judge traces, rejects
 //! any change to reading identity or recorded answers, and counts gains and losses.
 //! It reports decoded rows only: use the judge summaries for unread failures.
@@ -223,6 +225,25 @@ struct Banks {
     files_read: usize,
     import_notes: Vec<String>,
     unread_rows: BTreeMap<String, usize>,
+}
+
+fn record_unread_rows(
+    doc: &Value,
+    source: &str,
+    function: &str,
+    banks: &mut Banks,
+    unread: &mut Vec<String>,
+) -> Result<(), String> {
+    if let Some(recorded) = doc.get("unread") {
+        let rows = recorded.as_array()
+            .ok_or_else(|| format!("{source}: unread must be an array of recorded failures"))?;
+        for (i, row) in rows.iter().enumerate() {
+            let detail = row.as_str().map(str::to_owned).unwrap_or_else(|| row.to_string());
+            unread.push(format!("{source}: unread row {i}: {detail}"));
+            *banks.unread_rows.entry(function.to_owned()).or_default() += 1;
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -636,6 +657,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             env: environment(String::new(), format!("{CHECKOUT} {rel}"), env, None),
         });
         let source = banks.sources.len() - 1;
+        record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
         for (i, row) in rows.iter().enumerate() {
             let (Some(args), Some(expected)) = (row["args"].as_array(), row["expected_bits"].as_str()) else {
                 unread.push(format!("{rel}: row {i} has no args or expected_bits"));
@@ -700,6 +722,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             env: environment(String::new(), format!("{CHECKOUT} {rel}"), env, None),
         });
         let source = banks.sources.len() - 1;
+        record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
         for (i, row) in rows.iter().enumerate() {
             let (Some(args), Some(expected)) = (row["args"].as_array(), row["expected_bits"].as_str()) else {
                 unread.push(format!("{rel}: row {i} has no args or expected_bits"));
@@ -1975,6 +1998,7 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
         let doc = serde_json::json!({
             "function": function,
             "witnesses": witnesses,
+            "unread": unread,
             "capture_provenance": {
                 "schema_version": "dnacalc-witness-reading/1",
                 "captured_utc": crate::accept::utc_now(),
@@ -2291,6 +2315,40 @@ mod tests {
         let doc = bank_json(raw).unwrap();
         assert_eq!(doc["function"], "ERF.PRECISE");
         assert_eq!(doc["witnesses"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn full_bank_keeps_explicit_unread_capture_rows_as_failures() {
+        let root = std::env::temp_dir().join(format!("xtask-witness-unread-{}", std::process::id()));
+        let dir = root.join("readings/excel-20527");
+        fs::create_dir_all(&dir).unwrap();
+        for manifest in MANIFESTS {
+            fs::write(root.join(manifest), "path\n").unwrap();
+        }
+        let path = dir.join("POISSON.DIST.json");
+        let mut doc = json!({
+            "function": "POISSON.DIST",
+            "witnesses": [{"id": "valid", "args": [0, 1, false], "expected_bits": "0x3fd78b56362cef38"}],
+            "unread": [
+                {"id": "changed-input", "reason": "Excel changed an input through Value2"},
+                "no result: worker did not return a value"
+            ]
+        });
+        fs::write(&path, serde_json::to_vec(&doc).unwrap()).unwrap();
+        let (banks, unread) = load_full(&root, Some("POISSON.DIST")).unwrap();
+        assert_eq!(banks.files_read, 1);
+        assert_eq!(banks.readings.len(), 1);
+        assert_eq!(banks.unread_rows.get("POISSON.DIST"), Some(&2));
+        assert_eq!(banks.readings.len() + banks.unread_rows.values().sum::<usize>(), 3);
+        assert_eq!(unread.len(), 2);
+        assert!(unread[0].contains("changed-input"));
+        let (other, _) = load_full(&root, Some("GAMMA")).unwrap();
+        assert!(other.readings.is_empty() && other.unread_rows.is_empty());
+        doc["unread"] = json!("unrecognized capture summary");
+        fs::write(&path, serde_json::to_vec(&doc).unwrap()).unwrap();
+        let Err(error) = load_full(&root, Some("POISSON.DIST")) else { panic!("malformed unread count accepted") };
+        assert!(error.contains("unread must be an array"));
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
