@@ -202,6 +202,9 @@ one of 109,440 original FV calls is rechecked per backend across all 60 pairs.
 These are bounded one-step hypotheses, not a claim about Excel's actual iterations,
 derivative or stopping rule. Microsoft's [public RATE contract](https://support.microsoft.com/en-au/excel/functions/rate-function)
 describes iteration and a successive-result criterion; it does not specify Newton.
+The present-value residual and its analytic one-period derivative also reject all
+22,800,000 tested logical assignments. This transfers the same PV/FV helpers into
+a different evaluator equation, without treating unobserved PV calls as Excel answers.
 
 The old 38,432/11,932 PMT gaps retain their original scope and denominator. Build
 20131 contributes 38,268/11,894; build 20228 contributes 164/38. Every gap has five
@@ -243,6 +246,10 @@ forming exp(t) before subtraction. Both backends have identical first kills,
 while 405 of 51,840 paired raw-component controls differ. These controls use k=0;
 they do not establish parity across the full reduction range. FYL2XP1 is a measured native
 leaf in both replays; the second is hybrid, not an emulation of that instruction.
+An additional NPER-constrained structure forms I=PV*rate before multiplying by G,
+then divides I*G by em and timing. Its 48,114,000 difference/correction profiles and
+7,085,880 direct-F2XM1 profiles all fail on the 220,888-row scope. This differs from
+both PV*G first and the previously tested I+I/em decomposition; no winner is selected.
 Per-build exact projections additionally exclude specified interest/amortization,
 PV/helper, PV*helper and binary64-FMA structures even with an arbitrary common real
 helper, using five nearest/even arithmetic models. Each completed exclusion has a
@@ -288,7 +295,7 @@ Full commands, resources, corrections and independent review are under
 `/home/ubuntu/codex-runs/dna-firehorse-20261031-round8/` (called `round8` above);
 the compact report is `/home/ubuntu/codex-runs/work-report-8.md`.
 
-The final upstream pull to `8311ace` changes `udf.rs` in the research build's guarded
+An upstream pull to `8311ace` changes `udf.rs` in the research build's guarded
 tree; its numerical files remain byte-identical. The original unit correctly refuses
 a fresh build there. A separate `annuity-r8-rebuild-unit.json` pins that source for
 rebuild validation, preserving every original unit, measured executable and question
