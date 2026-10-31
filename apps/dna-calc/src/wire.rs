@@ -76,6 +76,9 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    ApplyPaste {
+        id: u64,
+    },
     EnterCell {
         at: Key,
         text: String,
@@ -133,6 +136,15 @@ pub struct ToServer {
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    Capture {
+        area: Area,
+        keep: Option<u64>,
+    },
+    PreparePaste {
+        source: PasteSource,
+        to: Area,
+        mode: PasteMode,
+    },
     /// An answer, to show the server is there and to time a round trip.
     Ping,
     /// A new, empty workbook.
@@ -345,8 +357,60 @@ pub struct Validation {
 }
 
 /// What the server answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PasteMode {
+    All,
+    Values,
+    Formulas,
+    Formats,
+}
+
+impl PasteMode {
+    pub fn host(self) -> calc_host::PasteMode {
+        match self {
+            Self::All => calc_host::PasteMode::All,
+            Self::Values => calc_host::PasteMode::Values,
+            Self::Formulas => calc_host::PasteMode::Formulas,
+            Self::Formats => calc_host::PasteMode::Formats,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PasteSource {
+    Internal {
+        token: u64,
+        cut: bool,
+    },
+    External(Vec<Vec<String>>),
+    Fill {
+        from: Area,
+        down: bool,
+        series: bool,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Clipboard {
+    pub token: u64,
+    pub session: String,
+    pub area: Area,
+    pub revision: u64,
+    pub text: String,
+    pub html: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PastePreview {
+    pub id: u64,
+    pub area: Area,
+    pub replaces: u64,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    Clipboard(Clipboard),
+    PastePreview(PastePreview),
     /// The answer to [`Request::Ping`]: the package version the server runs.
     Pong {
         version: String,

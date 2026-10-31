@@ -112,6 +112,8 @@ pub struct ProjectedCell {
     at: CellKey,
     input: Option<CellInput>,
     value: ProjectedValue,
+    /// A format-only edit must travel through the same subscription delta as a value edit.
+    format: u32,
 }
 
 impl ProjectedCell {
@@ -121,6 +123,7 @@ impl ProjectedCell {
             at,
             input: None,
             value: ProjectedValue::Empty,
+            format: 0,
         }
     }
 
@@ -249,7 +252,12 @@ pub fn project(
                     )
                 }
             };
-            ProjectedCell { at, input, value }
+            ProjectedCell {
+                at,
+                input,
+                value,
+                format: host.cell_style(at),
+            }
         })
         .collect();
     Ok(ProjectionPage {

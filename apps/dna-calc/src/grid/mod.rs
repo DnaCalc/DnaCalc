@@ -161,6 +161,27 @@ pub fn extent(
 }
 
 fn grid_view(controller: Controller) -> impl IntoView {
+    // Firefox may dispatch a native clipboard event at BODY while the worksheet owns focus.
+    let paste = window_event_listener(leptos::ev::paste, move |ev| {
+        if crate::clipboard::grid_owns_clipboard(controller) {
+            crate::clipboard::native_paste(controller, ev);
+        }
+    });
+    let copy = window_event_listener(leptos::ev::copy, move |ev| {
+        if crate::clipboard::grid_owns_clipboard(controller) {
+            crate::clipboard::native_copy(controller, ev, false);
+        }
+    });
+    let cut = window_event_listener(leptos::ev::cut, move |ev| {
+        if crate::clipboard::grid_owns_clipboard(controller) {
+            crate::clipboard::native_copy(controller, ev, true);
+        }
+    });
+    on_cleanup(move || {
+        paste.remove();
+        copy.remove();
+        cut.remove();
+    });
     let zoom = RwSignal::new(1.0f64);
     let viewport = RwSignal::new(Viewport {
         scroll_x: 0.0,
@@ -220,6 +241,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let point_drag = StoredValue::new(false);
     let drag_pointer = StoredValue::new(None::<(f64, f64)>);
     let drag_timer = StoredValue::new(None::<IntervalHandle>);
+    let fill_from = RwSignal::new(None::<GridArea>);
+    let fill_target = RwSignal::new(None::<(GridArea, bool)>);
 
     let grid_extent = Memo::new(move |_| {
         extent(
@@ -443,6 +466,13 @@ fn grid_view(controller: Controller) -> impl IntoView {
         if ev.is_composing() || ev.key_code() == 229 {
             return;
         }
+        if ev.key() == "Escape" {
+            fill_from.set(None);
+            fill_target.set(None);
+            controller.clipboard.set(None);
+            controller.copied.set(None);
+            controller.cut.set(false);
+        }
         if controller.editing.get_untracked().is_some() {
             use wasm_bindgen::JsCast;
             if ev
@@ -473,16 +503,12 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     controller.copy();
                     return;
                 }
-                "v" => {
-                    ev.prevent_default();
-                    controller.paste();
-                    return;
-                }
                 "x" => {
                     ev.prevent_default();
                     controller.cut();
                     return;
                 }
+                "v" => return, // Native paste events supply actual system data.
                 "d" => {
                     ev.prevent_default();
                     controller.fill(true);
@@ -572,7 +598,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
         });
     };
     let drag_tick = move || {
-        if (!dragging.get_value() && !point_drag.get_value()) || document().hidden() {
+        if (!dragging.get_value() && !point_drag.get_value() && fill_from.get_untracked().is_none())
+            || document().hidden()
+        {
             return;
         }
         let Some((x, y)) = drag_pointer.get_value() else {
@@ -613,7 +641,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
             x.clamp(m.header_w + 1.0, (v.width - 1.0).max(m.header_w + 1.0)),
             y.clamp(m.header_h + 1.0, (v.height - 1.0).max(m.header_h + 1.0)),
         ) {
-            if point_drag.get_value() {
+            if let Some(from) = fill_from.get_untracked() {
+                fill_target.set(crate::clipboard::fill_extension(from, row, col));
+            } else if point_drag.get_value() {
                 controller.point_at(row, col, true);
             } else {
                 controller.extend((row, col));
@@ -704,6 +734,13 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
 
     let on_mousemove = move |ev: leptos::ev::MouseEvent| {
+        if let Some(from) = fill_from.get_untracked() {
+            drag_pointer.set_value(Some((f64::from(ev.client_x()), f64::from(ev.client_y()))));
+            if let Some(HitTarget::Cell { row, col }) = point(&ev) {
+                fill_target.set(crate::clipboard::fill_extension(from, row, col));
+            }
+            return;
+        }
         if pointer_down.get_value() || dragging.get_value() || point_drag.get_value() {
             drag_pointer.set_value(Some((f64::from(ev.client_x()), f64::from(ev.client_y()))));
             if ev.buttons() & 1 == 0 {
@@ -730,8 +767,29 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
     };
     let drag_move = window_event_listener(leptos::ev::mousemove, on_mousemove);
-    let drag_up = window_event_listener(leptos::ev::mouseup, move |_| stop_drag());
-    let drag_blur = window_event_listener(leptos::ev::blur, move |_| stop_drag());
+    let drag_up = window_event_listener(leptos::ev::mouseup, move |_| {
+        let from = fill_from.get_untracked();
+        let target = fill_target.get_untracked();
+        fill_from.set(None);
+        fill_target.set(None);
+        stop_drag();
+        if let (Some(from), Some((to, down))) = (from, target) {
+            controller.prepare_paste_at(
+                wire::PasteSource::Fill {
+                    from: wire::Area::of(from),
+                    down,
+                    series: controller.fill_series.get_untracked() == "series",
+                },
+                to,
+                true,
+            );
+        }
+    });
+    let drag_blur = window_event_listener(leptos::ev::blur, move |_| {
+        fill_from.set(None);
+        fill_target.set(None);
+        stop_drag();
+    });
     on_cleanup(move || {
         drag_move.remove();
         drag_up.remove();
@@ -923,6 +981,42 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let active_view = move || {
         let rect = active_rect();
         view! { <div class="dc-active" data-dnacalc="active-cell" use:css=rect_style(&rect)></div> }
+    };
+    let range_rect = move |area: GridArea| {
+        let m = metrics.get();
+        let v = viewport.get();
+        let first = cell_rect(&m, &v, area.first().row(), area.first().column());
+        let last = cell_rect(&m, &v, area.last().row(), area.last().column());
+        geometry::CellRect {
+            x: first.x,
+            y: first.y,
+            w: last.x + last.w - first.x,
+            h: last.y + last.h - first.y,
+        }
+    };
+    let copy_outline = move || {
+        controller.clipboard.get().filter(|area|Some(area.sheet())==controller.sheet.get()).map(|area|view! {
+        <div class="dc-copy-outline" data-dnacalc="copy-outline" data-cut=move ||controller.cut.get().to_string() use:css=rect_style(&range_rect(area))></div>
+    })
+    };
+    let fill_preview = move || {
+        fill_target.get().map(|(area,_)|view!{<div class="dc-fill-preview" data-dnacalc="fill-preview" use:css=rect_style(&range_rect(area))></div>})
+    };
+    let fill_handle = move || {
+        if controller.areas.get().len() != 1 || controller.editing.get().is_some() {
+            return None;
+        }
+        let area = controller.selected_area()?;
+        if area.cell_count() > calc_host::COPY_LIMIT {
+            return None;
+        }
+        let rect = range_rect(area);
+        Some(
+            view! {<button class="dc-fill-handle" data-dnacalc="fill-handle" title="Drag to fill; Escape cancels. Keyboard: Clipboard & fill, Fill through." tabindex="-1" aria-hidden="true"
+                use:css=format!("left:{};top:{}",px(rect.x+rect.w-6.0),px(rect.y+rect.h-6.0))
+                on:mousedown=move |ev:leptos::ev::MouseEvent| {ev.stop_propagation();ev.prevent_default();if ev.button()==0 {fill_from.set(Some(area));fill_target.set(None);pointer_down.set_value(true);start_drag();}}
+            ></button>},
+        )
     };
     // The sheet's charts (dc-6yw), as the workbook holds their series now: read again after every
     // change, drawn where their frames are, the ones in view only.
@@ -1208,6 +1302,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         {charts_view}
                         {selection_view}
                         {active_view}
+                        {copy_outline}
+                        {fill_preview}
+                        {fill_handle}
                         {point_view}
                         {dropdown_view}
                         {prompt_view}
@@ -1221,6 +1318,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     </div>
                 </div>
             </div>
+            {crate::clipboard::controls(controller)}
             <div class="dc-gridbar">
                 <span data-dnacalc="grid-note" class="dc-note">{move || note.get()}</span>
                 <button type="button" data-dnacalc="insert-cells" title="Insert the selected rows or columns (Ctrl++)"

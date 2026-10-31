@@ -31,6 +31,7 @@ pub(super) struct Context<'a> {
 
 /// One sheet's cells as read: the inputs for the model and the records kept beside it.
 pub(super) struct SheetLoad {
+    pub(super) protected: bool,
     pub(super) part: Arc<SourcePart>,
     pub(super) inputs: Vec<(CellKey, CellInput)>,
     pub(super) styles: BTreeMap<(u32, u32), u32>,
@@ -801,6 +802,7 @@ pub(super) fn load_sheet(
         id,
         part: Arc::clone(&source),
         load: SheetLoad {
+            protected: false,
             part: source,
             inputs: Vec::new(),
             styles: BTreeMap::new(),
@@ -826,6 +828,12 @@ pub(super) fn load_sheet(
     let mut bars = BTreeMap::new();
     loop {
         match events.next()? {
+            Some(XmlEvent::Start(element))
+                if element.name.is(MAIN_NAMESPACE, "sheetProtection") =>
+            {
+                sheet.load.protected = matches!(element.attribute("sheet"), Some("1" | "true"));
+                events.skip()?;
+            }
             Some(XmlEvent::Start(element))
                 if element.name.is(MAIN_NAMESPACE, "conditionalFormatting") =>
             {
@@ -905,7 +913,9 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
     let mut first = true;
     loop {
         match events.next()? {
-            Some(XmlEvent::Start(element)) if first && element.name.is(MAIN_NAMESPACE, "sheetView") => {
+            Some(XmlEvent::Start(element))
+                if first && element.name.is(MAIN_NAMESPACE, "sheetView") =>
+            {
                 first = false;
                 view.top_left = element.attribute("topLeftCell").and_then(address::cell);
                 let mut active_pane = "topLeft".to_owned();
@@ -921,8 +931,15 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                         Some(XmlEvent::Start(child))
                             if child.name.is(MAIN_NAMESPACE, "selection") =>
                         {
-                            let pane = child.attribute("pane").unwrap_or("topLeft").trim().to_owned();
-                            selections.push((pane, child.attribute("activeCell").and_then(address::cell)));
+                            let pane = child
+                                .attribute("pane")
+                                .unwrap_or("topLeft")
+                                .trim()
+                                .to_owned();
+                            selections.push((
+                                pane,
+                                child.attribute("activeCell").and_then(address::cell),
+                            ));
                             events.skip()?;
                         }
                         Some(XmlEvent::Start(_)) => events.skip()?,

@@ -113,11 +113,16 @@ pub struct LoadedSheet {
     view: SheetView,
     conditional_formats: Arc<[ConditionalFormat]>,
     macro_sheet: bool,
+    protected: bool,
     validations: Arc<[Validation]>,
     charts: Arc<SheetCharts>,
 }
 
 impl LoadedSheet {
+    /// Whether worksheet protection is enabled. Editing locked/unlocked subsets is not yet modelled.
+    pub fn protected(&self) -> bool {
+        self.protected
+    }
     /// Whether the sheet is an Excel 4.0 macro sheet (dc-xuw): its formula cells are unloaded
     /// ([`calc_doc_model::UnloadedCell::MacroSheet`]) and a save that would change its part is
     /// refused ([`crate::SaveRefusal::MacroSheetChanged`]).
@@ -1073,6 +1078,7 @@ pub fn load(
                     view: loaded.view,
                     conditional_formats: loaded.conditional_formats.into(),
                     macro_sheet: declared.macro_sheet,
+                    protected: loaded.protected,
                     validations: loaded.validations.into(),
                     charts: Arc::new(chart::read_charts(package, &declared.part)),
                 });

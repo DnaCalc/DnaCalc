@@ -37,8 +37,9 @@ use calc_doc_model::value::{
     CalcValue, CellKey, CoreRef, GridArea, fold_workbook_name, workbook_names_equal,
 };
 use calc_doc_model::{ArrayFormula, ArrayKind, CellInput, CellText, FiniteNumber};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::sync::Arc;
 
 /// Why a copy made no edit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,16 +55,56 @@ pub enum CopyRefusal {
     /// The target reaches past the grid.
     PastTheGrid,
     /// The copy would make more edits than a copy takes at once.
-    TooLarge { cells: u64 },
+    TooLarge {
+        cells: u64,
+    },
     /// A source formula's text does not parse, so it cannot be relocated.
-    Unrelocatable { at: CellKey },
+    Unrelocatable {
+        at: CellKey,
+    },
     /// The source holds part of a legacy array formula, which is copied or moved only whole.
-    PartOfArray { anchor: CellKey },
+    PartOfArray {
+        anchor: CellKey,
+    },
+    SourceChanged,
+    UnavailableValue {
+        at: CellKey,
+    },
+    Protected,
+    PartialSpill {
+        anchor: CellKey,
+    },
+    Series,
+    LegacyFill,
 }
 
 impl fmt::Display for CopyRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::LegacyFill => f.write_str(
+                "fill from a legacy array is not modelled; copy its whole extent instead",
+            ),
+            Self::SourceChanged => {
+                f.write_str("the cut source changed; cut it again before moving it")
+            }
+            Self::UnavailableValue { at } => write!(
+                f,
+                "row {} column {} has no current calculated value; calculate before copying values",
+                at.row(),
+                at.column()
+            ),
+            Self::Protected => {
+                f.write_str("pasting into a protected sheet is not modelled; nothing was changed")
+            }
+            Self::PartialSpill { anchor } => write!(
+                f,
+                "the edit would change part of the array at row {} column {}; select its whole extent",
+                anchor.row(),
+                anchor.column()
+            ),
+            Self::Series => f.write_str(
+                "this series needs one date or evenly spaced numeric seeds in each row or column",
+            ),
             CopyRefusal::UnknownSheet => {
                 f.write_str("the copy names a sheet the workbook does not hold")
             }
@@ -100,6 +141,219 @@ impl std::error::Error for CopyRefusal {}
 /// The most cells one copy writes.
 pub const COPY_LIMIT: u64 = 1_000_000;
 
+/// Paste Special's independent content/format choices. Formulas includes literal inputs, as Excel does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PasteMode {
+    All,
+    Values,
+    Formulas,
+    Formats,
+}
+
+/// An immutable copy of authored content, cell formats and current values. It stays in the host;
+/// the page receives only a clipboard token and a text export.
+#[derive(Clone, Debug)]
+pub struct CopySnapshot {
+    from: GridArea,
+    model: Arc<calc_doc_model::ModelRoot>,
+    styles: BTreeMap<CellKey, u32>,
+    values: BTreeMap<CellKey, Result<Option<CellInput>, CopyRefusal>>,
+    dates: BTreeSet<CellKey>,
+    spills: Vec<GridArea>,
+}
+
+impl CopySnapshot {
+    pub fn capture(host: &HostState, from: GridArea) -> Result<Self, CopyRefusal> {
+        if host.model.sheet_by_id(from.sheet()).is_none() {
+            return Err(CopyRefusal::UnknownSheet);
+        }
+        if from.cell_count() > COPY_LIMIT {
+            return Err(CopyRefusal::TooLarge {
+                cells: from.cell_count(),
+            });
+        }
+        let cells: Vec<_> = (from.first().row()..=from.last().row())
+            .flat_map(|row| {
+                (from.first().column()..=from.last().column())
+                    .map(move |col| CellKey::new(from.sheet(), row, col).unwrap())
+            })
+            .collect();
+        let page = crate::project(
+            host,
+            &crate::ProjectionRequest {
+                cells: cells.clone(),
+            },
+        )
+        .map_err(|_| CopyRefusal::UnknownSheet)?;
+        let values =
+            page.cells()
+                .iter()
+                .map(|cell| {
+                    use crate::ProjectedValue;
+                    let value = match cell.value() {
+                        ProjectedValue::Empty => Ok(None),
+                        ProjectedValue::Literal(v)
+                        | ProjectedValue::Calculated { value: v, .. } => match value_input(v) {
+                            Some(input) => Ok(Some(input)),
+                            None if matches!(v.core_ref(), CoreRef::Empty) => Ok(None),
+                            None => Err(CopyRefusal::UnavailableValue { at: cell.at() }),
+                        },
+                        _ => Err(CopyRefusal::UnavailableValue { at: cell.at() }),
+                    };
+                    (cell.at(), value)
+                })
+                .collect();
+        Ok(Self {
+            from,
+            model: Arc::clone(&host.model),
+            values,
+            styles: cells.iter().map(|&at| (at, host.cell_style(at))).collect(),
+            dates: cells
+                .iter()
+                .copied()
+                .filter(|&at| date_format(host.number_format(at).unwrap_or("")))
+                .collect(),
+            spills: host.engine.spills().map(|spill| spill.area()).collect(),
+        })
+    }
+
+    pub fn area(&self) -> GridArea {
+        self.from
+    }
+
+    /// Plan one atomic paste. A cut additionally verifies the source still holds the snapshot.
+    pub fn edits(
+        &self,
+        host: &HostState,
+        to: GridArea,
+        mode: PasteMode,
+        cut: bool,
+        series: Option<bool>,
+    ) -> Result<Vec<CellEdit>, CopyRefusal> {
+        if cut
+            && (host.revision() != self.model.revision()
+                || self.styles.iter().any(|(&at, &style)| {
+                    host.model.cell(at) != self.model.cell(at) || host.cell_style(at) != style
+                }))
+        {
+            return Err(CopyRefusal::SourceChanged);
+        }
+        let to = self.target(to)?;
+        check_destination(host, to, mode)?;
+        if cut {
+            check_destination(host, self.from, PasteMode::All)?;
+        }
+        copy_edits_from(host, self.from, to, cut, Some(self), mode, series, false)
+    }
+
+    /// Extend a seed rectangle along one axis, including an incomplete repetition at the far edge.
+    pub fn fill_edits(
+        &self,
+        host: &HostState,
+        to: GridArea,
+        down: bool,
+        series: bool,
+    ) -> Result<Vec<CellEdit>, CopyRefusal> {
+        check_destination(host, to, PasteMode::All)?;
+        copy_edits_from(
+            host,
+            self.from,
+            to,
+            false,
+            Some(self),
+            PasteMode::All,
+            series.then_some(down),
+            true,
+        )
+    }
+
+    pub fn target(&self, to: GridArea) -> Result<GridArea, CopyRefusal> {
+        if to.cell_count() != 1 {
+            return Ok(to);
+        }
+        let last = CellKey::new(
+            to.sheet(),
+            to.first().row() + self.from.row_count() - 1,
+            to.first().column() + self.from.column_count() - 1,
+        )
+        .map_err(|_| CopyRefusal::PastTheGrid)?;
+        GridArea::new(to.first(), last).map_err(|_| CopyRefusal::PastTheGrid)
+    }
+}
+
+fn date_format(code: &str) -> bool {
+    let mut quoted = false;
+    let mut escaped = false;
+    let mut bracket = false;
+    code.chars().any(|ch| {
+        if escaped {
+            escaped = false;
+            return false;
+        }
+        if ch == '\\' {
+            escaped = true;
+            return false;
+        }
+        if ch == '"' {
+            quoted = !quoted;
+            return false;
+        }
+        if !quoted && ch == '[' {
+            bracket = true;
+            return false;
+        }
+        if !quoted && ch == ']' {
+            bracket = false;
+            return false;
+        }
+        !quoted && !bracket && matches!(ch, 'd' | 'D' | 'y' | 'Y')
+    })
+}
+
+/// A destructive range write never edits only part of an existing array. Formats may cover children.
+pub fn check_destination(
+    host: &HostState,
+    to: GridArea,
+    mode: PasteMode,
+) -> Result<(), CopyRefusal> {
+    if host.model.sheet_by_id(to.sheet()).is_none() {
+        return Err(CopyRefusal::UnknownSheet);
+    }
+    if host
+        .loaded
+        .sheet(to.sheet())
+        .is_some_and(|sheet| sheet.protected())
+    {
+        return Err(CopyRefusal::Protected);
+    }
+    if to.cell_count() > COPY_LIMIT {
+        return Err(CopyRefusal::TooLarge {
+            cells: to.cell_count(),
+        });
+    }
+    if mode == PasteMode::Formats {
+        return Ok(());
+    }
+    for area in host
+        .engine
+        .spills()
+        .map(|s| s.area())
+        .chain(host.model.definitions().arrays().map(|a| a.area()))
+    {
+        let overlaps = area.sheet() == to.sheet()
+            && area.first().row() <= to.last().row()
+            && to.first().row() <= area.last().row()
+            && area.first().column() <= to.last().column()
+            && to.first().column() <= area.last().column();
+        if overlaps && !(to.contains(area.first()) && to.contains(area.last())) {
+            return Err(CopyRefusal::PartialSpill {
+                anchor: area.first(),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// The cell `rows` and `columns` from `at`, on `sheet`.
 fn offset(
     sheet: calc_doc_model::value::SheetId,
@@ -120,6 +374,7 @@ fn value_input(value: &CalcValue) -> Option<CellInput> {
         CoreRef::Text(text) => CellInput::Text(CellText::new(text.clone())?),
         CoreRef::Logical(logical) => CellInput::Logical(logical),
         CoreRef::Error(code) => CellInput::Error(code),
+        CoreRef::Array(array) => return array.get(0, 0).and_then(value_input),
         _ => return None,
     })
 }
@@ -132,13 +387,32 @@ pub(crate) fn copy_edits(
     to: GridArea,
     cut: bool,
 ) -> Result<Vec<CellEdit>, CopyRefusal> {
+    CopySnapshot::capture(host, from)?.edits(host, to, PasteMode::All, cut, None)
+}
+
+fn copy_edits_from(
+    host: &HostState,
+    from: GridArea,
+    to: GridArea,
+    cut: bool,
+    snapshot: Option<&CopySnapshot>,
+    mode: PasteMode,
+    series: Option<bool>,
+    partial: bool,
+) -> Result<Vec<CellEdit>, CopyRefusal> {
+    let source_model = snapshot.map_or(&host.model, |s| &s.model);
+    let source_style = |at| {
+        snapshot
+            .and_then(|s| s.styles.get(&at).copied())
+            .unwrap_or_else(|| host.cell_style(at))
+    };
     let model = &host.model;
     if model.sheet_by_id(from.sheet()).is_none() || model.sheet_by_id(to.sheet()).is_none() {
         return Err(CopyRefusal::UnknownSheet);
     }
     let (source_rows, source_cols) = (from.row_count(), from.column_count());
     // A single target cell takes the source's shape.
-    let to = if to.row_count() == 1 && to.column_count() == 1 {
+    let to = if !partial && to.row_count() == 1 && to.column_count() == 1 {
         let first = to.first();
         let last = CellKey::new(
             to.sheet(),
@@ -154,7 +428,7 @@ pub(crate) fn copy_edits(
         source: (source_rows, source_cols),
         target: (to.row_count(), to.column_count()),
     };
-    if to.row_count() % source_rows != 0 || to.column_count() % source_cols != 0 {
+    if !partial && (to.row_count() % source_rows != 0 || to.column_count() % source_cols != 0) {
         return Err(shape);
     }
     if cut && (to.row_count() != source_rows || to.column_count() != source_cols) {
@@ -166,9 +440,12 @@ pub(crate) fn copy_edits(
         });
     }
     // The legacy arrays of the source, each of which must lie in it whole.
-    let definitions = model.definitions();
+    let definitions = source_model.definitions();
     let mut legacy: Vec<ArrayFormula> = Vec::new();
     for array in definitions.arrays_meeting(from) {
+        if matches!(mode, PasteMode::Values | PasteMode::Formats) {
+            continue;
+        }
         if array.kind() != ArrayKind::Legacy {
             continue;
         }
@@ -179,6 +456,9 @@ pub(crate) fn copy_edits(
             });
         }
         legacy.push(*array);
+    }
+    if partial && !legacy.is_empty() {
+        return Err(CopyRefusal::LegacyFill);
     }
     let in_legacy = |at: CellKey| legacy.iter().any(|array| array.area().contains(at));
 
@@ -215,7 +495,7 @@ pub(crate) fn copy_edits(
                     .unwrap_or_else(|| formula.clone()),
             )
         } else {
-            calc_engine::relocate_formula(model, formula, source, target)
+            calc_engine::relocate_formula(source_model, formula, source, target)
         }
     };
     for row in top..=to.last().row() {
@@ -223,17 +503,99 @@ pub(crate) fn copy_edits(
             let target = CellKey::new(to.sheet(), row, column).expect("inside the target area");
             let source = CellKey::new(
                 from.sheet(),
-                from.first().row() + (row - top) % source_rows,
-                from.first().column() + (column - left) % source_cols,
+                from.first().row()
+                    + if partial {
+                        (i64::from(row) - i64::from(from.first().row()))
+                            .rem_euclid(i64::from(source_rows)) as u32
+                    } else {
+                        (row - top) % source_rows
+                    },
+                from.first().column()
+                    + if partial {
+                        (i64::from(column) - i64::from(from.first().column()))
+                            .rem_euclid(i64::from(source_cols)) as u32
+                    } else {
+                        (column - left) % source_cols
+                    },
             )
             .expect("inside the source area");
-            restyle(&mut edits, target, host.cell_style(source));
+            if matches!(mode, PasteMode::All | PasteMode::Formats) {
+                restyle(&mut edits, target, source_style(source));
+            }
+            if mode == PasteMode::Formats {
+                continue;
+            }
+            if mode == PasteMode::Values {
+                let input = snapshot
+                    .and_then(|s| s.values.get(&source))
+                    .cloned()
+                    .unwrap_or(Err(CopyRefusal::UnavailableValue { at: source }))?;
+                edits.push(match input {
+                    Some(input) => CellEdit::Set { at: target, input },
+                    None => CellEdit::Clear {
+                        area: GridArea::cell(target),
+                    },
+                });
+                continue;
+            }
+            if let (Some(down), Some(snapshot)) = (series, snapshot) {
+                let n = if down { source_rows } else { source_cols };
+                let seed_at = |i| {
+                    CellKey::new(
+                        from.sheet(),
+                        if down {
+                            from.first().row() + i
+                        } else {
+                            source.row()
+                        },
+                        if down {
+                            source.column()
+                        } else {
+                            from.first().column() + i
+                        },
+                    )
+                    .unwrap()
+                };
+                let number = |i| match source_model.cell(seed_at(i)) {
+                    Some(CellInput::Number(n)) => Some(n.get()),
+                    _ => None,
+                };
+                if let Some(first) = number(0) {
+                    let step = if n > 1 {
+                        number(1).map(|v| v - first)
+                    } else if snapshot.dates.contains(&source) {
+                        Some(1.0)
+                    } else {
+                        None
+                    };
+                    if let Some(step) = step {
+                        if (0..n).any(|i| {
+                            number(i)
+                                .is_none_or(|v| (v - (first + step * f64::from(i))).abs() > 1e-9)
+                        }) {
+                            return Err(CopyRefusal::Series);
+                        }
+                        let index = if down {
+                            i64::from(row) - i64::from(from.first().row())
+                        } else {
+                            i64::from(column) - i64::from(from.first().column())
+                        };
+                        let input = FiniteNumber::new(first + step * index as f64)
+                            .ok_or(CopyRefusal::Series)?;
+                        edits.push(CellEdit::Set {
+                            at: target,
+                            input: CellInput::Number(input),
+                        });
+                        continue;
+                    }
+                }
+            }
             if let Some(array) = legacy.iter().find(|array| array.area().contains(source)) {
                 // A legacy array is written once, from its anchor, over its shape.
                 if array.anchor() != source {
                     continue;
                 }
-                let Some(CellInput::Formula(formula)) = model.cell(source) else {
+                let Some(CellInput::Formula(formula)) = source_model.cell(source) else {
                     continue;
                 };
                 let area = array.area();
@@ -258,7 +620,7 @@ pub(crate) fn copy_edits(
                 });
                 continue;
             }
-            let edit = match model.cell(source) {
+            let edit = match source_model.cell(source) {
                 Some(CellInput::Formula(formula)) => {
                     let formula = formula_text(source, target, formula)
                         .ok_or(CopyRefusal::Unrelocatable { at: source })?;
@@ -273,11 +635,17 @@ pub(crate) fn copy_edits(
                 },
                 // A cell a dynamic array spilled into, whose anchor is not copied with it, is
                 // copied as its value.
-                None => match host
-                    .engine
-                    .spill_covering(source)
-                    .filter(|spill| !from.contains(spill.anchor()) && !in_legacy(source))
-                    .and_then(|spill| value_input(spill.value_at(source)))
+                None => match snapshot
+                    .filter(|s| {
+                        !s.spills
+                            .iter()
+                            .any(|area| area.contains(source) && from.contains(area.first()))
+                            && !in_legacy(source)
+                    })
+                    .and_then(|s| s.values.get(&source))
+                    .cloned()
+                    .transpose()?
+                    .flatten()
                 {
                     Some(input) if !cut => CellEdit::Set { at: target, input },
                     _ => CellEdit::Clear {
@@ -368,8 +736,7 @@ pub(crate) fn copy_edits(
             {
                 let lower = fold_workbook_name(&name.name);
                 let taken = definitions.names().iter().any(|held| {
-                    held.scope == target
-                        && workbook_names_equal(&held.name, &name.name)
+                    held.scope == target && workbook_names_equal(&held.name, &name.name)
                 });
                 if taken || !moving.iter().any(|text| uses_name(text, &lower)) {
                     continue;

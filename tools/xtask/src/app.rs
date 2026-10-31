@@ -861,6 +861,8 @@ fn select(app: &App, name: &str) -> String {
 
 /// What a case does. A name is a role or a selector ([`select`]).
 pub enum Action {
+    /// Put a table on the real system clipboard by copying from a temporary external editor.
+    ExternalClipboard(&'static str, bool),
     /// DNA OneCalc: types into a grid cell, after clearing it.
     Grid(&'static str, &'static str),
     /// DNA OneCalc: clears the formula field and types this.
@@ -885,10 +887,12 @@ pub enum Action {
     UploadDownload(&'static str),
     /// Prepare an explicitly manual cache fixture with the existing package-part editor.
     ManualDownloadFixture,
+    ProtectedDownloadFixture,
     /// Observe delayed external events in fault cases.
     PauseMillis(u64),
     /// A real pointer drag between two rendered elements.
     Drag(&'static str, &'static str),
+    DragToCell(&'static str, u32, &'static str),
     /// Synthetic IME events exercise the composition boundary; this is not a device IME test.
     Composing(&'static str, &'static str),
     CompositionEnd(&'static str),
@@ -902,6 +906,7 @@ pub enum Action {
 
 /// What a case expects the page to show. A name is a role or a selector ([`select`]).
 pub enum Check {
+    TextContains(&'static str, &'static str),
     /// The element's text.
     Text(&'static str, &'static str),
     /// The element's text starts with this.
@@ -2950,6 +2955,10 @@ const CALC_CASES: &[Case] = &[
         name: "shared states: an uncommitted Notebook draft is protected by New",
         actions: &[
             Action::Click("skin-notebook"),
+            Action::Wait(Check::Value(
+                "[data-dnacalc=block][data-cell=A1] input",
+                "9",
+            )),
             Action::Into("[data-dnacalc=block][data-cell=A1] input", "123"),
             Action::Click("new"),
         ],
@@ -3631,6 +3640,493 @@ const CALC_CASES: &[Case] = &[
             Check::Reachable("active-cell"),
         ],
     },
+    Case {
+        name: "clipboard: a real external TSV matrix pastes into a new workbook",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Click("skin-atlas"),
+            Action::Click("skin-grid"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::ExternalClipboard("2\t3\n4\t5", false),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "2"),
+            Check::Text(cell!("B1"), "3"),
+            Check::Text(cell!("A2"), "4"),
+            Check::Text(cell!("B2"), "5"),
+            Check::Value(BAR, "2"),
+        ],
+    },
+    Case {
+        name: "clipboard: one Undo removes the whole external paste, Redo restores it",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Absent(cell!("A1")),
+            Check::Absent(cell!("B1")),
+            Check::Absent(cell!("A2")),
+            Check::Absent(cell!("B2")),
+        ],
+    },
+    Case {
+        name: "clipboard: real HTML table paste decodes entities, formulas and empty cells",
+        actions: &[
+            Action::ExternalClipboard(
+                "<table><tr><td>7</td><td>=A1*2</td></tr><tr><td>A &amp; B</td><td></td></tr></table>",
+                true,
+            ),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "7"),
+            Check::Text(cell!("B1"), "14"),
+            Check::Text(cell!("A2"), "A & B"),
+            Check::Absent(cell!("B2")),
+        ],
+    },
+    Case {
+        name: "clipboard: a conflict previews without changing cells; Escape cancels",
+        actions: &[
+            Action::ExternalClipboard("99\t100", false),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Wait(Check::TextContains("paste-preview", "2 existing inputs")),
+            Action::Keys("paste-confirm", ESCAPE),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "7"),
+            Check::Text(cell!("B1"), "14"),
+            Check::Absent("[data-dnacalc=clipboard-dialog][open]"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "clipboard: confirming replaces the destination as one undo group",
+        actions: &[
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Wait(Check::TextContains("paste-preview", "2 existing inputs")),
+            Action::Click("paste-confirm"),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "99"),
+            Check::Text(cell!("B1"), "100"),
+        ],
+    },
+    Case {
+        name: "clipboard: Undo restores the overwritten formula and value",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Text(cell!("A1"), "7"),
+            Check::Text(cell!("B1"), "14"),
+            Check::Attr(cell!("B1"), "data-formula", "true"),
+        ],
+    },
+    Case {
+        name: "clipboard: copied formulas are immutable snapshots with mixed anchors",
+        actions: &[
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Into(BAR, "=$A1+A$1+$A$1\u{E007}"),
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Keys("grid", "\u{E009}c\u{E000}"),
+            Action::Wait(Check::Count("copy-outline", 1)),
+            Action::Into(BAR, "=999\u{E007}"),
+            Action::Into("name-box", "D2\u{E007}"),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+        ],
+        checks: &[
+            Check::Value(BAR, "=$A2+B$1+$A$1"),
+            Check::Attr(cell!("D2"), "data-formula", "true"),
+            Check::Text(cell!("C1"), "999"),
+        ],
+    },
+    Case {
+        name: "clipboard: Paste Special values uses the value captured at copy time",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", "\u{E009}c\u{E000}"),
+            Action::Wait(Check::Count("copy-outline", 1)),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into(BAR, "10\u{E007}"),
+            Action::Click("[data-dnacalc=clipboard-tools] summary"),
+            Action::Choose("paste-mode", "values"),
+            Action::Into("name-box", "F1\u{E007}"),
+            Action::Click("paste-snapshot"),
+        ],
+        checks: &[
+            Check::Text(cell!("F1"), "14"),
+            Check::Attr(cell!("F1"), "data-formula", "false"),
+            Check::Text(cell!("B1"), "20"),
+        ],
+    },
+    Case {
+        name: "clipboard: the explicit text route needs no clipboard API permissions",
+        actions: &[
+            Action::Choose("paste-mode", "all"),
+            Action::Into("name-box", "F3\u{E007}"),
+            Action::ExternalClipboard("8\t9\n10\t11", false),
+            Action::Click("paste-fallback"),
+            Action::Keys("clipboard-text", "\u{E009}v\u{E000}"),
+            Action::Click("paste-text"),
+        ],
+        checks: &[
+            Check::Text(cell!("F3"), "8"),
+            Check::Text(cell!("G3"), "9"),
+            Check::Text(cell!("F4"), "10"),
+            Check::Text(cell!("G4"), "11"),
+        ],
+    },
+    Case {
+        name: "clipboard: a malformed external matrix fails atomically",
+        actions: &[
+            Action::Into("name-box", "F3\u{E007}"),
+            Action::ExternalClipboard("1\t2\n3", false),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+        ],
+        checks: &[
+            Check::Starts("status", "Paste a rectangular table"),
+            Check::Text(cell!("F3"), "8"),
+            Check::Text(cell!("G4"), "11"),
+        ],
+    },
+    Case {
+        name: "clipboard: a partial spill write is refused before any neighboring edit",
+        actions: &[
+            Action::Into("name-box", "I1\u{E007}"),
+            Action::Into(BAR, "=SEQUENCE(3)\u{E007}"),
+            Action::Into("name-box", "H2\u{E007}"),
+            Action::ExternalClipboard("5\t6", false),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+        ],
+        checks: &[
+            Check::TextContains("status", "part of the array"),
+            Check::Absent(cell!("H2")),
+            Check::Text(cell!("I2"), "2"),
+        ],
+    },
+    Case {
+        name: "fill: the handle previews numeric series and cancellation leaves cells empty",
+        actions: &[
+            Action::Into("name-box", "A6\u{E007}"),
+            Action::Into(BAR, "1\u{E007}"),
+            Action::Into(BAR, "3\u{E007}"),
+            Action::Into("name-box", "A6:A7\u{E007}"),
+            Action::DragToCell("fill-handle", 10, "A"),
+            Action::Wait(Check::TextContains("paste-preview", "3 cells")),
+            Action::Click("paste-cancel"),
+        ],
+        checks: &[
+            Check::Absent(cell!("A8")),
+            Check::Absent(cell!("A10")),
+            Check::Attr("selection", "data-area", "A6:A7"),
+        ],
+    },
+    Case {
+        name: "fill: a numeric series extends its seeds with one Undo",
+        actions: &[
+            Action::DragToCell("fill-handle", 10, "A"),
+            Action::Wait(Check::TextContains("paste-preview", "3 cells")),
+            Action::Click("paste-confirm"),
+        ],
+        checks: &[
+            Check::Text(cell!("A8"), "5"),
+            Check::Text(cell!("A9"), "7"),
+            Check::Text(cell!("A10"), "9"),
+        ],
+    },
+    Case {
+        name: "fill: one Undo removes the series and retains its seeds",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Text(cell!("A6"), "1"),
+            Check::Text(cell!("A7"), "3"),
+            Check::Absent(cell!("A8")),
+            Check::Absent(cell!("A10")),
+        ],
+    },
+    Case {
+        name: "fill: keyboard users preview and apply the same series through an end address",
+        actions: &[
+            Action::Into("fill-through", "A10\u{E007}"),
+            Action::Wait(Check::TextContains("paste-preview", "3 cells")),
+            Action::Click("paste-confirm"),
+        ],
+        checks: &[
+            Check::Text(cell!("A8"), "5"),
+            Check::Text(cell!("A10"), "9"),
+        ],
+    },
+    Case {
+        name: "fill: keyboard series is one Undo and compact commands fit a phone viewport",
+        actions: &[Action::Click("undo"), Action::Window(390, 844)],
+        checks: &[
+            Check::Absent(cell!("A10")),
+            Check::Fits,
+            Check::Reachable("paste"),
+            Check::Reachable("fill-through-preview"),
+        ],
+    },
+    Case {
+        name: "clipboard: native copy exports a table readable in a plain text editor",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Into("name-box", "F3:G4\u{E007}"),
+            Action::Keys("grid", "\u{E009}c\u{E000}"),
+            Action::PauseMillis(150),
+            Action::Click("paste-fallback"),
+            Action::Keys("clipboard-text", "\u{E009}v\u{E000}"),
+        ],
+        checks: &[Check::Value("clipboard-text", "8\t9\n10\t11")],
+    },
+    Case {
+        name: "clipboard: external blanks clear a selected rectangle and repeat as a whole matrix",
+        actions: &[
+            Action::Click("paste-cancel"),
+            Action::Into("name-box", "F3:G4\u{E007}"),
+            Action::ExternalClipboard("\t12", false),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+            Action::Wait(Check::TextContains("paste-preview", "4 existing inputs")),
+            Action::Click("paste-confirm"),
+        ],
+        checks: &[
+            Check::Absent(cell!("F3")),
+            Check::Absent(cell!("F4")),
+            Check::Text(cell!("G3"), "12"),
+            Check::Text(cell!("G4"), "12"),
+        ],
+    },
+    Case {
+        name: "clipboard: a failed cut paste retains the source and its snapshot",
+        actions: &[
+            Action::Into("name-box", "G3:G4\u{E007}"),
+            Action::Keys("grid", "\u{E009}x\u{E000}"),
+            Action::Into("name-box", "K1:L3\u{E007}"),
+            Action::Click("paste-snapshot"),
+        ],
+        checks: &[
+            Check::TextContains("status", "not a whole multiple"),
+            Check::Text(cell!("G3"), "12"),
+            Check::Text(cell!("G4"), "12"),
+            Check::Attr("copy-outline", "data-cut", "true"),
+            Check::Absent(cell!("K1")),
+        ],
+    },
+    Case {
+        name: "clipboard: cancelling a cut overwrite retains both source and destination",
+        actions: &[
+            Action::Into("name-box", "A6:A7\u{E007}"),
+            Action::Click("paste-snapshot"),
+            Action::Wait(Check::TextContains("paste-preview", "2 existing inputs")),
+            Action::Click("paste-cancel"),
+        ],
+        checks: &[
+            Check::Text(cell!("G3"), "12"),
+            Check::Text(cell!("G4"), "12"),
+            Check::Text(cell!("A6"), "1"),
+            Check::Text(cell!("A7"), "3"),
+        ],
+    },
+    Case {
+        name: "clipboard: an edited cut source is refused without clearing either range",
+        actions: &[
+            Action::Into("name-box", "G3\u{E007}"),
+            Action::Into(BAR, "15\u{E007}"),
+            Action::Into("name-box", "K1\u{E007}"),
+            Action::Click("paste-snapshot"),
+        ],
+        checks: &[
+            Check::TextContains("status", "cut source changed"),
+            Check::Text(cell!("G3"), "15"),
+            Check::Absent(cell!("K1")),
+        ],
+    },
+    Case {
+        name: "fill: formula handle fill keeps relative and mixed references",
+        actions: &[
+            Action::Into("name-box", "C6\u{E007}"),
+            Action::Into(BAR, "=$A6+A$6\u{E007}"),
+            Action::Into("name-box", "C6\u{E007}"),
+            Action::DragToCell("fill-handle", 9, "C"),
+            Action::Wait(Check::TextContains("paste-preview", "3 cells")),
+            Action::Click("paste-confirm"),
+            Action::Into("name-box", "C9\u{E007}"),
+        ],
+        checks: &[
+            Check::Value(BAR, "=$A9+A$6"),
+            Check::Text(cell!("C7"), "4"),
+            Check::Text(cell!("C9"), "1"),
+        ],
+    },
+    Case {
+        name: "fill: Ctrl R repeats the first column as one operation",
+        actions: &[
+            Action::Into("name-box", "A6:B7\u{E007}"),
+            Action::Keys("grid", "\u{E009}r\u{E000}"),
+        ],
+        checks: &[Check::Text(cell!("B6"), "1"), Check::Text(cell!("B7"), "3")],
+    },
+    Case {
+        name: "fill: an open formula draft disables the keyboard fill commands",
+        actions: &[
+            Action::Into("name-box", "A6\u{E007}"),
+            Action::Into(BAR, "2"),
+        ],
+        checks: &[
+            Check::Value(BAR, "2"),
+            Check::Attr("fill-through", "disabled", ""),
+            Check::Attr("fill-through-preview", "disabled", ""),
+            Check::Absent("[data-dnacalc=clipboard-dialog][open]"),
+            Check::Text(cell!("A6"), "1"),
+        ],
+    },
+    Case {
+        name: "clipboard: toolbar Paste refuses several selected areas before reading the clipboard",
+        actions: &[
+            Action::Keys(BAR, ESCAPE),
+            Action::Into("name-box", "A6\u{E007}"),
+            Action::CtrlClick(cell!("B7")),
+            Action::Click("paste"),
+        ],
+        checks: &[
+            Check::TextContains("status", "Select one rectangle"),
+            Check::Text(cell!("A6"), "1"),
+            Check::Text(cell!("B7"), "3"),
+            Check::Absent("[data-dnacalc=clipboard-dialog][open]"),
+        ],
+    },
+    Case {
+        name: "clipboard: Paste Special formats retains content and uses the copied cell format",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "formats.xlsx")),
+            Action::Into("name-box", "G3\u{E007}"),
+            Action::Into(BAR, "45323\u{E007}"),
+            Action::Into("name-box", "A3\u{E007}"),
+            Action::Keys("grid", "\u{E009}c\u{E000}"),
+            Action::Choose("paste-mode", "formats"),
+            Action::Into("name-box", "G3\u{E007}"),
+            Action::Click("paste-snapshot"),
+        ],
+        checks: &[
+            Check::Text(cell!("G3"), "########"),
+            Check::Value(BAR, "45323"),
+            Check::Attr(cell!("G3"), "data-format", "applied"),
+            Check::Attr(cell!("G3"), "data-formula", "false"),
+        ],
+    },
+    Case {
+        name: "clipboard: Undo repaints a format-only paste without changing its input",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Text(cell!("G3"), "45323"),
+            Check::Value(BAR, "45323"),
+            Check::Attr(cell!("G3"), "data-format", "general"),
+        ],
+    },
+    Case {
+        name: "clipboard: Redo repaints a format-only paste",
+        actions: &[Action::Click("redo")],
+        checks: &[Check::Text(cell!("G3"), "########")],
+    },
+    Case {
+        name: "clipboard: Paste Special formulas keeps the destination format",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into(BAR, "=45000+323\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", "\u{E009}c\u{E000}"),
+            Action::Choose("paste-mode", "formulas"),
+            Action::Into("name-box", "G3\u{E007}"),
+            Action::Click("paste-snapshot"),
+            Action::Wait(Check::TextContains("paste-preview", "1 existing inputs")),
+            Action::Click("paste-confirm"),
+        ],
+        checks: &[
+            Check::Attr(cell!("G3"), "data-format", "applied"),
+            Check::Attr(cell!("G3"), "data-formula", "true"),
+        ],
+    },
+    Case {
+        name: "fill: date handle fill extends daily dates with the source format",
+        actions: &[
+            Action::Choose("paste-mode", "all"),
+            Action::Into("name-box", "A3\u{E007}"),
+            Action::DragToCell("fill-handle", 5, "A"),
+            Action::Wait(Check::TextContains("paste-preview", "2 cells")),
+            Action::Click("paste-confirm"),
+        ],
+        checks: &[
+            Check::Text(cell!("A4"), "2024-02-01"),
+            Check::Text(cell!("A5"), "2024-02-02"),
+        ],
+    },
+    Case {
+        name: "clipboard: special formats and a filled date survive save and reopen",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("formats.xlsx"),
+            Action::DiscardReplacement,
+        ],
+        checks: &[
+            Check::Text(cell!("A5"), "2024-02-02"),
+            Check::Attr(cell!("G3"), "data-format", "applied"),
+            Check::Attr(cell!("G3"), "data-formula", "true"),
+        ],
+    },
+    Case {
+        name: "clipboard: stale spill-child copy refuses an unavailable value without clearing the target",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "Book1.xlsx")),
+            Action::Into(BAR, "3\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into(BAR, "=SEQUENCE(A1)\u{E007}"),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Into(BAR, "99\u{E007}"),
+            Action::Choose("calc-mode", "manual"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into(BAR, "4\u{E007}"),
+            Action::Into("name-box", "B2\u{E007}"),
+            Action::Keys("grid", "\u{E009}c\u{E000}"),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Click("paste-snapshot"),
+        ],
+        checks: &[
+            Check::TextContains("status", "no current calculated value"),
+            Check::Text(cell!("D1"), "99"),
+            Check::Attr(cell!("B2"), "data-provenance", "stale"),
+            Check::Absent("[data-dnacalc=clipboard-dialog][open]"),
+        ],
+    },
+    Case {
+        name: "clipboard: a protected sheet refuses a paste atomically",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "Book1.xlsx")),
+            Action::Into(BAR, "7\u{E007}"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::ProtectedDownloadFixture,
+            Action::UploadDownload("protected.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "protected.xlsx")),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::ExternalClipboard("9\t10", false),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+        ],
+        checks: &[
+            Check::TextContains("status", "protected sheet"),
+            Check::Text(cell!("A1"), "7"),
+            Check::Absent(cell!("B1")),
+            Check::Text("document", "protected.xlsx"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -3800,6 +4296,21 @@ const CALC_LATENCY_CASES: &[Case] = &[
             Check::Starts("status", "Workbook reply delayed this editor shortcut"),
         ],
     },
+    Case {
+        name: "worker latency: native paste data survives pending selection replies",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::ExternalClipboard("42\t43", false),
+            Action::Into("name-box", "M4\u{E007}"),
+            Action::Keys("grid", "\u{E009}v\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "M4"),
+            Check::Text(cell!("M4"), "42"),
+            Check::Text(cell!("N4"), "43"),
+            Check::Absent("cell-editor"),
+        ],
+    },
 ];
 
 const CALC_WORKER_FAULT_CASES: &[Case] = &[
@@ -3869,7 +4380,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             "var e={}; if(!e) return null; var s=getComputedStyle(e); function lum(c) {{ var v=c.match(/[0-9.]+/g).slice(0,3).map(Number).map(x=>{{x/=255;return x<=0.04045?x/12.92:Math.pow((x+0.055)/1.055,2.4);}}); return v[0]*0.2126+v[1]*0.7152+v[2]*0.0722; }} var a=lum(s.color),b=lum(s.backgroundColor); return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);",
             q(name)
         ),
-        Check::Text(name, _) | Check::Starts(name, _) => {
+        Check::Text(name, _) | Check::Starts(name, _) | Check::TextContains(name,_) => {
             format!("var e = {}; return e ? e.textContent : null;", q(name))
         }
         Check::Items(name, _) | Check::Contains(name, _) => format!(
@@ -3914,6 +4425,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::Role(_, expected)
         | Check::Name(_, expected) => seen.as_str() == Some(expected),
         Check::Starts(_, prefix) => seen.as_str().is_some_and(|text| text.starts_with(prefix)),
+        Check::TextContains(_, part) => seen.as_str().is_some_and(|text| text.contains(part)),
         Check::Fits => seen.as_array().is_some_and(|sizes| {
             match (
                 sizes.first().and_then(Value::as_f64),
@@ -3981,6 +4493,7 @@ fn describe(check: &Check) -> String {
     match check {
         Check::Text(name, expected) => format!("{name} is {expected:?}"),
         Check::Starts(name, prefix) => format!("{name} starts with {prefix:?}"),
+        Check::TextContains(name, part) => format!("{name} contains {part:?}"),
         Check::Items(name, expected) => format!("{name} lists {expected:?}"),
         Check::Contains(name, wanted) => format!("{name} has an item starting {wanted:?}"),
         Check::Absent(name) => format!("no {name}"),
@@ -4043,6 +4556,52 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             session.keys(&select(app, "formula"), text)
         }
         Action::Keys(name, keys) => session.keys(&select(app, name), keys),
+        Action::ExternalClipboard(text, html) => {
+            // Finish the preceding app command before focusing this external source editor:
+            // a queued Go To reply would otherwise legitimately restore grid focus during Copy.
+            if let Some(reason) = wait_for(
+                app,
+                session,
+                &Check::Absent("[data-dnacalc=skin-grid][disabled]"),
+                SETTLE,
+            ) {
+                return Err(reason);
+            }
+            let source_text = serde_json::to_string(text).unwrap();
+            let expected=session.script(&format!("var e=document.createElement('{}');e.id='dc-external-clipboard';{} document.body.appendChild(e);e.focus();{} return {};",if *html {"div"} else {"textarea"},if *html {format!("e.contentEditable='true';e.innerHTML={source_text};")} else {format!("e.value={source_text};")},if *html {"var r=document.createRange();r.selectNodeContents(e);var s=getSelection();s.removeAllRanges();s.addRange(r);"} else {"e.select();"},if *html {"e.innerText"} else {"e.value"}))?;
+            session.keys("#dc-external-clipboard", "\u{E009}c\u{E000}")?;
+            // WebDriver can return before the OS copy has finished. Read it back through a real
+            // native paste into another editor, rather than racing the app against an old clipboard.
+            session.script("var p=document.createElement('textarea');p.id='dc-external-clipboard-probe';document.body.appendChild(p);window.__dcExternalPaste=function(e){if(document.activeElement===p){window.__dcExternalSeen={text:e.clipboardData.getData('text/plain'),html:e.clipboardData.getData('text/html')};e.preventDefault();}};document.addEventListener('paste',window.__dcExternalPaste,true);return null;")?;
+            let started = Instant::now();
+            let mut settled = false;
+            while started.elapsed() < SETTLE {
+                session.keys("#dc-external-clipboard-probe", "\u{E009}v\u{E000}")?;
+                let seen = session.script("return window.__dcExternalSeen || null;")?;
+                let plain = seen.get("text").and_then(Value::as_str).unwrap_or("");
+                let markup = seen.get("html").and_then(Value::as_str).unwrap_or("");
+                let normalize = |t: &str| t.replace("\r\n", "\n").replace('\r', "\n");
+                let flat = |t: &str| t.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+                settled = if *html {
+                    flat(plain) == flat(expected.as_str().unwrap_or(""))
+                        && markup.to_ascii_lowercase().contains("<table")
+                        && markup.contains("data-dnacalc-session")
+                            == text.contains("data-dnacalc-session")
+                } else {
+                    normalize(plain) == normalize(text) && markup.is_empty()
+                };
+                if settled {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            session.script("document.removeEventListener('paste',window.__dcExternalPaste,true);delete window.__dcExternalPaste;delete window.__dcExternalSeen;document.querySelector('#dc-external-clipboard-probe').remove();document.querySelector('#dc-external-clipboard').remove();getSelection().removeAllRanges();document.querySelector('[data-dnacalc=grid]').focus();return null;")?;
+            if settled {
+                Ok(())
+            } else {
+                Err("The system clipboard did not contain the external test source".to_owned())
+            }
+        }
         Action::Into(name, text) => {
             let css = select(app, name);
             let element = session.element(&css)?;
@@ -4063,7 +4622,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             }
             Ok(())
         }
-        Action::ManualDownloadFixture => {
+        Action::ManualDownloadFixture | Action::ProtectedDownloadFixture => {
             #[cfg(target_arch = "wasm32")]
             {
                 Err("Package fixture preparation is native-only".to_owned())
@@ -4077,6 +4636,22 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 }
                 let bytes = fs::read(&path).map_err(|e| e.to_string())?;
                 let parts = crate::oracle_cases::package_parts(&bytes)?;
+                if matches!(action, Action::ProtectedDownloadFixture) {
+                    let name = "xl/worksheets/sheet1.xml";
+                    let xml = std::str::from_utf8(parts.get(name).ok_or("no worksheet part")?)
+                        .map_err(|e| e.to_string())?;
+                    let xml = xml.replacen(
+                        "</sheetData>",
+                        "</sheetData><sheetProtection sheet=\"1\"/>",
+                        1,
+                    );
+                    let bytes = crate::oracle_cases::replace_package_parts(
+                        &bytes,
+                        &std::collections::BTreeMap::from([(name.to_owned(), xml.into_bytes())]),
+                    )?;
+                    return fs::write(session.downloads.join("protected.xlsx"), bytes)
+                        .map_err(|e| e.to_string());
+                }
                 let xml =
                     std::str::from_utf8(parts.get("xl/workbook.xml").ok_or("no workbook part")?)
                         .map_err(|e| e.to_string())?;
@@ -4166,6 +4741,12 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 {"type":"pointerMove","duration":200,"origin":{"element-6066-11e4-a52e-4f735466cecf":to},"x":0,"y":0},
                 {"type":"pointerUp","button":0}
             ]}]}))?;
+            Ok(())
+        }
+        Action::DragToCell(from, row, col) => {
+            let from = session.element(&select(app, from))?;
+            let xy=session.script(&format!("var c=document.querySelector('[data-dnacalc=column-header][data-column=\"{col}\"]').getBoundingClientRect();var r=document.querySelector('[data-dnacalc=row-header][data-row=\"{row}\"]').getBoundingClientRect();return [Math.round(c.left+c.width/2),Math.round(r.top+r.height/2)];"))?;
+            session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},{"type":"pointerDown","button":0},{"type":"pointerMove","duration":200,"origin":"viewport","x":xy[0],"y":xy[1]},{"type":"pointerUp","button":0}]}]}))?;
             Ok(())
         }
         Action::Composing(name, text) => {

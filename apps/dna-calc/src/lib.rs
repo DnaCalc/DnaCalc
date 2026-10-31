@@ -23,6 +23,7 @@ pub mod app;
 pub mod atlas;
 pub mod canvas;
 pub mod cells;
+pub mod clipboard;
 pub mod controller;
 pub mod grid;
 pub mod ledger;

@@ -1815,6 +1815,239 @@ fn dc_09v__copy_relocates_formulas_and_fills() {
     ));
 }
 
+/// Clipboard capture keeps the authored formula, its value and its formats at copy time.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_5__snapshot_and_paste_special_are_independent_of_later_source_edits() {
+    use calc_host::{CopySnapshot, PasteMode};
+    let mut session = session(include_bytes!("fixtures/dc_09v/formats.xlsx"));
+    let s = sheet(session.host(), "Formats");
+    let area = |a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    assert!(enter(&mut session, at(s, "C1"), "=$A1+A$1+$A$1").accepted());
+    let snapshot = CopySnapshot::capture(session.host(), area("C1", "C1")).unwrap();
+    assert!(enter(&mut session, at(s, "C1"), "=999").accepted());
+    let edits = snapshot
+        .edits(
+            session.host(),
+            area("D2", "D2"),
+            PasteMode::Formulas,
+            false,
+            None,
+        )
+        .unwrap();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(
+        session.host().model().cell(at(s, "D2")),
+        Some(&formula("$A2+B$1+$A$1"))
+    );
+    let snapshot = CopySnapshot::capture(session.host(), area("A3", "A3")).unwrap();
+    let style = session.host().cell_style(at(s, "A3"));
+    assert!(enter(&mut session, at(s, "A3"), "100").accepted());
+    let edits = snapshot
+        .edits(
+            session.host(),
+            area("G3", "G3"),
+            PasteMode::All,
+            false,
+            None,
+        )
+        .unwrap();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(session.host().cell_style(at(s, "G3")), style);
+    assert_eq!(
+        session.host().model().cell(at(s, "G3")),
+        Some(&number(45322.0))
+    );
+    let edits = snapshot
+        .edits(
+            session.host(),
+            area("G4", "G4"),
+            PasteMode::Formats,
+            false,
+            None,
+        )
+        .unwrap();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(session.host().model().cell(at(s, "G4")), None);
+    assert_eq!(session.host().cell_style(at(s, "G4")), style);
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(session.host().cell_style(at(s, "G4")), 0);
+    assert_eq!(session.host().cell_style(at(s, "G3")), style);
+
+    assert!(enter(&mut session, at(s, "G5"), "45323").accepted());
+    let (_, received) = subscribe(&mut session, Interest::Area(area("G5", "G5")));
+    received.borrow_mut().clear();
+    let edits = snapshot
+        .edits(
+            session.host(),
+            area("G5", "G5"),
+            PasteMode::Formats,
+            false,
+            None,
+        )
+        .unwrap();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(
+        session.host().model().cell(at(s, "G5")),
+        Some(&number(45323.0))
+    );
+    assert!(
+        received
+            .borrow()
+            .iter()
+            .any(|delta| delta.cells.iter().any(|cell| cell.at() == at(s, "G5"))),
+        "a format-only change reaches the app's subscription"
+    );
+    received.borrow_mut().clear();
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert!(
+        received
+            .borrow()
+            .iter()
+            .any(|delta| delta.cells.iter().any(|cell| cell.at() == at(s, "G5"))),
+        "Undo also publishes the restored format"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_5__fill_series_partial_repetitions_and_stale_cut_are_atomic() {
+    use calc_host::{CopyRefusal, CopySnapshot, PasteMode};
+    let mut session = session(include_bytes!("fixtures/dc_09v/formats.xlsx"));
+    let s = sheet(session.host(), "Formats");
+    let area = |a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    let date = CopySnapshot::capture(session.host(), area("A3", "A3")).unwrap();
+    let edits = date
+        .fill_edits(session.host(), area("A4", "A5"), true, true)
+        .unwrap();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(
+        session.host().model().cell(at(s, "A5")),
+        Some(&number(45324.0))
+    );
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert!(enter(&mut session, at(s, "D6"), "1").accepted());
+    assert!(enter(&mut session, at(s, "D7"), "3").accepted());
+    let seed = CopySnapshot::capture(session.host(), area("D6", "D7")).unwrap();
+    let edits = seed
+        .fill_edits(session.host(), area("D8", "D10"), true, true)
+        .unwrap();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(
+        session.host().model().cell(at(s, "D10")),
+        Some(&number(9.0))
+    );
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(session.host().model().cell(at(s, "D8")), None);
+    let edits = seed
+        .fill_edits(session.host(), area("D8", "D10"), true, false)
+        .unwrap();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(
+        session.host().model().cell(at(s, "D10")),
+        Some(&number(1.0))
+    );
+    let revision = session.host().revision();
+    assert_eq!(
+        seed.edits(session.host(), area("E6", "E7"), PasteMode::All, true, None),
+        Err(CopyRefusal::SourceChanged)
+    );
+    assert_eq!(session.host().revision(), revision);
+    assert_eq!(session.host().model().cell(at(s, "D6")), Some(&number(1.0)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_5__values_require_current_results_and_spill_writes_are_whole() {
+    use calc_host::{CopySnapshot, PasteMode};
+    let mut session = session(&calc_host::blank_package());
+    let s = session.host().sheets()[0].id();
+    let area = |a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    assert!(enter(&mut session, at(s, "A1"), "2").accepted());
+    assert!(enter(&mut session, at(s, "B1"), "=A1*3").accepted());
+    let values = CopySnapshot::capture(session.host(), area("B1", "B1")).unwrap();
+    assert!(enter(&mut session, at(s, "A1"), "9").accepted());
+    let edits = values
+        .edits(
+            session.host(),
+            area("C1", "C1"),
+            PasteMode::Values,
+            false,
+            None,
+        )
+        .unwrap();
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(session.host().model().cell(at(s, "C1")), Some(&number(6.0)));
+    assert!(enter(&mut session, at(s, "E1"), "=SEQUENCE(3)").accepted());
+    let revision = session.host().revision();
+    assert!(
+        values
+            .edits(
+                session.host(),
+                area("D2", "E2"),
+                PasteMode::All,
+                false,
+                None
+            )
+            .is_err()
+    );
+    assert_eq!(session.host().revision(), revision);
+    assert!(
+        session
+            .dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
+            .accepted()
+    );
+    assert!(enter(&mut session, at(s, "A1"), "10").accepted());
+    let stale = CopySnapshot::capture(session.host(), area("B1", "B1")).unwrap();
+    assert!(
+        stale
+            .edits(
+                session.host(),
+                area("G1", "G1"),
+                PasteMode::Values,
+                false,
+                None
+            )
+            .is_err()
+    );
+    assert!(
+        session
+            .dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Automatic))
+            .accepted()
+    );
+    assert!(enter(&mut session, at(s, "H1"), "=SEQUENCE(A1)").accepted());
+    assert!(
+        session
+            .dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
+            .accepted()
+    );
+    assert!(enter(&mut session, at(s, "A1"), "11").accepted());
+    let child = CopySnapshot::capture(session.host(), area("H2", "H2")).unwrap();
+    assert!(matches!(
+        child.edits(
+            session.host(),
+            area("J2", "J2"),
+            PasteMode::All,
+            false,
+            None
+        ),
+        Err(calc_host::CopyRefusal::UnavailableValue { .. })
+    ));
+    let edits = vec![CellEdit::SetArray {
+        array: calc_host::ArrayFormula::new(area("K1", "K3"), calc_host::ArrayKind::Legacy),
+        formula: FormulaText::new(calc_host::value::ExcelText::from_interop_assignment(
+            "{1;2;3}",
+        ))
+        .unwrap(),
+    }];
+    assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+    let legacy = CopySnapshot::capture(session.host(), area("K1", "K3")).unwrap();
+    assert!(matches!(
+        legacy.fill_edits(session.host(), area("K4", "K4"), true, false),
+        Err(calc_host::CopyRefusal::LegacyFill)
+    ));
+}
+
 // ---------------------------------------------------------------------------------------------
 // dc-jhn (D2b): rows and columns inserted and deleted through the session, against Excel making
 // the same edits (tests/fixtures/d2/make-structural.ps1: structural-base.xlsx before,

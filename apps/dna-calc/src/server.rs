@@ -33,6 +33,10 @@ pub struct Server {
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
     events: Vec<Event>,
+    snapshots: BTreeMap<u64, calc_host::CopySnapshot>,
+    next_clip: u64,
+    clipboard_session: String,
+    paste_plan: Option<(u64, u64, Vec<CellEdit>)>,
 }
 
 impl Default for Server {
@@ -48,6 +52,10 @@ impl Server {
             book: Workbook::new_blank(),
             subscriptions: BTreeMap::new(),
             events: Vec::new(),
+            snapshots: BTreeMap::new(),
+            next_clip: 1,
+            clipboard_session: crate::clipboard::session_nonce(),
+            paste_plan: None,
         }
     }
 
@@ -72,6 +80,44 @@ impl Server {
         let mut out = None;
         let reply = (|| -> Result<Reply, String> {
             match request {
+                Request::Capture { area: source, keep } => {
+                    let from = area(source)?;
+                    let snapshot = calc_host::CopySnapshot::capture(self.book.host(), from)
+                        .map_err(|e| e.to_string())?;
+                    let token = self.next_clip;
+                    self.next_clip += 1;
+                    let cells: Vec<_> = (from.first().row()..=from.last().row())
+                        .flat_map(|row| {
+                            (from.first().column()..=from.last().column())
+                                .map(move |col| CellKey::new(from.sheet(), row, col).unwrap())
+                        })
+                        .collect();
+                    let page = calc_host::project(
+                        self.book.host(),
+                        &calc_host::ProjectionRequest { cells },
+                    )
+                    .map_err(|e| e.to_string())?;
+                    let rows: Vec<Vec<_>> = page
+                        .cells()
+                        .chunks(from.column_count() as usize)
+                        .map(|row| row.iter().map(|cell| self.book.shown(cell).text).collect())
+                        .collect();
+                    let text = crate::clipboard::encode_tsv(&rows);
+                    let html = crate::clipboard::encode_html(&rows, token, &self.clipboard_session);
+                    self.snapshots.retain(|id, _| Some(*id) == keep);
+                    self.snapshots.insert(token, snapshot);
+                    Ok(Reply::Clipboard(wire::Clipboard {
+                        token,
+                        session: self.clipboard_session.clone(),
+                        area: source,
+                        revision: self.book.host().revision().get(),
+                        text,
+                        html,
+                    }))
+                }
+                Request::PreparePaste { source, to, mode } => {
+                    self.prepare_paste(source, area(to)?, mode)
+                }
                 Request::Ping => Ok(Reply::Pong {
                     version: env!("CARGO_PKG_VERSION").to_owned(),
                 }),
@@ -256,6 +302,123 @@ impl Server {
         self.book = book;
         self.subscriptions.clear();
         self.events.clear();
+        self.snapshots.clear();
+        self.paste_plan = None;
+    }
+
+    fn prepare_paste(
+        &mut self,
+        source: wire::PasteSource,
+        to: GridArea,
+        mode: wire::PasteMode,
+    ) -> Result<Reply, String> {
+        use wire::PasteSource;
+        self.paste_plan = None;
+        let (edits, target) = match source {
+            PasteSource::Internal { token, cut } => {
+                let snapshot = self
+                    .snapshots
+                    .get(&token)
+                    .ok_or("The copied snapshot expired; copy again")?;
+                if cut && mode != wire::PasteMode::All {
+                    return Err(
+                        "Paste Special is unavailable for a cut; copy the cells instead".to_owned(),
+                    );
+                }
+                let target = snapshot.target(to).map_err(|e| e.to_string())?;
+                let edits = snapshot
+                    .edits(self.book.host(), to, mode.host(), cut, None)
+                    .map_err(|e| e.to_string())?;
+                (edits, target)
+            }
+            PasteSource::Fill { from, down, series } => {
+                let from = area(from)?;
+                let snapshot = calc_host::CopySnapshot::capture(self.book.host(), from)
+                    .map_err(|e| e.to_string())?;
+                let edits = snapshot
+                    .fill_edits(self.book.host(), to, down, series)
+                    .map_err(|e| e.to_string())?;
+                (edits, to)
+            }
+            PasteSource::External(rows) => {
+                if mode == wire::PasteMode::Formats {
+                    return Err("External table formats are not modelled; copy formats within this workbook".to_owned());
+                }
+                let (height, width) = crate::clipboard::matrix_shape(&rows)?;
+                let target = if to.cell_count() == 1 {
+                    GridArea::new(
+                        to.first(),
+                        CellKey::new(
+                            to.sheet(),
+                            to.first().row() + height - 1,
+                            to.first().column() + width - 1,
+                        )
+                        .map_err(|_| "The paste reaches past the grid")?,
+                    )
+                    .unwrap()
+                } else {
+                    to
+                };
+                if target.row_count() % height != 0 || target.column_count() % width != 0 {
+                    return Err(
+                        "The paste area must be a whole multiple of the table's size".to_owned(),
+                    );
+                }
+                calc_host::check_destination(self.book.host(), target, mode.host())
+                    .map_err(|e| e.to_string())?;
+                let mut edits = Vec::new();
+                for row in target.first().row()..=target.last().row() {
+                    for col in target.first().column()..=target.last().column() {
+                        let at = CellKey::new(target.sheet(), row, col).unwrap();
+                        let text = &rows[((row - target.first().row()) % height) as usize]
+                            [((col - target.first().column()) % width) as usize];
+                        let input = calc_host::interpret_entry_in(
+                            text,
+                            Some(&self.book.host().entry_environment()),
+                        )
+                        .map_err(|e| e.to_string())?;
+                        if mode == wire::PasteMode::Values
+                            && matches!(input, Some(calc_host::CellInput::Formula(_)))
+                        {
+                            return Err("External formula text has no calculated value; choose Formulas or All".to_owned());
+                        }
+                        edits.push(match input {
+                            Some(input) => CellEdit::Set { at, input },
+                            None => CellEdit::Clear {
+                                area: GridArea::cell(at),
+                            },
+                        });
+                    }
+                }
+                (edits, target)
+            }
+        };
+        for edit in &edits {
+            if let CellEdit::Set { at, input } = edit {
+                if let Err(failure) = self.book.host().check_entry(*at, Some(input)) {
+                    return Err(failure.to_string());
+                }
+            }
+        }
+        let replaces = if mode == wire::PasteMode::Formats {
+            0
+        } else {
+            self.book
+                .host()
+                .model()
+                .cells(target)
+                .into_iter()
+                .flatten()
+                .count() as u64
+        };
+        let id = self.next_clip;
+        self.next_clip += 1;
+        self.paste_plan = Some((id, self.book.host().revision().get(), edits));
+        Ok(Reply::PastePreview(wire::PastePreview {
+            id,
+            area: Area::of(target),
+            replaces,
+        }))
     }
 
     fn summary(&self) -> Summary {
@@ -312,6 +475,18 @@ impl Server {
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
+            Intent::ApplyPaste { id } => {
+                let Some((held, revision, edits)) = self.paste_plan.take() else {
+                    return Err("The paste preview expired; paste again".to_owned());
+                };
+                if held != id || revision != self.book.host().revision().get() {
+                    return Err("The workbook changed after the preview; paste again".to_owned());
+                }
+                if edits.is_empty() {
+                    return Ok(self.done(true, None, 0.0));
+                }
+                SkinIntent::Edit { edits }
+            }
             Intent::Navigate {
                 nav,
                 extend,
@@ -635,6 +810,7 @@ fn host_interest(interest: Interest) -> Result<calc_host::Interest, String> {
 /// The page's intent as calc-host's.
 fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
     Ok(match intent {
+        Intent::ApplyPaste { .. } => return Err("paste needs its worker preview".to_owned()),
         Intent::EnterCell { at, text } => SkinIntent::EnterCell {
             at: cell(at)?,
             text,
