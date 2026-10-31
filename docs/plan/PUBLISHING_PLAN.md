@@ -362,8 +362,8 @@ push. Four forms were weighed.
 | How approval happens | The owner's key touch on `site publish` | The owner dispatches `site.yml`. On Free private there are no required reviewers, so any account with Actions write can dispatch | The owner pushes a tag `publish/<site>/<n>` signed with his ssh signing key. The host checks it with `git verify-tag` against an allowed-signers file | The owner downloads the artifact and runs A's publish |
 | Actions minutes | 0 | 0 (self-hosted jobs are not billed) | 0 | ~10–15 Linux min per build (cold LTO wasm build) |
 | Standing secrets | None. The key is a hardware key in the owner's hand | Runner registration on the site host; anyone who can push runs code there | A read-only deploy key on the host | None, if it only uploads an artifact. A repository secret to push would be readable by any workflow, so no |
-| Owner work to set up | Section 2.5 (about 1–2 h) | All of K1a: LXD container, egress ACL, runner, hook, monthly upkeep, re-registration (about 1–2 days, then hours each month) | 2.5, plus a build container with Rust 1.94.1 and wasm-bindgen 0.2.117 (about half a day) | 2.5, plus pushing one workflow file |
-| Owner work per publish | About 10–20 min, mostly build and smoke time on his PC | One dispatch | One `git tag -s` and push | Download, then A |
+| Owner work to set up | Section 2.5 | All of K1a: LXD container, egress ACL, runner, hook, recurring upkeep, re-registration | 2.5, plus a build container with Rust 1.94.1 and wasm-bindgen 0.2.117 | 2.5, plus pushing one workflow file |
+| Owner work per publish | The build and the smoke on the owner's PC | One dispatch | One `git tag -s` and push | Download, then A |
 | Smoke in two browsers before the switch | Yes (owner's PC) | Only with browsers in the container ("not filed") | Same as B | No |
 | Risk | Lowest | Highest: a runner beside the site and the private Caddy | Medium: the build runs on the site host | Low, but spends the minutes that caused CI to be disabled |
 
@@ -450,5 +450,4 @@ check is wanted, a systemd timer on dna-koderbot (as an unprivileged user, readi
 | P7 | Optional: **DNA Calc styles to stylesheet/CSSOM**, then drop `'unsafe-inline'` | P6 |
 | P8 | Later: **form C** (signed-tag pull build on dna-koderbot) | Only if publishes become frequent |
 
-Estimated agent effort for P1–P4: about 2–3 days in one clone. P5 and P6 need the owner for about
-2–3 hours in total, plus DNS propagation.
+P1–P4 are agent work in one clone. P5 and P6 need the owner, plus DNS propagation.
