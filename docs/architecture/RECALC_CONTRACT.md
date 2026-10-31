@@ -160,7 +160,12 @@ Failed`. One fixed model/input view per pass and a recorded reason. With async c
 own formulas and continuations; dependents not yet started are `DeferredTo(AsyncDependents)` (unfulfilled command work,
 not completed targets); the next pass owns them. A pass never waits on a target it delegated to a pass that cannot
 start. Today's `RecalcWork` (`calc-engine/src/recalc.rs:280-321`) is the resumable state of one pass plus spill
-re-waves (`rewave`, `waves`, cap `MAX_WAVES = 32` at `recalc.rs:107-109`, an unmeasured number: P04).
+re-waves (`rewave`, `waves`, cap `MAX_WAVES = 32` at `recalc.rs:107-109`, not an Excel measurement).
+P04 (O, 20527 safe mode) found eight armed SizeUdf evaluations before #SPILL! for a seed-1 volatile
+SEQUENCE alternating 2/3, under range/Full/Rebuild, ten trials each. A 2,3,3 script stopped after three
+calls; 2,2,3 after two. The held footprint matters: seed 2 could settle after the first returned 2.
+Use the eight-evaluation bound for this measured sizing path; do not replace every graph-repair wave
+limit with eight or infer that every SizeUdf call equals a whole-workbook pass.
 
 ### 3.3 Invocation
 
@@ -406,7 +411,7 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 | What a VBA read of a dirty formula returns, per command kind; self/caller reads | P01: observer-only reads old 2; reversed areas can return Empty then re-enter with 11; self 0/Empty. Retain cached observation, distinguish new evaluation; other contexts remain open | P01 (O, 20527 safe mode) |
 | Out-of-range precedents in Range/Sheet calculation; post-command dirtiness; mode dependence | P02 confirms boundary caches and Manual `StillRequired`; row-major separate; automatic edits calculate before explicit commands. UI sheet grouping remains open | P02 (O, 20527 safe mode) |
 | Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | P03 confirms status-64 unwind/re-entry for ordinary/$, successful # coercion, and provisional VBA values; preserve typed reasons and registration capabilities. Null not observed | P03 (O, 20527 safe mode) |
-| Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | distinct keys; no guessed retry count | P04 |
+| Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | P04 confirms reuse/occurrence boundaries and eight calls before #SPILL! for the measured volatile SEQUENCE sizing path; held footprint and repeated size determine earlier completion. Global graph-wave count remains open | P04 (O, 20527 safe mode) |
 | Spill conflict winner, stale-footprint clearing, child-only calculation | first by reservation order | P05 |
 | Save scope, stale `<v>` with Save(false), open-time recalculation | pinned dirty/volatile save scope; drop-stale default | P06 |
 | Stale async returns Excel accepts; overlap of calls from one cell | revoke on any live edit | P07 |

@@ -123,6 +123,13 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   `SpillShape` pass (contract 3.3); the prefix of SizeUdf calls gives the pass count and stabilization rule that
   replaces `MAX_WAVES = 32`. A single zero difference is inconclusive.
 
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 550 workbooks. LET and a bound LAMBDA argument reused the
+  draw; distinct RAND occurrences, name references and LAMBDA calls did not. A seed-1 volatile SizeUdf alternating
+  2/3 was called eight times before #SPILL! for range/Full/Rebuild in all ten trials each. 2,3,3 stopped at three
+  calls/size 3; 2,2,3 stopped at two/size 2. Seed-2 controls often needed only one call. Set an eight-evaluation
+  bound for this sizing path, not a global graph-wave count; use new evaluations/draws per sizing attempt.
+  [Full arrays, transient-error case and raw evidence](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P04/README.md).
+
 ### P05 ★ Blank occupancy, spill growth/shrink and conflicts (E06; A7 spill contention)
 - **Setup A.** Z1=1, A1=`=SEQUENCE(Z1)`, C10=`=A10+1`, calculated. **Setup B.** Z1=0; A3 and B1 both
   `=IF(Z1,SEQUENCE(4,3),1)`; F1=`=SUM(B3:C4)`; with Z1=1 the footprints overlap.
