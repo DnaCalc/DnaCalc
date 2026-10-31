@@ -252,6 +252,18 @@ pub(super) fn gamma_cody_log_normalizer(x: f64) -> Option<f64> {
     rational.map(crt_log)
 }
 
+fn gamma_disagreement_correction(value: f64, candidate: f64) -> f64 {
+    if value.is_normal()
+        && candidate.is_normal()
+        && value.is_sign_negative() == candidate.is_sign_negative()
+        && value.to_bits().abs_diff(candidate.to_bits()) > 32
+    {
+        candidate
+    } else {
+        value
+    }
+}
+
 fn gamma_calculation(x: f64, rational_normalizer: &mut Option<f64>) -> Result<f64, WorksheetErrorCode> {
     if !x.is_finite() || has_gamma_pole(x) {
         return Err(WorksheetErrorCode::Num);
@@ -1003,23 +1015,38 @@ fn gamma_calculation(x: f64, rational_normalizer: &mut Option<f64>) -> Result<f6
             magnitude = rational;
         }
     }
-    if x > 0.0 && magnitude.is_normal() {
+    let mut value = if x < 0.5 && crt_sin(std::f64::consts::PI * x).is_sign_negative() {
+        -magnitude
+    } else {
+        magnitude
+    };
+    if x < 0.0 && value.is_normal() {
+        // Reduce sin(pi*x) before its multiplication by pi; reuse the positive
+        // Gamma calculation in the reflection identity. The already frozen
+        // 32-ULP bound is unchanged; no negative input fitted it. Together with
+        // the library step below this gains 2/-0 on 676 negative readings.
+        let absolute = -x;
+        let whole = absolute.floor();
+        let fractional = absolute - whole;
+        if let Ok(positive) = gamma_kernel(1.0 - x) {
+            let signed_pi = if whole as i64 % 2 == 0 {
+                -std::f64::consts::PI
+            } else {
+                std::f64::consts::PI
+            };
+            let reflection = (signed_pi / crt_sin(std::f64::consts::PI * fractional)) / positive;
+            value = gamma_disagreement_correction(value, reflection);
+        }
+    }
+    if value.is_normal() {
         // Godfrey's error-compensated Lanczos method, already in libm::tgamma.
         // Fit only a disagreement bound on the same argument split as above:
         // 5,843 training / 5,766 validation readings in the positive fallback.
         // Training controls differ by at most 6 ULP. Four times that maximum,
         // rounded up to a binary power, freezes 32 ULP before validation.
-        // Incremental gains over the rational correction: +58/-0 and +62/-0.
-        let lanczos = libm::tgamma(x);
-        if lanczos.is_normal() && magnitude.to_bits().abs_diff(lanczos.to_bits()) > 32 {
-            magnitude = lanczos;
-        }
+        // Positive incremental gains: +58/-0 training and +62/-0 validation.
+        value = gamma_disagreement_correction(value, libm::tgamma(x));
     }
-    let value = if x < 0.5 && crt_sin(std::f64::consts::PI * x).is_sign_negative() {
-        -magnitude
-    } else {
-        magnitude
-    };
 
     if !value.is_finite() {
         return Err(WorksheetErrorCode::Num);

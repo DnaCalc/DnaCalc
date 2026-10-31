@@ -327,22 +327,29 @@ fn gamma_fallbacks_require_large_disagreements() {
         (0x400d_4f88_34b9_3ec3, 0x400f_fe1e_2ca0_074c),
         (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae),
         (0x405c_03e8_db5e_238e, 0x6562_21fb_163a_ffa9),
+        // The same bound admits reduced reflection and the negative fallback.
+        (0xc060_bad0_74be_eaa3, 0x10c5_b33f_ccd8_3432),
+        (0xbfff_b384_bc86_8d32, 0x403b_41c1_68e1_0426),
         // Old matches differ from the rational by one ULP; keep their route.
         (0x400c_14f6_1d18_79ae, 0x400a_e3a0_184f_4257),
         (0x400d_7b7b_3b82_609e, 0x4010_6635_56ba_cf83),
+        (0xc02d_5a3f_39dd_c52f, 0xbd9e_116c_a682_f364),
     ] {
         exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
     }
 }
 
-/// Recorded density rows reuse the admitted rational Gamma normalizer.
+/// Recorded density answers distinguish admitted and retained Gamma normalizers.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn gamma_density_reuses_the_rational_normalizer() {
+fn gamma_density_admits_the_recorded_normalizer() {
     for (x, alpha, expected) in [
         (0.12417919307712058, 6.423680034363982, 0x3e67_0863_f2ee_9357),
         (0.8537609680018344, 7.171703572068208, 0x3f25_2274_a7b8_6ecb),
         (9.563436515180983, 6.15888078874286, 0x3faa_1da4_7b5c_d5ed),
+        // A lower scalar-Gamma bound would lose these original PDF matches.
+        (0.0003421170430624811, 0.943075920351938, 0x3ff8_4f92_2b67_1613),
+        (0.007825340264827977, 0.622814265063597, 0x4011_2efe_0987_a993),
     ] {
         exact(call("GAMMA.DIST", vec![n(x), n(alpha), n(1.0), b(false)]), f64::from_bits(expected));
     }
