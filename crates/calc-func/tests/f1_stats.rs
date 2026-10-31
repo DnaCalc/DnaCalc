@@ -304,10 +304,48 @@ fn error_function_tails_use_the_recorded_rounded_square() {
             f64::from_bits(0x3922_d992_80b1_9df9));
         exact(call(function, vec![n(f64::from_bits(0x4024_2bc8_1cf3_8194))]),
             f64::from_bits(0x3680_fa89_4f89_d6df));
+        // Residuals between 2^-49 and 2^-48, from both split halves.
+        exact(call(function, vec![n(f64::from_bits(0x4019_3db4_8c78_fb1d))]),
+            f64::from_bits(0x3c20_95a4_42f6_d57d));
+        exact(call(function, vec![n(f64::from_bits(0x401c_c218_61f7_e239))]),
+            f64::from_bits(0x3b0a_c48e_8af8_7271));
     }
     exact(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc026_a496_5d40_5589)), b(true),
     ]), f64::from_bits(0x39da_0ca4_2246_3668));
+    exact(call("NORM.S.DIST", vec![
+        n(f64::from_bits(0xc020_0893_4d02_54c4)), b(true),
+    ]), f64::from_bits(0x3cc3_8f68_673d_153e));
+}
+
+/// Original GAMMA answers, with each correction represented in both split halves.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_fallbacks_require_large_disagreements() {
+    for (input, expected) in [
+        (0x400d_1554_af11_39b0, 0x400e_f676_6ccb_fa92),
+        (0x400d_4f88_34b9_3ec3, 0x400f_fe1e_2ca0_074c),
+        (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae),
+        (0x405c_03e8_db5e_238e, 0x6562_21fb_163a_ffa9),
+        // Old matches differ from the rational by one ULP; keep their route.
+        (0x400c_14f6_1d18_79ae, 0x400a_e3a0_184f_4257),
+        (0x400d_7b7b_3b82_609e, 0x4010_6635_56ba_cf83),
+    ] {
+        exact(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+    }
+}
+
+/// Recorded density rows reuse the admitted rational Gamma normalizer.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_density_reuses_the_rational_normalizer() {
+    for (x, alpha, expected) in [
+        (0.12417919307712058, 6.423680034363982, 0x3e67_0863_f2ee_9357),
+        (0.8537609680018344, 7.171703572068208, 0x3f25_2274_a7b8_6ecb),
+        (9.563436515180983, 6.15888078874286, 0x3faa_1da4_7b5c_d5ed),
+    ] {
+        exact(call("GAMMA.DIST", vec![n(x), n(alpha), n(1.0), b(false)]), f64::from_bits(expected));
+    }
 }
 
 /// Recorded GAMMA.DIST density row; the shape-one log normalizer is exactly zero.

@@ -127,7 +127,12 @@ pub fn gamma_dist_kernel(
         return Ok(regularized_gamma_p(alpha, x / beta));
     }
     // Gamma(1) = 1 exactly; Lanczos leaves a small nonzero log at this point.
-    let log_normalizer = if alpha == 1.0 { 0.0 } else { ln_gamma(alpha) };
+    let log_normalizer = if alpha == 1.0 {
+        0.0
+    } else {
+        crate::ported::special_dist_family::gamma_cody_log_normalizer(alpha)
+            .unwrap_or_else(|| ln_gamma(alpha))
+    };
     let log_pdf = (alpha - 1.0) * crt_log(x) - x / beta - log_normalizer - alpha * crt_log(beta);
     let pdf = crt_exp(log_pdf);
     if pdf.is_finite() {

@@ -165,14 +165,17 @@ fn excel_erfc(x: f64) -> f64 {
     // Recorded tails have the exponent of the rounded square. FMA recovers the
     // exact product residual; q + q*residual corrects that exponent with one
     // rounding (the quadratic term is below binary64 precision in this range).
-    // The conservative 2^-48 bound was frozen on 7,598 training readings before
-    // checking 7,578 held-out readings, grouped by the stored ERFC argument.
+    // The conservative 2^-49 bound uses twice the largest harmful residual on
+    // 7,598 training readings, rounded up to a binary power. Its refinement
+    // gained 130 training matches and 149 on 7,578 validation readings, with
+    // no loss. Validation reuses the first bound's half, excluded from fitting.
+    // Readings are grouped by the stored ERFC argument.
     // SplitMix64 finalizer(argument bits ^ 0x444e4143414c4332): low bit 0 trains.
     // It is a fitted error bound, not an identified Excel branch point.
     if libm_v.is_normal() {
         let square = x * x;
         let residual = x.mul_add(x, -square);
-        if residual.abs() >= f64::from_bits(0x3cf0_0000_0000_0000) {
+        if residual.abs() >= f64::from_bits(0x3ce0_0000_0000_0000) {
             return libm_v.mul_add(residual, libm_v);
         }
     }
@@ -200,7 +203,56 @@ pub fn erfc_precise_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
     erfc_kernel(x)
 }
 
+/// Cody and Stoltz's SPECFUN DGAMMA rational on [1, 2), with recurrence.
+/// Published coefficients: https://netlib.org/specfun/gamma (unrestricted).
+/// This evaluation is written here from the rational and Gamma recurrence.
+fn gamma_cody_rational(x: f64) -> f64 {
+    const P: [f64; 8] = [
+        -1.71618513886549492533811, 24.7656508055759199108314,
+        -379.804256470945635097577, 629.331155312818442661052,
+        866.966202790413211295064, -31451.2729688483675254357,
+        -36144.4134186911729807069, 66456.1438202405440627855,
+    ];
+    const Q: [f64; 8] = [
+        -30.8402300119738975254353, 315.350626979604161529144,
+        -1015.15636749021914166146, -3107.77167157231109440444,
+        22538.1184209801510330112, 4755.84627752788110767815,
+        -134659.959864969306392456, -115132.259675553483497211,
+    ];
+    debug_assert!(x > 0.0 && x < 12.0);
+    let steps = if x < 1.0 { 0 } else { x as usize - 1 };
+    let y = if x < 1.0 { x + 1.0 } else { x - steps as f64 };
+    let z = if x < 1.0 { x } else { y - 1.0 };
+    let (mut p, mut q) = (0.0, 1.0);
+    for i in 0..8 {
+        p = (p + P[i]) * z;
+        q = q * z + Q[i];
+    }
+    let mut value = p / q + 1.0;
+    if x < 1.0 {
+        return value / x;
+    }
+    for i in 0..steps {
+        value *= y + i as f64;
+    }
+    value
+}
+
 pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
+    gamma_calculation(x, &mut None)
+}
+
+/// The same Gamma calculation exposes its admitted rational normalizer to PDFs.
+pub(super) fn gamma_cody_log_normalizer(x: f64) -> Option<f64> {
+    if !(x > 0.0 && x < 12.0) {
+        return None;
+    }
+    let mut rational = None;
+    gamma_calculation(x, &mut rational).ok()?;
+    rational.map(crt_log)
+}
+
+fn gamma_calculation(x: f64, rational_normalizer: &mut Option<f64>) -> Result<f64, WorksheetErrorCode> {
     if !x.is_finite() || has_gamma_pole(x) {
         return Err(WorksheetErrorCode::Num);
     }
@@ -937,7 +989,32 @@ pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
         return Err(WorksheetErrorCode::Num);
     }
 
-    let magnitude = crt_exp(ln_gamma);
+    let mut magnitude = crt_exp(ln_gamma);
+    if x > 0.0 && x < 12.0 && magnitude.is_normal() {
+        let rational = gamma_cody_rational(x);
+        // The bound is fitted, not an identified Excel branch. Group argument
+        // bits with SplitMix64 finalizer(bits ^ 0x444e4147434f4432), parity 0
+        // training / 1 validation. Eligible readings: 3,479 / 3,411. Training
+        // old-match controls disagree by at most 3 ULP; four times that bound,
+        // rounded up to a binary power, freezes 16 ULP before validation.
+        // Fixed published coefficients: +91/-0 training, +98/-0 validation.
+        if magnitude.to_bits().abs_diff(rational.to_bits()) > 16 {
+            *rational_normalizer = Some(rational);
+            magnitude = rational;
+        }
+    }
+    if x > 0.0 && magnitude.is_normal() {
+        // Godfrey's error-compensated Lanczos method, already in libm::tgamma.
+        // Fit only a disagreement bound on the same argument split as above:
+        // 5,843 training / 5,766 validation readings in the positive fallback.
+        // Training controls differ by at most 6 ULP. Four times that maximum,
+        // rounded up to a binary power, freezes 32 ULP before validation.
+        // Incremental gains over the rational correction: +58/-0 and +62/-0.
+        let lanczos = libm::tgamma(x);
+        if lanczos.is_normal() && magnitude.to_bits().abs_diff(lanczos.to_bits()) > 32 {
+            magnitude = lanczos;
+        }
+    }
     let value = if x < 0.5 && crt_sin(std::f64::consts::PI * x).is_sign_negative() {
         -magnitude
     } else {
