@@ -1749,18 +1749,21 @@ impl Controller {
 
     /// Navigate after resolving the current draft; a rejected draft keeps the original address.
     pub fn navigate_to(&self, at: CellKey, arrived: impl FnOnce(bool) + 'static) {
+        self.navigate_to_with_ticket(at, arrived, None);
+    }
+    fn navigate_to_with_ticket(&self, at: CellKey, arrived: impl FnOnce(bool) + 'static, ticket: Option<dna_calc_model::FocusTicket>) {
         if self.waiting_input() {
             let controller = *self;
-            self.enqueue(move || controller.navigate_to(at, arrived));
+            self.enqueue(move || controller.navigate_to_with_ticket(at, arrived, ticket));
             return;
         }
         if self.editing.get_untracked().is_some() {
             let controller = *self;
             self.commit_edit(move |ok| {
                 if ok {
-                    controller.navigate_to(at, arrived);
+                    controller.navigate_to_with_ticket(at, arrived, ticket);
                 } else {
-                    controller.focus_editor();
+                    controller.focus_editor_for(ticket);
                     arrived(false);
                 }
             });
@@ -1775,17 +1778,20 @@ impl Controller {
     }
 
     pub fn go_to_text(&self, text: String, arrived: impl FnOnce(bool) + 'static) {
+        self.go_to_text_with_ticket(text, arrived, None);
+    }
+    fn go_to_text_with_ticket(&self, text: String, arrived: impl FnOnce(bool) + 'static, ticket: Option<dna_calc_model::FocusTicket>) {
         let controller = *self;
         if self.waiting_input() {
-            self.enqueue(move || controller.go_to_text(text, arrived));
+            self.enqueue(move || controller.go_to_text_with_ticket(text, arrived, ticket));
             return;
         }
         if self.editing.get_untracked().is_some() {
             self.commit_edit(move |accepted| {
                 if accepted {
-                    controller.go_to_text(text, arrived)
+                    controller.go_to_text_with_ticket(text, arrived, ticket)
                 } else {
-                    controller.focus_editor();
+                    controller.focus_editor_for(ticket);
                     arrived(false)
                 }
             });
@@ -1899,6 +1905,9 @@ impl Controller {
     pub fn focus_editor(&self) {
         let assist = self.edit_field.get_value();
         if let Some(field) = assist.field.try_get_untracked().flatten() {
+            #[cfg(target_arch = "wasm32")]
+            self.restoring_editor(|| { let _ = field.focus(); });
+            #[cfg(not(target_arch = "wasm32"))]
             let _ = field.focus();
         }
     }
@@ -2546,13 +2555,19 @@ impl Controller {
     /// Menus, shell keys and skin gestures all enter here. The model decides the effect;
     /// this adapter executes it against the one worker and the registered focus surfaces.
     pub fn command(&self, command: Command) {
+        let captured = self.captured_command_focus();
+        if let Some(request) = self.model.try_update(|model| model.prepare_command_with_focus(command, captured)) {
+            self.dispatch_command(request);
+        }
+    }
+    fn dispatch_command(&self, request: dna_calc_model::CommandRequest) {
         if self.waiting_input() {
             let controller = *self;
-            self.enqueue(move || controller.command(command));
+            self.enqueue(move || controller.dispatch_command(request));
             return;
         }
         let context = untrack(|| self.command_context());
-        let result = self.model.try_update(|model| model.dispatch(command, context));
+        let result = self.model.try_update(|model| model.dispatch_request(request, context));
         let Some(result) = result else { return; };
         match result {
             Err(reason) => self.say(reason.to_string(), true),
@@ -2567,21 +2582,22 @@ impl Controller {
             }
             Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
             Ok(CommandEffect::Dialog) => self.focus_command_dialog(),
-            Ok(CommandEffect::FocusSkin(skin)) => {
-                self.carry_edit_to_bar();
-                self.focus_after_mount(skin, false);
+            Ok(CommandEffect::FocusSkin { skin, ticket }) => {
+                // The model already transferred the edit; only the ticketed effect may focus it.
+                self.edit_field.set_value(self.assist);
+                self.focus_after_mount(skin, false, ticket);
             }
-            Ok(CommandEffect::Reveal { target, skin }) => {
+            Ok(CommandEffect::Reveal { target, skin, ticket }) => {
                 let controller = *self;
                 let arrived = move |ok| {
                     if ok {
                         controller.model.update(|model| model.reveal_completed(skin));
-                        controller.focus_after_mount(skin, true);
+                        controller.focus_after_mount(skin, true, ticket);
                     }
                 };
                 match target {
-                    RevealTarget::Cell(at) => self.navigate_to(at, arrived),
-                    RevealTarget::Reference(text) => self.go_to_text(text, arrived),
+                    RevealTarget::Cell(at) => self.navigate_to_with_ticket(at, arrived, Some(ticket)),
+                    RevealTarget::Reference(text) => self.go_to_text_with_ticket(text, arrived, Some(ticket)),
                 }
             }
         }

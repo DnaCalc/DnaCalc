@@ -3,6 +3,10 @@ use super::*;
 use dna_calc_model::{ClipboardOwner, SurfaceDescriptor, SurfaceId};
 
 #[cfg(target_arch = "wasm32")]
+fn native_control(target: &web_sys::Element) -> bool {
+    target.closest("input, textarea, select, button, a[href], summary, [contenteditable=true], [role=button], [role=combobox], [role=slider]").ok().flatten().is_some()
+}
+#[cfg(target_arch = "wasm32")]
 fn text_selection(field: &web_sys::HtmlTextAreaElement) -> dna_calc_model::TextSelection {
     dna_calc_model::TextSelection {
         start: field.selection_start().ok().flatten().unwrap_or(0) as usize,
@@ -20,6 +24,7 @@ pub(super) struct Surfaces {
     next: u64,
     restoring: bool,
     replayed_edit: Option<(u64, u64)>,
+    replay_focus: Option<dna_calc_model::FocusTicket>,
 }
 #[cfg(target_arch = "wasm32")]
 impl Surfaces {
@@ -79,6 +84,7 @@ impl Surfaces {
 enum InputOrigin {
     Navigation {
         skin: SkinId,
+        ticket: dna_calc_model::FocusTicket,
     },
     Editor {
         id: SurfaceId,
@@ -88,10 +94,16 @@ enum InputOrigin {
         skin: Option<SkinId>,
         follows_selection: bool,
         caret: dna_calc_model::TextSelection,
+        ticket: dna_calc_model::FocusTicket,
     },
 }
 #[cfg(target_arch = "wasm32")]
 impl InputOrigin {
+    fn ticket(&self) -> dna_calc_model::FocusTicket {
+        match self {
+            Self::Navigation { ticket, .. } | Self::Editor { ticket, .. } => *ticket,
+        }
+    }
     fn surface(&self) -> SurfaceId {
         match self {
             Self::Navigation { skin, .. } => SurfaceId::navigation(*skin),
@@ -101,6 +113,17 @@ impl InputOrigin {
 }
 
 impl Controller {
+    pub(super) fn captured_command_focus(&self) -> Option<dna_calc_model::FocusTicket> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.input_surfaces
+                .with_value(|surfaces| surfaces.replay_focus)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            None
+        }
+    }
     pub(super) fn remember_editor_selection(&self) {
         #[cfg(target_arch = "wasm32")]
         {
@@ -140,7 +163,7 @@ impl Controller {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn restoring_editor(&self, action: impl FnOnce()) {
+    pub(super) fn restoring_editor(&self, action: impl FnOnce()) {
         let prior = self
             .input_surfaces
             .with_value(|surfaces| surfaces.restoring);
@@ -276,7 +299,10 @@ impl Controller {
                     return None;
                 }
                 target.closest(selector).ok().flatten()?;
-                return Some(InputOrigin::Navigation { skin });
+                return Some(InputOrigin::Navigation {
+                    skin,
+                    ticket: self.model.with_untracked(|model| model.focus.snapshot()),
+                });
             }
             return Some(InputOrigin::Editor {
                 id,
@@ -289,12 +315,35 @@ impl Controller {
                 skin: self.active_skin_id(),
                 follows_selection: continuation == EditorContinuation::Selection,
                 caret: text_selection(&node),
+                ticket: self.model.with_untracked(|model| model.focus.snapshot()),
             });
         }
-        if target.closest("input, textarea, select, button, a[href], summary, [contenteditable=true], [role=button], [role=combobox], [role=slider]").ok().flatten().is_some() { return None; }
+        if native_control(target) {
+            return None;
+        }
         let (skin, selector) = self.navigation_surface()?;
         target.closest(selector).ok().flatten()?;
-        Some(InputOrigin::Navigation { skin })
+        Some(InputOrigin::Navigation {
+            skin,
+            ticket: self.model.with_untracked(|model| model.focus.snapshot()),
+        })
+    }
+    #[cfg(target_arch = "wasm32")]
+    fn observe_attention(&self, target: &web_sys::Element, any_target: bool) {
+        if self
+            .input_surfaces
+            .with_value(|surfaces| surfaces.restoring)
+        {
+            return;
+        }
+        // Focus identity uses the actual editor role before its replay continuation policy.
+        let surface = self
+            .input_surfaces
+            .with_value(|surfaces| surfaces.editor(target).map(|(id, _, _)| id))
+            .or_else(|| self.input_origin(target).map(|origin| origin.surface()));
+        if any_target || surface.is_some() || native_control(target) {
+            self.model.update(|model| model.focus.observe(surface));
+        }
     }
     /// The model declares workbook clipboard ownership; native text fields always retain theirs.
     pub fn workbook_owns_clipboard(&self) -> bool {
@@ -364,6 +413,34 @@ impl Controller {
                 copied.remove();
                 cut.remove();
                 paste.remove();
+            });
+            let attention =
+                Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
+                    if let Some(target) = event
+                        .target()
+                        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                    {
+                        self.observe_attention(&target, true);
+                    }
+                });
+            for name in ["focusin", "pointerdown", "beforeinput", "compositionstart"] {
+                let _ = document().add_event_listener_with_callback_and_bool(
+                    name,
+                    attention.as_ref().unchecked_ref(),
+                    true,
+                );
+            }
+            let attention = StoredValue::new_local(attention);
+            on_cleanup(move || {
+                attention.with_value(|attention| {
+                    for name in ["focusin", "pointerdown", "beforeinput", "compositionstart"] {
+                        let _ = document().remove_event_listener_with_callback_and_bool(
+                            name,
+                            attention.as_ref().unchecked_ref(),
+                            true,
+                        );
+                    }
+                })
             });
             // Selection-only native events do not emit input. Keep the model range current
             // before an asynchronously refreshed projection replaces its textarea.
@@ -450,6 +527,15 @@ impl Controller {
                     if self.replaying.get_value() {
                         return;
                     }
+                    if event.is_composing() || event.key_code() == 229 {
+                        if let Some(target) = event
+                            .target()
+                            .and_then(|v| v.dyn_into::<web_sys::Element>().ok())
+                        {
+                            self.observe_attention(&target, false);
+                        }
+                        return;
+                    }
                     if matches!(
                         event.key().as_str(),
                         "F6" | "Unidentified"
@@ -469,6 +555,7 @@ impl Controller {
                     else {
                         return;
                     };
+                    self.observe_attention(&target, false);
                     // A live local pointer gesture owns Escape even during a worker reply.
                     if target.get_attribute("data-resizing").as_deref() == Some("true") {
                         return;
@@ -566,6 +653,7 @@ impl Controller {
             skin,
             follows_selection,
             caret,
+            ..
         } = &mut origin
         {
             let current = if surface.is_some() {
@@ -710,7 +798,14 @@ impl Controller {
         if let Some(field) = &field {
             self.restore_editor_selection(self.edit_field.get_value(), field);
         }
+        let prior_focus = self
+            .input_surfaces
+            .with_value(|surfaces| surfaces.replay_focus);
+        self.input_surfaces
+            .update_value(|surfaces| surfaces.replay_focus = Some(origin.ticket()));
         let _ = target.dispatch_event(&event);
+        self.input_surfaces
+            .update_value(|surfaces| surfaces.replay_focus = prior_focus);
         // A navigation-origin key may open or advance this same editor before a later
         // editor-origin event arrives. Its range must also supersede captured snapshots.
         if self.editing.get_untracked().is_some() {
@@ -849,18 +944,32 @@ impl Controller {
         });
         self.deferred_version.update(|v| *v += 1);
     }
-    pub(super) fn focus_after_mount(&self, skin: SkinId, reveal: bool) {
+    pub(super) fn focus_editor_for(&self, ticket: Option<dna_calc_model::FocusTicket>) {
+        if ticket.is_none_or(|ticket| {
+            self.model
+                .with_untracked(|model| model.focus.accepts(ticket))
+        }) {
+            self.focus_editor();
+        }
+    }
+    pub(super) fn focus_after_mount(
+        &self,
+        skin: SkinId,
+        reveal: bool,
+        ticket: dna_calc_model::FocusTicket,
+    ) {
         #[cfg(target_arch = "wasm32")]
         self.focus_skin_frame(
             skin,
             reveal,
+            ticket,
             self.generation.get_untracked(),
             self.selection_epoch.get_value(),
             self.reveal_epoch.get_untracked(),
             now_ms() + 3000.0,
         );
         #[cfg(not(target_arch = "wasm32"))]
-        let _ = (skin, reveal);
+        let _ = (skin, reveal, ticket);
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -868,6 +977,7 @@ impl Controller {
         &self,
         skin: SkinId,
         reveal: bool,
+        ticket: dna_calc_model::FocusTicket,
         generation: u64,
         selection: u64,
         epoch: u64,
@@ -882,17 +992,27 @@ impl Controller {
             {
                 return;
             }
+            let accepted = controller
+                .model
+                .with_untracked(|model| model.focus.accepts(ticket));
             if controller.editing.get_untracked().is_some() {
-                controller.focus_editor();
+                if accepted {
+                    controller.focus_mounted_editor(controller.edit_field.get_value());
+                }
             } else if let Some(element) = controller.active_skin_element() {
                 if reveal {
                     controller
                         .model
                         .update(|model| model.selection.request_reveal());
                 }
-                let _ = element.focus();
-            } else if now_ms() < until {
-                controller.focus_skin_frame(skin, reveal, generation, selection, epoch, until);
+                if accepted {
+                    controller.restoring_editor(|| {
+                        let _ = element.focus();
+                    });
+                }
+            } else if now_ms() < until && (accepted || reveal) {
+                controller
+                    .focus_skin_frame(skin, reveal, ticket, generation, selection, epoch, until);
             }
         });
     }
@@ -936,10 +1056,19 @@ impl Controller {
 
     pub fn focus_active_skin(&self) {
         #[cfg(target_arch = "wasm32")]
-        if let Some(element) = self.active_skin_element() {
-            let _ = element.focus();
-        } else if let Some(skin) = self.active_skin_id() {
-            self.focus_after_mount(skin, false);
+        {
+            // Imperative callers request focus at this call; older async callers still need
+            // to inherit submission tickets as the wider command migration continues.
+            let Some(ticket) = self.model.try_update(|model| model.focus.request()) else {
+                return;
+            };
+            if let Some(element) = self.active_skin_element() {
+                self.restoring_editor(|| {
+                    let _ = element.focus();
+                });
+            } else if let Some(skin) = self.active_skin_id() {
+                self.focus_after_mount(skin, false, ticket);
+            }
         }
     }
     pub(super) fn focus_command_dialog(&self) {

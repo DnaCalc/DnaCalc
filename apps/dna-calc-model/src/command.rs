@@ -127,14 +127,32 @@ impl std::fmt::Display for Unavailable {
 }
 impl std::error::Error for Unavailable {}
 
+/// Captures focus ownership at submission, before a worker or edit reply can defer dispatch.
+/// Only the model constructs this request; all adapters dispatch it through the same semantics.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommandRequest {
+    command: Command,
+    focus: Option<crate::FocusTicket>,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
-    Undo { editor: bool },
-    Redo { editor: bool },
+    Undo {
+        editor: bool,
+    },
+    Redo {
+        editor: bool,
+    },
     Recalculate,
     Dialog,
-    Reveal { target: RevealTarget, skin: SkinId },
-    FocusSkin(SkinId),
+    Reveal {
+        target: RevealTarget,
+        skin: SkinId,
+        ticket: crate::FocusTicket,
+    },
+    FocusSkin {
+        skin: SkinId,
+        ticket: crate::FocusTicket,
+    },
 }
 impl Model {
     pub fn availability(&self, id: CommandId, context: CommandContext) -> Result<(), Unavailable> {
@@ -160,11 +178,33 @@ impl Model {
         }
         Ok(())
     }
+    pub fn prepare_command(&mut self, command: Command) -> CommandRequest {
+        self.prepare_command_with_focus(command, None)
+    }
+    /// A browser replay can inherit ownership from the native gesture that queued it.
+    pub fn prepare_command_with_focus(
+        &mut self,
+        command: Command,
+        captured: Option<crate::FocusTicket>,
+    ) -> CommandRequest {
+        let focus = matches!(command, Command::Reveal { .. } | Command::SwitchSkin(_))
+            .then(|| captured.unwrap_or_else(|| self.focus.request()));
+        CommandRequest { command, focus }
+    }
     pub fn dispatch(
         &mut self,
         command: Command,
         context: CommandContext,
     ) -> Result<Effect, Unavailable> {
+        let request = self.prepare_command(command);
+        self.dispatch_request(request, context)
+    }
+    pub fn dispatch_request(
+        &mut self,
+        request: CommandRequest,
+        context: CommandContext,
+    ) -> Result<Effect, Unavailable> {
+        let CommandRequest { command, focus } = request;
         self.availability(command.id(), context)?;
         Ok(match command {
             Command::Undo => Effect::Undo {
@@ -182,11 +222,18 @@ impl Model {
                 Effect::Dialog
             }
             Command::Recalculate => Effect::Recalculate,
-            Command::Reveal { target, skin } => Effect::Reveal { target, skin },
+            Command::Reveal { target, skin } => Effect::Reveal {
+                target,
+                skin,
+                ticket: focus.expect("prepared focus command"),
+            },
             Command::SwitchSkin(skin) => {
                 self.edit.transfer(crate::SurfaceId::Bar);
                 self.reveal_completed(skin);
-                Effect::FocusSkin(skin)
+                Effect::FocusSkin {
+                    skin,
+                    ticket: focus.expect("prepared focus command"),
+                }
             }
         })
     }

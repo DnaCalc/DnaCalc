@@ -124,11 +124,34 @@ impl SurfaceDescriptor {
         }
     }
 }
+/// A shell focus request is valid only while no newer request or native attention supersedes it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FocusTicket(u64);
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FocusRegistry {
     surfaces: BTreeMap<SurfaceId, SurfaceDescriptor>,
+    epoch: u64,
+    observed: Option<SurfaceId>,
 }
 impl FocusRegistry {
+    pub fn request(&mut self) -> FocusTicket {
+        self.epoch = self.epoch.checked_add(1).expect("focus identity exhausted");
+        FocusTicket(self.epoch)
+    }
+    pub fn observe(&mut self, surface: Option<SurfaceId>) {
+        self.observed = surface;
+        self.request();
+    }
+    pub fn observed(&self) -> Option<SurfaceId> {
+        self.observed
+    }
+    pub fn snapshot(&self) -> FocusTicket {
+        FocusTicket(self.epoch)
+    }
+    pub fn accepts(&self, ticket: FocusTicket) -> bool {
+        self.epoch == ticket.0
+    }
+
     pub fn register(&mut self, id: SurfaceId) -> bool {
         if self.contains(id) {
             false

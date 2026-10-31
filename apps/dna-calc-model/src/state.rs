@@ -166,6 +166,7 @@ impl Model {
         self.selection = SelectionState::default();
         self.edit = EditSession::default();
         self.find = None;
+        self.focus.observe(None);
         self.views.reset();
     }
     pub fn reveal_completed(&mut self, skin: SkinId) {

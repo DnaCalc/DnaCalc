@@ -6545,6 +6545,23 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
         ],
     },
 
+    Case {
+        name: "worker latency: a delayed skin focus request preserves a newer native field focus",
+        actions: &[
+            Action::PauseMillis(800),
+            Action::Click("skin-notebook"),
+            Action::PauseMillis(800),
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "M4"),
+            Action::PauseMillis(900),
+        ],
+        checks: &[
+            Check::Focused("name-box"),
+            Check::Value("name-box", "M4"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[

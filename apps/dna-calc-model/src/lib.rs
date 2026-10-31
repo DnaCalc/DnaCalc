@@ -8,14 +8,14 @@ mod view;
 pub mod viewport;
 pub use calc_value::{CellKey, GridArea, Selection, SheetId};
 pub use command::{
-    Command, CommandContext, CommandId, Effect, RevealTarget, SHELL_KEYMAP, Target, Unavailable,
-    resolve_shell_key,
+    Command, CommandContext, CommandId, CommandRequest, Effect, RevealTarget, SHELL_KEYMAP, Target,
+    Unavailable, resolve_shell_key,
 };
 pub use state::{EditSession, FindMode, Model, PointPick, SelectionState, TextSelection};
 pub use view::{
-    AtlasState, Branch, CanvasState, ClipboardOwner, EditorContinuation, FocusRegistry, GridState,
-    LedgerState, NotebookState, SurfaceDescriptor, SurfaceRole, TreeFocus, TreeState, ViewState,
-    ViewStateStore,
+    AtlasState, Branch, CanvasState, ClipboardOwner, EditorContinuation, FocusRegistry,
+    FocusTicket, GridState, LedgerState, NotebookState, SurfaceDescriptor, SurfaceRole, TreeFocus,
+    TreeState, ViewState, ViewStateStore,
 };
 
 /// Stable registry identity. A new skin declares its own id without editing this crate.
@@ -89,6 +89,54 @@ mod tests {
     }
     fn at(row: u32) -> CellKey {
         CellKey::new(SheetId::from_parts(1, 0), row, 1).unwrap()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn deferred_focus_preserves_submission_order_and_newer_native_attention() {
+        let mut model = Model::default();
+        let surface = SurfaceId::new("new-skin-editor");
+        model.focus.register(surface);
+        let request = model.prepare_command(Command::SwitchSkin(SkinId::Grid));
+        model.focus.observe(Some(surface));
+        let Effect::FocusSkin { ticket, .. } = model.dispatch_request(request, context()).unwrap()
+        else {
+            panic!("focus effect");
+        };
+        assert!(!model.focus.accepts(ticket));
+        assert_eq!(model.focus.observed(), Some(surface));
+        let raw_gesture = model.focus.snapshot();
+        model.focus.observe(None);
+        let request =
+            model.prepare_command_with_focus(Command::SwitchSkin(SkinId::Grid), Some(raw_gesture));
+        let Effect::FocusSkin { ticket, .. } = model.dispatch_request(request, context()).unwrap()
+        else {
+            panic!("focus effect");
+        };
+        assert!(!model.focus.accepts(ticket));
+        let request = model.prepare_command(Command::Reveal {
+            target: RevealTarget::Cell(at(1)),
+            skin: SkinId::Grid,
+        });
+        let Effect::Reveal { ticket, .. } = model.dispatch_request(request, context()).unwrap()
+        else {
+            panic!("reveal effect");
+        };
+        assert!(model.focus.accepts(ticket));
+        model.focus.observe(Some(surface));
+        assert!(!model.focus.accepts(ticket));
+        let earlier = model.focus.request();
+        model.focus.observe(None);
+        assert!(!model.focus.accepts(earlier));
+        let earlier = model.focus.request();
+        let newer = model.focus.request();
+        assert!(!model.focus.accepts(earlier));
+        assert!(model.focus.accepts(newer));
+        model.reset_workbook();
+        assert!(!model.focus.accepts(newer));
+        assert_eq!(model.focus.observed(), None);
+        assert!(model.focus.contains(surface));
+        assert_ne!(model.focus.request(), earlier);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
