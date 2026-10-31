@@ -47,6 +47,22 @@ pub(crate) fn xstring(units: &[u16], out: &mut Vec<u8>) {
     }
 }
 
+/// SpreadsheetML ST_Xstring as a quoted XML attribute, preserving escape-looking text and whitespace.
+pub(crate) fn xstring_attribute(units: &[u16], out: &mut Vec<u8>) {
+    let mut encoded = Vec::new();
+    xstring(units, &mut encoded);
+    out.push(b'"');
+    for byte in encoded {
+        match byte {
+            b'"' => out.extend_from_slice(b"&quot;"),
+            b'\t' => out.extend_from_slice(b"_x0009_"),
+            b'\n' => out.extend_from_slice(b"_x000A_"),
+            _ => out.push(byte),
+        }
+    }
+    out.push(b'"');
+}
+
 /// Whether text written in a `<t>` element needs `xml:space="preserve"`: it starts or ends with
 /// whitespace a reader that collapses it would drop.
 pub(crate) fn needs_preserve(units: &[u16]) -> bool {
@@ -220,6 +236,18 @@ impl<'a> RawTag<'a> {
                 }
             }
         }
+        out.extend_from_slice(if empty { b"/>" } else { b">" });
+        out
+    }
+
+    /// Replace one ST_Xstring attribute while preserving every other source attribute.
+    pub(super) fn rebuilt_xstring(&self, name: &str, units: &[u16], empty: bool) -> Vec<u8> {
+        let mut out = self.rebuilt(&[(name, None)], false);
+        out.pop();
+        out.push(b' ');
+        out.extend_from_slice(name.as_bytes());
+        out.push(b'=');
+        xstring_attribute(units, &mut out);
         out.extend_from_slice(if empty { b"/>" } else { b">" });
         out
     }

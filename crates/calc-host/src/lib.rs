@@ -63,6 +63,8 @@ mod history;
 mod project;
 mod recalc;
 mod save;
+mod shift;
+pub use shift::shift_cell_edits;
 mod session;
 mod state;
 pub mod validation;
@@ -98,7 +100,7 @@ pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
     AxisFormat, AxisFormatEdit, AxisLayouts, CachedValue, CellInput, CellText, DefinedName,
     Definitions, FileCached, FiniteNumber, FormulaText, FrozenPanes, IterationSettings, ModelRoot,
-    NameScope, RowHidden, SheetEntry, SourcePart,
+    NameScope, RowHidden, SheetEdit, SheetEntry, SheetKey, SheetName, SheetVisibility, SourcePart,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,

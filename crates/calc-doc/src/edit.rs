@@ -33,25 +33,35 @@ impl PreparedEdit {
 /// against is unchanged.
 #[derive(Debug, PartialEq, Eq)]
 pub enum EditError {
+    SheetOperation(String),
     /// The model refused the batch: it was prepared against another revision, names a sheet the
     /// model does not hold, or holds a row, column or sheet edit, which this package does not
     /// author yet.
     Model(ApplyError),
     /// The formula the operation at this index sets is longer than
     /// [`FORMULA_MAX_UTF16_CODE_UNITS`], so [`crate::load`] would refuse the saved package.
-    FormulaTooLong { operation: usize, units: usize },
+    FormulaTooLong {
+        operation: usize,
+        units: usize,
+    },
     /// CalcFml's parser reads the formula the operation at this index sets with a diagnostic:
     /// malformed text, or syntax that parser does not read, such as trim references (`A1.:B10`),
     /// which Microsoft documents as Excel formula syntax (not measured here). A save writes a
     /// formula's text as it was authored, so only text the parser reads without a diagnostic is
     /// admitted; how Excel treats text the parser does not read is not measured.
-    FormulaSyntax { operation: usize, message: String },
+    FormulaSyntax {
+        operation: usize,
+        message: String,
+    },
     /// The operation at this index changes part of the legacy array formula anchored at
     /// `anchor`: it sets or clears some but not all of the array's cells, which Excel refuses. A
     /// value set into a dynamic array's spill area is admitted: it blocks the spill, and the
     /// engine shows #SPILL! at the anchor. Setting a dynamic array's anchor replaces the array,
     /// and clearing any of its cells is admitted.
-    ArrayPart { operation: usize, anchor: CellKey },
+    ArrayPart {
+        operation: usize,
+        anchor: CellKey,
+    },
     /// The operation at this index sets an error constant Excel cannot hold in a cell: one of the
     /// newer errors (#SPILL!, #CALC!, #FIELD!, #BLOCKED!, #CONNECT!, #BUSY!, #GETTING_DATA).
     /// Excel stores the newer errors only as formula results (with value metadata); typed as a
@@ -63,12 +73,19 @@ pub enum EditError {
     },
     /// The operation at this index of a structural batch ([`prepare_structural_edit`]) is not
     /// an insertion or deletion of rows or columns.
-    NotAxisEdit { operation: usize },
+    NotAxisEdit {
+        operation: usize,
+    },
     /// The axis edit at this index changes the header or totals row of the table `table`,
     /// inserts or deletes columns inside it, or deletes all of it.
-    TablePart { operation: usize, table: String },
+    TablePart {
+        operation: usize,
+        table: String,
+    },
     /// The insertion at this index would push cells that hold an input off the grid.
-    PushedOffGrid { operation: usize },
+    PushedOffGrid {
+        operation: usize,
+    },
 }
 
 /// Whether Excel holds `code` as a constant in a cell: the seven classic errors.
@@ -80,6 +97,7 @@ pub(crate) fn error_constant_writable(code: calc_doc_model::value::WorksheetErro
 impl fmt::Display for EditError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::SheetOperation(reason) => f.write_str(reason),
             Self::Model(error) => write!(f, "the model refused the batch: {error}"),
             Self::FormulaTooLong { operation, units } => write!(
                 f,
@@ -343,4 +361,64 @@ fn check_axis_edit(root: &ModelRoot, operation: usize, edit: AxisEdit) -> Result
         }
     }
     Ok(())
+}
+
+/// Applies worksheet lifecycle operations using the canonical model reference rewriter.
+/// Sheet identities are supplied by the host and retained across Undo and Redo.
+pub fn prepare_sheet_edit(
+    model: &ModelRoot,
+    batch: &OpBatch,
+    rewriter: &dyn FormulaRewriter,
+    issue: &mut dyn FnMut() -> SheetId,
+) -> Result<PreparedEdit, EditError> {
+    for (operation, op) in batch.operations.iter().enumerate() {
+        if !matches!(op, WorkbookOp::EditSheet(_)) {
+            return Err(EditError::NotAxisEdit { operation });
+        }
+    }
+    let edited = model
+        .apply_structural(batch, rewriter, issue)
+        .map_err(EditError::Model)?;
+    if !edited
+        .sheets()
+        .iter()
+        .any(|s| s.visibility() == calc_doc_model::SheetVisibility::Visible)
+    {
+        return Err(EditError::SheetOperation(
+            "Keep at least one visible worksheet".to_owned(),
+        ));
+    }
+    let mut keys = std::collections::BTreeSet::new();
+    let mut names = std::collections::BTreeSet::new();
+    for entry in edited.sheets() {
+        if !keys.insert(entry.key())
+            || !names.insert(calc_doc_model::value::fold_workbook_name(
+                &entry.name().text().to_string_lossy(),
+            ))
+        {
+            return Err(EditError::SheetOperation(
+                "A worksheet with that name or key already exists".to_owned(),
+            ));
+        }
+    }
+    for sheet in edited.sheets() {
+        for (at, input) in edited.sheet_cells(sheet.id()).into_iter().flatten() {
+            if model.cell(at) == Some(input) {
+                continue;
+            }
+            if let CellInput::Formula(formula) = input {
+                check_formula(formula).map_err(|check| match check {
+                    FormulaCheck::TooLong(units) => EditError::FormulaTooLong {
+                        operation: 0,
+                        units,
+                    },
+                    FormulaCheck::Syntax(message) => EditError::FormulaSyntax {
+                        operation: 0,
+                        message,
+                    },
+                })?;
+            }
+        }
+    }
+    Ok(PreparedEdit { model: edited })
 }

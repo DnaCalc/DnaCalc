@@ -98,6 +98,8 @@ impl std::error::Error for OpenFailure {}
 /// The authored revision and the engine state are always at one revision.
 #[derive(Debug)]
 pub struct HostState {
+    pub(crate) sheet_ids: IdAllocator<SheetId>,
+    pub(crate) sheet_identities: std::collections::BTreeMap<calc_doc_model::SheetKey, SheetId>,
     /// The workbook as calc-doc loaded it. Its model is the loaded revision, never the current
     /// one, which is `model`.
     pub(crate) loaded: LoadedWorkbook,
@@ -156,7 +158,10 @@ impl HostState {
             })
         });
         let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        let sheet_identities = model.sheets().iter().map(|s| (s.key(), s.id())).collect();
         let mut host = HostState {
+            sheet_ids,
+            sheet_identities,
             loaded,
             model,
             engine,
@@ -516,10 +521,12 @@ impl HostState {
     /// with the worksheet's imported defaults. Structural edits move these same dimensions;
     /// `None` for a sheet the file did not hold.
     pub fn sheet_geometry(&self, sheet: SheetId) -> Option<calc_doc::SheetGeometry> {
+        self.model.sheet_by_id(sheet)?;
         Some(
             self.loaded
-                .sheet(sheet)?
-                .geometry()
+                .sheet(sheet)
+                .map(|s| s.geometry().clone())
+                .unwrap_or_default()
                 .authored(sheet, self.model().definitions().axis_layouts()),
         )
     }

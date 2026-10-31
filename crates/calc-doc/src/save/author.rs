@@ -318,7 +318,7 @@ fn layout_changes(package: &Package, edit: &Edited) -> Result<Option<LayoutChang
 }
 
 /// The target that names `to` from a relationship of the part `from`, both ZIP item names.
-fn relative_target(from: &str, to: &str) -> String {
+pub(super) fn relative_target(from: &str, to: &str) -> String {
     format!("{}{to}", "../".repeat(from.matches('/').count()))
 }
 
@@ -335,9 +335,13 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         structural,
         ..
     } = edit;
-    if !model.same_lineage(base) || model.sheets() != base.sheets() {
+    if !model.same_lineage(base) {
         return Err(SaveRefusal::ForeignModel);
     }
+    let sheets_changed = model.sheets() != base.sheets();
+    let original_sheets = sheets;
+    let expanded = super::sheets::expanded(package, workbook_part, sheets, model);
+    let sheets = &expanded;
     // Rows or columns inserted or deleted: the package's parts moved with them first, and each
     // moved sheet's changes found against the cells its cells moved from.
     // A macro sheet's formulas are not read, so references they hold cannot be moved: a
@@ -350,11 +354,20 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         });
     }
     let mut moved = match structural {
-        Some(structural) => Some(structural::moved(package, sheets, base, structural)?),
+        Some(structural) => Some(structural::moved(
+            package,
+            original_sheets,
+            base,
+            structural,
+        )?),
         None => None,
     };
     let moves: Vec<Option<SheetMoves>> = (0..sheets.len())
-        .map(|index| moved.as_mut().and_then(|moved| moved.moves[index].take()))
+        .map(|index| {
+            moved
+                .as_mut()
+                .and_then(|moved| moved.moves.get_mut(index).and_then(Option::take))
+        })
         .collect();
     let changes: Vec<SheetChanges> = sheets
         .iter()
@@ -395,6 +408,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         && !panes_changed
         && !dimensions_changed
         && iteration.is_none()
+        && !sheets_changed
     {
         return Ok(out);
     }
@@ -564,7 +578,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             .map(|(((index, sheet), changes), cleared)| {
                 let moved_part = moved
                     .as_ref()
-                    .is_some_and(|moved| moved.sheets[index].is_some());
+                    .is_some_and(|moved| moved.sheets.get(index).is_some_and(Option::is_some));
                 let formulas = model
                     .sheet_cells(sheet.id())
                     .into_iter()
@@ -619,10 +633,12 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 continue;
             }
             let name = sheet.part().name();
-            let moved_xml = moved.as_mut().and_then(|moved| moved.sheets[index].take());
+            let moved_xml = moved
+                .as_mut()
+                .and_then(|moved| moved.sheets.get_mut(index).and_then(Option::take));
             let xml = match moved_xml {
                 Some(xml) => xml,
-                None => read_part(package, name)?,
+                None => super::sheets::read_sheet(package, name)?,
             };
             let job = Job {
                 changes,
@@ -635,9 +651,9 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 loaded: sheet,
                 model,
                 moves: moves[index].as_ref(),
-                cut_groups: moved
-                    .as_ref()
-                    .map_or(&no_groups, |moved| &moved.unshared[index]),
+                cut_groups: moved.as_ref().map_or(&no_groups, |moved| {
+                    moved.unshared.get(index).unwrap_or(&no_groups)
+                }),
                 formats: &formats[index],
             };
             let rewritten = sheet::rewrite(&xml, &job, &mut strings)?;
@@ -737,8 +753,13 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             out.rewritten.insert(part, content);
         }
     }
-    if full_calc || iteration.is_some() || !names.is_empty() {
-        let workbook = read_part(package, workbook_part)?;
+    if full_calc || iteration.is_some() || !names.is_empty() || sheets_changed {
+        let original = read_part(package, workbook_part)?;
+        let workbook = if sheets_changed {
+            original.with_bytes(super::sheets::workbook(&original, base, model, sheets)?)
+        } else {
+            original
+        };
         out.rewritten.insert(
             workbook_part.clone(),
             parts::workbook(&workbook, full_calc, iteration, &names)?,
@@ -862,7 +883,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                     part: sheet.part().name().to_owned(),
                 });
             }
-            let original = read_part(package, sheet.part().name())?;
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
             let current = out
                 .rewritten
                 .remove(sheet.part().name())
@@ -879,7 +900,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         for sheet in sheets.iter().filter(|s| {
             base.definitions().frozen_panes(s.id()) != model.definitions().frozen_panes(s.id())
         }) {
-            let original = read_part(package, sheet.part().name())?;
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
             let current = out
                 .rewritten
                 .remove(sheet.part().name())
@@ -892,6 +913,9 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             )?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
+    }
+    if sheets_changed {
+        super::sheets::finish(package, workbook_part, base, model, sheets, &mut out)?;
     }
     Ok(out)
 }

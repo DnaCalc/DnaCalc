@@ -29,6 +29,7 @@ pub struct Answer {
 }
 
 pub struct Server {
+    sheet_keys: std::collections::BTreeSet<calc_host::SheetKey>,
     book: Workbook,
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
@@ -48,8 +49,10 @@ impl Default for Server {
 impl Server {
     /// A server over a new, empty workbook.
     pub fn new() -> Server {
+        let book = Workbook::new_blank();
         Server {
-            book: Workbook::new_blank(),
+            sheet_keys: book.host().sheets().iter().map(|s| s.key()).collect(),
+            book,
             subscriptions: BTreeMap::new(),
             events: Vec::new(),
             snapshots: BTreeMap::new(),
@@ -230,7 +233,21 @@ impl Server {
                 Request::ResolveReference { anchor, text } => {
                     let at = cell(anchor)?;
                     let resolved = match self.book.host().resolve_reference_text(at, text.trim()) {
-                        calc_host::ReferenceTarget::Area(area) => Ok(Area::of(area)),
+                        calc_host::ReferenceTarget::Area(area) => {
+                            if self
+                                .book
+                                .host()
+                                .model()
+                                .sheet_by_id(area.sheet())
+                                .is_some_and(|s| {
+                                    s.visibility() != calc_host::SheetVisibility::Visible
+                                })
+                            {
+                                Err("Unhide this worksheet before navigating to it".to_owned())
+                            } else {
+                                Ok(Area::of(area))
+                            }
+                        }
                         calc_host::ReferenceTarget::Invalid => Err(format!(
                             "{text:?} is not a valid address, range or reference name"
                         )),
@@ -318,6 +335,7 @@ impl Server {
 
     /// A new workbook in place of the open one: the page's subscriptions end with it.
     fn install(&mut self, book: Workbook) {
+        self.sheet_keys = book.host().sheets().iter().map(|s| s.key()).collect();
         self.book = book;
         self.subscriptions.clear();
         self.events.clear();
@@ -450,9 +468,32 @@ impl Server {
             redo: self.book.session().history_depth().1,
             sheets: self
                 .book
+                .host()
                 .sheets()
-                .into_iter()
-                .map(|tab| (Sheet::of(tab.id), tab.name))
+                .iter()
+                .filter(|s| s.visibility() == calc_host::SheetVisibility::Visible)
+                .map(|s| (Sheet::of(s.id()), s.name().text().to_string_lossy()))
+                .collect(),
+            sheet_order: self
+                .book
+                .host()
+                .sheets()
+                .iter()
+                .map(|s| Sheet::of(s.id()))
+                .collect(),
+            hidden_sheets: self
+                .book
+                .host()
+                .sheets()
+                .iter()
+                .filter(|s| s.visibility() != calc_host::SheetVisibility::Visible)
+                .map(|s| {
+                    (
+                        Sheet::of(s.id()),
+                        s.name().text().to_string_lossy(),
+                        s.visibility() == calc_host::SheetVisibility::VeryHidden,
+                    )
+                })
                 .collect(),
             manual: self.book.session().calc_mode() == CalcMode::Manual,
             revision: self.book.host().revision().get(),
@@ -675,6 +716,89 @@ impl Server {
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
+            Intent::ShiftCells {
+                area: a,
+                down,
+                insert,
+            } => SkinIntent::Edit {
+                edits: calc_host::shift_cell_edits(self.book.host(), area(a)?, down, insert)?,
+            },
+            Intent::EditSheet { sheet, change } => {
+                use calc_host::{SheetEdit, SheetKey, SheetName, SheetVisibility};
+                use wire::SheetChange as C;
+                let model = self.book.host().model();
+                let id = sheet.map(Sheet::id);
+                let require = || {
+                    id.filter(|id| model.sheet_by_id(*id).is_some())
+                        .ok_or_else(|| "The worksheet is unavailable".to_owned())
+                };
+                let name = |text: String| -> Result<SheetName, String> {
+                    if text.eq_ignore_ascii_case("History") {
+                        return Err(
+                            "History is reserved by Excel; choose another worksheet name"
+                                .to_owned(),
+                        );
+                    }
+                    SheetName::new(calc_host::value::ExcelText::from_utf16_code_units(
+                        text.encode_utf16().collect(),
+                    ))
+                    .map_err(|e| e.to_string())
+                };
+                let edit = match change {
+                    C::Add { name: text } => {
+                        let key = (1u32..)
+                            .map(SheetKey::new)
+                            .find(|key| {
+                                !self.sheet_keys.contains(key)
+                                    && model.sheets().iter().all(|s| s.key() != *key)
+                            })
+                            .ok_or("No sheet keys remain")?;
+                        self.sheet_keys.insert(key);
+                        SheetEdit::Insert {
+                            key,
+                            name: name(text)?,
+                            position: std::num::NonZeroU32::new(model.sheets().len() as u32 + 1)
+                                .unwrap(),
+                        }
+                    }
+                    C::Rename { name: text } => SheetEdit::Rename {
+                        sheet: require()?,
+                        name: name(text)?,
+                    },
+                    C::Move { position } => {
+                        if position == 0 || position as usize > model.sheets().len() {
+                            return Err("Choose a worksheet position in the workbook".to_owned());
+                        }
+                        SheetEdit::Move {
+                            sheet: require()?,
+                            position: std::num::NonZeroU32::new(position).unwrap(),
+                        }
+                    }
+                    C::Remove => SheetEdit::Remove { sheet: require()? },
+                    C::Hide | C::Show => {
+                        let sheet = require()?;
+                        if model.sheet_by_id(sheet).unwrap().visibility()
+                            == SheetVisibility::VeryHidden
+                        {
+                            return Err(
+                                "This sheet is VeryHidden; unhiding it is unavailable here"
+                                    .to_owned(),
+                            );
+                        }
+                        SheetEdit::SetVisibility {
+                            sheet,
+                            visibility: if change == C::Hide {
+                                SheetVisibility::Hidden
+                            } else {
+                                SheetVisibility::Visible
+                            },
+                        }
+                    }
+                };
+                SkinIntent::Edit {
+                    edits: vec![CellEdit::Sheet(edit)],
+                }
+            }
             Intent::FitContents {
                 sheet,
                 rows,
@@ -1098,6 +1222,10 @@ fn host_interest(interest: Interest) -> Result<calc_host::Interest, String> {
 /// The page's intent as calc-host's.
 fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
     Ok(match intent {
+        Intent::ShiftCells { .. } => return Err("cell shifts need the workbook worker".to_owned()),
+        Intent::EditSheet { .. } => {
+            return Err("sheet commands need the workbook worker".to_owned());
+        }
         Intent::FitContents { .. } => return Err("fitting needs the workbook worker".to_owned()),
         Intent::AxisFormat { .. } => return Err("dimensions need the workbook worker".to_owned()),
         Intent::FreezePanes { .. } => return Err("pane editing needs the workbook view".to_owned()),

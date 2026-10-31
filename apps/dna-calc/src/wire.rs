@@ -77,6 +77,15 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    ShiftCells {
+        area: Area,
+        down: bool,
+        insert: bool,
+    },
+    EditSheet {
+        sheet: Option<Sheet>,
+        change: SheetChange,
+    },
     FitContents {
         sheet: Sheet,
         rows: bool,
@@ -144,6 +153,17 @@ pub enum Intent {
         active: Key,
         areas: Vec<Area>,
     },
+}
+
+/// Worksheet commands. Positions are one-based in the full workbook order.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SheetChange {
+    Add { name: String },
+    Rename { name: String },
+    Move { position: u32 },
+    Remove,
+    Hide,
+    Show,
 }
 
 /// The page to the server.
@@ -239,6 +259,8 @@ pub struct Summary {
     pub redo: usize,
     /// The sheets in workbook order, with their names.
     pub sheets: Vec<(Sheet, String)>,
+    pub hidden_sheets: Vec<(Sheet, String, bool)>,
+    pub sheet_order: Vec<Sheet>,
     pub manual: bool,
     /// The session's authored revision, which advances with every committed change.
     pub revision: u64,
@@ -259,6 +281,12 @@ impl dna_formula_ui::display::SheetNames for Summary {
             .iter()
             .find(|(s, _)| s.id() == sheet)
             .map(|(_, name)| name.clone())
+            .or_else(|| {
+                self.hidden_sheets
+                    .iter()
+                    .find(|(s, _, _)| s.id() == sheet)
+                    .map(|(_, name, _)| name.clone())
+            })
     }
 }
 

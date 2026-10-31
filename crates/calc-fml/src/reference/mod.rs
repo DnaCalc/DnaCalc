@@ -33,22 +33,23 @@ mod template;
 mod text;
 mod transform;
 
-pub(crate) use bind::{external_operand, qualified_name};
 pub use bind::{
     BindError, ExternalBookRef, ExternalOperand, NameDefinition, NameScope, ReferenceCatalog,
     ReferenceSite, bind_references,
 };
+pub(crate) use bind::{external_operand, qualified_name};
+pub use calc_func::TextReference;
 pub use read::{
     CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cell_by_area,
     read_cells,
 };
 pub use structured::{TableInfo, TableLookup};
 pub use template::{template_key, template_key_of_chars};
-pub use transform::{
-    EditAxis, StructuralEdit, convert_notation, transform_formula, transform_name,
-};
 pub use text::bind_text;
-pub use calc_func::TextReference;
+pub use transform::{
+    EditAxis, StructuralEdit, convert_notation, shift_formula_supported, transform_formula,
+    transform_name,
+};
 
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode};
 

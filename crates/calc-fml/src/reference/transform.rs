@@ -47,6 +47,12 @@ pub enum EditAxis {
 /// A structural edit, as [`transform_formula`] applies it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StructuralEdit {
+    /// Insert or delete cells within one row/column stripe. Whole axes use Insert/Delete.
+    ShiftCells {
+        area: GridArea,
+        down: bool,
+        insert: bool,
+    },
     /// `count` rows or columns inserted on `sheet` before the 1-based position `first`.
     Insert {
         sheet: SheetId,
@@ -110,6 +116,50 @@ impl StructuralEdit {
     /// The cell `at` moves to; `None` when the edit deletes it (its row, its column or its sheet)
     /// or pushes it off the grid.
     pub fn cell(&self, at: CellKey) -> Option<CellKey> {
+        if let Self::ShiftCells { area, down, insert } = self {
+            if area.sheet() != at.sheet() {
+                return Some(at);
+            }
+            let (cross, low, high, index, first, count, size) = if *down {
+                (
+                    at.column(),
+                    area.first().column(),
+                    area.last().column(),
+                    at.row(),
+                    area.first().row(),
+                    area.row_count(),
+                    MAX_ROWS,
+                )
+            } else {
+                (
+                    at.row(),
+                    area.first().row(),
+                    area.last().row(),
+                    at.column(),
+                    area.first().column(),
+                    area.column_count(),
+                    MAX_COLUMNS,
+                )
+            };
+            if !(low..=high).contains(&cross) {
+                return Some(at);
+            }
+            let changed = transform_index(
+                index,
+                if *insert {
+                    Change::Insert(first, count)
+                } else {
+                    Change::Delete(first, count)
+                },
+                size,
+            )?;
+            return CellKey::new(
+                at.sheet(),
+                if *down { changed } else { at.row() },
+                if *down { at.column() } else { changed },
+            )
+            .ok();
+        }
         if let StructuralEdit::MoveCells { area, to, .. } = self {
             if !area.contains(at) {
                 return Some(at);
@@ -117,8 +167,12 @@ impl StructuralEdit {
             let row = i64::from(at.row()) + i64::from(to.row()) - i64::from(area.first().row());
             let column =
                 i64::from(at.column()) + i64::from(to.column()) - i64::from(area.first().column());
-            return CellKey::new(to.sheet(), u32::try_from(row).ok()?, u32::try_from(column).ok()?)
-                .ok();
+            return CellKey::new(
+                to.sheet(),
+                u32::try_from(row).ok()?,
+                u32::try_from(column).ok()?,
+            )
+            .ok();
         }
         if let StructuralEdit::RemoveSheet { sheet, .. } = self
             && *sheet == at.sheet()
@@ -134,6 +188,67 @@ impl StructuralEdit {
     /// rows or columns inserted inside it, shrunk by those deleted from it, cut at the grid's
     /// edge; `None` when every cell of it is deleted (or its sheet removed).
     pub fn area(&self, area: GridArea) -> Option<GridArea> {
+        if let Self::ShiftCells {
+            area: band,
+            down,
+            insert,
+        } = self
+        {
+            if band.sheet() != area.sheet() {
+                return Some(area);
+            }
+            let contained = if *down {
+                area.first().column() >= band.first().column()
+                    && area.last().column() <= band.last().column()
+            } else {
+                area.first().row() >= band.first().row() && area.last().row() <= band.last().row()
+            };
+            if !contained {
+                return Some(area);
+            }
+            let (start, end, first, count, size) = if *down {
+                (
+                    area.first().row(),
+                    area.last().row(),
+                    band.first().row(),
+                    band.row_count(),
+                    MAX_ROWS,
+                )
+            } else {
+                (
+                    area.first().column(),
+                    area.last().column(),
+                    band.first().column(),
+                    band.column_count(),
+                    MAX_COLUMNS,
+                )
+            };
+            let (start, end) = transform_range(
+                start,
+                end,
+                if *insert {
+                    Change::Insert(first, count)
+                } else {
+                    Change::Delete(first, count)
+                },
+                size,
+            )?;
+            return GridArea::new(
+                CellKey::new(
+                    area.sheet(),
+                    if *down { start } else { area.first().row() },
+                    if *down { area.first().column() } else { start },
+                )
+                .ok()?,
+                CellKey::new(
+                    area.sheet(),
+                    if *down { end } else { area.last().row() },
+                    if *down { area.last().column() } else { end },
+                )
+                .ok()?,
+            )
+            .ok();
+        }
         if let StructuralEdit::MoveCells { area: moved, .. } = self {
             if !(moved.contains(area.first()) && moved.contains(area.last())) {
                 return Some(area);
@@ -324,7 +439,9 @@ fn transform(
                 }
             }
         }
-        StructuralEdit::Insert { .. } | StructuralEdit::Delete { .. } => {
+        StructuralEdit::Insert { .. }
+        | StructuralEdit::Delete { .. }
+        | StructuralEdit::ShiftCells { .. } => {
             let anchor = FormulaAnchor::new(at);
             for site in bind_references(&tree, ReferenceNotation::A1, anchor, catalog) {
                 if name {
@@ -407,9 +524,13 @@ struct End<'t> {
 }
 
 fn parse_end(end: &str) -> End<'_> {
-    let column_absolute = end.starts_with('$') && end[1..].starts_with(|c: char| c.is_ascii_alphabetic());
+    let column_absolute =
+        end.starts_with('$') && end[1..].starts_with(|c: char| c.is_ascii_alphabetic());
     let rest = if column_absolute { &end[1..] } else { end };
-    let letters_len = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_alphabetic()).len();
+    let letters_len = rest.len()
+        - rest
+            .trim_start_matches(|c: char| c.is_ascii_alphabetic())
+            .len();
     let (letters, rest) = rest.split_at(letters_len);
     let row_absolute = rest.starts_with('$');
     let digits = rest.trim_start_matches('$');
@@ -434,6 +555,16 @@ impl End<'_> {
 fn name_ends(site: &ReferenceSite, units: &[u16], edit: &StructuralEdit) -> NameEnds {
     let axis = match edit {
         StructuralEdit::Insert { axis, .. } | StructuralEdit::Delete { axis, .. } => *axis,
+        StructuralEdit::ShiftCells { .. } => {
+            return if [EditAxis::Rows, EditAxis::Columns]
+                .into_iter()
+                .all(|axis| matches!(name_ends_on(site, units, axis), NameEnds::Absolute))
+            {
+                NameEnds::Absolute
+            } else {
+                NameEnds::Relative
+            };
+        }
         StructuralEdit::MoveCells { .. } => {
             // A move changes a name's reference only when it holds every coordinate absolute.
             let all_absolute = [EditAxis::Rows, EditAxis::Columns]
@@ -553,6 +684,14 @@ fn axis_site(
         StructuralEdit::Insert { sheet, axis, .. } | StructuralEdit::Delete { sheet, axis, .. } => {
             (*sheet, Some(*axis))
         }
+        StructuralEdit::ShiftCells { area, down, .. } => (
+            area.sheet(),
+            Some(if *down {
+                EditAxis::Rows
+            } else {
+                EditAxis::Columns
+            }),
+        ),
         _ => return None,
     };
     let sheet = match operand.sheet {
@@ -782,9 +921,7 @@ fn move_site(
     } else {
         qualifier
     };
-    let unchanged = || {
-        (mv.moving && !qualified).then(|| format!("{}{text}", mv.source_qualifier))
-    };
+    let unchanged = || (mv.moving && !qualified).then(|| format!("{}{text}", mv.source_qualifier));
     let sheet = match operand.sheet {
         SheetTarget::Anchor => anchor.sheet(),
         SheetTarget::Sheet(sheet) => sheet,
@@ -908,7 +1045,10 @@ pub fn convert_notation(
         at_unit = span.end();
     }
     out.extend_from_slice(&units[at_unit..]);
-    String::from_utf16(&out).ok()?.strip_prefix('=').map(str::to_owned)
+    String::from_utf16(&out)
+        .ok()?
+        .strip_prefix('=')
+        .map(str::to_owned)
 }
 
 /// One axis in R1C1: `R3`, `R`, `R[-2]` (with `letter` R or C).
@@ -922,7 +1062,11 @@ fn r1c1_axis(letter: char, axis: AxisRef) -> String {
 
 fn r1c1_text(shape: ReferenceShape) -> String {
     let cell = |cell: super::CellRef| {
-        format!("{}{}", r1c1_axis('R', cell.row), r1c1_axis('C', cell.column))
+        format!(
+            "{}{}",
+            r1c1_axis('R', cell.row),
+            r1c1_axis('C', cell.column)
+        )
     };
     match shape {
         ReferenceShape::Cell(one) => cell(one),
@@ -945,7 +1089,9 @@ fn a1_axis(axis: AxisRef, anchor: u32, max: u32, column: bool) -> Option<String>
         AxisRef::Absolute(index) => ("$", i64::from(index)),
         AxisRef::Relative(offset) => ("", i64::from(anchor) + i64::from(offset)),
     };
-    let index = u32::try_from(index).ok().filter(|i| (1..=max).contains(i))?;
+    let index = u32::try_from(index)
+        .ok()
+        .filter(|i| (1..=max).contains(i))?;
     Some(if column {
         format!("{dollar}{}", column_letters(index))
     } else {
@@ -1327,15 +1473,22 @@ mod tests {
         fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>> {
             let at = |sheet| self.0.iter().position(|(_, held)| *held == sheet);
             let (a, b) = (at(first)?, at(last)?);
-            Some(self.0[a.min(b)..=a.max(b)].iter().map(|(_, s)| *s).collect())
+            Some(
+                self.0[a.min(b)..=a.max(b)]
+                    .iter()
+                    .map(|(_, s)| *s)
+                    .collect(),
+            )
         }
     }
 
     fn ordered() -> (Ordered, Vec<SheetId>) {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let names = ["F", "Ja", "Fe", "Ma", "Nm"];
-        let sheets: Vec<(&'static str, SheetId)> =
-            names.iter().map(|name| (*name, ids.issue().unwrap())).collect();
+        let sheets: Vec<(&'static str, SheetId)> = names
+            .iter()
+            .map(|name| (*name, ids.issue().unwrap()))
+            .collect();
         let ids = sheets.iter().map(|(_, id)| *id).collect();
         (Ordered(sheets), ids)
     }
@@ -1379,7 +1532,11 @@ mod tests {
                 "SUM(Ja:Fe!A2:B2)",
                 "SUM(Fe:Ma!$A$4)",
             ] {
-                assert_eq!(transform_formula(formula, at, &edit, &catalog), None, "{formula}");
+                assert_eq!(
+                    transform_formula(formula, at, &edit, &catalog),
+                    None,
+                    "{formula}"
+                );
             }
         }
         let column_a = axis(nm, EditAxis::Columns, true, 1);
@@ -1403,7 +1560,10 @@ mod tests {
             transform_name("Nm!$B$1", nm, &row_1, &catalog).as_deref(),
             Some("Nm!$B$2")
         );
-        assert_eq!(transform_name("Nm!$B$2", nm, &row_3_deleted, &catalog), None);
+        assert_eq!(
+            transform_name("Nm!$B$2", nm, &row_3_deleted, &catalog),
+            None
+        );
         // Ranges with an absolute and a relative end on the edited axis (mixed_name_site): each
         // name through row 1 inserted, column A inserted and row 2 deleted, in turn.
         let row_2_deleted = axis(nm, EditAxis::Rows, false, 2);
@@ -1499,7 +1659,10 @@ mod tests {
         let to_r1c1 = |text: &str| convert_notation(text, at, A1, R1C1, &catalog).unwrap();
         let to_a1 = |text: &str| convert_notation(text, at, R1C1, A1, &catalog).unwrap();
         assert_eq!(to_r1c1("$B$3+B3+C5"), "R3C2+R[-2]C[-1]+RC");
-        assert_eq!(to_r1c1("SUM(Sheet2!A1:B2)*$A1"), "SUM(Sheet2!R[-4]C[-2]:R[-3]C[-1])*R[-4]C1");
+        assert_eq!(
+            to_r1c1("SUM(Sheet2!A1:B2)*$A1"),
+            "SUM(Sheet2!R[-4]C[-2]:R[-3]C[-1])*R[-4]C1"
+        );
         assert_eq!(
             to_r1c1("SUM(2:4)+SUM(B:B)+SUM($B:$D)"),
             "SUM(R[-3]:R[-1])+SUM(C[-1])+SUM(C2:C4)"
@@ -1578,20 +1741,45 @@ mod tests {
             moved("$A$2*A3", at(one, 3, 3)).as_deref(),
             Some("Sheet2!$C$3*Sheet2!C4")
         );
-        assert_eq!(moved("SUM(A1:A5)", at(one, 2, 3)).as_deref(), Some("SUM(A4:A5)"));
-        assert_eq!(moved("SUM(A2:A5)", at(one, 2, 3)).as_deref(), Some("SUM(A4:A5)"));
-        assert_eq!(moved("SUM(A1:B5)", at(one, 2, 3)).as_deref(), Some("SUM(A4:B5)"));
-        assert_eq!(moved("SUM(A1:C2)", at(one, 2, 3)).as_deref(), Some("SUM(C1:C2)"));
-        assert_eq!(moved("SUM(A1:C5)", at(one, 2, 3)), None, "no band of whole rows or columns");
-        assert_eq!(moved("Sheet1!A1", at(two, 1, 2)).as_deref(), Some("Sheet2!C2"));
+        assert_eq!(
+            moved("SUM(A1:A5)", at(one, 2, 3)).as_deref(),
+            Some("SUM(A4:A5)")
+        );
+        assert_eq!(
+            moved("SUM(A2:A5)", at(one, 2, 3)).as_deref(),
+            Some("SUM(A4:A5)")
+        );
+        assert_eq!(
+            moved("SUM(A1:B5)", at(one, 2, 3)).as_deref(),
+            Some("SUM(A4:B5)")
+        );
+        assert_eq!(
+            moved("SUM(A1:C2)", at(one, 2, 3)).as_deref(),
+            Some("SUM(C1:C2)")
+        );
+        assert_eq!(
+            moved("SUM(A1:C5)", at(one, 2, 3)),
+            None,
+            "no band of whole rows or columns"
+        );
+        assert_eq!(
+            moved("Sheet1!A1", at(two, 1, 2)).as_deref(),
+            Some("Sheet2!C2")
+        );
         assert_eq!(
             moved("SUM(Sheet1!A1:C3)", at(two, 1, 2)).as_deref(),
             Some("SUM(Sheet1!C1:C3)")
         );
         // The cells the paste writes over.
         assert_eq!(moved("C3", at(two, 9, 1)).as_deref(), Some("#REF!"));
-        assert_eq!(moved("Sheet2!C2:D3", at(one, 9, 1)).as_deref(), Some("Sheet2!#REF!"));
-        assert_eq!(moved("SUM(C1:C3)", at(two, 9, 1)).as_deref(), Some("SUM(C1:C1)"));
+        assert_eq!(
+            moved("Sheet2!C2:D3", at(one, 9, 1)).as_deref(),
+            Some("Sheet2!#REF!")
+        );
+        assert_eq!(
+            moved("SUM(C1:C3)", at(two, 9, 1)).as_deref(),
+            Some("SUM(C1:C1)")
+        );
         // Names: an absolute one follows or is cut; a mixed one stays.
         assert_eq!(
             transform_name("Sheet1!$A$1:$A$3", one, &edit, &catalog).as_deref(),
@@ -1603,5 +1791,106 @@ mod tests {
         );
         assert_eq!(transform_name("Sheet1!$A1", one, &edit, &catalog), None);
     }
+}
 
+/// Checks the presently supported rectangular shift contract before any cells are changed.
+/// Partially intersecting ranges, whole-axis/3D references and relative defined names need
+/// Excel readings before they can be transformed without guessing.
+pub fn shift_formula_supported(
+    text: &str,
+    at: CellKey,
+    area: GridArea,
+    down: bool,
+    name: bool,
+    catalog: &dyn ReferenceCatalog,
+) -> bool {
+    let source = format!("={}", text.trim_start_matches('='));
+    let tree = crate::parse_formula(&source);
+    if !tree.diagnostics().is_empty() {
+        return false;
+    }
+    let units: Vec<u16> = source.encode_utf16().collect();
+    let anchor = FormulaAnchor::new(at);
+    for site in bind_references(&tree, ReferenceNotation::A1, anchor, catalog) {
+        let Ok(operand) = &site.binding else {
+            continue;
+        };
+        if matches!(operand.sheet, SheetTarget::Span { .. }) {
+            return false;
+        }
+        let Ok(placed) = operand.instantiate(anchor) else {
+            continue;
+        };
+        if placed.sheet() != area.sheet() {
+            continue;
+        }
+        if name
+            && !matches!(
+                name_ends(
+                    &site,
+                    &units,
+                    &StructuralEdit::ShiftCells {
+                        area,
+                        down,
+                        insert: true
+                    }
+                ),
+                NameEnds::Absolute
+            )
+        {
+            return false;
+        }
+        let (low, high, first, last, band_low, band_high, band_first) = if down {
+            (
+                placed.first().column(),
+                placed.last().column(),
+                placed.first().row(),
+                placed.last().row(),
+                area.first().column(),
+                area.last().column(),
+                area.first().row(),
+            )
+        } else {
+            (
+                placed.first().row(),
+                placed.last().row(),
+                placed.first().column(),
+                placed.last().column(),
+                area.first().row(),
+                area.last().row(),
+                area.first().column(),
+            )
+        };
+        let _ = first;
+        if high < band_low || low > band_high || last < band_first {
+            continue;
+        }
+        if low < band_low
+            || high > band_high
+            || matches!(
+                operand.shape,
+                ReferenceShape::Rows { .. } | ReferenceShape::Columns { .. }
+            )
+            || site.this_row
+        {
+            return false;
+        }
+        if name
+            && !matches!(
+                name_ends(
+                    &site,
+                    &units,
+                    &StructuralEdit::ShiftCells {
+                        area,
+                        down,
+                        insert: true
+                    }
+                ),
+                NameEnds::Absolute
+            )
+        {
+            return false;
+        }
+    }
+    true
 }

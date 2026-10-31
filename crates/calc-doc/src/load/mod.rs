@@ -99,7 +99,7 @@ const WORKBOOK_CONTENT_TYPES: [&str; 4] = [
 
 /// One sheet's records beside the model: its part, and the style and formula records of its
 /// occupied cells.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LoadedSheet {
     id: SheetId,
     relationship: String,
@@ -118,6 +118,26 @@ pub struct LoadedSheet {
 }
 
 impl LoadedSheet {
+    /// Empty source metadata for a newly authored worksheet.
+    pub(crate) fn empty(id: SheetId, relationship: String, name: String) -> Self {
+        Self {
+            id,
+            relationship,
+            part: Arc::new(SourcePart::new(name, 0, 0)),
+            styles: BTreeMap::new(),
+            formulas: BTreeMap::new(),
+            value_caches: BTreeMap::new(),
+            geometry: SheetGeometry::default(),
+            view: SheetView::default(),
+            conditional_formats: Arc::from([]),
+            macro_sheet: false,
+            protected: false,
+            merged_areas: Vec::new(),
+            validations: Arc::from([]),
+            charts: Arc::new(SheetCharts::default()),
+        }
+    }
+
     /// Whether worksheet protection is enabled. Editing locked/unlocked subsets is not yet modelled.
     pub fn protected(&self) -> bool {
         self.protected
@@ -219,7 +239,7 @@ impl LoadedSheet {
 
 /// What a sheet's record of a formula cell holds beside the formula's text, which is the cell's
 /// input in the model.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FormulaRecord {
     shared: Option<SharedFormula>,
     cache: Option<FileCached>,
@@ -308,6 +328,140 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    /// Whether a rectangular shift can preserve this sheet's position metadata today.
+    pub fn cell_shift_metadata_supported(&self, sheet: SheetId) -> bool {
+        let Some(sheet) = self.sheet(sheet) else {
+            return true;
+        };
+        if self
+            .package
+            .relationships_of(Some(sheet.part().name()))
+            .is_some_and(|rels| {
+                rels.items().iter().any(|r| {
+                    !["printerSettings", "image", "customProperty", "hyperlink"]
+                        .iter()
+                        .any(|kind| r.kind.ends_with(&format!("/{kind}")))
+                })
+            })
+        {
+            return false;
+        }
+        let Ok(xml) = self.package.read_xml(sheet.part().name()) else {
+            return false;
+        };
+        let mut reader = xml.reader();
+        loop {
+            match reader.next_event() {
+                Ok(Some(crate::xml::XmlEvent::Start(e)))
+                    if matches!(
+                        e.name.local.as_str(),
+                        "hyperlinks"
+                            | "legacyDrawing"
+                            | "drawing"
+                            | "oleObjects"
+                            | "autoFilter"
+                            | "sortState"
+                            | "extLst"
+                            | "protectedRanges"
+                            | "ignoredErrors"
+                            | "scenarios"
+                            | "dataConsolidate"
+                            | "customSheetViews"
+                            | "cellWatches"
+                            | "controls"
+                            | "smartTags"
+                            | "webPublishItems"
+                            | "rowBreaks"
+                            | "colBreaks"
+                    ) =>
+                {
+                    return false;
+                }
+                Ok(None) => return true,
+                Err(_) => return false,
+                _ => {}
+            }
+        }
+    }
+
+    /// Package reference families that worksheet rename/removal cannot yet rewrite.
+    pub fn sheet_reference_metadata_supported(&self) -> bool {
+        let Ok(xml) = self.package.read_xml(&self.workbook_part) else {
+            return false;
+        };
+        let mut reader = xml.reader();
+        let mut extension_depth = 0usize;
+        loop {
+            match reader.next_event() {
+                Ok(Some(crate::xml::XmlEvent::Start(e))) => {
+                    if e.name.local == "pivotCaches" {
+                        return false;
+                    }
+                    if e.name.local == "extLst" {
+                        extension_depth = 1;
+                        continue;
+                    }
+                    if extension_depth > 0 {
+                        extension_depth += 1;
+                        let known = match e.name.local.as_str() {
+                            "ext" => e.name.namespace.as_deref() == Some(MAIN_NAMESPACE),
+                            "workbookPr" => {
+                                e.name.namespace.as_deref()
+                                    == Some(
+                                        "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main",
+                                    )
+                                    && e.attributes
+                                        .iter()
+                                        .all(|a| a.name.local == "chartTrackingRefBase")
+                            }
+                            "calcFeatures" | "feature" => {
+                                e.name.namespace.as_deref()
+                                    == Some(
+                                        "http://schemas.microsoft.com/office/spreadsheetml/2018/calcfeatures",
+                                    )
+                            }
+                            "version" => {
+                                e.name.namespace.as_deref()
+                                    == Some(
+                                        "http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion",
+                                    )
+                            }
+                            _ => false,
+                        };
+                        if !known {
+                            return false;
+                        }
+                    }
+                }
+                Ok(Some(crate::xml::XmlEvent::End(_))) if extension_depth > 0 => {
+                    extension_depth -= 1
+                }
+                Ok(None) => return true,
+                Err(_) => return false,
+                _ => {}
+            }
+        }
+    }
+
+    /// Workbook structure protection, read without changing the package.
+    pub fn structure_protected(&self) -> bool {
+        let Ok(xml) = self.package.read_xml(&self.workbook_part) else {
+            return true;
+        };
+        let mut reader = xml.reader();
+        while let Ok(Some(event)) = reader.next_event() {
+            if let crate::xml::XmlEvent::Start(e) = event {
+                if e.name.is(MAIN_NAMESPACE, "workbookProtection")
+                    && e.attribute("lockStructure")
+                        .is_some_and(|s| s == "1" || s == "true")
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     pub fn model(&self) -> &Arc<ModelRoot> {
         &self.model
     }

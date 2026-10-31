@@ -1210,23 +1210,50 @@ const ONECALC_CASES: &[Case] = &[
     // dc-snz.3: the shipped page uses the same registry and bounded interpreter as the controller.
     Case {
         name: "load a VBA module and evaluate Add2(A1,2)",
-        actions: &[Action::Grid("A1", "40"), Action::Click("[data-onecalc=\"vba-load\"]"), Action::Formula("=Add2(A1,2)")],
-        checks: &[Check::Text("result", "number 42"), Check::Starts("vba-status", "Loaded:"), Check::Items("diagnostics", &[])],
+        actions: &[
+            Action::Grid("A1", "40"),
+            Action::Click("[data-onecalc=\"vba-load\"]"),
+            Action::Formula("=Add2(A1,2)"),
+        ],
+        checks: &[
+            Check::Text("result", "number 42"),
+            Check::Starts("vba-status", "Loaded:"),
+            Check::Items("diagnostics", &[]),
+        ],
     },
     Case {
         name: "reload the VBA module and replace its code",
-        actions: &[Action::Into("vba-source", "Public Function Add2(a, b)\n Add2 = a + b + 10\nEnd Function\n"), Action::Click("[data-onecalc=\"vba-load\"]")],
+        actions: &[
+            Action::Into(
+                "vba-source",
+                "Public Function Add2(a, b)\n Add2 = a + b + 10\nEnd Function\n",
+            ),
+            Action::Click("[data-onecalc=\"vba-load\"]"),
+        ],
         checks: &[Check::Text("result", "number 52")],
     },
     Case {
         name: "an infinite VBA loop stops with a worksheet error and diagnostic",
-        actions: &[Action::Into("vba-source", "Public Function Spin()\n On Error Resume Next\n Do\n Loop\nEnd Function\n"), Action::Click("[data-onecalc=\"vba-load\"]"), Action::Formula("=Spin()")],
-        checks: &[Check::Text("result-value", "#VALUE!"), Check::Contains("diagnostics", "SPIN: execution budget")],
+        actions: &[
+            Action::Into(
+                "vba-source",
+                "Public Function Spin()\n On Error Resume Next\n Do\n Loop\nEnd Function\n",
+            ),
+            Action::Click("[data-onecalc=\"vba-load\"]"),
+            Action::Formula("=Spin()"),
+        ],
+        checks: &[
+            Check::Text("result-value", "#VALUE!"),
+            Check::Contains("diagnostics", "SPIN: execution budget"),
+        ],
     },
     Case {
         name: "unloading a VBA module removes its functions",
         actions: &[Action::Click("[data-onecalc=\"vba-clear\"]")],
-        checks: &[Check::Text("result-value", "#NAME?"), Check::Text("vba-status", "No VBA module loaded.")],
+        checks: &[
+            Check::Text("result-value", "#NAME?"),
+            Check::Text("vba-status", "No VBA module loaded."),
+        ],
     },
 ];
 
@@ -4865,6 +4892,330 @@ const CALC_CASES: &[Case] = &[
             Check::Reachable("autofit-columns"),
             Check::Reachable("autofit-rows"),
             Check::Fits,
+        ],
+    },
+    Case {
+        name: "shift: a rectangular selection offers explicit insertion choices and Escape keeps cells",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into("[data-onecalc=formula]", "1\u{E007}"),
+            Action::Into("[data-onecalc=formula]", "2\u{E007}"),
+            Action::Into("[data-onecalc=formula]", "3\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into("[data-onecalc=formula]", "=SUM(A1:A3)\u{E007}"),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("insert-cells"),
+            Action::Wait(Check::Attr("structure-dialog", "open", "")),
+        ],
+        checks: &[
+            Check::Text("shift-down", "Shift cells down"),
+            Check::Text("shift-right", "Shift cells right"),
+            Check::Reachable("shift-rows"),
+            Check::Role("structure-dialog", "dialog"),
+        ],
+    },
+    Case {
+        name: "shift: cancelling the insertion keeps the source and Undo depth",
+        actions: &[Action::Keys("shift-down", ESCAPE)],
+        checks: &[
+            Check::Absent("[data-dnacalc=structure-dialog][open]"),
+            Check::Text(cell!("A2"), "2"),
+            Check::Text(cell!("B1"), "6"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "shift: down insertion moves only the stripe and expands its range references",
+        actions: &[
+            Action::Keys("grid", concat!("\u{E009}", "\u{E008}", "=", "\u{E000}")),
+            Action::Click("shift-down"),
+        ],
+        checks: &[
+            Check::Absent(cell!("A2")),
+            Check::Text(cell!("A3"), "2"),
+            Check::Text(cell!("A4"), "3"),
+            Check::Text(cell!("B1"), "6"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "shift: a shifted reference is authored source in the formula bar",
+        actions: &[Action::Into("name-box", "B1\u{E007}")],
+        checks: &[Check::Value("[data-onecalc=formula]", "=SUM(A1:A4)")],
+    },
+    Case {
+        name: "shift: Undo restores the whole shift together",
+        actions: &[
+            Action::Click("undo"),
+            Action::Into("name-box", "B1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(cell!("A2"), "2"),
+            Check::Text(cell!("A3"), "3"),
+            Check::Absent(cell!("A4")),
+            Check::Value("[data-onecalc=formula]", "=SUM(A1:A3)"),
+        ],
+    },
+    Case {
+        name: "shift: right insertion keeps the moved formula reading its original cells",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Click("insert-cells"),
+            Action::Click("shift-right"),
+        ],
+        checks: &[Check::Absent(cell!("B1")), Check::Text(cell!("C1"), "6")],
+    },
+    Case {
+        name: "shift: left deletion closes the gap without deleting adjacent rows",
+        actions: &[Action::Click("delete-cells"), Action::Click("shift-right")],
+        checks: &[
+            Check::Text(cell!("B1"), "6"),
+            Check::Absent(cell!("C1")),
+            Check::Text(cell!("A2"), "2"),
+        ],
+    },
+    Case {
+        name: "shift: deleting a referenced cell authors a worksheet reference error",
+        actions: &[
+            Action::Into("name-box", "C2\u{E007}"),
+            Action::Into("[data-onecalc=formula]", "=$A$2\u{E007}"),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("delete-cells"),
+            Action::Click("shift-down"),
+        ],
+        checks: &[
+            Check::Text(cell!("A2"), "3"),
+            Check::Text(cell!("C2"), "#REF!"),
+            Check::Attr(cell!("C2"), "data-provenance", "calculated"),
+        ],
+    },
+    Case {
+        name: "shift: saved cell shifts reopen with changed formulas",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("Book1.xlsx"),
+            Action::DiscardReplacement,
+        ],
+        checks: &[
+            Check::Text(cell!("A2"), "3"),
+            Check::Text(cell!("C2"), "#REF!"),
+        ],
+    },
+    Case {
+        name: "shift: unsupported crossing ranges refuse the command with the draft selection intact",
+        actions: &[
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Into("[data-onecalc=formula]", "=SUM(A1:B4)\u{E007}"),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("insert-cells"),
+            Action::Click("shift-down"),
+        ],
+        checks: &[
+            Check::TextContains("structure-dialog", "crossing ranges"),
+            Check::Attr("structure-dialog", "open", ""),
+            Check::Text(cell!("A2"), "3"),
+        ],
+    },
+    Case {
+        name: "sheets: add is available from the keyboard-reachable worksheet manager",
+        actions: &[
+            Action::Click("structure-cancel"),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Into("sheet-new-name", "Inputs"),
+            Action::Click("sheet-add"),
+            Action::Wait(Check::Count("[data-dnacalc=sheet-tab]", 2)),
+        ],
+        checks: &[
+            Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]", "Inputs"),
+            Check::Value("name-box", "A1"),
+            Check::Value("sheet-rename-name", "Inputs"),
+        ],
+    },
+    Case {
+        name: "sheets: new sheets accept engine formulas and keep prior sheet view",
+        actions: &[
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Into("[data-onecalc=formula]", "=Sheet1!A1*10\u{E007}"),
+            Action::Into("name-box", "D5\u{E007}"),
+            Action::Keys("grid", concat!("\u{E009}", "\u{E00E}", "\u{E000}")),
+        ],
+        checks: &[
+            Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]", "Sheet1"),
+            Check::Value("name-box", "A2"),
+        ],
+    },
+    Case {
+        name: "sheets: keyboard sheet switching returns to each retained selection",
+        actions: &[
+            Action::Keys("grid", concat!("\u{E009}", "\u{E00F}", "\u{E000}")),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+        ],
+        checks: &[
+            Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]", "Inputs"),
+            Check::Value("name-box", "D5"),
+        ],
+    },
+    Case {
+        name: "sheets: invalid and duplicate names are refused without losing the typed name",
+        actions: &[
+            Action::Into("sheet-rename-name", "Sheet1"),
+            Action::Click("sheet-rename"),
+        ],
+        checks: &[
+            Check::TextContains("status", "already exists"),
+            Check::Value("sheet-rename-name", "Sheet1"),
+            Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]", "Inputs"),
+        ],
+    },
+    Case {
+        name: "sheets: rename quotes apostrophes and rewrites sheet references",
+        actions: &[
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=Sheet1]"),
+            Action::Into("sheet-rename-name", "October's inputs"),
+            Action::Click("sheet-rename"),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=sheet-tab][aria-selected=true]",
+                "October's inputs",
+            )),
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=Inputs]"),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Value("[data-onecalc=formula]", "='October''s inputs'!A1*10"),
+            Check::Text(cell!("A1"), "10"),
+        ],
+    },
+    Case {
+        name: "sheets: moving a worksheet changes order and preserves its source",
+        actions: &[
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Into("sheet-position", "1"),
+            Action::Click("sheet-move"),
+        ],
+        checks: &[
+            Check::Text("[data-dnacalc=sheet-tab]:first-child", "Inputs"),
+            Check::Text(cell!("A1"), "10"),
+        ],
+    },
+    Case {
+        name: "sheets: hide selects a visible neighbour and exposes the retained hidden sheet",
+        actions: &[Action::Click("sheet-hide")],
+        checks: &[
+            Check::Count("[data-dnacalc=sheet-tab]", 1),
+            Check::TextContains("hidden-sheets", "Inputs"),
+            Check::Text(
+                "[data-dnacalc=sheet-tab][aria-selected=true]",
+                "October's inputs",
+            ),
+        ],
+    },
+    Case {
+        name: "sheets: the last visible sheet cannot be hidden or deleted",
+        actions: &[Action::Click("sheet-hide")],
+        checks: &[
+            Check::TextContains("status", "at least one visible"),
+            Check::Count("[data-dnacalc=sheet-tab]", 1),
+        ],
+    },
+    Case {
+        name: "sheets: unhide restores the saved sheet and its previous selection",
+        actions: &[Action::Click("sheet-unhide")],
+        checks: &[
+            Check::Count("[data-dnacalc=sheet-tab]", 2),
+            Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]", "Inputs"),
+            Check::Text(cell!("A1"), "10"),
+        ],
+    },
+    Case {
+        name: "sheets: delete asks for a reviewable decision and Escape cancels",
+        actions: &[
+            Action::Click("sheet-delete"),
+            Action::Wait(Check::Attr("sheet-delete-dialog", "open", "")),
+            Action::Keys("sheet-delete-cancel", ESCAPE),
+        ],
+        checks: &[
+            Check::Absent("[data-dnacalc=sheet-delete-dialog][open]"),
+            Check::Count("[data-dnacalc=sheet-tab]", 2),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "sheets: deleting a sheet rewrites readers and one Undo restores it",
+        actions: &[
+            Action::Click("sheet-delete"),
+            Action::Click("sheet-delete-confirm"),
+            Action::Wait(Check::Count("[data-dnacalc=sheet-tab]", 1)),
+            Action::Click("undo"),
+        ],
+        checks: &[Check::Count("[data-dnacalc=sheet-tab]", 2)],
+    },
+    Case {
+        name: "sheets: added data and the reordered hidden sheet survive save and reopen",
+        actions: &[
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=Inputs]"),
+            Action::Click("sheet-hide"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("Book1.xlsx"),
+            Action::DiscardReplacement,
+        ],
+        checks: &[
+            Check::Count("[data-dnacalc=sheet-tab]", 1),
+            Check::Text("[data-dnacalc=sheet-tab]", "October's inputs"),
+        ],
+    },
+    Case {
+        name: "sheets: the hidden worksheet returns from the saved package with its calculated source",
+        actions: &[
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Click("sheet-unhide"),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Value("[data-onecalc=formula]", "='October''s inputs'!A1*10"),
+            Check::Text(cell!("A1"), "10"),
+        ],
+    },
+    Case {
+        name: "sheets: the full manager and long tab names remain reachable at phone width",
+        actions: &[
+            Action::Window(390, 844),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+        ],
+        checks: &[
+            Check::Reachable("sheet-add"),
+            Check::Reachable("sheet-rename-name"),
+            Check::Fits,
+        ],
+    },
+    Case {
+        name: "sheets: pending formula drafts block structural edits without losing text",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into("[data-onecalc=formula]", "42"),
+            Action::Click("insert-cells"),
+        ],
+        checks: &[
+            Check::Value("[data-onecalc=formula]", "42"),
+            Check::Absent("[data-dnacalc=structure-dialog][open]"),
+            Check::Text(cell!("A1"), "10"),
+            Check::TextContains("status", "Enter or cancel"),
+        ],
+    },
+    Case {
+        name: "sheets: structural refusal leaves the formula draft cancellable",
+        actions: &[Action::Keys("[data-onecalc=formula]", ESCAPE)],
+        checks: &[
+            Check::Value("[data-onecalc=formula]", "='October''s inputs'!A1*10"),
+            Check::Text(cell!("A1"), "10"),
         ],
     },
 ];

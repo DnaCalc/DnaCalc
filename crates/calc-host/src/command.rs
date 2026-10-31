@@ -16,6 +16,8 @@ use std::sync::Arc;
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
+    /// A worksheet lifecycle operation, with reference rewriting and snapshot history.
+    Sheet(calc_doc_model::SheetEdit),
     /// Changes a physical row height, column width or hidden flag.
     AxisFormat(calc_doc_model::AxisFormatEdit),
     /// Changes a worksheet window's frozen leading bands without changing cells.
@@ -62,6 +64,7 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
+            CellEdit::Sheet(edit) => WorkbookOp::EditSheet(edit),
             CellEdit::AxisFormat(edit) => WorkbookOp::SetAxisFormat(edit),
             CellEdit::FrozenPanes { sheet, panes } => WorkbookOp::SetFrozenPanes { sheet, panes },
             CellEdit::Set { at, input } => WorkbookOp::SetCell { at, input },
@@ -238,7 +241,37 @@ pub fn dispatch(
             _ => None,
         })
         .collect();
-    let document = if axis_edits.is_empty() {
+    let sheet_edit = batch.operations.iter().find_map(|op| match op {
+        WorkbookOp::EditSheet(edit) => Some(edit),
+        _ => None,
+    });
+    let document = if let Some(edit) = sheet_edit {
+        if batch.operations.len() != 1 {
+            return Err(CommandError::Document(EditError::SheetOperation("Submit one worksheet operation per command".to_owned())));
+        }
+        if host.loaded.structure_protected() {
+            return Err(CommandError::Document(EditError::SheetOperation("Workbook structure is protected".to_owned())));
+        }
+        if let calc_doc_model::SheetEdit::Rename { sheet, .. } | calc_doc_model::SheetEdit::Remove { sheet } = edit {
+            if host.loaded.defined_names_not_loaded()!=0
+                || host.model.definitions().unloaded_cells().next().is_some()
+                || !host.loaded.sheet_reference_metadata_supported()
+                || host.model.layout().blocks().iter().any(|b| b.anchor().is_some_and(|a| a.sheet() == *sheet))
+                || !host.model.definitions().tables().is_empty()
+                || host.loaded.sheets().iter().any(|s| !host.loaded.cell_shift_metadata_supported(s.id())
+                    || !s.conditional_formats().is_empty() || !s.validations().is_empty()
+                    || !s.charts().charts.is_empty() || s.charts().unread != 0 || s.is_macro_sheet())
+                || (matches!(edit, calc_doc_model::SheetEdit::Remove { .. }) && host.model.definitions().macro_enabled())
+            {
+                return Err(CommandError::Document(EditError::SheetOperation("Renaming or deleting sheets with layout, table, rule, chart or other package references is not modelled (dc-971p.7); nothing changed".to_owned())));
+            }
+        }
+        let identity = if let calc_doc_model::SheetEdit::Insert { key, .. } = edit {
+            Some(*host.sheet_identities.entry(*key).or_insert_with(|| host.sheet_ids.issue().expect("sheet identity space")))
+        } else { None };
+        calc_doc::prepare_sheet_edit(&host.model, &batch, &calc_engine::ReferenceRewriter,
+            &mut || identity.expect("only an insertion issues a sheet"))
+    } else if axis_edits.is_empty() {
         calc_doc::prepare_edit(&host.model, &batch)
     } else {
         calc_doc::prepare_structural_edit(&host.model, &batch, &calc_engine::ReferenceRewriter)
@@ -296,16 +329,22 @@ pub fn dispatch(
     // After the commit the pending nodes are those pending before, the added and replaced nodes
     // and the seeds' dependents, less the removed ones: at most this many.
     // A structural edit leaves every node pending.
-    let mut pending = Vec::with_capacity(if axis_edits.is_empty() && !facts_changed {
-        pending_before + added + replaced + seeded
-    } else {
-        formula_cells
-    });
+    let mut pending = Vec::with_capacity(
+        if axis_edits.is_empty() && sheet_edit.is_none() && !facts_changed {
+            pending_before + added + replaced + seeded
+        } else {
+            formula_cells
+        },
+    );
 
     let committed = calc_engine::commit_edit(engine);
     host.model = document.into_model();
     let cancelled_recalc = host.work.take().map(|work| work.tick());
-    if changes_inputs || !axis_edits.is_empty() {
+    if changes_inputs
+        || !axis_edits.is_empty()
+        || sheet_edit
+            .is_some_and(|edit| !matches!(edit, calc_doc_model::SheetEdit::SetVisibility { .. }))
+    {
         host.inputs_changed_since_open = true;
     }
     host.axis_edits.extend(axis_edits);

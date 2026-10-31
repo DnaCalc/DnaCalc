@@ -661,3 +661,488 @@ fn dc_09v__cells_show_their_number_formats() {
     }
     assert_eq!(shown(&book, at(formats, "A1")).color, None);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__sheet_lifecycle_worker_history_references_and_saved_package() {
+    use dna_calc::{
+        server::{Server, answer_text},
+        wire::{self, FromServer, Intent, Key, Reply, Request, Sheet, SheetChange as C, ToServer},
+    };
+    fn send(server: &mut Server, intent: Intent) -> wire::Outcome {
+        let text = wire::encode(&ToServer {
+            id: 1,
+            request: Request::Intent(intent),
+        });
+        let (answer, _) = answer_text(server, &text, None);
+        let FromServer::Reply {
+            reply: Reply::Done { outcome, .. },
+            ..
+        } = wire::decode(&answer).unwrap()
+        else {
+            panic!("{answer}")
+        };
+        outcome
+    }
+    let mut server = Server::new();
+    let first = server.book().sheets()[0].id;
+    let first_key = server.book().host().sheets()[0].key();
+    let edit = |change| Intent::EditSheet {
+        sheet: Some(Sheet::of(first)),
+        change,
+    };
+    assert!(!send(&mut server, edit(C::Hide)).accepted);
+    assert!(!send(&mut server, edit(C::Remove)).accepted);
+    assert!(
+        send(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(CellKey::new(first, 1, 1).unwrap()),
+                text: "7".into()
+            }
+        )
+        .accepted
+    );
+    assert!(
+        send(
+            &mut server,
+            edit(C::Add {
+                name: "Inputs".into()
+            })
+        )
+        .accepted
+    );
+    let second = server.book().sheets()[1].id;
+    let key = CellKey::new(second, 1, 1).unwrap();
+    assert!(
+        send(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(key),
+                text: "=Sheet1!A1*2".into()
+            }
+        )
+        .accepted
+    );
+    assert_eq!(shown(server.book(), key).text, "14");
+    assert!(
+        send(
+            &mut server,
+            edit(C::Rename {
+                name: "October's inputs".into()
+            })
+        )
+        .accepted
+    );
+    assert_eq!(
+        cells::input_text(server.book().host().model().cell(key)),
+        "='October''s inputs'!A1*2"
+    );
+    let renamed = server.book().host().model().sheets()[0].name().clone();
+    assert!(
+        !send(
+            &mut server,
+            edit(C::Rename {
+                name: "inputs".into()
+            })
+        )
+        .accepted
+    );
+    assert_eq!(server.book().host().model().sheets()[0].name(), &renamed);
+    assert!(send(&mut server, edit(C::Move { position: 2 })).accepted);
+    assert!(send(&mut server, edit(C::Hide)).accepted);
+    let (bytes, _) = server.book_mut().save().unwrap();
+    let reopened = Workbook::open("sheet-lifecycle.xlsx", bytes).unwrap();
+    assert_eq!(
+        reopened
+            .sheets()
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Inputs", "October's inputs"]
+    );
+    assert_eq!(
+        reopened.host().sheets()[1].visibility(),
+        calc_host::SheetVisibility::Hidden
+    );
+    let saved_key = CellKey::new(reopened.sheets()[0].id, 1, 1).unwrap();
+    assert_eq!(shown(&reopened, saved_key).text, "14");
+    assert!(send(&mut server, edit(C::Remove)).accepted);
+    assert_eq!(shown(server.book(), key).text, "#REF!");
+    assert!(send(&mut server, Intent::Undo).accepted);
+    assert_eq!(shown(server.book(), key).text, "14");
+    assert!(send(&mut server, Intent::Redo).accepted);
+    assert_eq!(shown(server.book(), key).text, "#REF!");
+    let (bytes, _) = server.book_mut().save().unwrap();
+    let reopened = Workbook::open("removed-sheet.xlsx", bytes).unwrap();
+    assert_eq!(reopened.sheets().len(), 1);
+    assert_eq!(
+        shown(
+            &reopened,
+            CellKey::new(reopened.sheets()[0].id, 1, 1).unwrap()
+        )
+        .text,
+        "#REF!"
+    );
+    assert!(
+        send(
+            &mut server,
+            Intent::EditSheet {
+                sheet: None,
+                change: C::Add {
+                    name: "Fresh".into()
+                }
+            }
+        )
+        .accepted
+    );
+    let fresh = server
+        .book()
+        .host()
+        .sheets()
+        .iter()
+        .find(|s| s.name().text().to_string_lossy() == "Fresh")
+        .unwrap();
+    let fresh_id = fresh.id();
+    assert_ne!(fresh_id, first);
+    assert_ne!(fresh.key(), first_key);
+    assert!(send(&mut server, Intent::Undo).accepted);
+    assert!(send(&mut server, Intent::Redo).accepted);
+    assert_eq!(
+        server
+            .book()
+            .host()
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == "Fresh")
+            .unwrap()
+            .id(),
+        fresh_id
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__cell_shifts_rewrite_sources_with_one_history_step() {
+    use dna_calc::{
+        server::{Server, answer_text},
+        wire::{self, Area, FromServer, Intent, Key, Reply, Request, ToServer},
+    };
+    fn send(server: &mut Server, intent: Intent) -> wire::Outcome {
+        let (answer, _) = answer_text(
+            server,
+            &wire::encode(&ToServer {
+                id: 1,
+                request: Request::Intent(intent),
+            }),
+            None,
+        );
+        let FromServer::Reply {
+            reply: Reply::Done { outcome, .. },
+            ..
+        } = wire::decode(&answer).unwrap()
+        else {
+            panic!("{answer}")
+        };
+        outcome
+    }
+    let mut server = Server::new();
+    let sheet = server.book().sheets()[0].id;
+    let at = |r, c| CellKey::new(sheet, r, c).unwrap();
+    for (r, c, text) in [
+        (1, 1, "1"),
+        (2, 1, "2"),
+        (3, 1, "3"),
+        (1, 2, "=SUM(A1:A3)"),
+        (2, 2, "=$A$2"),
+        (3, 2, "=A3*10"),
+    ] {
+        assert!(
+            send(
+                &mut server,
+                Intent::EnterCell {
+                    at: Key::of(at(r, c)),
+                    text: text.into()
+                }
+            )
+            .accepted
+        );
+    }
+    let area = Area::of(GridArea::cell(at(2, 1)));
+    let before = server.book().session().history_depth().0;
+    let insert = send(
+        &mut server,
+        Intent::ShiftCells {
+            area,
+            down: true,
+            insert: true,
+        },
+    );
+    assert!(insert.accepted, "{:?}", insert.error);
+    assert_eq!(server.book().session().history_depth().0, before + 1);
+    assert_eq!(shown(server.book(), at(2, 1)).text, "");
+    assert_eq!(shown(server.book(), at(3, 1)).text, "2");
+    assert_eq!(shown(server.book(), at(4, 1)).text, "3");
+    assert_eq!(
+        cells::input_text(server.book().host().model().cell(at(1, 2))),
+        "=SUM(A1:A4)"
+    );
+    assert_eq!(
+        cells::input_text(server.book().host().model().cell(at(2, 2))),
+        "=$A$3"
+    );
+    assert!(send(&mut server, Intent::Undo).accepted);
+    assert_eq!(shown(server.book(), at(3, 1)).text, "3");
+    assert!(send(&mut server, Intent::Redo).accepted);
+    let delete = send(
+        &mut server,
+        Intent::ShiftCells {
+            area: Area::of(GridArea::cell(at(3, 1))),
+            down: true,
+            insert: false,
+        },
+    );
+    assert!(delete.accepted, "{:?}", delete.error);
+    assert_eq!(shown(server.book(), at(2, 2)).text, "#REF!");
+    assert_eq!(shown(server.book(), at(3, 1)).text, "3");
+    let (bytes, _) = server.book_mut().save().unwrap();
+    let reopened = Workbook::open("shift.xlsx", bytes).unwrap();
+    let s = reopened.sheets()[0].id;
+    assert_eq!(shown(&reopened, CellKey::new(s, 3, 1).unwrap()).text, "3");
+    assert_eq!(
+        shown(&reopened, CellKey::new(s, 2, 2).unwrap()).text,
+        "#REF!"
+    );
+    // A partially crossing range is refused atomically until its Excel behaviour is measured.
+    assert!(
+        send(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(at(1, 3)),
+                text: "=SUM(A1:B4)".into()
+            }
+        )
+        .accepted
+    );
+    let revision = server.book().host().revision();
+    let text = wire::encode(&ToServer {
+        id: 2,
+        request: Request::Intent(Intent::ShiftCells {
+            area,
+            down: true,
+            insert: true,
+        }),
+    });
+    let (answer, _) = answer_text(&mut server, &text, None);
+    let FromServer::Failed { message, .. } = wire::decode(&answer).unwrap() else {
+        panic!("{answer}")
+    };
+    assert_eq!(server.book().host().revision(), revision);
+    assert!(message.contains("crossing ranges"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__shift_keeps_imported_styles_and_absolute_defined_names() {
+    let mut book = Workbook::open(
+        "formats.xlsx",
+        include_bytes!("../../../crates/calc-host/tests/fixtures/dc_09v/formats.xlsx").to_vec(),
+    )
+    .unwrap();
+    let sheet = book.sheets()[0].id;
+    let at = |r, c| CellKey::new(sheet, r, c).unwrap();
+    let formula_value = shown(&book, at(7, 1)).text;
+    let style = book.host().cell_style(at(1, 1));
+    assert_ne!(style, 0);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::SetName {
+                name: "Anchor".into(),
+                scope: calc_host::NameScope::Workbook,
+                formula: Some("Formats!$A$1".into())
+            }]
+        })
+        .accepted()
+    );
+    let edits =
+        calc_host::shift_cell_edits(book.host(), GridArea::cell(at(1, 1)), false, true).unwrap();
+    assert!(book.dispatch(SkinIntent::Edit { edits }).accepted());
+    assert_eq!(book.host().cell_style(at(1, 2)), style);
+    assert_eq!(book.host().cell_style(at(1, 1)), 0);
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .names()
+            .iter()
+            .find(|n| n.name == "Anchor")
+            .unwrap()
+            .formula,
+        "Formats!$B$1"
+    );
+    assert_eq!(shown(&book, at(7, 1)).text, formula_value);
+    assert_eq!(
+        cells::input_text(book.host().model().cell(at(7, 1))),
+        "=B1*2"
+    );
+    let (bytes, _) = book.save().unwrap();
+    let reopened = Workbook::open("styles-shift.xlsx", bytes).unwrap();
+    let saved = CellKey::new(reopened.sheets()[0].id, 1, 2).unwrap();
+    assert_eq!(reopened.host().cell_style(saved), style);
+    assert_eq!(shown(&reopened, saved).text, "1,234.50");
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().cell_style(at(1, 1)), style);
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .names()
+            .iter()
+            .find(|n| n.name == "Anchor")
+            .unwrap()
+            .formula,
+        "Formats!$A$1"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__saved_sheet_names_preserve_xstring_text_and_attribute_whitespace() {
+    let mut book = Workbook::new_blank();
+    let sheet = book.sheets()[0].id;
+    for text in ["literal _x0041_", "a&b\"quoted", "tab\tand\nnewline"] {
+        let name = calc_host::SheetName::new(calc_host::value::ExcelText::from_utf16_code_units(
+            text.encode_utf16().collect(),
+        ))
+        .unwrap();
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![calc_host::CellEdit::Sheet(calc_host::SheetEdit::Rename {
+                    sheet,
+                    name
+                })]
+            })
+            .accepted()
+        );
+        let (bytes, _) = book.save().unwrap();
+        let reopened = Workbook::open("names.xlsx", bytes).unwrap();
+        assert_eq!(reopened.sheets()[0].name, text);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__partial_spills_and_relative_names_refuse_before_mutation() {
+    let mut book = Workbook::new_blank();
+    let sheet = book.sheets()[0].id;
+    let at = |r, c| CellKey::new(sheet, r, c).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::EnterCell {
+            at: at(1, 1),
+            text: "=SEQUENCE(3)".into()
+        })
+        .accepted()
+    );
+    assert!(
+        calc_host::shift_cell_edits(book.host(), GridArea::cell(at(2, 1)), true, true).is_err()
+    );
+    assert!(
+        book.dispatch(SkinIntent::EnterCell {
+            at: at(1, 1),
+            text: "1".into()
+        })
+        .accepted()
+    );
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::SetName {
+                name: "Relative".into(),
+                scope: calc_host::NameScope::Workbook,
+                formula: Some("Sheet1!B$2".into())
+            }]
+        })
+        .accepted()
+    );
+    assert!(
+        calc_host::shift_cell_edits(book.host(), GridArea::cell(at(1, 1)), true, true).is_err()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__mixed_sheet_batches_are_refused_before_allocating_duplicate_identities() {
+    let mut book = Workbook::new_blank();
+    let sheet = book.sheets()[0].id;
+    let name = |s: &str| {
+        calc_host::SheetName::new(calc_host::value::ExcelText::from_utf16_code_units(
+            s.encode_utf16().collect(),
+        ))
+        .unwrap()
+    };
+    let result = book.dispatch(SkinIntent::Edit {
+        edits: vec![
+            calc_host::CellEdit::Sheet(calc_host::SheetEdit::Rename {
+                sheet,
+                name: name("Renamed"),
+            }),
+            calc_host::CellEdit::Sheet(calc_host::SheetEdit::Insert {
+                key: calc_host::SheetKey::new(2),
+                name: name("Added"),
+                position: std::num::NonZeroU32::new(2).unwrap(),
+            }),
+        ],
+    });
+    assert!(!result.accepted());
+    assert_eq!(book.sheets()[0].name, "Sheet1");
+    assert_eq!(book.sheets().len(), 1);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__hiding_and_unhiding_sheets_preserves_current_values_in_manual_mode() {
+    let mut book = Workbook::new_blank();
+    let first = book.sheets()[0].id;
+    let at = CellKey::new(first, 1, 1).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::Sheet(calc_host::SheetEdit::Insert {
+                key: calc_host::SheetKey::new(2),
+                name: calc_host::SheetName::new(
+                    calc_host::value::ExcelText::from_utf16_code_units(
+                        "Other".encode_utf16().collect()
+                    )
+                )
+                .unwrap(),
+                position: std::num::NonZeroU32::new(2).unwrap()
+            })]
+        })
+        .accepted()
+    );
+    let second = book.sheets()[1].id;
+    assert!(
+        book.dispatch(SkinIntent::EnterCell {
+            at,
+            text: "=2+3".into()
+        })
+        .accepted()
+    );
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
+            .accepted()
+    );
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::Sheet(
+                calc_host::SheetEdit::SetVisibility {
+                    sheet: second,
+                    visibility: calc_host::SheetVisibility::Hidden
+                }
+            )]
+        })
+        .accepted()
+    );
+    assert_eq!(shown(&book, at).provenance, Provenance::Calculated);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(shown(&book, at).provenance, Provenance::Calculated);
+    assert_eq!(shown(&book, at).text, "5");
+}

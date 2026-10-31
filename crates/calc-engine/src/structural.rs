@@ -196,3 +196,28 @@ pub fn move_name(
         &SnapshotCatalog(root),
     )
 }
+
+/// Reference rewrite for a rectangular cell shift, after checking the supported contract.
+pub fn shift_formula(
+    root: &ModelRoot,
+    formula: &str,
+    at: CellKey,
+    area: GridArea,
+    down: bool,
+    insert: bool,
+    name: bool,
+) -> Result<Option<String>, &'static str> {
+    let text = formula.strip_prefix('=').unwrap_or(formula);
+    let catalog = SnapshotCatalog(root);
+    if !calc_fml::reference::shift_formula_supported(text, at, area, down, name, &catalog) {
+        return Err(
+            "cell shifts with crossing ranges, whole-axis/3D references or relative names need Excel readings (dc-971p.7)",
+        );
+    }
+    let edit = StructuralEdit::ShiftCells { area, down, insert };
+    Ok(if name {
+        transform_name(text, at.sheet(), &edit, &catalog)
+    } else {
+        transform_formula(text, at, &edit, &catalog)
+    })
+}

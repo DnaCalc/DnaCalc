@@ -78,4 +78,6 @@ pub use result::{
 };
 pub use spill::Spill;
 pub use state::{EngineState, FormulaNode, PrerequisiteError};
-pub use structural::{ReferenceRewriter, move_name, move_references, relocate_formula};
+pub use structural::{
+    ReferenceRewriter, move_name, move_references, relocate_formula, shift_formula,
+};

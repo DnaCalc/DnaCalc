@@ -30,6 +30,7 @@ pub mod icons;
 pub mod panes;
 pub mod render_plan;
 pub mod selection;
+mod structure;
 pub mod viewport;
 
 use crate::cells;
@@ -1611,6 +1612,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
             </div>
             {crate::clipboard::controls(controller)}
             {axis::controls(controller)}
+            {structure::controls(controller)}
             <details class="dc-clipboard-tools" data-dnacalc="pane-tools" name="worksheet-tools">
                 <summary>"View & panes"</summary>
                 <p data-dnacalc="pane-state">{move ||format!("Frozen: {} rows, {} columns",panes.get().rows,panes.get().columns)}</p>
@@ -1625,10 +1627,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
             </details>
             <div class="dc-gridbar">
                 <span data-dnacalc="grid-note" class="dc-note">{move || note.get()}</span>
-                <button type="button" data-dnacalc="insert-cells" title="Insert the selected rows or columns (Ctrl++)"
-                    on:click=move |_| controller.edit_axis(true)>"Insert"</button>
-                <button type="button" data-dnacalc="delete-cells" title="Delete the selected rows or columns (Ctrl+-)"
-                    on:click=move |_| controller.edit_axis(false)>"Delete"</button>
+                <button type="button" data-dnacalc="insert-cells" title="Insert cells, rows or columns (Ctrl++)"
+                    on:click=move |_| controller.edit_axis(true)>"Insert…"</button>
+                <button type="button" data-dnacalc="delete-cells" title="Delete cells, rows or columns (Ctrl+-)"
+                    on:click=move |_| controller.edit_axis(false)>"Delete…"</button>
                 <span class="dc-zoom">
                     <button type="button" data-dnacalc="zoom-out" title="Zoom out"
                         on:click=move |_| zoom.update(|z| *z = viewport::clamp_zoom(*z / viewport::ZOOM_STEP))>"-"</button>

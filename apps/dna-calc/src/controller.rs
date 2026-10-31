@@ -159,6 +159,7 @@ pub fn now_ms() -> f64 {
 
 #[derive(Clone, Copy)]
 pub struct Controller {
+    pub structural_choice: RwSignal<Option<bool>>,
     sheet_selections: StoredValue<BTreeMap<SheetId, (CellKey, Vec<GridArea>)>>,
     grid_views: StoredValue<BTreeMap<SheetId, crate::grid::viewport::GridView>>,
     grid_geometry: StoredValue<BTreeMap<SheetId, wire::Geometry>>,
@@ -224,6 +225,7 @@ impl Controller {
         let edit_text = RwSignal::new(String::new());
         let assist = FormulaAssist::new(edit_text);
         let controller = Controller {
+            structural_choice: RwSignal::new(None),
             sheet_selections: StoredValue::new(BTreeMap::new()),
             grid_views: StoredValue::new(BTreeMap::new()),
             grid_geometry: StoredValue::new(BTreeMap::new()),
@@ -961,6 +963,11 @@ impl Controller {
         if apply_selection
             && let Some((at, areas)) = &outcome.selection
             && let Some(at) = at.cell()
+            && outcome
+                .summary
+                .sheets
+                .iter()
+                .any(|(sheet, _)| sheet.id() == at.sheet())
         {
             if Some(at.sheet()) != self.sheet.get_untracked() {
                 self.switch_sheet(at.sheet());
@@ -979,6 +986,15 @@ impl Controller {
             if corner != self.corner.get_untracked() {
                 self.corner.set(corner);
             }
+        }
+        if !outcome
+            .summary
+            .sheets
+            .iter()
+            .any(|(id, _)| Some(id.id()) == self.sheet.get_untracked())
+            && let Some((sheet, _)) = outcome.summary.sheets.first()
+        {
+            self.show_sheet(sheet.id());
         }
         // Only a change of the workbook or its calculation advances the revision: a selection or
         // an interest moved changes no cell, so what reads the workbook is not read again.
@@ -1549,11 +1565,65 @@ impl Controller {
         }
     }
 
+    /// A worksheet command through the same worker/history path as cell commands.
+    pub fn sheet_command(
+        &self,
+        sheet: Option<SheetId>,
+        change: wire::SheetChange,
+        done: impl FnOnce(bool) + 'static,
+    ) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.sheet_command(sheet, change, done));
+            return;
+        }
+        if self.editing.get_untracked().is_some() {
+            self.say(
+                "Enter or cancel the current edit before changing worksheets",
+                true,
+            );
+            done(false);
+            return;
+        }
+        let add_name = match &change {
+            wire::SheetChange::Add { name } => Some(name.clone()),
+            _ => None,
+        };
+        let controller = *self;
+        self.dispatch_result(
+            Intent::EditSheet {
+                sheet: sheet.map(Sheet::of),
+                change,
+            },
+            move |result| {
+                let accepted = result.is_ok_and(|outcome| outcome.accepted);
+                if accepted && let Some(name) = add_name {
+                    let sheet = controller
+                        .sheets()
+                        .into_iter()
+                        .find(|s| s.name == name)
+                        .map(|s| s.id);
+                    if let Some(sheet) = sheet {
+                        controller.show_sheet(sheet);
+                    }
+                }
+                done(accepted);
+            },
+        );
+    }
+
     /// Shows another sheet, at its A1.
     pub fn show_sheet(&self, sheet: SheetId) {
         if self.waiting_input() {
             let controller = *self;
             self.enqueue(move || controller.show_sheet(sheet));
+            return;
+        }
+        if !self
+            .summary
+            .with_untracked(|summary| summary.sheets.iter().any(|(id, _)| id.id() == sheet))
+        {
+            self.say("Unhide this worksheet before navigating to it", true);
             return;
         }
         if self.editing.get_untracked().is_some() {
@@ -2342,6 +2412,13 @@ impl Controller {
     /// references, number formats and sizes move as Excel moves them). Any other selection says
     /// what to select (dc-09v).
     pub fn edit_axis(&self, insert: bool) {
+        if self.editing.get_untracked().is_some() {
+            self.say(
+                "Enter or cancel the current edit before inserting or deleting cells",
+                true,
+            );
+            return;
+        }
         if self.waiting_input() {
             let controller = *self;
             self.enqueue(move || controller.edit_axis(insert));
@@ -2362,10 +2439,7 @@ impl Controller {
         } else if whole_columns && !whole_rows {
             (false, first.column(), area.column_count())
         } else {
-            self.say(
-                "Select whole rows or columns (click a row or column header) to insert or delete them",
-                true,
-            );
+            self.structural_choice.set(Some(insert));
             return;
         };
         self.dispatch(
@@ -2378,6 +2452,53 @@ impl Controller {
             },
             |_| {},
         );
+    }
+
+    pub fn structure_command(&self, insert: bool, mode: &str) {
+        if self.editing.get_untracked().is_some() {
+            self.say(
+                "Enter or cancel the current edit before inserting or deleting cells",
+                true,
+            );
+            return;
+        }
+        let Some(area) = self.selected_area_untracked() else {
+            return;
+        };
+        if self.areas.with_untracked(|a| a.len()) != 1 {
+            self.say("Select one rectangle", true);
+            return;
+        }
+        let intent = match mode {
+            "down" | "right" => Intent::ShiftCells {
+                area: Area::of(area),
+                down: mode == "down",
+                insert,
+            },
+            "rows" | "columns" => Intent::EditAxis {
+                sheet: Sheet::of(area.sheet()),
+                rows: mode == "rows",
+                insert,
+                start: if mode == "rows" {
+                    area.first().row()
+                } else {
+                    area.first().column()
+                },
+                count: if mode == "rows" {
+                    area.row_count()
+                } else {
+                    area.column_count()
+                },
+            },
+            _ => return,
+        };
+        let controller = *self;
+        self.dispatch_result(intent, move |result| {
+            if result.is_ok_and(|outcome| outcome.accepted) {
+                controller.structural_choice.set(None);
+                crate::grid::focus_grid();
+            }
+        });
     }
 
     /// Clears the selected range (Delete).

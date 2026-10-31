@@ -30,6 +30,7 @@ pub mod ledger;
 pub mod notebook;
 pub mod port;
 pub mod server;
+pub mod sheets;
 pub mod skin;
 pub mod style;
 pub mod tree;

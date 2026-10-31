@@ -379,6 +379,7 @@ pub fn app() -> impl IntoView {
                         aria-controls="dc-workspace"
                         tabindex=if selected { "0" } else { "-1" }
                         data-dnacalc="sheet-tab"
+                        title=name.clone()
                         data-sheet=name
                         aria-selected=if selected { "true" } else { "false" }
                         on:click=move |_| controller.show_sheet(id)
@@ -405,6 +406,37 @@ pub fn app() -> impl IntoView {
             })
             .collect_view()
     };
+
+    Effect::new(move |_| {
+        controller.sheet.track();
+        controller.summary.track();
+        #[cfg(target_arch = "wasm32")]
+        set_timeout(
+            move || {
+                let Ok(Some(tab)) =
+                    document().query_selector("[data-dnacalc=sheet-tab][aria-selected=true]")
+                else {
+                    return;
+                };
+                let Some(nav) = tab.parent_element() else {
+                    return;
+                };
+                let bounds = nav.get_bounding_client_rect();
+                let cell = tab.get_bounding_client_rect();
+                let shift = if cell.left() < bounds.left() {
+                    cell.left() - bounds.left()
+                } else if cell.right() > bounds.right() {
+                    cell.right() - bounds.right()
+                } else {
+                    0.0
+                };
+                if shift != 0.0 {
+                    nav.set_scroll_left(nav.scroll_left() + (shift.ceil() as i32));
+                }
+            },
+            std::time::Duration::from_millis(20),
+        );
+    });
 
     let document_line = move || {
         controller.summary.with(|summary| {
@@ -645,7 +677,7 @@ pub fn app() -> impl IntoView {
                 </details>
             })}
             <main id="dc-workspace" class="dc-main" tabindex="-1" aria-label="Workbook workspace">{skin_view}</main>
-            <nav class="dc-tabs" role="tablist" aria-label="Worksheets" data-dnacalc="sheet-tabs">{tabs}</nav>
+            <div class="dc-sheet-strip"><nav class="dc-tabs" role="tablist" aria-label="Worksheets" data-dnacalc="sheet-tabs">{tabs}</nav>{crate::sheets::controls(controller)}</div>
             <footer class="dc-status">
                 <span data-dnacalc="worker-status" role="status" aria-live="polite" aria-atomic="true">{move || {
                     let health = controller.transport.get();

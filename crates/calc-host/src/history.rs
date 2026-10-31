@@ -95,6 +95,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
             CellEdit::Axis(_)
+            | CellEdit::Sheet(_)
             | CellEdit::AxisFormat(_)
             | CellEdit::FrozenPanes { .. }
             | CellEdit::SetFormat { .. }
@@ -124,7 +125,18 @@ pub(crate) fn inverse(
 ) -> Result<Inverse, Irreversible> {
     // A structural edit drops what it deletes and the references to it: the revision before it
     // is brought back whole.
-    if edits.iter().any(|edit| matches!(edit, CellEdit::Axis(_))) {
+    if edits.iter().any(|edit| {
+        matches!(
+            edit,
+            CellEdit::Axis(_)
+                | CellEdit::Sheet(
+                    calc_doc_model::SheetEdit::Insert { .. }
+                        | calc_doc_model::SheetEdit::Rename { .. }
+                        | calc_doc_model::SheetEdit::Move { .. }
+                        | calc_doc_model::SheetEdit::Remove { .. }
+                )
+        )
+    }) {
         return Ok(Inverse::Restore {
             model: Arc::clone(model),
             axis_edits: axis_edits.to_vec(),
@@ -177,6 +189,16 @@ pub(crate) fn inverse(
             .into_iter()
             .map(|(at, input)| CellEdit::Set { at, input }),
     );
+    for edit in edits {
+        if let CellEdit::Sheet(calc_doc_model::SheetEdit::SetVisibility { sheet, .. }) = edit {
+            if let Some(entry) = model.sheet_by_id(*sheet) {
+                inverse.push(CellEdit::Sheet(calc_doc_model::SheetEdit::SetVisibility {
+                    sheet: *sheet,
+                    visibility: entry.visibility(),
+                }));
+            }
+        }
+    }
     let mut formatted = BTreeSet::new();
     let mut panes = BTreeSet::new();
     let mut dimensioned = BTreeSet::new();
