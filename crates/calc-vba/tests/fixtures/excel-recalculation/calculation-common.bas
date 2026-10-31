@@ -35,6 +35,10 @@ Private Function Bits(ByVal x As Double) As String
 End Function
 Public Function Typed(ByVal x As Variant) As String
     Dim t As String
+    If IsObject(x) Then
+        Typed = "vt=9;type=" & TypeName(x) & ";value=<Object>"
+        Exit Function
+    End If
     t = "vt=" & CStr(VarType(x)) & ";type=" & TypeName(x) & ";value="
     If IsError(x) Then
         t = t & CStr(x)
@@ -193,7 +197,7 @@ Public Function RunProbe() As String
             Set component = wb.VBProject.VBComponents.Add(1)
             component.Name = "OracleProbe"
             component.CodeModule.AddFromString Replace(src, "'__START_EVENT_SINK__", "Set eventSink = New ProbeEvents")
-            output = "__OUTPUT__\" & CStr(ident) & "-" & Format$(i, "00") & ".xlsm"
+            output = "__OUTPUT__\__ARTIFACT_PREFIX__" & CStr(ident) & "-" & Format$(i, "00") & ".xlsm"
             result = Application.Run("'" & wb.Name & "'!OracleProbe.RunCase", CStr(ident) & "/" & CStr(i), output)
             all = all & result & vbLf
             wb.Close False

@@ -170,7 +170,7 @@ enum EffectExecution { Allocated, Admitted, Running, Suspended(Activation), Wait
 enum ResultDisposition { Pending, Installed(PublicationUnitId), Discarded(DiscardReason) }
 enum ReevaluationReason {            // the only routes to a NEW evaluation ordinal at a locus
     NewCommandDemand, AuthoredOrInputChange, XllUncalcedUnwind /* D: MS18/MS19 */,
-    ProvisionalArguments /* VBA early call, P03 */, SpillShapePass, IterationSweep, TableScenario }
+    ProvisionalArguments /* P03: provisional Range values/coerced arguments */, SpillShapePass, IterationSweep, TableScenario }
 ```
 
 Allocation -> admission -> running -> completed; running/suspended and running/waiting-external keep identity and
@@ -183,6 +183,13 @@ declared non-preemptible interval with a counter. **Pure physical retry** (today
 calculated read, `recalc.rs:9-17,611-614`, `read.rs:84-90`) keeps the evaluation ordinal and the draws, which is
 today's random behaviour (`calc-engine/src/random.rs:4-8`); it is allowed only for cones without effectful callables.
 An effectful cone takes one of the reasons above or waits.
+
+P03 (O, 20527 safe mode) observed native status 64 followed by a second entry under ordinary and `$`
+registrations in every reversed-area trial, with the counter increment before each coercion. `#` succeeded
+without that unwind in the same tested scope; `xlfVolatile(false)` suppressed its clean F9 calls.
+VBA Range objects can expose Empty before a second entry with 11, while Double arguments can receive 0
+then 11. An expression argument can wait instead. This supports typed semantic reevaluation; it does not
+prove that every VBA callback receives an Empty Variant or that every arrangement repeats.
 
 Draw ledger: `DrawKey = (InvocationId, draw_ordinal)`; physical retries reuse recorded draws; a new pass or semantic
 evaluation draws anew. Today's stream key `(seed, tick, cell)` (`random.rs:19-28`) is reused across spill re-waves,
@@ -398,7 +405,7 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 |---|---|---|
 | What a VBA read of a dirty formula returns, per command kind; self/caller reads | P01: observer-only reads old 2; reversed areas can return Empty then re-enter with 11; self 0/Empty. Retain cached observation, distinguish new evaluation; other contexts remain open | P01 (O, 20527 safe mode) |
 | Out-of-range precedents in Range/Sheet calculation; post-command dirtiness; mode dependence | P02 confirms boundary caches and Manual `StillRequired`; row-major separate; automatic edits calculate before explicit commands. UI sheet grouping remains open | P02 (O, 20527 safe mode) |
-| Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | resume never re-enters; typed reasons | P03 |
+| Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | P03 confirms status-64 unwind/re-entry for ordinary/$, successful # coercion, and provisional VBA values; preserve typed reasons and registration capabilities. Null not observed | P03 (O, 20527 safe mode) |
 | Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | distinct keys; no guessed retry count | P04 |
 | Spill conflict winner, stale-footprint clearing, child-only calculation | first by reservation order | P05 |
 | Save scope, stale `<v>` with Save(false), open-time recalculation | pinned dirty/volatile save scope; drop-stale default | P06 |
