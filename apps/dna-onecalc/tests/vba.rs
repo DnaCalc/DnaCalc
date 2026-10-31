@@ -92,7 +92,10 @@ fn vba_errors_and_runaway_code_return_worksheet_errors() {
     assert!(failed.result.is_none());
     assert_eq!(failed.diagnostics.len(), 2);
     assert!(format!("{:?}", failed.diagnostics[0]).contains("VBA error 5"));
-    assert!(matches!(failed.diagnostics[1], dna_onecalc::Diagnostic::Eval(_)));
+    assert!(matches!(
+        failed.diagnostics[1],
+        dna_onecalc::Diagnostic::Eval(_)
+    ));
     s.load_vba_module("Math", calc_vba::EXAMPLE_MODULE, 0)
         .unwrap();
     assert_eq!(
@@ -131,4 +134,177 @@ fn vba_preserves_values_rectangles_and_private_byref_inputs() {
         result(&mut s, "=Echo(NA())"),
         CalcValue::error(WorksheetErrorCode::NA)
     );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn vba_optional_paramarray_and_project_storage_use_the_controller_session() {
+    let mut s = session();
+    let source = "Private n As Long\nPublic Function Counter() As Long\n n = n + 1\n Counter = n\nEnd Function\nPublic Function Peek() As Long\n Peek = n\nEnd Function\nPublic Function Defaults(Optional x As Long = 7, Optional y As Long = 2) As Long\n Defaults = x + y\nEnd Function\nPublic Function MissingArg(Optional x) As Boolean\n MissingArg = IsMissing(x)\nEnd Function\nPublic Function PackSize(ParamArray x() As Variant) As Long\n PackSize = UBound(x) - LBound(x) + 1\nEnd Function\n";
+    s.load_vba_module("State", source, 1000).unwrap();
+    assert_eq!(result(&mut s, "=Counter()"), CalcValue::number(1.0));
+    assert_eq!(result(&mut s, "=Counter()"), CalcValue::number(2.0));
+    assert_eq!(result(&mut s, "=Peek()"), CalcValue::number(2.0));
+    assert_eq!(result(&mut s, "=Defaults()"), CalcValue::number(9.0));
+    assert_eq!(
+        result(&mut s, "=Defaults(,3)"),
+        CalcValue::number(10.0),
+        "{:?}",
+        s.calculate().diagnostics
+    );
+    assert_eq!(result(&mut s, "=MissingArg()"), CalcValue::logical(true));
+    assert_eq!(result(&mut s, "=MissingArg(0)"), CalcValue::logical(false));
+    assert_eq!(result(&mut s, "=PackSize()"), CalcValue::number(0.0));
+    assert_eq!(result(&mut s, "=PackSize(1,2,3)"), CalcValue::number(3.0));
+    s.load_vba_module("State", source, 1000).unwrap();
+    assert_eq!(result(&mut s, "=Counter()"), CalcValue::number(1.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn vba_ranges_caller_and_worksheet_callbacks_use_live_controller_services() {
+    let mut s = session();
+    s.set_input("A2", InputValue::number(2.0).unwrap()).unwrap();
+    let source = r#"Private saved As Object
+Public Function RangeCount(r As Range)
+ RangeCount = r.Count
+End Function
+Public Function CallerAddress()
+ CallerAddress = Application.Caller.Address
+End Function
+Public Function RangeSum(r As Range)
+ RangeSum = Application.WorksheetFunction.Sum(r)
+End Function
+Public Function SaveRange(r As Range)
+ Set saved = r
+ SaveRange = 1
+End Function
+Public Function ReadSaved()
+ ReadSaved = saved.Cells(1, 1).Value2
+End Function
+Public Function CatchWorksheetError()
+ On Error GoTo Failed
+ CatchWorksheetError = Application.WorksheetFunction.Match("missing", Array(1, 2), 0)
+ Exit Function
+Failed:
+ CatchWorksheetError = Err.Number
+End Function
+Public Function ArgType(a)
+ ArgType = TypeName(a)
+End Function
+Public Function TypedLong(x As Long)
+ TypedLong = x
+End Function
+"#;
+    s.load_vba_module("Grid", source, 1000).unwrap();
+    assert_eq!(
+        result(&mut s, "=RangeCount(Z9:Z10)"),
+        CalcValue::number(2.0)
+    );
+    assert!(s.calculate().reads.is_empty());
+    assert_eq!(result(&mut s, "=RangeSum(A1:A2)"), CalcValue::number(42.0));
+    let reads = s.calculate().reads;
+    assert_eq!(reads.len(), 1);
+    assert_eq!(
+        reads[0].area,
+        calc_func::value::GridArea::new(s.cell("A1").unwrap(), s.cell("A2").unwrap()).unwrap()
+    );
+    assert_eq!(
+        result(&mut s, "=CallerAddress()"),
+        CalcValue::text(calc_func::value::ExcelText::from_utf16_code_units(
+            "$H$1".encode_utf16().collect()
+        ))
+    );
+    s.set_formula_cell("J10").unwrap();
+    assert_eq!(
+        result(&mut s, "=CallerAddress()"),
+        CalcValue::text(calc_func::value::ExcelText::from_utf16_code_units(
+            "$J$10".encode_utf16().collect()
+        ))
+    );
+    assert_eq!(result(&mut s, "=SaveRange(A1)"), CalcValue::number(1.0));
+    s.set_input("A1", InputValue::number(41.0).unwrap())
+        .unwrap();
+    assert_eq!(result(&mut s, "=ReadSaved()"), CalcValue::number(41.0));
+    assert_eq!(s.calculate().reads.len(), 1);
+    assert_eq!(
+        result(&mut s, "=CatchWorksheetError()"),
+        CalcValue::number(1004.0)
+    );
+    assert_eq!(
+        result(&mut s, "=ArgType(A1)"),
+        CalcValue::text(calc_func::value::ExcelText::from_utf16_code_units(
+            "Range".encode_utf16().collect()
+        ))
+    );
+    assert_eq!(result(&mut s, "=TypedLong(3.5)"), CalcValue::number(4.0));
+    assert_eq!(
+        result(&mut s, "=TypedLong(NA())"),
+        CalcValue::error(WorksheetErrorCode::Value)
+    );
+    s.set_formula("=IFERROR(RangeSum(Z9:Z10),7)");
+    let missing = s.calculate();
+    assert!(missing.result.is_none());
+    assert!(format!("{:?}", missing.diagnostics).contains("MissingInput"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn vba_warm_code_reloads_fresh_state_and_cache_clear_keeps_live_calls_valid() {
+    calc_vba::clear_code_cache();
+    let before = calc_vba::code_cache_stats();
+    let mut s = session();
+    let source = "Private n As Long\nPublic Function WarmCounter() As Long\n n = n + 1\n WarmCounter = n\nEnd Function\n";
+    s.load_vba_module("Warm", source, 1000).unwrap();
+    assert_eq!(result(&mut s, "=WarmCounter()"), CalcValue::number(1.0));
+    s.load_vba_module("Warm", source, 1000).unwrap();
+    assert_eq!(result(&mut s, "=WarmCounter()"), CalcValue::number(1.0));
+    let warm = calc_vba::code_cache_stats();
+    assert_eq!(warm.hits, before.hits + 1);
+    #[cfg(not(target_arch = "wasm32"))]
+    assert_eq!(warm.compilations, before.compilations + 1);
+    calc_vba::clear_code_cache();
+    assert_eq!(result(&mut s, "=WarmCounter()"), CalcValue::number(2.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn vba_callbacks_use_measured_methods_without_formula_lifting_or_swallowed_refusals() {
+    let mut s = session();
+    s.set_input("A2", InputValue::number(2.0).unwrap()).unwrap();
+    let source = r#"Public Function Summaries(r As Range)
+ Summaries = Application.WorksheetFunction.Min(r) + Application.WorksheetFunction.Max(r) + Application.WorksheetFunction.Average(r)
+End Function
+Public Function CatchOffset(r As Object)
+ On Error Resume Next
+ CatchOffset = r.Offset(1, 0).Value2
+ CatchOffset = 7
+End Function
+Public Function FindValue(x)
+ FindValue = Application.WorksheetFunction.Match(x, Array(2, 40), 0)
+End Function
+Public Function UnsupportedCallback()
+ On Error Resume Next
+ UnsupportedCallback = Application.WorksheetFunction.Abs(-1)
+ UnsupportedCallback = 7
+End Function
+"#;
+    s.load_vba_module("Callbacks", source, 1000).unwrap();
+    assert_eq!(result(&mut s, "=Summaries(A1:A2)"), CalcValue::number(63.0));
+    assert_eq!(result(&mut s, "=FindValue(A1)"), CalcValue::number(2.0));
+    for formula in [
+        "=IFERROR(UnsupportedCallback(),9)",
+        "=IFERROR(Summaries((A1,A2)),9)",
+        "=IFERROR(CatchOffset(A1),9)",
+        "=IFERROR(FindValue(A1:A2),9)",
+        "=IFERROR(FindValue({2,40}),9)",
+    ] {
+        s.set_formula(formula);
+        let outcome = s.calculate();
+        assert!(outcome.result.is_none(), "{formula}: {outcome:?}");
+        assert!(
+            format!("{:?}", outcome.diagnostics).contains("NotModelled")
+                || format!("{:?}", outcome.diagnostics).contains("AreaAsValue")
+        );
+    }
 }

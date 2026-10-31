@@ -1,6 +1,8 @@
 //! Exact test expectations for measured vendor-dependent hardware-x87 rows.
 //! Excel itself on Intel has not been measured for these inputs. These expectations describe
-//! calc-func's hardware instructions; they do not replace any recorded Excel answers.
+//! calc-func's hardware instructions. Excel build 20527 on the AMD machine independently
+//! agrees with all 15 AMD results (2026-10-31, OxFunc-Evidence cac8842b).
+//! That observation does not measure Excel on Intel or replace other Excel answers.
 
 #![allow(dead_code)] // Shared by a unit test and an integration test, with different callers.
 

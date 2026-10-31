@@ -39,7 +39,7 @@ here. Read `AGENTS.md` first; it is the contract. Then read the bead of your wor
 | 5 | Remaining function gaps | dc-h9u, dc-b1l, dc-ylr (open edges in their notes) | yes | Small, measured cases; the catalogue oracle is the one place for Excel rows. |
 | 6 | Text residue | dc-zsn.2 (iteration marks after Han, jamo), dc-zsn.3, dc-zsn.4 | yes | dc-zsn.3 needs a machine set to a double-byte Office language. |
 | 7 | Functions handbook | dc-dfl, dc-dfl.1, dc-vqo | no | The ExcelFunctionsHandbook repository: coverage to every function, pages checked against Excel readings, version/platform/CPU differences (F19). The authoritative reference, built continuously. |
-| 8 | Add-ins | dc-snz.4, then dc-snz.1 to dc-snz.3 | yes | Owner 2026-10-31: defer renames; use the pinned OxVba value-call API first (docs/plan/VBA_UDFS.md). UDF registration lives at calc-func/calc-fml level, so DNA OneCalc (engine-free by design) hosts and tests it. |
+| 8 | Add-ins | dc-snz.4, then dc-snz.1 to dc-snz.3 | yes | Owner 2026-10-31: defer renames; extend the pinned OxVba UDF API (docs/plan/VBA_UDFS.md): native JIT sessions/cache, interpreter browser route, Optional/ParamArray and bounded live objects; precise scheduling and wider host parity remain dc-snz.5. UDF registration lives at calc-func/calc-fml level, so DNA OneCalc (engine-free by design) hosts and tests it. |
 | 9 | Pivot tables | dc-8wp | yes | After 4 and 5. |
 | 10 | Performance | dc-dxm, dc-u5c | no | After the first public publish. |
 

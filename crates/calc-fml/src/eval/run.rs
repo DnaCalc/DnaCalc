@@ -259,14 +259,19 @@ fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
 impl Run<'_, '_> {
     fn user_call(&mut self, name: &str, argc: usize) -> Result<(), EvalFault> {
         let start = self.stack.len() - argc;
-        let mut arguments = self.stack.split_off(start);
-        for argument in &mut arguments {
-            if let Some(reference) = argument.as_reference() {
-                *argument = self.reader.values_of(reference)?;
-            }
-        }
+        let arguments = self.stack.split_off(start);
         let result = match self.functions {
-            Some(functions) => functions.call(name, &arguments),
+            Some(functions) => {
+                let mut context = UserCallContext {
+                    run: self,
+                    fault: None,
+                };
+                let result = functions.call_with_context(name, &arguments, &mut context);
+                if let Some(fault) = context.fault {
+                    return Err(fault);
+                }
+                result
+            }
             None => Ok(CalcValue::error(WorksheetErrorCode::Name)),
         };
         let value = match result {
@@ -1745,5 +1750,74 @@ mod tests {
         );
         assert_eq!(evaluated("=COLUMN(B3:D3)", blank.clone()), n(2.0));
         assert_eq!(evaluated("=SUM(COLUMN(B3:D3))", blank), n(2.0));
+    }
+}
+
+struct UserCallContext<'b, 'a, 'r> {
+    run: &'b mut Run<'a, 'r>,
+    fault: Option<EvalFault>,
+}
+
+impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
+    fn caller(&self) -> Option<CellKey> {
+        Some(self.run.instance.anchor.cell())
+    }
+
+    fn refuse(&mut self, reason: &'static str) -> String {
+        let fault = not_modelled_by(reason, "dc-snz.5");
+        let text = format!("{fault:?}");
+        self.fault.get_or_insert(fault);
+        text
+    }
+
+    fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
+        match self.run.reader.values_of(reference) {
+            Ok(value) => Ok(value),
+            Err(fault) => {
+                let text = format!("{fault:?}");
+                self.fault.get_or_insert(fault);
+                Err(text)
+            }
+        }
+    }
+
+    fn worksheet_function(
+        &mut self,
+        name: &str,
+        arguments: &[CalcValue],
+    ) -> Result<CalcValue, String> {
+        let target = calc_func::catalogue()
+            .resolve_surface(calc_func::Notation::Call, &name.to_ascii_uppercase())
+            .map_err(|_| self.refuse("an unknown worksheet callback"))?;
+        // A VBA method call has no enclosing formula's implicit intersection or lifting.
+        // Scalar positions accept a scalar or one cell; broader array behavior needs its own
+        // measured host contract rather than silently borrowing the formula's rules.
+        let result = (|| {
+            let arguments = arguments
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    if target.parameter_class(index) == Some(ParameterClass::Value) {
+                        if value.as_array().is_some() {
+                            return Err(not_modelled(
+                                "an array in a scalar worksheet callback position",
+                            ));
+                        }
+                        self.run.admit_value(value.clone(), Admission::Refuse)
+                    } else {
+                        Ok(value.clone())
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            self.run.eager(Target(target), &arguments, false)
+        })();
+        match result {
+            Ok(value) => Ok(value),
+            Err(fault) => {
+                let text = format!("{fault:?}");
+                self.fault.get_or_insert(fault);
+                Err(text)
+            }
+        }
     }
 }

@@ -1,53 +1,78 @@
 # VBA functions in DNA OneCalc
 
-`dc-snz.3`, 2026-10-31. The owner deferred the OxVba rename and requested the UDF
-integration first. `calc-vba` pins OxVba's embedding API at
-`74beca5d5bea0370103be3584f18825640eeb5c3`; both desktop and browser use the interpreter,
-with the JIT disabled. This does not rename the engine or introduce a calculation engine
-into OneCalc.
+`dc-snz.3` value calls are closed; `dc-snz.5` remains in progress (2026-10-31).
+Only `calc-vba` depends on the OxVba embedding API, pinned to
+`676c91e6bcb2f9108c07623a9a85a052fca45b8d`. Native builds prefer JIT;
+browser builds omit JIT and use the interpreter. A native admission decline can select
+the interpreter before any code runs. Runtime errors and exhausted budgets never retry.
+The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine/calc-doc/calc-host.
 
-In OneCalc, load the example in **VBA functions**, enter `40` in A1, and enter
-`=Add2(A1,2)` in the formula field. The result is 42. Edit the module and load it again
-to replace its functions. A compile failure leaves the previous module active; the
-status says so. Unload removes its registrations. Nothing is persisted to a workbook.
+Load a standard module in **VBA functions**, enter 40 in A1 and `=Add2(A1,2)` in the
+formula field to obtain 42. Load again to replace registrations and start fresh module
+state; a compile failure leaves the prior module active. Unload removes registrations.
+Nothing is persisted to a workbook. Public Functions register bare and qualified names
+with ASCII case matching; Private functions and Subs stay private, and Main never runs.
 
-`calc_func::UserFunction` and `UserFunctions` are the host-neutral eager value-call
-contract and caller-owned registrations. `calc_fml::compile_with_functions` resolves
-names after built-ins, local bindings and known defined names. A catalogue that cannot
-say whether a defined name exists still refuses that ambiguity. Evaluation receives the
-current registry through `EvaluationServices::with_functions`. Plans hold names, never
-VBA engine objects; replacement and removal cannot run old code. Hosts must recompile when
-adding a previously unknown name, because an unknown call compiles to #NAME?. OneCalc compiles
-on each calculation, sharing only plans with the same resulting instructions. User calls conservatively
-mark the plan volatile. Workbook qualification and richer effects metadata remain future work.
+The caller-owned calc-func registry and calc-fml resolver still own function registration
+and invocation. Built-ins, locals and known defined names keep precedence. Plans retain
+names rather than engine objects; callers recompile when adding a previously unknown
+name. The default UserFunction entry still eagerly reads references for existing adapters;
+the reference-aware entry borrows the evaluator's caller, reader and CalcFunc services.
 
-Only `calc-vba` depends on OxVba. It compiles public standard-module Functions and registers
-bare and module-qualified names with ASCII case matching. Subs and Private functions
-are not registered, and Main never runs. Calls start with fresh globals/Static/Err and
-private ByRef arguments. The default host provides no external services.
+One loaded VBA module retains globals, Static and Err across calls. Separate modules,
+reloads and controller sessions have independent state. Optional arguments use folded
+defaults, typed zero values or Variant Missing; explicit omitted positions differ from
+blank cells. ParamArray packs a fresh zero-based array, including empty bounds 0..-1.
+ByRef inputs remain private copies. Shared immutable code never shares mutable VBA state.
 
-The formula evaluator reads a single-cell reference as its value and a rectangular range
-as a two-dimensional value array. Numbers, booleans, blanks, valid UTF-16 text, known
-worksheet errors and rectangular arrays cross the adapter. Returned worksheet errors keep
-their code. An unhandled VBA error, exhausted budget, wrong arity or conversion failure
-becomes `#VALUE!` with a diagnostic; IFERROR can catch the worksheet error. Missing
-registrations are `#NAME?`. VBA execution stops at the per-call basic-block budget
-(100,000 in the UI), including nested VBA calls; On Error cannot catch exhaustion.
-The budget does not interrupt compilation, conversions or an executing external host call.
+A single rectangular reference now becomes a live read-only Range object. Supported:
+Value2, Count, Row, Column, Address, Cells/Item, and Rows/Columns Count. Variant reference
+arguments have TypeName Range; a numeric literal is Double. Application.Caller identifies
+the formula cell. Saved Range references read current inputs through the next call's
+reader, so reads are recorded and missing inputs remain explicit refusals. Returning a
+Range materializes Value2. Multi-area ranges, writes and other object members remain open. The bounded host
+deduplicates Range identities by coordinates; VBA object-identity parity remains unmeasured.
 
-Still open: real Excel Range/Caller/WorksheetFunction objects, persistent project state,
-omitted Optional arguments, ParamArray packing, locale-sensitive identifiers, workbook
-loading/macros/events and the desktop application shell (`dc-snz.1`). A Range is not
-represented as an object by this value-only integration. These limitations must remain
-explicit under `dc-snz.5` (and OxVba `bd-59co.2.10.6`); array conversion is not a claim of Range-object parity.
+Application.WorksheetFunction calls SUM/MIN/MAX/AVERAGE (1..30 arguments) or MATCH
+(2..3 arguments) through the ordinary CalcFunc evaluator and its existing reader and
+numeric policy. A failed MATCH raises catchable VBA error 1004. Scalar parameter positions
+accept scalars or one-cell references; arrays and larger ranges are refused until measured.
+Callbacks do not inherit the outer formula's implicit intersection or array lifting.
+Other methods and unsupported argument counts are explicit host refusals. VBA On Error
+and formula IFERROR cannot hide a missing read or a recorded host capability refusal.
 
-Validation uses `apps/dna-onecalc/tests/vba.rs` for the native/browser controller route
-and `cargo xtask accept --id dc-snz.3 --platform windows|wasm --require-all` for Add2;
-the wasm acceptance case also loads/reloads/unloads through the mounted UI and runs an
-infinite loop under the budget. `cargo xtask app smoke onecalc` tests the bundled page.
+Numbers, booleans, blanks, valid UTF-16, known worksheet errors and rectangular arrays
+cross the adapter. CVErr keeps its code. VBA runtime failures, wrong arity, conversion
+failures and exhausted budgets map to #VALUE! with diagnostics; ordinary VBA failures
+can be caught by formula IFERROR. The per-call budget counts basic blocks, including
+initialization and nested VBA calls; On Error cannot catch exhaustion. Compilation,
+conversion and an executing host call are outside that cooperative budget.
 
-Run evidence: the native OneCalc example prints `number 42`; the bundled page passes
-31 smoke cases in each of Chrome and Firefox, including the content policy and narrow
-layout. The corpus remains 19,284/20,030 formula cells matched, 659 failed, with 73
-external-link values and 14 circular-rule results counted separately (96.27% matched
-over all cells). Native and mounted-browser acceptance uses the same controller.
+A bounded per-thread cache retains up to 16 verified immutable modules and 8 MiB of
+key/image descriptions. Keys include exact program/signature/defaults, backend, host
+policy, target/CPU/codegen settings and helper/carrier ABI. This limit does not measure
+executable arena memory. Reload can reuse code while starting new state; clearing or
+evicting cached code leaves live registrations valid. No disk or cross-thread cache claim.
+
+Excel run-3 evidence is retained in OxVba CORE-8/udf-run3 and udf-run3-objects. On Excel
+16.0 build 20527, nonvolatile state stayed unchanged on ordinary recalculation without
+changed inputs, advanced on changed input/explicit Range.Calculate, and volatile state
+advanced each time. Initial calls happened twice; no fixed initial count is assumed.
+Application.Volatile requests are recorded, but all UDF plans still conservatively mark
+themselves volatile: precise dependency/effects scheduling remains open. Do not infer
+Excel recalculation parity from the persistent-storage tests.
+
+Still open under dc-snz.5/OxVba bd-59co.2.10.6: exact volatility/effects and scheduling,
+full Range/Caller/WorksheetFunction surfaces, locale-sensitive names, general object
+reentry/disposal, End reset, and classes/UDTs in the embedding facade. Workbook/macros/
+events and the desktop GUI shell remain in the broader dc-snz epic and dc-snz.1.
+
+Validation: portable calc-vba tests explicitly compare interpreter/JIT calls on native;
+apps/dna-onecalc/tests/vba.rs covers the controller route in native and browsers, including
+optional/ParamArray/state, live objects/callbacks/refusals and cache reload ownership.
+The existing dc-snz.3 acceptance and mounted UI cases still own load/reload/unload and
+budget behavior. Final pinned revision and measured check results are in the run-3 report.
+
+Native Git-pin verification: four adapter tests and seven controller tests pass;
+the final repository check passes 1,307 tests, zero failed, three ignored.
+Browser and structural verification follows the integration commit.

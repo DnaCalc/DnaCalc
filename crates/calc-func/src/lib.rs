@@ -17,7 +17,7 @@ pub use calc_value as value;
 
 mod call;
 mod udf;
-pub use udf::{UserFunction, UserFunctions};
+pub use udf::{UserFunction, UserFunctionContext, UserFunctions};
 mod catalogue;
 mod coerce;
 mod decimal;

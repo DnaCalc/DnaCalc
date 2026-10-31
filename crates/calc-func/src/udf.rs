@@ -1,14 +1,46 @@
 //! Caller-owned, engine-neutral user functions. Formula compilation resolves names here;
 //! evaluation uses the current registration, so replacing a module cannot retain old code.
 
-use crate::value::{CalcValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CellKey, ReferenceLike, WorksheetErrorCode};
 use std::{collections::BTreeMap, fmt, rc::Rc};
 
-/// An eager value function. References are read by calc-fml before this boundary. An adapter
+/// A user function. The default host entry reads references eagerly; adapters can instead
+/// use live reference/caller services for one invocation. An adapter
 /// returns worksheet errors as values and execution failures as diagnostics (mapped to #VALUE!).
 /// No Send/Sync promise is made: a desktop add-in may belong to its owning thread.
 pub trait UserFunction: fmt::Debug {
     fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String>;
+
+    /// Reference-aware host entry. Eager adapters keep the original value-call behavior.
+    fn call_with_context(
+        &self,
+        arguments: &[CalcValue],
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        let arguments = arguments
+            .iter()
+            .map(|value| match value.as_reference() {
+                Some(reference) => context.values_of(reference),
+                None => Ok(value.clone()),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.call(&arguments)
+    }
+}
+
+/// Services borrowed only for one synchronous call. The evaluator owns the reader and caller;
+/// adapters can retain reference identities, and must read their values through this context.
+pub trait UserFunctionContext {
+    fn caller(&self) -> Option<CellKey>;
+    /// Record a host capability refusal. It must survive VBA error handlers and formula IFERROR.
+    fn refuse(&mut self, reason: &'static str) -> String;
+    fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String>;
+    /// Invoke the ordinary CalcFunc catalogue through the evaluator's existing call route.
+    fn worksheet_function(
+        &mut self,
+        name: &str,
+        arguments: &[CalcValue],
+    ) -> Result<CalcValue, String>;
 }
 
 /// Per-host registrations, matched by ASCII case. Built-ins and local formula names keep their
@@ -41,6 +73,24 @@ impl UserFunctions {
         self.entries.keys().map(String::as_str)
     }
 
+    /// Invoke with live reference/caller services. A missing function remains #NAME?.
+    pub fn call_with_context(
+        &self,
+        name: &str,
+        arguments: &[CalcValue],
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        let value = match self.entries.get(&name.to_ascii_uppercase()) {
+            Some(function) => function.call_with_context(arguments, context)?,
+            None => CalcValue::error(WorksheetErrorCode::Name),
+        };
+        if value.is_missing() {
+            Err("a user function returned a missing argument".into())
+        } else {
+            Ok(value)
+        }
+    }
+
     /// Missing registrations yield #NAME?, including a plan retained after module removal.
     pub fn call(&self, name: &str, arguments: &[CalcValue]) -> Result<CalcValue, String> {
         match self.entries.get(&name.to_ascii_uppercase()) {
@@ -51,7 +101,7 @@ impl UserFunctions {
                 } else {
                     Ok(value)
                 }
-            },
+            }
             None => Ok(CalcValue::error(WorksheetErrorCode::Name)),
         }
     }
@@ -78,15 +128,24 @@ mod tests {
     #[derive(Debug)]
     struct ReturnsMissing;
     impl UserFunction for ReturnsMissing {
-        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> { Ok(CalcValue::missing()) }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::missing())
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_generic_adapter_cannot_publish_missing_as_a_value() {
         let mut functions = UserFunctions::new();
-        functions.register("MissingResult", Rc::new(ReturnsMissing)).unwrap();
-        assert!(functions.call("MissingResult", &[]).unwrap_err().contains("missing argument"));
+        functions
+            .register("MissingResult", Rc::new(ReturnsMissing))
+            .unwrap();
+        assert!(
+            functions
+                .call("MissingResult", &[])
+                .unwrap_err()
+                .contains("missing argument")
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
