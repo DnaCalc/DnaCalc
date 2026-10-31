@@ -24,6 +24,8 @@ calc-fml = { path = "../calc-fml" }
 # (tools/xtask/architecture.json), so the code under test is not part of its own judge.
 [dev-dependencies]
 calc-verdict = { path = "../../tools/calc-verdict" }
+# Reuse CalcDoc's independent ZIP fixture reader for the actual Host XLSB save test.
+miniz_oxide = "=0.8.9"
 
 # The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which runs
 # only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67 is the

@@ -66,6 +66,15 @@ fn main() {
         let output_name = format!("{stem}-saved.{}",if root.definitions().macro_enabled(){"xlsm"}else{"xlsx"});
         std::fs::write(out.join(&output_name),saved).unwrap();
         row["saved"] = json!(output_name); row["receipt"] = json!(format!("{receipt:?}"));
+        if name.ends_with(".xlsb") {
+            let policy=SavePolicy{format:calc_doc::SaveFormat::Xlsb,..SavePolicy::default()};
+            let plan=calc_doc::prepare_save(&loaded.snapshot(root),&policy).unwrap();
+            let mut binary=Vec::new(); let receipt=calc_doc::write(plan,&mut binary).unwrap();
+            let binary_name=format!("{stem}-preserved.xlsb");
+            std::fs::write(out.join(&binary_name),binary).unwrap();
+            row["binary_preserved"]=json!(binary_name);
+            row["binary_receipt"]=json!(format!("{receipt:?}"));
+        }
         let sheet = root.sheets()[0].id();
         // Re-enter each measured file formula into a separate empty cell. This exercises
         // prepare_edit/file_form, without replacing the untouched round-trip observation.

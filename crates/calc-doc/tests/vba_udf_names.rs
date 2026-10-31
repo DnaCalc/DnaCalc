@@ -19,6 +19,136 @@ fn xml_fragment<'a>(xml: &'a str, tag: &str) -> &'a str {
     &xml[start..end]
 }
 
+fn source_part(package: &[u8], name: &str) -> Vec<u8> {
+    let archive = cdoc_m1_1_support::parse_zip(package);
+    let entry = archive.entry(name);
+    match entry.method {
+        0 => entry.payload(package).to_vec(),
+        8 => miniz_oxide::inflate::decompress_to_vec(entry.payload(package)).unwrap(),
+        _ => panic!("unsupported fixture compression"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_14__explicit_binary_save_preserves_all_source_records() {
+    for binary in [
+        include_bytes!("fixtures/vba_udf_names/local.xlsb").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/collision.xlsb").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/consumer.xlsb").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/metadata-custom-vba.xlsb").as_slice(),
+    ] {
+        let loaded = load(binary);
+        let plan = calc_doc::prepare_save(
+            &loaded.snapshot(loaded.model()),
+            &calc_doc::SavePolicy {
+                format: calc_doc::SaveFormat::Xlsb,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut saved = Vec::new();
+        let receipt = calc_doc::write(plan, &mut saved).unwrap();
+        let archive = cdoc_m1_1_support::parse_zip(&saved);
+        assert!(
+            archive
+                .entries
+                .iter()
+                .any(|entry| entry.name == "xl/workbook.bin")
+        );
+        assert!(
+            !archive
+                .entries
+                .iter()
+                .any(|entry| entry.name == "xl/workbook.xml")
+        );
+        let source = cdoc_m1_1_support::parse_zip(binary);
+        assert_eq!(source.entries.len(), archive.entries.len());
+        for entry in source.entries.iter() {
+            assert_eq!(
+                source_part(&saved, &entry.name),
+                source_part(binary, &entry.name),
+                "{}",
+                entry.name
+            );
+        }
+        assert_eq!(receipt.parts_written, 0);
+        assert_eq!(receipt.values_written, 0);
+        assert_eq!(receipt.caches_dropped, 0);
+        let reopened = load(&saved);
+        assert_eq!(reopened.model().as_ref(), loaded.model().as_ref());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_14__binary_save_refuses_unwritten_changes_and_foreign_models() {
+    let binary = include_bytes!("fixtures/vba_udf_names/collision.xlsb");
+    let loaded = load(binary);
+    let policy = calc_doc::SavePolicy {
+        format: calc_doc::SaveFormat::Xlsb,
+        ..Default::default()
+    };
+    let edited = cdoc_m1_1_support::d1::edited(
+        &loaded,
+        vec![WorkbookOp::SetCell {
+            at: CellKey::new(loaded.model().sheets()[0].id(), 50, 4).unwrap(),
+            input: cdoc_m1_1_support::d1::number(7.0),
+        }],
+    );
+    assert!(matches!(
+        calc_doc::prepare_save(&loaded.snapshot(&edited), &policy),
+        Err(calc_doc::SaveRefusal::BinaryChangesNotModelled { owner: "dc-snz.14" })
+    ));
+    let other = load(binary);
+    assert!(matches!(
+        calc_doc::prepare_save(&loaded.snapshot(other.model()), &policy),
+        Err(calc_doc::SaveRefusal::ForeignModel)
+    ));
+    let xml = load(include_bytes!("fixtures/vba_udf_names/collision.xlsm"));
+    assert!(matches!(
+        calc_doc::prepare_save(&xml.snapshot(xml.model()), &policy),
+        Err(calc_doc::SaveRefusal::BinarySourceRequired)
+    ));
+    assert!(matches!(
+        calc_doc::prepare_save(
+            &loaded.snapshot(loaded.model()),
+            &calc_doc::SavePolicy {
+                max_package_bytes: 1,
+                ..policy
+            }
+        ),
+        Err(calc_doc::SaveRefusal::PackageTooLarge { .. })
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_14__binary_save_checks_the_original_source_before_writing() {
+    use std::sync::Arc;
+    let bytes = include_bytes!("fixtures/vba_udf_names/collision.xlsb");
+    let changing = Arc::new(cdoc_m1_1_support::ChangingSource::new(bytes.to_vec()));
+    let source: Arc<dyn calc_doc::PackageRead> = changing.clone();
+    let document = calc_doc::open(source, &calc_doc::OpenPolicy::default()).unwrap();
+    let plan = calc_doc::prepare_save(
+        &document.snapshot(),
+        &calc_doc::SavePolicy {
+            format: calc_doc::SaveFormat::Xlsb,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let archive = cdoc_m1_1_support::parse_zip(bytes);
+    let at = archive.entry("xl/workbook.bin").payload_start;
+    changing.change(|data| data[at] ^= 1);
+    let mut saved = Vec::new();
+    assert!(matches!(
+        calc_doc::write(plan, &mut saved),
+        Err(calc_doc::WriteError::SourceChanged { .. })
+    ));
+    assert!(saved.is_empty());
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_snz_13__binary_conversion_keeps_categories_and_argument_help() {
@@ -44,13 +174,7 @@ fn dc_snz_13__binary_conversion_keeps_categories_and_argument_help() {
                 .any(|name| name.name == "MetaFunc")
         );
         let expected = part_text(twin, "xl/workbook.xml");
-        let archive = cdoc_m1_1_support::parse_zip(binary);
-        let entry = archive.entry("xl/vbaProject.bin");
-        let vba = match entry.method {
-            0 => entry.payload(binary).to_vec(),
-            8 => miniz_oxide::inflate::decompress_to_vec(entry.payload(binary)).unwrap(),
-            _ => panic!("unsupported fixture compression"),
-        };
+        let vba = source_part(binary, "xl/vbaProject.bin");
         let edited = cdoc_m1_1_support::d1::edited(
             &loaded,
             vec![WorkbookOp::SetCell {

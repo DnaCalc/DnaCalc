@@ -71,3 +71,10 @@ BrtNameExt payloads with the original XLSB witnesses, and checks the exported VB
 This verifies Excel's file interpretation of the help metadata, not its visual dialog layout.
 `--help-ui <workbook>` optionally opens one owned visible instance and records its window/PID;
 creating the recorded `.stop` file closes only that instance. UI interaction uses Computer Use.
+
+The native driver also writes `*-xlsb-preserved.xlsb` with the explicit `SaveFormat::Xlsb`.
+`python reopen-product.py --product <dir> --out cdoc-binary-reopen.json --binary-controls`
+forces Excel recalculation of four originals and their preserved copies, with required
+providers loaded for the consumer, and compares every observed result. The portable tests
+compare all original record/VBA/link bytes and exercise the Host save route and typed refusals.
+This output mode supports snapshots needing no part rewrites; edited binary authoring stays open.

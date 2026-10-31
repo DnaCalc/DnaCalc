@@ -8221,6 +8221,7 @@ fn cdoc_m1_3__save_refusal() {
 
     // A package past the policy's bound, then within the default one.
     let small = SavePolicy {
+        format: calc_doc::SaveFormat::Xml,
         max_package_bytes: 1_000,
     };
     let too_large = m1_3_refused(

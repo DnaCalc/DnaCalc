@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--binding-controls', action='store_true')
     parser.add_argument('--help-ui', type=Path)
     parser.add_argument('--metadata-controls', action='store_true')
+    parser.add_argument('--binary-controls', action='store_true')
     args=parser.parse_args()
     original=m.OUT; m.EVENTS=[]
     output=args.out or original/'product-reopen.json'
@@ -56,7 +57,7 @@ def main():
             while not stop.exists():
                 m.pythoncom.PumpWaitingMessages(); m.time.sleep(0.2)
             return
-        if not args.metadata_controls:
+        if not args.metadata_controls and not args.binary_controls:
             b=m.open_book(x,'loaded-xml.xlsb')
             m.observe(x,b,'fresh-reopen-loaded-xml.xlsb'); m.close(b)
         outputs=['local-xlsm-saved.xlsm','local-xlsb-saved.xlsm','local-xlsb-edited.xlsm',
@@ -65,17 +66,32 @@ def main():
                      'metadata-unqualified-xlsb-saved.xlsm','metadata-custom-vba-xlsb-saved.xlsm']
         if args.metadata_controls:
             outputs=[name for name in outputs if name.startswith('metadata-')]
+        if args.binary_controls:
+            outputs=['local-xlsb-preserved.xlsb','collision-xlsb-preserved.xlsb',
+                     'consumer-xlsb-preserved.xlsb','metadata-custom-vba-xlsb-preserved.xlsb']
         for name in outputs:
             providers=[]
             if name.startswith('consumer'):
                 for p in ['provider.xlsm','probe.xlam']:
                     providers.append(m.open_book(x,p))
+            if args.binary_controls:
+                source_name=name.replace('-xlsb-preserved.xlsb','.xlsb')
+                source=m.open_book(x,source_name)
+                m.observe(x,source,'binary-original-'+source_name)
+                expected_rows=m.EVENTS[-1]['rows']; m.close(source)
+                assert expected_rows[0]['value']>0,'the original macro must execute after full recalculation'
             b=m.retry(lambda:x.Workbooks.Open(str(product/name),UpdateLinks=0))
             m.event('package', file=name, sha256=hashlib.sha256((product/name).read_bytes()).hexdigest())
             m.observe(x,b,name+'-before-recalc',False)
             m.observe(x,b,name)
+            if args.binary_controls:
+                actual_rows=m.EVENTS[-1]['rows']
+                expected=[(row['cell'],row['value'],row['text']) for row in expected_rows]
+                actual=[(row['cell'],row['value'],row['text']) for row in actual_rows]
+                m.event('binary-preservation',source=source_name,file=name,matches=expected==actual)
+                assert expected==actual,(expected,actual)
             s=b.Worksheets(1)
-            if name.startswith('collision'):
+            if name.startswith('collision') and '-reentered.' in name:
                 m.event('collision-reentry',file=name,B1=s.Range('B1').Formula2,
                         B1_text=s.Range('B1').Text,D1=s.Range('D1').Formula2,D1_text=s.Range('D1').Text,
                         B2=s.Range('B2').Formula2,B2_text=s.Range('B2').Text,

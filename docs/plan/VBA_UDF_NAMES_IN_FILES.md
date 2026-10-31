@@ -259,3 +259,12 @@ defined-name model or invented procedure registrations. The corrected function-h
 was not inspected: Computer Use was stopped with the physical Escape key after the original
 dialog was observed; the owned inspection instance was closed.
 
+For dc-snz.14, `SavePolicy.format = SaveFormat::Xlsb` now preserves the validated original
+binary package through the existing ZIP writer when no parts need rewriting, including the
+actual Host save route. Tests compare every uncompressed part of four measured XLSB inputs,
+including VBA, tokens, name flags and links, and check foreign models, size bounds and changed
+backing sources. A request requiring part rewrites returns a typed dc-snz.14 refusal; default
+output remains XML. The original package backing is retained along with the converted view.
+This is a partial binary save capability: binary authoring still needs the writer and the
+catalogue's function-index/prefix/call-identity data; no new function-name table was added.
+

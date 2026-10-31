@@ -156,6 +156,8 @@ impl Relationships {
 
 /// An opened package: its backing source, its entries as opened, and its part directory.
 pub struct Package {
+    /// The validated original package when this is a converted XLSB view.
+    original_binary: Option<Arc<Package>>,
     source: Arc<dyn PackageRead>,
     archive: Archive,
     parts: Vec<Part>,
@@ -219,6 +221,14 @@ impl std::fmt::Debug for Package {
 }
 
 impl Package {
+    pub(crate) fn with_original_binary(mut self, original: Arc<Package>) -> Self {
+        self.original_binary = Some(original);
+        self
+    }
+
+    pub(crate) fn original_binary(&self) -> Option<&Arc<Package>> {
+        self.original_binary.as_ref()
+    }
     /// The file name the package's source is known by ([`PackageRead::name`]).
     pub fn source_name(&self) -> Option<&str> {
         self.source.name()
@@ -230,6 +240,7 @@ impl Package {
     ) -> Result<Package, OpenError> {
         let archive = zip::read_archive(source.as_ref(), &policy.package)?;
         let mut package = Package {
+            original_binary: None,
             source,
             archive,
             parts: Vec::new(),

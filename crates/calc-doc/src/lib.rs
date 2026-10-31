@@ -1,5 +1,5 @@
 //! The package for the CalcDoc codec: reading, writing and preserving .xlsx/.xlsm packages (ZIP/XML),
-//! and reading .xlsb packages as the .xlsx they stand for.
+//! and reading .xlsb packages through SpreadsheetML with an explicit binary preservation save.
 //!
 //! [`model`] re-exports calc-doc-model, the engine-neutral authored model and operation codec this
 //! codec reads into and writes from.
@@ -16,7 +16,9 @@
 //!   part read reads any of it; open still streams it for its CRC) and bytes after a payload's
 //!   final DEFLATE block are typed refusals. An Excel binary workbook (.xlsb) is converted, as
 //!   it is opened, into the SpreadsheetML package it stands for ([`convert_binary_workbook`]),
-//!   which everything after reads and a save writes.
+//!   which everything after reads and a save writes by default. The validated original package
+//!   is also retained: [`SaveFormat::Xlsb`] copies it when the snapshot needs no part rewrites;
+//!   authored binary output is refused under dc-snz.14.
 //! - [`load`] reads an opened package's workbook: its sheets, from the workbook part and its
 //!   relationships, and each worksheet's cells (numbers, shared and inline strings, logicals,
 //!   errors and formulas, a shared formula's members each with its own text) into a
@@ -100,8 +102,8 @@ pub use opc::{
 pub use policy::{OpenPolicy, PackageLimits};
 pub use save::file_form::{FileForm, FileFormError, file_form, file_form_with_links};
 pub use save::{
-    DocumentSnapshot, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, StructuralEdits, WriteError,
-    conditional_rule, new_conditional_rule, prepare_save, write,
+    DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, StructuralEdits,
+    WriteError, conditional_rule, new_conditional_rule, prepare_save, write,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use xml::{
@@ -140,7 +142,9 @@ pub fn open(
     // An Excel binary workbook is read as the SpreadsheetML package it stands for.
     if let Some(workbook) = xlsb::binary_workbook(&package) {
         let converted = xlsb::convert(&package, &workbook)?;
-        let package = opc::Package::open(Arc::new(MemorySource::new(converted)), policy)?;
+        let original = Arc::new(package);
+        let package = opc::Package::open(Arc::new(MemorySource::new(converted)), policy)?
+            .with_original_binary(original);
         return Ok(OpenedDocument {
             package: Arc::new(package),
         });

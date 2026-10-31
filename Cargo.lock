@@ -253,6 +253,7 @@ dependencies = [
  "calc-engine",
  "calc-fml",
  "calc-verdict",
+ "miniz_oxide",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

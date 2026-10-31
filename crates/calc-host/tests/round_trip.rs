@@ -11,6 +11,9 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
+#[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+mod existing_wire_support;
+
 use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea, SheetId};
 use calc_host::{
     Axis, AxisChange, AxisEdit, CachedValue, CalcMode, CellEdit, CellInput, CellText, DeltaCause,
@@ -24,6 +27,28 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_14__host_save_preserves_unchanged_xlsb_and_refuses_edits() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/collision.xlsb");
+    let mut host = open(bytes);
+    let policy = SavePolicy { format: calc_host::SaveFormat::Xlsb, ..Default::default() };
+    let mut saved = Vec::new();
+    let receipt = save(&host, &policy, &mut saved).unwrap();
+    let archive = existing_wire_support::parse_zip(&saved);
+    assert!(archive.entries.iter().any(|entry| entry.name == "xl/workbook.bin"));
+    assert_eq!(receipt.parts_written, 0);
+    assert_eq!(receipt.values_written, 0);
+    let id = sheet(&host, "Cases");
+    edit(&mut host, vec![CellEdit::Set {
+        at: CellKey::new(id, 50, 4).unwrap(), input: number(7.0),
+    }]);
+    let mut rejected = Vec::new();
+    assert!(matches!(save(&host, &policy, &mut rejected), Err(calc_host::SaveFailed::Refused(
+        calc_host::SaveRefusal::BinaryChangesNotModelled { owner: "dc-snz.14" }))));
+    assert!(rejected.is_empty());
+}
 
 /// The D1 fixture, embedded so the same tests run natively and in the browsers.
 fn fixture() -> Vec<u8> {

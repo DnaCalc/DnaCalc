@@ -136,9 +136,21 @@ impl DocumentSnapshot {
     }
 }
 
-/// The bounds a save is planned under.
+/// The package format a save writes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SaveFormat {
+    /// SpreadsheetML (.xlsx/.xlsm), including conversion of XLSB inputs.
+    #[default]
+    Xml,
+    /// Preserve an existing XLSB source when the snapshot needs no part rewrites.
+    /// Binary authoring remains owned by dc-snz.14.
+    Xlsb,
+}
+
+/// The format and bounds a save is planned under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SavePolicy {
+    pub format: SaveFormat,
     /// The longest package written, in bytes. A package past 4 GiB - 1 byte, the most a ZIP
     /// archive without ZIP64 records addresses, is refused whatever this says, since this writer
     /// writes no ZIP64 records.
@@ -148,6 +160,7 @@ pub struct SavePolicy {
 impl Default for SavePolicy {
     fn default() -> Self {
         SavePolicy {
+            format: SaveFormat::Xml,
             max_package_bytes: u64::from(u32::MAX),
         }
     }
@@ -158,6 +171,10 @@ impl Default for SavePolicy {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
+    /// XLSB output needs the validated original binary package (dc-snz.14).
+    BinarySourceRequired,
+    /// The XML authoring route found part rewrites, for which no binary writer exists yet.
+    BinaryChangesNotModelled { owner: &'static str },
     /// The snapshot's model is not a revision of the loaded workbook: it is not of the lineage of
     /// the model the load made (a model another load made, of the same file or with the same
     /// sheet IDs, included), or its sheets differ from the loaded ones.
@@ -249,6 +266,13 @@ pub enum SaveRefusal {
 impl fmt::Display for SaveRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::BinarySourceRequired => {
+                f.write_str("XLSB output requires an original XLSB package (dc-snz.14)")
+            }
+            Self::BinaryChangesNotModelled { owner } => write!(
+                f,
+                "XLSB output for a snapshot requiring part rewrites is not modelled ({owner})"
+            ),
             Self::ForeignModel => f.write_str("the model is not a revision of the loaded workbook"),
             Self::Part { part, error } => write!(f, "the part {part:?} could not be read: {error}"),
             Self::InvalidPart { part, detail } => {
@@ -671,10 +695,26 @@ pub fn prepare_save(
     snapshot: &DocumentSnapshot,
     policy: &SavePolicy,
 ) -> Result<SavePlan, SaveRefusal> {
-    let package = &snapshot.package;
+    let converted = &snapshot.package;
     let changes = match &snapshot.edit {
-        Some(edit) => author::plan(package, edit)?,
+        Some(edit) => author::plan(converted, edit)?,
         None => author::Changes::default(),
+    };
+    let package = match policy.format {
+        SaveFormat::Xml => converted,
+        SaveFormat::Xlsb => {
+            let original = converted
+                .original_binary()
+                .ok_or(SaveRefusal::BinarySourceRequired)?;
+            if !changes.rewritten.is_empty()
+                || changes.content_types.is_some()
+                || !changes.removed.is_empty()
+                || !changes.added.is_empty()
+            {
+                return Err(SaveRefusal::BinaryChangesNotModelled { owner: "dc-snz.14" });
+            }
+            original
+        }
     };
     let archive = package.archive();
     let mut new_content: BTreeMap<usize, Vec<u8>> = BTreeMap::new();
