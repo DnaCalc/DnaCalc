@@ -435,6 +435,36 @@ fn poisson_zero_count_retains_recorded_subnormal_probabilities() {
     }
 }
 
+/// One recorded semantic input, three count spellings; oc30003 is an old match.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn poisson_first_mass_tiny_mean_matches_recorded_probability() {
+    let mean = f64::from_bits(0x3d70_0000_0000_0000);
+    let expected = f64::from_bits(0x3d6f_ffff_ffff_e000);
+    for function in ["POISSON.DIST", "POISSON"] {
+        for count_bits in [0x3ff0_0000_0000_0000, 0x3ff0_0000_0000_0001, 0x3ffc_0000_0000_0000] {
+            exact(call(function, vec![n(f64::from_bits(count_bits)), n(mean), b(false)]), expected);
+        }
+        exact(call(function, vec![n(1.0), n(f64::from_bits(0x3eb0_f2c7_411e_5587)), b(false)]),
+            f64::from_bits(0x3eb0_f2c6_21df_3991));
+        exact(call(function, vec![n(1.0), n(mean), b(true)]), 1.0);
+    }
+}
+
+/// Exponential-series mathematical controls, not additional Excel readings.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn poisson_first_mass_tiny_mean_has_analytic_rounding() {
+    // For normal lambda <= 2^-54 the true probability rounds to lambda.
+    for function in ["POISSON.DIST", "POISSON"] {
+        for mean_bits in [0x0010_0000_0000_0000, 0x3af0_0000_0000_0000,
+                          0x3c80_0000_0000_0000, 0x3c8f_ffff_ffff_ffff, 0x3c90_0000_0000_0000] {
+            let mean = f64::from_bits(mean_bits);
+            exact(call(function, vec![n(1.0), n(mean), b(false)]), mean);
+        }
+    }
+}
+
 /// Recorded cumulative gamma row: the final series product has an x87 store.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

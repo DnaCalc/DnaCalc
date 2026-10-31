@@ -155,6 +155,15 @@ fn poisson_mass(x: f64, lambda: f64) -> f64 {
     if x == 0.0 {
         return excel_exp(-lambda);
     }
+    if x == 1.0 && lambda <= 1.0 / 134_217_728.0 {
+        // lambda*exp(-lambda) = lambda-lambda^2 + R, 0 < R < lambda^3/2.
+        // At lambda <= 2^-27 the omitted term is at most epsilon/8 relative
+        // to lambda. Binary64 binade spacing bounds it below 1/4 ULP; FMA
+        // adds at most 1/2 ULP. This analytic limit was not fitted to Excel.
+        // Only one recorded semantic input supports exact Excel agreement;
+        // the uniform <3/4-ULP bound does not identify Excel's method.
+        return (-lambda).mul_add(lambda, lambda);
+    }
     excel_exp(-stirling_error(x) - deviance(x, lambda)) / (2.0 * core::f64::consts::PI * x).sqrt()
 }
 
