@@ -119,6 +119,8 @@ pub type DeltaSink = Box<dyn FnMut(&HostDelta)>;
 /// What a skin asks of the session.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SkinIntent {
+    /// A typed workbook command, prepared and committed entirely by the host.
+    Command(crate::WorkbookCommand),
     /// Text typed into a cell, read as Excel reads a cell entry ([`crate::interpret_entry`]): a
     /// formula, a value, or, for an empty text, a clear. One transaction, one undo step.
     EnterCell { at: CellKey, text: String },
@@ -170,6 +172,8 @@ pub enum SkinIntent {
 /// Why an intent changed nothing.
 #[derive(Debug, PartialEq, Eq)]
 pub enum IntentError {
+    /// A workbook command was refused before committing any edit.
+    Workbook(String),
     /// The entered text is refused.
     Entry(EntryRefusal),
     /// The transaction was refused; the workbook is as it was.
@@ -192,6 +196,7 @@ pub enum IntentError {
 impl fmt::Display for IntentError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            IntentError::Workbook(reason) => f.write_str(reason),
             IntentError::Entry(refusal) => write!(f, "the entry was refused: {refusal}"),
             IntentError::Command(error) => write!(f, "the edit was refused: {error}"),
             IntentError::EmptySelection => f.write_str("there is no active selection"),
@@ -237,6 +242,8 @@ impl IntentReceipt {
 /// One intent of the session's log, with its outcome.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IntentRecord {
+    /// The host that recorded the command; replay may rebind only plans from this scope.
+    scope: u64,
     pub seq: u64,
     pub intent: SkinIntent,
     pub accepted: bool,
@@ -259,7 +266,13 @@ pub struct ReplayOutcome {
 pub fn replay(records: &[IntentRecord], session: &mut HostSession) -> ReplayOutcome {
     let mut outcome = ReplayOutcome::default();
     for record in records {
-        let receipt = session.dispatch(record.intent.clone());
+        let intent = match record.intent.clone() {
+            SkinIntent::Command(crate::WorkbookCommand::Paste(plan)) => SkinIntent::Command(
+                crate::WorkbookCommand::Paste(plan.for_replay(session.host(), record.scope)),
+            ),
+            intent => intent,
+        };
+        let receipt = session.dispatch(intent);
         outcome.dispatched += 1;
         if receipt.accepted() {
             outcome.accepted += 1;
@@ -283,6 +296,7 @@ struct Subscription {
 /// subscriptions and the intent log.
 pub struct HostSession {
     host: HostState,
+    sheet_keys: BTreeSet<crate::SheetKey>,
     history: History,
     selection: Selection,
     subscriptions: BTreeMap<SubscriptionId, Subscription>,
@@ -308,6 +322,7 @@ impl HostSession {
     /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
         HostSession {
+            sheet_keys: host.sheets().iter().map(|s| s.key()).collect(),
             host,
             history: History::new(UNDO_LIMIT),
             selection: Selection::default(),
@@ -407,6 +422,17 @@ impl HostSession {
             deltas: 0,
         };
         let outcome = match intent.clone() {
+            SkinIntent::Command(command) => {
+                crate::actions::prepare(&self.host, &mut self.sheet_keys, command)
+                    .map_err(IntentError::Workbook)
+                    .and_then(|edits| {
+                        if edits.is_empty() {
+                            return Ok(());
+                        }
+                        let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                        self.edit(edits, &mut receipt)
+                    })
+            }
             SkinIntent::EnterCell { at, text } => self
                 .prepare_entries(at, &text, &[GridArea::cell(at)])
                 .and_then(|edits| self.edit(edits, &mut receipt)),
@@ -459,6 +485,7 @@ impl HostSession {
         receipt.error = outcome.err();
         receipt.revision = self.host.revision();
         self.log.push(IntentRecord {
+            scope: self.host.command_scope,
             seq,
             intent,
             accepted: receipt.error.is_none(),

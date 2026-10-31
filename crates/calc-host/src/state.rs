@@ -98,6 +98,8 @@ impl std::error::Error for OpenFailure {}
 /// The authored revision and the engine state are always at one revision.
 #[derive(Debug)]
 pub struct HostState {
+    /// Identifies this open host for revision-bound prepared commands.
+    pub(crate) command_scope: u64,
     pub(crate) sheet_ids: IdAllocator<SheetId>,
     pub(crate) sheet_identities: std::collections::BTreeMap<calc_doc_model::SheetKey, SheetId>,
     /// The workbook as calc-doc loaded it. Its model is the loaded revision, never the current
@@ -160,6 +162,10 @@ impl HostState {
         let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
         let sheet_identities = model.sheets().iter().map(|s| (s.key(), s.id())).collect();
         let mut host = HostState {
+            command_scope: {
+                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            },
             sheet_ids,
             sheet_identities,
             loaded,

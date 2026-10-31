@@ -267,6 +267,96 @@ fn enter(session: &mut HostSession, at: CellKey, text: &str) -> IntentReceipt {
     receipt
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_22__typed_workbook_commands_keep_history_and_replay() {
+    use calc_host::{ConditionalChange, SheetChange, WorkbookCommand as C};
+    let bytes = calc_host::blank_package();
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let at = CellKey::new(sheet, 1, 1).unwrap();
+    let apply = |book: &mut HostSession, command| {
+        let receipt = book.dispatch(SkinIntent::Command(command));
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+        receipt
+    };
+    assert!(enter(&mut book, at, "42").accepted());
+    apply(&mut book, C::Sheet { sheet: None, change: SheetChange::Add { name: "Second".into() } });
+    let allocated = book.host().sheets()[1].key();
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    apply(&mut book, C::Sheet { sheet: None, change: SheetChange::Add { name: "Third".into() } });
+    assert_ne!(book.host().sheets()[1].key(), allocated, "undo must not recycle a sheet key");
+    apply(&mut book, C::AxisFormat { sheet, rows: true, first: 1, count: 2, size_bits: Some(30f64.to_bits()), hidden: None });
+    assert_eq!(book.host().model().definitions().axis_layouts().get(sheet, Axis::Rows, 2).size(), Some(30.0));
+    apply(&mut book, C::FreezePanes { sheet, rows: 2, columns: 1 });
+    assert_eq!(book.host().model().definitions().frozen_panes(sheet), calc_host::FrozenPanes::new(2, 1));
+    let revision = book.host().revision().get();
+    apply(&mut book, C::Conditional { sheet, revision, index: None, change: ConditionalChange::Add { kind: "colorScale".into(), applies: "A1:A2".into(), color: "#FF0000".into() } });
+    assert_eq!(book.host().model().definitions().conditional_rules(sheet).len(), 1);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.host().model().definitions().conditional_rules(sheet).is_empty());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let before = (book.host().revision(), book.history_depth());
+    let refused = book.dispatch(SkinIntent::Command(C::FitContents { sheet, rows: true, revision: before.0.get(), sizes: vec![(1, 25f64.to_bits()), (2, f64::NAN.to_bits())] }));
+    assert!(!refused.accepted());
+    assert_eq!((book.host().revision(), book.history_depth()), before);
+    assert_eq!(book.host().model().definitions().axis_layouts().get(sheet, Axis::Rows, 1).size(), Some(30.0));
+    let mut twin = session(&bytes);
+    let replayed = replay(book.intent_log(), &mut twin);
+    assert!(replayed.mismatches.is_empty(), "{replayed:?}");
+    assert_eq!(book.host().sheets(), twin.host().sheets());
+    assert_eq!(book.host().model().definitions().conditional_rules(sheet), twin.host().model().definitions().conditional_rules(sheet));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_22__paste_and_replace_are_atomic_revision_bound_host_commands() {
+    use calc_host::{PasteMode, PasteSource, WorkbookCommand as C, prepare_paste};
+    use calc_host::search::{SearchOptions, SearchScope};
+    let bytes = calc_host::blank_package();
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let a1 = CellKey::new(sheet, 1, 1).unwrap();
+    let a2 = CellKey::new(sheet, 2, 1).unwrap();
+    let source = || PasteSource::External(vec![vec!["4".into()], vec!["=A1+1".into()]]);
+    let stale = prepare_paste(book.host(), source(), GridArea::cell(a1), PasteMode::All).unwrap();
+    let mut other = session(&bytes);
+    assert_eq!(other.host().revision(), book.host().revision());
+    assert!(!other.dispatch(SkinIntent::Command(C::Paste(stale.clone()))).accepted());
+    assert_eq!(other.history_depth(), (0, 0));
+    assert_eq!(other.host().model().cell(a1), None);
+    let mut refused_twin = session(&bytes);
+    assert!(replay(other.intent_log(), &mut refused_twin).mismatches.is_empty());
+    assert_eq!(refused_twin.host().model().cell(a1), None);
+    assert!(replay(other.intent_log(), &mut book).mismatches.is_empty());
+    assert_eq!(book.host().model().cell(a1), None);
+    assert!(enter(&mut book, a1, "2").accepted());
+    let before = (book.host().revision(), book.history_depth());
+    assert!(!book.dispatch(SkinIntent::Command(C::Paste(stale))).accepted());
+    assert_eq!((book.host().revision(), book.history_depth()), before);
+    let plan = prepare_paste(book.host(), source(), GridArea::cell(a1), PasteMode::All).unwrap();
+    assert_eq!(plan.target(), GridArea::new(a1, a2).unwrap());
+    assert_eq!(plan.replaces(), 1);
+    assert!(book.dispatch(SkinIntent::Command(C::Paste(plan))).accepted());
+    assert_eq!(session_calculated(&book, a2), Some(CalcValue::number(5.0)));
+    let options = SearchOptions { sheet, areas: vec![GridArea::new(a1, a2).unwrap()], text: "A1".into(), case_sensitive: false, whole: false, wildcards: false, formulas: true, scope: SearchScope::Sheet };
+    let revision = book.host().revision().get();
+    let replace = C::Replace { options, revision, only: None, replacement: "A1*2".into() };
+    assert!(book.dispatch(SkinIntent::Command(replace.clone())).accepted());
+    assert_eq!(session_calculated(&book, a2), Some(CalcValue::number(9.0)));
+    let before = (book.host().revision(), book.history_depth());
+    assert!(!book.dispatch(SkinIntent::Command(replace)).accepted());
+    assert_eq!((book.host().revision(), book.history_depth()), before);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(session_calculated(&book, a2), Some(CalcValue::number(5.0)));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().cell(a1), Some(&number(2.0)));
+    assert_eq!(book.host().model().cell(a2), None);
+    let mut twin = session(&bytes);
+    assert!(replay(book.intent_log(), &mut twin).mismatches.is_empty());
+    assert_eq!(book.host().model().cell(a1), twin.host().model().cell(a1));
+}
+
 /// The cells a delta holds, as (cell, value).
 fn delta_values(delta: &HostDelta) -> Vec<(CellKey, ProjectedValue)> {
     delta

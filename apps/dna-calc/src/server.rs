@@ -30,7 +30,6 @@ pub struct Answer {
 
 pub struct Server {
     validation_pending: Option<(u64, u64, Selection, SkinIntent)>,
-    sheet_keys: std::collections::BTreeSet<calc_host::SheetKey>,
     book: Workbook,
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
@@ -38,7 +37,7 @@ pub struct Server {
     snapshots: BTreeMap<u64, calc_host::CopySnapshot>,
     next_clip: u64,
     clipboard_session: String,
-    paste_plan: Option<(u64, u64, Vec<CellEdit>)>,
+    paste_plan: Option<(u64, calc_host::PastePlan)>,
 }
 
 impl Default for Server {
@@ -53,7 +52,6 @@ impl Server {
         let book = Workbook::new_blank();
         Server {
             validation_pending: None,
-            sheet_keys: book.host().sheets().iter().map(|s| s.key()).collect(),
             book,
             subscriptions: BTreeMap::new(),
             events: Vec::new(),
@@ -86,9 +84,7 @@ impl Server {
         let reply = (|| -> Result<Reply, String> {
             match request {
                 Request::Find(options) => {
-                    Ok(Reply::Found(search_selection(&options).and_then(
-                        |selection| crate::search::find(&self.book, &selection, &options),
-                    )))
+                    Ok(Reply::Found(crate::search::find(&self.book, &options)))
                 }
                 Request::SelectionStats => Ok(Reply::SelectionStats(
                     crate::search::selection_stats(&self.book, self.book.session().selection()),
@@ -396,7 +392,6 @@ impl Server {
     /// A new workbook in place of the open one: the page's subscriptions end with it.
     fn install(&mut self, book: Workbook) {
         self.validation_pending = None;
-        self.sheet_keys = book.host().sheets().iter().map(|s| s.key()).collect();
         self.book = book;
         self.subscriptions.clear();
         self.events.clear();
@@ -412,106 +407,27 @@ impl Server {
     ) -> Result<Reply, String> {
         use wire::PasteSource;
         self.paste_plan = None;
-        let (edits, target) = match source {
-            PasteSource::Internal { token, cut } => {
-                let snapshot = self
+        let source = match source {
+            PasteSource::Internal { token, cut } => calc_host::PasteSource::Snapshot {
+                snapshot: self
                     .snapshots
                     .get(&token)
-                    .ok_or("The copied snapshot expired; copy again")?;
-                if cut && mode != wire::PasteMode::All {
-                    return Err(
-                        "Paste Special is unavailable for a cut; copy the cells instead".to_owned(),
-                    );
-                }
-                let target = snapshot.target(to).map_err(|e| e.to_string())?;
-                let edits = snapshot
-                    .edits(self.book.host(), to, mode.host(), cut, None)
-                    .map_err(|e| e.to_string())?;
-                (edits, target)
-            }
-            PasteSource::Fill { from, down, series } => {
-                let from = area(from)?;
-                let snapshot = calc_host::CopySnapshot::capture(self.book.host(), from)
-                    .map_err(|e| e.to_string())?;
-                let edits = snapshot
-                    .fill_edits(self.book.host(), to, down, series)
-                    .map_err(|e| e.to_string())?;
-                (edits, to)
-            }
-            PasteSource::External(rows) => {
-                if mode == wire::PasteMode::Formats {
-                    return Err("External table formats are not modelled; copy formats within this workbook".to_owned());
-                }
-                let (height, width) = crate::clipboard::matrix_shape(&rows)?;
-                let target = if to.cell_count() == 1 {
-                    GridArea::new(
-                        to.first(),
-                        CellKey::new(
-                            to.sheet(),
-                            to.first().row() + height - 1,
-                            to.first().column() + width - 1,
-                        )
-                        .map_err(|_| "The paste reaches past the grid")?,
-                    )
-                    .unwrap()
-                } else {
-                    to
-                };
-                if target.row_count() % height != 0 || target.column_count() % width != 0 {
-                    return Err(
-                        "The paste area must be a whole multiple of the table's size".to_owned(),
-                    );
-                }
-                calc_host::check_destination(self.book.host(), target, mode.host())
-                    .map_err(|e| e.to_string())?;
-                let mut edits = Vec::new();
-                for row in target.first().row()..=target.last().row() {
-                    for col in target.first().column()..=target.last().column() {
-                        let at = CellKey::new(target.sheet(), row, col).unwrap();
-                        let text = &rows[((row - target.first().row()) % height) as usize]
-                            [((col - target.first().column()) % width) as usize];
-                        let input = calc_host::interpret_entry_in(
-                            text,
-                            Some(&self.book.host().entry_environment()),
-                        )
-                        .map_err(|e| e.to_string())?;
-                        if mode == wire::PasteMode::Values
-                            && matches!(input, Some(calc_host::CellInput::Formula(_)))
-                        {
-                            return Err("External formula text has no calculated value; choose Formulas or All".to_owned());
-                        }
-                        edits.push(match input {
-                            Some(input) => CellEdit::Set { at, input },
-                            None => CellEdit::Clear {
-                                area: GridArea::cell(at),
-                            },
-                        });
-                    }
-                }
-                (edits, target)
-            }
+                    .ok_or("The copied snapshot expired; copy again")?,
+                cut,
+            },
+            PasteSource::Fill { from, down, series } => calc_host::PasteSource::Fill {
+                from: area(from)?,
+                down,
+                series,
+            },
+            PasteSource::External(rows) => calc_host::PasteSource::External(rows),
         };
-        for edit in &edits {
-            if let CellEdit::Set { at, input } = edit {
-                if let Err(failure) = self.book.host().check_entry(*at, Some(input)) {
-                    return Err(failure.to_string());
-                }
-            }
-        }
-        let replaces = if mode == wire::PasteMode::Formats {
-            0
-        } else {
-            self.book
-                .host()
-                .model()
-                .cells(target)
-                .into_iter()
-                .flatten()
-                .count() as u64
-        };
+        let plan = calc_host::prepare_paste(self.book.host(), source, to, mode.host())?;
+        let target = plan.target();
+        let replaces = plan.replaces();
         let id = self.next_clip;
         self.next_clip += 1;
-        self.paste_plan = Some((id, self.book.host().revision().get(), edits));
+        self.paste_plan = Some((id, plan));
         Ok(Reply::PastePreview(wire::PastePreview {
             id,
             area: Area::of(target),
@@ -681,82 +597,6 @@ impl Server {
         })
     }
 
-    fn axis_format_edits(
-        &self,
-        sheet: Sheet,
-        rows: bool,
-        first: u32,
-        count: u32,
-        size_bits: Option<u64>,
-        hidden: Option<bool>,
-    ) -> Result<Vec<CellEdit>, String> {
-        let host = self.book.host();
-        let loaded = host
-            .loaded()
-            .sheet(sheet.id())
-            .ok_or("The sheet is unavailable")?;
-        if loaded.protected() {
-            return Err("Dimensions on a protected sheet are not available here".to_owned());
-        }
-        let axis = if rows {
-            calc_host::Axis::Rows
-        } else {
-            calc_host::Axis::Columns
-        };
-        let last = first
-            .checked_add(count)
-            .and_then(|n| n.checked_sub(1))
-            .filter(|n| first >= 1 && count > 0 && *n <= axis.size())
-            .ok_or("The dimensions are outside the worksheet")?;
-        if count > 16_384 {
-            return Err("Change at most 16384 rows or columns at once".to_owned());
-        }
-        if rows
-            && host
-                .model()
-                .definitions()
-                .hidden_rows(sheet.id(), first, last)
-                .any(|(_, why)| why == calc_host::RowHidden::Filtered)
-        {
-            return Err("Rows hidden by a filter cannot be resized or shown here".to_owned());
-        }
-        let size = size_bits
-            .map(|b| crate::grid::axis::stored_size(rows, f64::from_bits(b)))
-            .transpose()
-            .map_err(str::to_owned)?;
-        let mut edits = Vec::new();
-        for index in first..=last {
-            let old = host
-                .model()
-                .definitions()
-                .axis_layouts()
-                .get(sheet.id(), axis, index);
-            let mut new = old;
-            if let Some(size) = size {
-                new = match size {
-                    None => old.with_hidden(true),
-                    Some(n) => {
-                        calc_host::AxisFormat::new(Some(n), false, !rows).expect("a checked size")
-                    }
-                };
-            }
-            if let Some(hidden) = hidden {
-                new = if !hidden && new.size() == Some(0.0) {
-                    calc_host::AxisFormat::default()
-                } else {
-                    new.with_hidden(hidden)
-                };
-            }
-            if old != new {
-                edits.push(CellEdit::AxisFormat(
-                    calc_host::AxisFormatEdit::new(sheet.id(), axis, index, new)
-                        .expect("checked band indices"),
-                ));
-            }
-        }
-        Ok(edits)
-    }
-
     fn review(&self, at: CellKey) -> wire::Review {
         let host = self.book.host();
         let source = host.model().definitions().conditional_rules(at.sheet());
@@ -851,165 +691,21 @@ impl Server {
         }
     }
 
-    fn edit_conditional(
-        &self,
-        sheet: calc_host::value::SheetId,
-        revision: u64,
-        index: Option<u32>,
-        change: wire::ConditionalChange,
-    ) -> Result<Vec<CellEdit>, String> {
-        let host = self.book.host();
-        if revision != host.revision().get() {
-            return Err("Rules changed; reopen the current rule and try again".into());
-        }
-        if host.loaded().sheet(sheet).is_some_and(|s| s.protected()) {
-            return Err("Worksheet protection prevents conditional rule edits".into());
-        }
-        if host
-            .loaded()
-            .sheet(sheet)
-            .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
-        {
-            return Err("This worksheet has additional conditional-rule metadata; editing its rules is unavailable and the file is preserved (dc-971p.8)".into());
-        }
-        let mut rules = host.model().definitions().conditional_rules(sheet).to_vec();
-        let ranges = |text: &str| -> Result<Vec<GridArea>, String> {
-            let at = CellKey::new(sheet, 1, 1).unwrap();
-            let mut areas = Vec::new();
-            for token in text.split_whitespace() {
-                match host.resolve_reference_text(at, token) {
-                    calc_host::ReferenceTarget::Area(a) if a.sheet() == sheet => areas.push(a),
-                    _ => {
-                        return Err(
-                            "Applies to needs space-separated ranges on this worksheet".into()
-                        );
-                    }
-                }
-            }
-            if areas.is_empty() || areas.len() > 128 {
-                return Err("Choose between 1 and 128 ranges".into());
-            }
-            Ok(areas)
-        };
-        if let wire::ConditionalChange::Add {
-            kind,
-            applies,
-            color,
-        } = change
-        {
-            let mut source = calc_host::new_conditional_rule(
-                ranges(&applies)?,
-                &kind,
-                color.trim_start_matches('#'),
-            )?;
-            source.priority = rules
-                .iter()
-                .map(|r| r.priority)
-                .max()
-                .unwrap_or(0)
-                .saturating_add(1);
-            rules.push(source);
-        } else {
-            let i = index
-                .map(|i| i as usize)
-                .filter(|i| *i < rules.len())
-                .ok_or("Select a rule first")?;
-            let parsed = calc_host::conditional_rule(&rules[i])?;
-            match change {
-                wire::ConditionalChange::Update {
-                    applies,
-                    formulas,
-                    stop,
-                } => {
-                    let areas = ranges(&applies)?;
-                    if parsed.extension_id.is_some() {
-                        return Err("Editing extension-backed rules is unavailable; the imported rule is preserved (dc-971p.8)".into());
-                    }
-                    let mut formulas = formulas;
-                    if formulas != rules[i].formulas {
-                        if !matches!(parsed.kind.as_str(), "cellIs" | "expression")
-                            || formulas.len() != rules[i].formulas.len()
-                        {
-                            return Err(
-                                "This rule condition cannot be edited yet (dc-971p.8)".into()
-                            );
-                        }
-                        for formula in &mut formulas {
-                            let text = calc_host::FormulaText::new(
-                                calc_host::value::ExcelText::from_utf16_code_units(
-                                    formula
-                                        .trim()
-                                        .trim_start_matches('=')
-                                        .encode_utf16()
-                                        .collect(),
-                                ),
-                            )
-                            .map_err(|e| e.to_string())?;
-                            let form = calc_host::file_form_with_links(
-                                &text,
-                                host.model().definitions().names(),
-                                &host.model().definitions().external_file_names(),
-                            )
-                            .map_err(|e| format!("Conditional formula is unavailable: {e:?}"))?;
-                            *formula = String::from_utf16_lossy(&form.text)
-                                .trim_start_matches('=')
-                                .to_owned();
-                        }
-                    }
-                    rules[i].areas = areas;
-                    rules[i].formulas = formulas;
-                    rules[i].stop = stop
-                        && !matches!(parsed.kind.as_str(), "colorScale" | "dataBar" | "iconSet");
-                    rules[i].authored = true;
-                }
-                wire::ConditionalChange::Remove => {
-                    if parsed.extension_id.is_some() {
-                        return Err("Removing extension-backed rules is unavailable; the imported rule is preserved (dc-971p.8)".into());
-                    }
-                    rules.remove(i);
-                }
-                wire::ConditionalChange::Move { up } => {
-                    let mut order = (0..rules.len()).collect::<Vec<_>>();
-                    order.sort_by_key(|&n| rules[n].priority);
-                    let old = order.iter().position(|&n| n == i).unwrap();
-                    let destination = if up {
-                        old.saturating_sub(1)
-                    } else {
-                        (old + 1).min(order.len() - 1)
-                    };
-                    order.swap(old, destination);
-                    for (rank, index) in order.into_iter().enumerate() {
-                        rules[index].priority = rank as i64 + 1;
-                        rules[index].authored = true;
-                    }
-                }
-                _ => unreachable!(),
-            }
-        }
-        let mut order = (0..rules.len()).collect::<Vec<_>>();
-        order.sort_by_key(|&n| rules[n].priority);
-        for (rank, index) in order.into_iter().enumerate() {
-            rules[index].priority = rank as i64 + 1;
-        }
-        Ok(vec![CellEdit::ConditionalRules { sheet, rules }])
-    }
-
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
-        if let Intent::AcceptValidation { token } = intent {
-            let (held, revision, selection, intent) = self
-                .validation_pending
-                .take()
-                .ok_or("This validation decision has expired")?;
-            if held != token
-                || revision != self.book.host().revision().get()
-                || &selection != self.book.session().selection()
-            {
-                return Err("The workbook or selection changed; enter the draft again".into());
-            }
-            return self.dispatch_entry(intent, true);
-        }
-
         let intent = match intent {
+            Intent::AcceptValidation { token } => {
+                let (held, revision, selection, intent) = self
+                    .validation_pending
+                    .take()
+                    .ok_or("This validation decision has expired")?;
+                if held != token
+                    || revision != self.book.host().revision().get()
+                    || &selection != self.book.session().selection()
+                {
+                    return Err("The workbook or selection changed; enter the draft again".into());
+                }
+                return self.dispatch_entry(intent, true);
+            }
             Intent::NotebookLink {
                 anchor,
                 prose,
@@ -1025,163 +721,49 @@ impl Server {
                 replacement,
                 revision,
                 only,
-            } => {
-                if revision != self.book.host().revision().get() {
-                    return Ok(self.done(
-                        false,
-                        Some("The workbook changed; run Find again before replacing".into()),
-                        0.0,
-                    ));
-                }
-                let prepared = search_selection(&options).and_then(|selection| {
-                    crate::search::replace_edits(
-                        &self.book,
-                        &selection,
-                        &options,
-                        &replacement,
-                        only.map(cell).transpose()?,
-                    )
-                });
-                match prepared {
-                    Ok(edits) if !edits.is_empty() => SkinIntent::Edit { edits },
-                    Ok(_) => return Ok(self.done(false, Some("No entries changed".into()), 0.0)),
-                    Err(error) => return Ok(self.done(false, Some(error), 0.0)),
-                }
-            }
+            } => SkinIntent::Command(calc_host::WorkbookCommand::Replace {
+                options: crate::search::host_options(&options)?,
+                replacement,
+                revision,
+                only: only.map(cell).transpose()?,
+            }),
             Intent::EditConditional {
                 sheet,
                 revision,
                 index,
                 change,
-            } => match self.edit_conditional(sheet.id(), revision, index, change) {
-                Ok(edits) => SkinIntent::Edit { edits },
-                Err(message) => return Ok(self.done(false, Some(message), 0.0)),
-            },
+            } => SkinIntent::Command(calc_host::WorkbookCommand::Conditional {
+                sheet: sheet.id(),
+                revision,
+                index,
+                change: conditional_change(change),
+            }),
             Intent::ShiftCells {
                 area: a,
                 down,
                 insert,
-            } => SkinIntent::Edit {
-                edits: calc_host::shift_cell_edits(self.book.host(), area(a)?, down, insert)?,
-            },
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ShiftCells {
+                area: area(a)?,
+                down,
+                insert,
+            }),
             Intent::EditSheet { sheet, change } => {
-                use calc_host::{SheetEdit, SheetKey, SheetName, SheetVisibility};
-                use wire::SheetChange as C;
-                let model = self.book.host().model();
-                let id = sheet.map(Sheet::id);
-                let require = || {
-                    id.filter(|id| model.sheet_by_id(*id).is_some())
-                        .ok_or_else(|| "The worksheet is unavailable".to_owned())
-                };
-                let name = |text: String| -> Result<SheetName, String> {
-                    if text.eq_ignore_ascii_case("History") {
-                        return Err(
-                            "History is reserved by Excel; choose another worksheet name"
-                                .to_owned(),
-                        );
-                    }
-                    SheetName::new(calc_host::value::ExcelText::from_utf16_code_units(
-                        text.encode_utf16().collect(),
-                    ))
-                    .map_err(|e| e.to_string())
-                };
-                let edit = match change {
-                    C::Add { name: text } => {
-                        let key = (1u32..)
-                            .map(SheetKey::new)
-                            .find(|key| {
-                                !self.sheet_keys.contains(key)
-                                    && model.sheets().iter().all(|s| s.key() != *key)
-                            })
-                            .ok_or("No sheet keys remain")?;
-                        self.sheet_keys.insert(key);
-                        SheetEdit::Insert {
-                            key,
-                            name: name(text)?,
-                            position: std::num::NonZeroU32::new(model.sheets().len() as u32 + 1)
-                                .unwrap(),
-                        }
-                    }
-                    C::Rename { name: text } => SheetEdit::Rename {
-                        sheet: require()?,
-                        name: name(text)?,
-                    },
-                    C::Move { position } => {
-                        if position == 0 || position as usize > model.sheets().len() {
-                            return Err("Choose a worksheet position in the workbook".to_owned());
-                        }
-                        SheetEdit::Move {
-                            sheet: require()?,
-                            position: std::num::NonZeroU32::new(position).unwrap(),
-                        }
-                    }
-                    C::Remove => SheetEdit::Remove { sheet: require()? },
-                    C::Hide | C::Show => {
-                        let sheet = require()?;
-                        if model.sheet_by_id(sheet).unwrap().visibility()
-                            == SheetVisibility::VeryHidden
-                        {
-                            return Err(
-                                "This sheet is VeryHidden; unhiding it is unavailable here"
-                                    .to_owned(),
-                            );
-                        }
-                        SheetEdit::SetVisibility {
-                            sheet,
-                            visibility: if change == C::Hide {
-                                SheetVisibility::Hidden
-                            } else {
-                                SheetVisibility::Visible
-                            },
-                        }
-                    }
-                };
-                SkinIntent::Edit {
-                    edits: vec![CellEdit::Sheet(edit)],
-                }
+                SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+                    sheet: sheet.map(Sheet::id),
+                    change: sheet_change(change),
+                })
             }
             Intent::FitContents {
                 sheet,
                 rows,
                 revision,
                 sizes,
-            } => {
-                if revision != self.book.host().revision().get() {
-                    return Err("The workbook changed while fitting; try again".to_owned());
-                }
-                if sizes.len() > 16384 {
-                    return Err("Fit at most 16384 rows or columns at once".to_owned());
-                }
-                let axis = if rows { Axis::Rows } else { Axis::Columns };
-                let mut edits = Vec::new();
-                let mut seen = std::collections::BTreeSet::new();
-                for (index, size) in sizes {
-                    if !seen.insert(index) {
-                        return Err("A fitted band was repeated".to_owned());
-                    }
-                    let hidden = self
-                        .book
-                        .host()
-                        .model()
-                        .definitions()
-                        .axis_layouts()
-                        .get(sheet.id(), axis, index)
-                        .hidden();
-                    edits.extend(self.axis_format_edits(
-                        sheet,
-                        rows,
-                        index,
-                        1,
-                        Some(size),
-                        Some(hidden),
-                    )?);
-                }
-                if edits.is_empty() {
-                    return Ok(self.done(true, None, 0.0));
-                }
-                SkinIntent::Edit { edits }
-            }
-
+            } => SkinIntent::Command(calc_host::WorkbookCommand::FitContents {
+                sheet: sheet.id(),
+                rows,
+                revision,
+                sizes,
+            }),
             Intent::AxisFormat {
                 sheet,
                 rows,
@@ -1189,53 +771,31 @@ impl Server {
                 count,
                 size_bits,
                 hidden,
-            } => {
-                let edits = self.axis_format_edits(sheet, rows, first, count, size_bits, hidden)?;
-                if edits.is_empty() {
-                    return Ok(self.done(true, None, 0.0));
-                }
-                SkinIntent::Edit { edits }
-            }
+            } => SkinIntent::Command(calc_host::WorkbookCommand::AxisFormat {
+                sheet: sheet.id(),
+                rows,
+                first,
+                count,
+                size_bits,
+                hidden,
+            }),
             Intent::FreezePanes {
                 sheet,
                 rows,
                 columns,
-            } => {
-                if self.book.host().model().sheet_by_id(sheet.id()).is_none() {
-                    return Err("The sheet is unavailable".to_owned());
-                }
-                let panes = calc_host::FrozenPanes::new(rows, columns);
-                if panes.is_none() && (rows != 0 || columns != 0) {
-                    return Err("The frozen boundary is outside the worksheet".to_owned());
-                }
-                if panes
-                    == self
-                        .book
-                        .host()
-                        .model()
-                        .definitions()
-                        .frozen_panes(sheet.id())
-                {
-                    return Ok(self.done(true, None, 0.0));
-                }
-                SkinIntent::Edit {
-                    edits: vec![CellEdit::FrozenPanes {
-                        sheet: sheet.id(),
-                        panes,
-                    }],
-                }
-            }
+            } => SkinIntent::Command(calc_host::WorkbookCommand::FreezePanes {
+                sheet: sheet.id(),
+                rows,
+                columns,
+            }),
             Intent::ApplyPaste { id } => {
-                let Some((held, revision, edits)) = self.paste_plan.take() else {
-                    return Err("The paste preview expired; paste again".to_owned());
+                let Some((held, plan)) = self.paste_plan.take() else {
+                    return Err("The paste preview expired; paste again".into());
                 };
-                if held != id || revision != self.book.host().revision().get() {
-                    return Err("The workbook changed after the preview; paste again".to_owned());
+                if held != id {
+                    return Err("The workbook changed after the preview; paste again".into());
                 }
-                if edits.is_empty() {
-                    return Ok(self.done(true, None, 0.0));
-                }
-                SkinIntent::Edit { edits }
+                SkinIntent::Command(calc_host::WorkbookCommand::Paste(plan))
             }
             Intent::Navigate {
                 nav,
@@ -1328,7 +888,65 @@ impl Server {
                     used,
                 ))
             }
-            other => host_intent(other)?,
+            Intent::EnterCell { at, text } => SkinIntent::EnterCell {
+                at: cell(at)?,
+                text,
+            },
+            Intent::EnterSelection { text } => SkinIntent::EnterSelection { text },
+            Intent::Clear { areas } => SkinIntent::Edit {
+                edits: areas
+                    .into_iter()
+                    .map(|a| Ok(CellEdit::Clear { area: area(a)? }))
+                    .collect::<Result<_, String>>()?,
+            },
+            Intent::EditAxis {
+                sheet,
+                rows,
+                insert,
+                start,
+                count,
+            } => {
+                let axis = if rows { Axis::Rows } else { Axis::Columns };
+                let change = if insert {
+                    AxisChange::Insert
+                } else {
+                    AxisChange::Delete
+                };
+                SkinIntent::EditAxis(
+                    AxisEdit::new(sheet.id(), axis, change, start, count)
+                        .map_err(|e| format!("{e:?}"))?,
+                )
+            }
+            Intent::Copy { from, to, cut } => SkinIntent::Copy {
+                from: area(from)?,
+                to: area(to)?,
+                cut,
+            },
+            Intent::Undo => SkinIntent::Undo,
+            Intent::Redo => SkinIntent::Redo,
+            Intent::Recalculate => SkinIntent::Recalculate,
+            Intent::SetCalcMode { manual } => SkinIntent::SetCalcMode(if manual {
+                CalcMode::Manual
+            } else {
+                CalcMode::Automatic
+            }),
+            Intent::SetIteration {
+                enabled,
+                max_iterations,
+                max_change_bits,
+            } => SkinIntent::Edit {
+                edits: vec![calc_host::CellEdit::SetIteration(
+                    calc_host::IterationSettings::new(
+                        enabled,
+                        max_iterations,
+                        f64::from_bits(max_change_bits),
+                    ),
+                )],
+            },
+            Intent::Select { active, areas } => SkinIntent::Select(Selection {
+                active: Some(cell(active)?),
+                areas: areas.into_iter().map(area).collect::<Result<_, _>>()?,
+            }),
         };
         self.dispatch_entry(intent, false)
     }
@@ -1454,8 +1072,25 @@ impl Server {
             }),
             _ => None,
         };
+        // Preserve the request's response shape while the host owns all command rules.
+        let rule_error_is_route = matches!(
+            &intent,
+            SkinIntent::Command(
+                calc_host::WorkbookCommand::Sheet { .. }
+                    | calc_host::WorkbookCommand::FitContents { .. }
+                    | calc_host::WorkbookCommand::AxisFormat { .. }
+                    | calc_host::WorkbookCommand::FreezePanes { .. }
+                    | calc_host::WorkbookCommand::Paste(_)
+                    | calc_host::WorkbookCommand::ShiftCells { .. }
+            )
+        );
         let started = crate::controller::now_ms();
         let receipt = self.book.dispatch(intent);
+        if rule_error_is_route
+            && let Some(calc_host::IntentError::Workbook(reason)) = &receipt.error
+        {
+            return Err(reason.clone());
+        }
         let elapsed = crate::controller::now_ms() - started;
         let mut outcome = self.outcome(
             receipt.accepted(),
@@ -2065,90 +1700,6 @@ fn host_interest(interest: Interest) -> Result<calc_host::Interest, String> {
     })
 }
 
-/// The page's intent as calc-host's.
-fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
-    Ok(match intent {
-        Intent::NotebookLink { .. } | Intent::NotebookOrder { .. } => {
-            return Err("notebook layouts need the workbook worker".into());
-        }
-        Intent::ShiftCells { .. } => return Err("cell shifts need the workbook worker".to_owned()),
-        Intent::EditSheet { .. } => {
-            return Err("sheet commands need the workbook worker".to_owned());
-        }
-        Intent::FitContents { .. } => return Err("fitting needs the workbook worker".to_owned()),
-        Intent::AxisFormat { .. } => return Err("dimensions need the workbook worker".to_owned()),
-        Intent::FreezePanes { .. } => return Err("pane editing needs the workbook view".to_owned()),
-        Intent::ApplyPaste { .. } => return Err("paste needs its worker preview".to_owned()),
-        Intent::Replace { .. }
-        | Intent::EditConditional { .. }
-        | Intent::AcceptValidation { .. } => {
-            return Err("Validation decisions are handled by the worker".into());
-        }
-        Intent::EnterCell { at, text } => SkinIntent::EnterCell {
-            at: cell(at)?,
-            text,
-        },
-        Intent::EnterSelection { text } => SkinIntent::EnterSelection { text },
-        Intent::Clear { areas } => SkinIntent::Edit {
-            edits: areas
-                .into_iter()
-                .map(|a| Ok(CellEdit::Clear { area: area(a)? }))
-                .collect::<Result<_, String>>()?,
-        },
-        Intent::Navigate { .. } => {
-            return Err("navigation requires the workbook selection".to_owned());
-        }
-        Intent::EditAxis {
-            sheet,
-            rows,
-            insert,
-            start,
-            count,
-        } => {
-            let axis = if rows { Axis::Rows } else { Axis::Columns };
-            let change = if insert {
-                AxisChange::Insert
-            } else {
-                AxisChange::Delete
-            };
-            SkinIntent::EditAxis(
-                AxisEdit::new(sheet.id(), axis, change, start, count)
-                    .map_err(|e| format!("{e:?}"))?,
-            )
-        }
-        Intent::Copy { from, to, cut } => SkinIntent::Copy {
-            from: area(from)?,
-            to: area(to)?,
-            cut,
-        },
-        Intent::Undo => SkinIntent::Undo,
-        Intent::Redo => SkinIntent::Redo,
-        Intent::Recalculate => SkinIntent::Recalculate,
-        Intent::SetCalcMode { manual } => SkinIntent::SetCalcMode(if manual {
-            CalcMode::Manual
-        } else {
-            CalcMode::Automatic
-        }),
-        Intent::SetIteration {
-            enabled,
-            max_iterations,
-            max_change_bits,
-        } => SkinIntent::Edit {
-            edits: vec![calc_host::CellEdit::SetIteration(
-                calc_host::IterationSettings::new(
-                    enabled,
-                    max_iterations,
-                    f64::from_bits(max_change_bits),
-                ),
-            )],
-        },
-        Intent::Select { active, areas } => SkinIntent::Select(Selection {
-            active: Some(cell(active)?),
-            areas: areas.into_iter().map(area).collect::<Result<_, _>>()?,
-        }),
-    })
-}
-
 /// Answers a message's text as the worker does: the reply, or the reason there is none.
 pub fn answer_text(
     server: &mut Server,
@@ -2276,22 +1827,6 @@ mod fit_tests {
             None
         );
     }
-}
-
-fn search_selection(options: &wire::FindOptions) -> Result<Selection, String> {
-    let areas = options
-        .areas
-        .iter()
-        .copied()
-        .map(area)
-        .collect::<Result<Vec<_>, _>>()?;
-    if areas.len() > 1024 {
-        return Err("Search supports at most1024 selection areas".into());
-    }
-    Ok(Selection {
-        active: areas.first().map(|a| a.first()),
-        areas,
-    })
 }
 
 #[cfg(test)]
@@ -2639,5 +2174,44 @@ mod notebook_tests {
                 .blockers
                 .is_empty()
         );
+    }
+}
+
+fn sheet_change(change: wire::SheetChange) -> calc_host::SheetChange {
+    use calc_host::SheetChange as H;
+    use wire::SheetChange as W;
+    match change {
+        W::Add { name } => H::Add { name },
+        W::Rename { name } => H::Rename { name },
+        W::Move { position } => H::Move { position },
+        W::Remove => H::Remove,
+        W::Hide => H::Hide,
+        W::Show => H::Show,
+    }
+}
+fn conditional_change(change: wire::ConditionalChange) -> calc_host::ConditionalChange {
+    use calc_host::ConditionalChange as H;
+    use wire::ConditionalChange as W;
+    match change {
+        W::Add {
+            kind,
+            applies,
+            color,
+        } => H::Add {
+            kind,
+            applies,
+            color,
+        },
+        W::Update {
+            applies,
+            formulas,
+            stop,
+        } => H::Update {
+            applies,
+            formulas,
+            stop,
+        },
+        W::Move { up } => H::Move { up },
+        W::Remove => H::Remove,
     }
 }

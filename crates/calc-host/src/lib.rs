@@ -53,8 +53,13 @@
 //! calc-doc, calc-doc-model and calc-engine themselves are not, so calc-host offers its callers
 //! no way around these calls to change the authored revision or the engine state.
 
+mod actions;
 pub mod chart;
 mod command;
+mod paste;
+pub mod search;
+pub use actions::{ConditionalChange, SheetChange, WorkbookCommand, stored_axis_size};
+pub use paste::{PastePlan, PasteSource, matrix_shape, prepare_paste};
 pub mod conditional;
 mod copy;
 mod entry;

@@ -36,6 +36,26 @@ pub enum WorksheetErrorCode {
 }
 
 impl WorksheetErrorCode {
+    /// The invariant spelling used in authored worksheet entries and formula text.
+    pub const fn excel_spelling(self) -> &'static str {
+        match self {
+            Self::Null => "#NULL!",
+            Self::Div0 => "#DIV/0!",
+            Self::Value => "#VALUE!",
+            Self::Ref => "#REF!",
+            Self::Name => "#NAME?",
+            Self::Num => "#NUM!",
+            Self::NA => "#N/A",
+            Self::Busy => "#BUSY!",
+            Self::GettingData => "#GETTING_DATA",
+            Self::Spill => "#SPILL!",
+            Self::Calc => "#CALC!",
+            Self::Field => "#FIELD!",
+            Self::Blocked => "#BLOCKED!",
+            Self::Connect => "#CONNECT!",
+        }
+    }
+
     /// Every worksheet error code, in declaration order.
     pub const fn all() -> [WorksheetErrorCode; 14] {
         [

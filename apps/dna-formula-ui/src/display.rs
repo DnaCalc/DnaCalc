@@ -36,22 +36,7 @@ pub fn value(value: &CalcValue) -> String {
 
 /// The spelling Excel gives a worksheet error.
 pub fn error_spelling(code: WorksheetErrorCode) -> &'static str {
-    match code {
-        WorksheetErrorCode::Null => "#NULL!",
-        WorksheetErrorCode::Div0 => "#DIV/0!",
-        WorksheetErrorCode::Value => "#VALUE!",
-        WorksheetErrorCode::Ref => "#REF!",
-        WorksheetErrorCode::Name => "#NAME?",
-        WorksheetErrorCode::Num => "#NUM!",
-        WorksheetErrorCode::NA => "#N/A",
-        WorksheetErrorCode::Busy => "#BUSY!",
-        WorksheetErrorCode::GettingData => "#GETTING_DATA",
-        WorksheetErrorCode::Spill => "#SPILL!",
-        WorksheetErrorCode::Calc => "#CALC!",
-        WorksheetErrorCode::Field => "#FIELD!",
-        WorksheetErrorCode::Blocked => "#BLOCKED!",
-        WorksheetErrorCode::Connect => "#CONNECT!",
-    }
+    code.excel_spelling()
 }
 
 /// A column's letters: 1 is `A`, 26 `Z`, 27 `AA`.

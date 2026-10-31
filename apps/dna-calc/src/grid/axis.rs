@@ -2,31 +2,7 @@
 use crate::controller::Controller;
 use leptos::prelude::*;
 
-/// Excel's documented points/characters input, with zero meaning Hide. Small character widths
-/// below one need a separate default-font measurement and are explicitly unavailable here.
-pub fn stored_size(rows: bool, value: f64) -> Result<Option<f64>, &'static str> {
-    let limit = if rows { 409.0 } else { 255.0 };
-    if !value.is_finite() || value < 0.0 || value > limit {
-        return Err(if rows {
-            "Use a row height from 0 to 409 points"
-        } else {
-            "Use a column width from 1 to 255 characters, or 0 to hide"
-        });
-    }
-    if value == 0.0 {
-        return Ok(None);
-    }
-    if !rows && value < 1.0 {
-        return Err("Column widths below one character are not available here; use 0 to hide");
-    }
-    // The retained grid uses Excel's default maximum digit width, seven pixels. The file's
-    // character width includes five pixels of padding (ECMA-376 18.3.1.13).
-    Ok(Some(if rows {
-        value
-    } else {
-        ((value * 7.0 + 5.0) / 7.0 * 256.0).trunc() / 256.0
-    }))
-}
+pub use calc_host::stored_axis_size as stored_size;
 
 pub fn controls(controller: Controller) -> impl IntoView {
     let column = RwSignal::new("8.43".to_owned());

@@ -260,23 +260,7 @@ pub fn shown(
 /// The text the formula bar shows for a cell's input, as it would be typed: `=` and the formula,
 /// a number as its shortest round-trip decimal, a text (with a leading `'` when the entry would
 /// otherwise read it as something else), `TRUE`/`FALSE`, an error by its spelling.
-pub fn input_text(input: Option<&CellInput>) -> String {
-    match input {
-        None => String::new(),
-        Some(CellInput::Formula(formula)) => format!("={}", formula.text().to_string_lossy()),
-        Some(CellInput::Number(number)) => number.get().to_string(),
-        Some(CellInput::Text(text)) => {
-            let text = text.text().to_string_lossy();
-            match calc_host::interpret_entry(&text) {
-                Ok(Some(CellInput::Text(_))) => text,
-                _ => format!("'{text}"),
-            }
-        }
-        Some(CellInput::Logical(true)) => "TRUE".to_owned(),
-        Some(CellInput::Logical(false)) => "FALSE".to_owned(),
-        Some(CellInput::Error(code)) => display::error_spelling(*code).to_owned(),
-    }
-}
+pub use calc_host::search::entry_text as input_text;
 
 /// Why the engine refused a formula, in words.
 pub fn refusal_text(host: &HostState, refusal: &NotModeled) -> String {
