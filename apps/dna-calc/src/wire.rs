@@ -634,6 +634,8 @@ pub struct Chip {
     pub x: f64,
     pub y: f64,
     pub label: String,
+    pub reference: String,
+    pub sheet: Sheet,
     /// The cell, for a cell's chip; `None` for a range's.
     pub cell: Option<Key>,
     pub input: String,

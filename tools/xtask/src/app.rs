@@ -945,6 +945,8 @@ pub enum Check {
     Name(&'static str, &'static str),
     /// The whole element fits within the viewport, with rendered, reachable content.
     Reachable(&'static str),
+    /// The child fits wholly inside a clipping region.
+    Contained(&'static str, &'static str),
     /// The selected element's solid text/background colours meet WCAG's normal-text ratio.
     Contrast(&'static str),
     Bounded(&'static str, usize),
@@ -6628,6 +6630,68 @@ const CALC_CASES: &[Case] = &[
             Check::Attr("ledger-row", "data-provenance", "stale"),
         ],
     },
+    Case {
+        name: "canvas: actual dependency chips are labelled keyboard buttons with one literal value",
+        actions: &[
+            Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx"),Action::DiscardReplacement,
+            Action::Into("name-box","B1\u{E007}"),Action::Wait(Check::Absent("[data-dnacalc=skin-canvas][disabled]")),Action::Click("skin-canvas"),
+        ],
+        checks: &[
+            Check::Role("[data-dnacalc=canvas-node][data-node=A1]","button"),
+            Check::Name("[data-dnacalc=canvas-node][data-node=A1]","Inspect Data!A1"),
+            Check::Attr("[data-dnacalc=canvas-node][data-node=A1]","aria-description","1; literal"),
+            Check::Absent("[data-dnacalc=canvas-node][data-node=A1] [data-dnacalc=canvas-formula]"),
+            Check::Text("[data-dnacalc=canvas-node][data-node=A1] [data-dnacalc=canvas-value]","1"),
+            Check::Text("[data-dnacalc=canvas-node][data-node=B1] [data-dnacalc=canvas-state]","calculated"),
+            Check::Attr("[data-dnacalc=canvas-node][data-node=B1]","data-selected","true"),
+        ],
+    },
+    Case {
+        name: "canvas: Enter follows a cross-sheet chip and restores focus to the selected node",
+        actions:&[Action::Keys("[data-dnacalc=canvas-node][data-node='Other!B3']","\u{E007}")],
+        checks:&[Check::Text("canvas-cell","Other!B3"),Check::Value(BAR,"=Data!B1*2"),Check::Focused("[data-dnacalc=canvas-node][data-center=true]")],
+    },
+    Case {
+        name: "canvas: a range can be inspected by keyboard without changing the active formula",
+        actions:&[Action::Into("name-box","Data!B2\u{E007}"),Action::Wait(Check::Text("canvas-cell","Data!B2")),Action::Keys("[data-dnacalc=canvas-node][data-kind=area]","\u{E007}")],
+        checks:&[Check::TextContains("canvas-range","Data!A1:A3"),Check::TextContains("canvas-range","3 cells"),Check::Value(BAR,"=SUM(A1:A3)"),Check::Focused("[data-dnacalc=canvas-node][data-kind=area]"),Check::Attr("[data-dnacalc=canvas-node][data-kind=area]","data-selected","true")],
+    },
+    Case {
+        name:"canvas: Show source selects the actual range in Grid",
+        actions:&[Action::Keys("canvas-show-source","\u{E007}")],
+        checks:&[Check::Value("name-box","A1"),Check::Value(BAR,"1"),Check::Attr("selection","data-area","A1:A3"),Check::Focused("grid")],
+    },
+    Case {
+        name:"canvas: depth, zoom, pan and reset controls remain keyboard reachable",
+        actions:&[Action::Click("skin-canvas"),Action::Keys("canvas-zoom-in","\u{E007}"),Action::Keys("canvas-pan-right","\u{E007}"),Action::Keys("canvas-back-more","\u{E007}")],
+        checks:&[Check::Text("canvas-zoom","110%"),Check::Text("canvas-depth","2 back, 1 forward"),Check::Name("canvas-center","Center active cell"),Check::Role("canvas-viewport","region")],
+    },
+    Case {
+        name:"canvas: Reset restores scale and depth and the inspector fits a phone",
+        actions:&[Action::Keys("canvas-reset","\u{E007}"),Action::Into("name-box","B1\u{E007}"),Action::Wait(Check::Text("canvas-cell","Data!B1")),Action::Window(390,844),Action::Keys("canvas-center","\u{E007}")],
+        checks:&[Check::Text("canvas-zoom","100%"),Check::Text("canvas-depth","1 back, 1 forward"),Check::Fits,Check::Narrow(390),Check::Reachable("canvas-show-source"),Check::Reachable("canvas-center"),Check::Reachable("[data-dnacalc=canvas-node][data-center=true]"),Check::Contained("[data-dnacalc=canvas-node][data-center=true]","[data-dnacalc=canvas] .dc-stage")],
+    },
+    Case {
+        name:"canvas: a literal without dependencies remains inspectable and editable through the shared formula field",
+        actions:&[Action::Window(1280,1000),Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),Action::Into(BAR,"42\u{E007}"),Action::Into("name-box","A1\u{E007}")],
+        checks:&[Check::Count("canvas-node",1),Check::Text("canvas-inspector-value","42"),Check::Absent("canvas-formula"),Check::Text("canvas-reads","nothing"),Check::Text("canvas-read-by","nothing")],
+    },
+    Case {
+        name:"canvas: cycles are finite in the actual worker trace",
+        actions:&[Action::Into(BAR,"=B1\u{E007}"),Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"=A1\u{E007}"),Action::Into("name-box","A1\u{E007}")],
+        checks:&[Check::Count("canvas-node",2),Check::Text("canvas-cell","Sheet1!A1"),Check::Absent("canvas-hidden")],
+    },
+    Case {
+        name:"canvas: the blocked spill is an actual worksheet error with an explanation",
+        actions:&[Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),Action::Into("name-box","D2\u{E007}"),Action::Into(BAR,"99\u{E007}"),Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"=SEQUENCE(3,2)\u{E007}"),Action::Into("name-box","C1\u{E007}")],
+        checks:&[Check::Text("canvas-inspector-value","#SPILL!"),Check::TextContains("canvas-reason","cannot spill"),Check::Text("result-state","Worksheet error"),Check::Value(BAR,"=_xlfn.SEQUENCE(3,2)")],
+    },
+    Case {
+        name:"canvas: omitted actual readers are counted with their direction and depth",
+        actions:&[Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),Action::Click("skin-grid"),Action::ExternalClipboard("1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Absent("[data-dnacalc=skin-canvas][disabled]")),Action::Click("skin-canvas")],
+        checks:&[Check::Count("canvas-node",13),Check::Text("canvas-hidden","8 additional readers at depth 1 not shown"),Check::Text("canvas-cell","Sheet1!A1")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -6900,6 +6964,8 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             "var e={}; var id=e && e.getAttribute('aria-activedescendant'); var child=id && document.getElementById(id); return !!child && e.contains(child);",
             q(name)
         ),
+        Check::Contained(child, parent) => format!(
+            "var e={},p={};if(!e||!p)return false;var r=e.getBoundingClientRect(),b=p.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=b.left-1&&r.top>=b.top-1&&r.right<=b.right+1&&r.bottom<=b.bottom+1;",q(child),q(parent)),
         Check::Reachable(name) => format!(
             "var e={}; if(!e) return false; var r=e.getBoundingClientRect(); return r.width>0 && r.height>0 && r.left>=0 && r.top>=0 && r.right<=innerWidth+1 && r.bottom<=innerHeight+1 && getComputedStyle(e).visibility==='visible';",
             q(name)
@@ -7002,6 +7068,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         Check::Before(_, _)
         | Check::Absent(_)
         | Check::Focused(_)
+        | Check::Contained(_, _)
         | Check::Reachable(_)
         | Check::ActiveDescendant(_)
         | Check::DragExtended
@@ -7044,6 +7111,7 @@ fn describe(check: &Check) -> String {
         Check::Role(name, value) => format!("{name} has computed accessibility role {value}"),
         Check::Name(name, value) => format!("{name} has computed accessible name {value}"),
         Check::Reachable(name) => format!("{name} fits within the viewport"),
+        Check::Contained(child, parent) => format!("{child} fits inside {parent}"),
         Check::PinnedCell => {
             "the frozen cell keeps its rectangle while both scroll axes move".to_owned()
         }
@@ -7317,8 +7385,17 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::Click(name) => {
-            let element = session.element(&select(app, name))?;
-            session.post(&format!("/element/{element}/click"), json!({}))?;
+            let selector = select(app, name);
+            let element = session.element(&selector)?;
+            match session.post(&format!("/element/{element}/click"), json!({})) {
+                // A worker reply may replace the control between lookup and click. The
+                // stale-reference response means no click was dispatched; locate it once more.
+                Err(error) if error.contains("stale element reference") => {
+                    let current = session.element(&selector)?;
+                    session.post(&format!("/element/{current}/click"), json!({}))?;
+                }
+                other => { other?; }
+            }
             Ok(())
         }
         Action::CtrlClick(name) => {
