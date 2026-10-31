@@ -51,11 +51,13 @@
 //! [`value`] re-exports calc-value, whose grid coordinates, sheet IDs, text and worksheet error
 //! codes these types hold.
 
+mod axis_layout;
 mod cache;
 mod cells;
 mod definitions;
 mod input;
 mod layout;
+pub use axis_layout::{AxisFormat, AxisFormatEdit, AxisLayouts};
 mod op;
 mod revision;
 mod root;

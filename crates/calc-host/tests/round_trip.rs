@@ -1964,6 +1964,7 @@ fn dc_971p_7__frozen_panes_follow_history_axes_and_saved_packages() {
     );
     assert_eq!(panes(session.host()), Some((4, 3)));
     assert_eq!(save_panes(&session), Some((4, 3)));
+    let dimensions_before_unfreeze = session.host().sheet_geometry(s);
     assert!(
         session
             .dispatch(SkinIntent::Edit {
@@ -1973,6 +1974,11 @@ fn dc_971p_7__frozen_panes_follow_history_axes_and_saved_packages() {
                 }]
             })
             .accepted()
+    );
+    assert_eq!(
+        session.host().sheet_geometry(s),
+        dimensions_before_unfreeze,
+        "unfreezing retains physical dimensions and hidden flags"
     );
     assert_eq!(save_panes(&session), None);
     assert!(session.dispatch(SkinIntent::Undo).accepted());
@@ -2831,4 +2837,166 @@ fn dc_1yp__an_edited_save_extends_dynamic_array_metadata_where_it_belongs() {
     );
     assert_eq!(theirs.names(), mine.names());
     assert_eq!(theirs.tables(), mine.tables());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__physical_dimensions_recalculate_facts_and_hidden_rows_and_round_trip() {
+    let mut session = session(include_bytes!("fixtures/dc_gf0/cut-base.xlsx"));
+    let s = sheet(session.host(), "Data");
+    assert!(
+        session
+            .dispatch(SkinIntent::Edit {
+                edits: vec![
+                    CellEdit::Set {
+                        at: at(s, "A1"),
+                        input: number(1.0)
+                    },
+                    CellEdit::Set {
+                        at: at(s, "A2"),
+                        input: number(2.0)
+                    },
+                    CellEdit::Set {
+                        at: at(s, "C20"),
+                        input: formula("SUBTOTAL(109,A1:A2)")
+                    },
+                    CellEdit::Set {
+                        at: at(s, "C21"),
+                        input: formula("SUM(CELL(\"width\",B1))")
+                    },
+                ]
+            })
+            .accepted()
+    );
+    let format = |axis, index, size, hidden, custom| {
+        CellEdit::AxisFormat(
+            calc_host::AxisFormatEdit::new(
+                s,
+                axis,
+                index,
+                calc_host::AxisFormat::new(size, hidden, custom).unwrap(),
+            )
+            .unwrap(),
+        )
+    };
+    assert_eq!(
+        calculated(session.host(), at(s, "C20")),
+        Some(CalcValue::number(3.0))
+    );
+    assert!(
+        session
+            .dispatch(SkinIntent::Edit {
+                edits: vec![
+                    format(Axis::Columns, 2, Some(20.7109375), false, true),
+                    format(Axis::Rows, 9, Some(30.0), false, false),
+                    format(Axis::Rows, 2, None, true, false),
+                ]
+            })
+            .accepted()
+    );
+    assert_eq!(
+        calculated(session.host(), at(s, "C20")),
+        Some(CalcValue::number(1.0))
+    );
+    assert_eq!(
+        calculated(session.host(), at(s, "C21")),
+        Some(CalcValue::number(20.0))
+    );
+    let mut bytes = Vec::new();
+    session.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let reopened = open(&bytes);
+    let new_s = sheet(&reopened, "Data");
+    let g = reopened.sheet_geometry(new_s).unwrap();
+    assert_eq!(g.column(2).unwrap().width, Some(20.7109375));
+    assert_eq!(g.row(9).unwrap().height, Some(30.0));
+    assert!(g.row(2).unwrap().hidden);
+    assert_eq!(session.host().model().cell(at(s, "A2")), Some(&number(2.0)));
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        calculated(session.host(), at(s, "C20")),
+        Some(CalcValue::number(3.0))
+    );
+    assert!(
+        !session
+            .host()
+            .sheet_geometry(s)
+            .unwrap()
+            .row(2)
+            .is_some_and(|r| r.hidden)
+    );
+    assert!(session.dispatch(SkinIntent::Redo).accepted());
+    assert!(
+        session
+            .dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Columns, AxisChange::Insert, 2, 1).unwrap()
+            ))
+            .accepted()
+    );
+    assert_eq!(
+        session
+            .host()
+            .sheet_geometry(s)
+            .unwrap()
+            .column(3)
+            .unwrap()
+            .width,
+        Some(20.7109375)
+    );
+    bytes.clear();
+    session.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let reopened = open(&bytes);
+    let new_s = sheet(&reopened, "Data");
+    assert_eq!(
+        reopened
+            .sheet_geometry(new_s)
+            .unwrap()
+            .column(3)
+            .unwrap()
+            .width,
+        Some(20.7109375)
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__physical_dimension_edits_invalidate_unverified_file_caches() {
+    let mut host = open(&fixture());
+    let s = sheet(&host, "Calc");
+    let cached = at(s, "U3");
+    assert!(matches!(
+        value(&host, cached),
+        ProjectedValue::FileCached(_)
+    ));
+    let format = calc_host::AxisFormat::new(Some(20.7109375), false, true).unwrap();
+    edit(
+        &mut host,
+        vec![CellEdit::AxisFormat(
+            calc_host::AxisFormatEdit::new(s, Axis::Columns, 1, format).unwrap(),
+        )],
+    );
+    assert!(matches!(value(&host, cached), ProjectedValue::Stale(_)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__merged_ranges_follow_the_current_structural_history() {
+    let mut session = session(include_bytes!(
+        "../../calc-doc/tests/fixtures/dc_5sr/features.xlsx"
+    ));
+    let s = session.host().sheets()[0].id();
+    let merged = |a, b| GridArea::new(at(s, a), at(s, b)).unwrap();
+    assert_eq!(session.host().merged_areas(s), vec![merged("H1", "I1")]);
+    let axis = AxisEdit::new(s, Axis::Columns, AxisChange::Insert, 8, 1).unwrap();
+    assert!(session.dispatch(SkinIntent::EditAxis(axis)).accepted());
+    assert_eq!(session.host().merged_areas(s), vec![merged("I1", "J1")]);
+    let mut bytes = Vec::new();
+    session.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let reopened = open(&bytes);
+    let ss = reopened.sheets()[0].id();
+    assert_eq!(
+        reopened.merged_areas(ss),
+        vec![GridArea::new(at(ss, "I1"), at(ss, "J1")).unwrap()]
+    );
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(session.host().merged_areas(s), vec![merged("H1", "I1")]);
 }

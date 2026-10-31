@@ -379,6 +379,10 @@ impl Controller {
                     else {
                         return;
                     };
+                    // A live local pointer gesture owns Escape even during a worker reply.
+                    if target.get_attribute("data-resizing").as_deref() == Some("true") {
+                        return;
+                    }
                     let opening_editor = self.editing.get_untracked().is_some()
                         && target.get_attribute("data-dnacalc").as_deref() == Some("grid");
                     // Let the real clipboard event carry its data even while a worker reply is pending.
@@ -1619,6 +1623,210 @@ impl Controller {
             all.insert(sheet, view);
         });
     }
+    pub fn axis_format(&self, rows: bool, size: Option<String>, hidden: Option<bool>) {
+        let controller = *self;
+        self.after_input(move || {
+            if controller.editing.get_untracked().is_some() {
+                controller.say(
+                    "Finish or cancel the current entry before changing dimensions",
+                    true,
+                );
+                return;
+            }
+            let areas = controller.areas.get_untracked();
+            if areas.len() != 1 {
+                controller.say("Choose one rectangle before changing dimensions", true);
+                return;
+            }
+            let area = areas[0];
+            let (first, last) = if rows {
+                (area.first().row(), area.last().row())
+            } else {
+                (area.first().column(), area.last().column())
+            };
+            let size_bits = match size {
+                Some(text) => match text.trim().parse::<f64>() {
+                    Ok(n) => Some(n.to_bits()),
+                    Err(_) => {
+                        controller.say("Enter a numeric size", true);
+                        return;
+                    }
+                },
+                None => None,
+            };
+            controller.send_axis_format(
+                area.sheet(),
+                rows,
+                first,
+                last - first + 1,
+                size_bits,
+                hidden,
+            );
+        });
+    }
+
+    fn send_axis_format(
+        &self,
+        sheet: SheetId,
+        rows: bool,
+        first: u32,
+        count: u32,
+        size_bits: Option<u64>,
+        hidden: Option<bool>,
+    ) {
+        let controller = *self;
+        self.dispatch(
+            Intent::AxisFormat {
+                sheet: wire::Sheet::of(sheet),
+                rows,
+                first,
+                count,
+                size_bits,
+                hidden,
+            },
+            move |outcome| {
+                if outcome.accepted {
+                    controller.say(
+                        if hidden == Some(true)
+                            || size_bits.is_some_and(|b| f64::from_bits(b) == 0.0)
+                        {
+                            if rows {
+                                "Rows hidden"
+                            } else {
+                                "Columns hidden"
+                            }
+                        } else if hidden == Some(false) {
+                            if rows { "Rows shown" } else { "Columns shown" }
+                        } else {
+                            if rows {
+                                "Row heights updated"
+                            } else {
+                                "Column widths updated"
+                            }
+                        },
+                        false,
+                    );
+                }
+            },
+        );
+    }
+    pub fn resize_axis(&self, drag: crate::grid::axis::ResizeDrag) {
+        let controller = *self;
+        self.after_input(move || {
+            if controller.generation.get_untracked() != drag.generation
+                || controller.sheet.get_untracked() != Some(drag.sheet)
+                || controller.editing.get_untracked().is_some()
+            {
+                return;
+            }
+            let areas = controller.areas.get_untracked();
+            if areas.len() != 1 {
+                controller.say("Choose one rectangle before resizing", true);
+                return;
+            }
+            let (first, count) =
+                crate::grid::axis::selected_bands(&areas, drag.band.rows, drag.band.index);
+            controller.send_axis_format(
+                drag.sheet,
+                drag.band.rows,
+                first,
+                count,
+                Some(drag.input().to_bits()),
+                None,
+            );
+        });
+    }
+
+    pub fn autofit(&self, rows: bool) {
+        let controller = *self;
+        self.after_input(move || {
+            if controller.editing.get_untracked().is_some() {
+                controller.say("Finish or cancel the entry before fitting contents", true);
+                return;
+            }
+            let areas = controller.areas.get_untracked();
+            if areas.len() != 1 {
+                controller.say("Choose one rectangle before fitting contents", true);
+                return;
+            }
+            controller.fit_contents(rows, areas[0]);
+        });
+    }
+    pub fn autofit_header(&self, band: crate::grid::axis::BandEdge) {
+        let controller = *self;
+        self.after_input(move || {
+            let Some(sheet) = controller.sheet.get_untracked() else {
+                return;
+            };
+            if controller.editing.get_untracked().is_some() {
+                return;
+            }
+            let (first, count) = crate::grid::axis::selected_bands(
+                &controller.areas.get_untracked(),
+                band.rows,
+                band.index,
+            );
+            let last = first + count - 1;
+            let (top, left, bottom, right) = if band.rows {
+                (first, 1, last, 16384)
+            } else {
+                (1, first, 1048576, last)
+            };
+            let area = GridArea::new(
+                CellKey::new(sheet, top, left).unwrap(),
+                CellKey::new(sheet, bottom, right).unwrap(),
+            )
+            .unwrap();
+            controller.fit_contents(band.rows, area);
+        });
+    }
+    fn fit_contents(&self, rows: bool, area: GridArea) {
+        let controller = *self;
+        let generation = self.generation.get_untracked();
+        self.pending_actions.update(|n| *n += 1);
+        port::call(
+            Request::FitContents {
+                area: Area::of(area),
+            },
+            None,
+            move |reply, _| {
+                controller
+                    .pending_actions
+                    .update(|n| *n = n.saturating_sub(1));
+                if controller.generation.get_untracked() != generation
+                    || controller.sheet.get_untracked() != Some(area.sheet())
+                {
+                    return;
+                }
+                match reply {
+                    Ok(Reply::FitContents { revision, cells }) => {
+                        match crate::grid::autofit::measure(rows, &cells) {
+                            Ok(sizes) if sizes.is_empty() => {
+                                controller.say("No visible nonempty contents to fit", false)
+                            }
+                            Ok(sizes) => controller.dispatch(
+                                Intent::FitContents {
+                                    sheet: Sheet::of(area.sheet()),
+                                    rows,
+                                    revision,
+                                    sizes,
+                                },
+                                move |outcome| {
+                                    if outcome.accepted {
+                                        controller.say("Fitted contents within size limits", false);
+                                    }
+                                },
+                            ),
+                            Err(error) => controller.say(error, true),
+                        }
+                    }
+                    Err(error) => controller.say(error, true),
+                    _ => controller.say("The workbook did not return contents to fit", true),
+                }
+            },
+        );
+    }
+
     pub fn freeze_panes(&self, choice: &'static str) {
         let controller = *self;
         self.after_input(move || {

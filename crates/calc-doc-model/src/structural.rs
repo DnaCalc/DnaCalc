@@ -352,6 +352,7 @@ impl ModelRoot {
                     },
                 ))
             }))
+            .with_axis_layouts(definitions.axis_layouts().moved(edit))
             .with_hidden_rows(hidden.collect::<Vec<_>>())
             .with_macro_enabled(definitions.macro_enabled())
             .with_iteration(definitions.iteration())

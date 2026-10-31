@@ -15,6 +15,7 @@ mod array_metadata;
 mod author;
 mod diff;
 pub(crate) mod file_form;
+mod geometry;
 mod manifest;
 mod panes;
 mod parts;

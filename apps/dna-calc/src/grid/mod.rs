@@ -22,6 +22,8 @@
 //! positioned elements, and the legacy projection and dispatcher by calc-host's subscription and
 //! intents.
 
+pub mod autofit;
+pub mod axis;
 pub mod chart;
 pub mod geometry;
 pub mod icons;
@@ -288,6 +290,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let point_drag = StoredValue::new(false);
     let drag_pointer = StoredValue::new(None::<(f64, f64)>);
     let drag_timer = StoredValue::new(None::<IntervalHandle>);
+    let resizing = RwSignal::new(None::<axis::ResizeDrag>);
+    let resize_cursor = RwSignal::new("default");
     let fill_from = RwSignal::new(None::<GridArea>);
     let fill_target = RwSignal::new(None::<(GridArea, bool)>);
 
@@ -650,6 +654,14 @@ fn grid_view(controller: Controller) -> impl IntoView {
         if ev.is_composing() || ev.key_code() == 229 {
             return;
         }
+        if resizing.get_untracked().is_some() {
+            ev.prevent_default();
+            if ev.key() == "Escape" {
+                resizing.set(None);
+                note.set("Resize cancelled".to_owned());
+            }
+            return;
+        }
         if ev.key() == "Escape" {
             fill_from.set(None);
             fill_target.set(None);
@@ -915,6 +927,40 @@ fn grid_view(controller: Controller) -> impl IntoView {
         if ev.button() != 0 {
             return;
         }
+        if controller.editing.get_untracked().is_none() {
+            if let (Some(layer), Some(sheet)) =
+                (layer.get_untracked(), controller.sheet.get_untracked())
+            {
+                let rect = layer.get_bounding_client_rect();
+                let edge = plan.with_untracked(|p| {
+                    axis::boundary(
+                        p,
+                        &metrics.get_untracked(),
+                        &viewport.get_untracked(),
+                        f64::from(ev.client_x()) - rect.left(),
+                        f64::from(ev.client_y()) - rect.top(),
+                    )
+                });
+                if let Some(band) = edge {
+                    ev.prevent_default();
+                    focus_grid();
+                    let start = if band.rows {
+                        f64::from(ev.client_y())
+                    } else {
+                        f64::from(ev.client_x())
+                    };
+                    resizing.set(Some(axis::ResizeDrag {
+                        band,
+                        sheet,
+                        generation: controller.generation.get_untracked(),
+                        start,
+                        current: start,
+                        zoom: zoom.get_untracked(),
+                    }));
+                    return;
+                }
+            }
+        }
         let target = point(&ev);
         let Some(target) = target else {
             return;
@@ -935,6 +981,34 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
 
     let on_mousemove = move |ev: leptos::ev::MouseEvent| {
+        if let Some(mut drag) = resizing.get_untracked() {
+            if ev.buttons() & 1 == 0 {
+                resizing.set(None);
+                return;
+            }
+            drag.current = if drag.band.rows {
+                f64::from(ev.client_y())
+            } else {
+                f64::from(ev.client_x())
+            };
+            resizing.set(Some(drag));
+            return;
+        }
+        if let Some(layer) = layer.get_untracked() {
+            let rect = layer.get_bounding_client_rect();
+            let edge = plan.with_untracked(|p| {
+                axis::boundary(
+                    p,
+                    &metrics.get_untracked(),
+                    &viewport.get_untracked(),
+                    f64::from(ev.client_x()) - rect.left(),
+                    f64::from(ev.client_y()) - rect.top(),
+                )
+            });
+            resize_cursor.set(edge.map_or("default", |e| {
+                if e.rows { "row-resize" } else { "col-resize" }
+            }));
+        }
         if let Some(from) = fill_from.get_untracked() {
             drag_pointer.set_value(Some((f64::from(ev.client_x()), f64::from(ev.client_y()))));
             if let Some(HitTarget::Cell { row, col }) = point(&ev) {
@@ -968,7 +1042,19 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
     };
     let drag_move = window_event_listener(leptos::ev::mousemove, on_mousemove);
-    let drag_up = window_event_listener(leptos::ev::mouseup, move |_| {
+    let drag_up = window_event_listener(leptos::ev::mouseup, move |ev| {
+        if let Some(mut drag) = resizing.get_untracked() {
+            resizing.set(None);
+            drag.current = if drag.band.rows {
+                f64::from(ev.client_y())
+            } else {
+                f64::from(ev.client_x())
+            };
+            if (drag.current - drag.start).abs() >= 2.0 {
+                controller.resize_axis(drag);
+            }
+            return;
+        }
         let from = fill_from.get_untracked();
         let target = fill_target.get_untracked();
         fill_from.set(None);
@@ -987,6 +1073,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
     });
     let drag_blur = window_event_listener(leptos::ev::blur, move |_| {
+        resizing.set(None);
         fill_from.set(None);
         fill_target.set(None);
         stop_drag();
@@ -999,6 +1086,22 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let on_dblclick = move |ev: leptos::ev::MouseEvent| {
         if controller.editing.get_untracked().is_some() {
             return;
+        }
+        if let Some(layer) = layer.get_untracked() {
+            let rect = layer.get_bounding_client_rect();
+            if let Some(band) = plan.with_untracked(|p| {
+                axis::boundary(
+                    p,
+                    &metrics.get_untracked(),
+                    &viewport.get_untracked(),
+                    f64::from(ev.client_x()) - rect.left(),
+                    f64::from(ev.client_y()) - rect.top(),
+                )
+            }) {
+                ev.prevent_default();
+                controller.autofit_header(band);
+                return;
+            }
         }
         if let Some(HitTarget::Cell { row, col }) = point(&ev) {
             move_to(row, col);
@@ -1437,7 +1540,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
         <div class="dc-grid-skin" data-skin="grid">
             <div
                 class="dc-grid"
-                data-dnacalc="grid"
+                data-dnacalc="grid" data-resizing=move ||resizing.get().is_some().to_string()
                 data-frozen-rows=move ||panes.get().rows.to_string()
                 data-frozen-columns=move ||panes.get().columns.to_string()
                 role="grid"
@@ -1452,6 +1555,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 }
                 tabindex="0"
                 node_ref=scroller
+                style:cursor=move ||resize_cursor.get()
                 on:scroll=move |_| measure()
                 on:wheel=move |ev: leptos::ev::WheelEvent| {
                     let (sx,sy) = scales();
@@ -1496,12 +1600,18 @@ fn grid_view(controller: Controller) -> impl IntoView {
                             view! { {columns}{rows} }
                         }}
                         <div class="dc-corner" style:width=move || px(metrics.get().header_w) style:height=move || px(metrics.get().header_h)></div>
+                        {move ||resizing.get().map(|drag| {
+                            let v=viewport.get();let edge=drag.edge();
+                            let style=if drag.band.rows {format!("left:0;top:{};width:{};height:2px",px(edge),px(v.width))} else {format!("left:{};top:0;width:2px;height:{}",px(edge),px(v.height))};
+                            view!{<div class="dc-resize-preview" data-dnacalc="resize-preview" use:css=style><span>{format!("{:.2} {}",drag.input(),if drag.band.rows {"pt"} else {"ch"})}</span></div>}
+                        })}
                         {editor_view}
                     </div>
                 </div>
             </div>
             {crate::clipboard::controls(controller)}
-            <details class="dc-clipboard-tools" data-dnacalc="pane-tools">
+            {axis::controls(controller)}
+            <details class="dc-clipboard-tools" data-dnacalc="pane-tools" name="worksheet-tools">
                 <summary>"View & panes"</summary>
                 <p data-dnacalc="pane-state">{move ||format!("Frozen: {} rows, {} columns",panes.get().rows,panes.get().columns)}</p>
                 {move ||split_window.get().then(||view!{<p class="dc-note">"This pane layout is retained in the file. This view shows one window; separate splits are unavailable."</p>})}

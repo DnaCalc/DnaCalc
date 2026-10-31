@@ -231,3 +231,80 @@ impl SheetGeometry {
         moved
     }
 }
+
+impl SheetGeometry {
+    /// Physical dimensions in the canonical authored model; defaults stay with the worksheet.
+    pub fn authored(
+        &self,
+        sheet: calc_doc_model::value::SheetId,
+        layouts: &calc_doc_model::AxisLayouts,
+    ) -> Self {
+        use calc_doc_model::Axis;
+        let rows = layouts
+            .bands(sheet, Axis::Rows)
+            .map(|(index, format)| {
+                (
+                    index,
+                    RowFormat {
+                        height: format.size(),
+                        hidden: format.hidden(),
+                    },
+                )
+            })
+            .collect();
+        let mut columns: Vec<ColumnSpan> = Vec::new();
+        for (index, format) in layouts.bands(sheet, Axis::Columns) {
+            let span = ColumnSpan {
+                first: index,
+                last: index,
+                width: format.size(),
+                hidden: format.hidden(),
+                custom_width: format.custom(),
+            };
+            if let Some(last) = columns.last_mut()
+                && last.last + 1 == index
+                && last.width == span.width
+                && last.hidden == span.hidden
+                && last.custom_width == span.custom_width
+            {
+                last.last = index;
+            } else {
+                columns.push(span);
+            }
+        }
+        Self {
+            default_row_height: self.default_row_height,
+            default_column_width: self.default_column_width,
+            base_column_width: self.base_column_width,
+            columns,
+            rows,
+        }
+    }
+    pub(crate) fn add_to_model(
+        &self,
+        sheet: calc_doc_model::value::SheetId,
+        layouts: &mut calc_doc_model::AxisLayouts,
+    ) {
+        use calc_doc_model::{Axis, AxisFormat, AxisFormatEdit};
+        for (&index, row) in &self.rows {
+            let format = AxisFormat::new(row.height, row.hidden, false)
+                .expect("finite loaded row dimensions");
+            layouts
+                .set(AxisFormatEdit::new(sheet, Axis::Rows, index, format).expect("a loaded row"));
+        }
+        // The loader resolves overlapping spans by the first one, as `column` does.
+        let mut seen = std::collections::BTreeSet::new();
+        for span in &self.columns {
+            for index in span.first..=span.last {
+                if seen.insert(index) {
+                    let format = AxisFormat::new(span.width, span.hidden, span.custom_width)
+                        .expect("finite loaded column dimensions");
+                    layouts.set(
+                        AxisFormatEdit::new(sheet, Axis::Columns, index, format)
+                            .expect("a loaded column"),
+                    );
+                }
+            }
+        }
+    }
+}

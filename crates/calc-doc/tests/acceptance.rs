@@ -501,6 +501,7 @@ fn describe(op: &WorkbookOp) -> String {
             scope,
             formula,
         } => format!("name {name} {scope:?} {formula:?}"),
+        WorkbookOp::SetAxisFormat(edit) => format!("axis format {edit:?}"),
         WorkbookOp::SetFrozenPanes { sheet, panes } => format!(
             "panes {sheet:?} {:?}",
             panes.map(|p| (p.rows(), p.columns()))
@@ -634,6 +635,8 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         WorkbookOp::SetIteration(_) => "op:set_iteration".to_owned(),
         // Wire version 1 has no pane form (EncodeError::FrozenPanes).
         WorkbookOp::SetFrozenPanes { .. } => "op:set_frozen_panes".to_owned(),
+        // Wire version 1 has no physical-dimension form (EncodeError::AxisFormat).
+        WorkbookOp::SetAxisFormat(_) => "op:set_axis_format".to_owned(),
         WorkbookOp::EditAxis(edit) => {
             out.insert("op:edit_axis".to_owned());
             let axis = match edit.axis() {

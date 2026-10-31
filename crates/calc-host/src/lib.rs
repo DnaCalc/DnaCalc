@@ -96,8 +96,9 @@ pub use calc_doc::{blank_package, convert_binary_workbook};
 pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
-    CachedValue, CellInput, CellText, DefinedName, Definitions, FileCached, FiniteNumber,
-    FormulaText, FrozenPanes, IterationSettings, ModelRoot, NameScope, SheetEntry, SourcePart,
+    AxisFormat, AxisFormatEdit, AxisLayouts, CachedValue, CellInput, CellText, DefinedName,
+    Definitions, FileCached, FiniteNumber, FormulaText, FrozenPanes, IterationSettings, ModelRoot,
+    NameScope, RowHidden, SheetEntry, SourcePart,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,

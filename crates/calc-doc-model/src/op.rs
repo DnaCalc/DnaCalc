@@ -51,6 +51,8 @@ pub enum WorkbookOp {
     /// are calculated iteratively, the most iterations and the maximum change, as the workbook
     /// part's `calcPr` holds them. It changes no cell.
     SetIteration(crate::definitions::IterationSettings),
+    /// Changes the physical dimensions of one worksheet row or column.
+    SetAxisFormat(crate::AxisFormatEdit),
     /// Freeze the leading rows and columns of a worksheet window; `None` unfreezes it.
     SetFrozenPanes {
         sheet: SheetId,

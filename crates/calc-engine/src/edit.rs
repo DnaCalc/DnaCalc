@@ -127,6 +127,7 @@ pub struct PreparedEngineChange<'s, 'r> {
     /// The batch changes the iteration settings (dc-y2o.2): the formulas on a circular reference
     /// become pending when it commits.
     iteration_changed: bool,
+    dimensions_pending: Option<BTreeSet<NodeId>>,
 }
 
 impl<'r> PreparedEngineChange<'_, 'r> {
@@ -224,6 +225,7 @@ pub fn prepare_edit<'s, 'r>(
             // A structural commit empties the templates anyway.
             names_changed: false,
             iteration_changed: false,
+            dimensions_pending: None,
         });
     }
 
@@ -295,6 +297,7 @@ pub fn prepare_edit<'s, 'r>(
             // The iteration settings (dc-y2o.2) change no cell; the formulas on a circular
             // reference become pending when the change is committed.
             WorkbookOp::SetIteration(_) => {}
+            WorkbookOp::SetAxisFormat(edit) => require_sheet(inputs, operation, edit.sheet())?,
             WorkbookOp::SetFrozenPanes { sheet, .. } => require_sheet(inputs, operation, *sheet)?,
         }
     }
@@ -441,6 +444,11 @@ pub fn prepare_edit<'s, 'r>(
         | NodeChange::Replaced { at, .. }
         | NodeChange::Removed { at, .. } => at,
     });
+    let dimensions_pending = change
+        .operations
+        .iter()
+        .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_)))
+        .then(|| state.nodes().map(|node| node.id()).collect());
     Ok(PreparedEngineChange {
         state,
         base: change.base,
@@ -452,6 +460,7 @@ pub fn prepare_edit<'s, 'r>(
             .operations
             .iter()
             .any(|op| matches!(op, WorkbookOp::SetNameFormula { .. })),
+        dimensions_pending,
         iteration_changed: change.operations.iter().any(|op| {
             matches!(op, WorkbookOp::SetIteration(settings)
                 if *settings != inputs.definitions().iteration())
@@ -495,6 +504,7 @@ fn structural_moves(
                 | WorkbookOp::SetFormat { .. }
                 | WorkbookOp::SetNameFormula { .. }
                 | WorkbookOp::SetIteration(_)
+                | WorkbookOp::SetAxisFormat(_)
                 | WorkbookOp::SetFrozenPanes { .. }
         )
     }) {
@@ -515,6 +525,7 @@ fn structural_moves(
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetNameFormula { .. }
             | WorkbookOp::SetIteration(_)
+            | WorkbookOp::SetAxisFormat(_)
             | WorkbookOp::SetFrozenPanes { .. } => unreachable!("refused above"),
             WorkbookOp::EditAxis(edit) => {
                 require_sheet(inputs, operation, edit.sheet())?;
@@ -587,6 +598,10 @@ impl CommitReceipt {
 pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     let node_changes = std::mem::take(&mut change.node_changes);
     let state = &mut *change.state;
+    // Physical widths and hidden rows affect CELL, SUBTOTAL and AGGREGATE.
+    if let Some(pending) = change.dimensions_pending.take() {
+        state.pending = pending;
+    }
     if change.names_changed {
         state.templates.clear();
     }

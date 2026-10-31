@@ -220,28 +220,49 @@ impl std::error::Error for DecodeError {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EncodeError {
     /// An operation names a sheet the root does not hold, so it has no key to travel as.
-    UnknownSheet { sheet: SheetId },
+    UnknownSheet {
+        sheet: SheetId,
+    },
     /// An inserted sheet's key belongs to a sheet of the root or to an earlier insert of the
     /// batch.
-    SheetKeyInUse { key: SheetKey },
+    SheetKeyInUse {
+        key: SheetKey,
+    },
     /// The operation at this index authors an array formula, which wire version 1 has no form
     /// for.
-    ArrayFormula { operation: usize },
+    ArrayFormula {
+        operation: usize,
+    },
     /// The operation at this index sets a cell format, which wire version 1 has no form for.
-    CellFormat { operation: usize },
+    CellFormat {
+        operation: usize,
+    },
     /// The operation at this index sets a defined name's formula, which wire version 1 has no
     /// form for.
-    NameFormula { operation: usize },
+    NameFormula {
+        operation: usize,
+    },
     /// The operation at this index sets the iterative-calculation settings, which wire version 1
     /// has no form for.
-    Iteration { operation: usize },
+    Iteration {
+        operation: usize,
+    },
     /// The operation sets worksheet panes, which wire version 1 has no form for.
-    FrozenPanes { operation: usize },
+    FrozenPanes {
+        operation: usize,
+    },
+    AxisFormat {
+        operation: usize,
+    },
 }
 
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            EncodeError::AxisFormat { operation } => write!(
+                f,
+                "operation {operation} changes physical dimensions, which wire version 1 does not encode"
+            ),
             EncodeError::FrozenPanes { operation } => write!(
                 f,
                 "operation {operation} sets frozen panes, which wire version 1 has no form for"
@@ -295,6 +316,9 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         }
         if matches!(operation, WorkbookOp::SetIteration(_)) {
             return Err(EncodeError::Iteration { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetAxisFormat(_)) {
+            return Err(EncodeError::AxisFormat { operation: index });
         }
         if matches!(operation, WorkbookOp::SetFrozenPanes { .. }) {
             return Err(EncodeError::FrozenPanes { operation: index });

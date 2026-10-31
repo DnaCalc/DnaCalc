@@ -1,6 +1,5 @@
-//! One worksheet part's cells: the rows and cells of its `<sheetData>`, read in document order.
-//! Every other element of the part (dimensions, views, columns, merges, hyperlinks and the rest)
-//! is skipped here; a save copies the part's bytes as they were stored.
+//! Worksheet cells and selected view, geometry and rule metadata, read in document order.
+//! Other elements remain in the package for the save path to preserve.
 
 use super::error::{CellError, LoadError};
 use super::metadata::{CellMeta, Metadata, ValueMeta};
@@ -32,6 +31,7 @@ pub(super) struct Context<'a> {
 /// One sheet's cells as read: the inputs for the model and the records kept beside it.
 pub(super) struct SheetLoad {
     pub(super) protected: bool,
+    pub(super) merged_areas: Vec<GridArea>,
     pub(super) part: Arc<SourcePart>,
     pub(super) inputs: Vec<(CellKey, CellInput)>,
     pub(super) styles: BTreeMap<(u32, u32), u32>,
@@ -803,6 +803,7 @@ pub(super) fn load_sheet(
         part: Arc::clone(&source),
         load: SheetLoad {
             protected: false,
+            merged_areas: Vec::new(),
             part: source,
             inputs: Vec::new(),
             styles: BTreeMap::new(),
@@ -870,6 +871,31 @@ pub(super) fn load_sheet(
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetFormatPr") => {
                 sheet.load.geometry.read_format(&element);
                 events.skip()?;
+            }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "mergeCells") => {
+                loop {
+                    match events.next()? {
+                        Some(XmlEvent::Start(child))
+                            if child.name.is(MAIN_NAMESPACE, "mergeCell") =>
+                        {
+                            if let Some((top, left, bottom, right)) =
+                                child.attribute("ref").and_then(address::area)
+                            {
+                                let area = GridArea::new(
+                                    CellKey::new(id, top, left).unwrap(),
+                                    CellKey::new(id, bottom, right).unwrap(),
+                                )
+                                .unwrap();
+                                sheet.load.merged_areas.push(area);
+                            }
+                            events.skip()?;
+                        }
+                        Some(XmlEvent::Start(_)) => events.skip()?,
+                        Some(XmlEvent::Text(_)) => {}
+                        Some(XmlEvent::End(_)) => break,
+                        None => return Err(events.invalid("the part ends inside mergeCells")),
+                    }
+                }
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "cols") => loop {
                 match events.next()? {

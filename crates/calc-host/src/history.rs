@@ -95,6 +95,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
             CellEdit::Axis(_)
+            | CellEdit::AxisFormat(_)
             | CellEdit::FrozenPanes { .. }
             | CellEdit::SetFormat { .. }
             | CellEdit::SetName { .. }
@@ -178,7 +179,23 @@ pub(crate) fn inverse(
     );
     let mut formatted = BTreeSet::new();
     let mut panes = BTreeSet::new();
+    let mut dimensioned = BTreeSet::new();
     for edit in edits {
+        if let CellEdit::AxisFormat(edit) = edit
+            && dimensioned.insert((
+                edit.sheet(),
+                edit.axis() == calc_doc_model::Axis::Rows,
+                edit.index(),
+            ))
+        {
+            let old = definitions
+                .axis_layouts()
+                .get(edit.sheet(), edit.axis(), edit.index());
+            inverse.push(CellEdit::AxisFormat(
+                calc_doc_model::AxisFormatEdit::new(edit.sheet(), edit.axis(), edit.index(), old)
+                    .expect("a validated band"),
+            ));
+        }
         if let CellEdit::FrozenPanes { sheet, .. } = edit
             && panes.insert(*sheet)
         {

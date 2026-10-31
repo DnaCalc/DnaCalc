@@ -512,16 +512,16 @@ impl HostState {
         calc_engine::resolve_reference_text(&self.model, at, text)
     }
 
-    /// The row heights, column widths and hidden rows and columns of `sheet`: as the file stated
-    /// them when the workbook was opened (dc-09v), moved by the rows and columns inserted and
-    /// deleted since ([`calc_doc::SheetGeometry::moved`]); `None` for a sheet the file did not
-    /// hold. No command sets a size yet.
+    /// Current physical row heights, column widths and hidden flags from the authored model,
+    /// with the worksheet's imported defaults. Structural edits move these same dimensions;
+    /// `None` for a sheet the file did not hold.
     pub fn sheet_geometry(&self, sheet: SheetId) -> Option<calc_doc::SheetGeometry> {
-        let mut geometry = self.loaded.sheet(sheet)?.geometry().clone();
-        for edit in self.axis_edits.iter().filter(|edit| edit.sheet() == sheet) {
-            geometry = geometry.moved(*edit);
-        }
-        Some(geometry)
+        Some(
+            self.loaded
+                .sheet(sheet)?
+                .geometry()
+                .authored(sheet, self.model().definitions().axis_layouts()),
+        )
     }
 
     /// Where the cell at `at` was when the workbook was opened, through the rows and columns
@@ -529,6 +529,20 @@ impl HostState {
     /// ([`calc_doc_model::source_position`]); `None` for one inserted at the start of an axis.
     pub(crate) fn opened_position(&self, at: CellKey) -> Option<(u32, u32)> {
         crate::facts::opened_position(&self.axis_edits, at)
+    }
+
+    /// Imported merged ranges transformed through the current structural axis history.
+    pub fn merged_areas(&self, sheet: SheetId) -> Vec<GridArea> {
+        self.loaded
+            .sheet(sheet)
+            .into_iter()
+            .flat_map(|s| s.merged_areas())
+            .filter_map(|area| {
+                self.axis_edits
+                    .iter()
+                    .try_fold(*area, |area, edit| calc_doc_model::moved_area(*edit, area))
+            })
+            .collect()
     }
 
     /// The number format code of the cell at `at`: the code of the cell format the file gave the

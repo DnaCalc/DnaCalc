@@ -6,8 +6,8 @@
 //! The file and the application are what the application states ([`HostState::set_file`],
 //! [`HostState::set_application`]); calc-host reads no file system and no platform of its own,
 //! so until they are set CELL("filename") and INFO("release") and the like are refused. The
-//! formats, widths and windows are those the file gave when the workbook was opened, moved by the
-//! rows and columns inserted and deleted since, with the cell formats an edit gave a cell first.
+//! Formats and windows retain their imported facts with authored overrides; physical column
+//! widths come from the current model, including structural moves and authored dimensions.
 
 use crate::state::HostState;
 use calc_doc::{CalcMode, LoadedSheet};
@@ -87,7 +87,10 @@ impl HostFacts {
         if let Some(format) = self.model.definitions().cell_format(at) {
             return format;
         }
-        match (self.sheet(at.sheet()), opened_position(&self.axis_edits, at)) {
+        match (
+            self.sheet(at.sheet()),
+            opened_position(&self.axis_edits, at),
+        ) {
             (Some(sheet), Some((row, column))) => sheet.style(row, column),
             _ => 0,
         }
@@ -99,9 +102,15 @@ impl WorkbookFacts for HostFacts {
         let style = self.style(cell);
         let number_format = self.styles.number_format_code(style)?.to_owned();
         let format = self.styles.cell_formats.get(usize::try_from(style).ok()?);
-        let id = format.and_then(|format| format.number_format_id).unwrap_or(0);
-        let builtin = (!self.styles.number_formats.iter().any(|declared| declared.id == id))
-            .then_some(id);
+        let id = format
+            .and_then(|format| format.number_format_id)
+            .unwrap_or(0);
+        let builtin = (!self
+            .styles
+            .number_formats
+            .iter()
+            .any(|declared| declared.id == id))
+        .then_some(id);
         let horizontal = match format
             .and_then(|format| format.alignment.as_ref())
             .and_then(|alignment| alignment.horizontal.as_deref())
@@ -131,10 +140,12 @@ impl WorkbookFacts for HostFacts {
 
     fn column_width(&self, sheet: SheetId, column: u32) -> Option<ColumnWidth> {
         let mdw = maximum_digit_width(&self.styles)?;
-        let mut geometry = self.sheet(sheet)?.geometry().clone();
-        for edit in self.axis_edits.iter().filter(|edit| edit.sheet() == sheet) {
-            geometry = geometry.moved(*edit);
-        }
+        let geometry = self.sheet(sheet)?.geometry();
+        let format = self.model.definitions().axis_layouts().get(
+            sheet,
+            calc_doc_model::Axis::Columns,
+            column,
+        );
         let default_characters = || match geometry.default_column_width {
             Some(width) => shown_characters(width, mdw),
             None => {
@@ -145,25 +156,22 @@ impl WorkbookFacts for HostFacts {
                 (((pixels - 5.0) / mdw * 100.0 + 0.5).trunc() / 100.0).max(0.0)
             }
         };
-        Some(match geometry.column(column) {
-            Some(span) if span.hidden => ColumnWidth {
+        Some(if format.hidden() {
+            ColumnWidth {
                 characters: 0.0,
                 default: false,
-            },
-            Some(span) => match span.width {
+            }
+        } else {
+            match format.size() {
                 Some(width) => ColumnWidth {
                     characters: shown_characters(width, mdw),
-                    default: !span.custom_width,
+                    default: !format.custom(),
                 },
                 None => ColumnWidth {
                     characters: default_characters(),
                     default: true,
                 },
-            },
-            None => ColumnWidth {
-                characters: default_characters(),
-                default: true,
-            },
+            }
         })
     }
 

@@ -881,6 +881,8 @@ pub enum Action {
     Click(&'static str),
     /// Two real pointer clicks at the element's centre.
     DoubleClick(&'static str),
+    /// Two real clicks on a trailing row or column header boundary.
+    DoubleClickEdge(&'static str, bool),
     CtrlClick(&'static str),
     /// Drag beyond the grid and hold, using real pointer actions.
     DragOutside(&'static str),
@@ -897,6 +899,8 @@ pub enum Action {
     /// A real pointer drag between two rendered elements.
     Drag(&'static str, &'static str),
     DragToCell(&'static str, u32, &'static str),
+    /// Drag a visible trailing header edge, optionally cancelling before release.
+    ResizeHeader(&'static str, bool, i32, bool),
     /// Synthetic IME events exercise the composition boundary; this is not a device IME test.
     Composing(&'static str, &'static str),
     CompositionEnd(&'static str),
@@ -4194,6 +4198,8 @@ const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Attr("grid", "data-frozen-rows", "0"),
             Check::Attr("grid", "data-frozen-columns", "0"),
+            Check::Style(cell!("A1"), "width:145px"),
+            Check::Style(cell!("A3"), "height:40px"),
         ],
     },
     Case {
@@ -4347,6 +4353,520 @@ const CALC_CASES: &[Case] = &[
             Check::Reachable("active-cell"),
         ],
     },
+    Case {
+        name: "axis: typed dimensions resize every selected row and column through the worker",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "formats.xlsx")),
+            Action::Into("name-box", "A1:B3\u{E007}"),
+            Action::Click("[data-dnacalc=axis-tools] summary"),
+            Action::Into("column-size", "20\u{E007}"),
+            Action::Wait(Check::Style(cell!("A1"), "width:145px")),
+            Action::Into("row-size", "30\u{E007}"),
+        ],
+        checks: &[
+            Check::Style(cell!("A1"), "left:64px;top:22px;width:145px;height:40px"),
+            Check::Style(cell!("B1"), "left:209px;top:22px;width:145px;height:40px"),
+            Check::Style(cell!("A3"), "top:102px;height:40px"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "axis: one Undo restores the whole row-height command and keeps widths",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Style(cell!("A1"), "width:145px;height:20px"),
+            Check::Style(cell!("A3"), "top:62px;height:40px"),
+        ],
+    },
+    Case {
+        name: "axis: Redo restores heights and Hide removes a column without clearing its cells",
+        actions: &[
+            Action::Click("redo"),
+            Action::Wait(Check::Style(cell!("A1"), "height:40px")),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Click("hide-columns"),
+        ],
+        checks: &[
+            Check::Absent(cell!("B1")),
+            Check::Style(cell!("D1"), "left:209px"),
+            Check::Value("name-box", "B1"),
+        ],
+    },
+    Case {
+        name: "axis: Show returns the retained custom column width",
+        actions: &[Action::Click("show-columns")],
+        checks: &[
+            Check::Style(cell!("B1"), "left:209px;width:145px"),
+            Check::Style(cell!("D1"), "left:354px"),
+        ],
+    },
+    Case {
+        name: "axis: Hide and Show each occupy exactly one Undo step",
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::Absent(cell!("B1"))),
+            Action::Click("undo"),
+        ],
+        checks: &[Check::Style(cell!("B1"), "width:145px")],
+    },
+    Case {
+        name: "axis: hiding a row closes its gap and keeps the following row's size",
+        actions: &[
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("hide-rows"),
+        ],
+        checks: &[
+            Check::Absent(cell!("A2")),
+            Check::Style(cell!("A3"), "top:62px;height:40px"),
+        ],
+    },
+    Case {
+        name: "axis: Show, Undo and Redo preserve the hidden row's custom height",
+        actions: &[
+            Action::Click("show-rows"),
+            Action::Wait(Check::Style(cell!("A2"), "height:40px")),
+            Action::Click("undo"),
+            Action::Wait(Check::Absent(cell!("A2"))),
+            Action::Click("redo"),
+        ],
+        checks: &[
+            Check::Style(cell!("A2"), "height:40px"),
+            Check::Style(cell!("A3"), "top:102px;height:40px"),
+        ],
+    },
+    Case {
+        name: "axis: a zero width hides and Show retains the last nonzero width",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into("column-size", "0\u{E007}"),
+            Action::Wait(Check::Absent(cell!("B1"))),
+            Action::Click("show-columns"),
+        ],
+        checks: &[Check::Style(cell!("B1"), "width:145px")],
+    },
+    Case {
+        name: "axis: invalid height diagnoses the limit and leaves geometry unchanged",
+        actions: &[Action::Into("row-size", "410\u{E007}")],
+        checks: &[
+            Check::TextContains("status", "409 points"),
+            Check::Style(cell!("A1"), "height:40px"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "axis: physical widths, heights and hidden bands survive save and reopen",
+        actions: &[
+            Action::Click("hide-columns"),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("hide-rows"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("formats.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "formats.xlsx")),
+        ],
+        checks: &[
+            Check::Absent(cell!("B1")),
+            Check::Absent(cell!("A2")),
+            Check::Style(cell!("A1"), "width:145px;height:40px"),
+            Check::Style(cell!("A3"), "top:62px;height:40px"),
+            Check::Style(cell!("D1"), "left:209px"),
+        ],
+    },
+    Case {
+        name: "axis: a rectangle spanning hidden bands shows them, including an imported zero-width column",
+        actions: &[
+            Action::Into("name-box", "A1:C3\u{E007}"),
+            Action::Click("show-columns"),
+            Action::Click("show-rows"),
+        ],
+        checks: &[
+            Check::Style(cell!("B1"), "width:145px"),
+            Check::Style("[data-dnacalc=column-header][data-column=C]", "width:64px"),
+            Check::Style(cell!("A2"), "height:40px"),
+            Check::Style(cell!("D1"), "left:418px"),
+        ],
+    },
+    Case {
+        name: "axis: whole-column insertion moves the authored widths and Undo restores them",
+        actions: &[
+            Action::Click("[data-dnacalc=column-header][data-column=B]"),
+            Action::Click("insert-cells"),
+        ],
+        checks: &[
+            Check::Style(cell!("C1"), "width:145px"),
+            Check::Style("[data-dnacalc=column-header][data-column=B]", "width:145px"),
+        ],
+    },
+    Case {
+        name: "axis: dimension controls and labels remain reachable at phone width",
+        actions: &[
+            Action::Click("undo"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Window(390, 844),
+        ],
+        checks: &[
+            Check::Reachable("column-size"),
+            Check::Reachable("row-size"),
+            Check::Reachable("show-columns"),
+            Check::Reachable("show-rows"),
+            Check::Fits,
+        ],
+    },
+    Case {
+        name: "axis: hidden rows and column widths recalculate SUBTOTAL and CELL through the app route",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "Book1.xlsx")),
+            Action::Into(BAR, "1\u{E007}"),
+            Action::Into(BAR, "2\u{E007}"),
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Into(BAR, "=SUBTOTAL(109,A1:A2)\u{E007}"),
+            Action::Into("name-box", "C3\u{E007}"),
+            Action::Into(BAR, "=SUM(CELL(\"width\",B1))\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into("column-size", "20\u{E007}"),
+            Action::Wait(Check::Text(cell!("C3"), "20")),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("hide-rows"),
+        ],
+        checks: &[
+            Check::Text(cell!("C1"), "1"),
+            Check::Text(cell!("C3"), "20"),
+        ],
+    },
+    Case {
+        name: "axis: Undo of hiding recalculates the dependent total without changing inputs",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Text(cell!("C1"), "3"),
+            Check::Text(cell!("A1"), "1"),
+            Check::Text(cell!("A2"), "2"),
+        ],
+    },
+    Case {
+        name: "axis: dragging a selected header edge resizes all selected columns in one command",
+        actions: &[
+            Action::Into("name-box", "A1:B1048576\u{E007}"),
+            Action::ResizeHeader(
+                "[data-dnacalc=column-header][data-column=B]",
+                false,
+                70,
+                false,
+            ),
+        ],
+        checks: &[
+            Check::Style(cell!("A1"), "width:215px"),
+            Check::Style("[data-dnacalc=column-header][data-column=B]", "width:215px"),
+            Check::Text(cell!("C3"), "30"),
+            Check::Absent("resize-preview"),
+        ],
+    },
+    Case {
+        name: "axis: Undo restores the different widths before a group header drag",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::Style(cell!("A1"), "width:64px"),
+            Check::Style("[data-dnacalc=column-header][data-column=B]", "width:145px"),
+            Check::Text(cell!("C3"), "20"),
+        ],
+    },
+    Case {
+        name: "axis: dragging a row boundary resizes selected rows in point units",
+        actions: &[
+            Action::Into("name-box", "A1:XFD2\u{E007}"),
+            Action::ResizeHeader("[data-dnacalc=row-header][data-row='1']", true, 20, false),
+        ],
+        checks: &[
+            Check::Style(cell!("A1"), "height:40px"),
+            Check::Style(cell!("A2"), "height:40px"),
+            Check::Absent("resize-preview"),
+        ],
+    },
+    Case {
+        name: "axis: Escape cancels header resizing without an Undo entry",
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::Style(cell!("A1"), "height:20px")),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::ResizeHeader(
+                "[data-dnacalc=column-header][data-column=B]",
+                false,
+                35,
+                true,
+            ),
+            Action::Wait(Check::Style(
+                "[data-dnacalc=column-header][data-column=B]",
+                "width:145px",
+            )),
+            Action::Click("undo"),
+        ],
+        checks: &[
+            Check::Style("[data-dnacalc=column-header][data-column=B]", "width:64px"),
+            Check::Absent("resize-preview"),
+            Check::Text(cell!("A2"), "2"),
+        ],
+    },
+    Case {
+        name: "axis: dragging to zero hides a column and Show restores its retained width",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::ResizeHeader(
+                "[data-dnacalc=column-header][data-column=B]",
+                false,
+                -64,
+                false,
+            ),
+            Action::Wait(Check::Absent("[data-dnacalc=column-header][data-column=B]")),
+            Action::Wait(Check::Style(cell!("C1"), "left:128px")),
+            Action::Click("show-columns"),
+        ],
+        checks: &[
+            Check::Style("[data-dnacalc=column-header][data-column=B]", "width:64px"),
+            Check::Style(cell!("C1"), "left:192px"),
+        ],
+    },
+    Case {
+        name: "axis: a zoomed header drag changes physical width independently of zoom",
+        actions: &[
+            Action::Into("zoom-percent", "200%\u{E007}"),
+            Action::Wait(Check::Text("zoom", "200%")),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::ResizeHeader(
+                "[data-dnacalc=column-header][data-column=A]",
+                false,
+                70,
+                false,
+            ),
+            Action::Wait(Check::Style(cell!("A1"), "width:198px")),
+            Action::Click("zoom-reset"),
+            Action::Wait(Check::Style(cell!("A1"), "width:99px")),
+            Action::Click("undo"),
+        ],
+        checks: &[
+            Check::Style(cell!("A1"), "width:64px"),
+            Check::Text("zoom", "100%"),
+        ],
+    },
+    Case {
+        name: "axis: a dimension edit invalidates imported manual-mode caches without calculating them",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::ManualDownloadFixture,
+            Action::UploadDownload("manual-cache.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "manual-cache.xlsx")),
+            Action::Wait(Check::Attr(cell!("C3"), "data-provenance", "file-cache")),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into("column-size", "20\u{E007}"),
+        ],
+        checks: &[
+            Check::Attr(cell!("C3"), "data-provenance", "stale"),
+            Check::Attr(cell!("C1"), "data-provenance", "stale"),
+            Check::Value("calc-mode", "manual"),
+        ],
+    },
+    Case {
+        name: "axis: calculation publishes current width and hidden-row results after manual edits",
+        actions: &[
+            Action::Click("calculate"),
+            Action::Wait(Check::Text(cell!("C3"), "20")),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("hide-rows"),
+            Action::Wait(Check::Attr(cell!("C1"), "data-provenance", "stale")),
+            Action::Click("calculate"),
+        ],
+        checks: &[
+            Check::Text(cell!("C1"), "1"),
+            Check::Text(cell!("C3"), "20"),
+            Check::Attr(cell!("C1"), "data-provenance", "calculated"),
+            Check::Attr(cell!("C3"), "data-provenance", "calculated"),
+        ],
+    },
+    Case {
+        name: "axis: AutoFit measures selected displayed text and formula results in the grid font",
+        actions: &[
+            Action::Click("[data-dnacalc=axis-tools] summary"),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "Book1.xlsx")),
+            Action::Into(BAR, "'WWWWWWWWWWWWWWWWWWWW\u{E007}"),
+            Action::Into(BAR, "short\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into(BAR, "12345\u{E007}"),
+            Action::Into(BAR, "=REPT(\"x\",30)\u{E007}"),
+            Action::Into("name-box", "A1:B2\u{E007}"),
+            Action::Click("[data-dnacalc=axis-tools] summary"),
+            Action::RememberView("[data-dnacalc=column-header][data-column=A]"),
+            Action::Click("autofit-columns"),
+        ],
+        checks: &[
+            Check::TextContains("status", "Fitted contents"),
+            Check::FitsText(cell!("A1")),
+            Check::FitsText(cell!("B1")),
+            Check::FitsText(cell!("B2")),
+            Check::Text(cell!("B2"), "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
+            Check::Text(cell!("B1"), "12345"),
+        ],
+    },
+    Case {
+        name: "axis: one Undo restores every width before AutoFit and preserves the contents",
+        actions: &[Action::Click("undo")],
+        checks: &[
+            Check::ViewRetained,
+            Check::Style("[data-dnacalc=column-header][data-column=B]", "width:64px"),
+            Check::Text(cell!("B2"), "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
+        ],
+    },
+    Case {
+        name: "axis: AutoFit height shrinks selected unwrapped rows in one command",
+        actions: &[
+            Action::Click("autofit-columns"),
+            Action::Wait(Check::TextContains("status", "Fitted contents")),
+            Action::Into("row-size", "40\u{E007}"),
+            Action::Wait(Check::Style(cell!("A1"), "height:53px")),
+            Action::Click("autofit-rows"),
+        ],
+        checks: &[
+            Check::Style(cell!("A1"), "height:20px"),
+            Check::Style(cell!("A2"), "height:20px"),
+            Check::TextContains("status", "Fitted contents"),
+        ],
+    },
+    Case {
+        name: "axis: Undo and Redo preserve the height fitting as a group",
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::Style(cell!("A1"), "height:53px")),
+            Action::Wait(Check::Style(cell!("A2"), "height:53px")),
+            Action::Click("redo"),
+        ],
+        checks: &[
+            Check::Style(cell!("A1"), "height:20px"),
+            Check::Style(cell!("A2"), "height:20px"),
+        ],
+    },
+    Case {
+        name: "axis: fitted physical dimensions survive a saved package round trip",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("Book1.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "Book1.xlsx")),
+        ],
+        checks: &[
+            Check::FitsText(cell!("A1")),
+            Check::FitsText(cell!("B2")),
+            Check::Style(cell!("A1"), "height:20px"),
+        ],
+    },
+    Case {
+        name: "axis: fitting an empty band retains its size without an Undo entry",
+        actions: &[
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Into("column-size", "20\u{E007}"),
+            Action::Wait(Check::Style(
+                "[data-dnacalc=column-header][data-column=D]",
+                "width:145px",
+            )),
+            Action::Click("autofit-columns"),
+            Action::Wait(Check::TextContains("status", "No visible nonempty")),
+            Action::Wait(Check::Style(
+                "[data-dnacalc=column-header][data-column=D]",
+                "width:145px",
+            )),
+            Action::Click("undo"),
+        ],
+        checks: &[Check::Style(
+            "[data-dnacalc=column-header][data-column=D]",
+            "width:64px",
+        )],
+    },
+    Case {
+        name: "axis: double-clicking a column boundary fits its whole column with one Undo",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into("column-size", "8.43\u{E007}"),
+            Action::Wait(Check::Style(
+                "[data-dnacalc=column-header][data-column=A]",
+                "width:64px",
+            )),
+            Action::DoubleClickEdge("[data-dnacalc=column-header][data-column=A]", false),
+            Action::Wait(Check::FitsText(cell!("A1"))),
+            Action::Click("undo"),
+        ],
+        checks: &[Check::Style(
+            "[data-dnacalc=column-header][data-column=A]",
+            "width:64px",
+        )],
+    },
+    Case {
+        name: "axis: double-clicking a row boundary fits its content with one Undo",
+        actions: &[
+            Action::Into("row-size", "30\u{E007}"),
+            Action::Wait(Check::Style(cell!("A1"), "height:40px")),
+            Action::DoubleClickEdge("[data-dnacalc=row-header][data-row='1']", true),
+            Action::Wait(Check::Style(cell!("A1"), "height:20px")),
+            Action::Click("undo"),
+        ],
+        checks: &[Check::Style(cell!("A1"), "height:40px")],
+    },
+    Case {
+        name: "axis: AutoFit refuses merged content atomically and explains the limit",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "features.xlsx")),
+            Action::Into("name-box", "H1:I1\u{E007}"),
+            Action::RememberView("[data-dnacalc=column-header][data-column=H]"),
+            Action::Click("autofit-columns"),
+        ],
+        checks: &[Check::TextContains("status", "merged"), Check::ViewRetained],
+    },
+    Case {
+        name: "axis: AutoFit refuses wrapping until that display is available",
+        actions: &[
+            Action::Into("name-box", "B5\u{E007}"),
+            Action::Click("autofit-rows"),
+        ],
+        checks: &[
+            Check::TextContains("status", "wrapping"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "axis: AutoFit diagnoses an unrendered custom font without changing width",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::RememberView("[data-dnacalc=column-header][data-column=A]"),
+            Action::Click("autofit-columns"),
+        ],
+        checks: &[
+            Check::TextContains("status", "custom fonts"),
+            Check::ViewRetained,
+        ],
+    },
+    Case {
+        name: "axis: AutoFit commands remain reachable at phone width",
+        actions: &[Action::Window(390, 844)],
+        checks: &[
+            Check::Reachable("autofit-columns"),
+            Check::Reachable("autofit-rows"),
+            Check::Fits,
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -4474,6 +4994,23 @@ const CALC_LATENCY_CASES: &[Case] = &[
             Check::Text(cell!("B1"), "10"),
             Check::Absent("cell-editor"),
             Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "worker latency: Escape cancels a header drag while selection replies are pending",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::ResizeHeader(
+                "[data-dnacalc=column-header][data-column=B]",
+                false,
+                35,
+                true,
+            ),
+            Action::PauseMillis(900),
+        ],
+        checks: &[
+            Check::Style("[data-dnacalc=column-header][data-column=B]", "width:64px"),
+            Check::Absent("resize-preview"),
         ],
     },
     Case {
@@ -4788,6 +5325,16 @@ fn faults(app: &App, session: &Session) -> Result<Vec<String>, String> {
 fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<(), String> {
     match action {
         Action::RememberView(name) => {
+            // Name-box navigation resolves through the worker. Capture the selected view only
+            // after that reply, rather than the input's temporary, still-typed range text.
+            if let Some(reason) = wait_for(
+                app,
+                session,
+                &Check::Absent("[data-dnacalc=skin-grid][disabled]"),
+                SETTLE,
+            ) {
+                return Err(reason);
+            }
             let selector = serde_json::to_string(&select(app, name)).unwrap();
             session.script(&format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),e=document.querySelector({selector}),r=e.getBoundingClientRect(),b=g.getBoundingClientRect(),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]').dataset.sheet;window.__dcViews=window.__dcViews||{{}};window.__dcViews[key]={{selector:{selector},x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]').textContent,address:document.querySelector('[data-dnacalc=name-box]').value}};return null;"#))?;
             Ok(())
@@ -4991,6 +5538,28 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             ]}]}))?;
             Ok(())
         }
+        Action::DoubleClickEdge(name, rows) => {
+            let selector = serde_json::to_string(&select(app, name)).unwrap();
+            let xy = session.script(&format!(
+                "var r=document.querySelector({selector}).getBoundingClientRect();return [{},{}];",
+                if *rows {
+                    "Math.round(r.left+r.width/2)"
+                } else {
+                    "Math.round(r.right-1)"
+                },
+                if *rows {
+                    "Math.round(r.bottom-1)"
+                } else {
+                    "Math.round(r.top+r.height/2)"
+                }
+            ))?;
+            session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
+                {"type":"pointerMove","duration":0,"origin":"viewport","x":xy[0],"y":xy[1]},
+                {"type":"pointerDown","button":0},{"type":"pointerUp","button":0},
+                {"type":"pointerDown","button":0},{"type":"pointerUp","button":0}
+            ]}]}))?;
+            Ok(())
+        }
         Action::DoubleClick(name) => {
             let element = session.element(&select(app, name))?;
             session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
@@ -5009,6 +5578,39 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 {"type":"pointerMove","duration":200,"origin":{"element-6066-11e4-a52e-4f735466cecf":to},"x":0,"y":0},
                 {"type":"pointerUp","button":0}
             ]}]}))?;
+            Ok(())
+        }
+        Action::ResizeHeader(name, rows, delta, cancel) => {
+            let selector = serde_json::to_string(&select(app, name)).unwrap();
+            let xy = session.script(&format!(
+                "var r=document.querySelector({selector}).getBoundingClientRect();return [{},{}];",
+                if *rows {
+                    "Math.round(r.left+r.width/2)"
+                } else {
+                    "Math.round(r.right-1)"
+                },
+                if *rows {
+                    "Math.round(r.bottom-1)"
+                } else {
+                    "Math.round(r.top+r.height/2)"
+                }
+            ))?;
+            let x = xy[0].as_i64().ok_or("resize x")?;
+            let y = xy[1].as_i64().ok_or("resize y")?;
+            session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
+                {"type":"pointerMove","duration":0,"origin":"viewport","x":x,"y":y},{"type":"pointerDown","button":0},
+                {"type":"pointerMove","duration":200,"origin":"viewport","x":x+if *rows {0} else {i64::from(*delta)},"y":y+if *rows {i64::from(*delta)} else {0}}
+            ]}]}))?;
+            if *cancel {
+                if session
+                    .script("return !!document.querySelector('[data-dnacalc=resize-preview]');")?
+                    != Value::Bool(true)
+                {
+                    return Err("No live resize preview before Escape".to_owned());
+                }
+                session.keys(&select(app, "grid"), "\u{E00C}")?;
+            }
+            session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerUp","button":0}]}]}))?;
             Ok(())
         }
         Action::DragToCell(from, row, col) => {

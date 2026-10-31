@@ -384,10 +384,17 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
     let panes_changed = base.definitions().panes().ne(model.definitions().panes());
+    let dimensions_changed =
+        base.definitions().axis_layouts() != model.definitions().axis_layouts();
     // The iterative-calculation settings an edit changed (dc-y2o.2), written to the `calcPr`.
     let iteration = Some(model.definitions().iteration())
         .filter(|settings| *settings != base.definitions().iteration());
-    if !cells_changed && layout.is_none() && !names_changed && !panes_changed && iteration.is_none()
+    if !cells_changed
+        && layout.is_none()
+        && !names_changed
+        && !panes_changed
+        && !dimensions_changed
+        && iteration.is_none()
     {
         return Ok(out);
     }
@@ -825,6 +832,48 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         && package.part(&chain).is_some()
     {
         out.removed.push(chain);
+    }
+    if dimensions_changed {
+        for sheet in sheets.iter() {
+            let changed = [calc_doc_model::Axis::Rows, calc_doc_model::Axis::Columns]
+                .into_iter()
+                .any(|axis| {
+                    base.definitions()
+                        .axis_layouts()
+                        .bands(sheet.id(), axis)
+                        .ne(model.definitions().axis_layouts().bands(sheet.id(), axis))
+                });
+            if !changed {
+                continue;
+            }
+            if sheets.iter().any(|other| {
+                other.id() != sheet.id()
+                    && other
+                        .part()
+                        .name()
+                        .eq_ignore_ascii_case(sheet.part().name())
+            }) {
+                return Err(SaveRefusal::SharedSheetPart {
+                    part: sheet.part().name().to_owned(),
+                });
+            }
+            if sheet.is_macro_sheet() {
+                return Err(SaveRefusal::MacroSheetChanged {
+                    part: sheet.part().name().to_owned(),
+                });
+            }
+            let original = read_part(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|bytes| original.with_bytes(bytes));
+            let bytes = super::geometry::rewrite(
+                current.as_ref().unwrap_or(&original),
+                sheet.id(),
+                model.definitions().axis_layouts(),
+            )?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
     }
     if panes_changed {
         for sheet in sheets.iter().filter(|s| {

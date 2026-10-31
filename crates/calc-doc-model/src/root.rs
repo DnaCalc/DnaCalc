@@ -526,6 +526,7 @@ impl ModelRoot {
         // The cell formats the batch sets, in order.
         let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
         let mut panes = Vec::new();
+        let mut axis_formats = Vec::new();
         // The defined names' formulas the batch sets, as the names will read.
         let mut names: Option<Vec<crate::DefinedName>> = None;
         let mut iteration: Option<crate::definitions::IterationSettings> = None;
@@ -590,6 +591,10 @@ impl ModelRoot {
                     }
                 }
                 WorkbookOp::SetIteration(settings) => iteration = Some(*settings),
+                WorkbookOp::SetAxisFormat(edit) => {
+                    self.position_of(operation, edit.sheet())?;
+                    axis_formats.push(*edit);
+                }
                 WorkbookOp::SetFrozenPanes {
                     sheet,
                     panes: value,
@@ -646,10 +651,14 @@ impl ModelRoot {
         };
         if !formats.is_empty()
             || !panes.is_empty()
+            || !axis_formats.is_empty()
             || names.is_some()
             || iteration.is_some_and(|settings| settings != definitions.iteration())
         {
             let mut next = Definitions::clone(&definitions);
+            for edit in axis_formats {
+                next = next.with_axis_format(edit);
+            }
             for (sheet, panes) in panes {
                 next = next.with_frozen_panes(sheet, panes);
             }

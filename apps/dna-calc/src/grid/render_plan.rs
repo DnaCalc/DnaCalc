@@ -104,6 +104,7 @@ pub fn build_render_plan<'a>(
     let col_headers = visible_col_range(m, v, extent_cols)
         .map(|(first, last)| {
             (first..=last)
+                .filter(|&col| m.width(col) > 0.0)
                 .map(|col| PlannedColHeader {
                     col,
                     rect: col_header_rect(m, v, col),
@@ -115,6 +116,7 @@ pub fn build_render_plan<'a>(
     let row_headers = visible_row_range(m, v, extent_rows)
         .map(|(first, last)| {
             (first..=last)
+                .filter(|&row| m.height(row) > 0.0)
                 .map(|row| PlannedRowHeader {
                     row,
                     rect: row_header_rect(m, v, row),
@@ -207,6 +209,27 @@ fn rect_intersects_viewport(rect: &CellRect, v: &Viewport) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn hidden_bands_have_no_rendered_header_or_border() {
+        use super::*;
+        use crate::grid::geometry::Sizes;
+        let mut m = GridMetrics::default();
+        m.cols = Sizes::new(m.col_width, [(2, 0.0)]);
+        m.rows = Sizes::new(m.row_height, [(2, 0.0)]);
+        let v = Viewport {
+            scroll_x: 0.0,
+            scroll_y: 0.0,
+            width: 500.0,
+            height: 300.0,
+        };
+        let plan = build_render_plan(&[], &m, &v, 20, 20);
+        assert!(!plan.col_headers.iter().any(|h| h.col == 2));
+        assert!(!plan.row_headers.iter().any(|h| h.row == 2));
+        assert_eq!(plan.col_headers[1].col, 3);
+        assert_eq!(plan.col_headers[1].rect.x, m.header_w + m.width(1));
+    }
+
     use super::*;
     use crate::cells::Provenance;
     use crate::grid::geometry::{HitTarget, hit_test};

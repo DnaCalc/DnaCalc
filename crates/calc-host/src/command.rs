@@ -16,6 +16,8 @@ use std::sync::Arc;
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
+    /// Changes a physical row height, column width or hidden flag.
+    AxisFormat(calc_doc_model::AxisFormatEdit),
     /// Changes a worksheet window's frozen leading bands without changing cells.
     FrozenPanes {
         sheet: calc_doc_model::value::SheetId,
@@ -60,6 +62,7 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
+            CellEdit::AxisFormat(edit) => WorkbookOp::SetAxisFormat(edit),
             CellEdit::FrozenPanes { sheet, panes } => WorkbookOp::SetFrozenPanes { sheet, panes },
             CellEdit::Set { at, input } => WorkbookOp::SetCell { at, input },
             CellEdit::Clear { area } => WorkbookOp::Clear { area },
@@ -247,7 +250,12 @@ pub fn dispatch(
     let engine = calc_engine::prepare_edit(&mut host.engine, &host.model, &batch)
         .map_err(CommandError::Engine)?;
 
-    let changes_inputs = !engine.seeds().is_empty() || !engine.node_changes().is_empty();
+    let facts_changed = batch
+        .operations
+        .iter()
+        .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_)));
+    let changes_inputs =
+        facts_changed || !engine.seeds().is_empty() || !engine.node_changes().is_empty();
     let (mut added, mut replaced, mut removed) = (0usize, 0usize, 0usize);
     for change in engine.node_changes() {
         match change {
@@ -288,7 +296,7 @@ pub fn dispatch(
     // After the commit the pending nodes are those pending before, the added and replaced nodes
     // and the seeds' dependents, less the removed ones: at most this many.
     // A structural edit leaves every node pending.
-    let mut pending = Vec::with_capacity(if axis_edits.is_empty() {
+    let mut pending = Vec::with_capacity(if axis_edits.is_empty() && !facts_changed {
         pending_before + added + replaced + seeded
     } else {
         formula_cells

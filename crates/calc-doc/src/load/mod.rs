@@ -112,6 +112,7 @@ pub struct LoadedSheet {
     conditional_formats: Arc<[ConditionalFormat]>,
     macro_sheet: bool,
     protected: bool,
+    merged_areas: Vec<GridArea>,
     validations: Arc<[Validation]>,
     charts: Arc<SheetCharts>,
 }
@@ -121,6 +122,11 @@ impl LoadedSheet {
     pub fn protected(&self) -> bool {
         self.protected
     }
+    /// Imported merged ranges, retained as metadata; ordinary cells remain canonical inputs.
+    pub fn merged_areas(&self) -> &[GridArea] {
+        &self.merged_areas
+    }
+
     /// Whether the sheet is an Excel 4.0 macro sheet (dc-xuw): its formula cells are unloaded
     /// ([`calc_doc_model::UnloadedCell::MacroSheet`]) and a save that would change its part is
     /// refused ([`crate::SaveRefusal::MacroSheetChanged`]).
@@ -1071,6 +1077,7 @@ pub fn load(
                     conditional_formats: loaded.conditional_formats.into(),
                     macro_sheet: declared.macro_sheet,
                     protected: loaded.protected,
+                    merged_areas: loaded.merged_areas,
                     validations: loaded.validations.into(),
                     charts: Arc::new(chart::read_charts(package, &declared.part)),
                 });
@@ -1147,7 +1154,12 @@ pub fn load(
             (sheet, row, why)
         })
         .collect();
+    let mut axis_layouts = calc_doc_model::AxisLayouts::default();
+    for sheet in &sheets {
+        sheet.geometry.add_to_model(sheet.id, &mut axis_layouts);
+    }
     let definitions = Definitions::new(arrays, names, tables, unloaded)
+        .with_axis_layouts(axis_layouts)
         .with_panes(
             sheets
                 .iter()

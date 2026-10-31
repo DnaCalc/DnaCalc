@@ -296,6 +296,7 @@ pub enum RowHidden {
 /// hidden rows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Definitions {
+    axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::FrozenPanes>,
     arrays: BTreeMap<CellKey, ArrayFormula>,
     names: Vec<DefinedName>,
@@ -317,6 +318,26 @@ pub struct Definitions {
 }
 
 impl Definitions {
+    pub fn axis_layouts(&self) -> &crate::AxisLayouts {
+        &self.axis_layouts
+    }
+    pub fn with_axis_layouts(mut self, layouts: crate::AxisLayouts) -> Self {
+        self.axis_layouts = layouts;
+        self
+    }
+    pub fn with_axis_format(mut self, edit: crate::AxisFormatEdit) -> Self {
+        self.axis_layouts.set(edit);
+        if edit.axis() == crate::Axis::Rows {
+            let key = (edit.sheet(), edit.index());
+            if edit.format().hidden() {
+                self.hidden_rows.entry(key).or_insert(RowHidden::Manual);
+            } else {
+                self.hidden_rows.remove(&key);
+            }
+        }
+        self
+    }
+
     pub fn frozen_panes(&self, sheet: SheetId) -> Option<crate::FrozenPanes> {
         self.panes.get(&sheet).copied()
     }
@@ -345,6 +366,7 @@ impl Definitions {
         unloaded: impl IntoIterator<Item = (CellKey, UnloadedCell)>,
     ) -> Self {
         Definitions {
+            axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
             arrays: arrays
                 .into_iter()
@@ -536,6 +558,7 @@ impl Definitions {
     /// These definitions without anything of `sheet`: its array formulas, tables, unloaded
     /// cells, hidden rows and the names scoped to it (a removed sheet).
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
+        self.axis_layouts.without_sheet(sheet);
         self.panes.remove(&sheet);
         self.arrays.retain(|at, _| at.sheet() != sheet);
         self.tables.retain(|table| table.sheet != sheet);
@@ -562,7 +585,8 @@ impl Definitions {
 
     /// Whether nothing is defined.
     pub fn is_empty(&self) -> bool {
-        self.panes.is_empty()
+        self.axis_layouts.sheets().next().is_none()
+            && self.panes.is_empty()
             && self.arrays.is_empty()
             && self.names.is_empty()
             && self.tables.is_empty()
@@ -652,6 +676,7 @@ impl Definitions {
             .chain(self.tables.iter().map(|table| table.sheet))
             .chain(self.hidden_rows.keys().map(|(sheet, _)| *sheet))
             .chain(self.panes.keys().copied())
+            .chain(self.axis_layouts.sheets())
             .chain(self.data_tables.iter().map(|table| table.area.sheet()))
             .chain(self.names.iter().filter_map(|name| match name.scope {
                 NameScope::Sheet(sheet) => Some(sheet),

@@ -80,6 +80,7 @@ impl Server {
         let mut out = None;
         let reply = (|| -> Result<Reply, String> {
             match request {
+                Request::FitContents { area: target } => self.fit_contents(area(target)?),
                 Request::Capture { area: source, keep } => {
                     let from = area(source)?;
                     let snapshot = calc_host::CopySnapshot::capture(self.book.host(), from)
@@ -491,8 +492,245 @@ impl Server {
         }
     }
 
+    fn fit_contents(&self, target: GridArea) -> Result<Reply, String> {
+        let host = self.book.host();
+        if host.model().sheet_by_id(target.sheet()).is_none() {
+            return Err("The sheet is unavailable".to_owned());
+        }
+        let sheet = host
+            .loaded()
+            .sheet(target.sheet())
+            .ok_or("The sheet is unavailable")?;
+        if sheet.protected() {
+            return Err("Fitting a protected sheet is unavailable here".to_owned());
+        }
+        if host.merged_areas(target.sheet()).iter().any(|merge| {
+            merge.first().row() <= target.last().row()
+                && merge.last().row() >= target.first().row()
+                && merge.first().column() <= target.last().column()
+                && merge.last().column() >= target.first().column()
+        }) {
+            return Err(
+                "AutoFit with merged cells is unavailable; choose an unmerged range".to_owned(),
+            );
+        }
+        let metrics = crate::grid::sheet_metrics(host.sheet_geometry(target.sheet()).as_ref());
+        let mut keys = std::collections::BTreeSet::new();
+        for occupied in host.occupied_areas(target.sheet()) {
+            let top = target.first().row().max(occupied.first().row());
+            let left = target.first().column().max(occupied.first().column());
+            let bottom = target.last().row().min(occupied.last().row());
+            let right = target.last().column().min(occupied.last().column());
+            if top > bottom || left > right {
+                continue;
+            }
+            if u64::from(bottom - top + 1) * u64::from(right - left + 1)
+                > crate::grid::autofit::FIT_CELLS as u64
+            {
+                return Err("Fit at most 10000 occupied cells at once".to_owned());
+            }
+            for row in top..=bottom {
+                for column in left..=right {
+                    if metrics.width(column) == 0.0 || metrics.height(row) == 0.0 {
+                        continue;
+                    }
+                    keys.insert(CellKey::new(target.sheet(), row, column).unwrap());
+                    if keys.len() > crate::grid::autofit::FIT_CELLS {
+                        return Err("Fit at most 10000 occupied cells at once".to_owned());
+                    }
+                }
+            }
+        }
+        let styles = host.loaded().styles();
+        for at in &keys {
+            let style = host.cell_style(*at);
+            let format = styles.cell_formats.get(style as usize);
+            if format.is_none() && style != 0 {
+                return Err("The cell style is unavailable".to_owned());
+            }
+            if format
+                .into_iter()
+                .chain(format.and_then(|f| {
+                    f.xf_id
+                        .and_then(|i| styles.cell_style_formats.get(i as usize))
+                }))
+                .any(|format| {
+                    format.font_id.unwrap_or(0) != 0
+                        || format.alignment.as_ref().is_some_and(|a| {
+                            a.wrap_text
+                                || a.shrink_to_fit
+                                || a.text_rotation.as_deref().is_some_and(|n| n != "0")
+                                || a.indent.as_deref().is_some_and(|n| n != "0")
+                                || matches!(
+                                    a.horizontal.as_deref(),
+                                    Some("fill" | "justify" | "distributed")
+                                )
+                        })
+                })
+            {
+                return Err("AutoFit of custom fonts, wrapping, rotation or indentation is unavailable here".to_owned());
+            }
+        }
+        let projected = calc_host::project(
+            host,
+            &calc_host::ProjectionRequest {
+                cells: keys.into_iter().collect(),
+            },
+        )
+        .map_err(|e| e.to_string())?;
+        let mut cells = Vec::new();
+        for p in projected.cells() {
+            let shown = self.book.shown(p);
+            if shown.text.contains(['\n', '\r']) {
+                return Err("AutoFit of multiline cells is unavailable here".to_owned());
+            }
+            cells.push(Cell::of(
+                &shown,
+                cells::input_text(p.input()),
+                cells::provenance_text(host, p),
+                p,
+            ));
+        }
+        Ok(Reply::FitContents {
+            revision: host.revision().get(),
+            cells,
+        })
+    }
+
+    fn axis_format_edits(
+        &self,
+        sheet: Sheet,
+        rows: bool,
+        first: u32,
+        count: u32,
+        size_bits: Option<u64>,
+        hidden: Option<bool>,
+    ) -> Result<Vec<CellEdit>, String> {
+        let host = self.book.host();
+        let loaded = host
+            .loaded()
+            .sheet(sheet.id())
+            .ok_or("The sheet is unavailable")?;
+        if loaded.protected() {
+            return Err("Dimensions on a protected sheet are not available here".to_owned());
+        }
+        let axis = if rows {
+            calc_host::Axis::Rows
+        } else {
+            calc_host::Axis::Columns
+        };
+        let last = first
+            .checked_add(count)
+            .and_then(|n| n.checked_sub(1))
+            .filter(|n| first >= 1 && count > 0 && *n <= axis.size())
+            .ok_or("The dimensions are outside the worksheet")?;
+        if count > 16_384 {
+            return Err("Change at most 16384 rows or columns at once".to_owned());
+        }
+        if rows
+            && host
+                .model()
+                .definitions()
+                .hidden_rows(sheet.id(), first, last)
+                .any(|(_, why)| why == calc_host::RowHidden::Filtered)
+        {
+            return Err("Rows hidden by a filter cannot be resized or shown here".to_owned());
+        }
+        let size = size_bits
+            .map(|b| crate::grid::axis::stored_size(rows, f64::from_bits(b)))
+            .transpose()
+            .map_err(str::to_owned)?;
+        let mut edits = Vec::new();
+        for index in first..=last {
+            let old = host
+                .model()
+                .definitions()
+                .axis_layouts()
+                .get(sheet.id(), axis, index);
+            let mut new = old;
+            if let Some(size) = size {
+                new = match size {
+                    None => old.with_hidden(true),
+                    Some(n) => {
+                        calc_host::AxisFormat::new(Some(n), false, !rows).expect("a checked size")
+                    }
+                };
+            }
+            if let Some(hidden) = hidden {
+                new = if !hidden && new.size() == Some(0.0) {
+                    calc_host::AxisFormat::default()
+                } else {
+                    new.with_hidden(hidden)
+                };
+            }
+            if old != new {
+                edits.push(CellEdit::AxisFormat(
+                    calc_host::AxisFormatEdit::new(sheet.id(), axis, index, new)
+                        .expect("checked band indices"),
+                ));
+            }
+        }
+        Ok(edits)
+    }
+
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
+            Intent::FitContents {
+                sheet,
+                rows,
+                revision,
+                sizes,
+            } => {
+                if revision != self.book.host().revision().get() {
+                    return Err("The workbook changed while fitting; try again".to_owned());
+                }
+                if sizes.len() > 16384 {
+                    return Err("Fit at most 16384 rows or columns at once".to_owned());
+                }
+                let axis = if rows { Axis::Rows } else { Axis::Columns };
+                let mut edits = Vec::new();
+                let mut seen = std::collections::BTreeSet::new();
+                for (index, size) in sizes {
+                    if !seen.insert(index) {
+                        return Err("A fitted band was repeated".to_owned());
+                    }
+                    let hidden = self
+                        .book
+                        .host()
+                        .model()
+                        .definitions()
+                        .axis_layouts()
+                        .get(sheet.id(), axis, index)
+                        .hidden();
+                    edits.extend(self.axis_format_edits(
+                        sheet,
+                        rows,
+                        index,
+                        1,
+                        Some(size),
+                        Some(hidden),
+                    )?);
+                }
+                if edits.is_empty() {
+                    return Ok(self.done(true, None, 0.0));
+                }
+                SkinIntent::Edit { edits }
+            }
+
+            Intent::AxisFormat {
+                sheet,
+                rows,
+                first,
+                count,
+                size_bits,
+                hidden,
+            } => {
+                let edits = self.axis_format_edits(sheet, rows, first, count, size_bits, hidden)?;
+                if edits.is_empty() {
+                    return Ok(self.done(true, None, 0.0));
+                }
+                SkinIntent::Edit { edits }
+            }
             Intent::FreezePanes {
                 sheet,
                 rows,
@@ -860,6 +1098,8 @@ fn host_interest(interest: Interest) -> Result<calc_host::Interest, String> {
 /// The page's intent as calc-host's.
 fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
     Ok(match intent {
+        Intent::FitContents { .. } => return Err("fitting needs the workbook worker".to_owned()),
+        Intent::AxisFormat { .. } => return Err("dimensions need the workbook worker".to_owned()),
         Intent::FreezePanes { .. } => return Err("pane editing needs the workbook view".to_owned()),
         Intent::ApplyPaste { .. } => return Err("paste needs its worker preview".to_owned()),
         Intent::EnterCell { at, text } => SkinIntent::EnterCell {
@@ -950,5 +1190,108 @@ pub fn answer_text(
             wire::encode(&FromServer::Failed { id: None, message }),
             None,
         ),
+    }
+}
+
+#[cfg(test)]
+mod fit_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn fitted_contents_come_from_projection_and_a_stale_measurement_cannot_edit() {
+        let mut server = Server::new();
+        let sheet = server.book.host().sheets()[0].id();
+        let at = CellKey::new(sheet, 1, 1).unwrap();
+        let enter = |at, text: &str| {
+            Request::Intent(Intent::EnterCell {
+                at: Key::of(at),
+                text: text.to_owned(),
+            })
+        };
+        assert!(server.handle(enter(at, "original"), None).reply.is_ok());
+        let Reply::FitContents { revision, cells } = server
+            .handle(
+                Request::FitContents {
+                    area: Area::of(GridArea::cell(at)),
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        else {
+            panic!("the content reply")
+        };
+        assert_eq!(cells.len(), 1);
+        assert_eq!(cells[0].text, "original");
+        assert!(
+            server
+                .handle(enter(CellKey::new(sheet, 2, 1).unwrap(), "later"), None)
+                .reply
+                .is_ok()
+        );
+        let answer = server.handle(
+            Request::Intent(Intent::FitContents {
+                sheet: Sheet::of(sheet),
+                rows: false,
+                revision,
+                sizes: vec![(1, 20f64.to_bits())],
+            }),
+            None,
+        );
+        assert!(answer.reply.unwrap_err().contains("changed while fitting"));
+        assert_eq!(
+            server
+                .book
+                .host()
+                .model()
+                .definitions()
+                .axis_layouts()
+                .get(sheet, Axis::Columns, 1)
+                .size(),
+            None
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn fitting_refuses_a_large_spill_before_expanding_or_projecting_its_cells() {
+        let mut server = Server::new();
+        let sheet = server.book.host().sheets()[0].id();
+        let at = CellKey::new(sheet, 1, 1).unwrap();
+        let reply = server
+            .handle(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(at),
+                    text: "=SEQUENCE(10001)".to_owned(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(matches!(
+            reply,
+            Reply::Done {
+                outcome: Outcome { accepted: true, .. },
+                ..
+            }
+        ));
+        let target = GridArea::new(at, CellKey::new(sheet, 10001, 1).unwrap()).unwrap();
+        let answer = server.handle(
+            Request::FitContents {
+                area: Area::of(target),
+            },
+            None,
+        );
+        assert!(answer.reply.unwrap_err().contains("10000 occupied"));
+        assert_eq!(
+            server
+                .book
+                .host()
+                .model()
+                .definitions()
+                .axis_layouts()
+                .get(sheet, Axis::Columns, 1)
+                .size(),
+            None
+        );
     }
 }

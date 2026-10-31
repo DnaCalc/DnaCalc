@@ -519,7 +519,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
         crate::grid::focus_grid();
     };
     view! {
-        <details class="dc-clipboard-tools" data-dnacalc="clipboard-tools">
+        <details class="dc-clipboard-tools" data-dnacalc="clipboard-tools" name="worksheet-tools">
             <summary>"Clipboard & fill"</summary>
             <p class="dc-note">"External tables paste contents. Cell formats apply to copies within this workbook. Merged HTML tables are unavailable."</p>
             <div class="dc-command-row">

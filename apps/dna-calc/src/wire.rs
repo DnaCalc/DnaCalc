@@ -77,6 +77,20 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    FitContents {
+        sheet: Sheet,
+        rows: bool,
+        revision: u64,
+        sizes: Vec<(u32, u64)>,
+    },
+    AxisFormat {
+        sheet: Sheet,
+        rows: bool,
+        first: u32,
+        count: u32,
+        size_bits: Option<u64>,
+        hidden: Option<bool>,
+    },
     FreezePanes {
         sheet: Sheet,
         rows: u32,
@@ -142,6 +156,9 @@ pub struct ToServer {
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    FitContents {
+        area: Area,
+    },
     Capture {
         area: Area,
         keep: Option<u64>,
@@ -435,6 +452,10 @@ pub enum Reply {
         opened: Option<(f64, Option<f64>)>,
         /// For a save: the name to offer the bytes under.
         saved: Option<String>,
+    },
+    FitContents {
+        revision: u64,
+        cells: Vec<Cell>,
     },
     Subscribed,
     Geometry(Geometry),

@@ -61,3 +61,9 @@
 .dc-zoom{display:inline-flex;align-items:center;gap:var(--dna-gap-2)}
 .dc-zoom input{width:5ch;text-align:right}
 .dc-zoom label{display:inline-flex;align-items:center;gap:var(--dna-gap-2)}
+
+.dc-axis-size{width:9ch;max-width:100%}
+
+.dc-resize-preview{position:absolute;background:var(--dna-accent);pointer-events:none;z-index:5}.dc-resize-preview span{position:absolute;left:4px;top:4px;white-space:nowrap;padding:var(--dna-gap-2);background:var(--dna-paper-2);color:var(--dna-ink);border:1px solid var(--dna-accent);font:12px ui-monospace,monospace}
+
+.dc-fit-measure{position:absolute;left:0;top:0;visibility:hidden;white-space:nowrap;display:inline-block;line-height:1;padding:0;border:0;pointer-events:none}
