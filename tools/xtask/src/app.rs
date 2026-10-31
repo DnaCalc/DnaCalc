@@ -6674,8 +6674,15 @@ const CALC_CASES: &[Case] = &[
             Action::Into("name-box", "B1\u{E007}"),
             Action::Wait(Check::Absent("[data-dnacalc=skin-canvas][disabled]")),
             Action::Click("skin-canvas"),
+            Action::Wait(Check::Text("canvas-cell", "Data!B1")),
+            Action::Keys("[data-dnacalc=canvas-details] summary", "\u{E007}"),
+            Action::Wait(Check::Reachable("canvas-reason")),
+            Action::Wait(Check::TextContains("canvas-reason", "calculated")),
+            Action::Keys("[data-dnacalc=canvas-details] summary", "\u{E007}"),
         ],
         checks: &[
+            Check::Absent("[data-dnacalc=canvas-details][open]"),
+            Check::TextContains("canvas-reason", "calculated"),
             Check::Role("[data-dnacalc=canvas-node][data-node=A1]", "button"),
             Check::Name(
                 "[data-dnacalc=canvas-node][data-node=A1]",
@@ -7244,9 +7251,14 @@ const CALC_CASES: &[Case] = &[
             Action::Click("notebook-insert"),
         ],
         checks: &[
-            Check::Text(
+            Check::Value(
+                "[data-dnacalc=block][data-cell=A1] textarea",
+                "'=visible prose",
+            ),
+            Check::Reachable("[data-dnacalc=block][data-cell=A1] textarea"),
+            Check::Computed(
                 "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
-                "=visible prose",
+                "display:none",
             ),
             Check::Attr(
                 "[data-dnacalc=block][data-cell=A1]",

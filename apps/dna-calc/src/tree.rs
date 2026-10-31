@@ -781,9 +781,12 @@ fn tree_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> i
                 c.input.clone()
             }
         });
+        let redundant_input = cell
+            .as_ref()
+            .is_some_and(|c| c.provenance == Provenance::Literal && c.input == c.text);
         let value = cell.as_ref().map(|c| c.text.clone());
         let prov = cell.as_ref().map(|c| c.provenance.name());
-        view! {<li role="treeitem" id=id aria-expanded=expanded.map(|x|x.to_string()) aria-selected=move ||selected().to_string() data-dnacalc="tree-row" data-kind=kind data-key=data_key data-focused=move ||focused().to_string() data-folded=expanded.map(|x|(!x).to_string()) data-sheet=sheet data-cell=at.map(|at|cells::address(at.row(),at.column())) data-provenance=prov use:css=indent on:click=click>
+        view! {<li role="treeitem" id=id aria-expanded=expanded.map(|x|x.to_string()) aria-selected=move ||selected().to_string() data-dnacalc="tree-row" data-kind=kind data-key=data_key data-focused=move ||focused().to_string() data-folded=expanded.map(|x|(!x).to_string()) data-sheet=sheet data-cell=at.map(|at|cells::address(at.row(),at.column())) data-provenance=prov data-redundant-input=redundant_input.to_string() use:css=indent on:click=click>
             <span class="dc-tree-label">{branch.map(|b|view!{<button class="dc-twisty" tabindex="-1" aria-label=if expanded==Some(true){"Collapse branch"}else{"Expand branch"} data-dnacalc="tree-toggle" on:click=move |ev|{ev.stop_propagation();focus.set(Some(key));folded.update(|f|toggle_fold(f,b));}>{if expanded==Some(true){"−"}else{"+"}}</button>})}<span class="dc-label">{label}</span><span class="dc-count">{count}</span></span>
             {cell_input.map(|text|view!{<span class="dc-input" data-dnacalc="tree-input">{text}</span>})}{value.map(|text|view!{<span class="dc-tvalue" data-dnacalc="tree-value">{text}</span>})}{prov.map(|p|view!{<span class="dc-chip" data-provenance=p>{p}</span>})}
         </li>}.attr("aria-level",(depth+1).to_string()).into_any()
@@ -799,7 +802,7 @@ fn tree_view(controller: Controller, active_skin: RwSignal<Option<String>>) -> i
     };
     view! {<section class="dc-tree-skin" data-skin="tree">
         <div class="dc-tree-tools"><label>"Find source "<input data-dnacalc="tree-search" type="search" placeholder="Address, sheet, name or input" prop:value=move ||query.get() on:input=move |ev|query.set(event_target_value(&ev))/></label><button data-dnacalc="tree-reveal" on:click=move |_|reveal_active()>"Reveal active cell"</button><button data-dnacalc="tree-details-toggle" aria-expanded=move ||details.get().to_string() on:click=move |_|details.update(|v|*v=!*v)>"Details"</button></div>
-        <p class="dc-tree-caption">"Worksheet outline · physical rows; grouping does not change formula scope."</p>
+        <details class="dc-tree-guide"><summary>"About this outline"</summary><p class="dc-tree-caption">"Worksheet outline · physical rows; grouping does not change formula scope."</p></details>
         <div class="dc-tree-head" aria-hidden="true"><span>"Outline / address"</span><span>"Input"</span><span>"Result"</span><span>"State"</span></div>
         <div class="dc-tree" node_ref=tree_node data-dnacalc="tree" role="tree" aria-label="Workbook outline" aria-activedescendant=move ||focus.get().filter(|f|rows.with(|r|r.iter().any(|r|r.focus()==*f))).map(item_id) tabindex="0" on:keydown=on_key><ul role="none">{move ||{shown_cells.track();rows.get().into_iter().map(line).collect_view()}}</ul></div>
         {move ||(omitted.get()>0).then(||view!{<p data-dnacalc="tree-omitted">{format!("{} occupied cells beyond the spill window; reveal an address or open Grid.",omitted.get())}</p>})}

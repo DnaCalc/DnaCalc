@@ -309,7 +309,7 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
     }
     let (width, height) = plane_size(&trace);
     let cell = book.cell(center);
-    let (input, value, why) = match &cell {
+    let (input, value, why, reason_is_detail) = match &cell {
         Some(cell) => {
             let shown = cells::shown(cell, profile.as_ref(), book.cell_format(center));
             (
@@ -319,9 +319,10 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
                     Some(meaning) => format!("{}; {meaning}", cells::provenance_text(host, cell)),
                     None => cells::provenance_text(host, cell),
                 },
+                shown.provenance == Provenance::Calculated && shown.kind != "error",
             )
         }
-        None => (String::new(), String::new(), "empty".to_owned()),
+        None => (String::new(), String::new(), "empty".to_owned(), false),
     };
     wire::Canvas {
         wires_svg: wires_svg(&trace),
@@ -334,6 +335,7 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
             input,
             value,
             why,
+            reason_is_detail,
             format: host.number_format(center).unwrap_or("General").to_owned(),
             reads: host
                 .precedents(center)
@@ -578,6 +580,7 @@ fn canvas_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
             input,
             value,
             why,
+            reason_is_detail,
             format,
             reads,
             read_by,
@@ -585,7 +588,11 @@ fn canvas_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
         let source = label.clone();
         let (reads_count, read_by_count) = (reads.len(), read_by.len());
         let formula = input.starts_with('=').then_some(input);
-        view!{<div data-dnacalc="canvas-inspector"><h3 data-dnacalc="canvas-cell">{label}</h3>{formula.map(|f|view!{<pre class="dc-inspector-formula">{f}</pre>})}<p class="dc-inspector-value" data-dnacalc="canvas-inspector-value">{value}</p><p data-dnacalc="canvas-reason">{why}</p><button data-dnacalc="canvas-show-source" on:click=move |_|open_source(source.clone())>"Show source in Grid"</button><details><summary>"Format and dependency details"</summary><dl><dt>"Number format"</dt><dd>{format}</dd><dt>{format!("Reads ({reads_count})")}</dt><dd data-dnacalc="canvas-reads">{related_summary(&reads)}</dd><dt>{format!("Read by ({read_by_count})")}</dt><dd data-dnacalc="canvas-read-by">{related_summary(&read_by)}</dd></dl></details></div>}.into_any()
+        let visible_reason =
+            (!reason_is_detail).then(|| view! {<p data-dnacalc="canvas-reason">{why.clone()}</p>});
+        let detail_reason =
+            reason_is_detail.then(|| view! {<p data-dnacalc="canvas-reason">{why}</p>});
+        view!{<div data-dnacalc="canvas-inspector"><h3 data-dnacalc="canvas-cell">{label}</h3>{formula.map(|f|view!{<pre class="dc-inspector-formula">{f}</pre>})}<p class="dc-inspector-value" data-dnacalc="canvas-inspector-value">{value}</p>{visible_reason}<button data-dnacalc="canvas-show-source" on:click=move |_|open_source(source.clone())>"Show source in Grid"</button><details data-dnacalc="canvas-details"><summary>"Calculation, format and dependency details"</summary>{detail_reason}<dl><dt>"Number format"</dt><dd>{format}</dd><dt>{format!("Reads ({reads_count})")}</dt><dd data-dnacalc="canvas-reads">{related_summary(&reads)}</dd><dt>{format!("Read by ({read_by_count})")}</dt><dd data-dnacalc="canvas-read-by">{related_summary(&read_by)}</dd></dl></details></div>}.into_any()
     };
     view! {
         <section class="dc-canvas" data-skin="canvas" data-dnacalc="canvas" tabindex="0" on:keydown=on_key>
@@ -596,7 +603,7 @@ fn canvas_view(controller: Controller, active_skin: RwSignal<Option<String>>) ->
             </div><div class="dc-bar" role="group" aria-label="Dependency view position and zoom">
                 <button data-dnacalc="canvas-pan-left" aria-label="Pan dependency view left" on:click=move |_|pan(-180,0)>"←"</button><button data-dnacalc="canvas-pan-right" aria-label="Pan dependency view right" on:click=move |_|pan(180,0)>"→"</button><button aria-label="Pan dependency view up" on:click=move |_|pan(0,-140)>"↑"</button><button aria-label="Pan dependency view down" on:click=move |_|pan(0,140)>"↓"</button>
                 <button data-dnacalc="canvas-zoom-out" aria-label="Zoom dependency view out" disabled=move ||zoom.get()==50 on:click=move |_|zoom.update(|z|*z=zoom_step(*z,-10))>"−"</button><span data-dnacalc="canvas-zoom">{move ||format!("{}%",zoom.get())}</span><button data-dnacalc="canvas-zoom-in" aria-label="Zoom dependency view in" disabled=move ||zoom.get()==200 on:click=move |_|zoom.update(|z|*z=zoom_step(*z,10))>"+"</button><button data-dnacalc="canvas-center" aria-label="Center active cell" on:click=move |_|center_view()>"Center cell"</button><button data-dnacalc="canvas-reset" aria-label="Reset dependency view" on:click=move |_|reset()>"Reset"</button>
-            </div><p class="dc-canvas-contract">{format!("Dependency inspector · inputs left, readers right · up to {MAX_DEPTH} levels and {PER_COLUMN} nodes per column. Ranges are summaries; cell edits use the formula field above.")}</p>
+            </div><details class="dc-canvas-guide"><summary>"About this dependency view"</summary><p class="dc-canvas-contract">{format!("Dependency inspector · inputs left, readers right · up to {MAX_DEPTH} levels and {PER_COLUMN} nodes per column. Ranges are summaries; cell edits use the formula field above.")}</p></details>
             <p role="status" data-dnacalc="canvas-status">{move ||if loading.get(){"Loading dependencies…".into()}else{failure.get()}}</p>
             {move ||(!loading.get()&&!failure.get().is_empty()).then(||view!{<button data-dnacalc="canvas-retry" on:click=move |_|refresh.update(|n|*n+=1)>"Retry dependency view"</button>})}
             <div class="dc-canvas-viewport" data-dnacalc="canvas-viewport" tabindex="0" role="region" aria-label="Dependency chips; scroll or use pan controls">{chips}</div></div>

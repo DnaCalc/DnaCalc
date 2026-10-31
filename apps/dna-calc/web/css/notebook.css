@@ -35,3 +35,6 @@
 .dc-block-detail{border-top:1px solid var(--dna-line);margin-top:8px;padding-top:4px;color:var(--dna-ink-2);overflow-wrap:anywhere}
 .dc-array-preview{display:flex;gap:8px;flex-wrap:wrap;font:12px ui-monospace,Consolas,monospace;margin:8px 0}
 @media(max-width:600px){.dc-notebook{padding:10px 8px}.dc-nb-tools label{flex-wrap:wrap}.dc-nb-tools input{max-width:185px}.dc-block{padding:8px}.dc-block-actions button{min-height:34px}.dc-nb-caption{font-size:12px}}
+
+.dc-nb-guide{max-width:900px;margin:0 0 10px;color:var(--dna-ink-2);font-size:12px}.dc-nb-guide summary{cursor:pointer}.dc-nb-guide p{margin:6px 0 0}
+.dc-block[data-block-kind=prose][data-provenance=literal][data-selected=true] .dc-value{display:none}

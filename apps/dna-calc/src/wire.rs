@@ -687,6 +687,8 @@ pub struct Inspector {
     pub input: String,
     pub value: String,
     pub why: String,
+    /// Successful calculation metadata belongs in the optional details.
+    pub reason_is_detail: bool,
     pub format: String,
     pub reads: Vec<String>,
     pub read_by: Vec<String>,
