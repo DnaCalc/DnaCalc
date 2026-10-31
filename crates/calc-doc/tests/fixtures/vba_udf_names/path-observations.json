@@ -1,0 +1,213 @@
+[
+  {
+    "kind": "environment",
+    "pid": 7212,
+    "excel": "16.0",
+    "build": 20527.0,
+    "excel_os": "Windows (64-bit) NT 10.00"
+  },
+  {
+    "kind": "observe",
+    "scenario": "same-folder-consumer-xlsx-saved.xlsx",
+    "book": "dna-consumer-xlsx-saved.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "=provider.xlsm!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "=provider.xlsm!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "=provider.xlsm!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "=Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "same-folder-consumer-xlsb-saved.xlsx",
+    "book": "dna-consumer-xlsb-saved.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "=provider.xlsm!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "=provider.xlsm!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "=provider.xlsm!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "=Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "excel-relocated-binary-save",
+    "book": "excel-consumer-from-binary.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "=provider.xlsm!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "=provider.xlsm!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "=provider.xlsm!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "=Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  }
+]

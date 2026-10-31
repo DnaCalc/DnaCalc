@@ -1,0 +1,82 @@
+[
+  {
+    "kind": "environment",
+    "pid": 38420,
+    "hwnd": 42404920,
+    "excel": "16.0",
+    "build": 20527.0,
+    "excel_os": "Windows (64-bit) NT 10.00"
+  },
+  {
+    "kind": "prompt-open-start",
+    "file": "consumer.xlsx"
+  },
+  {
+    "kind": "observe",
+    "scenario": "interactive-missing-link",
+    "book": "consumer.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!Module1.OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!HiddenOther(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!PrivateOther(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!Module1.AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      }
+    ]
+  }
+]

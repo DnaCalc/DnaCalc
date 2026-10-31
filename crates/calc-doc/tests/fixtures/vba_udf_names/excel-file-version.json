@@ -1,0 +1,9 @@
+{
+  "observed_utc": "2026-10-31T20:01:52Z",
+  "path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+  "file_version": "16.0.20527.20088",
+  "product_version": "16.0.20527.20088",
+  "com_version": "16.0",
+  "com_build": 20527,
+  "note": "File resource read after the COM probes; each COM process separately recorded Version and Build."
+}

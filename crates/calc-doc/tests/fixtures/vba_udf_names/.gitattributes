@@ -1,0 +1,2 @@
+# Excel's exported module files are measured code-page/CRLF byte artifacts.
+*.bas -text -diff

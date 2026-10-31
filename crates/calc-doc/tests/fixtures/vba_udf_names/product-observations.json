@@ -1,0 +1,1472 @@
+[
+  {
+    "arch": "x86_64",
+    "kind": "environment",
+    "os": "windows",
+    "source_commit": "c62ffca1e48b61989e7b481f9243a44fb6576b50"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }",
+        "formula": "Module1.MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }",
+        "formula": "[0]!MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }",
+        "formula": "[0]!Module1.MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }",
+        "formula": "NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }",
+        "formula": "_xludf.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }",
+        "formula": "_xlfn.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }",
+        "formula": "_xll.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 9, column: 2 }",
+        "formula": "SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 10, column: 2 }",
+        "formula": "_xludf.SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 11, column: 2 }",
+        "formula": "Module1.SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 13, column: 2 }",
+        "formula": "_xlfn.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 14, column: 2 }",
+        "formula": "_xludf.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 15, column: 2 }",
+        "formula": "Module1.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 17, column: 2 }",
+        "formula": "foo_2(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 18, column: 2 }",
+        "formula": "_Leading(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 19, column: 2 }",
+        "formula": "café(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 20, column: 2 }",
+        "formula": "ångström(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 21, column: 2 }",
+        "formula": "A1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 22, column: 2 }",
+        "formula": "Module1.A1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 23, column: 2 }",
+        "formula": "XFD1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 24, column: 2 }",
+        "formula": "Module1.XFD1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 25, column: 2 }",
+        "formula": "$A$1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 26, column: 2 }",
+        "formula": "Module1.R1C1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 2 }",
+        "formula": "Foo.Bar(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 29, column: 2 }",
+        "formula": "cAsEfUnC(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 30, column: 2 }",
+        "formula": "SecretFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 31, column: 2 }",
+        "formula": "Module1.SecretFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 32, column: 2 }",
+        "formula": "HiddenFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 33, column: 2 }",
+        "formula": "SameName"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 34, column: 2 }",
+        "formula": "SameName(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 35, column: 2 }",
+        "formula": "Module1.SameName(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 36, column: 2 }",
+        "formula": "NamedLambda(2)"
+      }
+    ],
+    "file": "local.xlsm",
+    "macro_enabled": true,
+    "names": "[DefinedName { name: \"_xlpm.x\", scope: Workbook, formula: \"#NAME?\", hidden: true, comment: None, function: false, vb_procedure: false, xlm: true }, DefinedName { name: \"NamedLambda\", scope: Workbook, formula: \"_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1400)\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }, DefinedName { name: \"SameName\", scope: Workbook, formula: \"42\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }]",
+    "receipt": "SaveReceipt { bytes_written: 19443, entries_copied: 16, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 9, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 10, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 11, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 13, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 14, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 15, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 17, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 18, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 19, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 20, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 21, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 22, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 23, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 24, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 25, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 26, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 29, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 30, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 31, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 32, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 33, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 34, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 35, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 36, column: 2 }"
+      }
+    ],
+    "saved": "local-xlsm-saved.xlsm"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }",
+        "formula": "Module1.MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }",
+        "formula": "[0]!MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }",
+        "formula": "[0]!Module1.MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }",
+        "formula": "NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }",
+        "formula": "_xludf.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }",
+        "formula": "_xlfn.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }",
+        "formula": "_xll.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 9, column: 2 }",
+        "formula": "SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 10, column: 2 }",
+        "formula": "_xludf.SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 11, column: 2 }",
+        "formula": "Module1.SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 13, column: 2 }",
+        "formula": "_xlfn.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 14, column: 2 }",
+        "formula": "_xludf.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 15, column: 2 }",
+        "formula": "Module1.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 17, column: 2 }",
+        "formula": "foo_2(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 18, column: 2 }",
+        "formula": "_Leading(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 19, column: 2 }",
+        "formula": "café(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 20, column: 2 }",
+        "formula": "ångström(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 21, column: 2 }",
+        "formula": "A1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 22, column: 2 }",
+        "formula": "Module1.A1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 23, column: 2 }",
+        "formula": "XFD1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 24, column: 2 }",
+        "formula": "Module1.XFD1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 25, column: 2 }",
+        "formula": "$A$1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 26, column: 2 }",
+        "formula": "Module1.R1C1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 2 }",
+        "formula": "Foo.Bar(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 29, column: 2 }",
+        "formula": "cAsEfUnC(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 30, column: 2 }",
+        "formula": "SecretFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 31, column: 2 }",
+        "formula": "Module1.SecretFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 32, column: 2 }",
+        "formula": "HiddenFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 33, column: 2 }",
+        "formula": "SameName"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 34, column: 2 }",
+        "formula": "SameName(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 35, column: 2 }",
+        "formula": "Module1.SameName(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 36, column: 2 }",
+        "formula": "NamedLambda(2)"
+      }
+    ],
+    "file": "local.xlsb",
+    "macro_enabled": true,
+    "names": "[DefinedName { name: \"NamedLambda\", scope: Workbook, formula: \"_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1400)\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }, DefinedName { name: \"SameName\", scope: Workbook, formula: \"42\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }]",
+    "receipt": "SaveReceipt { bytes_written: 15431, entries_copied: 16, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 9, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 10, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 11, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 13, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 14, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 15, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 17, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 18, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 19, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 20, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 21, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 22, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 23, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 24, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 25, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 26, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 29, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 30, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 31, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 32, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 33, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 34, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 35, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 36, column: 2 }"
+      }
+    ],
+    "saved": "local-xlsb-saved.xlsm"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }",
+        "formula": "Module1.MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }",
+        "formula": "[0]!MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }",
+        "formula": "[0]!Module1.MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }",
+        "formula": "NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }",
+        "formula": "_xludf.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }",
+        "formula": "_xlfn.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }",
+        "formula": "_xll.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 9, column: 2 }",
+        "formula": "SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 10, column: 2 }",
+        "formula": "_xludf.SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 11, column: 2 }",
+        "formula": "Module1.SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 13, column: 2 }",
+        "formula": "_xlfn.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 14, column: 2 }",
+        "formula": "_xludf.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 15, column: 2 }",
+        "formula": "Module1.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 17, column: 2 }",
+        "formula": "foo_2(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 18, column: 2 }",
+        "formula": "_Leading(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 19, column: 2 }",
+        "formula": "café(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 20, column: 2 }",
+        "formula": "ångström(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 21, column: 2 }",
+        "formula": "A1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 22, column: 2 }",
+        "formula": "Module1.A1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 23, column: 2 }",
+        "formula": "XFD1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 24, column: 2 }",
+        "formula": "Module1.XFD1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 25, column: 2 }",
+        "formula": "$A$1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 26, column: 2 }",
+        "formula": "Module1.R1C1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 2 }",
+        "formula": "Foo.Bar(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 29, column: 2 }",
+        "formula": "cAsEfUnC(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 30, column: 2 }",
+        "formula": "SecretFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 31, column: 2 }",
+        "formula": "Module1.SecretFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 32, column: 2 }",
+        "formula": "HiddenFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 33, column: 2 }",
+        "formula": "SameName"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 34, column: 2 }",
+        "formula": "SameName(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 35, column: 2 }",
+        "formula": "Module1.SameName(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 36, column: 2 }",
+        "formula": "NamedLambda(2)"
+      }
+    ],
+    "file": "stripped.xlsx",
+    "macro_enabled": false,
+    "names": "[DefinedName { name: \"NamedLambda\", scope: Workbook, formula: \"_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1400)\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }, DefinedName { name: \"SameName\", scope: Workbook, formula: \"42\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }]",
+    "receipt": "SaveReceipt { bytes_written: 12397, entries_copied: 15, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 9, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 10, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 11, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 13, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 14, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 15, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 17, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 18, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 19, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 20, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 21, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 22, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 23, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 24, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 25, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 26, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 29, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 30, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 31, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 32, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 33, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 34, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 35, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 36, column: 2 }"
+      }
+    ],
+    "saved": "stripped-xlsx-saved.xlsx"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "[1]!OtherFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }",
+        "formula": "[1]!Module1.OtherFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }",
+        "formula": "OtherFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }",
+        "formula": "[1]!HiddenOther(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }",
+        "formula": "[1]!PrivateOther(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }",
+        "formula": "[2]!AddFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }",
+        "formula": "[2]!AddFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }",
+        "formula": "[2]!Module1.AddFunc(2)"
+      }
+    ],
+    "file": "consumer.xlsx",
+    "macro_enabled": false,
+    "names": "[]",
+    "receipt": "SaveReceipt { bytes_written: 11995, entries_copied: 16, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }"
+      }
+    ],
+    "saved": "consumer-xlsx-saved.xlsx"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "[1]!OtherFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }",
+        "formula": "[1]!Module1.OtherFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }",
+        "formula": "OtherFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }",
+        "formula": "[1]!HiddenOther(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }",
+        "formula": "[1]!PrivateOther(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }",
+        "formula": "[2]!AddFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }",
+        "formula": "[2]!AddFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }",
+        "formula": "[2]!Module1.AddFunc(2)"
+      }
+    ],
+    "file": "consumer.xlsb",
+    "macro_enabled": false,
+    "names": "[]",
+    "receipt": "SaveReceipt { bytes_written: 8488, entries_copied: 16, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }"
+      }
+    ],
+    "saved": "consumer-xlsb-saved.xlsx"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }",
+        "formula": "Module1.MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }",
+        "formula": "[0]!MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }",
+        "formula": "[0]!Module1.MyFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }",
+        "formula": "NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }",
+        "formula": "NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }",
+        "formula": "_xlfn.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }",
+        "formula": "_xll.NotThere(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 9, column: 2 }",
+        "formula": "SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 10, column: 2 }",
+        "formula": "_xludf.SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 11, column: 2 }",
+        "formula": "Module1.SUM(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 13, column: 2 }",
+        "formula": "_xlfn.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 14, column: 2 }",
+        "formula": "_xludf.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 15, column: 2 }",
+        "formula": "Module1.ACOT(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 17, column: 2 }",
+        "formula": "foo_2(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 18, column: 2 }",
+        "formula": "_Leading(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 19, column: 2 }",
+        "formula": "café(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 20, column: 2 }",
+        "formula": "ångström(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 21, column: 2 }",
+        "formula": "A1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 22, column: 2 }",
+        "formula": "Module1.A1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 23, column: 2 }",
+        "formula": "XFD1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 24, column: 2 }",
+        "formula": "Module1.XFD1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 25, column: 2 }",
+        "formula": "$A$1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 26, column: 2 }",
+        "formula": "Module1.R1C1(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 2 }",
+        "formula": "Foo.Bar(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 29, column: 2 }",
+        "formula": "cAsEfUnC(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 30, column: 2 }",
+        "formula": "SecretFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 31, column: 2 }",
+        "formula": "Module1.SecretFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 32, column: 2 }",
+        "formula": "HiddenFunc(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 33, column: 2 }",
+        "formula": "SameName"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 34, column: 2 }",
+        "formula": "SameName(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 35, column: 2 }",
+        "formula": "Module1.SameName(2)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 36, column: 2 }",
+        "formula": "NamedLambda(2)"
+      }
+    ],
+    "file": "loaded-xml.xlsb",
+    "macro_enabled": true,
+    "names": "[DefinedName { name: \"NamedLambda\", scope: Workbook, formula: \"_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1400)\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }, DefinedName { name: \"SameName\", scope: Workbook, formula: \"42\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }]",
+    "receipt": "SaveReceipt { bytes_written: 15441, entries_copied: 16, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 4, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 5, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 6, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 7, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 8, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 9, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 10, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 11, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 13, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 14, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 15, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 17, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 18, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 19, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 20, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 21, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 22, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 23, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 24, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 25, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 26, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 29, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 30, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 31, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 32, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 33, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 34, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 35, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 36, column: 2 }"
+      }
+    ],
+    "saved": "loaded-xml-xlsb-saved.xlsm"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "_xludf.LAMBDA(Rate,3)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }",
+        "formula": "Module1.LAMBDA(Rate,3)"
+      }
+    ],
+    "file": "collision.xlsm",
+    "macro_enabled": true,
+    "names": "[DefinedName { name: \"Rate\", scope: Workbook, formula: \"2\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }]",
+    "receipt": "SaveReceipt { bytes_written: 14221, entries_copied: 13, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }"
+      }
+    ],
+    "saved": "collision-xlsm-saved.xlsm"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "_xludf.LAMBDA(Rate,3)"
+      },
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }",
+        "formula": "Module1.LAMBDA(Rate,3)"
+      }
+    ],
+    "file": "collision.xlsb",
+    "macro_enabled": true,
+    "names": "[DefinedName { name: \"Rate\", scope: Workbook, formula: \"2\", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }]",
+    "receipt": "SaveReceipt { bytes_written: 10739, entries_copied: 13, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      },
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 2 }"
+      }
+    ],
+    "saved": "collision-xlsb-saved.xlsm"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "MetaFunc(2)"
+      }
+    ],
+    "file": "metadata-after.xlsb",
+    "macro_enabled": true,
+    "names": "[]",
+    "receipt": "SaveReceipt { bytes_written: 11191, entries_copied: 13, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      }
+    ],
+    "saved": "metadata-after-xlsb-saved.xlsm"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "MetaFunc(2)"
+      }
+    ],
+    "file": "metadata-unqualified.xlsb",
+    "macro_enabled": true,
+    "names": "[]",
+    "receipt": "SaveReceipt { bytes_written: 11825, entries_copied: 13, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      }
+    ],
+    "saved": "metadata-unqualified-xlsb-saved.xlsm"
+  },
+  {
+    "cells": [
+      {
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }",
+        "formula": "MetaFunc(2)"
+      }
+    ],
+    "file": "metadata-custom-vba.xlsb",
+    "macro_enabled": true,
+    "names": "[]",
+    "receipt": "SaveReceipt { bytes_written: 11995, entries_copied: 13, parts_written: 0, revision: Some(AuthoredRevision(0)), caches_dropped: 0, sheets_rewritten_for_caches: 0, values_written: 0, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+    "reentry": [
+      {
+        "admitted": true,
+        "at": "CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 }"
+      }
+    ],
+    "saved": "metadata-custom-vba-xlsb-saved.xlsm"
+  },
+  {
+    "binding": "=MyFunc(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Number(4611686018427387904)), UserCall { name: \"MYFUNC\", argc: 1 }]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": [
+      "MYFUNC"
+    ]
+  },
+  {
+    "binding": "=myfunc(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Number(4611686018427387904)), UserCall { name: \"MYFUNC\", argc: 1 }]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": [
+      "MYFUNC"
+    ]
+  },
+  {
+    "binding": "=Module1.MyFunc(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Number(4611686018427387904)), UserCall { name: \"MODULE1.MYFUNC\", argc: 1 }]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": [
+      "MODULE1.MYFUNC"
+    ]
+  },
+  {
+    "binding": "=[0]!MyFunc(2)",
+    "error": "Reference { span: TextSpan { start: 1, len: 13 }, error: QualifiedNonReference }"
+  },
+  {
+    "binding": "='local.xlsm'!MyFunc(2)",
+    "error": "Reference { span: TextSpan { start: 1, len: 22 }, error: QualifiedNonReference }"
+  },
+  {
+    "binding": "=[1]!OtherFunc(2)",
+    "error": "Reference { span: TextSpan { start: 1, len: 16 }, error: QualifiedNonReference }"
+  },
+  {
+    "binding": "=[2]!AddFunc(2)",
+    "error": "Reference { span: TextSpan { start: 1, len: 14 }, error: QualifiedNonReference }"
+  },
+  {
+    "binding": "=_xludf.MyFunc(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Error(Name))]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  },
+  {
+    "binding": "=_xludf.SUM(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Error(Name))]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  },
+  {
+    "binding": "=_xludf.ACOT(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Error(Name))]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  },
+  {
+    "binding": "=_xlfn.ACOT(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Number(4611686018427387904)), Call { target: Target(FunctionCallTarget { entry: CatalogueEntry { id: FunctionId(100.3), spelling: \"ACOT\", notation: Call, arity: CallableArityShape { min: 1, max: 1 }, parameters: [Parameter { name: \"number\", class: Value }], demand: Eager, kernel: Eager(0x7ff7dbfd7b40) } }), argc: 1, retain: false, synthetic: false, admission: Lift }]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  },
+  {
+    "binding": "=_xll.MyFunc(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Error(Name))]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  },
+  {
+    "binding": "=Café(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Number(4611686018427387904)), UserCall { name: \"CAFé\", argc: 1 }]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": [
+      "CAFé"
+    ]
+  },
+  {
+    "binding": "=CAFÉ(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Error(Name))]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  },
+  {
+    "binding": "=Ångström(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Number(4611686018427387904)), UserCall { name: \"ÅNGSTRöM\", argc: 1 }]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": [
+      "ÅNGSTRöM"
+    ]
+  },
+  {
+    "binding": "=ångström(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Error(Name))]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  },
+  {
+    "binding": "=Foo_2(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Number(4611686018427387904)), UserCall { name: \"FOO_2\", argc: 1 }]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": [
+      "FOO_2"
+    ]
+  },
+  {
+    "binding": "=A1(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Error(Name))]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  },
+  {
+    "binding": "=XFD1(2)",
+    "plan": "CompiledPlan { blocks: [[Literal(Error(Name))]], references: [], wrapped: [], externals: [], form: Dynamic }",
+    "user_calls": []
+  }
+]

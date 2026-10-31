@@ -1,0 +1,357 @@
+[
+  {
+    "kind": "environment",
+    "pid": 15076,
+    "hwnd": 16063510,
+    "excel": "16.0",
+    "build": 20527.0,
+    "excel_os": "Windows (64-bit) NT 10.00"
+  },
+  {
+    "kind": "saved",
+    "file": "metadata-unqualified.xlsm",
+    "sha256": "5f49d487de02846723ed0750abc3aaadeb45ca2e258b0ad7d9a61ab50f165c99"
+  },
+  {
+    "kind": "saved",
+    "file": "metadata-unqualified.xlsb",
+    "sha256": "58f9363d3bf2891e378cb780ec649cb210ba1ce4b636a499ee4b1416ac6949a5"
+  },
+  {
+    "kind": "saved",
+    "file": "metadata-custom-vba.xlsm",
+    "sha256": "7cfd67f2cd6b1268d54d2d98ecd1196a8216c4df910dce24777c35f11568486b"
+  },
+  {
+    "kind": "saved",
+    "file": "metadata-custom-vba.xlsb",
+    "sha256": "bc0def6da03f04714d5edd5022da5492ec3062960d58c7985dc4a93eeaf2069e"
+  },
+  {
+    "kind": "observe",
+    "scenario": "unicode-case",
+    "book": "local.xlsm",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=local.xlsm!MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=local.xlsm!Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": 402.0,
+        "text": "402"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": 502.0,
+        "text": "502"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": 602.0,
+        "text": "602"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": 702.0,
+        "text": "702"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": 802.0,
+        "text": "802"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": 902.0,
+        "text": "902"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": 1002.0,
+        "text": "1002"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": 1302.0,
+        "text": "1302"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": 1102.0,
+        "text": "1102"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      },
+      {
+        "cell": "B37",
+        "label": null,
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B38",
+        "label": "uppercase-accent",
+        "formula": "=café(2)",
+        "value": 502.0,
+        "text": "502"
+      },
+      {
+        "cell": "B39",
+        "label": "uppercase-scandinavian",
+        "formula": "=ångström(2)",
+        "value": 602.0,
+        "text": "602"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "unicode-case.xlsm",
+    "sha256": "ab43b3a84595792ce2efbd994b4a879814daf3b6110bcec63abe4732a21b54c0"
+  },
+  {
+    "kind": "invalid-declaration-source",
+    "name": "ValidName",
+    "source": "Public Function ValidName(Optional ByVal x As Double = 1) As Double\r\nValidName = x + 1\r\nEnd Function\r\nPublic Sub CompileProbe()\r\nEnd Sub\r\n"
+  },
+  {
+    "kind": "invalid-declaration-run",
+    "name": "ValidName",
+    "result": "returned"
+  },
+  {
+    "kind": "invalid-declaration-source",
+    "name": "Foo.Bar",
+    "source": "Public Function Foo.Bar(Optional ByVal x As Double = 1) As Double\r\nFoo.Bar = x + 1\r\nEnd Function\r\nPublic Sub CompileProbe()\r\nEnd Sub\r\n"
+  },
+  {
+    "kind": "invalid-declaration-run",
+    "name": "Foo.Bar",
+    "error": "(-2147352567, 'Exception occurred.', (0, 'Microsoft Excel', \"Cannot run the macro 'CompileProbe'. The macro may not be available in this workbook or all macros may be disabled.\", 'xlmain11.chm', 0, -2146827284), None)"
+  },
+  {
+    "kind": "invalid-declaration-source",
+    "name": "_Leading",
+    "source": "Public Function _Leading(Optional ByVal x As Double = 1) As Double\r\n_Leading = x + 1\r\nEnd Function\r\nPublic Sub CompileProbe()\r\nEnd Sub\r\n"
+  },
+  {
+    "kind": "invalid-declaration-run",
+    "name": "_Leading",
+    "error": "(-2147352567, 'Exception occurred.', (0, 'Microsoft Excel', \"Cannot run the macro 'CompileProbe'. The macro may not be available in this workbook or all macros may be disabled.\", 'xlmain11.chm', 0, -2146827284), None)"
+  },
+  {
+    "kind": "invalid-declaration-source",
+    "name": "2Foo",
+    "source": "Public Function 2Foo(Optional ByVal x As Double = 1) As Double\r\n2 Foo = x + 1\r\nEnd Function\r\nPublic Sub CompileProbe()\r\nEnd Sub\r\n"
+  },
+  {
+    "kind": "invalid-declaration-run",
+    "name": "2Foo",
+    "error": "(-2147352567, 'Exception occurred.', (0, 'Microsoft Excel', \"Cannot run the macro 'CompileProbe'. The macro may not be available in this workbook or all macros may be disabled.\", 'xlmain11.chm', 0, -2146827284), None)"
+  }
+]

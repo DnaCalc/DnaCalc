@@ -1,0 +1,3362 @@
+[
+  {
+    "kind": "environment",
+    "utc": "2026-10-31T19:34:14Z",
+    "pid": 57336,
+    "excel": "16.0",
+    "build": 20527.0,
+    "excel_os": "Windows (64-bit) NT 10.00",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "automation_security": 1
+  },
+  {
+    "kind": "saved",
+    "file": "local.xlsm",
+    "sha256": "20f7fd4f9d3b1fdf1504684b2fd21409b861c946954f456f67832bb0d35842ee"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B1",
+    "label": "public",
+    "typed": "=MyFunc(2)",
+    "formula": "=MyFunc(2)",
+    "value": 102.0,
+    "text": "102"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B2",
+    "label": "module",
+    "typed": "=Module1.MyFunc(2)",
+    "formula": "=Module1.MyFunc(2)",
+    "value": 102.0,
+    "text": "102"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B3",
+    "label": "workbook",
+    "typed": "='local.xlsm'!MyFunc(2)",
+    "formula": "=local.xlsm!MyFunc(2)",
+    "value": 102.0,
+    "text": "102"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B4",
+    "label": "workbook-module",
+    "typed": "='local.xlsm'!Module1.MyFunc(2)",
+    "formula": "=local.xlsm!Module1.MyFunc(2)",
+    "value": 102.0,
+    "text": "102"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B5",
+    "label": "missing",
+    "typed": "=NotThere(2)",
+    "formula": "=NotThere(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B6",
+    "label": "explicit-xludf-missing",
+    "typed": "=_xludf.NotThere(2)",
+    "formula": "=_xludf.NotThere(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B7",
+    "label": "explicit-xlfn-missing",
+    "typed": "=_xlfn.NotThere(2)",
+    "formula": "=_xlfn.NotThere(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B8",
+    "label": "explicit-xll-missing",
+    "typed": "=_xll.NotThere(2)",
+    "formula": "=_xll.NotThere(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B9",
+    "label": "builtin",
+    "typed": "=SUM(2)",
+    "formula": "=SUM(2)",
+    "value": 2.0,
+    "text": "2"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B10",
+    "label": "forced-udf-builtin",
+    "typed": "=_xludf.SUM(2)",
+    "formula": "=_xludf.SUM(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B11",
+    "label": "module-builtin",
+    "typed": "=Module1.SUM(2)",
+    "formula": "=Module1.SUM(2)",
+    "value": 202.0,
+    "text": "202"
+  },
+  {
+    "kind": "entry-rejected",
+    "book": "local.xlsm",
+    "cell": "B12",
+    "label": "workbook-builtin",
+    "typed": "='local.xlsm'!SUM(2)",
+    "error": "(-2147352567, 'Exception occurred.', (0, None, None, None, 0, -2146827284), None)"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B13",
+    "label": "new-builtin",
+    "typed": "=ACOT(2)",
+    "formula": "=ACOT(2)",
+    "value": 0.4636476090008061,
+    "text": "0.463648"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B14",
+    "label": "forced-udf-new",
+    "typed": "=_xludf.ACOT(2)",
+    "formula": "=_xludf.ACOT(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B15",
+    "label": "module-new",
+    "typed": "=Module1.ACOT(2)",
+    "formula": "=Module1.ACOT(2)",
+    "value": 302.0,
+    "text": "302"
+  },
+  {
+    "kind": "entry-rejected",
+    "book": "local.xlsm",
+    "cell": "B16",
+    "label": "workbook-new",
+    "typed": "='local.xlsm'!ACOT(2)",
+    "error": "(-2147352567, 'Exception occurred.', (0, None, None, None, 0, -2146827284), None)"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B17",
+    "label": "underscore-digit",
+    "typed": "=foo_2(2)",
+    "formula": "=foo_2(2)",
+    "value": 402.0,
+    "text": "402"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B18",
+    "label": "leading-underscore",
+    "typed": "=_Leading(2)",
+    "formula": "=_Leading(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B19",
+    "label": "nonascii-latin",
+    "typed": "=café(2)",
+    "formula": "=café(2)",
+    "value": 502.0,
+    "text": "502"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B20",
+    "label": "nonascii-scandinavian",
+    "typed": "=ångström(2)",
+    "formula": "=ångström(2)",
+    "value": 602.0,
+    "text": "602"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B21",
+    "label": "cell-A1",
+    "typed": "=A1(2)",
+    "formula": "=A1(2)",
+    "value": -2146826265,
+    "text": "#REF!"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B22",
+    "label": "module-A1",
+    "typed": "=Module1.A1(2)",
+    "formula": "=Module1.A1(2)",
+    "value": 702.0,
+    "text": "702"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B23",
+    "label": "cell-XFD1",
+    "typed": "=XFD1(2)",
+    "formula": "=XFD1(2)",
+    "value": -2146826265,
+    "text": "#REF!"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B24",
+    "label": "module-XFD1",
+    "typed": "=Module1.XFD1(2)",
+    "formula": "=Module1.XFD1(2)",
+    "value": 802.0,
+    "text": "802"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B25",
+    "label": "R1C1",
+    "typed": "=R1C1(2)",
+    "formula": "=$A$1(2)",
+    "value": -2146826265,
+    "text": "#REF!"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B26",
+    "label": "module-R1C1",
+    "typed": "=Module1.R1C1(2)",
+    "formula": "=Module1.R1C1(2)",
+    "value": 902.0,
+    "text": "902"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B27",
+    "label": "dotted-missing",
+    "typed": "=Foo.Bar(2)",
+    "formula": "=Foo.Bar(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry-rejected",
+    "book": "local.xlsm",
+    "cell": "B28",
+    "label": "digit-first",
+    "typed": "=2Foo(2)",
+    "error": "(-2147352567, 'Exception occurred.', (0, None, None, None, 0, -2146827284), None)"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B29",
+    "label": "case-typed",
+    "typed": "=cAsEfUnC(2)",
+    "formula": "=cAsEfUnC(2)",
+    "value": 1002.0,
+    "text": "1002"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B30",
+    "label": "private",
+    "typed": "=SecretFunc(2)",
+    "formula": "=SecretFunc(2)",
+    "value": 1202.0,
+    "text": "1202"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B31",
+    "label": "module-private",
+    "typed": "=Module1.SecretFunc(2)",
+    "formula": "=Module1.SecretFunc(2)",
+    "value": 1202.0,
+    "text": "1202"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B32",
+    "label": "option-private",
+    "typed": "=HiddenFunc(2)",
+    "formula": "=HiddenFunc(2)",
+    "value": 1302.0,
+    "text": "1302"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B33",
+    "label": "name-value",
+    "typed": "=SameName",
+    "formula": "=SameName",
+    "value": 42.0,
+    "text": "42"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B34",
+    "label": "name-and-udf",
+    "typed": "=SameName(2)",
+    "formula": "=SameName(2)",
+    "value": -2146826273,
+    "text": "#VALUE!"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B35",
+    "label": "module-name-and-udf",
+    "typed": "=Module1.SameName(2)",
+    "formula": "=Module1.SameName(2)",
+    "value": 1102.0,
+    "text": "1102"
+  },
+  {
+    "kind": "entry",
+    "book": "local.xlsm",
+    "cell": "B36",
+    "label": "lambda",
+    "typed": "=NamedLambda(2)",
+    "formula": "=NamedLambda(2)",
+    "value": 1402.0,
+    "text": "1402"
+  },
+  {
+    "kind": "observe",
+    "scenario": "local-before-metadata",
+    "book": "local.xlsm",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=local.xlsm!MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=local.xlsm!Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=_xludf.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=_xll.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=_xludf.SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=_xludf.ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": 402.0,
+        "text": "402"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": 502.0,
+        "text": "502"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": 602.0,
+        "text": "602"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": 702.0,
+        "text": "702"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": 802.0,
+        "text": "802"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": 902.0,
+        "text": "902"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": 1002.0,
+        "text": "1002"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": 1302.0,
+        "text": "1302"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": 1102.0,
+        "text": "1102"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "local.xlsm",
+    "sha256": "9646fae0d88780bb58bf6424fa5c9f6ed02ecf31bebe78479d276f1d6cee3d76"
+  },
+  {
+    "kind": "saved",
+    "file": "local.xlsb",
+    "sha256": "0bc3727e953e461e2e2bb10b9d139c9d0cd800fd6f2eac8e24603318abf6f16e"
+  },
+  {
+    "kind": "saved",
+    "file": "stripped.xlsx",
+    "sha256": "70ef9c1a05fe538f32952d021fd86632007b16db24c85e638471a81eaee84786"
+  },
+  {
+    "kind": "observe",
+    "scenario": "xlsx-same-session-after-VBA-removal",
+    "book": "stripped.xlsx",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=stripped.xlsx!MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=stripped.xlsx!Module1.MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=_xludf.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=_xll.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=_xludf.SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=_xludf.ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "fresh-reopen-local.xlsm",
+    "book": "local.xlsm",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=local.xlsm!MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=local.xlsm!Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": 402.0,
+        "text": "402"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": 502.0,
+        "text": "502"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": 602.0,
+        "text": "602"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": 702.0,
+        "text": "702"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": 802.0,
+        "text": "802"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": 902.0,
+        "text": "902"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": 1002.0,
+        "text": "1002"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": 1302.0,
+        "text": "1302"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": 1102.0,
+        "text": "1102"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "fresh-reopen-local.xlsb",
+    "book": "local.xlsb",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=local.xlsb!MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=local.xlsb!Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=_xludf.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=_xll.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=_xludf.SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=_xludf.ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": 402.0,
+        "text": "402"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": 502.0,
+        "text": "502"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": 602.0,
+        "text": "602"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": 702.0,
+        "text": "702"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": 802.0,
+        "text": "802"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": 902.0,
+        "text": "902"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": 1002.0,
+        "text": "1002"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": 1302.0,
+        "text": "1302"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": 1102.0,
+        "text": "1102"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "fresh-reopen-stripped.xlsx",
+    "book": "stripped.xlsx",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=stripped.xlsx!MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=stripped.xlsx!Module1.MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "macros-disabled-before-calculation",
+    "book": "local.xlsm",
+    "calculated": false,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=local.xlsm!MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=local.xlsm!Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": 402.0,
+        "text": "402"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": 502.0,
+        "text": "502"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": 602.0,
+        "text": "602"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": 702.0,
+        "text": "702"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": 802.0,
+        "text": "802"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": 902.0,
+        "text": "902"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": 1002.0,
+        "text": "1002"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": 1302.0,
+        "text": "1302"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": 1102.0,
+        "text": "1102"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "macros-disabled-recalculated",
+    "book": "local.xlsm",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=local.xlsm!MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=local.xlsm!Module1.MyFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "disabled-resaved.xlsm",
+    "sha256": "41539228b790b1c8d1b5d3d9425e1e8950490218d053a2062d2426b3dae6739e"
+  },
+  {
+    "kind": "observe",
+    "scenario": "procedure-renamed",
+    "book": "local.xlsm",
+    "calculated": true,
+    "links": null,
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "public",
+        "formula": "=MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B2",
+        "label": "module",
+        "formula": "=Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B3",
+        "label": "workbook",
+        "formula": "=local.xlsm!MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B4",
+        "label": "workbook-module",
+        "formula": "=local.xlsm!Module1.MyFunc(2)",
+        "value": 102.0,
+        "text": "102"
+      },
+      {
+        "cell": "B5",
+        "label": "missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "explicit-xludf-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "explicit-xlfn-missing",
+        "formula": "=_xlfn.NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "explicit-xll-missing",
+        "formula": "=NotThere(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B9",
+        "label": "builtin",
+        "formula": "=SUM(2)",
+        "value": 2.0,
+        "text": "2"
+      },
+      {
+        "cell": "B10",
+        "label": "forced-udf-builtin",
+        "formula": "=SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B11",
+        "label": "module-builtin",
+        "formula": "=Module1.SUM(2)",
+        "value": 202.0,
+        "text": "202"
+      },
+      {
+        "cell": "B12",
+        "label": "workbook-builtin",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B13",
+        "label": "new-builtin",
+        "formula": "=ACOT(2)",
+        "value": 0.4636476090008061,
+        "text": "0.463648"
+      },
+      {
+        "cell": "B14",
+        "label": "forced-udf-new",
+        "formula": "=ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B15",
+        "label": "module-new",
+        "formula": "=Module1.ACOT(2)",
+        "value": 302.0,
+        "text": "302"
+      },
+      {
+        "cell": "B16",
+        "label": "workbook-new",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B17",
+        "label": "underscore-digit",
+        "formula": "=foo_2(2)",
+        "value": 402.0,
+        "text": "402"
+      },
+      {
+        "cell": "B18",
+        "label": "leading-underscore",
+        "formula": "=_Leading(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B19",
+        "label": "nonascii-latin",
+        "formula": "=café(2)",
+        "value": 502.0,
+        "text": "502"
+      },
+      {
+        "cell": "B20",
+        "label": "nonascii-scandinavian",
+        "formula": "=ångström(2)",
+        "value": 602.0,
+        "text": "602"
+      },
+      {
+        "cell": "B21",
+        "label": "cell-A1",
+        "formula": "=A1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B22",
+        "label": "module-A1",
+        "formula": "=Module1.A1(2)",
+        "value": 702.0,
+        "text": "702"
+      },
+      {
+        "cell": "B23",
+        "label": "cell-XFD1",
+        "formula": "=XFD1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B24",
+        "label": "module-XFD1",
+        "formula": "=Module1.XFD1(2)",
+        "value": 802.0,
+        "text": "802"
+      },
+      {
+        "cell": "B25",
+        "label": "R1C1",
+        "formula": "=$A$1(2)",
+        "value": -2146826265,
+        "text": "#REF!"
+      },
+      {
+        "cell": "B26",
+        "label": "module-R1C1",
+        "formula": "=Module1.R1C1(2)",
+        "value": 902.0,
+        "text": "902"
+      },
+      {
+        "cell": "B27",
+        "label": "dotted-missing",
+        "formula": "=Foo.Bar(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B28",
+        "label": "digit-first",
+        "formula": "",
+        "value": null,
+        "text": ""
+      },
+      {
+        "cell": "B29",
+        "label": "case-typed",
+        "formula": "=cAsEfUnC(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B30",
+        "label": "private",
+        "formula": "=SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B31",
+        "label": "module-private",
+        "formula": "=Module1.SecretFunc(2)",
+        "value": 1202.0,
+        "text": "1202"
+      },
+      {
+        "cell": "B32",
+        "label": "option-private",
+        "formula": "=HiddenFunc(2)",
+        "value": 1302.0,
+        "text": "1302"
+      },
+      {
+        "cell": "B33",
+        "label": "name-value",
+        "formula": "=SameName",
+        "value": 42.0,
+        "text": "42"
+      },
+      {
+        "cell": "B34",
+        "label": "name-and-udf",
+        "formula": "=SameName(2)",
+        "value": -2146826273,
+        "text": "#VALUE!"
+      },
+      {
+        "cell": "B35",
+        "label": "module-name-and-udf",
+        "formula": "=Module1.SameName(2)",
+        "value": 1102.0,
+        "text": "1102"
+      },
+      {
+        "cell": "B36",
+        "label": "lambda",
+        "formula": "=NamedLambda(2)",
+        "value": 1402.0,
+        "text": "1402"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "renamed.xlsm",
+    "sha256": "006e4054895372f0e43da66aa32aaa308b32b10b0d26b8388910cdcc2ef8bcb9"
+  },
+  {
+    "kind": "saved",
+    "file": "provider.xlsm",
+    "sha256": "bb6c11740e832a63fbffccd296c3a07232ce67da14ef3e57d8cbe21a757b9d87"
+  },
+  {
+    "kind": "saved",
+    "file": "probe.xlam",
+    "sha256": "e3f78c9cac2f46c3697347e13b0afa96070fb57ab2172036fb1643bdb4545f04"
+  },
+  {
+    "kind": "addin-open",
+    "name": "probe.xlam",
+    "is_addin": true
+  },
+  {
+    "kind": "entry",
+    "book": "Sheet4",
+    "cell": "B1",
+    "label": "other-book",
+    "typed": "='provider.xlsm'!OtherFunc(2)",
+    "formula": "=provider.xlsm!OtherFunc(2)",
+    "value": 2002.0,
+    "text": "2002"
+  },
+  {
+    "kind": "entry",
+    "book": "Sheet4",
+    "cell": "B2",
+    "label": "other-module",
+    "typed": "='provider.xlsm'!Module1.OtherFunc(2)",
+    "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+    "value": 2002.0,
+    "text": "2002"
+  },
+  {
+    "kind": "entry",
+    "book": "Sheet4",
+    "cell": "B3",
+    "label": "other-unqualified",
+    "typed": "=OtherFunc(2)",
+    "formula": "=OtherFunc(2)",
+    "value": -2146826259,
+    "text": "#NAME?"
+  },
+  {
+    "kind": "entry",
+    "book": "Sheet4",
+    "cell": "B4",
+    "label": "other-private",
+    "typed": "='provider.xlsm'!HiddenOther(2)",
+    "formula": "=provider.xlsm!HiddenOther(2)",
+    "value": 2102.0,
+    "text": "2102"
+  },
+  {
+    "kind": "entry",
+    "book": "Sheet4",
+    "cell": "B5",
+    "label": "other-option-private",
+    "typed": "='provider.xlsm'!PrivateOther(2)",
+    "formula": "=provider.xlsm!PrivateOther(2)",
+    "value": 2202.0,
+    "text": "2202"
+  },
+  {
+    "kind": "entry",
+    "book": "Sheet4",
+    "cell": "B6",
+    "label": "addin-unqualified",
+    "typed": "=AddFunc(2)",
+    "formula": "=AddFunc(2)",
+    "value": 3002.0,
+    "text": "3002"
+  },
+  {
+    "kind": "entry",
+    "book": "Sheet4",
+    "cell": "B7",
+    "label": "addin-qualified",
+    "typed": "='probe.xlam'!AddFunc(2)",
+    "formula": "=AddFunc(2)",
+    "value": 3002.0,
+    "text": "3002"
+  },
+  {
+    "kind": "entry",
+    "book": "Sheet4",
+    "cell": "B8",
+    "label": "addin-module",
+    "typed": "='probe.xlam'!Module1.AddFunc(2)",
+    "formula": "=Module1.AddFunc(2)",
+    "value": 3002.0,
+    "text": "3002"
+  },
+  {
+    "kind": "observe",
+    "scenario": "providers-open",
+    "book": "Sheet4",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "=provider.xlsm!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "=provider.xlsm!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "=provider.xlsm!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "=Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "consumer.xlsx",
+    "sha256": "d0e5beebc1c8607cdf7b7245444af9faa2e44f588d4610d1ed9aa6c9dec5b44a"
+  },
+  {
+    "kind": "saved",
+    "file": "consumer.xlsb",
+    "sha256": "ab4bb47988684b4213d1dcf06665952141dd8c009745efaf268c4ceb8c1ad362"
+  },
+  {
+    "kind": "observe",
+    "scenario": "all-absent-no-update-before-recalc",
+    "book": "consumer.xlsx",
+    "calculated": false,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "all-absent-no-update",
+    "book": "consumer.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!Module1.OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!HiddenOther(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!PrivateOther(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!Module1.AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "all-absent-no-update.xlsx",
+    "sha256": "64aee0c13cdfba1bb147514138bcb9a931c751657df4608a9f1bc198e3f0c4d1"
+  },
+  {
+    "kind": "observe",
+    "scenario": "provider-only-no-update-before-recalc",
+    "book": "consumer.xlsx",
+    "calculated": false,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "=provider.xlsm!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "=provider.xlsm!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "=provider.xlsm!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "provider-only-no-update",
+    "book": "consumer.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "=provider.xlsm!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "=provider.xlsm!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "=provider.xlsm!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!Module1.AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "provider-only-no-update.xlsx",
+    "sha256": "aca22cdf5fa0616557b03fc509d5653fec19bc918101c211a7906fe5596773f7"
+  },
+  {
+    "kind": "observe",
+    "scenario": "addin-only-no-update-before-recalc",
+    "book": "consumer.xlsx",
+    "calculated": false,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "=Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "addin-only-no-update",
+    "book": "consumer.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!Module1.OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!HiddenOther(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!PrivateOther(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "=Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "addin-only-no-update.xlsx",
+    "sha256": "e045f49356c7c20cd95ccbb506c25ef18f171a1c18415996b92df70c36db35ba"
+  },
+  {
+    "kind": "observe",
+    "scenario": "both-open-no-update-before-recalc",
+    "book": "consumer.xlsx",
+    "calculated": false,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "=provider.xlsm!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "=provider.xlsm!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "=provider.xlsm!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "=Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "both-open-no-update",
+    "book": "consumer.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "=provider.xlsm!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "=provider.xlsm!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "=provider.xlsm!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "=provider.xlsm!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "=AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "=Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "both-open-no-update.xlsx",
+    "sha256": "5f4aeb12e7a7b4f6ce61c06dffad8fc395bdf1641951ca1cdb9a233de4df24d4"
+  },
+  {
+    "kind": "observe",
+    "scenario": "update-existing-paths-before-recalc",
+    "book": "consumer.xlsx",
+    "calculated": false,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!Module1.OtherFunc(2)",
+        "value": 2002.0,
+        "text": "2002"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!HiddenOther(2)",
+        "value": 2102.0,
+        "text": "2102"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!PrivateOther(2)",
+        "value": 2202.0,
+        "text": "2202"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!Module1.AddFunc(2)",
+        "value": 3002.0,
+        "text": "3002"
+      }
+    ]
+  },
+  {
+    "kind": "observe",
+    "scenario": "update-existing-paths",
+    "book": "consumer.xlsx",
+    "calculated": true,
+    "links": [
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm",
+      "C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam"
+    ],
+    "rows": [
+      {
+        "cell": "B1",
+        "label": "other-book",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B2",
+        "label": "other-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!Module1.OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B3",
+        "label": "other-unqualified",
+        "formula": "=OtherFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B4",
+        "label": "other-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!HiddenOther(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B5",
+        "label": "other-option-private",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\provider.xlsm'!PrivateOther(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B6",
+        "label": "addin-unqualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B7",
+        "label": "addin-qualified",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      },
+      {
+        "cell": "B8",
+        "label": "addin-module",
+        "formula": "='C:\\Work\\DnaCalc\\DnaCalc-cdoc\\crates\\calc-doc\\tests\\fixtures\\vba_udf_names\\probe.xlam'!Module1.AddFunc(2)",
+        "value": -2146826259,
+        "text": "#NAME?"
+      }
+    ]
+  },
+  {
+    "kind": "saved",
+    "file": "update-existing-paths.xlsx",
+    "sha256": "eb411a80be02747c89f26020ece701edec660fb3fac4fe63ce6a1484112c6608"
+  }
+]
