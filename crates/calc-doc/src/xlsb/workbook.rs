@@ -23,6 +23,7 @@ const BRT_SUP_SAME: u16 = 358;
 const BRT_EXTERN_SHEET: u16 = 362;
 const BRT_SUP_ADDIN: u16 = 667;
 const BRT_PLACEHOLDER_NAME: u16 = 361;
+const BRT_ABS_PATH_15: u16 = 2071;
 
 /// One sheet of the workbook.
 pub(crate) struct Sheet {
@@ -94,6 +95,8 @@ pub(crate) struct Book {
     pub(crate) version: Option<(Option<String>, [String; 4])>,
     /// BrtFileSharing: read-only recommended, the reservation password hash and the user name.
     pub(crate) sharing: Option<(bool, u16, String)>,
+    /// The original workbook folder, used by Excel to rebase relative external links.
+    pub(crate) absolute_path: Option<String>,
 }
 
 fn malformed(part: &str) -> impl Fn(super::Malformed) -> OpenError + '_ {
@@ -127,11 +130,15 @@ pub(crate) fn read(
         calculation: None,
         version: None,
         sharing: None,
+        absolute_path: None,
     };
     let result: Read<()> = (|| {
         for record in &records {
             let mut c = Cursor::new(record.body);
             match record.kind {
+                BRT_ABS_PATH_15 => {
+                    book.absolute_path = Some(text(&c.wide("BrtAbsPath15")?));
+                }
                 BRT_BUNDLE_SH => {
                     let state = c.u32("BrtBundleSh")?;
                     let tab_id = c.u32("BrtBundleSh")?;
@@ -283,13 +290,24 @@ pub(crate) fn name_refs(book: &Book) -> Vec<NameRef> {
 pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> {
     let part = &book.part;
     let mut x = Xml::new();
-    x.open(
-        "workbook",
-        &[
-            ("xmlns", MAIN_NAMESPACE.to_owned()),
-            ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned()),
-        ],
-    );
+    let mut attributes = vec![
+        ("xmlns", MAIN_NAMESPACE.to_owned()),
+        ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned()),
+    ];
+    if book.absolute_path.is_some() {
+        attributes.extend([
+            (
+                "xmlns:mc",
+                "http://schemas.openxmlformats.org/markup-compatibility/2006".to_owned(),
+            ),
+            (
+                "xmlns:x15",
+                "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main".to_owned(),
+            ),
+            ("mc:Ignorable", "x15".to_owned()),
+        ]);
+    }
+    x.open("workbook", &attributes);
     if let Some((code, version)) = &book.version {
         let mut attributes = Vec::new();
         for (name, value) in ["appName", "lastEdited", "lowestEdited", "rupBuild"]
@@ -372,6 +390,22 @@ pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> 
             attributes.push(("defaultThemeVersion", theme.to_string()));
         }
         x.empty("workbookPr", &attributes);
+    }
+    if let Some(path) = &book.absolute_path {
+        x.open("mc:AlternateContent", &[]);
+        x.open("mc:Choice", &[("Requires", "x15".to_owned())]);
+        x.empty(
+            "x15ac:absPath",
+            &[
+                ("url", path.clone()),
+                (
+                    "xmlns:x15ac",
+                    "http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac".to_owned(),
+                ),
+            ],
+        );
+        x.close("mc:Choice");
+        x.close("mc:AlternateContent");
     }
     if !book.views.is_empty() {
         x.open("bookViews", &[]);

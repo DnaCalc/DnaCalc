@@ -231,7 +231,9 @@ impl Walk<'_> {
             .chars()
             .next()
             .is_some_and(|c| c.is_alphabetic() || c == '_')
-            && sheet.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.');
+            && sheet
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '.');
         let written = if plain {
             // A quoted name doubles its quotes; a plain one holds none.
             format!("[{number}]{sheet}")
@@ -499,13 +501,21 @@ impl Walk<'_> {
             text
         };
         let upper = plain.to_ascii_uppercase();
-        if upper == "LET" || upper == "LAMBDA" {
+        // A file prefix is part of a call's identity: in particular, a forced UDF
+        // with the spelling of a language function has ordinary arguments. Only
+        // the built-in's measured file spelling can introduce parameter bindings.
+        let entry = function(plain);
+        let language_binding = (upper == "LET" || upper == "LAMBDA")
+            && (!prefixed
+                || entry.is_some_and(|entry| {
+                    format!("{}{}", entry.prefix.text(), entry.name).eq_ignore_ascii_case(text)
+                }));
+        if language_binding {
             if !prefixed {
                 self.insert(name.span().start, "_xlfn.");
             }
             return self.binding(&upper, &arguments, depth);
         }
-        let entry = function(plain);
         if !prefixed && let Some(entry) = entry {
             let prefix = entry.prefix.text();
             if !prefix.is_empty() {

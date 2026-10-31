@@ -221,3 +221,16 @@ Excel reopens the actual saved outputs. Loading/retaining a cached result is nev
 Validation: Windows `cargo xtask check` passed: 347 passed, 0 failed, 0 ignored, 1 not run in 28 harnesses of four packages; read-only review verified package bytes and both P1 controls.
 These are measured witnesses, not a UDF conformance pass-rate claim. Remaining breadth includes installed-add-in
 startup policies, other Excel builds/locales and arbitrary path-recovery UI configurations; no result here proves them.
+
+## Follow-up fixes (dc-snz.8 and dc-snz.12)
+
+The authored-save regression test now preserves the ordinary `Rate` argument of the forced
+UDF call while retaining language LAMBDA parameter prefixes. The XLSB conversion retains
+`BrtExternalLinksAlternateUrls` and the workbook folder from `BrtAbsPath15` (2071), written
+as `x15ac:absPath`. The latter is essential on this Excel build: preserving alternate URLs
+alone still gave `#NAME?` after relocation. Excel controls restoring the original folder,
+with and without alternate URLs, both restored the original provider calls.
+Evidence: `cdoc-path-diagnostic.json`, `cdoc-p1-reopen.json` and `tests/vba_udf_names.rs` in
+the existing fixture/test directories. These are Excel file-save/reopen checks, not claims
+that DNA Calc executes the VBA. Format writing remains XML.
+
