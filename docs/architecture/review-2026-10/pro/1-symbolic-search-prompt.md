@@ -687,10 +687,10 @@ repeat:
 
     if survivors has one member or one proven-equivalent class:
         freeze_model(survivors)
-        if independent_gates_are_all_exact(survivors):
+        if independent_checks_are_all_exact(survivors):
             promote_with_replay_evidence(survivors)
             break
-        survivors = extend_from_gate_failure(survivors)
+        survivors = extend_from_check_failure(survivors)
         continue
 
     pool  = generate_constructed_probe_pool(survivors)
