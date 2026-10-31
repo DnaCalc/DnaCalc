@@ -2,7 +2,7 @@
 
 `dc-snz.3` value calls are closed; `dc-snz.5` remains in progress (2026-10-31).
 Only `calc-vba` depends on the OxVba embedding API, pinned to
-`676c91e6bcb2f9108c07623a9a85a052fca45b8d`. Native builds prefer JIT;
+`c7ce134918f21038ec1f5f586ebfcac2d1851588`. Native builds prefer JIT;
 browser builds omit JIT and use the interpreter. A native admission decline can select
 the interpreter before any code runs. Runtime errors and exhausted budgets never retry.
 The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine/calc-doc/calc-host.
@@ -28,7 +28,9 @@ ByRef inputs remain private copies. Shared immutable code never shares mutable V
 A single rectangular reference now becomes a live read-only Range object. Supported:
 Value2, Count, Row, Column, Address, Cells/Item, and Rows/Columns Count. Variant reference
 arguments have TypeName Range; a numeric literal is Double. Application.Caller identifies
-the formula cell. Saved Range references read current inputs through the next call's
+the formula cell. VarType reflects the live Range default value (Number5, Empty0, text8, Variant array8204),
+while TypeName/IsObject retain the Range. Date/Currency format-dependent defaults and other
+object defaults remain open. Saved Range references read current inputs through the next call's
 reader, so reads are recorded and missing inputs remain explicit refusals. Returning a
 Range materializes Value2. Multi-area ranges, writes and other object members remain open. The bounded host
 deduplicates Range identities by coordinates; VBA object-identity parity remains unmeasured.
@@ -75,4 +77,10 @@ budget behavior. Final pinned revision and measured check results are in the run
 
 Native Git-pin verification: four adapter tests and seven controller tests pass;
 the final repository check passes 1,307 tests, zero failed, three ignored.
-Browser and structural verification follows the integration commit.
+Browser and structural verification passed on the previous pin (sweep with repository-wide acceptance skipped). The VarType correction now has final-pin native/browser checks; their results are recorded in the run-3 report.
+
+Final pin native check: 1,314 passed, zero failed, three ignored. The controller
+checks live default-type reflection and refusal propagation, with explicit native JIT
+selection. Cells/Item currently admit positive indices; other offsets and full Range
+identity/default-format behavior remain open. Final focused browser/acceptance and
+corpus readings are retained in the run-3 report and codex-runs logs.

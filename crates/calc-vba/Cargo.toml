@@ -12,10 +12,10 @@ portability = "portable"
 [dependencies]
 calc-func = { path = "../calc-func" }
 # Reviewed embedding contract UDF_EMBEDDING_V1. Native selects JIT at admission.
-oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "676c91e6bcb2f9108c07623a9a85a052fca45b8d", default-features = false }
+oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "c7ce134918f21038ec1f5f586ebfcac2d1851588", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "676c91e6bcb2f9108c07623a9a85a052fca45b8d", default-features = false, features = ["jit"] }
+oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "c7ce134918f21038ec1f5f586ebfcac2d1851588", default-features = false, features = ["jit"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"

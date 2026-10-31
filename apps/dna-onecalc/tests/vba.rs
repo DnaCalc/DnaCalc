@@ -192,6 +192,14 @@ End Function
 Public Function ArgType(a)
  ArgType = TypeName(a)
 End Function
+Public Function ArgVarType(a)
+ ArgVarType = VarType(a)
+End Function
+Public Function CatchVarType(a)
+ On Error Resume Next
+ CatchVarType = VarType(a)
+ CatchVarType = 7
+End Function
 Public Function TypedLong(x As Long)
  TypedLong = x
 End Function
@@ -246,15 +254,32 @@ End Function
             "Range".encode_utf16().collect()
         ))
     );
+    assert_eq!(result(&mut s, "=ArgVarType(A1)"), CalcValue::number(5.0));
+    assert_eq!(
+        result(&mut s, "=ArgVarType(A1:A2)"),
+        CalcValue::number(8204.0)
+    );
+    s.set_input("A3", InputValue::blank()).unwrap();
+    assert_eq!(result(&mut s, "=ArgVarType(A3)"), CalcValue::number(0.0));
+    s.set_input("A1", InputValue::text("typed").unwrap())
+        .unwrap();
+    assert_eq!(result(&mut s, "=ArgVarType(A1)"), CalcValue::number(8.0));
+    s.set_input("A1", InputValue::number(41.0).unwrap())
+        .unwrap();
     assert_eq!(result(&mut s, "=TypedLong(3.5)"), CalcValue::number(4.0));
     assert_eq!(
         result(&mut s, "=TypedLong(NA())"),
         CalcValue::error(WorksheetErrorCode::Value)
     );
-    s.set_formula("=IFERROR(RangeSum(Z9:Z10),7)");
-    let missing = s.calculate();
-    assert!(missing.result.is_none());
-    assert!(format!("{:?}", missing.diagnostics).contains("MissingInput"));
+    for formula in [
+        "=IFERROR(RangeSum(Z9:Z10),7)",
+        "=IFERROR(CatchVarType(Z9),7)",
+    ] {
+        s.set_formula(formula);
+        let missing = s.calculate();
+        assert!(missing.result.is_none());
+        assert!(format!("{:?}", missing.diagnostics).contains("MissingInput"));
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
