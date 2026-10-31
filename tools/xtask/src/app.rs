@@ -2162,6 +2162,7 @@ const CALC_CASES: &[Case] = &[
                 "[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"] [data-dnacalc=\"tree-toggle\"]",
             ),
             Action::Click("[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"]"),
+            Action::Click("tree-details-toggle"),
         ],
         checks: &[
             Check::Value("name-box", "B3"),
@@ -2173,7 +2174,7 @@ const CALC_CASES: &[Case] = &[
             ),
             // Other!B4, B12 and B13 sum ranges that hold Data!B3.
             Check::Text(
-                "[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"] [data-dnacalc=\"tree-dependents\"]",
+                "tree-dependents",
                 "read by 3 formulas",
             ),
         ],
@@ -6690,6 +6691,56 @@ const CALC_CASES: &[Case] = &[
         name:"canvas: omitted actual readers are counted with their direction and depth",
         actions:&[Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-grid][disabled]")),Action::Click("skin-grid"),Action::ExternalClipboard("1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1\t=A1",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Absent("[data-dnacalc=skin-canvas][disabled]")),Action::Click("skin-canvas")],
         checks:&[Check::Count("canvas-node",13),Check::Text("canvas-hidden","8 additional readers at depth 1 not shown"),Check::Text("canvas-cell","Sheet1!A1")],
+    },
+    Case {
+        name:"tree: source search and reveal reach a distant cell without projecting its prefix",
+        actions:&[Action::Window(1440,1000),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx"),Action::DiscardReplacement,Action::Click("skin-tree"),Action::Into("name-box","AZ10000\u{E007}"),Action::Into(BAR,"distant source\u{E007}"),Action::Into("tree-search","distant source")],
+        checks:&[Check::Count("[data-dnacalc=tree-row][data-kind=cell]",1),Check::Text("tree-input","distant source"),Check::ActiveDescendant("tree"),Check::Bounded("tree-row",12)],
+    },
+    Case {
+        name:"tree: reveal active clears search and keeps the distant source in its window",
+        actions:&[Action::Into("name-box","AZ10000\u{E007}"),Action::Click("tree-reveal")],
+        checks:&[Check::Attr("[data-dnacalc=tree-row][data-cell=AZ10000]","aria-level","4"),Check::Value("tree-search",""),Check::Attr("[data-dnacalc=tree-row][data-focused=true]","data-cell","AZ10000"),Check::Reachable("[data-dnacalc=tree-row][data-cell=AZ10000]"),Check::Bounded("tree-row",80)],
+    },
+    Case {
+        name:"tree: expanded Right enters the first child",
+        actions:&[Action::Keys("tree","\u{E011}\u{E014}")],
+        checks:&[Check::Attr("[data-dnacalc=tree-row][data-focused=true]","data-key","names")],
+    },
+    Case {
+        name:"tree: Left moves a folded branch to its parent",
+        actions:&[Action::Keys("tree","\u{E012}")],
+        checks:&[Check::Attr("[data-dnacalc=tree-row][data-focused=true]","data-key","workbook")],
+    },
+    Case {
+        name:"tree: folds and focus survive a skin return",
+        actions:&[Action::Click("[data-dnacalc=tree-row][data-key='sheet:Data'] [data-dnacalc=tree-toggle]"),Action::Click("skin-canvas"),Action::Click("skin-tree")],
+        checks:&[Check::Attr("[data-dnacalc=tree-row][data-key='sheet:Data']","data-folded","true"),Check::Attr("[data-dnacalc=tree-row][data-focused=true]","data-key","sheet:Data"),Check::Absent("[data-dnacalc=tree-row][data-cell=AZ10000]")],
+    },
+    Case {
+        name:"tree: a published array exposes actual spill children and narrow source columns",
+        actions:&[Action::Click("new"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=skin-tree][disabled]")),Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"=SEQUENCE(3,2)\u{E007}"),Action::Into("name-box","C1\u{E007}"),Action::Window(390,844)],
+        checks:&[Check::Text("[data-dnacalc=tree-row][data-cell=D3] [data-dnacalc=tree-value]","6"),Check::Text("[data-dnacalc=tree-row][data-cell=D3] [data-dnacalc=tree-input]","Child value"),Check::Fits,Check::Narrow(390),Check::Reachable("tree-search"),Check::Reachable("tree-reveal")],
+    },
+    Case {
+        name:"tree: exact refusal and worksheet error details stay attached to real sources",
+        actions:&[Action::Window(1440,1000),Action::Into("name-box","E20\u{E007}"),Action::Into(BAR,"=NoSheet!A1\u{E007}"),Action::Into("name-box","E20\u{E007}"),Action::Click("tree-details-toggle"),Action::Window(390,844)],
+        checks:&[Check::Contained("[data-dnacalc=tree-row][data-cell=E20]","tree"),Check::Reachable("tree-open-grid"),Check::Contained("tree-open-grid","tree-details"),Check::Attr("[data-dnacalc=tree-row][data-cell=E20]","data-provenance","refused"),Check::TextContains("tree-details","NoSheet"),Check::Text("result-state","Refused")],
+    },
+    Case {
+        name:"tree: the shared editor updates the selected source",
+        actions:&[Action::Into(BAR,"=1/0\u{E007}"),Action::Into("name-box","E20\u{E007}")],
+        checks:&[Check::Text("[data-dnacalc=tree-row][data-cell=E20] [data-dnacalc=tree-value]","#DIV/0!"),Check::TextContains("tree-details","zero")],
+    },
+    Case {
+        name:"tree: one workbook Undo restores the refusal source and Redo restores the error",
+        actions:&[Action::Click("undo"),Action::Wait(Check::Value(BAR,"=NoSheet!A1")),Action::Wait(Check::Text("result-state","Refused")),Action::Click("redo"),Action::Wait(Check::Value(BAR,"=1/0"))],
+        checks:&[Check::Text("[data-dnacalc=tree-row][data-cell=E20] [data-dnacalc=tree-value]","#DIV/0!")],
+    },
+    Case {
+        name:"tree: Grid source opens through the shared workbook selection",
+        actions:&[Action::Click("tree-open-grid")],
+        checks:&[Check::Value("name-box","E20"),Check::Value(BAR,"=1/0"),Check::Text(cell!("E20"),"#DIV/0!")],
     },
 
 ];

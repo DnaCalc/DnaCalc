@@ -302,6 +302,8 @@ pub enum Request {
     Outline {
         shown: Vec<(Sheet, u64)>,
         open: Vec<Sheet>,
+        reveal: Option<Key>,
+        query: String,
     },
     /// The formula cells that read the cell.
     Dependents(Key),
@@ -662,6 +664,7 @@ pub struct Inspector {
 /// the open sheets' rows, as the page shows them.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Outline {
+    pub omitted: u64,
     pub workbook: String,
     pub names: Vec<String>,
     pub sheets: Vec<OutlineSheet>,

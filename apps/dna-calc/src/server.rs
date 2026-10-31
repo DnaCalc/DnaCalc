@@ -331,7 +331,17 @@ impl Server {
                         census,
                     }))
                 }
-                Request::Outline { shown, open } => Ok(Reply::Outline(self.outline(&shown, &open))),
+                Request::Outline {
+                    shown,
+                    open,
+                    reveal,
+                    query,
+                } => Ok(Reply::Outline(self.outline(
+                    &shown,
+                    &open,
+                    reveal.and_then(|k| k.cell()),
+                    &query,
+                ))),
                 Request::Dependents(at) => {
                     let at = cell(at)?;
                     Ok(Reply::Keys(
@@ -1498,15 +1508,32 @@ impl Server {
 
     /// The tree's outline ([`crate::tree::outline_sheet`] per sheet) with the open sheets' shown
     /// cells.
-    fn outline(&self, shown: &[(Sheet, u64)], open: &[Sheet]) -> wire::Outline {
+    fn outline(
+        &self,
+        shown: &[(Sheet, u64)],
+        open: &[Sheet],
+        reveal: Option<CellKey>,
+        query: &str,
+    ) -> wire::Outline {
+        let query = query.trim().to_lowercase();
+        let mut omitted = 0;
         let host = self.book.host();
         let names = host
             .defined_names()
             .iter()
+            .filter(|name| {
+                !host
+                    .model()
+                    .layout()
+                    .blocks()
+                    .iter()
+                    .any(|b| b.locator().as_str() == name.name)
+            })
             .map(|name| {
                 let formula = name.formula.strip_prefix('=').unwrap_or(&name.formula);
                 format!("{} = {formula}", name.name)
             })
+            .filter(|text| query.is_empty() || text.to_lowercase().contains(&query))
             .collect();
         let mut sheets = Vec::new();
         let mut wanted = Vec::new();
@@ -1516,15 +1543,48 @@ impl Server {
                 .iter()
                 .find(|(s, _)| *s == sheet)
                 .map_or(crate::tree::ROW_PAGE, |(_, n)| *n as usize);
-            let outline = crate::tree::outline_sheet(
-                tab.id,
-                tab.name,
-                host.input_cells(tab.id).into_iter(),
-                limit,
-            );
+            let (keys, hidden) = crate::tree::outline_keys(host, tab.id, limit, reveal);
+            omitted += hidden;
+            let keys: Vec<_> = keys
+                .into_iter()
+                .filter(|at| {
+                    query.is_empty()
+                        || format!(
+                            "{}!{} {}",
+                            tab.name,
+                            cells::address(at.row(), at.column()),
+                            cells::input_text(host.model().cell(*at))
+                        )
+                        .to_lowercase()
+                        .contains(&query)
+                })
+                .collect();
+            if !query.is_empty() && keys.is_empty() {
+                continue;
+            }
+            let mut outline =
+                crate::tree::outline_sheet(tab.id, tab.name, keys.iter().copied(), limit);
+            if query.is_empty()
+                && let Some(at) = reveal.filter(|at| at.sheet() == tab.id)
+            {
+                if !outline.rows.iter().any(|(row, _)| *row == at.row()) {
+                    outline.rows.push((
+                        at.row(),
+                        keys.iter()
+                            .copied()
+                            .filter(|key| key.row() == at.row())
+                            .collect(),
+                    ));
+                    outline.rows.sort_by_key(|(row, _)| *row);
+                    outline.more_rows = outline.more_rows.saturating_sub(1);
+                }
+            }
             if open.contains(&sheet) {
                 for (_, row) in &outline.rows {
                     wanted.extend(row.iter().take(crate::tree::ROW_CELLS).copied());
+                    if let Some(at) = reveal.filter(|at| row.contains(at)) {
+                        wanted.push(at);
+                    }
                 }
             }
             sheets.push(wire::OutlineSheet {
@@ -1539,6 +1599,8 @@ impl Server {
                 more_rows: outline.more_rows as u64,
             });
         }
+        wanted.sort();
+        wanted.dedup();
         let cells = self
             .book
             .project(wanted)
@@ -1553,6 +1615,7 @@ impl Server {
             })
             .collect();
         wire::Outline {
+            omitted: omitted as u64,
             workbook: self.book.name().to_owned(),
             names,
             sheets,
@@ -1878,4 +1941,66 @@ fn search_selection(options: &wire::FindOptions) -> Result<Selection, String> {
         active: areas.first().map(|a| a.first()),
         areas,
     })
+}
+
+#[cfg(test)]
+mod outline_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn outline_search_reveal_and_spill_windows_use_the_application_server() {
+        let mut server = Server::new();
+        let data = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx");
+        assert!(
+            server
+                .handle(
+                    Request::Open {
+                        name: "cut-base.xlsx".into()
+                    },
+                    Some(data.to_vec())
+                )
+                .reply
+                .is_ok()
+        );
+        let sheet = server.book.host().sheets()[0].id();
+        let distant = CellKey::new(sheet, 10000, 52).unwrap();
+        server
+            .handle(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(distant),
+                    text: "distant source".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        let outline = server.outline(&[], &[Sheet::of(sheet)], Some(distant), "distant source");
+        assert_eq!(outline.cells.len(), 1);
+        assert_eq!(outline.cells[0].at, Key::of(distant));
+        assert_eq!(outline.cells[0].input, "distant source");
+        server.handle(Request::New, None).reply.unwrap();
+        let sheet = server.book.host().sheets()[0].id();
+        let anchor = CellKey::new(sheet, 1, 3).unwrap();
+        server
+            .handle(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(anchor),
+                    text: "=SEQUENCE(1000,2)".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        let outline = server.outline(&[], &[Sheet::of(sheet)], Some(anchor), "");
+        assert_eq!(outline.omitted, 1900);
+        assert_eq!(outline.cells.len(), 100);
+        let last = outline
+            .cells
+            .iter()
+            .find(|c| c.at == Key::of(CellKey::new(sheet, 50, 4).unwrap()))
+            .unwrap();
+        assert_eq!(last.text, "100");
+        assert!(last.input.is_empty());
+        assert_eq!(last.provenance, cells::Provenance::Calculated);
+    }
 }
