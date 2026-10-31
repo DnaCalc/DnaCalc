@@ -302,6 +302,14 @@ fn irr_polishes_cashflows_with_a_small_nonzero_derivative() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn pmt_uses_recorded_exponential_and_timing_stores() {
+    // Excel build 20131 PMT bank, oc72460 and oc36619: the growth arm's
+    // first quotient is stored from PC64, with and without a future value.
+    exact(call("PMT", vec![
+        n(f64::from_bits(0xbf4a_dfce_e2c3_cdfe)), n(96.0), n(97.0),
+    ]), f64::from_bits(0xbfef_105d_90b7_fd3b));
+    exact(call("PMT", vec![
+        n(f64::from_bits(0xbf71_2e25_12f6_bd04)), n(360.0), n(1.0), n(1.0),
+    ]), f64::from_bits(0xbf7a_e23b_ddd2_dba3));
     // oc1134: the discount arm stores the final PC64 product.
     exact(call("PMT", vec![
         n(f64::from_bits(0x3eb6_b288_9103_0aed)), n(256.0), n(1.0),

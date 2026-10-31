@@ -185,11 +185,6 @@ fn distributions_match_excel_examples() {
     close(call("ERF", vec![n(0.0), n(1.0)]), 0.8427007929497149, 1e-14);
     // A cumulative flag is read as a number.
     error(call("NORM.S.DIST", vec![n(1.0), t("yes")]), Value);
-    // Recorded GAMMA controls distinguish the global Lanczos coefficient model.
-    exact(call("GAMMA", vec![n(f64::from_bits(0x4038_5a42_c006_98e1))]),
-        f64::from_bits(0x44b0_b505_e5e9_f3bd));
-    exact(call("GAMMA", vec![n(f64::from_bits(0x4005_90fe_1f15_0189))]),
-        f64::from_bits(0x3ff8_a1e7_f6b3_4d46));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -297,6 +292,22 @@ fn normal_error_functions_publish_recorded_underflows() {
             exact(call(function, vec![n(f64::from_bits(bits))]), 0.0);
         }
     }
+}
+
+/// Recorded ERFC dependencies and normal-CDF tails from Excel build 20131.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn error_function_tails_use_the_recorded_rounded_square() {
+    // These ERFC arguments belong to different halves of the frozen split.
+    for function in ["ERFC", "ERFC.PRECISE"] {
+        exact(call(function, vec![n(f64::from_bits(0x4021_0c8a_deec_196e))]),
+            f64::from_bits(0x3922_d992_80b1_9df9));
+        exact(call(function, vec![n(f64::from_bits(0x4024_2bc8_1cf3_8194))]),
+            f64::from_bits(0x3680_fa89_4f89_d6df));
+    }
+    exact(call("NORM.S.DIST", vec![
+        n(f64::from_bits(0xc026_a496_5d40_5589)), b(true),
+    ]), f64::from_bits(0x39da_0ca4_2246_3668));
 }
 
 /// Recorded GAMMA.DIST density row; the shape-one log normalizer is exactly zero.

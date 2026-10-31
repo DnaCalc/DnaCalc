@@ -263,7 +263,14 @@ pub fn pmt(
     let inv_factor = 1.0 + em; // v = (1+r)^-n
     let tf = timing.factor(periodic_rate); // 1 + r·type
     let numerator = present_value + future_value * inv_factor;
-    let quotient = excel_x87_div(numerator / em, tf);
+    // The growth arm also stores the initial quotient from PC64. The discount
+    // arm keeps binary64 division; recorded PMT oc72460 distinguishes the store.
+    let quotient = if neg_log < 0.0 {
+        numerator / em
+    } else {
+        excel_x87_div(numerator, em)
+    };
+    let quotient = excel_x87_div(quotient, tf);
     // The recorded discount arm stores the final product from PC64; the growth arm
     // retains the native product, which the negative-rate control distinguishes.
     let result = if neg_log < 0.0 {

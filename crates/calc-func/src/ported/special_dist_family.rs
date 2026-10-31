@@ -6,17 +6,14 @@ use crate::ported::excel_numeric::crt_log10;
 use crate::ported::excel_numeric::crt_sin;
 
 const LANCZOS_G: f64 = 7.0;
-// A nonunique recorded-answer calibration of the published g=7 model.
-// The leading coefficient is one ULP lower and coefficient 6 is 14 ULP
-// farther from zero; this does not identify Excel's coefficient table.
 const LANCZOS_COEFFS: [f64; 9] = [
-    0.999_999_999_999_809_8,
+    0.999_999_999_999_809_9,
     676.520_368_121_885_1,
     -1_259.139_216_722_402_8,
     771.323_428_777_653_1,
     -176.615_029_162_140_6,
     12.507_343_278_686_905,
-    -0.138_571_095_265_720_51,
+    -0.138_571_095_265_720_12,
     9.984_369_578_019_572e-6,
     1.505_632_735_149_311_6e-7,
 ];
@@ -164,6 +161,20 @@ fn excel_erfc(x: f64) -> f64 {
     let libm_v = libm::erfc(x);
     if !x.is_finite() || x < 1.25 {
         return libm_v;
+    }
+    // Recorded tails have the exponent of the rounded square. FMA recovers the
+    // exact product residual; q + q*residual corrects that exponent with one
+    // rounding (the quadratic term is below binary64 precision in this range).
+    // The conservative 2^-48 bound was frozen on 7,598 training readings before
+    // checking 7,578 held-out readings, grouped by the stored ERFC argument.
+    // SplitMix64 finalizer(argument bits ^ 0x444e4143414c4332): low bit 0 trains.
+    // It is a fitted error bound, not an identified Excel branch point.
+    if libm_v.is_normal() {
+        let square = x * x;
+        let residual = x.mul_add(x, -square);
+        if residual.abs() >= f64::from_bits(0x3cf0_0000_0000_0000) {
+            return libm_v.mul_add(residual, libm_v);
+        }
     }
     let s = 1.0 / (x * x);
     let (s_lo, s_hi, coeffs): (f64, f64, &[f64]) = if x < ERFC_BOUNDARY_X {

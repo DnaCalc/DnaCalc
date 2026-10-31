@@ -29,6 +29,12 @@
 //! `judge --trace <path>` also writes the selected input, expected and calculated result of
 //! every decoded row as JSONL, for comparisons that check individual gains and losses.
 //! Unread rows still count as failures in the summary; they have no decoded trace row.
+//! `witness compare --before <trace> --after <trace>` streams two judge traces, rejects
+//! any change to reading identity or recorded answers, and counts gains and losses.
+//! It reports decoded rows only: use the judge summaries for unread failures.
+//! `witness refresh [--func F]` recalculates the original pins and updates only
+//! calculated predictions, preserving the sample and Excel's answers. It refuses
+//! any newly lost pinned match. Run the full-bank comparison before retaining a change.
 //!
 //! `pin` judges the full banks as `judge --bank full` does, writes what it writes, and then the
 //! pinned sets: per function, the first rows of each bank
@@ -61,12 +67,12 @@ use calc_verdict::{
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::{BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>]";
 
 const CHECKOUT: &str = "OxFunc-Evidence";
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
@@ -87,6 +93,8 @@ enum Bank {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Verb {
     Judge,
+    Compare,
+    Refresh,
     Pin,
     Read,
 }
@@ -98,12 +106,16 @@ struct Request {
     rows: usize,
     timeout: u64,
     trace: Option<PathBuf>,
+    before: Option<PathBuf>,
+    after: Option<PathBuf>,
 }
 
 fn parse_args(raw: &[String]) -> Result<Request, String> {
     let (verb, rest) = raw.split_first().ok_or("a subcommand is required")?;
     let verb = match verb.as_str() {
         "judge" => Verb::Judge,
+        "compare" => Verb::Compare,
+        "refresh" => Verb::Refresh,
         "pin" => Verb::Pin,
         "read" => Verb::Read,
         other => return Err(format!("unknown subcommand {other}")),
@@ -115,12 +127,16 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         rows: 120,
         timeout: 600,
         trace: None,
+        before: None,
+        after: None,
     };
     let mut it = rest.iter();
     while let Some(arg) = it.next() {
         let mut value = || it.next().cloned().ok_or(format!("{arg} needs a value"));
         match arg.as_str() {
-            "--func" => request.function = Some(value()?.to_ascii_uppercase()),
+            "--func" if verb != Verb::Compare => request.function = Some(value()?.to_ascii_uppercase()),
+            "--before" if verb == Verb::Compare => request.before = Some(PathBuf::from(value()?)),
+            "--after" if verb == Verb::Compare => request.after = Some(PathBuf::from(value()?)),
             "--trace" if verb == Verb::Judge => request.trace = Some(PathBuf::from(value()?)),
             "--bank" if verb == Verb::Judge => {
                 request.bank = match value()?.as_str() {
@@ -145,6 +161,9 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
     if verb == Verb::Read && request.function.is_none() {
         return Err("read needs --func".to_owned());
     }
+    if verb == Verb::Compare && (request.before.is_none() || request.after.is_none()) {
+        return Err("compare needs --before and --after".to_owned());
+    }
     Ok(request)
 }
 
@@ -160,9 +179,13 @@ struct Reading {
 
 impl Reading {
     fn key(&self) -> String {
-        let index = self.index.map_or(String::new(), |(r, c)| format!("@{r},{c}"));
-        format!("{}|{}{index}", self.function, Value::Array(self.args.clone()))
+        reading_key(&self.function, &self.args, self.index)
     }
+}
+
+fn reading_key(function: &str, args: &[Value], index: Option<(usize, usize)>) -> String {
+    let index = index.map_or(String::new(), |(r, c)| format!("@{r},{c}"));
+    format!("{function}|{}{index}", Value::Array(args.to_vec()))
 }
 
 /// A bank file and the environment its capture recorded.
@@ -1172,6 +1195,62 @@ fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>,
 }
 
 // ---------------------------------------------------------------------------------------------
+// Refreshing calculated predictions without selecting new pins
+
+fn refresh_prediction(row: &mut WitnessRow, actual: &str) -> Result<bool, String> {
+    if matches!(actual, "fault:Panic" | "fault:Timeout") {
+        return Err(format!("cannot refresh {}: {actual}", row.id));
+    }
+    let new_match = judge(&row.expected, actual).0 == Severity::Exact;
+    let old = row.calc_func.as_deref().unwrap_or(&row.expected);
+    if judge(&row.expected, old).0 == Severity::Exact && !new_match {
+        return Err(format!("cannot refresh {}: a previously matched pin now fails", row.id));
+    }
+    let prediction = (!new_match).then(|| actual.to_owned());
+    let changed = row.calc_func != prediction;
+    row.calc_func = prediction;
+    Ok(changed)
+}
+
+fn refresh_pinned(root: &Path, judged: &BTreeMap<String, Vec<Row>>, only: Option<&str>) -> Result<(), String> {
+    let mut updates = Vec::new();
+    let mut changed = 0;
+    for (path, mut set) in pinned_sets(root, only)? {
+        let rows = judged.get(&set.function).ok_or(format!("{} was not judged", set.function))?;
+        let actuals: BTreeMap<_, _> = rows.iter().map(|r| (r.reading.key(), r.actual.as_str())).collect();
+        let mut count = 0;
+        for row in &mut set.witnesses {
+            let key = reading_key(&set.function, &row.args, row.result_index);
+            let actual = actuals.get(&key).ok_or(format!("no calculation for {} {}", set.function, row.id))?;
+            count += usize::from(refresh_prediction(row, actual)?);
+        }
+        if count == 0 {
+            continue;
+        }
+        let text = set.encode();
+        let original = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let mut before: Value = serde_json::from_slice(&original).map_err(|e| e.to_string())?;
+        let mut after: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        // Preserve every other field, including metadata unknown to WitnessSet.
+        for value in [&mut before, &mut after] {
+            for row in value["witnesses"].as_array_mut().ok_or("missing witnesses")? {
+                row.as_object_mut().ok_or("a witness is not an object")?.remove("calc_func");
+            }
+        }
+        if before != after {
+            return Err(format!("{}: refresh would change recorded data or the original sample", path.display()));
+        }
+        changed += count;
+        updates.push((path, text));
+    }
+    // Validate the complete batch before writing any prediction.
+    for (path, text) in &updates {
+        fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    println!("xtask witness: refreshed {changed} calculated predictions in {} original pinned sets; all recorded fields unchanged", updates.len());
+    Ok(())
+}
+
 // OxFunc's ledger
 
 fn csv_fields(line: &str) -> Vec<String> {
@@ -1273,7 +1352,113 @@ pub fn run(raw: &[String]) -> ExitCode {
     }
 }
 
+#[derive(Default, Debug, PartialEq, Eq)]
+struct TraceCounts {
+    rows: usize,
+    before: usize,
+    after: usize,
+    gained: usize,
+    lost: usize,
+    changed: usize,
+}
+
+impl TraceCounts {
+    fn record(&mut self, expected: &str, before: &str, after: &str) {
+        let old_match = judge(expected, before).0 == Severity::Exact;
+        let new_match = judge(expected, after).0 == Severity::Exact;
+        self.rows += 1;
+        self.before += usize::from(old_match);
+        self.after += usize::from(new_match);
+        self.gained += usize::from(new_match && !old_match);
+        self.lost += usize::from(old_match && !new_match);
+        self.changed += usize::from(before != after);
+    }
+}
+
+/// Read both traces completely, with bounded memory. Every field except the calculated
+/// result must be identical, including unknown fields added by later judge versions.
+fn compare_traces(
+    before: impl BufRead,
+    after: impl BufRead,
+) -> Result<BTreeMap<String, TraceCounts>, String> {
+    let mut counts: BTreeMap<String, TraceCounts> = BTreeMap::new();
+    let mut old_lines = before.lines();
+    let mut new_lines = after.lines();
+    let mut line = 0;
+    loop {
+        line += 1;
+        let pair = match (old_lines.next(), new_lines.next()) {
+            (None, None) => break,
+            (Some(a), Some(b)) => (a, b),
+            _ => return Err(format!("trace lengths differ at row {line}")),
+        };
+        let read = |text: std::io::Result<String>| -> Result<serde_json::Map<String, Value>, String> {
+            let text = text.map_err(|e| format!("trace row {line}: {e}"))?;
+            let Value::Object(value) = serde_json::from_str(&text)
+                .map_err(|e| format!("trace row {line}: {e}"))? else {
+                return Err(format!("trace row {line} is not an object"));
+            };
+            for field in ["function", "id", "expected", "actual", "source"] {
+                if !value.get(field).is_some_and(Value::is_string) {
+                    return Err(format!("trace row {line} needs string {field}"));
+                }
+            }
+            if !value.get("args").is_some_and(Value::is_array)
+                || !value.get("reading").is_some_and(Value::is_object)
+                || !value.contains_key("result_index") {
+                return Err(format!("trace row {line} lacks input, selection or environment"));
+            }
+            Ok(value)
+        };
+        let mut old = read(pair.0)?;
+        let mut new = read(pair.1)?;
+        let old_actual = old.remove("actual").unwrap();
+        let new_actual = new.remove("actual").unwrap();
+        if old != new {
+            return Err(format!("reading identity or recorded answer differs at row {line}"));
+        }
+        let function = old["function"].as_str().unwrap();
+        counts.entry(function.to_owned()).or_default().record(
+            old["expected"].as_str().unwrap(),
+            old_actual.as_str().unwrap(),
+            new_actual.as_str().unwrap(),
+        );
+    }
+    if counts.is_empty() {
+        return Err("traces contain no decoded rows".to_owned());
+    }
+    Ok(counts)
+}
+
+fn run_trace_comparison(request: &Request) -> Result<ExitCode, String> {
+    let open = |path: &Option<PathBuf>| {
+        let path = path.as_ref().ok_or("missing trace path".to_owned())?;
+        fs::File::open(path).map(BufReader::new).map_err(|e| format!("{}: {e}", path.display()))
+    };
+    let counts = compare_traces(open(&request.before)?, open(&request.after)?)?;
+    let mut total = TraceCounts::default();
+    for (function, c) in &counts {
+        if c.changed != 0 {
+            println!("xtask witness compare: {function}: {} -> {} matched / {}, +{} / -{}, {} actuals changed",
+                c.before, c.after, c.rows, c.gained, c.lost, c.changed);
+        }
+        total.rows += c.rows;
+        total.before += c.before;
+        total.after += c.after;
+        total.gained += c.gained;
+        total.lost += c.lost;
+        total.changed += c.changed;
+    }
+    println!("xtask witness compare: {} decoded rows; all input/selection/answer/source/environment fields unchanged", total.rows);
+    println!("xtask witness compare: {} -> {} matched, +{} / -{}; {} actuals changed; unread failures are only in judge summaries",
+        total.before, total.after, total.gained, total.lost, total.changed);
+    Ok(if total.lost == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+}
+
 fn run_request(request: &Request) -> Result<ExitCode, String> {
+    if request.verb == Verb::Compare {
+        return run_trace_comparison(request);
+    }
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let ws = Workspace::load(&cwd)?;
     let only = request.function.as_deref();
@@ -1423,6 +1608,9 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         for p in panics.iter().take(30) {
             println!("xtask witness: left out, calc-func panics, takes over {SLOW_MILLIS} ms or does not finish: {p}");
         }
+    }
+    if request.verb == Verb::Refresh {
+        refresh_pinned(&ws.root, &judged, only)?;
     }
     let bank = match request.bank {
         Bank::Pinned => "pinned",
@@ -1657,6 +1845,97 @@ mod tests {
         assert!(parse_args(&args("pin --trace rows.jsonl")).is_err());
         assert!(parse_args(&args("read --func GAMMA --trace rows.jsonl")).is_err());
         assert!(parse_args(&args("race")).is_err());
+        let r = parse_args(&args("compare --before old.jsonl --after new.jsonl")).unwrap();
+        assert_eq!(r.verb, Verb::Compare);
+        assert_eq!(r.before, Some(PathBuf::from("old.jsonl")));
+        assert_eq!(r.after, Some(PathBuf::from("new.jsonl")));
+        assert!(parse_args(&args("compare --before old.jsonl")).is_err());
+        assert!(parse_args(&args("judge --after new.jsonl")).is_err());
+        assert!(parse_args(&args("compare --before a --after b --func GAMMA")).is_err());
+        let r = parse_args(&args("refresh --func erfc")).unwrap();
+        assert!(r.verb == Verb::Refresh && r.bank == Bank::Pinned);
+        assert_eq!(r.function.as_deref(), Some("ERFC"));
+        assert!(parse_args(&args("refresh --rows 12")).is_err());
+        assert!(parse_args(&args("refresh --bank full")).is_err());
+    }
+
+    #[test]
+    fn refresh_updates_only_predictions_and_refuses_new_pinned_losses() {
+        let mut row = WitnessRow {
+            id: "original".into(), args: vec![serde_json::json!("0x8000000000000000")],
+            result_index: Some((1, 2)), expected: "0x3ff0000000000000".into(),
+            reading: "r0".into(), calc_func: Some("0x3ff0000000000003".into()),
+        };
+        let original = row.clone();
+        assert!(refresh_prediction(&mut row, "0x3ff0000000000002").unwrap());
+        let prediction = row.calc_func.clone();
+        row.calc_func = original.calc_func.clone();
+        assert_eq!(row, original);
+        row.calc_func = prediction;
+        assert!(refresh_prediction(&mut row, "0x3ff0000000000000").unwrap());
+        assert!(row.calc_func.is_none());
+        let matched = row.clone();
+        assert!(refresh_prediction(&mut row, "0x3ff0000000000001").is_err());
+        assert!(refresh_prediction(&mut row, "fault:Timeout").is_err());
+        assert!(refresh_prediction(&mut row, "fault:Panic").is_err());
+        assert_eq!(row, matched);
+    }
+
+    fn comparison_row(id: usize, expected: &str, actual: &str) -> Value {
+        serde_json::json!({
+            "function": "GAMMA", "id": id.to_string(), "args": ["0x3ff0000000000000"],
+            "result_index": null, "expected": expected, "actual": actual,
+            "source": "recorded-bank", "reading": {"excel_build": "20430"}
+        })
+    }
+
+    fn trace_text(rows: &[Value]) -> String {
+        rows.iter().map(|r| format!("{r}\n")).collect()
+    }
+
+    #[test]
+    fn comparison_counts_gains_losses_and_refusals_with_the_existing_verdict() {
+        let expected = "0x3ff0000000000000";
+        let old = trace_text(&[
+            comparison_row(0, expected, "fault:NotImplemented"),
+            comparison_row(1, expected, expected),
+            comparison_row(2, expected, "0x3ff0000000000001"),
+            comparison_row(3, "error:Num", "error:Num"),
+        ]);
+        let new = trace_text(&[
+            comparison_row(0, expected, expected),
+            comparison_row(1, expected, "0x3ff0000000000001"),
+            comparison_row(2, expected, "fault:NotImplemented"),
+            comparison_row(3, "error:Num", "error:Num"),
+        ]);
+        let counts = compare_traces(old.as_bytes(), new.as_bytes()).unwrap();
+        assert_eq!(counts["GAMMA"], TraceCounts {
+            rows: 4, before: 2, after: 2, gained: 1, lost: 1, changed: 3,
+        });
+    }
+
+    #[test]
+    fn comparison_rejects_changed_identity_answers_lengths_and_malformed_rows() {
+        let row = comparison_row(0, "0x3ff0000000000000", "0x3ff0000000000001");
+        let old = trace_text(&[row.clone()]);
+        for (field, value) in [
+            ("expected", serde_json::json!("0x3ff0000000000001")),
+            ("args", serde_json::json!(["0x4000000000000000"])),
+            ("id", serde_json::json!("different")),
+            ("source", serde_json::json!("other-bank")),
+            ("reading", serde_json::json!({"excel_build": "20131"})),
+            ("result_index", serde_json::json!([1, 0])),
+            ("future_metadata", serde_json::json!("must also remain fixed")),
+        ] {
+            let mut changed = row.clone();
+            changed[field] = value;
+            assert!(compare_traces(old.as_bytes(), trace_text(&[changed]).as_bytes()).is_err(), "{field}");
+        }
+        assert!(compare_traces(old.as_bytes(), b"".as_slice()).is_err());
+        assert!(compare_traces(b"".as_slice(), old.as_bytes()).is_err());
+        assert!(compare_traces(b"".as_slice(), b"".as_slice()).is_err());
+        assert!(compare_traces(b"{}\n".as_slice(), b"{}\n".as_slice()).is_err());
+        assert!(compare_traces(b"broken\n".as_slice(), b"broken\n".as_slice()).is_err());
     }
 
     #[test]
