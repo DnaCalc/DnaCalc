@@ -812,6 +812,46 @@ mod browser {
         dispatch(target, "input");
     }
 
+    pub async fn vba_part() {
+        let page = Page::mount();
+        settle().await;
+        let a1 = page
+            .root
+            .query_selector("[data-onecalc=\"grid-cell\"][data-cell=\"A1\"]")
+            .unwrap()
+            .unwrap();
+        type_text(&a1, "40");
+        page.type_into("formula", "=Add2(A1,2)");
+        page.click("vba-load");
+        settle().await;
+        assert!(page.text("vba-status").starts_with("Loaded:"));
+        assert_eq!(page.text("result"), "number 42");
+        page.type_into(
+            "vba-source",
+            &calc_vba::EXAMPLE_MODULE.replace("a + b", "a + b + 10"),
+        );
+        page.click("vba-load");
+        settle().await;
+        assert_eq!(page.text("result"), "number 52");
+        page.type_into("vba-source", "Function Broken(\n");
+        page.click("vba-load");
+        settle().await;
+        assert!(page.text("vba-status").starts_with("Module not loaded:"));
+        assert_eq!(page.text("result"), "number 52");
+        page.type_into(
+            "vba-source",
+            "Public Function Spin()\n On Error Resume Next\n Do\n Loop\nEnd Function\n",
+        );
+        page.click("vba-load");
+        page.type_into("formula", "=Spin()");
+        settle().await;
+        assert_eq!(page.text("result-value"), "#VALUE!");
+        assert!(page.text("diagnostics").contains("budget"));
+        page.click("vba-clear");
+        settle().await;
+        assert_eq!(page.text("result-value"), "#NAME?");
+    }
+
     /// The browser part of the reference case. Returns the number of examples it checked.
     pub async fn surface_part() -> usize {
         let page = Page::mount();
@@ -1106,5 +1146,36 @@ fn onecalc_m1_1__dependency_gate() {
         "ACCEPT-NOTE: onecalc_m1_1__dependency_gate: cargo metadata --all-features --locked --filter-platform for each of {}; dna-onecalc's package graph (its normal, build and dev edges, then normal and build edges) holds neither calc-engine nor calc-host ({})",
         targets.join(", "),
         sizes.join("; ")
+    );
+}
+
+// dc-snz.3 uses the same module-loading/controller route on desktop and in the mounted UI.
+fn vba_controller_part() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("H1").unwrap();
+    session
+        .set_input("A1", InputValue::number(40.0).unwrap())
+        .unwrap();
+    session
+        .load_vba_module("Math", calc_vba::EXAMPLE_MODULE, 1000)
+        .unwrap();
+    session.set_formula("=Add2(A1,2)");
+    assert_eq!(session.calculate().result, Some(CalcValue::number(42.0)));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn dc_snz_3__vba() {
+    vba_controller_part();
+    note!("ACCEPT-NOTE: dc_snz_3__vba: Add2(A1,2) through native OneCalc Session");
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test]
+async fn dc_snz_3__vba() {
+    vba_controller_part();
+    browser::vba_part().await;
+    note!(
+        "ACCEPT-NOTE: dc_snz_3__vba: Add2(A1,2) through OneCalc Session; browser additionally drives load, reload, failed load, budget and unload through the mounted surface"
     );
 }

@@ -31,8 +31,8 @@ use super::{
     FormulaForm, FormulaInstance, Instruction, ResolvedReference, Target, lift, refops,
 };
 use crate::reference::{
-    FormulaAnchor, ReadContractError, ReferenceCatalog, ReferenceNotation,
-    ReferenceOperand, SheetTarget, SpillExtent, bind_text,
+    FormulaAnchor, ReadContractError, ReferenceCatalog, ReferenceNotation, ReferenceOperand,
+    SheetTarget, SpillExtent, bind_text,
 };
 use calc_func::value::{
     CalcArray, CalcValue, CellKey, CoreRef, GridArea, NumericMode, ReferenceLike,
@@ -185,6 +185,8 @@ pub fn evaluate(
         numeric: services.numeric,
         reader: &reader,
         catalog: services.catalog,
+        functions: services.functions,
+        function_diagnostics: services.function_diagnostics.as_deref_mut(),
         // Reborrowed for this evaluation only: the coercion shortens the observer's lifetime to
         // the run's, which `Option::as_deref_mut` cannot.
         observer: match services.observer.as_mut() {
@@ -202,9 +204,7 @@ pub fn evaluate(
                 }
             }
             (FormulaForm::Legacy, CoreRef::Array(_)) => refops::implicit(&value, at),
-            (FormulaForm::Dynamic, CoreRef::Reference(reference)) => {
-                reader.values_of(reference)?
-            }
+            (FormulaForm::Dynamic, CoreRef::Reference(reference)) => reader.values_of(reference)?,
             _ => value,
         };
         Ok(if value.is_empty() {
@@ -243,6 +243,8 @@ struct Run<'a, 'r> {
     random: Option<&'a SharedRandom<'r>>,
     /// The workbook context INDIRECT's text is bound in, when the caller gave one.
     catalog: Option<&'a dyn ReferenceCatalog>,
+    functions: Option<&'a calc_func::UserFunctions>,
+    function_diagnostics: Option<&'a mut Vec<String>>,
     observer: Option<&'a mut dyn EvaluationObserver>,
 }
 
@@ -255,6 +257,31 @@ fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
 }
 
 impl Run<'_, '_> {
+    fn user_call(&mut self, name: &str, argc: usize) -> Result<(), EvalFault> {
+        let start = self.stack.len() - argc;
+        let mut arguments = self.stack.split_off(start);
+        for argument in &mut arguments {
+            if let Some(reference) = argument.as_reference() {
+                *argument = self.reader.values_of(reference)?;
+            }
+        }
+        let result = match self.functions {
+            Some(functions) => functions.call(name, &arguments),
+            None => Ok(CalcValue::error(WorksheetErrorCode::Name)),
+        };
+        let value = match result {
+            Ok(value) => value,
+            Err(message) => {
+                if let Some(diagnostics) = &mut self.function_diagnostics {
+                    diagnostics.push(format!("{name}: {message}"));
+                }
+                CalcValue::error(WorksheetErrorCode::Value)
+            }
+        };
+        self.stack.push(value);
+        Ok(())
+    }
+
     /// Pushes the plan's external reference `index` (dc-ylr): a reference to its cells on the
     /// sheet the catalogue issued for the other book's sheet, which the reader of the workbook's
     /// cells reads from the link's cache, so a function given it takes it as Excel takes a
@@ -313,6 +340,7 @@ impl Run<'_, '_> {
                     self.stack.push(instance.reference_3d(*first, *count));
                     Ok(())
                 }
+                Instruction::UserCall { name, argc } => self.user_call(name, *argc),
                 Instruction::Call {
                     target,
                     argc,
@@ -658,7 +686,9 @@ impl Run<'_, '_> {
             .collect();
         // dc-b1l: a call run once per reference of an array of references gives values, not
         // references (Excel 16.0.20527: `=INDEX(OFFSET(A1,{0;1},0,2),1,1)` spills 1|2).
-        let over_references = lifted.iter().any(|index| reference_array(&arguments[*index]));
+        let over_references = lifted
+            .iter()
+            .any(|index| reference_array(&arguments[*index]));
         let shape = lift::shape(
             lifted
                 .iter()
@@ -689,11 +719,13 @@ impl Run<'_, '_> {
                                 held = held.or(Some(CalcValue::error(WorksheetErrorCode::Value)));
                             }
                         }
-                        Some(value) => match held_array_element(target, self.instance.plan.form, value) {
-                            None => element[*index] = value.clone(),
-                            Some(Ok(first)) => element[*index] = first,
-                            Some(Err(error)) => held = held.or(Some(error)),
-                        },
+                        Some(value) => {
+                            match held_array_element(target, self.instance.plan.form, value) {
+                                None => element[*index] = value.clone(),
+                                Some(Ok(first)) => element[*index] = first,
+                                Some(Err(error)) => held = held.or(Some(error)),
+                            }
+                        }
                         None => short = true,
                     }
                 }
@@ -840,11 +872,13 @@ impl Run<'_, '_> {
                 for (index, argument) in arguments.iter().enumerate() {
                     if let Some(array) = lifted_array(argument) {
                         match lift::element(array, row, col) {
-                            Some(value) => match held_array_element(target, self.instance.plan.form, value) {
-                                None => element[index] = value.clone(),
-                                Some(Ok(first)) => element[index] = first,
-                                Some(Err(error)) => held = held.or(Some(error)),
-                            },
+                            Some(value) => {
+                                match held_array_element(target, self.instance.plan.form, value) {
+                                    None => element[index] = value.clone(),
+                                    Some(Ok(first)) => element[index] = first,
+                                    Some(Err(error)) => held = held.or(Some(error)),
+                                }
+                            }
                             None => short = true,
                         }
                     }
@@ -879,7 +913,11 @@ impl Run<'_, '_> {
 
     /// The value of calling `callee` with `arguments`: a LAMBDA call's value, or the worksheet
     /// error Excel gives a call of something else or of the wrong number of arguments.
-    fn call_closure(&mut self, callee: &CalcValue, arguments: Vec<CalcValue>) -> Result<CalcValue, EvalFault> {
+    fn call_closure(
+        &mut self,
+        callee: &CalcValue,
+        arguments: Vec<CalcValue>,
+    ) -> Result<CalcValue, EvalFault> {
         let argc = arguments.len();
         if let Some(function) = super::closure::FunctionValue::of(callee) {
             // A function value: its entry called with these arguments, which lift over an array
@@ -1047,7 +1085,8 @@ fn plan_address(instance: &FormulaInstance) -> usize {
 /// Whether argument `index` of `target`, as admitted, is lifted over: an array at a parameter
 /// that takes one value, or an array of references given to a function that lifts over one.
 fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue) -> bool {
-    (target.0.parameter_class(index) == Some(ParameterClass::Value) && lifted_array(value).is_some())
+    (target.0.parameter_class(index) == Some(ParameterClass::Value)
+        && lifted_array(value).is_some())
         || (reference_array(value) && lifts_over_references(target, form))
 }
 
@@ -1083,7 +1122,16 @@ fn reference_array(value: &CalcValue) -> bool {
 /// spills 3|5|7, `=SUMIF(OFFSET(A1,{0;1},0,3),">2")` 3|7, `=N(OFFSET(A1,{0;1;2},0))` 1|2|3, and
 /// COUNTIF, AVERAGEIF, SUMIFS, AREAS, ROW, CELL, INDEX and T likewise).
 const LIFTS_OVER_REFERENCES: [&str; 11] = [
-    "SUBTOTAL", "SUMIF", "COUNTIF", "AVERAGEIF", "SUMIFS", "AREAS", "ROW", "CELL", "INDEX", "N",
+    "SUBTOTAL",
+    "SUMIF",
+    "COUNTIF",
+    "AVERAGEIF",
+    "SUMIFS",
+    "AREAS",
+    "ROW",
+    "CELL",
+    "INDEX",
+    "N",
     "T",
 ];
 
@@ -1091,7 +1139,8 @@ const LIFTS_OVER_REFERENCES: [&str; 11] = [
 /// AVERAGE and MAX read each reference's first cell (`=SUM(OFFSET(A1,{0;1;2},0,2))` is 6 over
 /// 1..6 in A1:A6), COUNT counts none of them and COUNTA each, ROWS counts the array's rows and
 /// ISREF is FALSE.
-const TAKES_REFERENCE_ARRAYS: [&str; 7] = ["SUM", "AVERAGE", "MAX", "COUNT", "COUNTA", "ROWS", "ISREF"];
+const TAKES_REFERENCE_ARRAYS: [&str; 7] =
+    ["SUM", "AVERAGE", "MAX", "COUNT", "COUNTA", "ROWS", "ISREF"];
 
 /// The first element of `array`, as one value (a blank as Empty).
 fn first_element(array: &CalcArray) -> CalcValue {
@@ -1198,7 +1247,11 @@ struct Callables<'b, 'a, 'r> {
 }
 
 impl CallableInvoker for Callables<'_, '_, '_> {
-    fn call(&mut self, callable: &CalcValue, arguments: &[CalcValue]) -> Result<CalcValue, CallAbandoned> {
+    fn call(
+        &mut self,
+        callable: &CalcValue,
+        arguments: &[CalcValue],
+    ) -> Result<CalcValue, CallAbandoned> {
         if self.fault.is_some() {
             return Err(CallAbandoned);
         }
@@ -1656,7 +1709,10 @@ mod tests {
     fn function_faults_pass_through() {
         // A difference below the normal range, which calc-func's number rule refuses.
         assert!(matches!(
-            evaluated("=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)", CalcValue::empty()),
+            evaluated(
+                "=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)",
+                CalcValue::empty()
+            ),
             Err(EvalFault::Function(FunctionFault::NotImplemented { .. }))
         ));
     }

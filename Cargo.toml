@@ -7,6 +7,7 @@ members = [
     "crates/calc-value",
     "crates/calc-func",
     "crates/calc-fml",
+    "crates/calc-vba",
     "crates/calc-doc-model",
     "crates/calc-doc",
     "crates/calc-engine",

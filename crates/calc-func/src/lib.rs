@@ -16,6 +16,8 @@
 pub use calc_value as value;
 
 mod call;
+mod udf;
+pub use udf::{UserFunction, UserFunctions};
 mod catalogue;
 mod coerce;
 mod decimal;
@@ -55,7 +57,10 @@ pub fn text_order(a: &[u16], b: &[u16]) -> Option<std::cmp::Ordering> {
 /// grammar does not read it (VALUE's #VALUE!); `Err(())` when the reading is not modelled (no
 /// locale profile, a date without a year and no clock, and the other cases `value_text` lists).
 /// Excel reads a cell entry typed under a locale the same way (dc-10y).
-pub fn read_number_text(text: &[u16], environment: &locale::CalcEnvironment) -> Result<Option<f64>, ()> {
+pub fn read_number_text(
+    text: &[u16],
+    environment: &locale::CalcEnvironment,
+) -> Result<Option<f64>, ()> {
     let profile = environment.profile.as_ref().ok_or(())?;
     let context = value_text::ReadContext {
         profile,

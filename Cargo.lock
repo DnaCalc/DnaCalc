@@ -134,6 +134,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "bytecheck"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26333eeac754f0ad8a6bcd0eb0ac012156302e4e16b852b72ee399aea4f12c29"
+dependencies = [
+ "bytecheck_derive",
+ "ptr_meta",
+ "rancor",
+ "simdutf8",
+]
+
+[[package]]
+name = "bytecheck_derive"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46d07918caa9eeaaf06b7873925c53a61daac173539b4f7715090745e44e4e69"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -219,14 +242,14 @@ version = "0.1.0"
 dependencies = [
  "calc-verdict",
  "serde_json",
- "windows-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "calc-platform-desktop"
 version = "0.1.0"
 dependencies = [
- "windows-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -234,6 +257,15 @@ name = "calc-value"
 version = "0.1.0"
 dependencies = [
  "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
+name = "calc-vba"
+version = "0.1.0"
+dependencies = [
+ "calc-func",
+ "oxvba-embed",
  "wasm-bindgen-test",
 ]
 
@@ -505,6 +537,7 @@ version = "0.1.0"
 dependencies = [
  "calc-fml",
  "calc-func",
+ "calc-vba",
  "dna-formula-ui",
  "js-sys",
  "leptos",
@@ -1091,6 +1124,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
+name = "libffi"
+version = "5.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a8d526bc07aa02e6826944ec446ecd8d228bd97b1cbd21e5bc5e3407a09a585"
+dependencies = [
+ "libc",
+ "libffi-sys",
+]
+
+[[package]]
+name = "libffi-sys"
+version = "4.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eab801a4ae9065bfea87f37204a7940523e752056e4a090eaaaab9b47fc826b5"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1157,6 +1209,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "munge"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e17401f259eba956ca16491461b6e8f72913a0a114e39736ce404410f915a0c"
+dependencies = [
+ "munge_macro",
+]
+
+[[package]]
+name = "munge_macro"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4568f25ccbd45ab5d5603dc34318c1ec56b117531781260002151b8530a9f931"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "next_tuple"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1168,7 +1240,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1208,6 +1280,176 @@ name = "or_poisoned"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c04f5d74368e4d0dfe06c45c8627c81bd7c317d52762d118fb9b3076f6420fd"
+
+[[package]]
+name = "oxvba-bind"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-bundle",
+ "oxvba-com",
+ "oxvba-diagnostics",
+ "oxvba-runtime",
+ "oxvba-symbol",
+ "oxvba-syntax",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "oxvba-bundle"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-com",
+ "oxvba-runtime",
+ "serde",
+]
+
+[[package]]
+name = "oxvba-com"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "libc",
+ "libffi",
+ "oxvba-diagnostics",
+ "oxvba-runtime",
+ "serde",
+ "thiserror 2.0.21",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "oxvba-diagnostics"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "oxvba-embed"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-bind",
+ "oxvba-bundle",
+ "oxvba-hal",
+ "oxvba-oxir",
+ "oxvba-runtime",
+ "oxvba-symbol",
+ "oxvba-vm3",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "oxvba-eval"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-bundle",
+ "oxvba-runtime",
+]
+
+[[package]]
+name = "oxvba-hal"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "libc",
+ "oxvba-com",
+ "oxvba-diagnostics",
+ "oxvba-runtime",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "oxvba-lib"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-bundle",
+ "oxvba-com",
+ "oxvba-hal",
+ "oxvba-runtime",
+]
+
+[[package]]
+name = "oxvba-oxir"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-bundle",
+ "oxvba-com",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "oxvba-rt-abi"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-bundle",
+ "oxvba-com",
+ "oxvba-eval",
+ "oxvba-hal",
+ "oxvba-lib",
+ "oxvba-oxir",
+ "oxvba-runtime",
+]
+
+[[package]]
+name = "oxvba-runtime"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "rkyv",
+ "serde",
+ "thiserror 2.0.21",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "oxvba-symbol"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-bundle",
+ "oxvba-com",
+ "oxvba-diagnostics",
+ "oxvba-runtime",
+ "oxvba-syntax",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "oxvba-syntax"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-diagnostics",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "oxvba-vm3"
+version = "0.1.2"
+source = "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
+dependencies = [
+ "oxvba-bundle",
+ "oxvba-com",
+ "oxvba-eval",
+ "oxvba-hal",
+ "oxvba-lib",
+ "oxvba-oxir",
+ "oxvba-rt-abi",
+ "oxvba-runtime",
+]
 
 [[package]]
 name = "parking"
@@ -1317,6 +1559,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ptr_meta"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "743da816b98c921cdbe8628ef7381b76f25ecf4da599fc80aca90eae7ef70cc0"
+dependencies = [
+ "ptr_meta_derive",
+]
+
+[[package]]
+name = "ptr_meta_derive"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c8d9ca532f185d5d4db7a7c9d51420b452168ea1c2b913953281bd6fe1fcbd0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1367,6 +1629,15 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
+name = "rancor"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b534442d0fcdb55d66f373d9cac6d33b6293a2335bc2136dbd06ce0e87d2572"
+dependencies = [
+ "ptr_meta",
+]
 
 [[package]]
 name = "rand"
@@ -1466,6 +1737,45 @@ name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+
+[[package]]
+name = "rend"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "663ba70707f96e871406fe10d68128412e619b06d1d47cb91c3a4c6501176240"
+dependencies = [
+ "bytecheck",
+]
+
+[[package]]
+name = "rkyv"
+version = "0.8.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9776093b7ca170454ab1406954f7b7d97a57c51dc6c0642957fb2ef25c2d399"
+dependencies = [
+ "bytecheck",
+ "bytes",
+ "hashbrown",
+ "indexmap",
+ "munge",
+ "ptr_meta",
+ "rancor",
+ "rend",
+ "rkyv_derive",
+ "tinyvec",
+ "uuid",
+]
+
+[[package]]
+name = "rkyv_derive"
+version = "0.8.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c25ef604ac7dd839d44d64648952ea23c97866f124ff671b0ed2cf3ad9bb06e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
 
 [[package]]
 name = "rstml"
@@ -1676,6 +1986,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
+name = "simdutf8"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1846,6 +2162,12 @@ dependencies = [
  "displaydoc",
  "zerovec",
 ]
+
+[[package]]
+name = "tinyvec"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "toml"
@@ -2142,7 +2464,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2153,12 +2475,85 @@ checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
 
 [[package]]
 name = "windows-sys"
+version = "0.59.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
+dependencies = [
+ "windows-targets",
+]
+
+[[package]]
+name = "windows-sys"
 version = "0.61.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
 ]
+
+[[package]]
+name = "windows-targets"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
+dependencies = [
+ "windows_aarch64_gnullvm",
+ "windows_aarch64_msvc",
+ "windows_i686_gnu",
+ "windows_i686_gnullvm",
+ "windows_i686_msvc",
+ "windows_x86_64_gnu",
+ "windows_x86_64_gnullvm",
+ "windows_x86_64_msvc",
+]
+
+[[package]]
+name = "windows_aarch64_gnullvm"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
+
+[[package]]
+name = "windows_aarch64_msvc"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
+
+[[package]]
+name = "windows_i686_gnu"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
+
+[[package]]
+name = "windows_i686_gnullvm"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
+
+[[package]]
+name = "windows_i686_msvc"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
+
+[[package]]
+name = "windows_x86_64_gnu"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
+
+[[package]]
+name = "windows_x86_64_gnullvm"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
+
+[[package]]
+name = "windows_x86_64_msvc"
+version = "0.52.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
@@ -2194,7 +2589,7 @@ dependencies = [
  "serde_json",
  "syn 3.0.9",
  "tungstenite",
- "windows-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

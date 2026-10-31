@@ -12,7 +12,8 @@
 //! (its operand stack and call scratch, held in the caller's reusable [`EvalScratch`]). Nothing
 //! of an evaluation is written into the plan, so any number of instances and frames share it.
 //!
-//! Every operator and function runs through `calc_func::invoke`. Every value a formula reads
+//! Every built-in operator and function runs through `calc_func::invoke`. User functions run
+//! through `calc_func::UserFunctions`, which the host supplies independently of any VBA engine. Every value a formula reads
 //! comes from the caller's [`ReferenceReader`], which is also the `calc_func::CellReader` the
 //! kernels read reference arguments through (see the `cells` module). A function whose catalogue
 //! entry is lazy (IF, IFERROR, IFNA) asks for its arguments itself, and only the arguments it asks
@@ -41,9 +42,12 @@ mod lift;
 mod refops;
 mod run;
 
-pub use compile::{CompileError, compile, compile_loaded, compile_loaded_with, compile_with};
 /// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.
 pub(crate) use compile::file_unprefixed;
+pub use compile::{
+    CompileError, compile, compile_loaded, compile_loaded_with, compile_with,
+    compile_with_functions,
+};
 pub use run::{EvalFault, MAX_CALL_DEPTH, evaluate};
 
 use crate::reference::{
@@ -146,11 +150,15 @@ impl CompiledPlan {
     /// "Excel Recalculation" page lists these as volatile). A call a lazy function may never ask
     /// for counts too, as it does in Excel.
     pub fn volatile(&self) -> bool {
-        self.calls().any(|target| {
-            VOLATILE_FUNCTIONS
-                .iter()
-                .any(|name| strip_future_prefix(target.spelling()).eq_ignore_ascii_case(name))
-        })
+        self.blocks
+            .iter()
+            .flatten()
+            .any(|i| matches!(i, Instruction::UserCall { .. }))
+            || self.calls().any(|target| {
+                VOLATILE_FUNCTIONS
+                    .iter()
+                    .any(|name| strip_future_prefix(target.spelling()).eq_ignore_ascii_case(name))
+            })
     }
 }
 
@@ -198,6 +206,8 @@ enum Admission {
 /// One step of a plan.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum Instruction {
+    /// An engine-neutral eager user function, resolved against the current host registry.
+    UserCall { name: String, argc: usize },
     /// Pushes the literal's value.
     Literal(Literal),
     /// Pushes an omitted argument ([`CalcValue::missing`]).
@@ -448,6 +458,8 @@ pub struct EvaluationServices<'s> {
     observer: Option<&'s mut dyn EvaluationObserver>,
     catalog: Option<&'s dyn ReferenceCatalog>,
     random: Option<&'s mut dyn RandomSource>,
+    functions: Option<&'s calc_func::UserFunctions>,
+    function_diagnostics: Option<&'s mut Vec<String>>,
 }
 
 impl<'s> EvaluationServices<'s> {
@@ -458,7 +470,21 @@ impl<'s> EvaluationServices<'s> {
             observer: None,
             catalog: None,
             random: None,
+            functions: None,
+            function_diagnostics: None,
         }
+    }
+
+    /// Current user functions and optional execution diagnostics. Runtime failures produce
+    /// #VALUE!; a returned worksheet error retains its code.
+    pub fn with_functions(mut self, functions: &'s calc_func::UserFunctions) -> Self {
+        self.functions = Some(functions);
+        self
+    }
+
+    pub fn with_function_diagnostics(mut self, diagnostics: &'s mut Vec<String>) -> Self {
+        self.function_diagnostics = Some(diagnostics);
+        self
     }
 
     /// These services, with `random` the source of RAND, RANDBETWEEN and RANDARRAY. Without one

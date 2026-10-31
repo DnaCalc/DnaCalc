@@ -189,6 +189,7 @@
   "allowed": {}
  },
  "files": [
+  {"path": "crates/calc-func/src/udf.rs", "class": "own-work", "reason": "dc-snz.3: caller-owned user-function contract, written in DNA Calc"},
   {
    "path": "crates/calc-func/tests/f1_support/x87_cpu.rs",
    "class": "own-work",

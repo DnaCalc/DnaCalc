@@ -34,8 +34,8 @@ use super::{Admission, CompiledPlan, FormulaForm, Instruction, Literal, PlanCach
 use crate::parse_formula;
 use crate::reference::{
     BindError, ExternalOperand, FormulaAnchor, NameDefinition, NameScope, ReferenceCatalog,
-    ReferenceNotation, ReferenceOperand, SheetTarget, TableLookup,
-    bind_references, external_operand, qualified_name,
+    ReferenceNotation, ReferenceOperand, SheetTarget, TableLookup, bind_references,
+    external_operand, qualified_name,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, ExcelText, WorksheetErrorCode};
@@ -106,6 +106,7 @@ pub fn compile(
         anchor,
         catalog,
         cache,
+        None,
     )
 }
 
@@ -130,6 +131,7 @@ pub fn compile_loaded(
         anchor,
         catalog,
         cache,
+        None,
     )
 }
 
@@ -143,7 +145,7 @@ pub fn compile_loaded_with(
     cache: &mut PlanCache,
     form: FormulaForm,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
-    compile_as(tree, true, form, notation, anchor, catalog, cache)
+    compile_as(tree, true, form, notation, anchor, catalog, cache, None)
 }
 
 /// Compiles the formula `tree`, as a user enters it, in the form `form`, its references read in
@@ -163,7 +165,31 @@ pub fn compile_with(
     cache: &mut PlanCache,
     form: FormulaForm,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
-    compile_as(tree, false, form, notation, anchor, catalog, cache)
+    compile_as(tree, false, form, notation, anchor, catalog, cache, None)
+}
+
+/// Compiles with caller-owned user functions, without depending on their execution engines.
+/// Plans hold names only; evaluation must receive the current registry through its services.
+#[allow(clippy::too_many_arguments)]
+pub fn compile_with_functions(
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+    form: FormulaForm,
+    functions: &calc_func::UserFunctions,
+) -> Result<Arc<CompiledPlan>, CompileError> {
+    compile_as(
+        tree,
+        false,
+        form,
+        notation,
+        anchor,
+        catalog,
+        cache,
+        Some(functions),
+    )
 }
 
 /// [`compile_with`], or with `loaded` the text as a file stores it ([`compile_loaded`]).
@@ -175,6 +201,7 @@ fn compile_as(
     anchor: FormulaAnchor,
     catalog: &dyn ReferenceCatalog,
     cache: &mut PlanCache,
+    functions: Option<&calc_func::UserFunctions>,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
     if let Some(first) = tree.diagnostics().first() {
         return Err(CompileError::Syntax { span: first.span });
@@ -188,6 +215,7 @@ fn compile_as(
         form,
         anchor,
         catalog,
+        functions,
         sites: HashMap::new(),
         blocks: vec![Vec::new()],
         references: Vec::new(),
@@ -238,6 +266,7 @@ struct Lowering<'c> {
     form: FormulaForm,
     anchor: FormulaAnchor,
     catalog: &'c dyn ReferenceCatalog,
+    functions: Option<&'c calc_func::UserFunctions>,
     /// The binder's sites of the tree being lowered, by span; each is taken once, by the node it
     /// spans.
     sites: Sites,
@@ -788,10 +817,14 @@ impl<'c> Lowering<'c> {
         // dc-h9u: a trim reference as a file stores it (Excel 16.0.20527 saves `C1:.C20` as
         // `_xlfn._TRO_TRAILING(C1:C20)`, `C1.:C20` as `_TRO_LEADING` and `C1.:.C20` as
         // `_TRO_ALL`): TRIMRANGE of the range with both trim arguments 2, 1 or 3.
-        let trim = [("_TRO_LEADING", 1.0), ("_TRO_TRAILING", 2.0), ("_TRO_ALL", 3.0)]
-            .into_iter()
-            .find(|(name, _)| spelling.eq_ignore_ascii_case(name))
-            .map(|(_, mode)| mode);
+        let trim = [
+            ("_TRO_LEADING", 1.0),
+            ("_TRO_TRAILING", 2.0),
+            ("_TRO_ALL", 3.0),
+        ]
+        .into_iter()
+        .find(|(name, _)| spelling.eq_ignore_ascii_case(name))
+        .map(|(_, mode)| mode);
         if let (true, Some(mode)) = (prefixed, trim) {
             let [operand] = arguments[..] else {
                 return Err(CompileError::Arity {
@@ -979,7 +1012,27 @@ impl<'c> Lowering<'c> {
                 // own (Excel 16.0, 2026-10-23: `=FOO(1)` is #NAME? and `=IFERROR(FOO(1),3)` is
                 // 3); else a VBA or add-in function might have the name, and the call is refused.
                 // The arguments are not evaluated: Excel's #NAME? comes from the name alone.
-                NameDefinition::Unknown if self.catalog.unknown_calls_are_names() => {
+                NameDefinition::Unknown if self.functions.is_some_and(|f| f.contains(spelling)) => {
+                    tasks.push(Task::Emit {
+                        block,
+                        instruction: Instruction::UserCall {
+                            name: spelling.to_ascii_uppercase(),
+                            argc: arguments.len(),
+                        },
+                    });
+                    for argument in arguments.iter().rev() {
+                        tasks.push(Task::Lower {
+                            node: argument,
+                            tail: false,
+                            block,
+                            place: Place::Unknown,
+                        });
+                    }
+                    return Ok(());
+                }
+                NameDefinition::Unknown
+                    if self.functions.is_some() || self.catalog.unknown_calls_are_names() =>
+                {
                     self.blocks[block].push(Instruction::Literal(Literal::Error(
                         WorksheetErrorCode::Name,
                     )));
@@ -1212,7 +1265,10 @@ impl<'c> Lowering<'c> {
         definition: &str,
         span: TextSpan,
     ) -> Result<usize, CompileError> {
-        let key = (calc_func::value::fold_workbook_name(name), definition.to_owned());
+        let key = (
+            calc_func::value::fold_workbook_name(name),
+            definition.to_owned(),
+        );
         if let Some(block) = self.names.get(&key) {
             return Ok(*block);
         }

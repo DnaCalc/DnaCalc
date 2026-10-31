@@ -1058,11 +1058,12 @@ const ONECALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "an unknown function is refused by name",
+        name: "the complete user-function registry gives an unknown name #NAME?",
         actions: &[Action::Formula("=NOSUCH(1)")],
         checks: &[
-            Check::Text("result", "not calculated"),
-            Check::Items("diagnostics", &["unknown function at 1..7: NOSUCH"]),
+            Check::Text("result", "error #NAME?"),
+            Check::Text("result-value", "#NAME?"),
+            Check::Items("diagnostics", &[]),
         ],
     },
     Case {
@@ -1201,6 +1202,27 @@ const ONECALC_CASES: &[Case] = &[
         name: "back on a wide screen",
         actions: &[Action::Window(1280, 1000)],
         checks: &[Check::Fits],
+    },
+    // dc-snz.3: the shipped page uses the same registry and bounded interpreter as the controller.
+    Case {
+        name: "load a VBA module and evaluate Add2(A1,2)",
+        actions: &[Action::Grid("A1", "40"), Action::Click("[data-onecalc=\"vba-load\"]"), Action::Formula("=Add2(A1,2)")],
+        checks: &[Check::Text("result", "number 42"), Check::Starts("vba-status", "Loaded:"), Check::Items("diagnostics", &[])],
+    },
+    Case {
+        name: "reload the VBA module and replace its code",
+        actions: &[Action::Into("vba-source", "Public Function Add2(a, b)\n Add2 = a + b + 10\nEnd Function\n"), Action::Click("[data-onecalc=\"vba-load\"]")],
+        checks: &[Check::Text("result", "number 52")],
+    },
+    Case {
+        name: "an infinite VBA loop stops with a worksheet error and diagnostic",
+        actions: &[Action::Into("vba-source", "Public Function Spin()\n On Error Resume Next\n Do\n Loop\nEnd Function\n"), Action::Click("[data-onecalc=\"vba-load\"]"), Action::Formula("=Spin()")],
+        checks: &[Check::Text("result-value", "#VALUE!"), Check::Contains("diagnostics", "SPIN: execution budget")],
+    },
+    Case {
+        name: "unloading a VBA module removes its functions",
+        actions: &[Action::Click("[data-onecalc=\"vba-clear\"]")],
+        checks: &[Check::Text("result-value", "#NAME?"), Check::Text("vba-status", "No VBA module loaded.")],
     },
 ];
 

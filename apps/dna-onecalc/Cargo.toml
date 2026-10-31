@@ -21,6 +21,7 @@ portability = "portable"
 # lockfile update cannot move them off it. The surface compiles on every target (web-sys builds
 # natively) and runs only in a browser.
 [dependencies]
+calc-vba = { path = "../../crates/calc-vba" }
 calc-fml = { path = "../../crates/calc-fml" }
 calc-func = { path = "../../crates/calc-func" }
 dna-formula-ui = { path = "../dna-formula-ui" }

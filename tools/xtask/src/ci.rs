@@ -27,8 +27,8 @@
 //!   reports from inside the test. With `DNACALC_CI_INJECT_BROWSER_FAILURE=1` it also runs that
 //!   fixture's `failure` target, whose test fails in the browser on purpose, and the job then fails.
 //!   Then `DNACALC_CI_ACCEPT` as above, for the beads that declare a wasm case.
-//! - `licenses`: every dependency of the workspace and of the browser fixture comes from crates.io
-//!   (no git source, no path outside the workspace) under a license expression that
+//! - `licenses`: every dependency of the workspace and browser fixture comes from a reviewed
+//!   source (crates.io or an exact admitted git revision), with no path outside the workspace, under a license expression that
 //!   `tools/xtask/licenses.json` lists as reviewed. It reports, without failing, whether the
 //!   workspace declares a license of its own.
 //! - `desktop`: a release build of the native-only packages, whose files it keeps under
