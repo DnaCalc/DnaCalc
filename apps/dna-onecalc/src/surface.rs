@@ -21,6 +21,7 @@
 //! test (`cargo xtask app smoke onecalc`) sees it.
 
 use crate::display;
+use crate::fixture::{FormulaFixture, FormulaInput};
 use crate::grid::{self, Entry};
 use crate::result::{self, ResultView};
 use crate::session::{InputValue, Session};
@@ -39,9 +40,6 @@ use web_sys::HtmlElement;
 
 /// The sheet a new surface's session starts with; the scratch grid's cells are on it.
 const FIRST_SHEET: &str = "Sheet1";
-
-/// The cell a new surface's formula is entered in: the grid's top right cell.
-const FIRST_FORMULA_CELL: &str = "H1";
 
 /// The most functions the function list shows at once.
 const MAX_LISTED_FUNCTIONS: usize = 60;
@@ -91,6 +89,8 @@ struct Shown {
     rows: Vec<(u32, String)>,
     grid: Vec<GridShown>,
     result: String,
+    state: &'static str,
+    format_note: String,
     view: ResultView,
     provenance: String,
     diagnostics: Vec<String>,
@@ -147,19 +147,16 @@ fn entry_value(session: &Session, kind: &str, entry: &str) -> Result<InputValue,
     }
 }
 
-/// The calculation environment the surface gives the session: the 1900 date system, the en-US
+/// The calculation environment the surface gives the session: the 1900 date system, the selected
 /// locale profile, and this browser's clock for NOW and TODAY (no clock off the browser, which
 /// refuses them).
-fn environment() -> CalcEnvironment {
+fn environment(locale: &str) -> CalcEnvironment {
     CalcEnvironment {
         date_system: DateSystem::System1900,
-        profile: FormatProfile::for_culture(LOCALE),
+        profile: FormatProfile::for_culture(locale),
         now: clock(),
     }
 }
-
-/// The locale profile the surface calculates and shows numbers in.
-const LOCALE: &str = "en-US";
 
 /// The browser's local time as an Excel serial date number in the 1900 system: days since
 /// 1899-12-30, the epoch of serial numbers from 1900-03-01 on.
@@ -190,6 +187,7 @@ fn recalculate(
     formula_cell: &str,
     rows: &[Row],
     entries: &[String],
+    number_format: &str,
 ) -> Shown {
     session.clear_inputs();
     let formula_cell = match session.set_formula_cell(formula_cell) {
@@ -254,6 +252,7 @@ fn recalculate(
             rows,
             grid,
             result: "no formula".to_owned(),
+            state: "Ready",
             ..Shown::default()
         };
     }
@@ -261,12 +260,57 @@ fn recalculate(
     let profile = session
         .environment()
         .and_then(|environment| environment.profile);
-    let view = ResultView::of(calculation.result.as_ref(), profile.as_ref());
+    let (view, format_note) = match result::formatted_view(
+        calculation.result.as_ref(),
+        profile.as_ref(),
+        number_format,
+    ) {
+        Ok(view) => (view, String::new()),
+        Err(note) => (
+            ResultView::of(calculation.result.as_ref(), profile.as_ref()),
+            format!("Format unavailable: {note}. General display is shown."),
+        ),
+    };
+    let state = if matches!(&view, ResultView::Error { code: "#NAME?", .. }) {
+        "Unknown name or function"
+    } else if matches!(&view, ResultView::Error { .. }) {
+        "Worksheet error"
+    } else if calculation.result.is_some() {
+        "Calculated"
+    } else if calculation.diagnostics.iter().any(|d| {
+        matches!(
+            d,
+            crate::Diagnostic::Eval(calc_fml::EvalFault::MissingInput { .. })
+        )
+    }) {
+        "Missing input"
+    } else if calculation.diagnostics.iter().any(|d| {
+        matches!(
+            d,
+            crate::Diagnostic::Compile(calc_fml::CompileError::UnknownFunction { .. })
+        )
+    }) {
+        "Unknown function"
+    } else if calculation
+        .diagnostics
+        .iter()
+        .any(|d| matches!(d, crate::Diagnostic::Syntax(_)))
+    {
+        "Formula syntax"
+    } else {
+        "Not modelled"
+    };
     if let Some(index) = formula_index {
         grid[index] = GridShown {
             kind: "formula",
             value: match &calculation.result {
-                Some(value) => result::shown(value, profile.as_ref()),
+                Some(value) => {
+                    if let ResultView::Value { text, .. } = &view {
+                        text.clone()
+                    } else {
+                        result::shown(value, profile.as_ref())
+                    }
+                }
                 None => "(no value)".to_owned(),
             },
             note: format!("the formula's cell: {formula}"),
@@ -290,6 +334,8 @@ fn recalculate(
             None => "not calculated".to_owned(),
         },
         view,
+        state,
+        format_note,
         provenance: result::provenance(session, &calculation).unwrap_or_default(),
         diagnostics: calculation
             .diagnostics
@@ -360,22 +406,62 @@ fn edit_row(rows: RwSignal<Vec<Row>>, id: u32, field: Field, text: String) {
 }
 
 fn surface() -> impl IntoView {
-    let session =
-        StoredValue::new_local(Session::new(FIRST_SHEET).expect("Sheet1 is a sheet name"));
-    let formula = RwSignal::new(String::new());
+    let from_link = shared_fixture();
+    let initial_message = match &from_link {
+        Ok(Some(_)) => "Session restored from its link.".to_owned(),
+        Err(error) => format!("Link could not be restored: {error}"),
+        _ => "Start with a formula or try an example.".to_owned(),
+    };
+    let initial = from_link.ok().flatten().unwrap_or_default();
+    let session = StoredValue::new_local(initial.session().expect("a validated initial fixture"));
+    let formula = RwSignal::new(initial.formula.clone());
     let assist = FormulaAssist::new(formula);
-    let formula_cell = RwSignal::new(FIRST_FORMULA_CELL.to_owned());
-    let form_choice = RwSignal::new(FormulaForm::Dynamic);
-    let sheets = RwSignal::new(vec![FIRST_SHEET.to_owned()]);
+    assist.start_edit(initial.formula.clone());
+    let formula_cell = RwSignal::new(initial.formula_cell.clone());
+    let form_choice = RwSignal::new(if initial.legacy {
+        FormulaForm::Legacy
+    } else {
+        FormulaForm::Dynamic
+    });
+    let sheets = RwSignal::new(initial.sheets.clone());
     let sheet_entry = RwSignal::new(String::new());
     let sheet_status = RwSignal::new(String::new());
-    let rows: RwSignal<Vec<Row>> = RwSignal::new(Vec::new());
-    let next_row = StoredValue::new(0u32);
-    let cells = (grid::ROWS * grid::COLUMNS) as usize;
-    let entries: RwSignal<Vec<String>> = RwSignal::new(vec![String::new(); cells]);
+    let rows: RwSignal<Vec<Row>> = RwSignal::new(
+        initial
+            .inputs
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(id, row)| Row {
+                id: id as u32,
+                address: row.address,
+                kind: row.kind,
+                entry: row.entry,
+            })
+            .collect(),
+    );
+    let next_row = StoredValue::new(initial.inputs.len() as u32);
+    let entries: RwSignal<Vec<String>> = RwSignal::new(initial.grid.clone());
 
-    let vba_source = RwSignal::new(calc_vba::EXAMPLE_MODULE.to_owned());
-    let vba_status = RwSignal::new("No VBA module loaded.".to_owned());
+    let locale = RwSignal::new(initial.locale.clone());
+    let number_format = RwSignal::new(initial.number_format.clone());
+    let vba_loaded = RwSignal::new(initial.vba_loaded.clone());
+    let fixture_status = RwSignal::new(initial_message);
+    let fixture_json = RwSignal::new(String::new());
+    let share_link = RwSignal::new(String::new());
+    let share_snapshot = RwSignal::new(None::<FormulaFixture>);
+    let baseline = RwSignal::new(Some(initial.clone()));
+    let import_epoch = StoredValue::new(0u64);
+    let pending_fixture = RwSignal::new(None::<(FormulaFixture, bool)>);
+    let fixture_dialog = NodeRef::<leptos::html::Dialog>::new();
+    let fixture_file = NodeRef::<leptos::html::Input>::new();
+
+    let vba_source = RwSignal::new(initial.vba_draft.clone());
+    let vba_status = RwSignal::new(if initial.vba_loaded.is_some() {
+        "Fixture VBA module loaded.".to_owned()
+    } else {
+        "No VBA module loaded.".to_owned()
+    });
     let vba_generation = RwSignal::new(0u64);
     let load_vba = move |_| {
         let source = vba_source.get_untracked();
@@ -383,7 +469,10 @@ fn surface() -> impl IntoView {
             session.load_vba_module("Module1", &source, calc_vba::DEFAULT_STEP_BUDGET)
         }) {
             vba_status.set(match result {
-                Ok(names) => format!("Loaded: {}", names.join(", ")),
+                Ok(names) => {
+                    vba_loaded.set(Some(source));
+                    format!("Loaded: {}", names.join(", "))
+                }
                 Err(error) => {
                     format!("Module not loaded: {error}. Previous functions remain active.")
                 }
@@ -393,6 +482,7 @@ fn surface() -> impl IntoView {
     };
     let clear_vba = move |_| {
         session.update_value(|session| session.clear_user_functions());
+        vba_loaded.set(None);
         vba_status.set("No VBA module loaded.".to_owned());
         vba_generation.update(|generation| *generation += 1);
     };
@@ -409,11 +499,190 @@ fn surface() -> impl IntoView {
         session
             .try_update_value(|session| {
                 session.set_form(form);
-                session.set_environment(Some(environment()));
-                recalculate(session, &formula, &formula_cell, &rows, &entries)
+                session.set_environment(Some(environment(&locale.get())));
+                recalculate(
+                    session,
+                    &formula,
+                    &formula_cell,
+                    &rows,
+                    &entries,
+                    &number_format.get(),
+                )
             })
             .unwrap_or_default()
     });
+    let snapshot = Memo::new(move |_| {
+        shown.with(|_| ());
+        FormulaFixture {
+            version: 1,
+            formula: formula.get(),
+            formula_cell: formula_cell.get(),
+            effective_anchor: session.with_value(|s| display::cell(s, s.formula_cell())),
+            sheets: sheets.get(),
+            grid: entries.get(),
+            inputs: rows
+                .get()
+                .into_iter()
+                .map(|row| FormulaInput {
+                    address: row.address,
+                    kind: row.kind,
+                    entry: row.entry,
+                })
+                .collect(),
+            legacy: form_choice.get() == FormulaForm::Legacy,
+            locale: locale.get(),
+            number_format: number_format.get(),
+            vba_draft: vba_source.get(),
+            vba_loaded: vba_loaded.get(),
+        }
+    });
+    let dirty = move || baseline.get().as_ref() != Some(&snapshot.get());
+    let apply_fixture = Callback::new(
+        move |(fixture, clean): (FormulaFixture, bool)| match fixture.session() {
+            Ok(restored) => {
+                session.set_value(restored);
+                let next = fixture.clone();
+                batch(move || {
+                    rows.set(
+                        next.inputs
+                            .into_iter()
+                            .enumerate()
+                            .map(|(id, row)| Row {
+                                id: id as u32,
+                                address: row.address,
+                                kind: row.kind,
+                                entry: row.entry,
+                            })
+                            .collect(),
+                    );
+                    next_row.set_value(fixture.inputs.len() as u32);
+                    entries.set(next.grid);
+                    sheets.set(next.sheets);
+                    formula_cell.set(next.formula_cell);
+                    form_choice.set(if next.legacy {
+                        FormulaForm::Legacy
+                    } else {
+                        FormulaForm::Dynamic
+                    });
+                    locale.set(next.locale);
+                    number_format.set(next.number_format);
+                    vba_source.set(next.vba_draft);
+                    vba_loaded.set(next.vba_loaded.clone());
+                    vba_status.set(if next.vba_loaded.is_some() {
+                        "Fixture VBA module loaded.".into()
+                    } else {
+                        "No VBA module loaded.".into()
+                    });
+                    vba_generation.update(|n| *n += 1);
+                    formula.set(next.formula.clone());
+                    assist.start_edit(next.formula);
+                    sheet_entry.set(String::new());
+                    sheet_status.set(String::new());
+                    share_link.set(String::new());
+                    share_snapshot.set(None);
+                    baseline.set(clean.then_some(fixture));
+                    fixture_status.set(if clean {
+                        "Session restored from authored inputs.".into()
+                    } else {
+                        "Example loaded; export to keep a snapshot.".into()
+                    });
+                });
+            }
+            Err(error) => fixture_status.set(error),
+        },
+    );
+    let request_fixture = Callback::new(move |next: (FormulaFixture, bool)| {
+        import_epoch.update_value(|n| *n += 1);
+        if dirty() {
+            pending_fixture.set(Some(next));
+        } else {
+            apply_fixture.run(next);
+        }
+    });
+    Effect::new(move |_| {
+        let pending = pending_fixture.get().is_some();
+        if let Some(dialog) = fixture_dialog.get() {
+            if pending && !dialog.open() {
+                let _ = dialog.show_modal();
+            } else if !pending && dialog.open() {
+                dialog.close();
+            }
+        }
+    });
+    #[cfg(target_arch = "wasm32")]
+    {
+        let changed = window_event_listener(leptos::ev::hashchange, move |_| {
+            import_epoch.update_value(|n| *n += 1);
+            match shared_fixture() {
+                Ok(Some(fixture)) => request_fixture.run((fixture, true)),
+                Err(error) => fixture_status.set(format!("Link could not be restored: {error}")),
+                Ok(None) => {}
+            }
+        });
+        on_cleanup(move || changed.remove());
+    }
+    let keep_fixture = move || {
+        pending_fixture.set(None);
+        fixture_status
+            .set("Current session retained; the requested replacement was not loaded.".into());
+        if let Some(dialog) = fixture_dialog.get_untracked() {
+            dialog.close();
+        }
+        if let Some(field) = assist.field.get_untracked() {
+            let _ = field.focus();
+        }
+    };
+    let replace_fixture = move || {
+        if let Some(next) = pending_fixture.get_untracked() {
+            pending_fixture.set(None);
+            if let Some(dialog) = fixture_dialog.get_untracked() {
+                dialog.close();
+            }
+            apply_fixture.run(next);
+            if let Some(field) = assist.field.get_untracked() {
+                let _ = field.focus();
+            }
+        }
+    };
+    let restore_json = move || match FormulaFixture::from_json(&fixture_json.get_untracked()) {
+        Ok(fixture) => request_fixture.run((fixture, true)),
+        Err(error) => fixture_status.set(error),
+    };
+    let export_fixture = move || {
+        let fixture = snapshot.get_untracked();
+        match fixture.to_json() {
+            Ok(json) => {
+                fixture_json.set(json.clone());
+                match dna_formula_ui::web::download_bytes(
+                    "onecalc-session.json",
+                    "application/json",
+                    json.as_bytes(),
+                ) {
+                    Ok(()) => {
+                        baseline.set(Some(fixture));
+                        fixture_status.set(
+                            "Download started: onecalc-session.json. Keep the file before leaving."
+                                .into(),
+                        );
+                    }
+                    Err(error) => fixture_status.set(error),
+                }
+            }
+            Err(error) => fixture_status.set(error),
+        }
+    };
+    let create_share = move || {
+        let fixture = snapshot.get_untracked();
+        match share_url(&fixture) {
+            Ok(url) => {
+                share_link.set(url);
+                share_snapshot.set(Some(fixture));
+                fixture_status.set("Share link contains this session's formula and inputs.".into());
+            }
+            Err(error) => fixture_status.set(error),
+        }
+    };
+
     let filter = RwSignal::new(String::new());
     let functions = Memo::new(move |_| filter.with(|filter| browse(filter)));
     let function_list = move || {
@@ -490,16 +759,16 @@ fn surface() -> impl IntoView {
     let result_view = move || {
         shown.with(|shown| match &shown.view {
             ResultView::NoFormula => view! {
-                <p class="oc-prov">"Type a formula, starting with =."</p>
+                <div class="oc-empty"><p>"Start with one Excel formula and supply the inputs it reads."</p><button data-onecalc="try-example" on:click=move |_|request_fixture.run((FormulaFixture::example("sum"),false))>"Try SUM with two inputs"</button></div>
             }
             .into_any(),
             ResultView::Value { kind, text, exact } => {
                 let (kind, text) = (*kind, text.clone());
                 let exact = exact.clone().map(|exact| {
                     view! {
-                        <span class="oc-prov" data-onecalc="result-exact">
+                        <details class="oc-exact"><summary>"Exact value"</summary><span class="oc-prov" data-onecalc="result-exact">
                             {format!(" exactly {exact}")}
-                        </span>
+                        </span></details>
                     }
                 });
                 view! {
@@ -642,8 +911,33 @@ fn surface() -> impl IntoView {
                 </select>
             </header>
             <p class="oc-sub">
-                "One Excel formula, calculated in your browser by calc-fml and calc-func. No workbook, no calculation engine."
+                "One Excel formula, with the inputs it needs."
             </p>
+            <details class="oc-fixtures" data-onecalc="fixture-controls"><summary data-onecalc="fixture-tools">"Formula sessions · "<span data-onecalc="fixture-state">{move ||if dirty(){"Unexported changes"}else{"Unchanged snapshot"}}</span></summary>
+                <p>"Keep a formula and its authored inputs as JSON, or create a link that carries the session in its address."</p>
+                <div class="oc-session-actions">
+                    <button data-onecalc="fixture-export" on:click=move |_|export_fixture()>"Export session…"</button>
+                    <button data-onecalc="fixture-import" on:click=move |_|{if let Some(input)=fixture_file.get_untracked(){input.click();}}>"Import session…"</button>
+                    <button data-onecalc="fixture-share" on:click=move |_|create_share()>"Create share link"</button>
+                </div>
+                <input node_ref=fixture_file data-onecalc="fixture-file" type="file" accept="application/json,.json" hidden aria-label="Import formula-session JSON" on:change=move |ev| {
+                    import_epoch.update_value(|n| *n += 1);
+                    let epoch=import_epoch.get_value();
+                    dna_formula_ui::web::read_chosen(event_target::<web_sys::HtmlInputElement>(&ev),Some(FormulaFixture::MAX_BYTES),move |loaded| {
+                        if import_epoch.get_value()!=epoch {return;}
+                        match loaded.and_then(|(_,bytes)|String::from_utf8(bytes).map_err(|_|"The session file is not UTF-8 text".to_owned())).and_then(|text|FormulaFixture::from_json(&text)) {Ok(fixture)=>request_fixture.run((fixture,true)),Err(error)=>fixture_status.set(error)}
+                    });
+                }/>
+                <label>"Session JSON"<textarea data-onecalc="fixture-json" rows="4" prop:value=move ||fixture_json.get() on:input=move |ev|fixture_json.set(event_target_value(&ev))/></label>
+                <button data-onecalc="fixture-restore" on:click=move |_|restore_json()>"Restore JSON"</button>
+                <label>"Share link"<input data-onecalc="share-link" readonly prop:value={move ||if share_snapshot.get().as_ref()==Some(&snapshot.get()){share_link.get()}else{String::new()}} on:focus=move |ev|{event_target::<web_sys::HtmlInputElement>(&ev).select();}/></label>
+                <p role="status" data-onecalc="fixture-status">{move ||fixture_status.get()}</p>
+                <div class="oc-examples"><strong>"Examples"</strong><button data-onecalc="example-sum" on:click=move |_|request_fixture.run((FormulaFixture::example("sum"),false))>"SUM & blank input"</button><button data-onecalc="example-array" on:click=move |_|request_fixture.run((FormulaFixture::example("array"),false))>"Array"</button><button data-onecalc="example-lambda" on:click=move |_|request_fixture.run((FormulaFixture::example("lambda"),false))>"LAMBDA"</button><button data-onecalc="example-missing" on:click=move |_|request_fixture.run((FormulaFixture::example("missing"),false))>"Missing input"</button><button data-onecalc="fixture-new" on:click=move |_|request_fixture.run((FormulaFixture::default(),true))>"New blank session"</button></div>
+            </details>
+            <dialog class="oc-session-dialog" node_ref=fixture_dialog data-onecalc="fixture-dialog" aria-labelledby="oc-replace-title" on:cancel=move |ev:leptos::ev::Event|{ev.prevent_default();keep_fixture();}>
+                <h2 id="oc-replace-title">"Replace unexported changes?"</h2><p>"Export this session first to keep its formula and inputs."</p><button data-onecalc="fixture-keep" autofocus on:click=move |_|keep_fixture()>"Keep editing"</button><button data-onecalc="fixture-replace" on:click=move |_|replace_fixture()>"Replace session"</button>
+            </dialog>
+
             <div class="oc-row">
                 <div class="oc-col">
                     {assist
@@ -658,7 +952,7 @@ fn surface() -> impl IntoView {
                     <p>
                         <select
                             data-onecalc="formula-form"
-                            aria-label="Formula form"
+                            aria-label="Formula form" prop:value=move ||if form_choice.get()==FormulaForm::Legacy{"legacy"}else{"dynamic"}
                             on:change=move |ev| {
                                 form_choice
                                     .set(
@@ -678,7 +972,7 @@ fn surface() -> impl IntoView {
                             data-onecalc="formula-cell"
                             type="text"
                             size="10"
-                            value=FIRST_FORMULA_CELL
+                            aria-label="Formula cell" prop:value=move ||formula_cell.get()
                             on:input=move |ev| formula_cell.set(event_target_value(&ev))
                         />
                         " "
@@ -686,55 +980,32 @@ fn surface() -> impl IntoView {
                             {move || shown.with(|shown| shown.formula_cell.clone())}
                         </span>
                     </p>
-                    <div class="oc-result" data-onecalc="result-panel">
-                        <p>
-                            "Result: "
-                            <output data-onecalc="result">
-                                {move || shown.with(|shown| shown.result.clone())}
-                            </output>
-                        </p>
-                        {result_view}
-                        <p class="oc-prov" data-onecalc="provenance">
-                            {move || shown.with(|shown| shown.provenance.clone())}
-                        </p>
-                        <p class="oc-prov" data-onecalc="environment">
-                            {format!(
-                                "Dates in the 1900 system; numbers shown in the {LOCALE} General format; NOW and TODAY read {}.",
-                                if cfg!(target_arch = "wasm32") { "this browser's clock" } else { "no clock" },
-                            )}
-                        </p>
-                        <ul class="oc-diags" data-onecalc="diagnostics">
-                            {move || {
-                                shown
-                                    .with(|shown| shown.diagnostics.clone())
-                                    .into_iter()
-                                    .map(|line| view! { <li>{line}</li> })
-                                    .collect_view()
-                            }}
-                        </ul>
-                        <ol class="oc-reads" data-onecalc="reads">
-                            {move || {
-                                shown
-                                    .with(|shown| shown.reads.clone())
-                                    .into_iter()
-                                    .map(|line| view! { <li>{line}</li> })
-                                    .collect_view()
-                            }}
-                        </ol>
-                    </div>
+                    <section class="oc-result" data-onecalc="result-panel" aria-labelledby="oc-result-title">
+                        <header><h2 id="oc-result-title">"Result"</h2><span class="oc-result-state" data-onecalc="result-state">{move ||shown.with(|s|s.state)}</span></header>
+                        <div class="oc-primary-result" data-onecalc="primary-result" aria-live="polite">{result_view}</div>
+                        <p class="oc-format-note" data-onecalc="format-note">{move ||shown.with(|s|s.format_note.clone())}</p>
+                        <ul class="oc-diags" data-onecalc="diagnostics">{move ||shown.with(|s|s.diagnostics.clone()).into_iter().map(|line|view!{<li>{line}</li>}).collect_view()}</ul>
+                        <details class="oc-calculation-details" data-onecalc="result-details"><summary>"Calculation details"</summary>
+                            <p>"Raw result: "<output data-onecalc="result">{move ||shown.with(|s|s.result.clone())}</output></p>
+                            <p class="oc-prov" data-onecalc="provenance">{move ||shown.with(|s|s.provenance.clone())}</p>
+                            <p class="oc-prov" data-onecalc="environment">{move ||format!("Dates use the 1900 system; {} numbers in {} format. NOW and TODAY read the browser clock. Evaluation uses calc-fml and calc-func.",locale.get(),number_format.get())}</p>
+                            <ol class="oc-reads" data-onecalc="reads">{move ||shown.with(|s|s.reads.clone()).into_iter().map(|line|view!{<li>{line}</li>}).collect_view()}</ol>
+                        </details>
+                    </section>
+                    <details class="oc-format-controls" data-onecalc="format-controls"><summary data-onecalc="format-tools">"Format & locale"</summary>
+                        <label>"Locale"<select data-onecalc="locale" prop:value=move ||locale.get() on:change=move |ev|locale.set(event_target_value(&ev))>{FormulaFixture::LOCALES.into_iter().map(|name|view!{<option value=name>{name}</option>}).collect_view()}</select></label>
+                        <label>"Number format (selected locale)"<input data-onecalc="number-format" list="oc-number-formats" prop:value=move ||number_format.get() on:input=move |ev|number_format.set(event_target_value(&ev))/></label>
+                        <datalist id="oc-number-formats">{move || {
+                            let p=FormatProfile::for_culture(&locale.get()).expect("listed locale");
+                            ["General".to_owned(),format!("0{}00",p.decimal_separator),format!("#{}##0{}00",p.thousands_separator,p.decimal_separator),format!("0{}00%",p.decimal_separator),"yyyy-mm-dd".to_owned()].into_iter().map(|code|view!{<option value=code/>}).collect_view()
+                        }}</datalist>
+                        <p class="oc-prov">{move || {
+                            let p=FormatProfile::for_culture(&locale.get()).expect("listed locale");
+                            format!("Number formats use the selected locale's separators, for example 0{}00. Changing locale keeps your format text; adjust its separators when needed.",p.decimal_separator)
+                        }}</p>
+                        <p class="oc-prov">"Formulas use English function names, commas between arguments and a dot for decimals. Numeric inputs also use a dot."</p>
+                    </details>
                     {assist.help()}
-                    <div class="oc-panel">
-                        <h2>"Functions"</h2>
-                        <input
-                            type="search"
-                            data-onecalc="function-filter"
-                            placeholder="Find a function by name or description"
-                            aria-label="Find a function"
-                            size="34"
-                            on:input=move |ev| filter.set(event_target_value(&ev))
-                        />
-                        {function_list}
-                    </div>
                 </div>
                 <div class="oc-col">
                     <div class="oc-panel">
@@ -746,8 +1017,7 @@ fn surface() -> impl IntoView {
                             </table>
                         </div>
                     </div>
-                    <div class="oc-panel">
-                        <h2>"VBA functions"</h2>
+                    <details class="oc-panel oc-vba-panel"><summary data-onecalc="vba-tools">"VBA functions"</summary>
                         <textarea
                             data-onecalc="vba-source"
                             aria-label="VBA standard module"
@@ -761,13 +1031,13 @@ fn surface() -> impl IntoView {
                         <button data-onecalc="vba-clear" type="button" on:click=clear_vba>"Unload module"</button>
                         <p data-onecalc="vba-status">{move || vba_status.get()}</p>
                         <p class="oc-prov">"Load the example, enter 40 in A1, then try =Add2(A1,2). Each call starts fresh and stops at its execution budget. References supply values or arrays; Excel Range objects are not supported yet."</p>
-                    </div>
+                    </details>
                     <div class="oc-panel">
                         <h2>"Sheets"</h2>
                         <span data-onecalc="sheets">{move || sheets.with(|sheets| sheets.join(", "))}</span>
                         " "
                         <input
-                            data-onecalc="sheet-name"
+                            data-onecalc="sheet-name" aria-label="New sheet name" prop:value=move ||sheet_entry.get()
                             type="text"
                             size="12"
                             on:input=move |ev| sheet_entry.set(event_target_value(&ev))
@@ -799,7 +1069,7 @@ fn surface() -> impl IntoView {
                                             <tr data-onecalc="input-row">
                                                 <td>
                                                     <input
-                                                        data-onecalc="input-cell"
+                                                        data-onecalc="input-cell" aria-label=format!("Input {} cell",id+1) aria-describedby=format!("oc-input-status-{id}") prop:value=move ||rows.with(|rs|rs.iter().find(|r|r.id==id).map(|r|r.address.clone()).unwrap_or_default())
                                                         type="text"
                                                         size="10"
                                                         on:input=move |ev| {
@@ -809,7 +1079,7 @@ fn surface() -> impl IntoView {
                                                 </td>
                                                 <td>
                                                     <select
-                                                        data-onecalc="input-kind"
+                                                        data-onecalc="input-kind" aria-label=format!("Input {} type",id+1) aria-describedby=format!("oc-input-status-{id}") prop:value=move ||rows.with(|rs|rs.iter().find(|r|r.id==id).map(|r|r.kind.clone()).unwrap_or_default())
                                                         on:change=move |ev| {
                                                             edit_row(rows, id, Field::Kind, event_target_value(&ev))
                                                         }
@@ -824,7 +1094,7 @@ fn surface() -> impl IntoView {
                                                 </td>
                                                 <td>
                                                     <input
-                                                        data-onecalc="input-value"
+                                                        data-onecalc="input-value" aria-label=format!("Input {} value",id+1) aria-describedby=format!("oc-input-status-{id}") prop:value=move ||rows.with(|rs|rs.iter().find(|r|r.id==id).map(|r|r.entry.clone()).unwrap_or_default())
                                                         type="text"
                                                         size="10"
                                                         on:input=move |ev| {
@@ -832,7 +1102,7 @@ fn surface() -> impl IntoView {
                                                         }
                                                     />
                                                 </td>
-                                                <td data-onecalc="input-status">
+                                                <td data-onecalc="input-status" id=format!("oc-input-status-{id}") role="status">
                                                     {move || shown.with(|shown| shown.row(id))}
                                                 </td>
                                                 <td>
@@ -855,6 +1125,18 @@ fn surface() -> impl IntoView {
                         <button data-onecalc="add-input" type="button" on:click=add_row>
                             "Add input"
                         </button>
+                    </div>
+                    <div class="oc-panel oc-catalogue" data-onecalc="catalogue-panel">
+                        <h2>"Functions"</h2>
+                        <input
+                            type="search"
+                            data-onecalc="function-filter"
+                            placeholder="Find a function by name or description"
+                            aria-label="Find a function"
+                            size="34"
+                            on:input=move |ev| filter.set(event_target_value(&ev))
+                        />
+                        {function_list}
                     </div>
                 </div>
             </div>
@@ -885,6 +1167,7 @@ mod tests {
             "H1",
             &[],
             &entries(&[(0, "1.5"), (8, "2")]),
+            "General",
         );
         assert_eq!(shown.result, "number 7");
         assert_eq!(
@@ -911,7 +1194,14 @@ mod tests {
         );
 
         // A formula typed into a grid cell is refused there; the cell then has no input.
-        let shown = recalculate(&mut session, "=A1+1", "H1", &[], &entries(&[(0, "=2")]));
+        let shown = recalculate(
+            &mut session,
+            "=A1+1",
+            "H1",
+            &[],
+            &entries(&[(0, "=2")]),
+            "General",
+        );
         assert_eq!(shown.grid[0].kind, "refused");
         assert_eq!(shown.result, "not calculated");
         assert_eq!(shown.diagnostics, ["missing input: Sheet1!A1 has no input"]);
@@ -931,19 +1221,33 @@ mod tests {
                 entry: "4".to_owned(),
             },
         ];
-        let shown = recalculate(&mut session, "=A1*B1", "H1", &rows, &entries(&[(0, "3")]));
+        let shown = recalculate(
+            &mut session,
+            "=A1*B1",
+            "H1",
+            &rows,
+            &entries(&[(0, "3")]),
+            "General",
+        );
         assert_eq!(shown.rows[0].1, "Sheet1!A1 is set in the scratch grid");
         assert_eq!(shown.rows[1].1, "Sheet1!B1 = number 4");
         assert_eq!(shown.result, "number 12");
 
         // An array result and an error result.
-        let shown = recalculate(&mut session, "={1,2;3,4}", "H1", &[], &entries(&[]));
+        let shown = recalculate(
+            &mut session,
+            "={1,2;3,4}",
+            "H1",
+            &[],
+            &entries(&[]),
+            "General",
+        );
         assert!(
             matches!(&shown.view, ResultView::Array(window) if window.total_rows == 2),
             "{shown:?}"
         );
         assert_eq!(shown.grid[7].value, "{2x2 array}");
-        let shown = recalculate(&mut session, "=1/0", "H1", &[], &entries(&[]));
+        let shown = recalculate(&mut session, "=1/0", "H1", &[], &entries(&[]), "General");
         assert_eq!(
             shown.view,
             ResultView::Error {
@@ -952,7 +1256,124 @@ mod tests {
             }
         );
         // A syntax diagnostic points into the text.
-        let shown = recalculate(&mut session, "=A1*", "H1", &[], &entries(&[]));
+        let shown = recalculate(&mut session, "=A1*", "H1", &[], &entries(&[]), "General");
         assert_eq!(shown.diagnostic_spans, [TextSpan::new(4, 0)]);
+    }
+}
+
+/// A link carries authored fixture data in its fragment, never a calculated answer.
+#[cfg(target_arch = "wasm32")]
+fn shared_fixture() -> Result<Option<FormulaFixture>, String> {
+    let hash = window().location().hash().map_err(|e| format!("{e:?}"))?;
+    let Some(raw) = hash.strip_prefix("#fixture=") else {
+        return Ok(None);
+    };
+    if raw.len() > 131_072 {
+        return Err("The shared session link exceeds the supported size".into());
+    }
+    let text = js_sys::decode_uri_component(raw)
+        .map_err(|_| "The shared session link is not valid URI text".to_owned())?
+        .as_string()
+        .ok_or("The shared session link is not text")?;
+    FormulaFixture::from_json(&text).map(Some)
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn shared_fixture() -> Result<Option<FormulaFixture>, String> {
+    Ok(None)
+}
+#[cfg(target_arch = "wasm32")]
+fn share_url(fixture: &FormulaFixture) -> Result<String, String> {
+    let text = fixture.to_json()?;
+    let encoded = js_sys::encode_uri_component(&text)
+        .as_string()
+        .ok_or("The session could not be encoded")?;
+    if encoded.len() > 131_072 {
+        return Err("This session is too large for a link; export its JSON file".into());
+    }
+    let href = window().location().href().map_err(|e| format!("{e:?}"))?;
+    Ok(format!(
+        "{}#fixture={encoded}",
+        href.split('#').next().unwrap_or(&href)
+    ))
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn share_url(_fixture: &FormulaFixture) -> Result<String, String> {
+    Err("Session links are available in the browser".into())
+}
+
+#[cfg(test)]
+mod session_files {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn restored_authored_inputs_recalculate_and_format_through_the_surface_route() {
+        let mut fixture = FormulaFixture::example("sum");
+        fixture.locale = "de-DE".into();
+        fixture.number_format = "0,00".into();
+        let fixture = FormulaFixture::from_json(&fixture.to_json().unwrap()).unwrap();
+        let mut session = fixture.session().unwrap();
+        session.set_environment(Some(environment(&fixture.locale)));
+        let shown = recalculate(
+            &mut session,
+            &fixture.formula,
+            &fixture.formula_cell,
+            &[],
+            &fixture.grid,
+            &fixture.number_format,
+        );
+        assert_eq!(shown.state, "Calculated");
+        assert_eq!(shown.result, "number 3.5");
+        assert!(matches!(shown.view,ResultView::Value {text,..} if text=="3,50"));
+        let missing = recalculate(&mut session, "=Z99+1", "H1", &[], &fixture.grid, "General");
+        assert_eq!(missing.state, "Missing input");
+        let unknown = recalculate(
+            &mut session,
+            "=NO_SUCH_ONECALC_FUNCTION()",
+            "H1",
+            &[],
+            &fixture.grid,
+            "General",
+        );
+        assert_eq!(unknown.state, "Unknown name or function");
+        assert!(matches!(unknown.view, ResultView::Error { code: "#NAME?", .. }));
+    }
+}
+
+#[cfg(test)]
+mod anchor_files {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn address_drafts_restore_the_effective_sheet_and_cell() {
+        let mut f = FormulaFixture::default();
+        f.sheets.push("Inputs".into());
+        f.formula = "=Z99+1".into();
+        f.effective_anchor = "Inputs!H1".into();
+        f.inputs.push(FormulaInput {
+            address: "Z99".into(),
+            kind: "number".into(),
+            entry: "4".into(),
+        });
+        for draft in ["H1", "invalid!"] {
+            f.formula_cell = draft.into();
+            let restored = FormulaFixture::from_json(&f.to_json().unwrap()).unwrap();
+            let mut session = restored.session().unwrap();
+            let row = Row {
+                id: 0,
+                address: restored.inputs[0].address.clone(),
+                kind: "number".into(),
+                entry: "4".into(),
+            };
+            let shown = recalculate(
+                &mut session,
+                &restored.formula,
+                &restored.formula_cell,
+                &[row],
+                &restored.grid,
+                "General",
+            );
+            assert_eq!(display::cell(&session, session.formula_cell()), "Inputs!H1");
+            assert_eq!(shown.result, "number 5");
+        }
     }
 }

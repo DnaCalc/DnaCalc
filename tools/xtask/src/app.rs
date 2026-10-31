@@ -882,6 +882,9 @@ pub enum Action {
     /// Two real pointer clicks at the element's centre.
     DoubleClick(&'static str),
     ContextClick(&'static str, bool),
+    OpenFieldLink(&'static str),
+    RememberFieldLink(&'static str),
+    OpenRememberedLink,
     /// Two real clicks on a trailing row or column header boundary.
     DoubleClickEdge(&'static str, bool),
     CtrlClick(&'static str),
@@ -916,6 +919,7 @@ pub enum Action {
 /// What a case expects the page to show. A name is a role or a selector ([`select`]).
 pub enum Check {
     PinnedCell,
+    Before(&'static str, &'static str),
     ViewRetained,
     FitsText(&'static str),
     TextContains(&'static str, &'static str),
@@ -1212,6 +1216,7 @@ const ONECALC_CASES: &[Case] = &[
     Case {
         name: "load a VBA module and evaluate Add2(A1,2)",
         actions: &[
+            Action::Click("vba-tools"),
             Action::Grid("A1", "40"),
             Action::Click("[data-onecalc=\"vba-load\"]"),
             Action::Formula("=Add2(A1,2)"),
@@ -1255,6 +1260,267 @@ const ONECALC_CASES: &[Case] = &[
             Check::Text("result-value", "#NAME?"),
             Check::Text("vba-status", "No VBA module loaded."),
         ],
+    },
+    Case {
+        name: "sessions: replacing unexported inputs asks and Escape preserves them",
+        actions: &[
+            Action::Click("fixture-tools"),
+            Action::Click("fixture-new"),
+            Action::Wait(Check::Role("fixture-dialog", "dialog")),
+            Action::Keys("fixture-keep", ESCAPE),
+        ],
+        checks: &[
+            Check::Value("formula", "=Spin()"),
+            Check::Focused("formula"),
+            Check::Text("fixture-state", "Unexported changes"),
+        ],
+    },
+    Case {
+        name: "workbench: a blank session offers a working SUM example with blank A3",
+        actions: &[
+            Action::Click("fixture-new"),
+            Action::Click("fixture-replace"),
+            Action::Wait(Check::Text("result-state", "Ready")),
+            Action::Click("try-example"),
+        ],
+        checks: &[
+            Check::Text("result-value", "3.5"),
+            Check::Text("result-state", "Calculated"),
+            Check::Value("[data-onecalc=grid-cell][data-cell=A3]", ""),
+            Check::Absent("[data-onecalc=result-details][open]"),
+            Check::Count(
+                "[data-onecalc=primary-result] [data-onecalc=result-value]",
+                1,
+            ),
+            Check::Reachable("result-value"),
+        ],
+    },
+    Case {
+        name: "workbench: format and locale controls render the real calculation through the shared formatter",
+        actions: &[
+            Action::Click("format-tools"),
+            Action::Choose("locale", "de-DE"),
+            Action::Into("number-format", "0,00"),
+        ],
+        checks: &[
+            Check::Text("result-value", "3,50"),
+            Check::Text("result", "number 3.5"),
+            Check::Text("format-note", ""),
+            Check::Text("fixture-state", "Unexported changes"),
+        ],
+    },
+    Case {
+        name: "sessions: JSON export starts a real file download and records its snapshot",
+        actions: &[Action::ClearDownloads, Action::Click("fixture-export")],
+        checks: &[
+            Check::Starts("fixture-status", "Download started: onecalc-session.json."),
+            Check::Text("fixture-state", "Unchanged snapshot"),
+        ],
+    },
+    Case {
+        name: "workbench: a worksheet error is a calculated error with its meaning",
+        actions: &[Action::Formula("=1/0")],
+        checks: &[
+            Check::Text("result-state", "Worksheet error"),
+            Check::Text("result-value", "#DIV/0!"),
+            Check::Text("result-error", "division by zero"),
+            Check::Text("fixture-state", "Unexported changes"),
+        ],
+    },
+    Case {
+        name: "sessions: file import waits before discarding a changed formula",
+        actions: &[
+            Action::UploadDownload("onecalc-session.json"),
+            Action::Wait(Check::Role("fixture-dialog", "dialog")),
+            Action::Click("fixture-keep"),
+        ],
+        checks: &[
+            Check::Value("formula", "=1/0"),
+            Check::Text("result-value", "#DIV/0!"),
+        ],
+    },
+    Case {
+        name: "sessions: file restore restores grid inputs, formula, locale and format and recalculates",
+        actions: &[
+            Action::UploadDownload("onecalc-session.json"),
+            Action::Click("fixture-replace"),
+        ],
+        checks: &[
+            Check::Value("formula", "=SUM(A1:A3)"),
+            Check::Value("locale", "de-DE"),
+            Check::Value("number-format", "0,00"),
+            Check::Value("[data-onecalc=grid-cell][data-cell=A1]", "1.5"),
+            Check::Text("result-value", "3,50"),
+            Check::Text("result-state", "Calculated"),
+            Check::Text("fixture-state", "Unchanged snapshot"),
+        ],
+    },
+    Case {
+        name: "sessions: opening a shared fragment in this tab protects and replaces changed inputs",
+        actions: &[
+            Action::Click("fixture-share"),
+            Action::RememberFieldLink("share-link"),
+            Action::Formula("=1/0"),
+            Action::OpenRememberedLink,
+            Action::Wait(Check::Role("fixture-dialog", "dialog")),
+            Action::Click("fixture-replace"),
+        ],
+        checks: &[
+            Check::Value("formula", "=SUM(A1:A3)"),
+            Check::Text("result-value", "3,50"),
+            Check::Text("fixture-state", "Unchanged snapshot"),
+        ],
+    },
+    Case {
+        name: "sessions: a generated link restores its authored session in a fresh page",
+        actions: &[
+            Action::Click("fixture-share"),
+            Action::OpenFieldLink("share-link"),
+            Action::Wait(Check::Text("result-value", "3,50")),
+            Action::Keys("formula", "\u{E009}z\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("formula", "=SUM(A1:A3)"),
+            Check::Value("locale", "de-DE"),
+            Check::Text("result-state", "Calculated"),
+            Check::Text("fixture-state", "Unchanged snapshot"),
+        ],
+    },
+    Case {
+        name: "workbench: the array example uses the shared bounded result window",
+        actions: &[
+            Action::Click("fixture-tools"),
+            Action::Click("example-array"),
+        ],
+        checks: &[
+            Check::Array(&[&["1", "2"], &["3", "4"], &["5", "6"]]),
+            Check::Text("result-state", "Calculated"),
+        ],
+    },
+    Case {
+        name: "workbench: the LAMBDA example executes with shared formula assistance",
+        actions: &[
+            Action::Click("example-lambda"),
+            Action::Click("fixture-replace"),
+        ],
+        checks: &[
+            Check::Text("result-value", "42"),
+            Check::Text("result-state", "Calculated"),
+            Check::Highlighted("function", "LAMBDA"),
+        ],
+    },
+    Case {
+        name: "workbench: a missing fixture input names the cell that needs a value",
+        actions: &[
+            Action::Click("example-missing"),
+            Action::Click("fixture-replace"),
+        ],
+        checks: &[
+            Check::Text("result-state", "Missing input"),
+            Check::Contains("diagnostics", "missing input: Sheet1!Z99 has no input"),
+        ],
+    },
+    Case {
+        name: "workbench: typed input controls have names and resolve the missing value",
+        actions: &[
+            Action::Click("add-input"),
+            Action::Into("input-cell", "Z99"),
+            Action::Into("input-value", "4"),
+        ],
+        checks: &[
+            Check::Text("result-value", "5"),
+            Check::Name("input-cell", "Input 1 cell"),
+            Check::Name("input-value", "Input 1 value"),
+            Check::Text("result-state", "Calculated"),
+        ],
+    },
+    Case {
+        name: "sessions: links also restore typed inputs through the normal reader",
+        actions: &[
+            Action::Click("fixture-share"),
+            Action::OpenFieldLink("share-link"),
+            Action::Wait(Check::Text("result-value", "5")),
+        ],
+        checks: &[
+            Check::Value("input-cell", "Z99"),
+            Check::Value("input-value", "4"),
+            Check::Text("result-state", "Calculated"),
+        ],
+    },
+    Case {
+        name: "sessions: an unqualified formula-address draft restores its effective sheet",
+        actions: &[
+            Action::Into("sheet-name", "Inputs"),
+            Action::Click("add-sheet"),
+            Action::Into("formula-cell", "Inputs!H1"),
+            Action::Into("formula-cell", "H1"),
+            Action::Click("fixture-tools"),
+            Action::Click("fixture-share"),
+            Action::OpenFieldLink("share-link"),
+        ],
+        checks: &[
+            Check::Text("result-value", "5"),
+            Check::Text("formula-cell-status", "Inputs!H1"),
+            Check::Value("formula-cell", "H1"),
+        ],
+    },
+    Case {
+        name: "sessions: an invalid formula-address draft also retains its effective anchor",
+        actions: &[
+            Action::Into("formula-cell", "invalid!"),
+            Action::Click("fixture-tools"),
+            Action::Click("fixture-share"),
+            Action::OpenFieldLink("share-link"),
+        ],
+        checks: &[
+            Check::Text("result-value", "5"),
+            Check::TextContains("formula-cell-status", "the formula stays in Inputs!H1"),
+            Check::Value("formula-cell", "invalid!"),
+        ],
+    },
+    Case {
+        name: "sessions: invalid JSON is refused before the current formula or inputs change",
+        actions: &[
+            Action::Click("fixture-tools"),
+            Action::Into("fixture-json", "this is not JSON"),
+            Action::Click("fixture-restore"),
+        ],
+        checks: &[
+            Check::Starts("fixture-status", "Invalid formula-session JSON:"),
+            Check::Text("result-value", "5"),
+            Check::Value("input-value", "4"),
+            Check::Absent("[data-onecalc=fixture-dialog][open]"),
+        ],
+    },
+    Case {
+        name: "workbench: unknown names or calls, missing input and other worksheet errors remain distinct",
+        actions: &[Action::Formula("=NO_SUCH_ONECALC_FUNCTION()")],
+        checks: &[
+            Check::Text("result-state", "Unknown name or function"),
+            Check::Text("result-value", "#NAME?"),
+            Check::Text("result-error", "a name that is not recognised"),
+        ],
+    },
+    Case {
+        name: "workbench: phone layout keeps the primary result and inputs ahead of the catalogue",
+        actions: &[
+            Action::Formula("=Z99+1"),
+            Action::Click("fixture-tools"),
+            Action::Window(390, 844),
+            Action::Click("result-value"),
+        ],
+        checks: &[
+            Check::Narrow(390),
+            Check::Fits,
+            Check::Reachable("primary-result"),
+            Check::Before("grid", "functions"),
+            Check::Text("result-value", "5"),
+        ],
+    },
+    Case {
+        name: "workbench: restore desktop after the phone case",
+        actions: &[Action::Window(1280, 1000)],
+        checks: &[Check::Fits],
     },
 ];
 
@@ -6203,6 +6469,14 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         );
     }
     let script = match check {
+        Check::Before(first, last) => {
+            let a = serde_json::to_string(&select(app, first)).unwrap();
+            let b = serde_json::to_string(&select(app, last)).unwrap();
+            format!(
+                "var a=document.querySelector({a}),b=document.querySelector({b});return !!a&&!!b&&a.getBoundingClientRect().top<b.getBoundingClientRect().top;"
+            )
+        }
+
         Check::PinnedCell | Check::ViewRetained => {
             let pinned=matches!(check,Check::PinnedCell);
             format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]')?.dataset.sheet,h=(window.__dcViews||{{}})[key];if(!g||!h)return {{ok:false}};var e=document.querySelector(h.selector);if(!e)return {{ok:false,held:h}};var r=e.getBoundingClientRect(),b=g.getBoundingClientRect(),s={{x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent,address:document.querySelector('[data-dnacalc=name-box]')?.value}};var same=['x','y','w','h'].every(k=>Math.abs(s[k]-h[k])<2);return {{ok:same&&({}),held:h,seen:s}};"#,
@@ -6316,7 +6590,8 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .iter()
                 .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
         }),
-        Check::Absent(_)
+        Check::Before(_, _)
+        | Check::Absent(_)
         | Check::Focused(_)
         | Check::Reachable(_)
         | Check::ActiveDescendant(_)
@@ -6348,6 +6623,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
 
 fn describe(check: &Check) -> String {
     match check {
+        Check::Before(first, last) => format!("{first} precedes {last} in the rendered layout"),
         Check::Text(name, expected) => format!("{name} is {expected:?}"),
         Check::Starts(name, prefix) => format!("{name} starts with {prefix:?}"),
         Check::TextContains(name, part) => format!("{name} contains {part:?}"),
@@ -6410,6 +6686,28 @@ fn faults(app: &App, session: &Session) -> Result<Vec<String>, String> {
 
 fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<(), String> {
     match action {
+        Action::RememberFieldLink(name) => {
+            let selector = serde_json::to_string(&select(app, name)).unwrap();
+            session.script(&format!(
+                "window.__ocSavedLink=document.querySelector({selector}).value;return null;"
+            ))?;
+            Ok(())
+        }
+        Action::OpenRememberedLink => {
+            let url = session.script("return window.__ocSavedLink;")?;
+            let url = url.as_str().ok_or("No remembered session link")?;
+            session.post("/url", json!({"url":url}))?;
+            Ok(())
+        }
+        Action::OpenFieldLink(name) => {
+            let selector = serde_json::to_string(&select(app, name)).unwrap();
+            let url =
+                session.script(&format!("return document.querySelector({selector}).value;"))?;
+            let url = url.as_str().ok_or("The field did not contain a link")?;
+            session.post("/url", json!({"url":url}))?;
+            session.post("/refresh", json!({}))?;
+            Ok(())
+        }
         Action::RememberView(name) => {
             // Name-box navigation resolves through the worker. Capture the selected view only
             // after that reply, rather than the input's temporary, still-typed range text.
@@ -6580,7 +6878,16 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             while !path.is_file() && started.elapsed() < SETTLE {
                 thread::sleep(Duration::from_millis(50));
             }
-            upload(app, session, "open-file", &path)
+            upload(
+                app,
+                session,
+                if app.key == "onecalc" {
+                    "fixture-file"
+                } else {
+                    "open-file"
+                },
+                &path,
+            )
         }
         Action::DiscardReplacement => {
             let started = Instant::now();

@@ -56,3 +56,63 @@ pub fn start_page(page: &'static Page, mount: impl FnOnce(HtmlElement)) {
         let _ = root.set_attribute(page.ready_attribute, "true");
     }
 }
+/// Offer bytes as a browser download. A successful start does not confirm durable storage.
+#[cfg(target_arch = "wasm32")]
+pub fn download_bytes(name: &str, mime: &str, bytes: &[u8]) -> Result<(), String> {
+    let parts = js_sys::Array::of1(&js_sys::Uint8Array::from(bytes));
+    let options = web_sys::BlobPropertyBag::new();
+    options.set_type(mime);
+    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &options)
+        .map_err(|e| format!("{e:?}"))?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(|e| format!("{e:?}"))?;
+    let document = web_sys::window()
+        .and_then(|w| w.document())
+        .ok_or("The browser document is unavailable")?;
+    let anchor: web_sys::HtmlAnchorElement = document
+        .create_element("a")
+        .map_err(|e| format!("{e:?}"))?
+        .dyn_into()
+        .map_err(|_| "No download anchor".to_owned())?;
+    anchor.set_href(&url);
+    anchor.set_download(name);
+    anchor.click();
+    let _ = web_sys::Url::revoke_object_url(&url);
+    Ok(())
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn download_bytes(_name: &str, _mime: &str, _bytes: &[u8]) -> Result<(), String> {
+    Err("Browser downloads are unavailable on this target".into())
+}
+
+/// Read the selected local file; callers own validation and the decision to replace current work.
+#[cfg(target_arch = "wasm32")]
+pub fn read_chosen(
+    input: web_sys::HtmlInputElement,
+    limit: Option<usize>,
+    chosen: impl FnOnce(Result<(String, Vec<u8>), String>) + 'static,
+) {
+    let Some(file) = input.files().and_then(|f| f.get(0)) else {
+        return;
+    };
+    let name = file.name();
+    if limit.is_some_and(|limit| file.size() > limit as f64) {
+        chosen(Err("The selected file exceeds the supported size".into()));
+        input.set_value("");
+        return;
+    }
+    wasm_bindgen_futures::spawn_local(async move {
+        let bytes = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
+            .await
+            .map(|b| js_sys::Uint8Array::new(&b).to_vec())
+            .map_err(|e| format!("{name} could not be read: {e:?}"));
+        chosen(bytes.map(|bytes| (name, bytes)));
+        input.set_value("");
+    });
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn read_chosen(
+    _input: web_sys::HtmlInputElement,
+    _limit: Option<usize>,
+    _chosen: impl FnOnce(Result<(String, Vec<u8>), String>) + 'static,
+) {
+}

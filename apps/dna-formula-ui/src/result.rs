@@ -408,3 +408,95 @@ mod tests {
         assert_eq!(window.cells[1][2].text, (11 * 100 + 22).to_string());
     }
 }
+/// Applies an Excel number format to the shared scalar/array window. Formatting never evaluates.
+pub fn formatted_view(
+    result: Option<&CalcValue>,
+    profile: Option<&FormatProfile>,
+    code: &str,
+) -> Result<ResultView, String> {
+    let mut view = ResultView::of(result, profile);
+    if code.trim().is_empty() || code.eq_ignore_ascii_case("General") {
+        return Ok(view);
+    }
+    let Some(profile) = profile else {
+        return Err("The selected number-format locale is unavailable".into());
+    };
+    let format = |value: &CalcValue| {
+        if !matches!(value.core(), CoreValue::Number(_) | CoreValue::Text(_)) {
+            return Ok(shown(value, Some(profile)));
+        }
+        calc_func::cell_text(
+            profile,
+            calc_func::locale::DateSystem::System1900,
+            value,
+            code,
+        )
+        .map_err(|e| match e {
+            calc_func::CellFormatError::Unshowable => {
+                "This value cannot be shown in that format".to_owned()
+            }
+            calc_func::CellFormatError::NotModelled => {
+                "This number format is not modelled".to_owned()
+            }
+        })
+    };
+    match (&mut view, result) {
+        (ResultView::Value { text, exact, .. }, Some(value)) => {
+            *text = format(value)?;
+            *exact = (value.as_number().is_some() && plain(value) != *text).then(|| plain(value));
+        }
+        (ResultView::Array(window), Some(value)) => {
+            if let CoreValue::Array(array) = value.core() {
+                for (r, row) in window.cells.iter_mut().enumerate() {
+                    for (c, cell) in row.iter_mut().enumerate() {
+                        cell.text = format(
+                            array
+                                .get(window.row_offset + r, window.col_offset + c)
+                                .expect("the shared window lies inside the array"),
+                        )?;
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(view)
+}
+
+#[cfg(test)]
+mod formatted_results {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn scalar_and_array_formats_share_the_cell_formatter() {
+        let profile = FormatProfile::for_culture("de-DE").unwrap();
+        let value = CalcValue::number(3.5);
+        assert!(
+            matches!(formatted_view(Some(&value),Some(&profile),"0,00"),Ok(ResultView::Value {text,exact:Some(exact),..}) if text=="3,50" && exact=="3.5")
+        );
+        let array = CalcValue::array(
+            CalcArray::from_rows(vec![vec![CalcValue::number(1.0), CalcValue::number(2.5)]])
+                .unwrap(),
+        );
+        let ResultView::Array(window) =
+            formatted_view(Some(&array), Some(&profile), "0,00").unwrap()
+        else {
+            panic!("array view")
+        };
+        assert_eq!(
+            window.cells[0]
+                .iter()
+                .map(|c| c.text.as_str())
+                .collect::<Vec<_>>(),
+            ["1,00", "2,50"]
+        );
+        let error = CalcValue::error(WorksheetErrorCode::Div0);
+        assert!(matches!(
+            formatted_view(Some(&error), Some(&profile), "0,00"),
+            Ok(ResultView::Error {
+                code: "#DIV/0!",
+                ..
+            })
+        ));
+    }
+}

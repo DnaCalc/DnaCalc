@@ -525,8 +525,10 @@ dependencies = [
  "calc-fml",
  "calc-func",
  "dna-strand",
+ "js-sys",
  "leptos",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
 ]
@@ -541,6 +543,7 @@ dependencies = [
  "dna-formula-ui",
  "js-sys",
  "leptos",
+ "serde",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",

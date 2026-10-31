@@ -234,3 +234,171 @@ impl ReferenceReader for TracingReader<'_> {
         self.reads.push(Read { area, runs });
     }
 }
+/// Authored formula-session state. Calculated values are deliberately absent.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FormulaFixture {
+    pub version: u32,
+    pub formula: String,
+    pub formula_cell: String,
+    /// Effective qualified anchor, retained even while the address field has an invalid draft.
+    pub effective_anchor: String,
+    pub sheets: Vec<String>,
+    pub grid: Vec<String>,
+    pub inputs: Vec<FormulaInput>,
+    pub legacy: bool,
+    pub locale: String,
+    pub number_format: String,
+    pub vba_draft: String,
+    pub vba_loaded: Option<String>,
+}
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FormulaInput {
+    pub address: String,
+    pub kind: String,
+    pub entry: String,
+}
+impl Default for FormulaFixture {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            formula: String::new(),
+            formula_cell: "H1".into(),
+            effective_anchor: "Sheet1!H1".into(),
+            sheets: vec!["Sheet1".into()],
+            grid: vec![String::new(); (crate::grid::ROWS * crate::grid::COLUMNS) as usize],
+            inputs: Vec::new(),
+            legacy: false,
+            locale: "en-US".into(),
+            number_format: "General".into(),
+            vba_draft: calc_vba::EXAMPLE_MODULE.into(),
+            vba_loaded: None,
+        }
+    }
+}
+impl FormulaFixture {
+    pub const MAX_BYTES: usize = 1_048_576;
+    pub const LOCALES: [&'static str; 5] = ["en-US", "en-GB", "en-ZA", "de-DE", "fr-FR"];
+    pub fn from_json(text: &str) -> Result<Self, String> {
+        if text.len() > Self::MAX_BYTES {
+            return Err("Session file is limited to 1 MiB".into());
+        }
+        let fixture: Self =
+            serde_json::from_str(text).map_err(|e| format!("Invalid formula-session JSON: {e}"))?;
+        fixture.session()?;
+        Ok(fixture)
+    }
+    pub fn to_json(&self) -> Result<String, String> {
+        self.session()?;
+        let text = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
+        if text.len() > Self::MAX_BYTES {
+            return Err("Session file is limited to 1 MiB".into());
+        }
+        Ok(text)
+    }
+    /// Validate before replacing a current session; draft formula/input errors remain reproducible.
+    pub fn session(&self) -> Result<crate::Session, String> {
+        if self.version != 1 {
+            return Err(format!(
+                "Formula-session version {} is unavailable",
+                self.version
+            ));
+        }
+        if self.sheets.first().map(String::as_str) != Some("Sheet1") || self.sheets.len() > 256 {
+            return Err("A session starts with Sheet1 and supports at most 256 sheets".into());
+        }
+        if self.grid.len() != (crate::grid::ROWS * crate::grid::COLUMNS) as usize
+            || self.inputs.len() > 1024
+        {
+            return Err(
+                "Session grid dimensions or input-row count are outside supported limits".into(),
+            );
+        }
+        if !Self::LOCALES.contains(&self.locale.as_str()) {
+            return Err("This session locale is unavailable".into());
+        }
+        if self.formula.len() > 262_144
+            || self.formula_cell.len() > 1024
+            || self.effective_anchor.len() > 1024
+            || self.number_format.len() > 4096
+            || self.grid.iter().any(|v| v.len() > 131_072)
+            || self.inputs.iter().any(|r| {
+                r.address.len() > 1024
+                    || r.entry.len() > 131_072
+                    || !["number", "text", "logical", "error", "blank"].contains(&r.kind.as_str())
+            })
+        {
+            return Err("A session field exceeds the supported size or input kind".into());
+        }
+        if self.vba_draft.len() > 262_144
+            || self.vba_loaded.as_ref().is_some_and(|s| s.len() > 262_144)
+        {
+            return Err("The VBA module exceeds the session size limit".into());
+        }
+        let mut session =
+            crate::Session::new("Sheet1").map_err(|e| crate::display::sheet_error(&e))?;
+        for sheet in self.sheets.iter().skip(1) {
+            session
+                .add_sheet(sheet)
+                .map_err(|e| crate::display::sheet_error(&e))?;
+        }
+        session
+            .set_formula_cell(&self.effective_anchor)
+            .map_err(|e| crate::display::input_error(&session, &e))?;
+        if crate::display::cell(&session, session.formula_cell()) != self.effective_anchor {
+            return Err("The effective formula anchor must be a qualified cell address".into());
+        }
+        if let Some(source) = &self.vba_loaded {
+            session
+                .load_vba_module("Module1", source, calc_vba::DEFAULT_STEP_BUDGET)
+                .map_err(|e| format!("Fixture VBA module: {e}"))?;
+        }
+        Ok(session)
+    }
+    pub fn example(which: &str) -> Self {
+        let mut fixture = Self::default();
+        match which {
+            "sum" => {
+                fixture.formula = "=SUM(A1:A3)".into();
+                fixture.grid[0] = "1.5".into();
+                fixture.grid[crate::grid::COLUMNS as usize] = "2".into();
+            }
+            "array" => fixture.formula = "=SEQUENCE(3,2)".into(),
+            "lambda" => fixture.formula = "=LAMBDA(x,x*2)(21)".into(),
+            "missing" => fixture.formula = "=Z99+1".into(),
+            _ => {}
+        }
+        fixture
+    }
+}
+
+#[cfg(test)]
+mod formula_files {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn authored_fixture_roundtrip_and_rejection_before_replacement() {
+        let mut f = FormulaFixture::example("sum");
+        f.sheets.push("Inputs".into());
+        f.inputs.push(FormulaInput {
+            address: "Inputs!A1".into(),
+            kind: "text".into(),
+            entry: "é & < >".into(),
+        });
+        f.locale = "de-DE".into();
+        f.number_format = "0.00".into();
+        assert_eq!(FormulaFixture::from_json(&f.to_json().unwrap()).unwrap(), f);
+        let mut future = f.clone();
+        future.version = 2;
+        assert!(future.to_json().is_err());
+        let mut wrong = f.clone();
+        wrong.sheets.push("inputs".into());
+        assert!(wrong.session().is_err());
+        let mut draft = f;
+        draft.formula = "=SUM(".into();
+        draft.inputs[0].entry = "not a number".into();
+        assert!(draft.to_json().is_ok());
+        assert!(FormulaFixture::from_json("{\"version\":1}").is_err());
+    }
+}

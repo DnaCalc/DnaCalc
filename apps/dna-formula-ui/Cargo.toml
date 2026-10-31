@@ -17,11 +17,13 @@ portability = "portable"
 # Leptos, wasm-bindgen and web-sys at the releases both apps pin (see dna-onecalc's
 # manifest): Leptos 0.8.19 on wasm-bindgen 0.2.117, web-sys 0.3.94.
 [dependencies]
+js-sys = "=0.3.94"
+wasm-bindgen-futures = "=0.4.67"
 calc-fml = { path = "../../crates/calc-fml" }
 calc-func = { path = "../../crates/calc-func" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 wasm-bindgen = "=0.2.117"
-web-sys = { version = "=0.3.94", features = ["HtmlElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Storage", "Window"] }
+web-sys = { version = "=0.3.94", features = ["Blob", "BlobPropertyBag", "File", "FileList", "Url", "HtmlAnchorElement", "HtmlInputElement", "Location", "HtmlDialogElement", "HtmlElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Storage", "Window"] }
 
 # The theme switch's choices are checked against Strand's themes. Test-only.
 [dev-dependencies]
