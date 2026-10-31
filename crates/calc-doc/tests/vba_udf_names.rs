@@ -154,6 +154,91 @@ impl calc_func::UserFunction for Identity {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_snz_11__registered_unicode_names_match_measured_entry_and_file_cases() {
+    let mut functions = calc_func::UserFunctions::new();
+    for declared in ["Café", "Ångström"] {
+        functions
+            .register(declared, std::rc::Rc::new(Identity))
+            .unwrap();
+    }
+    for bytes in [
+        include_bytes!("fixtures/vba_udf_names/local.xlsm").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/local.xlsb").as_slice(),
+        include_bytes!("fixtures/vba_udf_names/unicode-case.xlsm").as_slice(),
+    ] {
+        let loaded = load(bytes);
+        let sheet = loaded.model().sheets()[0].id();
+        let anchor = CellKey::new(sheet, 1, 4).unwrap();
+        let mut cache = calc_fml::PlanCache::new();
+        let mut plans = Vec::new();
+        for spelling in ["café", "CAFÉ", "ångström", "ÅNGSTRÖM"] {
+            let tree = calc_fml::parse_formula(&format!("={spelling}(2)"));
+            let plan = calc_fml::compile_with_functions(
+                &tree,
+                calc_fml::reference::ReferenceNotation::A1,
+                calc_fml::reference::FormulaAnchor::new(anchor),
+                &FunctionCatalog,
+                &mut cache,
+                calc_fml::FormulaForm::Dynamic,
+                &functions,
+            )
+            .unwrap();
+            assert_eq!(plan.user_calls().count(), 1, "typed {spelling}");
+            assert_eq!(evaluate(&plan, anchor, &functions).as_number(), Some(2.0));
+            plans.push(plan);
+        }
+        assert!(std::sync::Arc::ptr_eq(&plans[0], &plans[1]));
+        assert!(std::sync::Arc::ptr_eq(&plans[2], &plans[3]));
+        let mut checked = 0;
+        for (at, input) in loaded.model().sheet_cells(sheet).into_iter().flatten() {
+            let CellInput::Formula(formula) = input else {
+                continue;
+            };
+            let text = formula.text().to_string_lossy();
+            let Some((spelling, _)) = text.split_once('(') else {
+                continue;
+            };
+            if !["Café", "Ångström"]
+                .iter()
+                .any(|declared| calc_func::value::workbook_names_equal(declared, spelling))
+            {
+                continue;
+            }
+            let tree = calc_fml::parse_formula(&format!("={text}"));
+            let plan = calc_fml::compile_loaded_with_functions(
+                &tree,
+                calc_fml::reference::ReferenceNotation::A1,
+                calc_fml::reference::FormulaAnchor::new(at),
+                &FunctionCatalog,
+                &mut calc_fml::PlanCache::new(),
+                calc_fml::FormulaForm::Dynamic,
+                &functions,
+            )
+            .unwrap();
+            assert_eq!(plan.user_calls().count(), 1, "file {text}");
+            assert_eq!(evaluate(&plan, at, &functions).as_number(), Some(2.0));
+            checked += 1;
+        }
+        assert!(checked >= 2);
+    }
+    for spelling in ["CAFÉ", "ångström"] {
+        assert!(
+            functions
+                .register(spelling, std::rc::Rc::new(Identity))
+                .is_err()
+        );
+        assert_eq!(
+            functions
+                .call(spelling, &[calc_func::value::CalcValue::number(2.0)])
+                .unwrap()
+                .as_number(),
+            Some(2.0)
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_snz_9__own_workbook_calls_bind_the_registered_procedure() {
     for bytes in [
         include_bytes!("fixtures/vba_udf_names/local.xlsm").as_slice(),
@@ -262,7 +347,7 @@ fn dc_snz_9__external_calls_keep_link_and_provider_identity() {
             )
             .unwrap();
             let (spelling, source) = plan.user_call_sources().next().unwrap();
-            assert_eq!(spelling, name.to_ascii_uppercase());
+            assert_eq!(spelling, calc_func::value::fold_workbook_name(name));
             assert_eq!(source.unwrap().book, book);
             assert_eq!(source.unwrap().target.as_deref(), Some(provider.as_str()));
             assert_eq!(evaluate(&plan, at, &functions).as_number(), Some(2.0));
