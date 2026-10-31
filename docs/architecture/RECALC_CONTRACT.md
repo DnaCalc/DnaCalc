@@ -45,7 +45,9 @@ not been measured on, it says so; implementing SliceV1 is not evidence of Excel 
   `PlainProbe(1,A1)` went 4 -> 5 under `B1.Calculate` (a clean target is forced, O) and 5 -> 6 under the following
   `Worksheet.Calculate`, while the equally clean B3 stayed 4; B12 repeated the pattern (`hidden-force` then
   `toggle-back`). Inference (I): a range calculation does not clear the target's requirement. A7 demo 6 assumes it
-  does. P02 decides; the contract keeps it as a profile choice (`RangePostState`, 3.1).
+  does. **P02 now observed (20527, safe mode):** in ten isolated Manual range trials counter 32 ran
+  once under the range command and again under F9, while clean K1 did not run. Choose `StillRequired`
+  for this profile. The full matrix's ForceFullCalculation carryover is excluded from this inference.
 - **Iteration order is partly measured**, unlike A4 2.8's caution: cell order within a sheet, sheets by name ignoring
   case, Gauss-Seidel visibility (+200 per 100 iterations for A1=B1+1, B1=A1+1), seeding from held values
   (`calc-engine/src/recalc.rs:36-67`, fixtures `dc_86f`, `dc_10y_iteration`, `dc_y2o`; 16.0.20430/20527). P14 keeps
@@ -126,7 +128,10 @@ dirty and volatile on the sheet, cross-sheet formula precedents may be qualified
 `ForceAll` on the exact `AreaSet` (no bounding-rectangle widening), formula precedents outside it are boundary caches;
 `Full` -> `ForceAll` over the domain (clean results cannot satisfy it); `RebuildFull` -> rebuild bindings, then `Full`.
 Iteration and data tables return named bounded unsupported outcomes in the slice, never a whole-workbook fallback.
-`RangePostState::{Satisfied, StillRequired}` is a profile field; SliceV1 uses `Satisfied`, P02 may switch it (1).
+`RangePostState::{Satisfied, StillRequired}` is a profile field; SliceV1 uses `StillRequired` for Manual
+`CalcRange`, following P02's isolated run (O, 20527 safe mode). Automatic mode admits edit-triggered work
+before a later explicit range command; it must not inherit the Manual normalization blindly.
+`CalculateRowMajorOrder` is separate: P02's reversed chain returned 3 versus dependency-aware range's 11.
 
 | State, event | Transition |
 |---|---|
@@ -379,7 +384,7 @@ generations, views, draw material, effect outcomes and platform provenance; a se
 | Read policies | S/A7 four; A4 adds XLL worksheet/macro-equivalent and `ExplicitFreshSnapshot` | XLL variants are `RegisteredWorksheetCallback { registration }` capabilities (`#` gets macro-equivalent reads); fresh snapshot is a save/export policy |
 | Fence extent | A7: pinned root; A4: everything the callback may observe, other workbooks included | pin the `CalculationDomain` root |
 | Cached-read evidence | S/A7 cite a measured stale read | P01 (O, 20527 safe mode) confirms old dirty-formula cache for observer-only calculation; reversed-area re-entry sees Empty then the new value |
-| Range.Calculate end state | A7: target satisfied; fixture hints it stays dirty | `RangePostState` profile field; P02 |
+| Range.Calculate end state | A7: target satisfied; fixture hints it stays dirty | P02 isolated Manual trials: `StillRequired`; clean unrelated counter did not run |
 | Edit during calculation | code: cancel all; A7: successor plus revalidated reuse | A7 (demo 4) |
 | Save(false) caches | code: drop stale, Excel recalcs on open; A7: preserve with `ca`/`calcCompleted=false` | both policies exist; default stays drop until P06 |
 | Iteration order | A4: do not promote sheet-name order; code: measured on 20430/20527 | keep measured rules (O) for the measured shapes; P14 for the rest |
@@ -392,7 +397,7 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 | Open question | SliceV1 choice | Probe |
 |---|---|---|
 | What a VBA read of a dirty formula returns, per command kind; self/caller reads | P01: observer-only reads old 2; reversed areas can return Empty then re-enter with 11; self 0/Empty. Retain cached observation, distinguish new evaluation; other contexts remain open | P01 (O, 20527 safe mode) |
-| Out-of-range precedents in Range/Sheet calculation; post-command dirtiness; mode dependence | exact scope, qualified boundary caches, `Satisfied` | P02 |
+| Out-of-range precedents in Range/Sheet calculation; post-command dirtiness; mode dependence | P02 confirms boundary caches and Manual `StillRequired`; row-major separate; automatic edits calculate before explicit commands. UI sheet grouping remains open | P02 (O, 20527 safe mode) |
 | Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | resume never re-enters; typed reasons | P03 |
 | Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | distinct keys; no guessed retry count | P04 |
 | Spill conflict winner, stale-footprint clearing, child-only calculation | first by reservation order | P05 |

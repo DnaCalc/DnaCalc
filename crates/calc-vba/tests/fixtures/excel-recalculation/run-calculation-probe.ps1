@@ -2,14 +2,21 @@ param(
     [Parameter(Mandatory)][string]$ProbeDirectory,
     [string]$OxVbaRoot = 'C:/Work/DnaCalc/OxVba',
     [int]$Repetitions = 10,
+    [string]$Cases = '',
     [string]$RunId = ('calc-probe-' + [Guid]::NewGuid().ToString('N')),
     [switch]$SafeMode
 )
 $ErrorActionPreference = 'Stop'
 $probe = (Resolve-Path -LiteralPath $ProbeDirectory).Path
 $common = Join-Path $PSScriptRoot 'calculation-common.bas'
-$source = (Get-Content -LiteralPath $common -Raw) + "`n" + (Get-Content -LiteralPath (Join-Path $probe 'probe.bas') -Raw)
+$probeSource = Get-Content -LiteralPath (Join-Path $probe 'probe.bas') -Raw
+$firstProcedure = [regex]::Match($probeSource, '(?m)^(?:Private|Public)\s+(?:Sub|Function)\b')
+if (-not $firstProcedure.Success) {throw 'Probe has no procedures'}
+$declarations = $probeSource.Substring(0,$firstProcedure.Index)
+$procedures = $probeSource.Substring($firstProcedure.Index)
+$source = (Get-Content -LiteralPath $common -Raw).Replace('Public Sub Note(', $declarations + "`nPublic Sub Note(") + "`n" + $procedures
 $source = $source.Replace('__OUTPUT__', $probe.Replace('"','""')).Replace('__REPETITIONS__', [string]$Repetitions)
+$source = $source.Replace('__CASES__', $Cases.Replace('"','""'))
 $native = Join-Path (Split-Path $probe -Parent) 'P03/native-probe.xll'
 $source = $source.Replace('__NATIVE__', $native.Replace('"','""'))
 $module = Join-Path $probe 'injected.bas'

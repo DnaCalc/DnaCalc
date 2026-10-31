@@ -83,6 +83,13 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   Row-major differs: a separate command. Mode-dependent results: per-mode normalization table in calc-host.
 - **Measured.** Clean-target forcing and the re-invocation hint (section 1).
 
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 43 conditions x 10 workbooks and an isolated eight-condition
+  x 10 control run. Manual C1-only and cross-sheet/workbook sheet calculation retained boundary caches (C1=3);
+  including the producer or domain calculation yielded 11. Range counter 32 ran again on F9 in all isolated trials,
+  while clean K1 did not: choose `RangePostState::StillRequired`. Reversed row-major gave 3 versus range's 11.
+  Automatic edits calculate before the later explicit command. ForceFullCalculation affected later matrix counters;
+  use the isolated run for the dirtiness inference. [Evidence](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P02/README.md).
+
 ### P03 ★ Repeated semantic evaluation and callback privileges (E04; A7 repeated evaluation, callback privileges)
 - **Setup.** VBA `LateDep(x)` counter with an explicit late precedent and a hidden one; parameters `As Range`,
   `As Variant`, `As Double`; `F(B1)` vs `F(B1+0)`; an unused argument. Test XLL `XCount(R)` incrementing a native
