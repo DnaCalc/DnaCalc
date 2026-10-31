@@ -298,7 +298,8 @@ pub fn prepare_edit<'s, 'r>(
             // reference become pending when the change is committed.
             WorkbookOp::SetIteration(_) => {}
             WorkbookOp::SetAxisFormat(edit) => require_sheet(inputs, operation, edit.sheet())?,
-            WorkbookOp::SetFrozenPanes { sheet, .. } => require_sheet(inputs, operation, *sheet)?,
+            WorkbookOp::SetConditionalRules { sheet, .. }
+            | WorkbookOp::SetFrozenPanes { sheet, .. } => require_sheet(inputs, operation, *sheet)?,
         }
     }
 
@@ -505,6 +506,7 @@ fn structural_moves(
                 | WorkbookOp::SetNameFormula { .. }
                 | WorkbookOp::SetIteration(_)
                 | WorkbookOp::SetAxisFormat(_)
+                | WorkbookOp::SetConditionalRules { .. }
                 | WorkbookOp::SetFrozenPanes { .. }
         )
     }) {
@@ -526,6 +528,7 @@ fn structural_moves(
             | WorkbookOp::SetNameFormula { .. }
             | WorkbookOp::SetIteration(_)
             | WorkbookOp::SetAxisFormat(_)
+            | WorkbookOp::SetConditionalRules { .. }
             | WorkbookOp::SetFrozenPanes { .. } => unreachable!("refused above"),
             WorkbookOp::EditAxis(edit) => {
                 require_sheet(inputs, operation, edit.sheet())?;

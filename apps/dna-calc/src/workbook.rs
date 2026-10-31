@@ -312,6 +312,16 @@ impl Workbook {
             .collect()
     }
 
+    pub fn validation_failure(
+        &self,
+        at: CellKey,
+        text: &str,
+    ) -> Option<calc_host::ValidationFailure> {
+        let host = self.session.host();
+        let input = calc_host::interpret_entry_in(text, Some(&host.entry_environment())).ok()?;
+        host.check_entry(at, input.as_ref()).err()
+    }
+
     /// What a warning or information rule of the cell says about `text` as its entry, which the
     /// session takes (a stop rule's refusal comes back as the intent's error).
     pub fn validation_note(&self, at: CellKey, text: &str) -> Option<calc_host::ValidationFailure> {

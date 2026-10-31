@@ -106,6 +106,7 @@ struct Stats {
 
 /// One rule, prepared.
 struct Prepared {
+    source_index: usize,
     rule: ConditionalRule,
     areas: Vec<GridArea>,
     /// The formula whose truth the rule tests, compiled at the block's origin.
@@ -158,6 +159,60 @@ impl ConditionalFormats {
             }
         }
         (!look.is_empty()).then_some(look)
+    }
+
+    /// Explanations use the same prepared rules and evaluator as rendering, without changing counters.
+    pub fn explain(&self, host: &HostState, at: CellKey) -> Vec<(usize, String)> {
+        let saved = self.refused.get();
+        let value = cell_value(host, at);
+        let mut stopped = false;
+        let mut look = CellLook::default();
+        let result = self
+            .rules
+            .iter()
+            .map(|p| {
+                let state = if !p.areas.iter().any(|a| a.contains(at)) {
+                    "Outside this cell".to_owned()
+                } else if stopped {
+                    "Skipped after Stop if true".to_owned()
+                } else if p.rule.std_dev.is_some()
+                    || (p.condition.is_none()
+                        && !matches!(
+                            p.rule.kind.as_str(),
+                            "colorScale"
+                                | "dataBar"
+                                | "iconSet"
+                                | "top10"
+                                | "aboveAverage"
+                                | "duplicateValues"
+                                | "uniqueValues"
+                        ))
+                {
+                    "Rule evaluation is unavailable (dc-971p.8)".to_owned()
+                } else {
+                    let old = look.clone();
+                    let before = self.refused.get();
+                    let held = self.apply(host, p, at, value.as_ref(), &mut look);
+                    if self.refused.get() != before {
+                        "Rule formula unavailable; no appearance supplied".to_owned()
+                    } else if held {
+                        stopped = p.rule.stop_if_true;
+                        if old == look {
+                            "Condition true; no additional supported appearance".into()
+                        } else {
+                            "Applies appearance to this cell".into()
+                        }
+                    } else if matches!(p.rule.kind.as_str(), "colorScale" | "dataBar" | "iconSet") {
+                        "No appearance: value or threshold is unavailable".into()
+                    } else {
+                        "Condition false for this cell".into()
+                    }
+                };
+                (p.source_index, state)
+            })
+            .collect();
+        self.refused.set(saved);
+        result
     }
 
     /// Applies one rule to the cell, setting what the look leaves unset; whether the rule held.
@@ -647,15 +702,18 @@ impl HostState {
     /// [`crate::conditional`]); empty for a sheet the file gave none.
     pub fn conditional_formats(&self, sheet: SheetId) -> ConditionalFormats {
         let mut rules = Vec::new();
-        if let Some(loaded) = self.loaded.sheet(sheet) {
-            for block in loaded.conditional_formats() {
-                let areas = self.current_areas(sheet, &block.areas);
-                let Some(origin) = areas.first().map(|area| area.first()) else {
-                    continue;
-                };
-                for rule in &block.rules {
-                    rules.push(self.prepare(rule, &areas, origin));
-                }
+        for (index, source) in self
+            .model
+            .definitions()
+            .conditional_rules(sheet)
+            .iter()
+            .enumerate()
+        {
+            if let (Ok(rule), Some(origin)) = (calc_doc::conditional_rule(source), source.origin())
+            {
+                let mut prepared = self.prepare(&rule, &source.areas, origin);
+                prepared.source_index = index;
+                rules.push(prepared);
             }
         }
         rules.sort_by_key(|prepared| prepared.rule.priority);
@@ -776,6 +834,7 @@ impl HostState {
             })
             .unwrap_or_default();
         Prepared {
+            source_index: 0,
             rule: rule.clone(),
             areas: areas.to_vec(),
             condition,

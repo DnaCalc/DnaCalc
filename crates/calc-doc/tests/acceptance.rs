@@ -464,6 +464,13 @@ fn describe_input(input: &CellInput) -> String {
 /// own equality.
 fn describe(op: &WorkbookOp) -> String {
     match op {
+        WorkbookOp::SetConditionalRules { sheet, rules } => format!(
+            "conditional {sheet:?} {:?}",
+            rules
+                .iter()
+                .map(|r| (&r.areas, r.priority, r.stop, &r.formulas))
+                .collect::<Vec<_>>()
+        ),
         WorkbookOp::SetCell { at, input } => format!(
             "set {:?} R{}C{} {}",
             at.sheet(),
@@ -610,6 +617,8 @@ fn describe_all(ops: &[WorkbookOp]) -> Vec<String> {
 /// stops this file compiling until the cases cover it.
 fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
     let feature = match op {
+        // Wire version 1 refuses conditional-rule state as EncodeError::ConditionalRules.
+        WorkbookOp::SetConditionalRules { .. } => "op:conditional_rules".to_owned(),
         WorkbookOp::SetCell { input, .. } => {
             out.insert("op:set_cell".to_owned());
             match input {

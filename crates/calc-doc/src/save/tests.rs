@@ -217,3 +217,79 @@ fn attributes_written_as_references() {
         "one reference to the table, A1's, removed"
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn conditional_rules_keep_namespaces_escapes_and_container_extensions() {
+    for container_extension in [false, true] {
+        let source = open(
+            Arc::new(MemorySource::new(package())),
+            &OpenPolicy::default(),
+        )
+        .unwrap();
+        let extra = if container_extension {
+            "<x:extLst><x:ext uri=\"held\"><held xmlns=\"urn:test\"/></x:ext></x:extLst>"
+        } else {
+            ""
+        };
+        let worksheet = format!(
+            "<x:worksheet xmlns:x=\"{MAIN}\"><x:sheetData/><x:conditionalFormatting sqref=\"A1:A3\"><x:cfRule type=\"expression\" priority=\"1\"><x:formula>LEN(\"_x005F_x0041_\")=7</x:formula></x:cfRule>{extra}</x:conditionalFormatting></x:worksheet>"
+        );
+        let entries = source
+            .package()
+            .archive()
+            .entries
+            .iter()
+            .map(|entry| {
+                let text = if entry.name == "xl/worksheets/sheet1.xml" {
+                    worksheet.clone()
+                } else {
+                    String::from_utf8(
+                        crate::zip::read_content(source.package().source(), entry).unwrap(),
+                    )
+                    .unwrap()
+                };
+                (entry.name.as_str(), text)
+            })
+            .collect::<Vec<_>>();
+        let document = open(
+            Arc::new(MemorySource::new(stored_zip(&entries))),
+            &OpenPolicy::default(),
+        )
+        .unwrap();
+        let mut ids = IdAllocator::new();
+        let loaded = load(&document, &mut ids).unwrap();
+        let sheet = loaded.model().sheets()[0].id();
+        let existing = loaded.model().definitions().conditional_rules(sheet)[0].clone();
+        assert_eq!(existing.formulas, vec!["LEN(\"_x0041_\")=7"]);
+        let area = GridArea::new(key(sheet, 1, 1), key(sheet, 3, 1)).unwrap();
+        let mut rules = vec![
+            crate::new_conditional_rule(vec![area], "dataBar", "327A94").unwrap(),
+            existing,
+        ];
+        rules[1].priority = 2;
+        if container_extension {
+            rules.clear();
+        }
+        let batch = OpBatch {
+            base: loaded.model().revision(),
+            operations: vec![WorkbookOp::SetConditionalRules { sheet, rules }],
+        };
+        let edited = prepare_edit(loaded.model(), &batch).unwrap().into_model();
+        let plan = prepare_save(&loaded.snapshot(&edited), &SavePolicy::default());
+        if container_extension {
+            assert!(plan.is_err(), "container metadata must never be discarded");
+            continue;
+        }
+        let mut bytes = Vec::new();
+        write(plan.unwrap(), &mut bytes).unwrap();
+        let document = open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default()).unwrap();
+        let mut ids = IdAllocator::new();
+        let loaded = load(&document, &mut ids).unwrap();
+        let sheet = loaded.model().sheets()[0].id();
+        let rules = loaded.model().definitions().conditional_rules(sheet);
+        assert_eq!(rules.len(), 2);
+        assert_eq!(crate::conditional_rule(&rules[0]).unwrap().kind, "dataBar");
+        assert_eq!(rules[1].formulas, vec!["LEN(\"_x0041_\")=7"]);
+    }
+}

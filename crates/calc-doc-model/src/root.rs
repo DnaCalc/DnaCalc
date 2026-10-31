@@ -525,6 +525,7 @@ impl ModelRoot {
         let mut added: Vec<(usize, ArrayFormula)> = Vec::new();
         // The cell formats the batch sets, in order.
         let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
+        let mut conditional = Vec::new();
         let mut panes = Vec::new();
         let mut axis_formats = Vec::new();
         // The defined names' formulas the batch sets, as the names will read.
@@ -532,6 +533,10 @@ impl ModelRoot {
         let mut iteration: Option<crate::definitions::IterationSettings> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
+                WorkbookOp::SetConditionalRules { sheet, rules } => {
+                    self.position_of(operation, *sheet)?;
+                    conditional.push((*sheet, rules.clone()));
+                }
                 WorkbookOp::SetCell { at, input } => {
                     edited.push(GridArea::cell(*at));
                     added.retain(|(_, array)| array.anchor() != *at);
@@ -649,13 +654,17 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if !formats.is_empty()
+        if !conditional.is_empty()
+            || !formats.is_empty()
             || !panes.is_empty()
             || !axis_formats.is_empty()
             || names.is_some()
             || iteration.is_some_and(|settings| settings != definitions.iteration())
         {
             let mut next = Definitions::clone(&definitions);
+            for (sheet, rules) in conditional {
+                next = next.with_conditional_rules(sheet, rules);
+            }
             for edit in axis_formats {
                 next = next.with_axis_format(edit);
             }

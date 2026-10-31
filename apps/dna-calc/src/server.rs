@@ -29,6 +29,7 @@ pub struct Answer {
 }
 
 pub struct Server {
+    validation_pending: Option<(u64, u64, Selection, SkinIntent)>,
     sheet_keys: std::collections::BTreeSet<calc_host::SheetKey>,
     book: Workbook,
     /// The page's subscriptions: its number for each, and calc-host's.
@@ -51,6 +52,7 @@ impl Server {
     pub fn new() -> Server {
         let book = Workbook::new_blank();
         Server {
+            validation_pending: None,
             sheet_keys: book.host().sheets().iter().map(|s| s.key()).collect(),
             book,
             subscriptions: BTreeMap::new(),
@@ -257,6 +259,23 @@ impl Server {
                     };
                     Ok(Reply::ResolvedReference(resolved))
                 }
+                Request::Review(at) => Ok(Reply::Review(self.review(cell(at)?))),
+                Request::ReviewMarkers(sheet) => {
+                    let review = self.book.host().sheet_review(sheet.id());
+                    let mut markers: BTreeMap<Key, String> = BTreeMap::new();
+                    for note in review.notes {
+                        markers.insert(Key::of(note.at), "Note".into());
+                    }
+                    for link in review.links {
+                        markers
+                            .entry(Key::of(link.area.first()))
+                            .and_modify(|s| s.push_str(" and link"))
+                            .or_insert_with(|| "Link".into());
+                    }
+                    Ok(Reply::ReviewMarkers(
+                        markers.into_iter().take(5000).collect(),
+                    ))
+                }
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::Atlas => {
                     let census = self.book.census();
@@ -335,6 +354,7 @@ impl Server {
 
     /// A new workbook in place of the open one: the page's subscriptions end with it.
     fn install(&mut self, book: Workbook) {
+        self.validation_pending = None;
         self.sheet_keys = book.host().sheets().iter().map(|s| s.key()).collect();
         self.book = book;
         self.subscriptions.clear();
@@ -508,6 +528,7 @@ impl Server {
     fn outcome(&self, accepted: bool, error: Option<String>, elapsed_ms: f64) -> Outcome {
         let selection = self.book.session().selection();
         Outcome {
+            validation: None,
             accepted,
             committed: false,
             recalculated: false,
@@ -714,8 +735,268 @@ impl Server {
         Ok(edits)
     }
 
+    fn review(&self, at: CellKey) -> wire::Review {
+        let host = self.book.host();
+        let source = host.model().definitions().conditional_rules(at.sheet());
+        let explanations: BTreeMap<_, _> = self
+            .book
+            .conditional_formats(at.sheet())
+            .explain(host, at)
+            .into_iter()
+            .collect();
+        let mut rules = source
+            .iter()
+            .enumerate()
+            .filter_map(|(index, s)| {
+                let r = calc_host::conditional_rule(s).ok()?;
+                Some(wire::Rule {
+                    index: index as u32,
+                    kind: r.kind.clone(),
+                    priority: s.priority,
+                    applies: s
+                        .areas
+                        .iter()
+                        .map(|a| {
+                            format!(
+                                "{}:{}",
+                                dna_formula_ui::display::column_letters(a.first().column())
+                                    + &a.first().row().to_string(),
+                                dna_formula_ui::display::column_letters(a.last().column())
+                                    + &a.last().row().to_string()
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    formulas: s.formulas.clone(),
+                    stop: s.stop,
+                    state: explanations
+                        .get(&index)
+                        .cloned()
+                        .unwrap_or_else(|| "Rule unavailable".into()),
+                    editable: r.extension_id.is_none(),
+                    formula_editable: matches!(r.kind.as_str(), "expression" | "cellIs"),
+                    visual: matches!(r.kind.as_str(), "colorScale" | "dataBar" | "iconSet"),
+                })
+            })
+            .collect::<Vec<_>>();
+        rules.sort_by_key(|r| r.priority);
+        let review = host.sheet_review(at.sheet());
+        let count = review.notes.len() + review.links.len();
+        let mut unsupported = review.unsupported;
+        if host
+            .loaded()
+            .sheet(at.sheet())
+            .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
+        {
+            unsupported.push("Additional rule metadata is preserved; conditional-rule editing is unavailable on this worksheet (dc-971p.8)".into());
+        }
+
+        if count > 5000 {
+            unsupported.push(
+                "Only the first 5000 review markers are drawn; cell details remain available here"
+                    .into(),
+            );
+        }
+        let validation=host.validation(at).map(|v|format!("{} validation · {:?}. Custom rules and formula-entry result checks are unavailable (dc-6yw); loaded rules are preserved.",v.kind,v.style));
+        wire::Review {
+            at: Some(Key::of(at)),
+            revision: host.revision().get(),
+            rules,
+            notes: review
+                .notes
+                .into_iter()
+                .filter(|n| n.at == at)
+                .map(|n| (n.author, n.text))
+                .collect(),
+            links: review
+                .links
+                .into_iter()
+                .filter(|l| l.area.contains(at))
+                .map(|l| wire::ReviewLink {
+                    display: l.display.clone().unwrap_or_else(|| {
+                        l.target
+                            .clone()
+                            .or_else(|| l.location.clone())
+                            .unwrap_or_else(|| "Unavailable link".into())
+                    }),
+                    target: l.target,
+                    location: l.location,
+                    tooltip: l.tooltip.unwrap_or_default(),
+                })
+                .collect(),
+            unsupported,
+            validation,
+        }
+    }
+
+    fn edit_conditional(
+        &self,
+        sheet: calc_host::value::SheetId,
+        revision: u64,
+        index: Option<u32>,
+        change: wire::ConditionalChange,
+    ) -> Result<Vec<CellEdit>, String> {
+        let host = self.book.host();
+        if revision != host.revision().get() {
+            return Err("Rules changed; reopen the current rule and try again".into());
+        }
+        if host.loaded().sheet(sheet).is_some_and(|s| s.protected()) {
+            return Err("Worksheet protection prevents conditional rule edits".into());
+        }
+        if host
+            .loaded()
+            .sheet(sheet)
+            .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
+        {
+            return Err("This worksheet has additional conditional-rule metadata; editing its rules is unavailable and the file is preserved (dc-971p.8)".into());
+        }
+        let mut rules = host.model().definitions().conditional_rules(sheet).to_vec();
+        let ranges = |text: &str| -> Result<Vec<GridArea>, String> {
+            let at = CellKey::new(sheet, 1, 1).unwrap();
+            let mut areas = Vec::new();
+            for token in text.split_whitespace() {
+                match host.resolve_reference_text(at, token) {
+                    calc_host::ReferenceTarget::Area(a) if a.sheet() == sheet => areas.push(a),
+                    _ => {
+                        return Err(
+                            "Applies to needs space-separated ranges on this worksheet".into()
+                        );
+                    }
+                }
+            }
+            if areas.is_empty() || areas.len() > 128 {
+                return Err("Choose between 1 and 128 ranges".into());
+            }
+            Ok(areas)
+        };
+        if let wire::ConditionalChange::Add {
+            kind,
+            applies,
+            color,
+        } = change
+        {
+            let mut source = calc_host::new_conditional_rule(
+                ranges(&applies)?,
+                &kind,
+                color.trim_start_matches('#'),
+            )?;
+            source.priority = rules
+                .iter()
+                .map(|r| r.priority)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1);
+            rules.push(source);
+        } else {
+            let i = index
+                .map(|i| i as usize)
+                .filter(|i| *i < rules.len())
+                .ok_or("Select a rule first")?;
+            let parsed = calc_host::conditional_rule(&rules[i])?;
+            match change {
+                wire::ConditionalChange::Update {
+                    applies,
+                    formulas,
+                    stop,
+                } => {
+                    let areas = ranges(&applies)?;
+                    if parsed.extension_id.is_some() {
+                        return Err("Editing extension-backed rules is unavailable; the imported rule is preserved (dc-971p.8)".into());
+                    }
+                    let mut formulas = formulas;
+                    if formulas != rules[i].formulas {
+                        if !matches!(parsed.kind.as_str(), "cellIs" | "expression")
+                            || formulas.len() != rules[i].formulas.len()
+                        {
+                            return Err(
+                                "This rule condition cannot be edited yet (dc-971p.8)".into()
+                            );
+                        }
+                        for formula in &mut formulas {
+                            let text = calc_host::FormulaText::new(
+                                calc_host::value::ExcelText::from_utf16_code_units(
+                                    formula
+                                        .trim()
+                                        .trim_start_matches('=')
+                                        .encode_utf16()
+                                        .collect(),
+                                ),
+                            )
+                            .map_err(|e| e.to_string())?;
+                            let form = calc_host::file_form_with_links(
+                                &text,
+                                host.model().definitions().names(),
+                                &host.model().definitions().external_file_names(),
+                            )
+                            .map_err(|e| format!("Conditional formula is unavailable: {e:?}"))?;
+                            *formula = String::from_utf16_lossy(&form.text)
+                                .trim_start_matches('=')
+                                .to_owned();
+                        }
+                    }
+                    rules[i].areas = areas;
+                    rules[i].formulas = formulas;
+                    rules[i].stop = stop
+                        && !matches!(parsed.kind.as_str(), "colorScale" | "dataBar" | "iconSet");
+                    rules[i].authored = true;
+                }
+                wire::ConditionalChange::Remove => {
+                    if parsed.extension_id.is_some() {
+                        return Err("Removing extension-backed rules is unavailable; the imported rule is preserved (dc-971p.8)".into());
+                    }
+                    rules.remove(i);
+                }
+                wire::ConditionalChange::Move { up } => {
+                    let mut order = (0..rules.len()).collect::<Vec<_>>();
+                    order.sort_by_key(|&n| rules[n].priority);
+                    let old = order.iter().position(|&n| n == i).unwrap();
+                    let destination = if up {
+                        old.saturating_sub(1)
+                    } else {
+                        (old + 1).min(order.len() - 1)
+                    };
+                    order.swap(old, destination);
+                    for (rank, index) in order.into_iter().enumerate() {
+                        rules[index].priority = rank as i64 + 1;
+                        rules[index].authored = true;
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        let mut order = (0..rules.len()).collect::<Vec<_>>();
+        order.sort_by_key(|&n| rules[n].priority);
+        for (rank, index) in order.into_iter().enumerate() {
+            rules[index].priority = rank as i64 + 1;
+        }
+        Ok(vec![CellEdit::ConditionalRules { sheet, rules }])
+    }
+
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
+        if let Intent::AcceptValidation { token } = intent {
+            let (held, revision, selection, intent) = self
+                .validation_pending
+                .take()
+                .ok_or("This validation decision has expired")?;
+            if held != token
+                || revision != self.book.host().revision().get()
+                || &selection != self.book.session().selection()
+            {
+                return Err("The workbook or selection changed; enter the draft again".into());
+            }
+            return self.dispatch_entry(intent, true);
+        }
+
         let intent = match intent {
+            Intent::EditConditional {
+                sheet,
+                revision,
+                index,
+                change,
+            } => match self.edit_conditional(sheet.id(), revision, index, change) {
+                Ok(edits) => SkinIntent::Edit { edits },
+                Err(message) => return Ok(self.done(false, Some(message), 0.0)),
+            },
             Intent::ShiftCells {
                 area: a,
                 down,
@@ -989,6 +1270,96 @@ impl Server {
             }
             other => host_intent(other)?,
         };
+        self.dispatch_entry(intent, false)
+    }
+
+    fn dispatch_entry(&mut self, intent: SkinIntent, confirmed: bool) -> Result<Reply, String> {
+        if !confirmed {
+            self.validation_pending = None;
+            let targets = match &intent {
+                SkinIntent::EnterCell { at, text } => vec![(*at, text.as_str())],
+                SkinIntent::EnterSelection { text } => {
+                    let selection = self.book.session().selection();
+                    if !selection.areas.iter().any(|a| {
+                        self.book
+                            .host()
+                            .loaded()
+                            .sheet(a.sheet())
+                            .is_some_and(|s| !s.validations().is_empty())
+                    }) {
+                        Vec::new()
+                    } else {
+                        if selection.areas.iter().map(|a| a.cell_count()).sum::<u64>() > 10000 {
+                            return Ok(self.done(
+                                false,
+                                Some("Validate at most 10000 selected cells at once".into()),
+                                0.0,
+                            ));
+                        }
+                        selection
+                            .areas
+                            .iter()
+                            .flat_map(|a| {
+                                (a.first().row()..=a.last().row()).flat_map(move |r| {
+                                    (a.first().column()..=a.last().column())
+                                        .map(move |c| CellKey::new(a.sheet(), r, c).unwrap())
+                                })
+                            })
+                            .map(|at| (at, text.as_str()))
+                            .collect()
+                    }
+                }
+                _ => Vec::new(),
+            };
+            let mut failures = targets
+                .iter()
+                .filter_map(|(at, text)| self.book.validation_failure(*at, text))
+                .collect::<Vec<_>>();
+            failures.sort_by_key(|f| match f.style {
+                calc_host::ErrorStyle::Stop => 0,
+                calc_host::ErrorStyle::Warning => 1,
+                _ => 2,
+            });
+            if let Some(failure) = failures.first() {
+                let token = self.next_clip;
+                self.next_clip += 1;
+                let style = match failure.style {
+                    calc_host::ErrorStyle::Stop => "Stop",
+                    calc_host::ErrorStyle::Warning => "Warning",
+                    _ => "Information",
+                };
+                let message = if failures.len() > 1 {
+                    format!(
+                        "{} ({} selected cells reject this entry)",
+                        failure.message,
+                        failures.len()
+                    )
+                } else {
+                    failure.message.clone()
+                };
+                let decision = wire::ValidationDecision {
+                    token,
+                    style: style.into(),
+                    title: failure.title.clone(),
+                    message,
+                };
+                if failure.style != calc_host::ErrorStyle::Stop {
+                    self.validation_pending = Some((
+                        token,
+                        self.book.host().revision().get(),
+                        self.book.session().selection().clone(),
+                        intent,
+                    ));
+                }
+                let mut outcome = self.outcome(false, Some(failure.to_string()), 0.0);
+                outcome.validation = Some(decision);
+                return Ok(Reply::Done {
+                    outcome,
+                    opened: None,
+                    saved: None,
+                });
+            }
+        }
         // What a warning or information rule says about an entry, worked out before it is taken.
         let note = match &intent {
             SkinIntent::EnterCell { at, text } => {
@@ -1039,11 +1410,14 @@ impl Server {
             let mut cells = Vec::new();
             let mut emptied = Vec::new();
             for projected in &delta.cells {
-                if projected.input().is_none() && projected.value() == &ProjectedValue::Empty {
+                let shown = self.book.shown(projected);
+                if projected.input().is_none()
+                    && projected.value() == &ProjectedValue::Empty
+                    && shown.conditional.is_none()
+                {
                     emptied.push(Key::of(projected.at()));
                     continue;
                 }
-                let shown = self.book.shown(projected);
                 cells.push(Cell::of(
                     &shown,
                     cells::input_text(projected.input()),
@@ -1230,6 +1604,9 @@ fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
         Intent::AxisFormat { .. } => return Err("dimensions need the workbook worker".to_owned()),
         Intent::FreezePanes { .. } => return Err("pane editing needs the workbook view".to_owned()),
         Intent::ApplyPaste { .. } => return Err("paste needs its worker preview".to_owned()),
+        Intent::EditConditional { .. } | Intent::AcceptValidation { .. } => {
+            return Err("Validation decisions are handled by the worker".into());
+        }
         Intent::EnterCell { at, text } => SkinIntent::EnterCell {
             at: cell(at)?,
             text,

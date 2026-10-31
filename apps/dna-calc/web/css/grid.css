@@ -69,3 +69,7 @@
 .dc-fit-measure{position:absolute;left:0;top:0;visibility:hidden;white-space:nowrap;display:inline-block;line-height:1;padding:0;border:0;pointer-events:none}
 .dc-structure-choices{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .dc-structure-choices button{font:inherit;padding:10px;border:1px solid var(--dna-line);border-radius:4px;background:var(--dna-paper-2);color:var(--dna-ink);cursor:pointer}
+.dc-list li[aria-selected=true]{background:var(--dna-accent-soft);box-shadow:inset 3px 0 var(--dna-accent-ink)}
+.dc-list:focus-visible{outline:2px solid var(--dna-accent-ink);outline-offset:2px}
+.dc-review-marker{position:absolute;z-index:2;width:14px;height:14px;line-height:12px;padding:0;border:0;border-radius:0 0 0 7px;background:var(--dna-accent-soft);color:var(--dna-accent-ink);font-size:18px;cursor:pointer}
+.dc-review-marker:focus-visible{outline:2px solid var(--dna-accent-ink);outline-offset:1px}

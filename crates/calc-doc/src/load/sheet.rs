@@ -30,6 +30,8 @@ pub(super) struct Context<'a> {
 
 /// One sheet's cells as read: the inputs for the model and the records kept beside it.
 pub(super) struct SheetLoad {
+    pub(super) conditional_sources: Vec<calc_doc_model::ConditionalRuleSource>,
+    pub(super) review: super::SheetReview,
     pub(super) protected: bool,
     pub(super) merged_areas: Vec<GridArea>,
     pub(super) part: Arc<SourcePart>,
@@ -802,6 +804,8 @@ pub(super) fn load_sheet(
         id,
         part: Arc::clone(&source),
         load: SheetLoad {
+            conditional_sources: Vec::new(),
+            review: super::review::read(package, part, id),
             protected: false,
             merged_areas: Vec::new(),
             part: source,
@@ -842,11 +846,17 @@ pub(super) fn load_sheet(
                 sheet.load.conditional_formats.push(block);
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "extLst") => {
-                super::conditional::read_extensions(
+                let unread = super::conditional::read_extensions(
                     &mut events,
                     &mut bars,
                     &mut sheet.load.validations,
                 )?;
+                if unread > 0 {
+                    sheet.load.review.unsupported.push(format!("{unread} extension-only conditional rules are preserved but cannot be displayed or edited (dc-971p.8)"));
+                }
+            }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "hyperlinks") => {
+                sheet.load.review.links = super::review::links(&mut events, package, part, id)?;
             }
             Some(XmlEvent::Start(element))
                 if element.name.is(MAIN_NAMESPACE, "dataValidations") =>
@@ -925,8 +935,28 @@ pub(super) fn load_sheet(
     sheet.load.formulas = std::mem::take(&mut sheet.formulas).into_iter().collect();
     sheet.load.styles = std::mem::take(&mut sheet.styles).into_iter().collect();
     let mut load = sheet.load;
+    let unread = bars
+        .keys()
+        .filter(|id| {
+            !load
+                .conditional_formats
+                .iter()
+                .flat_map(|b| &b.rules)
+                .any(|r| r.extension_id.as_ref() == Some(*id))
+        })
+        .count();
+    if unread > 0 {
+        load.review.unsupported.push(format!("{unread} extension-only data bars are preserved but cannot be displayed or edited (dc-971p.8)"));
+    }
     load.conditional_formats =
         super::conditional::with_extensions(std::mem::take(&mut load.conditional_formats), &bars);
+    if !load.conditional_formats.is_empty() {
+        load.conditional_sources =
+            crate::save::conditional::sources(&xml, id).map_err(|_| LoadError::InvalidPart {
+                part: part.to_owned(),
+                detail: "conditional source could not be retained",
+            })?;
+    }
     Ok(load)
 }
 

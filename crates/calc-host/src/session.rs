@@ -596,12 +596,15 @@ impl HostSession {
         edits: Vec<CellEdit>,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
+        let refresh_rules = edits
+            .iter()
+            .any(|edit| matches!(edit, CellEdit::ConditionalRules { .. }));
         let base = self.host.revision();
         let committed =
             dispatch(&mut self.host, HostCommand { base, edits }).map_err(IntentError::Command)?;
         let revision = committed.revision();
         receipt.committed = Some(committed);
-        receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision });
+        receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision }, refresh_rules);
         Ok(())
     }
 
@@ -628,7 +631,8 @@ impl HostSession {
                     Ok(committed) => {
                         let revision = committed.revision();
                         receipt.committed = Some(committed);
-                        receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision });
+                        receipt.deltas +=
+                            self.deliver_changes(DeltaCause::Committed { revision }, false);
                         Ok(())
                     }
                     Err(error) => Err(IntentError::Command(error)),
@@ -679,7 +683,7 @@ impl HostSession {
             }),
         };
         if let Some(cause) = cause {
-            receipt.deltas += self.deliver_changes(cause);
+            receipt.deltas += self.deliver_changes(cause, false);
         }
         receipt.recalc = Some(progress);
     }
@@ -760,7 +764,14 @@ impl HostSession {
     fn snapshot(&self, interest: &Interest) -> BTreeMap<CellKey, ProjectedCell> {
         let mut cells = BTreeSet::new();
         let definitions = self.host.model.definitions();
-        for area in self.areas(interest) {
+        let areas = self.areas(interest);
+        let bounded = areas.iter().map(|a| a.cell_count()).sum::<u64>() <= 32768;
+        let rule_areas = definitions
+            .all_conditional_rules()
+            .flat_map(|(_, r)| r)
+            .flat_map(|r| r.areas.iter().copied())
+            .collect::<Vec<_>>();
+        for area in areas {
             if self.host.model.sheet_by_id(area.sheet()).is_none() {
                 continue;
             }
@@ -772,6 +783,11 @@ impl HostSession {
                     .flatten()
                     .map(|(at, _)| at),
             );
+            if bounded {
+                for rule_area in &rule_areas {
+                    cells.extend(cells_of(intersection(*rule_area, area)));
+                }
+            }
             for array in definitions.arrays_meeting(area) {
                 cells.extend(cells_of(intersection(array.area(), area)));
             }
@@ -791,7 +807,11 @@ impl HostSession {
         .expect("the interest's sheets were checked when it was set");
         page.cells()
             .iter()
-            .filter(|cell| cell.value() != &ProjectedValue::Empty || cell.input().is_some())
+            .filter(|cell| {
+                cell.value() != &ProjectedValue::Empty
+                    || cell.input().is_some()
+                    || rule_areas.iter().any(|a| a.contains(cell.at()))
+            })
             .map(|cell| (cell.at(), cell.clone()))
             .collect()
     }
@@ -817,7 +837,25 @@ impl HostSession {
     }
 
     /// Delivers each subscription's changed cells; the number of deltas delivered.
-    fn deliver_changes(&mut self, cause: DeltaCause) -> usize {
+    fn deliver_changes(&mut self, cause: DeltaCause, refresh_rules: bool) -> usize {
+        // Rule appearance may depend on unchanged cells and statistics over an entire range.
+        // Reuse each bounded subscription's reset when those looks can change, including when
+        // removing the last rule. These remain projections of current values, never calculations.
+        if refresh_rules
+            || self
+                .host
+                .model
+                .definitions()
+                .all_conditional_rules()
+                .any(|(_, r)| !r.is_empty())
+        {
+            let ids = self.subscriptions.keys().copied().collect::<Vec<_>>();
+            let count = ids.len();
+            for id in ids {
+                self.deliver_reset(id, cause.clone());
+            }
+            return count;
+        }
         let authored = self.host.revision();
         let ids: Vec<SubscriptionId> = self.subscriptions.keys().copied().collect();
         let mut delivered = 0;

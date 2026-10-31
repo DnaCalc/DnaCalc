@@ -574,6 +574,9 @@ impl WireOp {
             WorkbookOp::SetAxisFormat(_) => {
                 unreachable!("wire version 1 refuses physical dimensions before encoding")
             }
+            WorkbookOp::SetConditionalRules { .. } => {
+                unreachable!("conditional rules are refused before the wire codec")
+            }
             WorkbookOp::SetFrozenPanes { .. } => {
                 unreachable!("encode_batch refuses frozen panes before it reaches here")
             }

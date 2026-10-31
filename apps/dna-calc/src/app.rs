@@ -501,6 +501,7 @@ pub fn app() -> impl IntoView {
                 <button type="button" data-dnacalc="undo" disabled=move || !controller.history_available(false) title="Undo (Ctrl+Z)" on:click=move |_| controller.undo()>"Undo"</button>
                 <button type="button" data-dnacalc="redo" disabled=move || !controller.history_available(true) title="Redo (Ctrl+Y)" on:click=move |_| controller.redo()>"Redo"</button>
                 <button type="button" data-dnacalc="calculate" title="Calculate now (F9)" on:click=move |_| controller.recalculate()>"Calculate"</button>
+                <button type="button" data-dnacalc="review-tools" disabled=move ||controller.assist.readonly.get() || controller.editing.get().is_some() on:click=move |_|controller.review_open.set(true)>"Rules & review"</button>
                 <select
                     data-dnacalc="calc-mode"
                     aria-label="Calculation mode"
@@ -690,6 +691,7 @@ pub fn app() -> impl IntoView {
                 }}</span>
                 {move || controller.download_unconfirmed.get().then(|| view! { <span data-dnacalc="download-warning">"Download unconfirmed · check your files"</span> })}
             </footer>
+            {crate::review::controls(controller)}
             <dialog class="dc-replace" node_ref=replace_dialog data-dnacalc="replace-dialog" aria-labelledby="dc-replace-title" aria-describedby="dc-replace-description"
                 on:cancel=move |ev: leptos::ev::Event| { ev.prevent_default(); keep_working(); }>
                 <h2 id="dc-replace-title">"Keep your current work?"</h2>

@@ -219,6 +219,9 @@ impl std::error::Error for DecodeError {}
 /// Why [`encode_batch`] refused a batch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EncodeError {
+    ConditionalRules {
+        operation: usize,
+    },
     /// An operation names a sheet the root does not hold, so it has no key to travel as.
     UnknownSheet {
         sheet: SheetId,
@@ -259,6 +262,10 @@ pub enum EncodeError {
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            EncodeError::ConditionalRules { operation } => write!(
+                f,
+                "operation {operation} changes conditional rules, which wire version 1 does not encode"
+            ),
             EncodeError::AxisFormat { operation } => write!(
                 f,
                 "operation {operation} changes physical dimensions, which wire version 1 does not encode"
@@ -319,6 +326,9 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         }
         if matches!(operation, WorkbookOp::SetAxisFormat(_)) {
             return Err(EncodeError::AxisFormat { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetConditionalRules { .. }) {
+            return Err(EncodeError::ConditionalRules { operation: index });
         }
         if matches!(operation, WorkbookOp::SetFrozenPanes { .. }) {
             return Err(EncodeError::FrozenPanes { operation: index });

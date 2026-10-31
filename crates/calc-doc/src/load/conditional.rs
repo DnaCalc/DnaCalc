@@ -19,6 +19,7 @@ pub(crate) const X14_NAMESPACE: &str =
 /// `sqref` lists them, and its rules in document order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConditionalFormat {
+    pub unread_container: bool,
     pub areas: Vec<(u32, u32, u32, u32)>,
     pub rules: Vec<ConditionalRule>,
 }
@@ -131,7 +132,9 @@ fn color(element: &XmlElement) -> StyleColor {
 fn threshold(element: &XmlElement) -> Threshold {
     Threshold {
         kind: element.attribute("type").unwrap_or("num").to_owned(),
-        value: element.attribute("val").map(str::to_owned),
+        value: element
+            .attribute("val")
+            .map(|s| String::from_utf16_lossy(&super::strings::decode(s))),
         gte: flag(element, "gte", true),
     }
 }
@@ -153,6 +156,7 @@ pub(crate) fn read_block(
     element: &XmlElement,
 ) -> Result<ConditionalFormat, LoadError> {
     let mut block = ConditionalFormat {
+        unread_container: false,
         areas: areas(element.attribute("sqref").unwrap_or_default()),
         rules: Vec::new(),
     };
@@ -161,7 +165,10 @@ pub(crate) fn read_block(
             Some(XmlEvent::Start(rule)) if rule.name.is(MAIN_NAMESPACE, "cfRule") => {
                 block.rules.push(read_rule(events, &rule)?);
             }
-            Some(XmlEvent::Start(_)) => events.skip()?,
+            Some(XmlEvent::Start(_)) => {
+                block.unread_container = true;
+                events.skip()?;
+            }
             Some(XmlEvent::Text(_)) => {}
             Some(XmlEvent::End(_)) => return Ok(block),
             None => return Err(events.invalid("the part ends inside conditionalFormatting")),
@@ -193,7 +200,10 @@ fn read_rule(events: &mut Events<'_>, element: &XmlElement) -> Result<Conditiona
     loop {
         match events.next()? {
             Some(XmlEvent::Start(child)) if child.name.is(MAIN_NAMESPACE, "formula") => {
-                rule.formulas.push(events.text()?);
+                rule.formulas
+                    .push(String::from_utf16_lossy(&super::strings::decode(
+                        &events.text()?,
+                    )));
             }
             Some(XmlEvent::Start(child)) if child.name.is(MAIN_NAMESPACE, "colorScale") => {
                 let (thresholds, colors) = read_scale(events)?;
@@ -279,7 +289,8 @@ pub(crate) fn read_extensions(
     events: &mut Events<'_>,
     bars: &mut BTreeMap<String, DataBarExtension>,
     validations: &mut Vec<super::validation::Validation>,
-) -> Result<(), LoadError> {
+) -> Result<usize, LoadError> {
+    let mut unread = 0usize;
     let mut depth = 1u32;
     let mut rule_id: Option<String> = None;
     while depth > 0 {
@@ -288,6 +299,9 @@ pub(crate) fn read_extensions(
                 validations.push(super::validation::read_x14(events, &element)?);
             }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "cfRule") => {
+                if element.attribute("type") != Some("dataBar") {
+                    unread += 1;
+                }
                 rule_id = element.attribute("id").map(|id| id.trim().to_owned());
                 depth += 1;
             }
@@ -310,7 +324,7 @@ pub(crate) fn read_extensions(
             None => return Err(events.invalid("the part ends inside extLst")),
         }
     }
-    Ok(())
+    Ok(unread)
 }
 
 /// The blocks with each data bar's lengths and fill taken from Excel 2010's extension when it

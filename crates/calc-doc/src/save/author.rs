@@ -396,6 +396,10 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     let mut out = Changes::default();
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
+    let conditional_changed = base
+        .definitions()
+        .all_conditional_rules()
+        .ne(model.definitions().all_conditional_rules());
     let panes_changed = base.definitions().panes().ne(model.definitions().panes());
     let dimensions_changed =
         base.definitions().axis_layouts() != model.definitions().axis_layouts();
@@ -405,6 +409,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     if !cells_changed
         && layout.is_none()
         && !names_changed
+        && !conditional_changed
         && !panes_changed
         && !dimensions_changed
         && iteration.is_none()
@@ -910,6 +915,23 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 xml,
                 model.definitions().frozen_panes(sheet.id()),
                 sheet.view().active_cell.unwrap_or((1, 1)),
+            )?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
+    }
+    if conditional_changed {
+        for sheet in sheets.iter().filter(|s| {
+            base.definitions().conditional_rules(s.id())
+                != model.definitions().conditional_rules(s.id())
+        }) {
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|b| original.with_bytes(b));
+            let bytes = super::conditional::rewrite(
+                current.as_ref().unwrap_or(&original),
+                model.definitions().conditional_rules(sheet.id()),
             )?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }

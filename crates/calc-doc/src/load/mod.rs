@@ -30,6 +30,8 @@ mod chart;
 pub(crate) mod conditional;
 mod error;
 mod external;
+mod review;
+pub use review::{ReviewLink, ReviewNote, SheetReview};
 pub(crate) mod geometry;
 pub(crate) mod manifest;
 pub(crate) mod metadata;
@@ -115,6 +117,7 @@ pub struct LoadedSheet {
     merged_areas: Vec<GridArea>,
     validations: Arc<[Validation]>,
     charts: Arc<SheetCharts>,
+    review: Arc<SheetReview>,
 }
 
 impl LoadedSheet {
@@ -135,6 +138,7 @@ impl LoadedSheet {
             merged_areas: Vec::new(),
             validations: Arc::from([]),
             charts: Arc::new(SheetCharts::default()),
+            review: Arc::new(SheetReview::default()),
         }
     }
 
@@ -160,6 +164,10 @@ impl LoadedSheet {
     }
 
     /// The sheet's charts as the file states them, and how many could not be read (dc-6yw).
+    pub fn review(&self) -> &SheetReview {
+        &self.review
+    }
+
     pub fn charts(&self) -> &SheetCharts {
         &self.charts
     }
@@ -1201,6 +1209,7 @@ pub fn load(
     let mut cells = Vec::new();
     let mut sheets = Vec::with_capacity(declared.len());
     let (mut arrays, mut unloaded, mut tables) = (Vec::new(), Vec::new(), Vec::new());
+    let mut conditional_sources = Vec::new();
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
     for (declared, &id) in declared.iter().zip(&issued) {
@@ -1208,6 +1217,9 @@ pub fn load(
             .and_then(|loaded| Ok((loaded, tables::read_tables(package, &declared.part, id)?)));
         match loaded {
             Ok((loaded, sheet_tables)) => {
+                if !loaded.conditional_sources.is_empty() {
+                    conditional_sources.push((id, loaded.conditional_sources));
+                }
                 cells.extend(loaded.inputs);
                 arrays.extend(loaded.arrays);
                 data_tables.extend(loaded.data_tables.iter().copied());
@@ -1234,6 +1246,7 @@ pub fn load(
                     merged_areas: loaded.merged_areas,
                     validations: loaded.validations.into(),
                     charts: Arc::new(chart::read_charts(package, &declared.part)),
+                    review: Arc::new(loaded.review),
                 });
             }
             Err(error) => {
@@ -1312,7 +1325,7 @@ pub fn load(
     for sheet in &sheets {
         sheet.geometry.add_to_model(sheet.id, &mut axis_layouts);
     }
-    let definitions = Definitions::new(arrays, names, tables, unloaded)
+    let mut definitions = Definitions::new(arrays, names, tables, unloaded)
         .with_axis_layouts(axis_layouts)
         .with_panes(
             sheets
@@ -1325,6 +1338,9 @@ pub fn load(
         .with_data_tables(data_tables)
         .with_workbook_name(package.source_name().map(str::to_owned))
         .with_external_books(external_books);
+    for (sheet, rules) in conditional_sources {
+        definitions = definitions.with_conditional_rules(sheet, rules);
+    }
     let entries = declared
         .into_iter()
         .zip(&issued)

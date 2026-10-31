@@ -17,6 +17,11 @@ use std::num::NonZeroU32;
 /// One authored change to a workbook.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum WorkbookOp {
+    /// Replaces a worksheet's complete conditional-rule state, retaining source fields.
+    SetConditionalRules {
+        sheet: SheetId,
+        rules: Vec<crate::ConditionalRuleSource>,
+    },
     /// Replace the authored input of one cell.
     SetCell { at: CellKey, input: CellInput },
     /// Remove the authored contents of every cell of an area.

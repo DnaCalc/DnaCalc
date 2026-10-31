@@ -39,7 +39,11 @@ fn flag(element: &XmlElement, name: &str) -> bool {
 }
 
 fn from_attributes(element: &XmlElement) -> Validation {
-    let text = |name: &str| element.attribute(name).map(str::to_owned);
+    let text = |name: &str| {
+        element
+            .attribute(name)
+            .map(|s| String::from_utf16_lossy(&super::strings::decode(s)))
+    };
     Validation {
         areas: conditional::areas(element.attribute("sqref").unwrap_or_default()),
         kind: text("type").unwrap_or_else(|| "none".to_owned()),

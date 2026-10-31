@@ -604,3 +604,35 @@ impl HostState {
         }
     }
 }
+
+impl HostState {
+    /// Review content follows physical axis edits, without inheriting notes on inserted cells.
+    pub fn sheet_review(&self, sheet: SheetId) -> calc_doc::SheetReview {
+        let mut review = self
+            .loaded
+            .sheet(sheet)
+            .map(|s| s.review().clone())
+            .unwrap_or_default();
+        review.notes = review
+            .notes
+            .into_iter()
+            .filter_map(|mut n| {
+                for edit in &self.axis_edits {
+                    n.at = calc_doc_model::moved_cell(*edit, n.at)?;
+                }
+                Some(n)
+            })
+            .collect();
+        review.links = review
+            .links
+            .into_iter()
+            .filter_map(|mut l| {
+                for edit in &self.axis_edits {
+                    l.area = calc_doc_model::moved_area(*edit, l.area)?;
+                }
+                Some(l)
+            })
+            .collect();
+        review
+    }
+}

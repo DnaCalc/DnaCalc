@@ -90,8 +90,8 @@ pub use load::{
     CalcMode, CellError, Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, ColorScale,
     ColumnSpan, ConditionalFormat, ConditionalRule, DataBar, DateSystem, DrawingPoint,
     FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, IconSet, LayoutWarning, LoadError, LoadedSheet,
-    LoadedWorkbook, RowFormat, SharedFormula, SheetCharts, SheetGeometry, SheetView, Threshold,
-    Validation, load,
+    LoadedWorkbook, ReviewLink, ReviewNote, RowFormat, SharedFormula, SheetCharts, SheetGeometry,
+    SheetReview, SheetView, Threshold, Validation, load,
 };
 pub use opc::{
     CONTENT_TYPES_ENTRY, CONTENT_TYPES_NAMESPACE, ContentTypes, Package, Part,
@@ -101,7 +101,7 @@ pub use policy::{OpenPolicy, PackageLimits};
 pub use save::file_form::{FileForm, FileFormError, file_form, file_form_with_links};
 pub use save::{
     DocumentSnapshot, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, StructuralEdits, WriteError,
-    prepare_save, write,
+    conditional_rule, new_conditional_rule, prepare_save, write,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use xml::{

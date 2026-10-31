@@ -184,11 +184,7 @@ fn sheet(book: &Workbook, name: &str) -> SheetId {
 }
 
 fn shown(book: &Workbook, at: CellKey) -> cells::CellShown {
-    cells::shown(
-        &book.cell(at).expect("projected"),
-        book.profile(),
-        book.cell_format(at),
-    )
+    book.shown(&book.cell(at).expect("projected"))
 }
 
 fn apply(book: &mut Workbook, mirror: &mut DeltaMirror) {
@@ -1145,4 +1141,500 @@ fn dc_971p_7__hiding_and_unhiding_sheets_preserves_current_values_in_manual_mode
     assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert_eq!(shown(&book, at).provenance, Provenance::Calculated);
     assert_eq!(shown(&book, at).text, "5");
+}
+
+mod rule_review {
+    use super::*;
+    use dna_calc::{
+        server::Server,
+        wire::{self, ConditionalChange as C, Intent, Key, Reply, Request, Sheet},
+    };
+    fn intent(server: &mut Server, intent: Intent) -> wire::Outcome {
+        match server.handle(Request::Intent(intent), None).reply.unwrap() {
+            Reply::Done { outcome, .. } => outcome,
+            other => panic!("{other:?}"),
+        }
+    }
+    fn details(server: &mut Server, at: CellKey) -> wire::Review {
+        match server
+            .handle(Request::Review(Key::of(at)), None)
+            .reply
+            .unwrap()
+        {
+            Reply::Review(review) => review,
+            other => panic!("{other:?}"),
+        }
+    }
+    fn open(server: &mut Server, name: &str, bytes: &[u8]) {
+        let answer = server.handle(Request::Open { name: name.into() }, Some(bytes.to_vec()));
+        assert!(
+            matches!(
+                answer.reply,
+                Ok(Reply::Done {
+                    outcome: wire::Outcome { accepted: true, .. },
+                    ..
+                })
+            ),
+            "{:?}",
+            answer.reply
+        );
+    }
+    fn change(server: &mut Server, sheet: SheetId, index: Option<u32>, change: C) -> wire::Outcome {
+        intent(
+            server,
+            Intent::EditConditional {
+                sheet: Sheet::of(sheet),
+                revision: server.book().host().revision().get(),
+                index,
+                change,
+            },
+        )
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_8__imported_rules_explain_edit_history_and_save_without_losing_other_rules() {
+        let mut server = Server::new();
+        open(
+            &mut server,
+            "conditional-formats.xlsx",
+            include_bytes!(
+                "../../../crates/calc-host/tests/fixtures/dc_6yw/conditional-formats.xlsx"
+            ),
+        );
+        let sheet = server.book().sheets()[0].id;
+        let a2 = CellKey::new(sheet, 2, 1).unwrap();
+        let review = details(&mut server, a2);
+        assert_eq!(review.rules.len(), 15);
+        let before = server
+            .book()
+            .host()
+            .model()
+            .definitions()
+            .conditional_rules(sheet)
+            .to_vec();
+        assert!(
+            intent(
+                &mut server,
+                Intent::FreezePanes {
+                    sheet: Sheet::of(sheet),
+                    rows: 1,
+                    columns: 1
+                }
+            )
+            .accepted
+        );
+        assert!(
+            intent(
+                &mut server,
+                Intent::FreezePanes {
+                    sheet: Sheet::of(sheet),
+                    rows: 0,
+                    columns: 0
+                }
+            )
+            .accepted
+        );
+        assert_eq!(
+            server
+                .book()
+                .host()
+                .model()
+                .definitions()
+                .conditional_rules(sheet),
+            before
+        );
+        assert!(intent(&mut server, Intent::Undo).accepted);
+        assert_eq!(
+            server
+                .book()
+                .host()
+                .model()
+                .definitions()
+                .conditional_rules(sheet),
+            before
+        );
+
+        assert!(
+            server
+                .handle(
+                    Request::Subscribe {
+                        id: 42,
+                        interest: wire::Interest::Area(wire::Area::of(
+                            GridArea::new(
+                                CellKey::new(sheet, 1, 1).unwrap(),
+                                CellKey::new(sheet, 10, 1).unwrap()
+                            )
+                            .unwrap()
+                        ))
+                    },
+                    None
+                )
+                .reply
+                .is_ok()
+        );
+        server.take_events();
+        let rule = review.rules.iter().find(|r| r.applies == "A1:A10").unwrap();
+        assert_eq!(rule.state, "Applies appearance to this cell");
+        let index = rule.index;
+        let refused = server.book().host().conditional_formats(sheet);
+        let count = refused.refused();
+        refused.explain(server.book().host(), a2);
+        assert_eq!(refused.refused(), count);
+        assert!(
+            change(
+                &mut server,
+                sheet,
+                Some(index),
+                C::Update {
+                    applies: "A1:A10".into(),
+                    formulas: vec!["50".into()],
+                    stop: true
+                }
+            )
+            .accepted
+        );
+        assert_eq!(
+            shown(server.book(), a2).conditional.and_then(|c| c.fill),
+            None
+        );
+        let events = server.take_events();
+        assert!(
+            events.iter().any(|event| {
+                let wire::Event::Cells(cells) = event;
+                cells.reset
+                    && cells
+                        .cells
+                        .iter()
+                        .any(|c| c.at == Key::of(a2) && c.conditional.is_none())
+            }),
+            "unchanged inputs must receive updated rule appearance"
+        );
+        assert_eq!(
+            details(&mut server, a2)
+                .rules
+                .iter()
+                .find(|r| r.index == index)
+                .unwrap()
+                .state,
+            "Condition false for this cell"
+        );
+        assert!(intent(&mut server, Intent::Undo).accepted);
+        assert_eq!(
+            shown(server.book(), a2)
+                .conditional
+                .and_then(|c| c.fill)
+                .as_deref(),
+            Some("#ffc7ce")
+        );
+        assert!(intent(&mut server, Intent::Redo).accepted);
+        let (bytes, _) = server.book_mut().save().unwrap();
+        let reopened = Workbook::open("changed-rules.xlsx", bytes).unwrap();
+        let saved_sheet = reopened.sheets()[0].id;
+        assert_eq!(
+            reopened
+                .host()
+                .model()
+                .definitions()
+                .conditional_rules(saved_sheet)
+                .len(),
+            15
+        );
+        assert_eq!(
+            shown(&reopened, CellKey::new(saved_sheet, 2, 1).unwrap())
+                .conditional
+                .and_then(|c| c.fill),
+            None
+        );
+        assert_eq!(
+            shown(&reopened, CellKey::new(saved_sheet, 6, 7).unwrap())
+                .conditional
+                .unwrap()
+                .bar
+                .unwrap()
+                .0,
+            1.0
+        );
+        for column in 2..=14 {
+            for row in 1..=10 {
+                let live = shown(server.book(), CellKey::new(sheet, row, column).unwrap());
+                let saved = shown(&reopened, CellKey::new(saved_sheet, row, column).unwrap());
+                assert_eq!(
+                    live.text, saved.text,
+                    "saved rule number format at {row},{column}"
+                );
+                assert_eq!(
+                    live.conditional, saved.conditional,
+                    "saved rule appearance at {row},{column}"
+                );
+            }
+        }
+        let index = details(&mut server, a2)
+            .rules
+            .into_iter()
+            .find(|r| r.kind == "dataBar")
+            .unwrap()
+            .index;
+        assert!(
+            !change(&mut server, sheet, Some(index), C::Remove).accepted,
+            "extension-backed rules are preserved"
+        );
+        assert!(
+            change(
+                &mut server,
+                sheet,
+                Some(2),
+                C::Update {
+                    applies: "P1".into(),
+                    formulas: vec!["TRUE".into()],
+                    stop: true
+                }
+            )
+            .accepted
+        );
+        let blank = CellKey::new(sheet, 1, 16).unwrap();
+        assert!(server.book().host().model().cell(blank).is_none());
+        assert!(shown(server.book(), blank).conditional.is_some());
+        assert_eq!(
+            details(&mut server, blank)
+                .rules
+                .iter()
+                .find(|r| r.index == 2)
+                .unwrap()
+                .state,
+            "Applies appearance to this cell"
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_8__authored_rule_ranges_priorities_removal_and_save_use_host_history() {
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let a = |row| CellKey::new(sheet, row, 1).unwrap();
+        for (row, text) in [(1, "1"), (2, "5"), (3, "10")] {
+            assert!(
+                intent(
+                    &mut server,
+                    Intent::EnterCell {
+                        at: Key::of(a(row)),
+                        text: text.into()
+                    }
+                )
+                .accepted
+            );
+        }
+        for kind in ["colorScale", "dataBar", "iconSet"] {
+            assert!(
+                change(
+                    &mut server,
+                    sheet,
+                    None,
+                    C::Add {
+                        kind: kind.into(),
+                        applies: "A1:A3".into(),
+                        color: "327A94".into()
+                    }
+                )
+                .accepted
+            );
+        }
+        let review = details(&mut server, a(2));
+        assert_eq!(review.rules.len(), 3);
+        assert!(change(&mut server, sheet, Some(2), C::Move { up: true }).accepted);
+        assert_eq!(
+            details(&mut server, a(2))
+                .rules
+                .iter()
+                .map(|r| r.kind.as_str())
+                .collect::<Vec<_>>(),
+            vec!["colorScale", "iconSet", "dataBar"]
+        );
+        assert!(
+            change(
+                &mut server,
+                sheet,
+                Some(0),
+                C::Update {
+                    applies: "A1:A2".into(),
+                    formulas: vec![],
+                    stop: false
+                }
+            )
+            .accepted
+        );
+        assert_eq!(
+            details(&mut server, a(3)).rules[0].state,
+            "Outside this cell"
+        );
+        assert!(change(&mut server, sheet, Some(1), C::Remove).accepted);
+        assert!(intent(&mut server, Intent::Undo).accepted);
+        let before = server.book().host().revision().get();
+        assert!(
+            !change(
+                &mut server,
+                sheet,
+                None,
+                C::Add {
+                    kind: "dataBar".into(),
+                    applies: "not a range".into(),
+                    color: "327A94".into()
+                }
+            )
+            .accepted
+        );
+        assert_eq!(server.book().host().revision().get(), before);
+        let (bytes, _) = server.book_mut().save().unwrap();
+        let reopened = Workbook::open("new-rules.xlsx", bytes).unwrap();
+        let s = reopened.sheets()[0].id;
+        assert_eq!(
+            reopened
+                .host()
+                .model()
+                .definitions()
+                .conditional_rules(s)
+                .len(),
+            3
+        );
+        assert!(
+            shown(&reopened, CellKey::new(s, 2, 1).unwrap())
+                .conditional
+                .unwrap()
+                .icon
+                .is_some()
+        );
+        assert_eq!(
+            shown(&reopened, CellKey::new(s, 3, 1).unwrap())
+                .conditional
+                .unwrap()
+                .bar
+                .unwrap()
+                .0,
+            1.0
+        );
+        // Removing all rules must also remove all serialized standard blocks.
+        while !details(&mut server, a(1)).rules.is_empty() {
+            assert!(change(&mut server, sheet, Some(0), C::Remove).accepted);
+        }
+        let (bytes, _) = server.book_mut().save().unwrap();
+        let reopened = Workbook::open("no-rules.xlsx", bytes).unwrap();
+        assert_eq!(
+            reopened
+                .host()
+                .conditional_formats(reopened.sheets()[0].id)
+                .rule_count(),
+            0
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_8__validation_waits_for_an_explicit_current_decision() {
+        let mut server = Server::new();
+        open(
+            &mut server,
+            "data-validation.xlsx",
+            include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx"),
+        );
+        let sheet = server.book().sheets()[0].id;
+        let at = |r, c| CellKey::new(sheet, r, c).unwrap();
+        let warning = at(1, 4);
+        let before = shown(server.book(), warning).text;
+        let outcome = intent(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(warning),
+                text: "-1".into(),
+            },
+        );
+        assert!(!outcome.accepted && !outcome.committed);
+        let decision = outcome.validation.unwrap();
+        assert_eq!(decision.style, "Warning");
+        assert_eq!(shown(server.book(), warning).text, before);
+        assert!(
+            intent(
+                &mut server,
+                Intent::AcceptValidation {
+                    token: decision.token
+                }
+            )
+            .accepted
+        );
+        assert_eq!(shown(server.book(), warning).text, "-1");
+        assert!(intent(&mut server, Intent::Undo).accepted);
+        assert_eq!(shown(server.book(), warning).text, before);
+        let outcome = intent(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(at(1, 5)),
+                text: "toolong".into(),
+            },
+        );
+        assert_eq!(outcome.validation.as_ref().unwrap().style, "Information");
+        assert!(!outcome.committed);
+        let token = outcome.validation.unwrap().token;
+        assert!(
+            intent(
+                &mut server,
+                Intent::EnterCell {
+                    at: Key::of(at(8, 8)),
+                    text: "2".into()
+                }
+            )
+            .accepted
+        );
+        assert!(
+            server
+                .handle(Request::Intent(Intent::AcceptValidation { token }), None)
+                .reply
+                .is_err(),
+            "a later entry expires the pending decision"
+        );
+        let stop = intent(
+            &mut server,
+            Intent::EnterCell {
+                at: Key::of(at(2, 1)),
+                text: "Purple".into(),
+            },
+        );
+        assert_eq!(stop.validation.unwrap().style, "Stop");
+        assert!(!stop.accepted);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_8__notes_and_links_follow_axis_edits_and_round_trip() {
+        let mut server = Server::new();
+        open(
+            &mut server,
+            "features.xlsx",
+            include_bytes!("../../../crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx"),
+        );
+        let sheet = server.book().sheets()[0].id;
+        let at = |r, c| CellKey::new(sheet, r, c).unwrap();
+        let review = details(&mut server, at(1, 1));
+        assert_eq!(review.notes.len(), 1);
+        assert_eq!(review.notes[0].1, "a comment");
+        let link = details(&mut server, at(1, 11)).links.remove(0);
+        assert_eq!(link.tooltip, "a tip");
+        assert!(link.target.as_deref().unwrap().starts_with("https://"));
+        assert!(
+            intent(
+                &mut server,
+                Intent::EditAxis {
+                    sheet: Sheet::of(sheet),
+                    rows: true,
+                    insert: true,
+                    start: 1,
+                    count: 1
+                }
+            )
+            .accepted
+        );
+        assert!(details(&mut server, at(1, 1)).notes.is_empty());
+        assert_eq!(details(&mut server, at(2, 1)).notes[0].1, "a comment");
+        assert_eq!(details(&mut server, at(2, 11)).links.len(), 1);
+        let (bytes, _) = server.book_mut().save().unwrap();
+        let reopened = Workbook::open("review.xlsx", bytes).unwrap();
+        let s = reopened.sheets()[0].id;
+        let review = reopened.host().sheet_review(s);
+        assert_eq!(review.notes[0].at.row(), 2);
+        assert_eq!(review.links[0].area.first().row(), 2);
+    }
 }

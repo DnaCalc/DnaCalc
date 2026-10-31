@@ -12,7 +12,7 @@ use crate::input::{CellInput, FormulaText};
 use crate::op::{Axis, AxisChange, AxisEdit, OpBatch, SheetEdit, WorkbookOp};
 use crate::root::{ApplyError, ModelRoot, SheetEntry};
 use crate::sheet::{SheetName, SheetVisibility};
-use calc_value::{CellKey, GridArea, SheetId};
+use calc_value::{CellKey, ExcelText, GridArea, SheetId};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -341,7 +341,7 @@ impl ModelRoot {
                     Some((sheet, row, why))
                 }
             });
-        let next = Definitions::new(arrays, names, tables, unloaded)
+        let mut next = Definitions::new(arrays, names, tables, unloaded)
             .with_panes(definitions.panes().filter_map(|(sheet, panes)| {
                 Some((
                     sheet,
@@ -372,6 +372,38 @@ impl ModelRoot {
                     .filter_map(|(at, format)| Some((moved_cell(edit, at)?, format)))
                     .collect::<Vec<_>>(),
             );
+        for (sheet, rules) in definitions.all_conditional_rules() {
+            let rules = rules
+                .iter()
+                .filter_map(|rule| {
+                    let old = rule.origin()?;
+                    let mut rule = rule.clone();
+                    rule.areas = rule
+                        .areas
+                        .iter()
+                        .filter_map(|a| moved_area(edit, *a))
+                        .collect();
+                    if rule.areas.is_empty() {
+                        return None;
+                    }
+                    for formula in &mut rule.formulas {
+                        let text = FormulaText::new(ExcelText::from_utf16_code_units(
+                            formula.encode_utf16().collect(),
+                        ))
+                        .expect("a loaded conditional formula");
+                        if let Some(next) = rewriter.formula(self, &text, old, &change) {
+                            *formula = next
+                                .text()
+                                .to_string_lossy()
+                                .trim_start_matches('=')
+                                .to_owned();
+                        }
+                    }
+                    Some(rule)
+                })
+                .collect();
+            next = next.with_conditional_rules(sheet, rules);
+        }
         let layout = parts.layout.with_anchors(|area| moved_area(edit, area));
         self.rebuilt(
             Parts {

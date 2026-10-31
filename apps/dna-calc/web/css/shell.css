@@ -105,3 +105,17 @@ html,body{height:100%}
 .dc-sheet-body button{font:inherit;color:var(--dna-ink);background:var(--dna-paper-2);border:1px solid var(--dna-line);border-radius:4px;padding:7px;cursor:pointer;min-height:32px}
 .dc-sheet-body button:disabled{opacity:.6;cursor:default}.dc-hidden-sheet{display:flex;gap:8px;justify-content:space-between;align-items:center;margin:6px 0;overflow-wrap:anywhere}
 @media(max-width:700px){.dc-sheet-body button{min-height:36px}}
+/* Workbook rule and review surfaces use the Strand palette and type rhythm. */
+.dc-review-dialog{box-sizing:border-box;width:min(960px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);overflow:auto;padding:22px}
+.dc-review-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border-bottom:1px solid var(--dna-line);padding-bottom:12px}
+.dc-review-heading p{margin:4px 0 0;font-family:ui-monospace,monospace;color:var(--dna-ink-2)}
+.dc-review-layout{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:28px}
+.dc-review-layout section{min-width:0}.dc-review-layout h3{font-size:15px;margin:18px 0 8px}
+.dc-review-layout label{display:block;margin:12px 0 5px}.dc-review-layout input:not([type=checkbox]),.dc-review-layout textarea,.dc-review-layout select{box-sizing:border-box;width:100%;margin-top:5px;padding:8px;border:1px solid var(--dna-ink-3);border-radius:4px;color:var(--dna-ink);background:var(--dna-paper);font:inherit}
+.dc-review-layout textarea{min-height:66px;font:13px ui-monospace,monospace}.dc-review-layout fieldset{border:1px solid var(--dna-line);border-radius:6px;margin:18px 0;padding:10px 14px 14px}
+.dc-review-layout .dc-inline-label{display:flex;align-items:center;gap:8px}.dc-review-layout .dc-inline-label input{margin:0}
+.dc-rule-list{list-style:none;padding:0;margin:12px 0;max-height:250px;overflow:auto;border:1px solid var(--dna-line);border-radius:6px}
+.dc-rule-list:empty{border:0}.dc-rule-list li+li{border-top:1px solid var(--dna-line)}.dc-rule-list .dc-rule-row{width:100%;display:grid;gap:4px;text-align:left;border:0;border-radius:0;padding:10px 12px;background:var(--dna-paper)}
+.dc-rule-row[aria-pressed=true]{box-shadow:inset 3px 0 var(--dna-accent-ink);background:var(--dna-accent-soft)}.dc-rule-row span{font-family:ui-monospace,monospace}.dc-rule-row small{font-size:12px;color:var(--dna-ink-2)}
+.dc-review-note,.dc-review-link{overflow-wrap:anywhere;margin:12px 0;padding:12px;background:var(--dna-paper-2);border:1px solid var(--dna-line);border-radius:6px}.dc-review-note h4{margin:0 0 6px;font-size:13px}.dc-review-note p{white-space:pre-wrap;margin:0}.dc-review-link small{display:block;color:var(--dna-ink-2);margin-top:5px}.dc-review-link a{color:var(--dna-accent-ink);text-decoration:underline}.dc-review-status{margin:16px 0 0;border-top:1px solid var(--dna-line);padding-top:12px;overflow-wrap:anywhere}.dc-muted{color:var(--dna-ink-2);font-size:12px}
+@media(max-width:650px){.dc-review-dialog{padding:16px}.dc-review-layout{grid-template-columns:minmax(0,1fr);gap:8px}.dc-rule-list{max-height:200px}.dc-review-layout button{min-height:36px}}

@@ -157,8 +157,14 @@ pub fn now_ms() -> f64 {
     }
 }
 
+type ValidationCallback = Box<dyn FnOnce(Result<Outcome, String>)>;
+
 #[derive(Clone, Copy)]
 pub struct Controller {
+    pub review_open: RwSignal<bool>,
+    pub validation_decision: RwSignal<Option<wire::ValidationDecision>>,
+    validation_callback: StoredValue<Option<ValidationCallback>, LocalStorage>,
+    validation_outcome: StoredValue<Option<Outcome>>,
     pub structural_choice: RwSignal<Option<bool>>,
     sheet_selections: StoredValue<BTreeMap<SheetId, (CellKey, Vec<GridArea>)>>,
     grid_views: StoredValue<BTreeMap<SheetId, crate::grid::viewport::GridView>>,
@@ -225,6 +231,10 @@ impl Controller {
         let edit_text = RwSignal::new(String::new());
         let assist = FormulaAssist::new(edit_text);
         let controller = Controller {
+            review_open: RwSignal::new(false),
+            validation_decision: RwSignal::new(None),
+            validation_callback: StoredValue::new_local(None),
+            validation_outcome: StoredValue::new(None),
             structural_choice: RwSignal::new(None),
             sheet_selections: StoredValue::new(BTreeMap::new()),
             grid_views: StoredValue::new(BTreeMap::new()),
@@ -339,11 +349,21 @@ impl Controller {
             Effect::new(move |_| {
                 let pending = self.pending_actions.get();
                 self.deferred_version.track();
-                if pending == 0 && self.has_deferred() && !self.flush_scheduled.get_value() {
+                if pending == 0
+                    && self.validation_decision.get().is_none()
+                    && self.has_deferred()
+                    && !self.flush_scheduled.get_value()
+                {
                     self.flush_scheduled.set_value(true);
                     set_timeout(
                         move || {
-                            if self.pending_actions.try_get_untracked() != Some(0) {
+                            if self.pending_actions.try_get_untracked() != Some(0)
+                                || self
+                                    .validation_decision
+                                    .try_get_untracked()
+                                    .flatten()
+                                    .is_some()
+                            {
                                 let _ = self.flush_scheduled.try_set_value(false);
                                 return;
                             }
@@ -693,6 +713,11 @@ impl Controller {
         self.download_unconfirmed.set(false);
         self.notebook_drafts.set(BTreeMap::new());
         self.assist.readonly.set(false);
+        self.validation_decision.set(None);
+        self.validation_callback.update_value(|callback| {
+            callback.take();
+        });
+        self.validation_outcome.set_value(None);
         self.sheet.set(first);
         self.active.set((1, 1));
         self.corner.set((1, 1));
@@ -937,7 +962,15 @@ impl Controller {
                     if !current {
                         outcome.selection = None;
                     }
-                    controller.perform(move || then(Ok(outcome)));
+                    if let Some(decision) = outcome.validation.clone() {
+                        controller.validation_outcome.set_value(Some(outcome));
+                        controller
+                            .validation_callback
+                            .set_value(Some(Box::new(then)));
+                        controller.validation_decision.set(Some(decision));
+                    } else {
+                        controller.perform(move || then(Ok(outcome)));
+                    }
                 }
                 reply => {
                     let message = match reply {
@@ -949,6 +982,44 @@ impl Controller {
                 }
             }
         });
+    }
+
+    /// The modal has closed before this runs, so returning focus can reach the draft.
+    pub fn validation_answer(&self, choice: &str) {
+        let Some(decision) = self.validation_decision.get_untracked() else {
+            return;
+        };
+        self.validation_decision.set(None);
+        let callback = self
+            .validation_callback
+            .try_update_value(Option::take)
+            .flatten();
+        let old = self
+            .validation_outcome
+            .try_update_value(Option::take)
+            .flatten();
+        if choice == "keep" && decision.style != "Stop" {
+            if let Some(callback) = callback {
+                self.dispatch_result(
+                    Intent::AcceptValidation {
+                        token: decision.token,
+                    },
+                    callback,
+                );
+            }
+        } else {
+            if let Some(callback) = callback {
+                callback(old.ok_or_else(|| "The entry decision expired".into()));
+            }
+            if choice == "cancel" {
+                self.deferred.update_value(VecDeque::clear);
+                self.deferred_version.update(|v| *v += 1);
+                self.cancel_edit();
+                crate::grid::focus_grid();
+            } else {
+                self.focus_editor();
+            }
+        }
     }
 
     fn applied(&self, outcome: &Outcome, apply_selection: bool) {

@@ -296,6 +296,7 @@ pub enum RowHidden {
 /// hidden rows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Definitions {
+    conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::FrozenPanes>,
     arrays: BTreeMap<CellKey, ArrayFormula>,
@@ -318,6 +319,26 @@ pub struct Definitions {
 }
 
 impl Definitions {
+    pub fn conditional_rules(&self, sheet: SheetId) -> &[crate::ConditionalRuleSource] {
+        self.conditional
+            .get(&sheet)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+    pub fn all_conditional_rules(
+        &self,
+    ) -> impl Iterator<Item = (SheetId, &[crate::ConditionalRuleSource])> {
+        self.conditional.iter().map(|(s, r)| (*s, r.as_slice()))
+    }
+    pub fn with_conditional_rules(
+        mut self,
+        sheet: SheetId,
+        rules: Vec<crate::ConditionalRuleSource>,
+    ) -> Self {
+        self.conditional.insert(sheet, rules);
+        self
+    }
+
     pub fn axis_layouts(&self) -> &crate::AxisLayouts {
         &self.axis_layouts
     }
@@ -366,6 +387,7 @@ impl Definitions {
         unloaded: impl IntoIterator<Item = (CellKey, UnloadedCell)>,
     ) -> Self {
         Definitions {
+            conditional: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
             arrays: arrays
@@ -558,6 +580,7 @@ impl Definitions {
     /// These definitions without anything of `sheet`: its array formulas, tables, unloaded
     /// cells, hidden rows and the names scoped to it (a removed sheet).
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
+        self.conditional.remove(&sheet);
         self.axis_layouts.without_sheet(sheet);
         self.panes.remove(&sheet);
         self.arrays.retain(|at, _| at.sheet() != sheet);
@@ -585,7 +608,8 @@ impl Definitions {
 
     /// Whether nothing is defined.
     pub fn is_empty(&self) -> bool {
-        self.axis_layouts.sheets().next().is_none()
+        self.conditional.is_empty()
+            && self.axis_layouts.sheets().next().is_none()
             && self.panes.is_empty()
             && self.arrays.is_empty()
             && self.names.is_empty()

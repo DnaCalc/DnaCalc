@@ -33,13 +33,18 @@ pub fn shift_cell_edits(
     )
     .unwrap();
     let tail = GridArea::new(area.first(), end).unwrap();
-    if host.loaded().sheets().iter().any(|s| {
-        !s.conditional_formats().is_empty()
-            || !s.validations().is_empty()
-            || !s.charts().charts.is_empty()
-            || s.charts().unread != 0
-            || s.is_macro_sheet()
-    }) || !model.definitions().tables().is_empty()
+    if model
+        .definitions()
+        .all_conditional_rules()
+        .any(|(_, r)| !r.is_empty())
+        || host.loaded().sheets().iter().any(|s| {
+            !s.conditional_formats().is_empty()
+                || !s.validations().is_empty()
+                || !s.charts().charts.is_empty()
+                || s.charts().unread != 0
+                || s.is_macro_sheet()
+        })
+        || !model.definitions().tables().is_empty()
         || model
             .layout()
             .blocks()

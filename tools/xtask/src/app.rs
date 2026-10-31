@@ -2037,6 +2037,157 @@ const CALC_CASES: &[Case] = &[
         ],
         checks: &[Check::Style(cell!("A3"), "background-color:#ffc7ce")],
     },
+    Case {
+        name: "rule review explains the imported priority and active-cell condition",
+        actions: &[
+            Action::Click("review-tools"),
+            Action::Click("[data-dnacalc=rule-row][data-index='0']"),
+        ],
+        checks: &[
+            Check::Count("rule-row", 15),
+            Check::TextContains(
+                "[data-dnacalc=rule-row][data-index='0']",
+                "Applies appearance",
+            ),
+            Check::Value("rule-applies", "A1:A10"),
+            Check::Value("rule-formulas", "5"),
+            Check::Reachable("review-dialog"),
+        ],
+    },
+    Case {
+        name: "rule conditions edit through the worker and explain a false condition",
+        actions: &[
+            Action::Into("rule-formulas", "50"),
+            Action::Click("rule-apply"),
+        ],
+        checks: &[
+            Check::TextContains(
+                "[data-dnacalc=rule-row][data-index='0']",
+                "Condition false for this cell",
+            ),
+            Check::Computed(cell!("A2"), "background-color:transparent"),
+        ],
+    },
+    Case {
+        name: "applies-to edits explain an excluded cell and retain its input",
+        actions: &[
+            Action::Click("[data-dnacalc=rule-row][data-index='0']"),
+            Action::Into("rule-applies", "A1:A2"),
+            Action::Into("rule-formulas", "5"),
+            Action::Click("rule-apply"),
+        ],
+        checks: &[Check::TextContains(
+            "[data-dnacalc=rule-row][data-index='0']",
+            "Outside this cell",
+        )],
+    },
+    Case {
+        name: "rule edits have ordinary undo and restore imported appearance",
+        actions: &[
+            Action::Click("review-undo"),
+            Action::Wait(Check::TextContains(
+                "[data-dnacalc=rule-row][data-index='0']",
+                "Condition false",
+            )),
+            Action::Click("review-undo"),
+            Action::Wait(Check::TextContains(
+                "[data-dnacalc=rule-row][data-index='0']",
+                "Applies appearance",
+            )),
+            Action::Click("review-close"),
+        ],
+        checks: &[
+            Check::Style(cell!("A2"), "background-color:#ffc7ce"),
+            Check::Style(cell!("A3"), "background-color:#ffc7ce"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "users author a visual rule without replacing imported formats or artwork",
+        actions: &[
+            Action::Into("name-box", "E1:E10\u{E007}"),
+            Action::Click("review-tools"),
+            Action::Into("rule-applies", "E1:E10"),
+            Action::Click("rule-add"),
+            Action::Wait(Check::Count("rule-row", 16)),
+            Action::Click("review-close"),
+        ],
+        checks: &[
+            Check::Attr(cell!("E6"), "data-bar", "1.0000"),
+            Check::Attr(cell!("H2"), "data-icon", "3Arrows:2"),
+        ],
+    },
+    Case {
+        name: "rule priority edits and removal are undoable in the same manager",
+        actions: &[
+            Action::Click("review-tools"),
+            Action::Click("[data-dnacalc=rule-row][data-index='15']"),
+            Action::Click("rule-up"),
+            Action::Wait(Check::TextContains(
+                "[data-dnacalc=rule-row][data-index='15']",
+                "15 · dataBar",
+            )),
+            Action::Click("[data-dnacalc=rule-row][data-index='15']"),
+            Action::Click("rule-remove"),
+            Action::Wait(Check::Count("rule-row", 15)),
+            Action::Click("review-undo"),
+            Action::Wait(Check::Count("rule-row", 16)),
+            Action::Click("review-close"),
+        ],
+        checks: &[Check::Attr(cell!("E6"), "data-bar", "1.0000")],
+    },
+    Case {
+        name: "rule edits and imported extended bars survive save and reopen",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::Wait(Check::TextContains("status", "Download started:")),
+            Action::UploadDownload("conditional-formats.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "conditional-formats.xlsx")),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("review-tools"),
+        ],
+        checks: &[
+            Check::Count("rule-row", 16),
+            Check::TextContains(
+                "[data-dnacalc=rule-row][data-index='0']",
+                "Applies appearance",
+            ),
+        ],
+    },
+    Case {
+        name: "review close and keyboard escape restore the worksheet",
+        actions: &[Action::Keys("review-close", ESCAPE)],
+        checks: &[
+            Check::Focused("grid"),
+            Check::Attr(cell!("G6"), "data-bar", "1.0000"),
+            Check::Style(cell!("A2"), "background-color:#ffc7ce"),
+        ],
+    },
+    Case {
+        name: "formula rules can visibly format a blank cell without inventing a value",
+        actions: &[
+            Action::Click("review-tools"),
+            Action::Click("[data-dnacalc=rule-row][data-index='2']"),
+            Action::Into("rule-applies", "P1"),
+            Action::Into("rule-formulas", "TRUE"),
+            Action::Click("rule-apply"),
+            Action::Wait(Check::Absent("rule-formulas")),
+            Action::Click("review-close"),
+            Action::Into("name-box", "P1\u{E007}"),
+        ],
+        checks: &[
+            Check::Style(cell!("P1"), "background-color:#ffeb9c"),
+            Check::Text(cell!("P1"), ""),
+            Check::Attr(cell!("P1"), "data-provenance", "empty"),
+        ],
+    },
+    Case {
+        name: "undo removes the blank-cell conditional appearance through the subscription",
+        actions: &[Action::Click("undo")],
+        checks: &[Check::Absent(cell!("P1"))],
+    },
     // dc-6yw: data validation (calc-host's dc_6yw/dv-excel.txt).
     Case {
         name: "a list cell shows its drop-down and input message",
@@ -2078,6 +2229,42 @@ const CALC_CASES: &[Case] = &[
         checks: &[Check::Items("dropdown-list", &["North", "South", "East"])],
     },
     Case {
+        name: "validation list uses semantic keyboard options and Enter selects a value",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "\u{E00A}\u{E015}\u{E000}"),
+            Action::Wait(Check::Focused("dropdown-list")),
+            Action::Keys("dropdown-list", "\u{E010}\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "Blue"),
+            Check::Absent("dropdown-list"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "validation list arrows change the semantic option and Escape keeps the cell",
+        actions: &[
+            Action::Keys("grid", "\u{E00A}\u{E015}\u{E000}"),
+            Action::Wait(Check::Focused("dropdown-list")),
+            Action::Keys("dropdown-list", "\u{E015}"),
+        ],
+        checks: &[
+            Check::Role("dropdown-list", "listbox"),
+            Check::Attr("#dc-validation-option-1", "aria-selected", "true"),
+            Check::ActiveDescendant("dropdown-list"),
+        ],
+    },
+    Case {
+        name: "validation list Escape cancels without entering its option",
+        actions: &[Action::Keys("dropdown-list", ESCAPE)],
+        checks: &[
+            Check::Text(cell!("A1"), "Blue"),
+            Check::Absent("dropdown-list"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
         name: "a stop rule refuses an entry it does not allow, with its message",
         actions: &[
             Action::Into("name-box", "A2\u{E007}"),
@@ -2091,19 +2278,145 @@ const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "a warning rule keeps the entry and says its message",
+        name: "Stop Retry retains and focuses the rejected draft",
+        actions: &[Action::Click("validation-retry")],
+        checks: &[
+            Check::Value("cell-editor", "Purple"),
+            Check::Focused("cell-editor"),
+        ],
+    },
+    Case {
+        name: "a retried validation draft can be corrected and committed",
+        actions: &[Action::Into("cell-editor", "Red\u{E007}")],
+        checks: &[
+            Check::Text(cell!("A2"), "Red"),
+            Check::Absent("cell-editor"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "Warning asks before changing the cell",
         actions: &[
-            Action::Keys("cell-editor", ESCAPE),
             Action::Into("name-box", "D1\u{E007}"),
             Action::Keys("grid", "-"),
             Action::Keys("cell-editor", "1\u{E007}"),
         ],
         checks: &[
+            Check::TextContains("validation-dialog", "Warning"),
+            Check::Text("validation-message", "A positive number is expected"),
+            Check::Absent(cell!("D1")),
+        ],
+    },
+    Case {
+        name: "Warning Edit retains the draft and Cancel discards it",
+        actions: &[
+            Action::Click("validation-retry"),
+            Action::Wait(Check::Focused("cell-editor")),
+            Action::Keys("cell-editor", ENTER),
+            Action::Click("validation-cancel"),
+        ],
+        checks: &[
+            Check::Absent(cell!("D1")),
+            Check::Absent("cell-editor"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "Warning Keep is an explicit undoable entry",
+        actions: &[
+            Action::Keys("grid", "-"),
+            Action::Keys("cell-editor", "1\u{E007}"),
+            Action::Click("validation-keep"),
+        ],
+        checks: &[
+            Check::Text(cell!("D1"), "-1"),
             Check::Text(
                 "status",
                 "Warning, entry kept: Microsoft Excel: A positive number is expected",
             ),
+        ],
+    },
+    Case {
+        name: "Warning acceptance has ordinary Undo and Redo",
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::Absent(cell!("D1"))),
+            Action::Click("redo"),
+        ],
+        checks: &[Check::Text(cell!("D1"), "-1")],
+    },
+    Case {
+        name: "Information waits for OK or Cancel and Escape cancels",
+        actions: &[
+            Action::Into("name-box", "E1\u{E007}"),
+            Action::Keys("grid", "a"),
+            Action::Keys("cell-editor", "bcdef\u{E007}"),
+            Action::Wait(Check::TextContains("validation-dialog", "Information")),
+            Action::Keys("validation-cancel", ESCAPE),
+        ],
+        checks: &[
+            Check::Absent(cell!("E1")),
+            Check::Absent("cell-editor"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "Information Keep stores the chosen entry",
+        actions: &[
+            Action::Keys("grid", "a"),
+            Action::Keys("cell-editor", "bcdef\u{E007}"),
+            Action::Click("validation-keep"),
+        ],
+        checks: &[
+            Check::Text(cell!("E1"), "abcdef"),
+            Check::Text(
+                "status",
+                "Information, entry kept: Microsoft Excel: At most five characters",
+            ),
+        ],
+    },
+    Case {
+        name: "range entry also asks before accepting warning cells",
+        actions: &[
+            Action::Into("name-box", "D2:D3\u{E007}"),
+            Action::Keys("grid", "-"),
+            Action::Keys("cell-editor", "2\u{E009}\u{E007}\u{E000}"),
+            Action::Wait(Check::TextContains(
+                "validation-message",
+                "2 selected cells",
+            )),
+        ],
+        checks: &[Check::Absent(cell!("D2")), Check::Absent(cell!("D3"))],
+    },
+    Case {
+        name: "range warning acceptance remains one Undo step",
+        actions: &[
+            Action::Click("validation-keep"),
+            Action::Wait(Check::Text(cell!("D2"), "-2")),
+            Action::Click("undo"),
+        ],
+        checks: &[Check::Absent(cell!("D2")), Check::Absent(cell!("D3"))],
+    },
+    Case {
+        name: "validation decisions preserve rules through save and reopen",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::Wait(Check::TextContains("status", "Download started:")),
+            Action::UploadDownload("data-validation.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "data-validation.xlsx")),
+            Action::Into("name-box", "D2\u{E007}"),
+            Action::Keys("grid", "-"),
+            Action::Keys("cell-editor", "3\u{E007}"),
+            Action::Wait(Check::TextContains("validation-dialog", "Warning")),
+            Action::Click("validation-cancel"),
+        ],
+        checks: &[
             Check::Text(cell!("D1"), "-1"),
+            Check::Text(cell!("E1"), "abcdef"),
+            Check::Absent(cell!("D2")),
+            Check::Focused("grid"),
         ],
     },
     // dc-6yw: charts drawn read-only (calc-host's dc_6yw/charts-excel.txt).
@@ -2213,6 +2526,7 @@ const CALC_CASES: &[Case] = &[
         actions: &[
             Action::Click("new"),
             Action::DiscardReplacement,
+            Action::Wait(Check::Text("status", "New workbook")),
             Action::Keys("grid", "1"),
             Action::Keys("cell-editor", ENTER),
             Action::Keys("grid", "2"),
@@ -5217,6 +5531,97 @@ const CALC_CASES: &[Case] = &[
             Check::Value("[data-onecalc=formula]", "='October''s inputs'!A1*10"),
             Check::Text(cell!("A1"), "10"),
         ],
+    },
+    Case {
+        name: "review markers expose imported notes with accessible content",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "features.xlsx")),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Role(
+                "[data-dnacalc=review-marker][data-cell=A1]",
+                "button",
+            )),
+            Action::Click("[data-dnacalc=review-marker][data-cell=A1]"),
+        ],
+        checks: &[
+            Check::TextContains("review-note", "a comment"),
+            Check::Role("review-dialog", "dialog"),
+            Check::Reachable("review-dialog"),
+        ],
+    },
+    Case {
+        name: "hyperlink details expose a deliberate external link and its tooltip",
+        actions: &[
+            Action::Click("review-close"),
+            Action::Into("name-box", "K1\u{E007}"),
+            Action::Click("[data-dnacalc=review-marker][data-cell=K1]"),
+        ],
+        checks: &[
+            Check::Count("review-link", 1),
+            Check::Attr("[data-dnacalc=review-link] a", "rel", "noopener noreferrer"),
+            Check::Attr("[data-dnacalc=review-link] a", "title", "a tip"),
+        ],
+    },
+    Case {
+        name: "physical row insertion moves notes and links without annotating the new row",
+        actions: &[
+            Action::Click("review-close"),
+            Action::Into("name-box", "1:1\u{E007}"),
+            Action::Click("insert-cells"),
+            Action::Wait(Check::Absent("[data-dnacalc=review-marker][data-cell=A1]")),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("[data-dnacalc=review-marker][data-cell=A2]"),
+        ],
+        checks: &[
+            Check::TextContains("review-note", "a comment"),
+            Check::Count("[data-dnacalc=review-marker][data-cell=K2]", 1),
+        ],
+    },
+    Case {
+        name: "review content and moved references survive save and reopen",
+        actions: &[
+            Action::Click("review-close"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::Wait(Check::TextContains("status", "Download started:")),
+            Action::UploadDownload("features.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "features.xlsx")),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Click("[data-dnacalc=review-marker][data-cell=A2]"),
+        ],
+        checks: &[
+            Check::TextContains("review-note", "a comment"),
+            Check::Count("[data-dnacalc=review-marker][data-cell=K2]", 1),
+        ],
+    },
+    Case {
+        name: "review manager remains bounded and its note is reachable on a phone",
+        actions: &[
+            Action::Click("review-close"),
+            Action::Window(390, 844),
+            Action::Click("review-tools"),
+            Action::Keys("review-close", "\u{E010}"),
+        ],
+        checks: &[
+            Check::Reachable("review-dialog"),
+            Check::Reachable("review-note"),
+            Check::Contrast("review-note"),
+            Check::Fits,
+        ],
+    },
+    Case {
+        name: "review Escape closes the phone manager and returns to the grid",
+        actions: &[
+            Action::Keys("review-close", ESCAPE),
+            Action::Window(1440, 1000),
+        ],
+        checks: &[Check::Focused("grid")],
     },
 ];
 

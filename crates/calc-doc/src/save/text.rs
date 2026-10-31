@@ -179,6 +179,26 @@ impl<'a> RawTag<'a> {
         }
     }
 
+    pub(super) fn with_inherited_namespaces(&self, parent: &RawTag<'_>) -> Vec<u8> {
+        let mut out = self.rebuilt(&[], false);
+        out.pop();
+        for attribute in &parent.attributes {
+            if (attribute.name == b"xmlns" || attribute.name.starts_with(b"xmlns:"))
+                && !self.attributes.iter().any(|a| a.name == attribute.name)
+            {
+                out.push(b' ');
+                out.extend_from_slice(attribute.name);
+                out.push(b'=');
+                out.extend_from_slice(attribute.quoted);
+            }
+        }
+        if self.empty {
+            out.push(b'/');
+        }
+        out.push(b'>');
+        out
+    }
+
     pub(super) fn is_empty(&self) -> bool {
         self.empty
     }

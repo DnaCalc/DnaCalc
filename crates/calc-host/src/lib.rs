@@ -94,7 +94,10 @@ pub use calc_doc::{
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
 };
 pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry, SheetView};
-pub use calc_doc::{blank_package, convert_binary_workbook};
+pub use calc_doc::{
+    blank_package, conditional_rule, convert_binary_workbook, file_form_with_links,
+    new_conditional_rule,
+};
 pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,

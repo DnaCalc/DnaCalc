@@ -94,7 +94,8 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
-            CellEdit::Axis(_)
+            CellEdit::ConditionalRules { .. }
+            | CellEdit::Axis(_)
             | CellEdit::Sheet(_)
             | CellEdit::AxisFormat(_)
             | CellEdit::FrozenPanes { .. }
@@ -197,6 +198,17 @@ pub(crate) fn inverse(
                     visibility: entry.visibility(),
                 }));
             }
+        }
+    }
+    let mut conditional = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::ConditionalRules { sheet, .. } = edit
+            && conditional.insert(*sheet)
+        {
+            inverse.push(CellEdit::ConditionalRules {
+                sheet: *sheet,
+                rules: definitions.conditional_rules(*sheet).to_vec(),
+            });
         }
     }
     let mut formatted = BTreeSet::new();

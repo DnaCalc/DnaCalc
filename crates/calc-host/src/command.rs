@@ -16,6 +16,11 @@ use std::sync::Arc;
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
+    /// Replaces authored conditional rules, retaining original XML fields.
+    ConditionalRules {
+        sheet: calc_doc_model::value::SheetId,
+        rules: Vec<calc_doc_model::ConditionalRuleSource>,
+    },
     /// A worksheet lifecycle operation, with reference rewriting and snapshot history.
     Sheet(calc_doc_model::SheetEdit),
     /// Changes a physical row height, column width or hidden flag.
@@ -64,6 +69,9 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
+            CellEdit::ConditionalRules { sheet, rules } => {
+                WorkbookOp::SetConditionalRules { sheet, rules }
+            }
             CellEdit::Sheet(edit) => WorkbookOp::EditSheet(edit),
             CellEdit::AxisFormat(edit) => WorkbookOp::SetAxisFormat(edit),
             CellEdit::FrozenPanes { sheet, panes } => WorkbookOp::SetFrozenPanes { sheet, panes },
@@ -241,6 +249,62 @@ pub fn dispatch(
             _ => None,
         })
         .collect();
+    for op in &batch.operations {
+        if let WorkbookOp::SetConditionalRules { sheet, rules } = op {
+            let invalid = host
+                .loaded
+                .sheet(*sheet)
+                .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
+                || host
+                    .loaded
+                    .sheet(*sheet)
+                    .is_some_and(|s| s.protected() || s.is_macro_sheet())
+                || rules.len() > 1024
+                || rules.iter().any(|r| {
+                    r.areas.is_empty()
+                        || r.areas.iter().any(|a| a.sheet() != *sheet)
+                        || r.priority < 1
+                        || calc_doc::conditional_rule(r).is_err()
+                });
+            if invalid {
+                return Err(CommandError::Document(EditError::SheetOperation("Conditional rules require an editable worksheet, valid source, ranges and priorities (dc-971p.8)".into())));
+            }
+        }
+    }
+    if batch.operations.iter().any(|op|matches!(op,WorkbookOp::EditAxis(edit) if host.model.definitions().all_conditional_rules().flat_map(|(_,r)|r).any(|r|r.origin().is_some_and(|at|calc_doc_model::moved_cell(*edit,at).is_none())))) {
+        return Err(CommandError::Document(EditError::SheetOperation("Deleting a conditional rule's formula origin is unavailable (dc-971p.8); edit its range first".into())));
+    }
+    if batch
+        .operations
+        .iter()
+        .any(|op| matches!(op, WorkbookOp::EditAxis(_)))
+        && (host
+            .loaded
+            .sheets()
+            .iter()
+            .any(|s| s.conditional_formats().iter().any(|b| b.unread_container))
+            || host
+                .model
+                .definitions()
+                .all_conditional_rules()
+                .flat_map(|(_, r)| r)
+                .any(|source| {
+                    calc_doc::conditional_rule(source).is_ok_and(|r| {
+                        r.extension_id.is_some()
+                            || r.color_scale
+                                .as_ref()
+                                .is_some_and(|s| s.thresholds.iter().any(|t| t.kind == "formula"))
+                            || r.data_bar
+                                .as_ref()
+                                .is_some_and(|s| s.thresholds.iter().any(|t| t.kind == "formula"))
+                            || r.icon_set
+                                .as_ref()
+                                .is_some_and(|s| s.thresholds.iter().any(|t| t.kind == "formula"))
+                    })
+                }))
+    {
+        return Err(CommandError::Document(EditError::SheetOperation("Axis edits with extension-backed or formula-threshold conditional rules are unavailable (dc-971p.8); nothing changed".into())));
+    }
     let sheet_edit = batch.operations.iter().find_map(|op| match op {
         WorkbookOp::EditSheet(edit) => Some(edit),
         _ => None,
@@ -253,7 +317,8 @@ pub fn dispatch(
             return Err(CommandError::Document(EditError::SheetOperation("Workbook structure is protected".to_owned())));
         }
         if let calc_doc_model::SheetEdit::Rename { sheet, .. } | calc_doc_model::SheetEdit::Remove { sheet } = edit {
-            if host.loaded.defined_names_not_loaded()!=0
+            if host.model.definitions().all_conditional_rules().any(|(_,r)|!r.is_empty())
+                || host.loaded.defined_names_not_loaded()!=0
                 || host.model.definitions().unloaded_cells().next().is_some()
                 || !host.loaded.sheet_reference_metadata_supported()
                 || host.model.layout().blocks().iter().any(|b| b.anchor().is_some_and(|a| a.sheet() == *sheet))

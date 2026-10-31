@@ -54,7 +54,9 @@
 mod axis_layout;
 mod cache;
 mod cells;
+mod conditional;
 mod definitions;
+pub use conditional::ConditionalRuleSource;
 mod input;
 mod layout;
 pub use axis_layout::{AxisFormat, AxisFormatEdit, AxisLayouts};

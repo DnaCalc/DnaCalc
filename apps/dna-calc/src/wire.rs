@@ -77,6 +77,15 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    EditConditional {
+        sheet: Sheet,
+        revision: u64,
+        index: Option<u32>,
+        change: ConditionalChange,
+    },
+    AcceptValidation {
+        token: u64,
+    },
     ShiftCells {
         area: Area,
         down: bool,
@@ -155,6 +164,54 @@ pub enum Intent {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConditionalChange {
+    Add {
+        kind: String,
+        applies: String,
+        color: String,
+    },
+    Update {
+        applies: String,
+        formulas: Vec<String>,
+        stop: bool,
+    },
+    Move {
+        up: bool,
+    },
+    Remove,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Review {
+    pub at: Option<Key>,
+    pub revision: u64,
+    pub rules: Vec<Rule>,
+    pub notes: Vec<(String, String)>,
+    pub links: Vec<ReviewLink>,
+    pub unsupported: Vec<String>,
+    pub validation: Option<String>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rule {
+    pub index: u32,
+    pub kind: String,
+    pub priority: i64,
+    pub applies: String,
+    pub formulas: Vec<String>,
+    pub stop: bool,
+    pub state: String,
+    pub editable: bool,
+    pub formula_editable: bool,
+    pub visual: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReviewLink {
+    pub target: Option<String>,
+    pub location: Option<String>,
+    pub display: String,
+    pub tooltip: String,
+}
+
 /// Worksheet commands. Positions are one-based in the full workbook order.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SheetChange {
@@ -211,6 +268,8 @@ pub enum Request {
     Unsubscribe {
         id: u64,
     },
+    Review(Key),
+    ReviewMarkers(Sheet),
     /// A sheet's sizes, as the grid lays it out.
     Geometry(Sheet),
     UsedArea(Sheet),
@@ -293,6 +352,7 @@ impl dna_formula_ui::display::SheetNames for Summary {
 /// What an intent (or an open, a new workbook, a save) did.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
+    pub validation: Option<ValidationDecision>,
     pub accepted: bool,
     pub committed: bool,
     pub recalculated: bool,
@@ -413,6 +473,15 @@ pub struct Validation {
     pub items: Vec<String>,
 }
 
+/// A rejected entry awaiting an explicit user decision; the worker holds the draft command.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ValidationDecision {
+    pub token: u64,
+    pub style: String,
+    pub title: String,
+    pub message: String,
+}
+
 /// What the server answers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PasteMode {
@@ -466,6 +535,8 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    Review(Review),
+    ReviewMarkers(Vec<(Key, String)>),
     Clipboard(Clipboard),
     PastePreview(PastePreview),
     /// The answer to [`Request::Ping`]: the package version the server runs.

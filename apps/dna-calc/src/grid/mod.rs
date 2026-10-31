@@ -285,6 +285,17 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let note = RwSignal::new(String::new());
     // Whether the active cell's validation list is open.
     let list_open = RwSignal::new(false);
+    let list_index = RwSignal::new(0usize);
+    let listbox = NodeRef::<leptos::html::Ul>::new();
+    let rule: RwSignal<Option<wire::Validation>> = RwSignal::new(None);
+    Effect::new(move |_| {
+        if list_open.get()
+            && let Some(list) = listbox.get()
+        {
+            let _ = list.focus();
+        }
+    });
+
     // Whether a press on a cell is being dragged to extend the selection.
     let dragging = StoredValue::new(false);
     let pointer_down = StoredValue::new(false);
@@ -755,7 +766,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
         // Alt+Down opens the active cell's validation list, as in Excel; Escape closes it.
         if ev.alt_key() && chord.key == "ArrowDown" {
             ev.prevent_default();
-            list_open.set(true);
+            if rule.with_untracked(|r| r.as_ref().is_some_and(|r| r.dropdown)) {
+                list_open.set(true);
+            }
             return;
         }
         if chord.key == "Escape" && list_open.get_untracked() {
@@ -1368,26 +1381,59 @@ fn grid_view(controller: Controller) -> impl IntoView {
             })
             .collect_view()
     };
+    let review_markers = RwSignal::new(Vec::<(wire::Key, String)>::new());
+    Effect::new(move |_| {
+        let revision = controller.revision.get();
+        let generation = controller.generation.get();
+        let sheet = controller.sheet.get();
+        review_markers.set(Vec::new());
+        if let Some(sheet) = sheet {
+            controller.ask(
+                wire::Request::ReviewMarkers(wire::Sheet::of(sheet)),
+                move |reply| {
+                    if controller.sheet.get_untracked() == Some(sheet)
+                        && controller.revision.get_untracked() == revision
+                        && controller.generation.get_untracked() == generation
+                        && let wire::Reply::ReviewMarkers(markers) = reply
+                    {
+                        review_markers.try_set(markers);
+                    }
+                },
+            );
+        }
+    });
+    let markers_view = move || {
+        let m = metrics.get();
+        let v = viewport.get();
+        let p = panes.get();
+        review_markers.get().into_iter().filter_map(|(key,kind)|{
+            let at=key.cell()?;let rect=p.rect(&m,&v,at.row(),at.column());
+            let (fw,fh)=p.size(&m);
+            if rect.w<=0.0 || rect.h<=0.0 || rect.x+rect.w<=m.header_w || rect.y+rect.h<=m.header_h || rect.x>=v.width || rect.y>=v.height || (at.column()>p.columns && rect.x<m.header_w+fw) || (at.row()>p.rows && rect.y<m.header_h+fh) {return None;}
+            let label=format!("{kind} on {}",controller.cell_label(at));
+            Some(view!{<button type="button" class="dc-review-marker" data-dnacalc="review-marker" data-cell=format!("{}{}",dna_formula_ui::display::column_letters(at.column()),at.row()) title=label.clone() aria-label=label use:css=format!("left:{};top:{}",px(rect.x+rect.w-14.0),px(rect.y)) on:mousedown=move |ev|ev.stop_propagation() on:click=move |ev|{ev.stop_propagation();controller.navigate_to(at,move |ok|{if ok {controller.review_open.set(true);}});}>"•"</button>})
+        }).collect_view()
+    };
     // The active cell's data validation (dc-6yw): a list's drop-down button at its right edge, the
     // list it opens (Alt+Down too, as in Excel), and the rule's input message below the cell.
-    let rule: RwSignal<Option<wire::Validation>> = RwSignal::new(None);
     Effect::new(move |_| {
-        controller.revision.track();
+        let revision = controller.revision.get();
+        let generation = controller.generation.get();
+        rule.set(None);
+        list_open.set(false);
         let Some(at) = controller.active_key() else {
-            rule.set(None);
             return;
         };
         controller.ask(wire::Request::Validation(wire::Key::of(at)), move |reply| {
-            if let wire::Reply::Validation(found) = reply
-                && rule.try_get_untracked().is_some_and(|old| old != found)
+            if controller.active_key_untracked() == Some(at)
+                && controller.revision.get_untracked() == revision
+                && controller.generation.get_untracked() == generation
+                && let wire::Reply::Validation(found) = reply
             {
                 rule.try_set(found);
+                list_index.try_set(0);
             }
         });
-    });
-    Effect::new(move |_| {
-        controller.active.track();
-        list_open.set(false);
     });
     let dropdown_view = move || {
         let rule = rule.get()?;
@@ -1407,6 +1453,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 class="dc-dropdown"
                 data-dnacalc="dropdown"
                 title="Pick from the list"
+                aria-label="Pick from the validation list"
+                aria-controls="dc-validation-list"
+                aria-expanded=move ||list_open.get().to_string()
+                disabled=move ||controller.editing.get().is_some()
                 use:css=style
                 on:mousedown=move |ev| ev.stop_propagation()
                 on:click=move |_| list_open.update(|open| *open = !*open)
@@ -1422,12 +1472,12 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let rect = active_rect();
         let style = format!("left:{};top:{}", px(rect.x), px(rect.y + rect.h));
         let rows = items
-            .into_iter()
-            .map(|item| {
+            .into_iter().enumerate()
+            .map(|(index,item)| {
                 let text = item.clone();
                 view! {
                     <li
-                        data-dnacalc="dropdown-item"
+                        data-dnacalc="dropdown-item" role="option" id=format!("dc-validation-option-{index}") aria-selected=move ||(list_index.get()==index).to_string()
                         on:click=move |_| {
                             list_open.set(false);
                             controller.enter(at, text.clone(), |_| {});
@@ -1438,7 +1488,16 @@ fn grid_view(controller: Controller) -> impl IntoView {
             })
             .collect_view();
         Some(view! {
-            <ul class="dc-list" data-dnacalc="dropdown-list" use:css=style
+            <ul class="dc-list" id="dc-validation-list" role="listbox" aria-label="Allowed values" tabindex="0" node_ref=listbox aria-activedescendant=move ||format!("dc-validation-option-{}",list_index.get()) data-dnacalc="dropdown-list" use:css=style
+                on:keydown=move |ev:leptos::ev::KeyboardEvent|{
+                    ev.stop_propagation();let key=ev.key();let items=rule.get_untracked().map(|r|r.items).unwrap_or_default();
+                    if let Some(next)=validation_list_index(list_index.get_untracked(),&key,items.len()){ev.prevent_default();list_index.set(next);
+                        use wasm_bindgen::JsCast;
+                        if let Some(element)=document().get_element_by_id(&format!("dc-validation-option-{next}")).and_then(|e|e.dyn_into::<web_sys::HtmlElement>().ok()) {element.scroll_into_view_with_bool(false);}
+                    } else if key=="Escape" {ev.prevent_default();list_open.set(false);focus_grid();}
+                    else if key=="Enter" {ev.prevent_default();if let Some(text)=items.get(list_index.get_untracked()){list_open.set(false);controller.enter(at,text.clone(),|_|{});focus_grid();}}
+                    else if key=="Tab" {list_open.set(false);}
+                }
                 on:mousedown=move |ev| ev.stop_propagation()>{rows}</ul>
         })
     };
@@ -1587,6 +1646,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         }}
                         {cells_view}
                         {charts_view}
+                        {markers_view}
                         {selection_view}
                         {active_view}
                         {copy_outline}
@@ -1724,5 +1784,20 @@ mod tests {
             extent(Some(used), (900, 2), &m, &v),
             GridExtent::new(MAX_ROW, MAX_COLUMN)
         );
+    }
+}
+
+/// Bounded list movement. Empty lists and unrelated keys have no navigation target.
+pub fn validation_list_index(index: usize, key: &str, len: usize) -> Option<usize> {
+    if len == 0 {
+        return None;
+    }
+    let index = index.min(len - 1);
+    match key {
+        "ArrowDown" => Some((index + 1).min(len - 1)),
+        "ArrowUp" => Some(index.saturating_sub(1)),
+        "Home" => Some(0),
+        "End" => Some(len - 1),
+        _ => None,
     }
 }
