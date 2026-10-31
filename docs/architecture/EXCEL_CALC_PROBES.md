@@ -103,6 +103,13 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   macro-equivalent registration to `CachedMacroObservation`; ordinary gets uncalced. A single call in one arrangement
   proves nothing about other arrangements.
 
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 110 primary workbooks plus 60 object-type controls.
+  Ordinary and `$` registrations unwind on status 64 and re-enter (all ten reversed-area trials; `$` also on first
+  calculation). `#` coerces successfully there; `xlfVolatile(false)` suppresses clean F9 calls. VBA Range values
+  can be Empty then 11; Double can be 0 then 11; expression arguments may wait. No Null was observed.
+  Keep `XllUncalcedUnwind` and registration-specific capabilities; do not collapse actual entries into retries.
+  [Evidence, native stage table and logger correction](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P03/README.md).
+
 ### P04 ★ Draw identity, LET reuse and volatile spill passes (E05; A7 random/name/LAMBDA)
 - **Setup.** Separate areas: `=RAND()-RAND()`; `=LET(draw,RAND(),draw-draw)`; `=LAMBDA(x,x-x)(RAND())`;
   `=DrawName-DrawName` with name DrawName `=RAND()` used in two cells; `=LET(fn,LAMBDA(RAND()),fn()-fn())`;

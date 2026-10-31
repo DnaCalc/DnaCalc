@@ -3,13 +3,17 @@ param(
     [string]$OxVbaRoot = 'C:/Work/DnaCalc/OxVba',
     [int]$Repetitions = 10,
     [string]$Cases = '',
+    [switch]$Reopen,
+    [string]$ArtifactPrefix = '',
+    [string]$NativePath = '',
     [string]$RunId = ('calc-probe-' + [Guid]::NewGuid().ToString('N')),
     [switch]$SafeMode
 )
 $ErrorActionPreference = 'Stop'
 $probe = (Resolve-Path -LiteralPath $ProbeDirectory).Path
 $common = Join-Path $PSScriptRoot 'calculation-common.bas'
-$probeSource = Get-Content -LiteralPath (Join-Path $probe 'probe.bas') -Raw
+$sourceFile = if($Reopen){Join-Path $PSScriptRoot 'reopen-calculation-probe.bas'}else{Join-Path $probe 'probe.bas'}
+$probeSource = Get-Content -LiteralPath $sourceFile -Raw
 $firstProcedure = [regex]::Match($probeSource, '(?m)^(?:Private|Public)\s+(?:Sub|Function)\b')
 if (-not $firstProcedure.Success) {throw 'Probe has no procedures'}
 $declarations = $probeSource.Substring(0,$firstProcedure.Index)
@@ -17,7 +21,8 @@ $procedures = $probeSource.Substring($firstProcedure.Index)
 $source = (Get-Content -LiteralPath $common -Raw).Replace('Public Sub Note(', $declarations + "`nPublic Sub Note(") + "`n" + $procedures
 $source = $source.Replace('__OUTPUT__', $probe.Replace('"','""')).Replace('__REPETITIONS__', [string]$Repetitions)
 $source = $source.Replace('__CASES__', $Cases.Replace('"','""'))
-$native = Join-Path (Split-Path $probe -Parent) 'P03/native-probe.xll'
+$source = $source.Replace('__ARTIFACT_PREFIX__', $ArtifactPrefix.Replace('"','""'))
+$native = if($NativePath){(Resolve-Path -LiteralPath $NativePath).Path}else{Join-Path (Split-Path $probe -Parent) 'P03/native-probe.xll'}
 $source = $source.Replace('__NATIVE__', $native.Replace('"','""'))
 $module = Join-Path $probe 'injected.bas'
 [IO.File]::WriteAllText($module, $source)
@@ -31,6 +36,9 @@ $environment = [ordered]@{
     supervisor_commit = (& git -C $OxVbaRoot rev-parse HEAD)
     fixture_ancestor = 'crates/calc-vba/tests/fixtures/excel-recalculation/probe.bas'
     safe_mode_requested = [bool]$SafeMode
+    native_image = $native
+    native_sha256 = if(Test-Path -LiteralPath $native){(Get-FileHash -LiteralPath $native -Algorithm SHA256).Hash}else{$null}
+    excel_file_version = (Get-Item -LiteralPath 'C:/Program Files/Microsoft Office/root/Office16/EXCEL.EXE').VersionInfo.FileVersion
 }
 $environment | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $probe 'machine.json') -Encoding utf8NoBOM
 # Extend the existing owned-PID VBE supervisor. Its worker, containment, compile
