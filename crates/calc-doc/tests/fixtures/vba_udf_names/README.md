@@ -42,3 +42,18 @@ generated `probe.xlam` and restores it in `finally`. Disabled-macro opening uses
 per-open AutomationSecurity policy, restored afterwards. No Trust Center/registry changes.
 The link-prompt wording and selected Update action were also observed through Computer Use;
 no subsequent file-repair prompt appeared. Other interactive configurations remain unmeasured.
+
+The dc-snz.8/dc-snz.12 fixes are checked by `tests/vba_udf_names.rs`. To produce fresh
+outputs without replacing the investigation's original packages or observations:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File measure-dnacalc.ps1 -NoRecord -OutDir ../../../../../target/udfnames/p1-final
+python reopen-product.py --product ../../../../../target/udfnames/p1-final --out cdoc-p1-reopen.json --paths
+```
+
+`cdoc-path-diagnostic.json` records the intermediate failure with alternate URLs alone and
+the successful controls restoring the workbook folder (`BrtAbsPath15`, record 2071), removing
+alternate URLs after restoring that folder, and selecting the absolute primary relationship.
+`--path-variants` reproduces those controls from an output lacking the workbook folder.
+`cdoc-p1-reopen.json` records the corrected product saves and asserts the two input formats'
+5005 results, both output folders' provider results, and rejection of the wrong add-in location.

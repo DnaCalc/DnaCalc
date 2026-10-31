@@ -1,4 +1,5 @@
 # Native probe only: the product libraries and the existing fixture helper supply the route.
+param([string]$OutDir = '', [switch]$NoRecord)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../../../../..')).Path
 $scratch = Join-Path $repo 'target/udfnames/cargo-probe'
@@ -22,9 +23,10 @@ miniz_oxide = "=0.8.9"
 serde_json = "=1.0.154"
 "@ | Set-Content -Encoding utf8 (Join-Path $scratch 'Cargo.toml')
 $commit = git -C $repo rev-parse HEAD
-$output = Join-Path $repo 'target/udfnames/product'
+$output = if ($OutDir) { [IO.Path]::GetFullPath($OutDir) } else { Join-Path $repo 'target/udfnames/product' }
 cargo run --manifest-path (Join-Path $scratch 'Cargo.toml') --target-dir (Join-Path $repo 'target') -- $PSScriptRoot $output $commit
 if ($LASTEXITCODE -ne 0) { throw 'Product measurement failed' }
+if ($NoRecord) { exit 0 }
 Copy-Item -LiteralPath (Join-Path $output 'product-observations.json') -Destination $PSScriptRoot -Force
 foreach ($pair in @(
     @('collision-xlsm-reentered.xlsm', 'dna-collision-reentered.xlsm'),

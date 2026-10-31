@@ -34,6 +34,7 @@ const BRT_EXTERN_CELL_BOOL: u16 = 369;
 const BRT_EXTERN_CELL_ERROR: u16 = 370;
 const BRT_EXTERN_CELL_STRING: u16 = 371;
 const BRT_SUP_NAME_START: u16 = 577;
+const BRT_EXTERNAL_LINKS_ALTERNATE_URLS: u16 = 5108;
 const BRT_COMMENT_AUTHOR: u16 = 632;
 const BRT_BEGIN_COMMENT: u16 = 635;
 const BRT_COMMENT_TEXT: u16 = 637;
@@ -50,6 +51,8 @@ const REVISION_NAMESPACE: &str = "http://schemas.microsoft.com/office/spreadshee
 const REVISION3_NAMESPACE: &str =
     "http://schemas.microsoft.com/office/spreadsheetml/2016/revision3";
 const COMPATIBILITY_NAMESPACE: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+const EXTERNAL_LINKS_2021_NAMESPACE: &str =
+    "http://schemas.microsoft.com/office/spreadsheetml/2021/extlinks2021";
 
 /// What the parts of the workbook share.
 pub(crate) struct Shared {
@@ -670,7 +673,18 @@ pub(crate) fn external_link(part: &str, data: &[u8]) -> Result<Vec<u8>, OpenErro
         let relationship = text(&c.wide("BrtBeginSupBook")?);
         let (sheets, names) = external_names(data)?;
         let mut x = Xml::new();
-        x.open("externalLink", &[("xmlns", MAIN_NAMESPACE.to_owned())]);
+        let alternate = records
+            .iter()
+            .find(|r| r.kind == BRT_EXTERNAL_LINKS_ALTERNATE_URLS);
+        let mut attributes = vec![("xmlns", MAIN_NAMESPACE.to_owned())];
+        if alternate.is_some() {
+            attributes.extend([
+                ("xmlns:mc", COMPATIBILITY_NAMESPACE.to_owned()),
+                ("mc:Ignorable", "xxl21".to_owned()),
+                ("xmlns:xxl21", EXTERNAL_LINKS_2021_NAMESPACE.to_owned()),
+            ]);
+        }
+        x.open("externalLink", &attributes);
         x.open(
             "externalBook",
             &[
@@ -678,6 +692,27 @@ pub(crate) fn external_link(part: &str, data: &[u8]) -> Result<Vec<u8>, OpenErro
                 ("r:id", relationship),
             ],
         );
+        if let Some(record) = alternate {
+            // MS-XLSB 2.4.664: two service identifiers followed by the relationship
+            // IDs of the absolute and relative alternate URLs. Relationship targets
+            // themselves remain in the preserved external-link .rels part.
+            let mut c = Cursor::new(record.body);
+            let mut attributes = Vec::new();
+            for name in ["driveId", "itemId"] {
+                let value = text(&c.wide("BrtExternalLinksAlternateUrls")?);
+                if !value.is_empty() {
+                    attributes.push((name, value));
+                }
+            }
+            x.open("xxl21:alternateUrls", &attributes);
+            for name in ["xxl21:absoluteUrl", "xxl21:relativeUrl"] {
+                let id = c.nullable_wide("BrtExternalLinksAlternateUrls")?;
+                if let Some(id) = id.filter(|id| !id.is_empty()) {
+                    x.empty(name, &[("r:id", text(&id))]);
+                }
+            }
+            x.close("xxl21:alternateUrls");
+        }
         if !sheets.is_empty() {
             x.open("sheetNames", &[]);
             for sheet in &sheets {
