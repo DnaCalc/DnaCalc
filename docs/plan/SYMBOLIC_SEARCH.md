@@ -167,3 +167,129 @@ The final upstream pull to `e663103` adds only an unused error-spelling method i
 the research build's guarded source paths. Its unchanged revision guard correctly
 refuses a fresh build there. Numerical runs and questions retain the binaries and
 source unit built before that pull, at `ec05eae`; the numeric sources are unchanged.
+
+
+## Round 8 result, 2026-10-31
+
+The 38 frozen Round-7 POISSON.DIST questions were answered in evidence commit
+`cba2fac2636c2cb6fd58e85e44f682d93dd387dd`. The original packet and every prediction
+hash were checked before scoring. All **52,908 hypotheses** have individual blind
+pass/fail records in `round8/poisson-blind/per-hypothesis-blind-scores.csv`.
+None matched 38/38; the highest count was 30/38, attained by 196 hypotheses.
+Only after saving that blind result did exact elimination reject all 52,908 at
+`r7-poisson-final-k1-02-bool` (mean 1e-6). All 19 boolean/numeric flag pairs have
+equal recorded answers. Neither a build-specific kernel nor a new Poisson program follows.
+
+Structure discovery covered PV, FV, NPER, PMT, IPMT, PPMT and external FV evaluations
+at recorded RATE inputs/results. Exact rate/nper/build groups contain 13 PV/FV
+groups with errors in both functions and 50 where both match. FV/PMT has 53 groups
+with errors in both, 111 with FV matching and PMT failing, and 11 with the reverse.
+These are observed co-occurrences, not proof that Excel shares an internal helper.
+The 13 kind-transition brackets hold every other input and full environment fixed;
+none consists of adjacent binary64 rates, so no exact branch boundary was identified.
+RATE's external companions are not internal solver traces or stopping-rule evidence.
+Of the 356 mismatching RATE cases, 231 have every recorded external FV companion
+matching the application. Only one of 60 one-period RATE answers is the correctly
+rounded exact linear root; the largest diagnostic distance is 1,785,166 ULPs.
+No same-cashflow, same-source paired guesses are available in that subset.
+The exact linear root is a mathematical diagnostic, never an imported Excel answer.
+A 625-profile five-model one-step Newton consumer of genuine FV-at-guess outputs
+has zero survivors. Sharing the retained internal BG/paid/sum from all 1,824 PV/FV
+hypotheses, with four residual associations and five arithmetic models at five
+consumer sites, also rejects all **22,800,000 logical assignments**. The second
+residual site is inactive in two forms, so this count includes duplicates. Every
+one of 109,440 original FV calls is rechecked per backend across all 60 pairs.
+These are bounded one-step hypotheses, not a claim about Excel's actual iterations,
+derivative or stopping rule. Microsoft's [public RATE contract](https://support.microsoft.com/en-au/excel/functions/rate-function)
+describes iteration and a successive-result criterion; it does not specify Newton.
+
+The old 38,432/11,932 PMT gaps retain their original scope and denominator. Build
+20131 contributes 38,268/11,894; build 20228 contributes 164/38. Every gap has five
+numeric arguments. Nonunit periods contribute 18,729/4,566, and ordinary positive
+rates with n*log1p(r)<1 contain many gaps. Mixed argument types and a one-period branch
+therefore do not account for these gaps within those scopes; build and region remain
+confounded. Bounded exact power-of-two/sign scaling gives 3,123 additional PMT
+comparisons with no recorded violation; other functions lack paired scaling coverage.
+
+Exact growth preimages from 235 zero-payment FV observations reject the tested pow,
+exp(n*log1p(r)), sequential-product and applicable finite-series diagnostics.
+Strict and stored-PC64 binary squaring remain compatible. This is a conditional
+growth projection, not identification. It motivated a shared PV/FV grammar:
+354,294 programs leave 7,164 hypotheses on 1,321 nonnegative-integer rows. Thirteen
+explicit fractional providers refine those to **1,824 hypotheses on all 3,785
+positive-base/nonzero-rate PV/FV rows**, including negative and fractional periods.
+Zero-rate/nonpositive-base controls stay outside the grammar. Native/software
+survivor sets and recorded-input outputs agree; finite-vector equality is not
+global program equivalence.
+
+The **30 frozen unanswered questions** are in
+`/home/ubuntu/codex-runs/fresh-questions-r8/`: PV 16, FV 14; 26 new typed identities
+and four rechecks. Requests and predictions are separate. The packet includes exact
+controls around rounded 1+r, half periods and adjacent integer periods. On Windows use
+`cargo xtask witness read --func PV --inputs requests-PV.json`, then the equivalent
+FV command with `requests-FV.json`; omit `--new-only`. Source is research commit
+`fc14027112ea72444b43c720218e05503a07d555`; its matching executable is retained.
+
+Joint PV/FV-growth constraints reject all 5,773,680 components of the tested
+positive-growth PMT numerator family. A PMT-specific earlier-helper search then
+rejects 36,085,500 coupled-growth programs using five log producers, including
+resident FYL2XP1 and the [DLMF 4.6.E6 series](https://dlmf.nist.gov/4.6.E6).
+The 1,603,800-program shared interest/amortization family, constrained by NPER's
+2,501 observations, also has zero survivors. The common-growth family has 236,892
+scoped rows; the latter two have 220,888 bounded positive-rate rows and controls.
+A direct F2XM1 range-reduced expm1 family, sharing its fractional component with
+the numerator growth, rejects all 5,314,410 programs on the latter scope. It avoids
+forming exp(t) before subtraction. Both backends have identical first kills,
+while 405 of 51,840 paired raw-component controls differ. These controls use k=0;
+they do not establish parity across the full reduction range. FYL2XP1 is a measured native
+leaf in both replays; the second is hybrid, not an emulation of that instruction.
+Per-build exact projections additionally exclude specified interest/amortization,
+PV/helper, PV*helper and binary64-FMA structures even with an arbitrary common real
+helper, using five nearest/even arithmetic models. Each completed exclusion has a
+reviewed sufficient subset of original rows; it does not exclude other programs.
+The original 37,500-profile four-leaf projection is also excluded separately on
+builds 20131 and 20228, including fixed-timing helpers. Build 20131's fixed-timing
+closure uses independently checked sufficient subsets, rather than the stopped
+sequential run's first-kill order. Its stronger nonunit/fixed-timing check also
+excludes all 37,500: an original nonunit singleton group rejects the last 312
+profiles after the retained 37,188-profile partial proof. The original partial
+passes stay preserved. Build 20228 excludes all 37,500 in that cohort too.
+Two of its timing-only exclusions require the Ext80 lattice; the rest are real-empty.
+
+Minimal single-factor projections additionally reject all 25 build-20131 joint
+PV/PMT profiles, each using both functions: PV=-payment*A and PMT=-PV/A, with five
+fixed final arithmetic models per function. In one pair where both current kernels
+match, the conditional A intervals are separated by over 153,633 binary64 ULPs.
+That distance describes the disjoint intervals; it is not an elimination tolerance.
+This excludes the specified simple consumers, not every possible shared helper.
+
+The seven PPMT observations share one recorded PMT loan and matching IPMT inputs.
+All 110 tested remaining-discount PPMT profiles are incompatible with one latent
+PMT constrained by its recorded publication, on both backends. One first-period
+IPMT observation also contradicts all five tested direct -PV*rate models. These are
+structural constraints; no recorded output is installed as a program constant.
+An exact backward-balance search retains all 2,049 Ext80 values that publish to
+the recorded PMT, with the same unknown value across seven periods. All 899,640
+components (2,698,920 profiles including PPMT subtraction choices) are rejected by
+IPMT before the PPMT stage, using both corrected/difference and direct-F2XM1 helpers.
+Transferring the frozen PV/FV negative-integer growth into that same IPMT structure
+rejects 504 components, covering 1,378,944 joint partial assignments. These are
+conditional PMT/IPMT constraints: the PMT-producing program remains unspecified,
+and the 1,824 standalone PV/FV hypotheses remain valid scoped hypotheses.
+
+Two research defects were corrected and invalid runs retained explicitly: decimal
+f64 JSON had changed 150 arguments in 142 integer cases (only `bits-*` reruns count),
+and resident growth preimages omitted final RN53 (only `*-corrected*` results count).
+The frozen packet uses both corrections. Review also found a software PC53
+underflow discrepancy at extended-exponent subnormals; no global backend-parity
+claim is made. The measured ordinary-range exclusions remain separately checked.
+PMT is still unidentified. No product kernel, evidence pin or Excel answer changed.
+Full commands, resources, corrections and independent review are under
+`/home/ubuntu/codex-runs/dna-firehorse-20261031-round8/` (called `round8` above);
+the compact report is `/home/ubuntu/codex-runs/work-report-8.md`.
+
+The final upstream pull to `8311ace` changes `udf.rs` in the research build's guarded
+tree; its numerical files remain byte-identical. The original unit correctly refuses
+a fresh build there. A separate `annuity-r8-rebuild-unit.json` pins that source for
+rebuild validation, preserving every original unit, measured executable and question
+hash. It supplies no replacement measurements or new Excel answers.
