@@ -313,9 +313,9 @@ flowchart LR
     D --> E["Exact-bit elimination"]
     E -->|"multiple survivors"| C
     E -->|"zero survivors"| A
-    E -->|"one or equivalent survivors"| F["Adversarial, held-out, metamorphic gates"]
+    E -->|"one or equivalent survivors"| F["Adversarial, held-out, metamorphic checks"]
     F -->|"failure"| A
-    F -->|"100% on declared gates"| G["Production repair and replay evidence"]
+    F -->|"100% on declared checks"| G["Production repair and replay evidence"]
 ```
 
 ### 4.1 Excel oracle runner
@@ -931,7 +931,7 @@ information and cross-row leverage. A useful priority score combines:
 4. availability of exact controls and observable decompositions;
 5. cost of generating and evaluating candidates;
 6. risk that the lane is blocked on an unidentified primitive;
-7. regression risk and difficulty of building a convincing held-out gate.
+7. regression risk and difficulty of building a convincing held-out check.
 
 In practice:
 
@@ -948,7 +948,7 @@ A promising candidate is not a repair. Promotion requires:
 
 1. one identified graph or a documented observationally equivalent class;
 2. 100% exact behavior on the declared discovery, adversarial, held-out,
-   metamorphic, guard, and fresh live sign-off gates;
+   metamorphic, guard, and fresh live sign-off checks;
 3. no unexplained regression in the function's broader existing corpus;
 4. production implementation through the appropriate shared substrate;
 5. deterministic in-crate pins and replay tooling;
@@ -974,7 +974,7 @@ in the declared search scope.
 8. Query one diverse, high-information Excel batch.
 9. Append eliminations; diagnose zero-survivor events as missing axes.
 10. Repeat until one model or equivalent class survives.
-11. Freeze it and run fresh independent gates without adapting.
+11. Freeze it and run fresh independent checks without adapting.
 12. Promote only after exact sign-off and repository closure checks.
 
 The central habit is simple: make every Excel question discriminate explicit
@@ -1428,7 +1428,7 @@ will want; date every entry.
   REAL in this codebase — round-6 style tree×mask enumeration via mpmath
   is cheap and exhaustive; the erf chain-floor question ("parked vs
   register-continuous") is exactly a mask question.
-- b9heldout (256 rows) remains the reserved unraced promotion gate.
+- b9heldout (256 rows) remains the reserved unraced promotion check.
 - **2026-08-30 (ERFC F-body firehorse):** the 96h store-mask campaign
   exhausted all six R1m 26-bit PQR+t cubes (402,653,184 configs) on the
   NSWC mid_cut=1.5 bar graph. Ceiling moved **3332 → 3336 / 7741**, still
@@ -1491,54 +1491,54 @@ will want; date every entry.
 - **2026-09-01 MATH77 F correction:** the 1437/4260 scores used MATH77 Q
   over `w_rn53` (mixed exp). True F=`derfc1/y` is mid 2665 tail 1261, behind
   x87 NSWC mid and x87 CF tail. Retract the Chebyshev-leader claim.
-- **2026-09-01 firehorse cube gate:** `CF/gaut/n12b2` finished 2^24 with
+- **2026-09-01 firehorse cube check:** `CF/gaut/n12b2` finished 2^24 with
   no new HIT. Leaders still R0 piecewise (mid 2416 `piece/cut=1.6`, tail
   1294 `piece/cut=5.6`). Region now `CF/as714/n12b2` (~20%). Lentz still
   `evenodd/as714/n12b2` (~22%), HIT_TAIL 1288 at mask=0. Constraint, not
   an identity. Snapshots in `w109-erfc-fbody-campaign/` and
   `w109-erfc-lentz-campaign/`.
-- **2026-09-01 firehorse cube gate 2:** also finished `CF/as714/n12b2`,
+- **2026-09-01 firehorse cube check 2:** also finished `CF/as714/n12b2`,
   `CF/gaut/n16`, `CF/as714/n16`, `CF/gaut/n20`. No new HIT; leaders still
   2416/1294. Region now `CF/as714/n20` (~71%). Lentz still
   `evenodd/as714/n12b2` (~43%), HIT_TAIL 1288 at mask=0.
-- **2026-09-01 firehorse cube gate 3:** finished `CF/as714/n20` and
+- **2026-09-01 firehorse cube check 3:** finished `CF/as714/n20` and
   `CF/gaut/n21`. No new HIT; leaders still 2416/1294. Region now
   `CF/as714/n21` (~83%). Lentz still `evenodd/as714/n12b2` (~49%),
   HIT_TAIL 1288 at mask=0. Next fbody cubes are the two n24 2^24 stores.
-- **2026-09-01 firehorse cube gate 4:** finished `CF/as714/n21`. No new
+- **2026-09-01 firehorse cube check 4:** finished `CF/as714/n21`. No new
   HIT; leaders still 2416/1294. Region now `CF/gaut/n24` (~22%). Lentz
   still `evenodd/as714/n12b2` (~56%), HIT_TAIL 1288 at mask=0. Remaining
   fbody: `CF/gaut/n24` then `CF/as714/n24`.
-- **2026-09-02 firehorse cube gate 5:** finished `CF/gaut/n24`. No new
+- **2026-09-02 firehorse cube check 5:** finished `CF/gaut/n24`. No new
   HIT; leaders still 2416/1294. Region now `CF/as714/n24` (~16%). Lentz
   still `evenodd/as714/n12b2` (~84%), HIT_TAIL 1288 at mask=0. Remaining
   fbody: `CF/as714/n24` (last cube).
-- **2026-09-02 firehorse cube gate 6:** finished `evenodd/as714/n12b2`
+- **2026-09-02 firehorse cube check 6:** finished `evenodd/as714/n12b2`
   and `evenodd/as714/n16`. No new HIT; HIT_TAIL still 1288 at mask=0
   (nonempty even-odd stores did not beat named x87). Lentz now
   `lentz/gaut/n12b2` (~3%). fbody still `CF/as714/n24` (~75%).
-- **2026-09-02 firehorse cube gate 7:** finished `CF/as714/n24`; all
+- **2026-09-02 firehorse cube check 7:** finished `CF/as714/n24`; all
   selected fbody CF cubes done (`exit-regions`). No new HIT; leaders
   still 2416/1294. Lentz still `lentz/gaut/n12b2` (~21%), HIT_TAIL 1288
   at mask=0. fbody not restarted (same launcher would re-exit).
-- **2026-09-02 firehorse cube gate 8:** finished `lentz/gaut/n12b2`. No new
+- **2026-09-02 firehorse cube check 8:** finished `lentz/gaut/n12b2`. No new
   HIT; HIT_TAIL still 1288 at mask=0 (nonempty Lentz gaut n=12 stores did
   not beat named x87 even-odd). Lentz now `mlentz/gaut/n12b2` (~9%), 12
   threads, 42.57/96h. fbody still `exit-regions`; not restarted (same
   launcher would re-exit).
-- **2026-09-04 firehorse cube gate 9:** finished `mlentz/gaut/n12b2`. No new
+- **2026-09-04 firehorse cube check 9:** finished `mlentz/gaut/n12b2`. No new
   HIT; HIT_TAIL still 1288 at mask=0 (nonempty modified-Lentz gaut n=12
   stores did not beat named x87 even-odd). Lentz now `lentz/as714/n12b2`
   (~13%), 12 threads, 52.55/96h. fbody still `exit-regions`; not restarted
   (same launcher would re-exit).
-- **2026-09-03 firehorse cube gate 10:** skipped duplicate `mlentz/as714/n12b2`;
+- **2026-09-03 firehorse cube check 10:** skipped duplicate `mlentz/as714/n12b2`;
   leftover n16 cubes finished with no HIT. `lentz/gaut/n21` then moved
   HIT_TAIL 1288 → 1298 (`mask=0002588`) → **1316** (`mask=0142180`). That
   21-bit cube is done. Lentz now `lentz/as714/n21` (~3%), 12 threads,
   62.59/96h, alive. Mid still 2389 `nswc_derfc0`. Constraint, not an
   identity; do not land. fbody still `exit-regions`; not restarted (same
   launcher would re-exit).
-- **2026-09-03 firehorse cube gate 11:** packed n24 is live. Lentz now
+- **2026-09-03 firehorse cube check 11:** packed n24 is live. Lentz now
   `lentz/gaut/n24` (~10% of 2^24, chunk `0x01a8000`), 12 threads,
   66.63/120h. HIT_TAIL still 1316 at mask `0142180`. chunk_best_tail=1239.
   Mid still 2389 `nswc_derfc0`. Constraint, not an identity; do not land.
@@ -1560,7 +1560,7 @@ will want; date every entry.
 
 ## Wall 5 — GAMMALN b1/b2 coefficients
 
-- **2026-07-18 (lane 4, agent-S + b32 fresh gate): B2 RE-LANDED as
+- **2026-07-18 (lane 4, agent-S + b32 fresh check): B2 RE-LANDED as
   fully-continuous x87 with LM-refit coefficients** (fresh b32: 549 vs
   518 / 1,200; noise floor 1.077 vs 1.113; B2 and B4 are now the SAME
   op-graph class — architecturally coherent). B1 confirmed AT ITS WALL:
@@ -1574,7 +1574,7 @@ will want; date every entry.
   dps-15 catastrophically cancels and fakes integer clustering; (ii) the
   gn2 fit was held2-contaminated (agentL fit_sets excluded only `held-`) —
   always exclude EVERY held set by prefix; (iii) the fresh-corpus rule
-  worked exactly as designed: a formally-gate-passing candidate whose
+  worked exactly as designed: a formally-check-passing candidate whose
   selection touched held-out LOST on never-probed rows (505 < 518).
 
 ## Wall — internal extended lgamma (G3-02)

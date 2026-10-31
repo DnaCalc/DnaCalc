@@ -15,4 +15,5 @@ Current documents (start with the summary):
 drafts (Opus 5.5, Fable 5.1, GPT-Astra 6, Gemini 4 Argon), two review rounds, and the GPT-6 Pro
 questions and answers (symbolic search, VBA hosting, red-team, calculation semantics, Excel quirks,
 strategy and validation, recalculation contract). Paths inside these files refer to their original
-working folder, `C:\Work\DnaCalc\parked\arch-review\`.
+working folder, `C:\Work\DnaCalc\parked\arch-review\`. The records are verbatim
+except that two words the project does not use were replaced with neutral ones (check, latch).

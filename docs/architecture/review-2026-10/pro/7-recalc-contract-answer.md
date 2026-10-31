@@ -1,7 +1,7 @@
 # DNA Calc recalculation contract: envelope and first end-to-end slice
 
 **Specification date:** 31 October 2026  
-**Status:** Proposed normative contract, with a deterministic `SliceV1` reference profile and explicit Excel measurement gates.  
+**Status:** Proposed normative contract, with a deterministic `SliceV1` reference profile and explicit Excel measurement checks.  
 **Basis:** The supplied `7-recalc-contract-prompt.md`, especially Appendix A §§1.3, 1.9 and 4, Appendix B §§D–F, and Appendix C's first-slice proposal. [P]
 
 ## 0. Decisions that make the contract implementable
@@ -17,7 +17,7 @@ Six clarifications are necessary before coding:
 5. **Freshness is a qualified claim for a command.** A completed C1-only calculation can correctly return 4 while B1 is dirty and cached at 2. No result or receipt exposes an unqualified workbook-wide `settled` flag.
 6. **Effect execution and result publication have separate outcomes.** An invocation can perform an irreversible effect and subsequently have its result discarded. Cancelling or superseding a command cannot undo the effect.
 
-The eight demonstrations below have exact outcomes under `SliceV1`. The profile's cached-read frontier, scope normalization outside Manual mode, and several Excel ordering details remain measurement gates, listed in §13. Implementing the profile is not evidence that those Excel measurements have been completed.
+The eight demonstrations below have exact outcomes under `SliceV1`. The profile's cached-read frontier, scope normalization outside Manual mode, and several Excel ordering details remain measurement checks, listed in §13. Implementing the profile is not evidence that those Excel measurements have been completed.
 
 ### Evidence and terminology
 
@@ -305,7 +305,7 @@ The engine stores the authoritative pending record; it does not trust identity f
 | `PublicationUnit` | Engine committer → result store, transport, semantic projection | Until installed/acknowledged or replaced by a coherent reset; not a tile fragment |
 | `AdmissionReceipt` | Host before execution → requester and ordered stream | Request/retry horizon; acknowledgement is not calculated coverage |
 | `CompletionReceipt` | Owner after terminal obligations → waiters, UI, save | Immutable terminal record; not a subscriber acknowledgement |
-| `AsyncToken` | Engine/provider adapter at launch → pending registry and return gate | Until return/revocation plus duplicate-detection horizon; not provider identity alone |
+| `AsyncToken` | Engine/provider adapter at launch → pending registry and return check | Until return/revocation plus duplicate-detection horizon; not provider identity alone |
 
 Pins are reference-counted immutable roots, not copies of a workbook. Compact proof records may outlive heavy snapshots. Retain a full view only while an invocation, save or diagnostic can still read it. IDs and effect tombstones are not reclaimed in a way that permits an old token to authenticate a new operation.
 
@@ -893,7 +893,7 @@ End Function
 
 Set `Calls = 0`, keep A1 = 10 with B1's dirty cache at 2, and calculate D1. Suspend immediately after the increment, service a worker/control task, then resume.
 
-**Required trace and values.** One `EffectStart(I)`, one increment, `Yield(I,pc_after_increment) < WorkerTask < Resume(I,same_pc)`, one typed B1 callback through I's frame, one completion. D1 = 2 and Calls = 1. Same code/state lease and observation view survive. This must pass in VM3 and the promised JIT path; a JIT cell-boundary yield does not pass an inside-invocation suspension gate.
+**Required trace and values.** One `EffectStart(I)`, one increment, `Yield(I,pc_after_increment) < WorkerTask < Resume(I,same_pc)`, one typed B1 callback through I's frame, one completion. D1 = 2 and Calls = 1. Same code/state lease and observation view survive. This must pass in VM3 and the promised JIT path; a JIT cell-boundary yield does not pass an inside-invocation suspension check.
 
 **Part C: native declaration.** A native variant without a safepoint records one non-preemptible interval and one entry. A cancel request queued during it becomes effective when control returns; effects already performed remain. It is never reported as cooperatively suspended, and never reinvoked to service cancellation.
 
@@ -998,7 +998,7 @@ For rejected returns, the current authored model, cache and activation are uncha
 
 Use a small independent executable reference model for integer-valued acyclic formulas, scoped boundary caches, one spill and scripted effect/async events. It should calculate from its own simple semantics, rather than call the production certificate validator to decide expected outcomes. Compare values, types/shapes, qualifiers, effect entries and permitted event order.
 
-A practical initial budget is a fixed small seed set over up to eight formula targets and twenty operations per trace, plus the named regression fixtures. These are deterministic workload limits, not a promised wall-clock duration. Measure the gate and keep large exploration outside it. The real-worker smoke proves event-loop handoff; the VM/JIT sentinel runs on the supported native target, with a browser typed-frame counterpart where applicable.
+A practical initial budget is a fixed small seed set over up to eight formula targets and twenty operations per trace, plus the named regression fixtures. These are deterministic workload limits, not a promised wall-clock duration. Measure the check and keep large exploration outside it. The real-worker smoke proves event-loop handoff; the VM/JIT sentinel runs on the supported native target, with a browser typed-frame counterpart where applicable.
 
 | Property | Generated variation and independent assertion |
 |---|---|
@@ -1065,7 +1065,7 @@ For every Excel probe retain input workbook, exact operations, Excel build/bitne
 
 For async lifecycle experiments driven by VBA, log handles and entry/return events directly. Microsoft's XLL event documentation notes that certain calculation lifecycle events are not raised for programmatic recalculation; their absence is not proof that no calculation occurred. [S13]
 
-## 14. Work split for three coding agents and the acceptance gate
+## 14. Work split for three coding agents and the acceptance check
 
 Assign shared type definitions and event names once, before parallel implementation. Each type above has an immediate caller; do not build speculative registries for iteration, distribution or arbitrary transaction composition.
 
@@ -1077,11 +1077,11 @@ Assign shared type definitions and event names once, before parallel implementat
 
 Shared ownership rules: lane A alone certifies results; lane B alone advances the authored model/domain admission sequence; lane C cannot publish values directly or infer freshness. Provider adapters report events to the owner. The executor may schedule a continuation but cannot assign a new semantic identity or authorize an effect.
 
-The slice is complete when all eight demonstrations pass through the shared headless engine and relevant real UI/worker route, the typed VM/JIT continuation sentinel passes, stale async returns are rejected, and save byte/reopen checks pass. A platform incapable of a promised safepoint reports that gate as incomplete; a cell-boundary imitation is not a substitute.
+The slice is complete when all eight demonstrations pass through the shared headless engine and relevant real UI/worker route, the typed VM/JIT continuation sentinel passes, stale async returns are rejected, and save byte/reopen checks pass. A platform incapable of a promised safepoint reports that check as incomplete; a cell-boundary imitation is not a substitute.
 
 Record unsupported-unit reasons and counters. Any conservative boundary must be explicit, bounded for supported work and visible in the trace. There must be no uncounted “recalculate the workbook” escape hatch.
 
-This gate establishes a small functioning contract: scoped calculation, honest observation and freshness, revision-aware pure reuse, irreversible invocation identity, occupancy-safe publication and a coherent saved image. Excel profile claims remain limited to measurements actually recorded.
+This check establishes a small functioning contract: scoped calculation, honest observation and freshness, revision-aware pure reuse, irreversible invocation identity, occupancy-safe publication and a coherent saved image. Excel profile claims remain limited to measurements actually recorded.
 
 ## Sources
 

@@ -58,7 +58,7 @@ For the next 12–18 months, deliberately exclude universal desktop-Excel UI par
 
 ### 1.3 Preserve the architecture sequence
 
-The accepted command envelope and the smallest serial end-to-end slice should remain the first integration gate. Corpus infrastructure can proceed in parallel, but must observe the real worker and command path as soon as that slice exists.
+The accepted command envelope and the smallest serial end-to-end slice should remain the first integration check. Corpus infrastructure can proceed in parallel, but must observe the real worker and command path as soon as that slice exists.
 
 The next architecture investments should make evidence cheap to obtain:
 
@@ -72,7 +72,7 @@ Do not reopen the selected Exact/Fast policy. Native Exact needs CPU-specific ev
 
 Thread pools, renderer choices and optional runtimes can then be justified by measured bottlenecks. Formal checks are especially useful for the small state machines governing retry, effect identity, stale callbacks and publication; broad formalisation should not delay the first usable integration.
 
-### 1.4 Medium-term milestones and demand gates
+### 1.4 Medium-term milestones and demand checks
 
 | Period | Intended result | Evidence that justifies continuing |
 | --- | --- | --- |

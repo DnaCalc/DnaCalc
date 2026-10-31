@@ -1753,7 +1753,7 @@ These are good reasons to cut the ceremony and the duplicate lanes. They are not
 - **Was**:
   - "`FEC` is the set of host-provided facilities that are external to the pure formula/function/format core."
   - "A function or operator declares which `FEC` facilities it is allowed to observe".
-  - A per-function `fec_dependency_profile` covering references, caller, time, random, external, locale and feature gates.
+  - A per-function `fec_dependency_profile` covering references, caller, time, random, external, locale and feature checks.
   - Checks that "no undeclared FEC facility is observed".
 - **Now**: calc-fml has no evaluation context (risk-layering).
 - **Matters**: this is owner principle 4.1 almost word for word. The same declaration would also drive the R9 tokens, supply the purity facts that R5 and parallel recalc need, and define what OneCalc must supply.

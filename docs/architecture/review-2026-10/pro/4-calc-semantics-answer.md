@@ -621,7 +621,7 @@ For spill sizing, use the anchor formula `=SEQUENCE(SizeUdf())`, with SizeUdf re
 
 ### E07 ★ — Iteration seeds, one-sweep meaning and participant order
 
-**Setup.** Gate D1=0:
+**Setup.** Switch D1=0:
 
 ```excel
 A1 = IF($D$1,(B1+1)/2,0)
@@ -704,13 +704,13 @@ Before reopening, inspect the saved ZIP. Reopen separate copies under controlled
 
 ### E10 ★ — Async identity, continuation, supersession and completion boundaries
 
-**Setup.** A local native AsyncEcho(input, gate) deep-copies arguments, retains its Excel handle and waits outside Excel for a controller-owned gate. Use a formula with separately identifiable effects around the async expression and a dependent cell.
+**Setup.** A local native AsyncEcho(input, latch) deep-copies arguments, retains its Excel handle and waits outside Excel for a controller-owned latch. Use a formula with separately identifiable effects around the async expression and a dependent cell.
 
-Begin with `Before()+AsyncEcho(A1,gate)+After()`, but **measure actual operand order first**; textual placement alone does not prove that Before or After runs on the intended side of suspension. A nested variant is `After(AsyncEcho(Before(A1),gate))`, with identity-valued counting functions and independently verified baseline behavior.
+Begin with `Before()+AsyncEcho(A1,latch)+After()`, but **measure actual operand order first**; textual placement alone does not prove that Before or After runs on the intended side of suspension. A nested variant is `After(AsyncEcho(Before(A1),latch))`, with identity-valued counting functions and independently verified baseline behavior.
 
-**Operations.** Start through COM and UI F9 separately. Release the gate normally; then test permitted edits, cancellation and close. Attempt two async call sites in one formula and a superseding call from the same cell/provider; record whether Excel permits overlap, serializes or refuses the attempt. If two calls become outstanding, release old/new results in reverse order. Include a duplicate return.
+**Operations.** Start through COM and UI F9 separately. Release the latch normally; then test permitted edits, cancellation and close. Attempt two async call sites in one formula and a superseding call from the same cell/provider; record whether Excel permits overlap, serializes or refuses the attempt. If two calls become outstanding, release old/new results in reverse order. Include a duplicate return.
 
-The gate controller must not require entry to Excel's blocked STA to release the result.
+The latch controller must not require entry to Excel's blocked STA to release the result.
 
 **Record.** Native entry/exit, privately recorded handle identity, copied arguments, prefix/suffix effects, both xlAsyncReturn status and Boolean result, CalculationState, relevant VBA/XLL events, method-return time, final caches and saved results.
 
@@ -882,7 +882,7 @@ Add clean unused names, disabled sheets and ForceFullCalculation to individual c
 
 ### E28 — User cancellation, scheduler yields and expensive calls
 
-**Setup/operations:** A long native UDF that polls xlAbort; a finite version that does not; a long pure chain; an async gate and a data table. Start via UI/COM in separate lanes, issue the configured interruption action, then inspect and calculate again. In DNA Calc also queue an edit and an interest change during a single expensive formula.
+**Setup/operations:** A long native UDF that polls xlAbort; a finite version that does not; a long pure chain; an async latch and a data table. Start via UI/COM in separate lanes, issue the configured interruption action, then inspect and calculate again. In DNA Calc also queue an edit and an interest change during a single expensive formula.
 
 **Record:** Accepted cancellation, completed cache prefix, error/partial output, next-call counts, outstanding handles, event/return sequence and longest non-yielding span.
 
@@ -910,7 +910,7 @@ Appendix B includes engineering claims that black-box Excel traces cannot establ
 | Runtime/adapter lifecycle improves | Provider churn, CPU load, edit/cancel/reload, retained handles. | Failures, responsiveness, release/reclamation, binary/build cost. |
 | Spill barriers stay selective | E06's increasing uncertain-anchor ladder. | Candidate blockers and first-settled latency; distinguish proof delay from calculation speed. |
 
-Use operation counters over geometric sizes, then targeted timing. These are explicit investigation runs, not a new mandatory large per-commit gate.
+Use operation counters over geometric sizes, then targeted timing. These are explicit investigation runs, not a new mandatory large per-commit check.
 
 ---
 

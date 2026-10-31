@@ -80,7 +80,7 @@
 1. **R1 + R2 (Per-value/per-span `settled_tick` + atomic per-node `DerivedBundle` publication)**: Every published unit must atomically install `(values, observed_dynamic_edges, spill_reservation)` so no reader ever observes a new value with stale edges or stale spill ownership.
 2. **R3 (Replayable `VisibilityState` stream + `MAX_VISIBILITY_DEFER` starvation bound)**: All four drafts missed `MAX_VISIBILITY_DEFER` and replayable visibility streams. Recording viewport changes as a deterministic input stream makes wave publication sequences reproducible in tests, and `MAX_VISIBILITY_DEFER` guarantees background closure progress under continuous scrolling.
 3. **R4 + R6 (Observer-driven `Necessary` backward cone + incremental Pearce-Kelly topological heights)**: Replaces `begin_recalc`'s $O(\text{closure})$ up-front sort (`crates/calc-engine/src/recalc.rs:480-620`) with an $O(\delta \log \delta)$ incrementally maintained height-ordered min-heap over the `Necessary` cone.
-4. **R5 (Early cutoff / backdating gated by O1 purity metadata)**: Bring early cutoff from Phase 5 into the local engine scheduler: if a recomputed node's value, type, and shape are bit-identical, skip dirtying downstream readers unless they carry `order_observable` (stateful VBA/volatile) flags.
+4. **R5 (Early cutoff / backdating conditioned on O1 purity metadata)**: Bring early cutoff from Phase 5 into the local engine scheduler: if a recomputed node's value, type, and shape are bit-identical, skip dirtying downstream readers unless they carry `order_observable` (stateful VBA/volatile) flags.
 5. **R10 + R11 (Roslyn-style `AxisMap` stable `AxisKey`s + `FormulaBlock` affine/interval edges)**: Key pages, style runs, and blocks by `AxisKey(u64)` so structural edits are $O(\log N + \text{straddling blocks})$.
 6. **O1 + R9 + O2 (Declared per-function `fec_dependency_profile` + `FormatDepToken`s + bound call handles)**: Static per-`FunctionId` capability bitmasks enforce Principle 4.1, drive facet invalidation (R9), and supply purity flags for early cutoff (R5).
 7. **O5 (Deterministic operation-counter log-log slope checks in per-commit `cargo xtask check`)**: All four drafts missed O5. Fitting log-log slopes of deterministic counters (`nodes_visited`, `plans_bound`, `pages_copied`, `tiles_projected` over geometric sizes $N \in \{10^2, 10^3, 10^4\}$) runs in milliseconds with zero timing noise and catches every $O(\text{workbook})$ regression (`risk-engine.md` §6) per commit.
@@ -89,8 +89,8 @@
 
 ### Reject
 1. **R16 (DBSP-style inverse-update aggregates, `SUM = old - prev + next`)**: Violates IEEE-754 left-fold bit-exactness (`BRIEFING.md` §4.4). Use hierarchical algebraic `PageSummary` segment trees (`gemini-4-argon.md:251-253`) instead.
-2. **O9 ("DNA Prove" as a separate shipped product/MCP server now)**: Keep the mechanism (`numlab` / `calc-func-lab` workspace + witness gate), reject the extra product surface until core DNA Calc ships.
-3. **Dual Red/Blue engines, Lean/OCaml gates, universal CRDT OpLogs, and full SAC runtimes**: Keep rejected per OCT §6.
+2. **O9 ("DNA Prove" as a separate shipped product/MCP server now)**: Keep the mechanism (`numlab` / `calc-func-lab` workspace + witness check), reject the extra product surface until core DNA Calc ships.
+3. **Dual Red/Blue engines, Lean/OCaml checks, universal CRDT OpLogs, and full SAC runtimes**: Keep rejected per OCT §6.
 
 ---
 

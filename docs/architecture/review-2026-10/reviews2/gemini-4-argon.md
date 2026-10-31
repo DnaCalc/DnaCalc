@@ -31,7 +31,7 @@
    - **Correction**: Put per-parameter 3-D admission, legacy `Place` class, reference-array lifting, and `Ftab` ID/arity into `calc-function-meta` keyed by `FunctionId`.
 
 7. **Step 3a budgeted stepping disables native parallel recalculation (`SYNTHESIS.md:186, 381-382, 399, 444`)**:
-   - `calc-engine/src/recalc.rs:644` gates `parallel::evaluate_levels` on `budget == WorkBudget::UNLIMITED`, and `parallel::eligible` (`recalc.rs:748-755`) requires `work.next == 0 && work.waves == 0 && work.spills.is_empty()`. Running the actor in finite `WorkBudget` chunks disables Rayon parallelism completely.
+   - `calc-engine/src/recalc.rs:644` guards `parallel::evaluate_levels` on `budget == WorkBudget::UNLIMITED`, and `parallel::eligible` (`recalc.rs:748-755`) requires `work.next == 0 && work.waves == 0 && work.spills.is_empty()`. Running the actor in finite `WorkBudget` chunks disables Rayon parallelism completely.
    - **Correction**: Make `parallel::evaluate_levels` accept a finite `WorkBudget` (chunking within a level) and resume across `work.next > 0` and staged spills.
 
 8. **In-process transport fallback in `dna-calc` contradicts dropping the engine from the page wasm (`SYNTHESIS.md:222, 372, 381`)**:
@@ -75,8 +75,8 @@
 6. **Agree**: Actor loop over `WorkBudget` with Step 3a (budgeted yield) followed immediately by Step 3b (validated partial publication + `DemandSet`/`InterestSet`).
 7. **Agree**: Separate `calc-object-model` crate with value-descriptor `Range` handles bound to the active invocation slot.
 8. **Agree**: Defer the grid coordinate-representation switch until `FormulaBlock` and `StyleRuns` land; remove `NameTable` wrapping from this item (already implemented in `calc-fml/src/reference/mod.rs:236-284`).
-9. **Agree**: Binary `TileBatch` protocol + worker-maintained `RenderPlan` first; gate any Canvas2D renderer change on measured frame-time benchmarks.
-10. **Agree**: Keep `xtask check` fast, add the `Cargo.toml` DAG check to `xtask check`, and add workspace/dependency-budget gates to `xtask sweep`.
+9. **Agree**: Binary `TileBatch` protocol + worker-maintained `RenderPlan` first; hold any Canvas2D renderer change on measured frame-time benchmarks.
+10. **Agree**: Keep `xtask check` fast, add the `Cargo.toml` DAG check to `xtask check`, and add workspace/dependency-budget checks to `xtask sweep`.
 
 ## 5. Implementation order (section 4)
 
