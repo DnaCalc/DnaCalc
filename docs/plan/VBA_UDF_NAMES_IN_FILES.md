@@ -234,3 +234,13 @@ Evidence: `cdoc-path-diagnostic.json`, `cdoc-p1-reopen.json` and `tests/vba_udf_
 the existing fixture/test directories. These are Excel file-save/reopen checks, not claims
 that DNA Calc executes the VBA. Format writing remains XML.
 
+For dc-snz.9, CalcFml's registry compile/evaluate route now binds the measured own-workbook
+and external workbook/module calls. Plans retain link indexes, procedure spelling (including
+module qualification), and the exact provider target. CalcDoc loads main and absolute targets
+into the model; CalcEngine's catalogue resolves those targets without choosing an ambiguous
+basename. The fixture tests use an identity adapter to verify binding; they do not execute
+the fixture VBA or score file caches. CalcHost/CalcEngine registry execution remains dc-snz.6.
+Host integration must use the provider-scoped `registrations()` inventory and the actual
+workbook location. Without that location, binding currently uses the retained absolute
+fallback; moving consumer and provider together has not been measured here.
+

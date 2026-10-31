@@ -87,6 +87,13 @@ pub trait ReferenceCatalog {
         let _ = (book, sheet);
         None
     }
+
+    /// The exact provider target of a workbook-qualified user call. Return the absolute
+    /// target when retained by the file; never guess a provider from a procedure's name.
+    fn external_function_target(&self, book: &ExternalBookRef) -> Option<String> {
+        let _ = book;
+        None
+    }
 }
 
 /// How a formula names another workbook (dc-ylr).
@@ -121,7 +128,9 @@ pub(crate) fn external_operand(
     anchor: FormulaAnchor,
 ) -> Option<ExternalOperand> {
     let spell = |token: &Token| match notation {
-        ReferenceNotation::A1 => notation::a1(token.text(), anchor.cell().row(), anchor.cell().column()),
+        ReferenceNotation::A1 => {
+            notation::a1(token.text(), anchor.cell().row(), anchor.cell().column())
+        }
         ReferenceNotation::R1C1 => notation::r1c1(token.text()),
     };
     let qualified = |node: &SyntaxNode| -> Option<(ExternalBookRef, String, Spelled)> {
@@ -341,6 +350,22 @@ impl Binder<'_> {
             let binding = match node.kind() {
                 SyntaxKind::UnsupportedExpr => Some(Err(BindError::UnsupportedSyntax)),
                 SyntaxKind::QualifiedReferenceExpr if self.qualified_structured(node) => continue,
+                SyntaxKind::QualifiedReferenceExpr
+                    if qualified_call(node).is_some_and(|(book, _)| match &book {
+                        ExternalBookRef::Number(_) => true,
+                        ExternalBookRef::File(name) => {
+                            self.catalog.workbook_name().is_some_and(|held| {
+                                calc_func::value::workbook_names_equal(held, name)
+                            }) || self.catalog.external_function_target(&book).is_some()
+                        }
+                    }) =>
+                {
+                    // The qualifier selects the procedure's workbook, not the sheets of
+                    // its arguments. Ordinary reference binding still walks those arguments.
+                    let (_, call) = qualified_call(node).expect("a qualified call");
+                    visit_children(call, &mut pending);
+                    continue;
+                }
                 // Bound with the qualifier or refused, never entered: what lies inside a
                 // qualified operand is not an unqualified reference.
                 SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
@@ -734,6 +759,37 @@ pub(crate) fn qualified_name(node: &SyntaxNode) -> Option<(String, &Token)> {
         _ => return None,
     };
     Some((sheet, token))
+}
+
+/// A workbook qualifier followed by a call, retaining the workbook index or file spelling.
+pub(crate) fn qualified_call(node: &SyntaxNode) -> Option<(ExternalBookRef, &SyntaxNode)> {
+    if node.kind() != SyntaxKind::QualifiedReferenceExpr {
+        return None;
+    }
+    let SyntaxChild::Token(qualifier) = node.children().first()? else {
+        return None;
+    };
+    let call = node.child_nodes().next()?;
+    if call.kind() != SyntaxKind::CallExpr {
+        return None;
+    }
+    let raw = if qualifier.kind() == TokenKind::QuotedIdentifier {
+        unquote(qualifier.text())
+    } else {
+        qualifier.text().trim_end_matches('!').to_owned()
+    };
+    let book = if let Some(inner) = raw.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        match inner.parse() {
+            Ok(number) => ExternalBookRef::Number(number),
+            Err(_) if !inner.is_empty() => ExternalBookRef::File(inner.to_owned()),
+            _ => return None,
+        }
+    } else if !raw.is_empty() && !raw.contains(['[', ']']) {
+        ExternalBookRef::File(raw)
+    } else {
+        return None;
+    };
+    Some((book, call))
 }
 
 /// The qualifier of a qualified operand and the operand it qualifies.

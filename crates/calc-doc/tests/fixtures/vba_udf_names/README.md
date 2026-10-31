@@ -57,3 +57,9 @@ alternate URLs after restoring that folder, and selecting the absolute primary r
 `--path-variants` reproduces those controls from an output lacking the workbook folder.
 `cdoc-p1-reopen.json` records the corrected product saves and asserts the two input formats'
 5005 results, both output folders' provider results, and rejection of the wrong add-in location.
+
+`--binding-controls` on the same reopen script creates `binding-arguments.xlsx` and records
+`qualified-reference-arguments` in the selected JSON output. Excel calculates both external
+workbook/module calls with consumer-cell arguments as 2002 (`cdoc-binding-controls.json`).
+The compiler tests use identity adapters to check name/provider binding and argument reads;
+they neither execute VBA nor treat file caches as calculated results.

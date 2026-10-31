@@ -22,6 +22,8 @@ use std::collections::BTreeMap;
 /// The relationship type of a workbook part's link to an externalLink part.
 pub(crate) const EXTERNAL_LINK: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/externalLink";
+const ALTERNATE_URL_NAMESPACE: &str =
+    "http://schemas.microsoft.com/office/spreadsheetml/2021/extlinks2021";
 
 /// The books the workbook part's `externalReference` relationships `ids` name, in order: each the
 /// externalLink part's cached book, or `None` when it is not read.
@@ -64,13 +66,15 @@ fn read_book(package: &Package, part: &str) -> Option<ExternalBook> {
         match events.next().ok()? {
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "externalBook") => {
                 let id = super::relationship_attribute(&element, "id").map(str::to_owned);
-                let file_name = id.and_then(|id| {
+                let target = |id: &str| {
                     let relationships = package.relationships_of(Some(part))?;
                     let item = relationships.items().iter().find(|item| item.id == id)?;
-                    file_name_of(&item.target)
-                });
-                let mut read = read_external_book(&mut events)?;
-                read.file_name = file_name;
+                    (item.mode == TargetMode::External).then(|| item.target.clone())
+                };
+                let (mut read, absolute_id) = read_external_book(&mut events)?;
+                read.target = id.as_deref().and_then(target);
+                read.absolute_target = absolute_id.as_deref().and_then(target);
+                read.file_name = read.target.as_deref().and_then(file_name_of);
                 book = Some(read);
             }
             Some(XmlEvent::Start(_)) => events.skip().ok()?,
@@ -83,15 +87,36 @@ fn read_book(package: &Package, part: &str) -> Option<ExternalBook> {
 }
 
 /// The `externalBook` whose start tag was just read: its sheet names and cached sheets.
-fn read_external_book(events: &mut Events<'_>) -> Option<ExternalBook> {
+fn read_external_book(events: &mut Events<'_>) -> Option<(ExternalBook, Option<String>)> {
     let mut names = Vec::new();
+    let mut absolute_id = None;
     let mut data: BTreeMap<usize, (bool, BTreeMap<(u32, u32), CachedValue>)> = BTreeMap::new();
     loop {
         match events.next().ok()? {
+            Some(XmlEvent::Start(element))
+                if element.name.is(ALTERNATE_URL_NAMESPACE, "alternateUrls") =>
+            {
+                loop {
+                    match events.next().ok()? {
+                        Some(XmlEvent::Start(element)) => {
+                            if element.name.is(ALTERNATE_URL_NAMESPACE, "absoluteUrl") {
+                                absolute_id = super::relationship_attribute(&element, "id")
+                                    .map(str::to_owned);
+                            }
+                            events.skip().ok()?;
+                        }
+                        Some(XmlEvent::Text(_)) => {}
+                        Some(XmlEvent::End(_)) => break,
+                        None => return None,
+                    }
+                }
+            }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetNames") => {
                 loop {
                     match events.next().ok()? {
-                        Some(XmlEvent::Start(name)) if name.name.is(MAIN_NAMESPACE, "sheetName") => {
+                        Some(XmlEvent::Start(name))
+                            if name.name.is(MAIN_NAMESPACE, "sheetName") =>
+                        {
                             names.push(String::from_utf16_lossy(&strings::decode(
                                 name.attribute("val").unwrap_or_default(),
                             )));
@@ -107,8 +132,11 @@ fn read_external_book(events: &mut Events<'_>) -> Option<ExternalBook> {
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetDataSet") => {
                 loop {
                     match events.next().ok()? {
-                        Some(XmlEvent::Start(sheet)) if sheet.name.is(MAIN_NAMESPACE, "sheetData") => {
-                            let index: usize = collapsed(sheet.attribute("sheetId")?).parse().ok()?;
+                        Some(XmlEvent::Start(sheet))
+                            if sheet.name.is(MAIN_NAMESPACE, "sheetData") =>
+                        {
+                            let index: usize =
+                                collapsed(sheet.attribute("sheetId")?).parse().ok()?;
                             let refresh_error = matches!(
                                 sheet.attribute("refreshError").map(collapsed),
                                 Some("1" | "true")
@@ -145,10 +173,15 @@ fn read_external_book(events: &mut Events<'_>) -> Option<ExternalBook> {
             }
         })
         .collect();
-    Some(ExternalBook {
-        file_name: None,
-        sheets,
-    })
+    Some((
+        ExternalBook {
+            target: None,
+            absolute_target: None,
+            file_name: None,
+            sheets,
+        },
+        absolute_id,
+    ))
 }
 
 /// The cells of the `sheetData` whose start tag was just read, by row and column.

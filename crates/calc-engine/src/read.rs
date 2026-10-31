@@ -13,8 +13,8 @@ use crate::spill::{Spill, SpillIndex};
 use crate::state::EngineState;
 use calc_doc_model::{CellInput, ExternalSheet, ModelRoot, NameScope, RowHidden};
 use calc_fml::reference::{
-    CellRead, CellRun, ExternalBookRef, NameDefinition, ReadContractError, NameScope as FmlNameScope, ReferenceReader, SpillExtent, TableInfo,
-    TableLookup,
+    CellRead, CellRun, ExternalBookRef, NameDefinition, NameScope as FmlNameScope,
+    ReadContractError, ReferenceReader, SpillExtent, TableInfo, TableLookup,
 };
 use calc_fml::{
     CalcEnvironment, EvalFault, EvaluationReport, ExecutedCall, HostFacts, ReferenceCatalog,
@@ -23,6 +23,57 @@ use calc_fml::{
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId, WorksheetErrorCode};
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn provider_targets_are_not_rebound_by_ambiguous_file_name() {
+        let book = |folder: &str| calc_doc_model::ExternalBook {
+            target: Some("probe.xlam".into()),
+            absolute_target: Some(format!("file:///C:/{folder}/probe.xlam")),
+            file_name: Some("probe.xlam".into()),
+            sheets: Vec::new(),
+        };
+        let definitions = calc_doc_model::Definitions::default()
+            .with_external_books(vec![Some(book("original")), Some(book("other"))]);
+        let root = ModelRoot::with_definitions(
+            calc_doc_model::AuthoredRevision::new(0),
+            Vec::new(),
+            [],
+            calc_doc_model::SkinLayout::default(),
+            definitions,
+        )
+        .unwrap();
+        let catalog = SnapshotCatalog(&root);
+        assert_eq!(
+            catalog.external_function_target(&ExternalBookRef::Number(1)),
+            Some("file:///C:/original/probe.xlam".into())
+        );
+        assert_eq!(
+            catalog.external_function_target(&ExternalBookRef::Number(2)),
+            Some("file:///C:/other/probe.xlam".into())
+        );
+        assert_eq!(
+            catalog.external_function_target(&ExternalBookRef::File("probe.xlam".into())),
+            None
+        );
+        assert_eq!(
+            catalog.external_function_target(&ExternalBookRef::File(
+                "file:///C:/original/probe.xlam".into()
+            )),
+            Some("file:///C:/original/probe.xlam".into())
+        );
+        assert_eq!(
+            catalog.external_function_target(&ExternalBookRef::File(
+                "file:///C:/missing/probe.xlam".into()
+            )),
+            None
+        );
+    }
+}
 use std::ops::ControlFlow;
 
 /// Observes a recalculation's evaluations on the evaluation route, apart from what the
@@ -135,7 +186,8 @@ impl<'a> ObservedEvaluation<'a> {
     /// data table's cell, that cell, whose value the evaluation of the table's formula under its
     /// substitution gave.
     pub fn formula(&self) -> CellKey {
-        self.table_cell.unwrap_or_else(|| self.report.anchor().cell())
+        self.table_cell
+            .unwrap_or_else(|| self.report.anchor().cell())
     }
 
     pub fn calculation(&self) -> &'a Calculation {
@@ -190,6 +242,39 @@ pub fn resolve_reference_text(
 }
 
 impl ReferenceCatalog for SnapshotCatalog<'_> {
+    fn external_function_target(&self, book: &ExternalBookRef) -> Option<String> {
+        let definitions = self.0.definitions();
+        let target = |held: &calc_doc_model::ExternalBook| {
+            held.absolute_target
+                .as_ref()
+                .or(held.target.as_ref())
+                .cloned()
+        };
+        match book {
+            ExternalBookRef::Number(number) => target(definitions.external_book(*number)?),
+            ExternalBookRef::File(name) => {
+                let file_only = !name.contains(['/', '\\', ':']);
+                let mut matches =
+                    definitions
+                        .external_books()
+                        .map(|(_, held)| held)
+                        .filter(|held| {
+                            held.target.as_deref() == Some(name)
+                                || held.absolute_target.as_deref() == Some(name)
+                                || (file_only
+                                    && held.file_name.as_ref().is_some_and(|file| {
+                                        calc_value::workbook_names_equal(file, name)
+                                    }))
+                        });
+                let first = matches.next()?;
+                if matches.next().is_some() {
+                    return None;
+                }
+                target(first)
+            }
+        }
+    }
+
     fn workbook_name(&self) -> Option<&str> {
         self.0.definitions().workbook_name()
     }
@@ -302,7 +387,12 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
         let wanted: Vec<char> = sheet.chars().flat_map(char::to_uppercase).collect();
         book.sheets
             .iter()
-            .find(|held| held.name.chars().flat_map(char::to_uppercase).eq(wanted.iter().copied()))?
+            .find(|held| {
+                held.name
+                    .chars()
+                    .flat_map(char::to_uppercase)
+                    .eq(wanted.iter().copied())
+            })?
             .id
     }
 }
@@ -597,8 +687,7 @@ impl<'a> WorkbookReader<'a> {
         for (at, input) in occupied {
             let index = index_of(at);
             if index > covered
-                && (flush(batch, sink).is_break()
-                    || gap(covered, index, overlays, sink).is_break())
+                && (flush(batch, sink).is_break() || gap(covered, index, overlays, sink).is_break())
             {
                 return;
             }
@@ -694,8 +783,7 @@ impl<'a> WorkbookReader<'a> {
     fn node_lookup(&self, node: NodeId, at: CellKey) -> Result<Option<&'a CalcValue>, Unread> {
         let result = match self.view.standing_at(node, at) {
             NodeStanding::Pending => {
-                if let Some(value) = self.view.iterates.and_then(|iterates| iterates.get(&node))
-                {
+                if let Some(value) = self.view.iterates.and_then(|iterates| iterates.get(&node)) {
                     return Ok(value.as_ref());
                 }
                 return Err(Unread::Waits(node));
@@ -818,9 +906,11 @@ impl<'a> WorkbookReader<'a> {
             }
             let (a, b) = (held.first(), held.last());
             for row in a.row().max(first.row())..=b.row().min(area.last().row()) {
-                for column in a.column().max(first.column())..=b.column().min(area.last().column()) {
-                    candidates
-                        .insert(CellKey::new(area.sheet(), row, column).expect("a cell of the area"));
+                for column in a.column().max(first.column())..=b.column().min(area.last().column())
+                {
+                    candidates.insert(
+                        CellKey::new(area.sheet(), row, column).expect("a cell of the area"),
+                    );
                 }
             }
         }
@@ -917,8 +1007,7 @@ impl<'a> WorkbookReader<'a> {
             if column < first.column() || column > last.column() {
                 continue;
             }
-            let index =
-                u64::from(row - first.row()) * width + u64::from(column - first.column());
+            let index = u64::from(row - first.row()) * width + u64::from(column - first.column());
             if gap(index - next, sink).is_break() {
                 return;
             }

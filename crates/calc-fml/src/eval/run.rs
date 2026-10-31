@@ -262,12 +262,18 @@ fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
 }
 
 impl Run<'_, '_> {
-    fn user_call(&mut self, name: &str, argc: usize) -> Result<(), EvalFault> {
+    fn user_call(
+        &mut self,
+        name: &str,
+        source: Option<&super::UserFunctionSource>,
+        argc: usize,
+    ) -> Result<(), EvalFault> {
+        let provider = source.and_then(|source| source.target.as_deref());
         let start = self.stack.len() - argc;
         let arguments = self.stack.split_off(start);
         let result = match self.functions {
             Some(functions) => {
-                if functions.contains(name) {
+                if functions.contains_for(provider, name) {
                     if let Some(effects) = self.user_function_effects.as_deref_mut() {
                         effects.calls += 1;
                     }
@@ -276,7 +282,8 @@ impl Run<'_, '_> {
                     run: self,
                     fault: None,
                 };
-                let result = functions.call_with_context(name, &arguments, &mut context);
+                let result =
+                    functions.call_for_with_context(provider, name, &arguments, &mut context);
                 if let Some(fault) = context.fault {
                     return Err(fault);
                 }
@@ -355,7 +362,9 @@ impl Run<'_, '_> {
                     self.stack.push(instance.reference_3d(*first, *count));
                     Ok(())
                 }
-                Instruction::UserCall { name, argc } => self.user_call(name, *argc),
+                Instruction::UserCall { name, source, argc } => {
+                    self.user_call(name, source.as_ref(), *argc)
+                }
                 Instruction::Call {
                     target,
                     argc,

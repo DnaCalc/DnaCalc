@@ -37,7 +37,7 @@ pub use bind::{
     BindError, ExternalBookRef, ExternalOperand, NameDefinition, NameScope, ReferenceCatalog,
     ReferenceSite, bind_references,
 };
-pub(crate) use bind::{external_operand, qualified_name};
+pub(crate) use bind::{external_operand, qualified_call, qualified_name};
 pub use calc_func::TextReference;
 pub use read::{
     CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cell_by_area,

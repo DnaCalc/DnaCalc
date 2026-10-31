@@ -50,7 +50,7 @@ pub trait UserFunctionContext {
 /// existing precedence. Hosts replace this registry atomically when loading a new module.
 #[derive(Clone, Debug, Default)]
 pub struct UserFunctions {
-    entries: BTreeMap<String, Rc<dyn UserFunction>>,
+    entries: BTreeMap<(Option<String>, String), Rc<dyn UserFunction>>,
 }
 
 impl UserFunctions {
@@ -60,8 +60,20 @@ impl UserFunctions {
 
     /// Reject duplicates; callers can build a replacement registry before publishing it.
     pub fn register(&mut self, name: &str, function: Rc<dyn UserFunction>) -> Result<(), String> {
-        let key = name.to_ascii_uppercase();
-        if key.is_empty() || self.entries.contains_key(&key) {
+        self.register_for(None, name, function)
+    }
+
+    /// Register a procedure at its exact provider target, as retained by the source link.
+    /// `None` is this workbook. Module qualification stays in `name`; provider paths are
+    /// never reduced to a file name or searched for on disk.
+    pub fn register_for(
+        &mut self,
+        provider: Option<&str>,
+        name: &str,
+        function: Rc<dyn UserFunction>,
+    ) -> Result<(), String> {
+        let key = Self::key(provider, name);
+        if key.1.is_empty() || provider == Some("") || self.entries.contains_key(&key) {
             return Err(format!("duplicate or empty user function: {name}"));
         }
         self.entries.insert(key, function);
@@ -69,11 +81,29 @@ impl UserFunctions {
     }
 
     pub fn contains(&self, name: &str) -> bool {
-        self.entries.contains_key(&name.to_ascii_uppercase())
+        self.contains_for(None, name)
     }
 
+    pub fn contains_for(&self, provider: Option<&str>, name: &str) -> bool {
+        self.entries.contains_key(&Self::key(provider, name))
+    }
+
+    fn key(provider: Option<&str>, name: &str) -> (Option<String>, String) {
+        (provider.map(str::to_owned), name.to_ascii_uppercase())
+    }
+
+    /// Names registered in this workbook, including explicit module qualifications.
     pub fn names(&self) -> impl Iterator<Item = &str> {
-        self.entries.keys().map(String::as_str)
+        self.entries
+            .keys()
+            .filter_map(|(provider, name)| provider.is_none().then_some(name.as_str()))
+    }
+
+    /// All registrations, retaining external provider identity for host inventories.
+    pub fn registrations(&self) -> impl Iterator<Item = (Option<&str>, &str)> {
+        self.entries
+            .keys()
+            .map(|(provider, name)| (provider.as_deref(), name.as_str()))
     }
 
     /// Invoke with live reference/caller services. A missing function remains #NAME?.
@@ -83,7 +113,18 @@ impl UserFunctions {
         arguments: &[CalcValue],
         context: &mut dyn UserFunctionContext,
     ) -> Result<CalcValue, String> {
-        let value = match self.entries.get(&name.to_ascii_uppercase()) {
+        self.call_for_with_context(None, name, arguments, context)
+    }
+
+    /// Invoke through the same adapter route, retaining the provider selected at binding.
+    pub fn call_for_with_context(
+        &self,
+        provider: Option<&str>,
+        name: &str,
+        arguments: &[CalcValue],
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        let value = match self.entries.get(&Self::key(provider, name)) {
             Some(function) => function.call_with_context(arguments, context)?,
             None => CalcValue::error(WorksheetErrorCode::Name),
         };
@@ -96,7 +137,7 @@ impl UserFunctions {
 
     /// Missing registrations yield #NAME?, including a plan retained after module removal.
     pub fn call(&self, name: &str, arguments: &[CalcValue]) -> Result<CalcValue, String> {
-        match self.entries.get(&name.to_ascii_uppercase()) {
+        match self.entries.get(&Self::key(None, name)) {
             Some(function) => {
                 let value = function.call(arguments)?;
                 if value.is_missing() {

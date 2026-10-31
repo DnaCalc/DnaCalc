@@ -30,12 +30,15 @@
 
 use super::builtins::is_builtin;
 use super::legacy::{self, Place};
-use super::{Admission, CompiledPlan, FormulaForm, Instruction, Literal, PlanCache, Target};
+use super::{
+    Admission, CompiledPlan, FormulaForm, Instruction, Literal, PlanCache, Target,
+    UserFunctionSource,
+};
 use crate::parse_formula;
 use crate::reference::{
-    BindError, ExternalOperand, FormulaAnchor, NameDefinition, NameScope, ReferenceCatalog,
-    ReferenceNotation, ReferenceOperand, SheetTarget, TableLookup, bind_references,
-    external_operand, qualified_name,
+    BindError, ExternalBookRef, ExternalOperand, FormulaAnchor, NameDefinition, NameScope,
+    ReferenceCatalog, ReferenceNotation, ReferenceOperand, SheetTarget, TableLookup,
+    bind_references, external_operand, qualified_call, qualified_name,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, ExcelText, WorksheetErrorCode};
@@ -183,6 +186,29 @@ pub fn compile_with_functions(
     compile_as(
         tree,
         false,
+        form,
+        notation,
+        anchor,
+        catalog,
+        cache,
+        Some(functions),
+    )
+}
+
+/// [`compile_loaded_with`] with the caller's current user-function registry.
+#[allow(clippy::too_many_arguments)]
+pub fn compile_loaded_with_functions(
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+    form: FormulaForm,
+    functions: &calc_func::UserFunctions,
+) -> Result<Arc<CompiledPlan>, CompileError> {
+    compile_as(
+        tree,
+        true,
         form,
         notation,
         anchor,
@@ -469,6 +495,9 @@ impl<'c> Lowering<'c> {
                 }
             }
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
+                if let Some((book, call)) = qualified_call(node) {
+                    return self.qualified_user_call(book, call, block, tasks);
+                }
                 if !self.reference(node, block)? {
                     // dc-g9q: `[0]!Name`, a defined name qualified by the formula's own workbook,
                     // as a file stores one: the name as the formula's sheet sees it.
@@ -1013,21 +1042,7 @@ impl<'c> Lowering<'c> {
                 // 3); else a VBA or add-in function might have the name, and the call is refused.
                 // The arguments are not evaluated: Excel's #NAME? comes from the name alone.
                 NameDefinition::Unknown if self.functions.is_some_and(|f| f.contains(spelling)) => {
-                    tasks.push(Task::Emit {
-                        block,
-                        instruction: Instruction::UserCall {
-                            name: spelling.to_ascii_uppercase(),
-                            argc: arguments.len(),
-                        },
-                    });
-                    for argument in arguments.iter().rev() {
-                        tasks.push(Task::Lower {
-                            node: argument,
-                            tail: false,
-                            block,
-                            place: Place::Unknown,
-                        });
-                    }
+                    self.user_call(spelling, None, arguments, block, tasks);
                     return Ok(());
                 }
                 NameDefinition::Unknown
@@ -1054,6 +1069,132 @@ impl<'c> Lowering<'c> {
                 block,
                 place: Place::Unknown,
             });
+        }
+        Ok(())
+    }
+
+    fn user_call<'t>(
+        &mut self,
+        name: &str,
+        source: Option<UserFunctionSource>,
+        arguments: &[&'t SyntaxNode],
+        block: usize,
+        tasks: &mut Vec<Task<'t>>,
+    ) {
+        tasks.push(Task::Emit {
+            block,
+            instruction: Instruction::UserCall {
+                name: name.to_ascii_uppercase(),
+                source,
+                argc: arguments.len(),
+            },
+        });
+        for argument in arguments.iter().rev() {
+            tasks.push(Task::Lower {
+                node: argument,
+                tail: false,
+                block,
+                place: Place::Unknown,
+            });
+        }
+    }
+
+    fn qualified_user_call<'t>(
+        &mut self,
+        book: ExternalBookRef,
+        call: &'t SyntaxNode,
+        block: usize,
+        tasks: &mut Vec<Task<'t>>,
+    ) -> Result<(), CompileError> {
+        let span = call.span();
+        let name = call
+            .tokens()
+            .into_iter()
+            .next()
+            .ok_or(CompileError::Syntax { span })?;
+        let list = call
+            .child_nodes()
+            .next()
+            .ok_or(CompileError::Syntax { span })?;
+        let arguments: Vec<_> = list.child_nodes().collect();
+        let own = book == ExternalBookRef::Number(0)
+            || match &book {
+                ExternalBookRef::File(name) => self
+                    .catalog
+                    .workbook_name()
+                    .is_some_and(|held| calc_func::value::workbook_names_equal(held, name)),
+                _ => false,
+            };
+        let target = if own {
+            None
+        } else {
+            Some(
+                self.catalog
+                    .external_function_target(&book)
+                    .ok_or_else(|| {
+                        unsupported(
+                            span,
+                            "a user function whose provider link is unresolved",
+                            "dc-snz.9",
+                        )
+                    })?,
+            )
+        };
+        if own {
+            match self
+                .catalog
+                .defined_name(name.text(), NameScope::Formula(self.anchor.sheet()))
+            {
+                NameDefinition::Formula(definition) => {
+                    let name_block = self.name_block(name.text(), &definition, name.span())?;
+                    self.blocks[block].push(Instruction::Name(name_block));
+                    tasks.push(Task::Emit {
+                        block,
+                        instruction: Instruction::Invoke {
+                            argc: arguments.len(),
+                        },
+                    });
+                    for argument in arguments.iter().rev() {
+                        tasks.push(Task::Lower {
+                            node: argument,
+                            tail: false,
+                            block,
+                            place: Place::Unknown,
+                        });
+                    }
+                    return Ok(());
+                }
+                NameDefinition::NotModelled => {
+                    return Err(unsupported(
+                        span,
+                        "a workbook-qualified function name",
+                        "dc-snz.9",
+                    ));
+                }
+                NameDefinition::Unknown => {}
+            }
+        }
+        if self
+            .functions
+            .is_some_and(|f| f.contains_for(target.as_deref(), name.text()))
+        {
+            self.user_call(
+                name.text(),
+                Some(UserFunctionSource { book, target }),
+                &arguments,
+                block,
+                tasks,
+            );
+        } else if self.functions.is_some() {
+            self.blocks[block].push(Instruction::Literal(Literal::Error(
+                WorksheetErrorCode::Name,
+            )));
+        } else {
+            return Err(unsupported(
+                span,
+                "a workbook-qualified user function without a registry",
+                "dc-snz.6",
+            ));
         }
         Ok(())
     }
