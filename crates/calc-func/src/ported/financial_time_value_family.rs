@@ -262,6 +262,19 @@ pub fn pmt(
     }
     let inv_factor = 1.0 + em; // v = (1+r)^-n
     let tf = timing.factor(periodic_rate); // 1 + r·type
+    // Equal opposite balances are interest only: pv + fv*v = fv*(v - 1).
+    // Cancelling that common factor before rounding avoids subtracting nearly
+    // equal balances. All 3,572 recorded cases follow this period-independent
+    // identity. Keep the existing zero and nonfinite-exponential paths.
+    if present_value != 0.0 && future_value == -present_value && em.is_finite() {
+        let product = future_value * periodic_rate;
+        let result = if product.is_finite() {
+            product / tf
+        } else {
+            (future_value / tf) * periodic_rate
+        };
+        return if result.is_finite() { Ok(result) } else { Err(FinancialError::Num) };
+    }
     let numerator = present_value + future_value * inv_factor;
     // The growth arm also stores the initial quotient from PC64. The discount
     // arm keeps binary64 division; recorded PMT oc72460 distinguishes the store.

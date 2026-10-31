@@ -298,6 +298,23 @@ fn irr_polishes_cashflows_with_a_small_nonzero_derivative() {
     exact(call("IRR", vec![flows, n(-0.25)]), f64::from_bits(0x3fb9_f899_7cbe_f010));
 }
 
+/// Recorded interest-only balances avoid cancellation and do not depend on the period count.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pmt_equal_opposite_balances_are_interest_only() {
+    // Excel build 20131, oc28619 and oc28633: the same balance at one and four periods.
+    for periods in [1.0, 4.0] {
+        exact(call("PMT", vec![n(f64::from_bits(0xbeb9_9d33_5565_e403)),
+            n(periods), n(1.0), n(-1.0), n(0.0)]),
+            f64::from_bits(0x3eb9_9d33_5565_e403));
+    }
+    // oc14794 covers the discount arm; oc107780 distinguishes timing order.
+    exact(call("PMT", vec![n(f64::from_bits(0x3eb2_eee1_6da1_925e)),
+        n(1.0), n(1.0), n(-1.0), n(0.0)]), f64::from_bits(0xbeb2_eee1_6da1_925e));
+    exact(call("PMT", vec![n(0.05), n(12.0), n(1.0), n(-1.0), n(1.0)]),
+        f64::from_bits(0xbfa8_6186_1861_8618));
+}
+
 /// Recorded PMT stores in the exponential correction and timing division.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

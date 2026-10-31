@@ -162,7 +162,8 @@ fn excel_erfc(x: f64) -> f64 {
     if !x.is_finite() || x < 1.25 {
         return libm_v;
     }
-    // Recorded tails have the exponent of the rounded square. FMA recovers the
+    // Recorded tails have the exponent of the square stored from x87 PC64;
+    // normal-CDF oc10307 distinguishes that extra rounding. FMA recovers the
     // exact product residual; q + q*residual corrects that exponent with one
     // rounding (the quadratic term is below binary64 precision in this range).
     // The fitted 2^-50 bound is the next binary power above the largest harmful
@@ -173,7 +174,7 @@ fn excel_erfc(x: f64) -> f64 {
     // SplitMix64 finalizer(argument bits ^ 0x444e4143414c4332): low bit 0 trains.
     // It is a fitted error bound, not an identified Excel branch point.
     if libm_v.is_normal() {
-        let square = x * x;
+        let square = crate::ported::excel_numeric::excel_x87_mul(x, x);
         let residual = x.mul_add(x, -square);
         if residual.abs() >= f64::from_bits(0x3cd0_0000_0000_0000) {
             return libm_v.mul_add(residual, libm_v);
@@ -239,7 +240,7 @@ fn gamma_cody_rational(x: f64) -> f64 {
 }
 
 pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
-    gamma_calculation(x, &mut None)
+    gamma_calculation(x, &mut None, if x > 0.0 { 8 } else { 32 })
 }
 
 /// The same Gamma calculation exposes its admitted rational normalizer to PDFs.
@@ -248,7 +249,7 @@ pub(super) fn gamma_cody_log_normalizer(x: f64) -> Option<f64> {
         return None;
     }
     let mut rational = None;
-    gamma_calculation(x, &mut rational).ok()?;
+    gamma_calculation(x, &mut rational, 32).ok()?;
     rational.map(crt_log)
 }
 
@@ -264,7 +265,11 @@ fn gamma_disagreement_correction(value: f64, candidate: f64, bound: u64) -> f64 
     }
 }
 
-fn gamma_calculation(x: f64, rational_normalizer: &mut Option<f64>) -> Result<f64, WorksheetErrorCode> {
+fn gamma_calculation(
+    x: f64,
+    rational_normalizer: &mut Option<f64>,
+    disagreement_bound: u64,
+) -> Result<f64, WorksheetErrorCode> {
     if !x.is_finite() || has_gamma_pole(x) {
         return Err(WorksheetErrorCode::Num);
     }
@@ -1028,14 +1033,16 @@ fn gamma_calculation(x: f64, rational_normalizer: &mut Option<f64>) -> Result<f6
         let absolute = -x;
         let whole = absolute.floor();
         let fractional = absolute - whole;
-        if let Ok(positive) = gamma_kernel(1.0 - x) {
+        // The reflected calculation inherits the negative calculation's bound.
+        // The 8-ULP fit covers positive worksheet results, not this denominator.
+        if let Ok(positive) = gamma_calculation(1.0 - x, &mut None, disagreement_bound) {
             let signed_pi = if whole as i64 % 2 == 0 {
                 -std::f64::consts::PI
             } else {
                 std::f64::consts::PI
             };
             let reflection = (signed_pi / crt_sin(std::f64::consts::PI * fractional)) / positive;
-            value = gamma_disagreement_correction(value, reflection, 32);
+            value = gamma_disagreement_correction(value, reflection, disagreement_bound);
         }
     }
     if value.is_normal() {
@@ -1045,9 +1052,9 @@ fn gamma_calculation(x: f64, rational_normalizer: &mut Option<f64>) -> Result<f6
         // power above the harmful training disagreement: 8 ULP. Refining 32
         // to 8 gains 187/-0 on the original training half and 183/-0 on its
         // excluded half; the fresh adjacent inputs add 4/-0. Negative inputs
-        // keep 32: lowering their bound loses a recorded training control.
-        let bound = if x > 0.0 { 8 } else { 32 };
-        value = gamma_disagreement_correction(value, libm::tgamma(x), bound);
+        // and their reflected denominators keep 32: lowering their outer bound
+        // loses a training control, and changing the denominator had no gains.
+        value = gamma_disagreement_correction(value, libm::tgamma(x), disagreement_bound);
     }
 
     if !value.is_finite() {

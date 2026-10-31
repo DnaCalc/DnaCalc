@@ -327,6 +327,14 @@ fn error_function_tails_use_the_recorded_rounded_square() {
     exact(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc016_aa4e_776d_04bd)), b(true),
     ]), f64::from_bits(0x3e3f_5501_63f6_fedc));
+    // Recorded oc10307 distinguishes the PC64 square in the residual.
+    exact(call("NORM.S.DIST", vec![n(-17.145244843201656), b(true)]),
+        f64::from_bits(0x3256_fcaf_346e_9729));
+    // The same staging reaches the normal wrappers (recorded oc2613).
+    for function in ["NORM.DIST", "NORMDIST"] {
+        exact(call(function, vec![n(-33.26358352947733), n(-3.934034287489425),
+            n(3.7542580713919134), b(true)]), f64::from_bits(0x3ce9_47e8_34b5_2568));
+    }
 }
 
 /// Original GAMMA answers, with each correction represented in both split halves.
