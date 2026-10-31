@@ -18,6 +18,42 @@
         "onecalc_m1_1__reference_without_engine": ["windows", "linux", "wasm"],
         "onecalc_m1_1__dependency_gate": ["windows", "linux"]
       }
+    },
+    {
+      "id": "dc-snz.3",
+      "test": "acceptance",
+      "commands": [
+        [
+          "cargo",
+          "xtask",
+          "accept",
+          "--id",
+          "dc-snz.3",
+          "--platform",
+          "windows",
+          "--require-all"
+        ],
+        [
+          "cargo",
+          "xtask",
+          "accept",
+          "--id",
+          "dc-snz.3",
+          "--platform",
+          "wasm",
+          "--require-all"
+        ]
+      ],
+      "cases": [
+        "dc_snz_3__vba"
+      ],
+      "platforms": {
+        "dc_snz_3__vba": [
+          "windows",
+          "linux",
+          "wasm"
+        ]
+      }
     }
   ]
 }

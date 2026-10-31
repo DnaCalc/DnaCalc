@@ -16,6 +16,7 @@ mod author;
 mod diff;
 pub(crate) mod file_form;
 mod manifest;
+mod panes;
 mod parts;
 mod reader;
 mod sheet;

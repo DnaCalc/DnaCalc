@@ -49,3 +49,6 @@ html, body { margin: 0; background: var(--dna-paper); color: var(--dna-ink); }
 .oc-grid input{min-height:36px}
 .oc-fn,.oc-theme{min-height:36px}
 }
+
+/* dc-snz.3: the module editor follows the page content policy and narrow layout. */
+.oc-vba-source{display:block;width:100%;box-sizing:border-box;font:13px ui-monospace,Consolas,monospace}

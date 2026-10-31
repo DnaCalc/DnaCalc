@@ -1911,6 +1911,89 @@ fn dc_971p_5__snapshot_and_paste_special_are_independent_of_later_source_edits()
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_7__frozen_panes_follow_history_axes_and_saved_packages() {
+    let mut session = session(include_bytes!(
+        "../../calc-doc/tests/fixtures/dc_5sr/features.xlsx"
+    ));
+    let s = session.host().sheets()[0].id();
+    let panes = |host: &HostState| {
+        host.model()
+            .definitions()
+            .frozen_panes(s)
+            .map(|p| (p.rows(), p.columns()))
+    };
+    assert_eq!(
+        panes(session.host()),
+        Some((1, 1)),
+        "the imported frozenSplit window"
+    );
+    let frozen = calc_host::FrozenPanes::new(2, 3).unwrap();
+    assert!(
+        session
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::FrozenPanes {
+                    sheet: s,
+                    panes: Some(frozen)
+                }]
+            })
+            .accepted()
+    );
+    assert_eq!(panes(session.host()), Some((2, 3)));
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(panes(session.host()), Some((1, 1)));
+    assert!(session.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(panes(session.host()), Some((2, 3)));
+    let save_panes = |session: &HostSession| {
+        let mut bytes = Vec::new();
+        session.save(&SavePolicy::default(), &mut bytes).unwrap();
+        let reopened = open(&bytes);
+        let s = reopened.sheets()[0].id();
+        reopened
+            .model()
+            .definitions()
+            .frozen_panes(s)
+            .map(|p| (p.rows(), p.columns()))
+    };
+    assert_eq!(save_panes(&session), Some((2, 3)));
+    assert!(
+        session
+            .dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 2).unwrap()
+            ))
+            .accepted()
+    );
+    assert_eq!(panes(session.host()), Some((4, 3)));
+    assert_eq!(save_panes(&session), Some((4, 3)));
+    assert!(
+        session
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::FrozenPanes {
+                    sheet: s,
+                    panes: None
+                }]
+            })
+            .accepted()
+    );
+    assert_eq!(save_panes(&session), None);
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(panes(session.host()), Some((4, 3)));
+    let first = GridArea::cell(at(s, "A3"));
+    let far = GridArea::cell(at(s, "K3"));
+    let (_, received) = subscribe(&mut session, Interest::Areas(vec![first, far]));
+    assert_eq!(received.borrow().last().unwrap().cells.len(), 2);
+    assert!(
+        received
+            .borrow()
+            .last()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|cell| first.contains(cell.at()) || far.contains(cell.at()))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_5__fill_series_partial_repetitions_and_stale_cut_are_atomic() {
     use calc_host::{CopyRefusal, CopySnapshot, PasteMode};
     let mut session = session(include_bytes!("fixtures/dc_09v/formats.xlsx"));

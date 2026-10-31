@@ -235,11 +235,17 @@ pub enum EncodeError {
     /// The operation at this index sets the iterative-calculation settings, which wire version 1
     /// has no form for.
     Iteration { operation: usize },
+    /// The operation sets worksheet panes, which wire version 1 has no form for.
+    FrozenPanes { operation: usize },
 }
 
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            EncodeError::FrozenPanes { operation } => write!(
+                f,
+                "operation {operation} sets frozen panes, which wire version 1 has no form for"
+            ),
             EncodeError::UnknownSheet { sheet } => {
                 write!(f, "the root holds no sheet {sheet:?}")
             }
@@ -289,6 +295,9 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         }
         if matches!(operation, WorkbookOp::SetIteration(_)) {
             return Err(EncodeError::Iteration { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetFrozenPanes { .. }) {
+            return Err(EncodeError::FrozenPanes { operation: index });
         }
         operations.push(WireOp::from_op(operation, root, &mut claimed)?);
     }

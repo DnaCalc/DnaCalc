@@ -28,6 +28,9 @@ pub struct ColumnSpan {
 pub struct SheetView {
     pub top_left: Option<(u32, u32)>,
     pub active_cell: Option<(u32, u32)>,
+    pub frozen: Option<calc_doc_model::FrozenPanes>,
+    /// A separate split window is retained in the package but has no single-viewport display.
+    pub split_window: bool,
 }
 
 /// One row's `ht` and `hidden`.

@@ -14,6 +14,28 @@ pub const ZOOM_MIN: f64 = 0.5;
 /// The largest zoom factor (400%).
 pub const ZOOM_MAX: f64 = 4.0;
 
+/// Session view state, separate from authored worksheet moves.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GridView {
+    pub viewport: super::geometry::Viewport,
+    pub zoom: f64,
+    pub active: (u32, u32),
+}
+
+pub fn parse_zoom_percent(text: &str) -> Result<f64, &'static str> {
+    let value = text
+        .trim()
+        .trim_end_matches('%')
+        .trim()
+        .parse::<f64>()
+        .map_err(|_| "Enter a zoom percentage from 50 to 400")?;
+    if value.is_finite() && (50.0..=400.0).contains(&value) {
+        Ok(value / 100.0)
+    } else {
+        Err("Enter a zoom percentage from 50 to 400")
+    }
+}
+
 /// Keep physical scroll surfaces below browser layout limits while retaining Excel coordinates.
 pub const SCROLL_SURFACE_LIMIT: f64 = 8_000_000.0;
 
@@ -314,5 +336,19 @@ mod tests {
             130.0,
             "header ≥ viewport → no-op"
         );
+    }
+}
+
+#[cfg(test)]
+mod zoom_entry_tests {
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn zoom_entry_is_a_bounded_percentage() {
+        assert_eq!(super::parse_zoom_percent(" 125 % "), Ok(1.25));
+        assert_eq!(super::parse_zoom_percent("50"), Ok(0.5));
+        assert_eq!(super::parse_zoom_percent("400"), Ok(4.0));
+        for text in ["", "NaN", "inf", "0", "49.9", "400.1", "one"] {
+            assert!(super::parse_zoom_percent(text).is_err(), "{text}");
+        }
     }
 }

@@ -58,6 +58,8 @@ pub const INTENT_LOG_LIMIT: usize = 10_000;
 pub enum Interest {
     /// The cells of one area.
     Area(GridArea),
+    /// Several bounded windows of the same projection, such as frozen panes and the scrolling body.
+    Areas(Vec<GridArea>),
     /// Every cell of one sheet.
     Sheet(SheetId),
     /// The cells of the session's selection, its active cell and its areas, following it as it
@@ -552,10 +554,17 @@ impl HostSession {
     }
 
     fn check_interest(&self, interest: &Interest) -> Result<(), IntentError> {
+        if let Interest::Areas(areas) = interest {
+            for area in areas {
+                self.check_interest(&Interest::Area(*area))?;
+            }
+            return Ok(());
+        }
         let sheet = match interest {
             Interest::Area(area) => area.sheet(),
             Interest::Sheet(sheet) => *sheet,
             Interest::Selection => return Ok(()),
+            Interest::Areas(_) => unreachable!("checked above"),
         };
         match self.host.model.sheet_by_id(sheet) {
             Some(_) => Ok(()),
@@ -733,6 +742,7 @@ impl HostSession {
     fn areas(&self, interest: &Interest) -> Vec<GridArea> {
         match interest {
             Interest::Area(area) => vec![*area],
+            Interest::Areas(areas) => areas.clone(),
             Interest::Sheet(sheet) => vec![GridArea::full_sheet(*sheet)],
             Interest::Selection => self
                 .selection

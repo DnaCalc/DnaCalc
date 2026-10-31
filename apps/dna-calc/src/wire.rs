@@ -65,9 +65,10 @@ impl Area {
 }
 
 /// What a subscription follows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Interest {
     Area(Area),
+    Areas(Vec<Area>),
     Sheet(Sheet),
     /// The session's selection.
     Selection,
@@ -76,6 +77,11 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    FreezePanes {
+        sheet: Sheet,
+        rows: u32,
+        columns: u32,
+    },
     ApplyPaste {
         id: u64,
     },
@@ -262,6 +268,9 @@ pub struct Outcome {
 /// A sheet's sizes as the file states them (calc-host's sheet geometry).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
+    pub frozen_rows: u32,
+    pub frozen_columns: u32,
+    pub split_window: bool,
     pub default_row_height: Option<f64>,
     pub default_column_width: Option<f64>,
     pub base_column_width: Option<f64>,
@@ -274,6 +283,9 @@ pub struct Geometry {
 impl Geometry {
     pub fn of(geometry: &calc_host::SheetGeometry) -> Geometry {
         Geometry {
+            frozen_rows: 0,
+            frozen_columns: 0,
+            split_window: false,
             default_row_height: geometry.default_row_height,
             default_column_width: geometry.default_column_width,
             base_column_width: geometry.base_column_width,
@@ -711,6 +723,9 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn numbers_cross_exactly() {
         let geometry = Geometry {
+            frozen_rows: 1,
+            frozen_columns: 2,
+            split_window: false,
             default_row_height: Some(0.1 + 0.2),
             default_column_width: Some(8.43),
             base_column_width: None,

@@ -923,6 +923,18 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                 loop {
                     match events.next()? {
                         Some(XmlEvent::Start(child)) if child.name.is(MAIN_NAMESPACE, "pane") => {
+                            let count = |name| pane_count(child.attribute(name).unwrap_or("0"));
+                            let frozen =
+                                matches!(child.attribute("state"), Some("frozen" | "frozenSplit"));
+                            view.frozen = if frozen {
+                                count("ySplit")
+                                    .zip(count("xSplit"))
+                                    .and_then(|(r, c)| calc_doc_model::FrozenPanes::new(r, c))
+                            } else {
+                                None
+                            };
+                            view.split_window = (!frozen || view.frozen.is_none())
+                                && (count("xSplit") != Some(0) || count("ySplit") != Some(0));
                             if let Some(pane) = child.attribute("activePane") {
                                 active_pane = pane.trim().to_owned();
                             }
@@ -958,5 +970,31 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
             Some(XmlEvent::End(_)) => return Ok(view),
             None => return Err(events.invalid("the part ends inside sheetViews")),
         }
+    }
+}
+
+// Frozen split attributes have XML Schema double syntax, while their values count bands.
+fn pane_count(text: &str) -> Option<u32> {
+    collapsed(text)
+        .parse::<f64>()
+        .ok()
+        .filter(|n| n.is_finite() && *n >= 0.0 && n.fract() == 0.0 && *n <= u32::MAX as f64)
+        .map(|n| n as u32)
+}
+
+#[cfg(test)]
+mod pane_tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn frozen_counts_accept_integral_double_syntax_only() {
+        for text in ["1", "1.0", "1E0", " 1.0 "] {
+            assert_eq!(pane_count(text), Some(1), "{text}");
+        }
+        for text in ["-1", "0.5", "NaN", "INF", "inf", "4294967296", ""] {
+            assert_eq!(pane_count(text), None, "{text}");
+        }
+        assert_eq!(pane_count("-0.0"), Some(0));
     }
 }

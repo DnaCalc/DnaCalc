@@ -198,13 +198,31 @@ impl Server {
                     }
                     Ok(Reply::Subscribed)
                 }
-                Request::Geometry(sheet) => Ok(Reply::Geometry(
-                    self.book
+                Request::Geometry(sheet) => {
+                    let mut geometry = self
+                        .book
                         .host()
                         .sheet_geometry(sheet.id())
                         .map(|g| Geometry::of(&g))
-                        .unwrap_or_default(),
-                )),
+                        .unwrap_or_default();
+                    if let Some(panes) = self
+                        .book
+                        .host()
+                        .model()
+                        .definitions()
+                        .frozen_panes(sheet.id())
+                    {
+                        geometry.frozen_rows = panes.rows();
+                        geometry.frozen_columns = panes.columns();
+                    }
+                    geometry.split_window = self
+                        .book
+                        .host()
+                        .loaded()
+                        .sheet(sheet.id())
+                        .is_some_and(|s| s.view().split_window);
+                    Ok(Reply::Geometry(geometry))
+                }
                 Request::UsedArea(sheet) => Ok(Reply::UsedArea(
                     self.book.used_area(sheet.id()).map(Area::of),
                 )),
@@ -475,6 +493,35 @@ impl Server {
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
+            Intent::FreezePanes {
+                sheet,
+                rows,
+                columns,
+            } => {
+                if self.book.host().model().sheet_by_id(sheet.id()).is_none() {
+                    return Err("The sheet is unavailable".to_owned());
+                }
+                let panes = calc_host::FrozenPanes::new(rows, columns);
+                if panes.is_none() && (rows != 0 || columns != 0) {
+                    return Err("The frozen boundary is outside the worksheet".to_owned());
+                }
+                if panes
+                    == self
+                        .book
+                        .host()
+                        .model()
+                        .definitions()
+                        .frozen_panes(sheet.id())
+                {
+                    return Ok(self.done(true, None, 0.0));
+                }
+                SkinIntent::Edit {
+                    edits: vec![CellEdit::FrozenPanes {
+                        sheet: sheet.id(),
+                        panes,
+                    }],
+                }
+            }
             Intent::ApplyPaste { id } => {
                 let Some((held, revision, edits)) = self.paste_plan.take() else {
                     return Err("The paste preview expired; paste again".to_owned());
@@ -802,6 +849,9 @@ fn area(area: Area) -> Result<GridArea, String> {
 fn host_interest(interest: Interest) -> Result<calc_host::Interest, String> {
     Ok(match interest {
         Interest::Area(a) => calc_host::Interest::Area(area(a)?),
+        Interest::Areas(areas) => {
+            calc_host::Interest::Areas(areas.into_iter().map(area).collect::<Result<_, _>>()?)
+        }
         Interest::Sheet(sheet) => calc_host::Interest::Sheet(sheet.id()),
         Interest::Selection => calc_host::Interest::Selection,
     })
@@ -810,6 +860,7 @@ fn host_interest(interest: Interest) -> Result<calc_host::Interest, String> {
 /// The page's intent as calc-host's.
 fn host_intent(intent: Intent) -> Result<SkinIntent, String> {
     Ok(match intent {
+        Intent::FreezePanes { .. } => return Err("pane editing needs the workbook view".to_owned()),
         Intent::ApplyPaste { .. } => return Err("paste needs its worker preview".to_owned()),
         Intent::EnterCell { at, text } => SkinIntent::EnterCell {
             at: cell(at)?,

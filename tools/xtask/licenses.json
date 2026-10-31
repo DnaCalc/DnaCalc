@@ -1,10 +1,13 @@
 {
   "format": "dnacalc-license-allow-list/1",
   "about": "The dependency sources and license expressions `cargo xtask ci licenses` accepts, for the workspace's Cargo.lock and the CI browser fixture's (tools/xtask/ci-browser-fixture/Cargo.lock). Each expression is matched exactly as cargo metadata reports a dependency's `license` field. Reviewed for infra-m0.2 on 2026-10-14 against every dependency of both lockfiles; a new expression is added only after the same review.",
+  "source_review_dc_snz_3": "Owner-requested fixed-revision dependency on DNA Kode MIT OxVba embedding API. Only this exact source is admitted; no JIT in the adapter. Other git sources remain refused.",
   "sources": [
-    "registry+https://github.com/rust-lang/crates.io-index"
+    "registry+https://github.com/rust-lang/crates.io-index",
+    "git+https://github.com/DnaCalc/OxVba.git?rev=74beca5d5bea0370103be3584f18825640eeb5c3#74beca5d5bea0370103be3584f18825640eeb5c3"
   ],
   "expressions": [
+    {"expression": "Zlib OR Apache-2.0 OR MIT", "reviewed": "tinyvec 1.13.3 through OxVba/rkyv, dc-snz.3: choice of three permissive licences; choose MIT, inspected the crate LICENSE-MIT"},
     {"expression": "MIT OR Apache-2.0", "reviewed": "either permissive license, at our choice"},
     {"expression": "Apache-2.0 OR MIT", "reviewed": "the same choice, written in the other order"},
     {"expression": "Apache-2.0/MIT", "reviewed": "the older slash form of the same choice"},

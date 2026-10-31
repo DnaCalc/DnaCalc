@@ -278,7 +278,7 @@ fn recalculate(
         .filter_map(|diagnostic| match diagnostic {
             crate::Diagnostic::Syntax(syntax) => Some(syntax.span),
             crate::Diagnostic::Compile(error) => Some(compile_span(error)),
-            crate::Diagnostic::Eval(_) => None,
+            crate::Diagnostic::Eval(_) | crate::Diagnostic::UserFunction(_) => None,
         })
         .collect();
     Shown {
@@ -360,7 +360,8 @@ fn edit_row(rows: RwSignal<Vec<Row>>, id: u32, field: Field, text: String) {
 }
 
 fn surface() -> impl IntoView {
-    let session = StoredValue::new(Session::new(FIRST_SHEET).expect("Sheet1 is a sheet name"));
+    let session =
+        StoredValue::new_local(Session::new(FIRST_SHEET).expect("Sheet1 is a sheet name"));
     let formula = RwSignal::new(String::new());
     let assist = FormulaAssist::new(formula);
     let formula_cell = RwSignal::new(FIRST_FORMULA_CELL.to_owned());
@@ -373,6 +374,29 @@ fn surface() -> impl IntoView {
     let cells = (grid::ROWS * grid::COLUMNS) as usize;
     let entries: RwSignal<Vec<String>> = RwSignal::new(vec![String::new(); cells]);
 
+    let vba_source = RwSignal::new(calc_vba::EXAMPLE_MODULE.to_owned());
+    let vba_status = RwSignal::new("No VBA module loaded.".to_owned());
+    let vba_generation = RwSignal::new(0u64);
+    let load_vba = move |_| {
+        let source = vba_source.get_untracked();
+        if let Some(result) = session.try_update_value(|session| {
+            session.load_vba_module("Module1", &source, calc_vba::DEFAULT_STEP_BUDGET)
+        }) {
+            vba_status.set(match result {
+                Ok(names) => format!("Loaded: {}", names.join(", ")),
+                Err(error) => {
+                    format!("Module not loaded: {error}. Previous functions remain active.")
+                }
+            });
+            vba_generation.update(|generation| *generation += 1);
+        }
+    };
+    let clear_vba = move |_| {
+        session.update_value(|session| session.clear_user_functions());
+        vba_status.set("No VBA module loaded.".to_owned());
+        vba_generation.update(|generation| *generation += 1);
+    };
+
     let shown = Memo::new(move |_| {
         let formula = formula.get();
         let formula_cell = formula_cell.get();
@@ -381,6 +405,7 @@ fn surface() -> impl IntoView {
         let form = form_choice.get();
         // A new sheet changes what the addresses and the formula's references name.
         sheets.track();
+        vba_generation.track();
         session
             .try_update_value(|session| {
                 session.set_form(form);
@@ -402,7 +427,9 @@ fn surface() -> impl IntoView {
                     let signature = target.signature_help().display;
                     // Microsoft's official description, marked as Microsoft's text in the tooltip.
                     let description = match help::help(*target) {
-                        Some(h) if h.microsoft.is_some() => format!("{} (Source: Microsoft)", h.description()),
+                        Some(h) if h.microsoft.is_some() => {
+                            format!("{} (Source: Microsoft)", h.description())
+                        }
                         Some(h) => h.description().to_owned(),
                         None => String::new(),
                     };
@@ -718,6 +745,22 @@ fn surface() -> impl IntoView {
                                 <tbody>{grid_body}</tbody>
                             </table>
                         </div>
+                    </div>
+                    <div class="oc-panel">
+                        <h2>"VBA functions"</h2>
+                        <textarea
+                            data-onecalc="vba-source"
+                            aria-label="VBA standard module"
+                            rows="8"
+                            class="oc-vba-source"
+                            prop:value=move || vba_source.get()
+                            on:input=move |ev| vba_source.set(event_target_value(&ev))
+                        />
+                        <button data-onecalc="vba-load" type="button" on:click=load_vba>"Load module"</button>
+                        " "
+                        <button data-onecalc="vba-clear" type="button" on:click=clear_vba>"Unload module"</button>
+                        <p data-onecalc="vba-status">{move || vba_status.get()}</p>
+                        <p class="oc-prov">"Load the example, enter 40 in A1, then try =Add2(A1,2). Each call starts fresh and stops at its execution budget. References supply values or arrays; Excel Range objects are not supported yet."</p>
                     </div>
                     <div class="oc-panel">
                         <h2>"Sheets"</h2>

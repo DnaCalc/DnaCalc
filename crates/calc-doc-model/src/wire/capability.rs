@@ -571,6 +571,9 @@ impl WireOp {
             WorkbookOp::SetIteration(_) => {
                 unreachable!("encode_batch refuses the iteration settings before it reaches here")
             }
+            WorkbookOp::SetFrozenPanes { .. } => {
+                unreachable!("encode_batch refuses frozen panes before it reaches here")
+            }
         })
     }
 

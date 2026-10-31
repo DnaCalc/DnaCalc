@@ -6,8 +6,8 @@ use calc_fml::reference::{BindError, FormulaAnchor, ReferenceNotation, Reference
 use calc_fml::syntax::SyntaxDiagnostic;
 use calc_fml::{
     CalcEnvironment, CompileError, EvalFault, EvalFrame, EvalScratch, EvaluationServices,
-    FormulaForm, PlanCache,
-    ReferenceCatalog, bind_references, compile_with, evaluate, instantiate, parse_formula,
+    FormulaForm, PlanCache, ReferenceCatalog, bind_references, compile_with_functions, evaluate,
+    instantiate, parse_formula,
 };
 use calc_func::value::{
     CalcValue, CellKey, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, NumericMode, SheetId,
@@ -106,6 +106,8 @@ pub enum InputError {
 /// Why a calculation produced no value, or the first thing that stopped it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Diagnostic {
+    /// A user function returned #VALUE! with this execution diagnostic.
+    UserFunction(String),
     /// The parser refused the formula text; each diagnostic has its span in UTF-16 code units.
     Syntax(SyntaxDiagnostic),
     /// The formula parsed but did not compile: a reference binding refused (an unknown sheet, a
@@ -136,6 +138,7 @@ pub struct Calculation {
 #[derive(Debug)]
 pub struct Session {
     fixture: Fixture,
+    functions: calc_func::UserFunctions,
     formula: String,
     formula_cell: CellKey,
     plans: PlanCache,
@@ -169,6 +172,7 @@ impl Session {
         let sheet = fixture.add_sheet(first_sheet);
         Ok(Session {
             fixture,
+            functions: calc_func::UserFunctions::new(),
             formula: String::new(),
             formula_cell: CellKey::new(sheet, 1, 1).expect("A1 is on the grid"),
             plans: PlanCache::new(),
@@ -325,6 +329,28 @@ impl Session {
             .map(|(cell, value)| (*cell, value))
     }
 
+    /// Publish a complete replacement. Plans retain no engine objects or old registrations.
+    pub fn set_user_functions(&mut self, functions: calc_func::UserFunctions) {
+        self.functions = functions;
+    }
+
+    /// Load a VBA standard module. Failed compilation preserves the previous registrations.
+    pub fn load_vba_module(
+        &mut self,
+        name: &str,
+        source: &str,
+        max_steps: u64,
+    ) -> Result<Vec<String>, String> {
+        let functions = calc_vba::load_module(name, source, max_steps)?;
+        let names = functions.names().map(str::to_owned).collect();
+        self.set_user_functions(functions);
+        Ok(names)
+    }
+
+    pub fn clear_user_functions(&mut self) {
+        self.set_user_functions(calc_func::UserFunctions::new());
+    }
+
     /// Calculates the formula: parse, compile (the session's plan cache shares one plan per
     /// normal form), place at the formula cell, and evaluate over the session's inputs, recording
     /// every read.
@@ -344,13 +370,14 @@ impl Session {
             };
         }
         let anchor = FormulaAnchor::new(self.formula_cell);
-        let plan = match compile_with(
+        let plan = match compile_with_functions(
             &tree,
             ReferenceNotation::A1,
             anchor,
             &self.fixture,
             &mut self.plans,
             self.form,
+            &self.functions,
         ) {
             Ok(plan) => plan,
             Err(error) => {
@@ -364,21 +391,28 @@ impl Session {
         let instance = instantiate(&plan, anchor);
         let mut reader = TracingReader::new(&self.fixture, self.environment);
         // The session's sheets are the workbook context INDIRECT's text is bound in.
+        let mut function_diagnostics = Vec::new();
         let outcome = evaluate(
             EvalFrame::new(&instance, &mut self.scratch),
-            &mut EvaluationServices::new(&self.numeric, &mut reader).with_catalog(&self.fixture),
+            &mut EvaluationServices::new(&self.numeric, &mut reader)
+                .with_catalog(&self.fixture)
+                .with_functions(&self.functions)
+                .with_function_diagnostics(&mut function_diagnostics),
         );
         let reads = reader.into_reads();
         match outcome {
             Ok(value) => Calculation {
                 result: Some(value),
-                diagnostics: Vec::new(),
+                diagnostics: function_diagnostics
+                    .into_iter()
+                    .map(Diagnostic::UserFunction)
+                    .collect(),
                 reads,
             },
-            Err(fault) => Calculation {
-                result: None,
-                diagnostics: vec![Diagnostic::Eval(fault)],
-                reads,
+            Err(fault) => {
+                let mut diagnostics: Vec<_> = function_diagnostics.into_iter().map(Diagnostic::UserFunction).collect();
+                diagnostics.push(Diagnostic::Eval(fault));
+                Calculation { result: None, diagnostics, reads }
             },
         }
     }

@@ -1,0 +1,18 @@
+[package]
+name = "calc-vba"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Portable VBA value-function adapter for CalcFunc hosts"
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+calc-func = { path = "../calc-func" }
+# Reviewed embedding contract UDF_EMBEDDING_V1; no JIT or external host services.
+oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "74beca5d5bea0370103be3584f18825640eeb5c3", default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"

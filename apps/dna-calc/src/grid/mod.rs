@@ -25,6 +25,7 @@
 pub mod chart;
 pub mod geometry;
 pub mod icons;
+pub mod panes;
 pub mod render_plan;
 pub mod selection;
 pub mod viewport;
@@ -36,11 +37,9 @@ use crate::skin::{Skin, SkinContext, SkinId};
 use crate::style::css;
 use crate::wire;
 use calc_host::value::{CellKey, GridArea};
-use geometry::{
-    GridMetrics, HitTarget, Viewport, cell_rect, hit_test, visible_col_range, visible_row_range,
-};
+use geometry::{GridMetrics, HitTarget, Viewport, cell_rect, visible_col_range, visible_row_range};
 use leptos::prelude::*;
-use render_plan::build_render_plan;
+use panes::Panes;
 use selection::{
     GridExtent, KeyChord, NavAction, SheetAction, resolve_action, sheet_keymap, typed_char,
 };
@@ -107,7 +106,7 @@ pub fn sheet_metrics(geometry: Option<&calc_host::SheetGeometry>) -> GridMetrics
         row_height,
         col_width,
         header_h: 22.0,
-        header_w: 48.0,
+        header_w: 64.0,
         rows: geometry::Sizes::new(row_height, rows),
         cols: geometry::Sizes::new(col_width, columns),
     }
@@ -182,16 +181,46 @@ fn grid_view(controller: Controller) -> impl IntoView {
         copy.remove();
         cut.remove();
     });
-    let zoom = RwSignal::new(1.0f64);
-    let viewport = RwSignal::new(Viewport {
+    let initial = controller
+        .sheet
+        .get_untracked()
+        .and_then(|s| controller.grid_view(s));
+    let initial_geometry = controller
+        .sheet
+        .get_untracked()
+        .and_then(|s| controller.grid_geometry(s));
+    let zoom = RwSignal::new(initial.map_or(1.0, |s| s.zoom));
+    let zoom_text = RwSignal::new(String::new());
+    Effect::new(move |_| zoom_text.set(format!("{:.0}", zoom.get() * 100.0)));
+    let apply_zoom = move |text: String| match viewport::parse_zoom_percent(&text) {
+        Ok(value) => zoom.set(value),
+        Err(reason) => {
+            controller.say(reason, true);
+            zoom_text.set(format!("{:.0}", zoom.get_untracked() * 100.0));
+        }
+    };
+    let viewed_sheet = StoredValue::new(None::<(u64, calc_host::value::SheetId)>);
+    let restoring = StoredValue::new(false);
+    let skip_reveal = StoredValue::new(false);
+    let viewport = RwSignal::new(initial.map(|s| s.viewport).unwrap_or(Viewport {
         scroll_x: 0.0,
         scroll_y: 0.0,
         width: 1000.0,
         height: 560.0,
-    });
+    }));
     // The sheet's sizes, its used area and its charts, asked of the workbook's server again
     // when the sheet or the workbook changes (dc-p96).
-    let geometry: RwSignal<Option<calc_host::SheetGeometry>> = RwSignal::new(None);
+    let geometry: RwSignal<Option<calc_host::SheetGeometry>> =
+        RwSignal::new(initial_geometry.as_ref().map(wire::Geometry::geometry));
+    let panes = RwSignal::new(
+        initial_geometry
+            .as_ref()
+            .map_or(Panes::default(), |g| Panes {
+                rows: g.frozen_rows,
+                columns: g.frozen_columns,
+            }),
+    );
+    let split_window = RwSignal::new(initial_geometry.as_ref().is_some_and(|g| g.split_window));
     let used: RwSignal<Option<GridArea>> = RwSignal::new(None);
     let charts: RwSignal<Vec<wire::Chart>> = RwSignal::new(Vec::new());
     Effect::new(move |_| {
@@ -201,7 +230,19 @@ fn grid_view(controller: Controller) -> impl IntoView {
         };
         let sheet = wire::Sheet::of(sheet);
         controller.ask(wire::Request::Geometry(sheet), move |reply| {
+            if controller.sheet.get_untracked() != Some(sheet.id()) {
+                return;
+            }
             if let wire::Reply::Geometry(g) = reply {
+                controller.remember_grid_geometry(sheet.id(), g.clone());
+                let next = Panes {
+                    rows: g.frozen_rows,
+                    columns: g.frozen_columns,
+                };
+                if panes.try_get_untracked().is_some_and(|old| old != next) {
+                    panes.try_set(next);
+                }
+                split_window.try_set(g.split_window);
                 let g = Some(g.geometry());
                 if geometry.try_get_untracked().is_some_and(|old| old != g) {
                     geometry.try_set(g);
@@ -209,6 +250,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
             }
         });
         controller.ask(wire::Request::UsedArea(sheet), move |reply| {
+            if controller.sheet.get_untracked() != Some(sheet.id()) {
+                return;
+            }
             if let wire::Reply::UsedArea(area) = reply {
                 let area = area.and_then(wire::Area::area);
                 if used.try_get_untracked().is_some_and(|old| old != area) {
@@ -217,6 +261,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
             }
         });
         controller.ask(wire::Request::Charts(sheet), move |reply| {
+            if controller.sheet.get_untracked() != Some(sheet.id()) {
+                return;
+            }
             if let wire::Reply::Charts(drawn) = reply
                 && charts.try_get_untracked().is_some_and(|old| old != drawn)
             {
@@ -253,23 +300,29 @@ fn grid_view(controller: Controller) -> impl IntoView {
         )
     });
     let interest = Memo::new(move |_| {
-        let sheet = controller.sheet.get()?;
-        interest_area(sheet, &metrics.get(), &viewport.get(), grid_extent.get())
+        let Some(sheet) = controller.sheet.get() else {
+            return Vec::new();
+        };
+        panes
+            .get()
+            .interests(sheet, &metrics.get(), &viewport.get(), grid_extent.get())
     });
 
     // Subscribe to the area in view, and move the interest as the view moves. A new workbook is a
     // new generation, whose session holds none of the old subscriptions.
     Effect::new(move |_| {
         let generation = controller.generation.get();
-        let Some(area) = interest.get() else {
+        let areas = interest.get();
+        if areas.is_empty() {
             return;
-        };
+        }
+        let interest = wire::Interest::Areas(areas.into_iter().map(wire::Area::of).collect());
         match subscription.get_value() {
             Some((held, id)) if held == generation => {
-                controller.set_interest(id, wire::Interest::Area(wire::Area::of(area)));
+                controller.set_interest(id, interest);
             }
             _ => {
-                let id = controller.subscribe(wire::Interest::Area(wire::Area::of(area)), mirror);
+                let id = controller.subscribe(interest, mirror);
                 subscription.set_value(Some((generation, id)));
             }
         }
@@ -294,7 +347,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .collect()
         });
         let extent = grid_extent.get();
-        build_render_plan(
+        panes.get().plan(
             &shown,
             &metrics.get(),
             &viewport.get(),
@@ -311,29 +364,56 @@ fn grid_view(controller: Controller) -> impl IntoView {
             viewport::ScrollScale::new(m.header_h + m.row_start(MAX_ROW + 1), v.height),
         )
     };
-    // The view's size follows the scroller's.
-    let measure = move || {
+    // Read the current DOM position too when a skin or sheet is left: a scroll event can still be queued.
+    let read_viewport = move || {
         if let Some(element) = scroller.get_untracked() {
             let (width, height) = (
                 f64::from(element.client_width()),
                 f64::from(element.client_height()),
             );
             let (scroll_x, scroll_y) = (
-                f64::from(element.scroll_left()),
-                f64::from(element.scroll_top()),
+                js_sys::Reflect::get(element.as_ref(), &"scrollLeft".into())
+                    .ok()
+                    .and_then(|n| n.as_f64())
+                    .unwrap_or_else(|| f64::from(element.scroll_left())),
+                js_sys::Reflect::get(element.as_ref(), &"scrollTop".into())
+                    .ok()
+                    .and_then(|n| n.as_f64())
+                    .unwrap_or_else(|| f64::from(element.scroll_top())),
             );
             let m = metrics.get_untracked();
             let scale_x =
                 viewport::ScrollScale::new(m.header_w + m.col_start(MAX_COLUMN + 1), width);
             let scale_y = viewport::ScrollScale::new(m.header_h + m.row_start(MAX_ROW + 1), height);
-            let next = Viewport {
+            (width > 0.0 && height > 0.0).then_some(Viewport {
                 scroll_x: scale_x.logical(scroll_x),
                 scroll_y: scale_y.logical(scroll_y),
                 width,
                 height,
-            };
-            if width > 0.0 && height > 0.0 && viewport.get_untracked() != next {
+            })
+        } else {
+            None
+        }
+    };
+    // The view's size follows the scroller's.
+    let measure = move || {
+        if let Some(next) = read_viewport() {
+            if viewport.get_untracked() != next {
                 viewport.set(next);
+            }
+            if !restoring.get_value()
+                && let Some((generation, sheet)) = viewed_sheet.get_value()
+                && generation == controller.generation.get_untracked()
+                && Some(sheet) == controller.sheet.get_untracked()
+            {
+                controller.remember_grid_view(
+                    sheet,
+                    viewport::GridView {
+                        viewport: next,
+                        zoom: zoom.get_untracked(),
+                        active: controller.active.get_untracked(),
+                    },
+                );
             }
         }
     };
@@ -342,8 +422,6 @@ fn grid_view(controller: Controller) -> impl IntoView {
             measure();
         }
     });
-    let resize = window_event_listener(leptos::ev::resize, move |_| measure());
-    on_cleanup(move || resize.remove());
 
     // Scrolls the active cell into view, moving as little as possible.
     let reveal = move |row: u32, col: u32| {
@@ -352,38 +430,138 @@ fn grid_view(controller: Controller) -> impl IntoView {
         };
         let m = metrics.get_untracked();
         let v = viewport.get_untracked();
-        let x = viewport::reveal_span(
-            m.col_start(col),
-            m.col_start(col) + m.width(col),
-            m.header_w,
-            v.width,
-            v.scroll_x,
-        );
-        let y = viewport::reveal_span(
-            m.row_start(row),
-            m.row_start(row) + m.height(row),
-            m.header_h,
-            v.height,
-            v.scroll_y,
-        );
+        let (x, y) = panes.get_untracked().reveal(&m, &v, row, col);
         let (sx, sy) = scales();
         if x != v.scroll_x || y != v.scroll_y {
-            element.scroll_to_with_x_and_y(sx.physical(x).round(), sy.physical(y).round());
+            element.scroll_to_with_x_and_y(sx.physical(x), sy.physical(y));
         }
         measure();
     };
+    let resize = window_event_listener(leptos::ev::resize, move |_| {
+        measure();
+        let active = controller.active.get_untracked();
+        let sheet = controller.sheet.get_untracked();
+        let generation = controller.generation.get_untracked();
+        reveal(active.0, active.1);
+        request_animation_frame(move || {
+            if scroller.try_get_untracked().flatten().is_some()
+                && controller.generation.get_untracked() == generation
+                && controller.sheet.get_untracked() == sheet
+                && controller.active.get_untracked() == active
+            {
+                measure();
+                reveal(active.0, active.1);
+            }
+        });
+    });
+    on_cleanup(move || resize.remove());
+    Effect::new(move |_| {
+        let generation = controller.generation.get();
+        let Some(sheet) = controller.sheet.get() else {
+            return;
+        };
+        let Some(element) = scroller.get() else {
+            return;
+        };
+        if viewed_sheet.get_value() == Some((generation, sheet)) {
+            return;
+        }
+        if let Some((old_generation, old)) = viewed_sheet.get_value()
+            && old_generation == generation
+        {
+            controller.remember_grid_view(
+                old,
+                viewport::GridView {
+                    viewport: read_viewport().unwrap_or_else(|| viewport.get_untracked()),
+                    zoom: zoom.get_untracked(),
+                    active: controller.active.get_untracked(),
+                },
+            );
+        }
+        restoring.set_value(true);
+        viewed_sheet.set_value(Some((generation, sheet)));
+        let cached_geometry = controller.grid_geometry(sheet);
+        geometry.set(cached_geometry.as_ref().map(wire::Geometry::geometry));
+        panes.set(
+            cached_geometry
+                .as_ref()
+                .map_or(Panes::default(), |g| Panes {
+                    rows: g.frozen_rows,
+                    columns: g.frozen_columns,
+                }),
+        );
+        split_window.set(cached_geometry.as_ref().is_some_and(|g| g.split_window));
+        let cached = controller.grid_view(sheet);
+        zoom.set(cached.map_or(1.0, |view| view.zoom));
+        let (x, y) = cached.map_or((0.0, 0.0), |view| {
+            (view.viewport.scroll_x, view.viewport.scroll_y)
+        });
+        let (sx, sy) = scales();
+        element.scroll_to_with_x_and_y(sx.physical(x), sy.physical(y));
+        measure();
+        skip_reveal.set_value(
+            cached.is_some_and(|view| view.active == controller.active.get_untracked())
+                && controller.editing.get_untracked().is_none(),
+        );
+        restoring.set_value(false);
+    });
+    Effect::new(move |_| {
+        let z = zoom.get();
+        if !restoring.get_value()
+            && let Some((generation, sheet)) = viewed_sheet.get_value()
+            && generation == controller.generation.get_untracked()
+            && Some(sheet) == controller.sheet.get_untracked()
+        {
+            controller.remember_grid_view(
+                sheet,
+                viewport::GridView {
+                    viewport: viewport.get_untracked(),
+                    zoom: z,
+                    active: controller.active.get_untracked(),
+                },
+            );
+        }
+    });
+    on_cleanup(move || {
+        if let Some((generation, sheet)) = viewed_sheet.get_value()
+            && generation == controller.generation.get_untracked()
+        {
+            controller.remember_grid_view(
+                sheet,
+                viewport::GridView {
+                    viewport: read_viewport().unwrap_or_else(|| viewport.get_untracked()),
+                    zoom: zoom.get_untracked(),
+                    active: controller.active.get_untracked(),
+                },
+            );
+        }
+    });
     // However the active cell moves (keys, the name box, an undo), it is brought into view.
     Effect::new(move |_| {
         metrics.track();
+        panes.track();
         controller.editing.track();
         let (row, col) = controller.active.get();
+        if restoring.get_value()
+            || viewed_sheet.get_value().map(|(_, s)| s) != controller.sheet.get_untracked()
+        {
+            return;
+        }
+        if skip_reveal.get_value() {
+            skip_reveal.set_value(false);
+            return;
+        }
         if scroller.get().is_some() {
             measure();
             reveal(row, col);
+            let requested_sheet = controller.sheet.get_untracked();
+            let requested_generation = controller.generation.get_untracked();
             request_animation_frame(move || {
                 if scroller.try_get_untracked().flatten().is_none()
                     || metrics.try_get_untracked().is_none()
                     || controller.active.try_get_untracked() != Some((row, col))
+                    || controller.sheet.get_untracked() != requested_sheet
+                    || controller.generation.get_untracked() != requested_generation
                 {
                     return;
                 }
@@ -408,9 +586,15 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 && observer.with_value(Option::is_none)
             {
                 let callback = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
+                    let before = viewport.get_untracked();
                     measure();
-                    let (row, col) = controller.active.get_untracked();
-                    reveal(row, col);
+                    let after = viewport.get_untracked();
+                    if (before.width, before.height) != (after.width, after.height)
+                        && !restoring.get_value()
+                    {
+                        let (row, col) = controller.active.get_untracked();
+                        reveal(row, col);
+                    }
                 });
                 if let Ok(watch) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
                     watch.observe(&element);
@@ -486,6 +670,23 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
         let ctrl = ev.ctrl_key() || ev.meta_key();
         let chord = KeyChord::new(ev.key(), ev.shift_key(), ctrl, ev.alt_key());
+        if ctrl && !ev.alt_key() && matches!(chord.key.as_str(), "PageUp" | "PageDown") {
+            ev.prevent_default();
+            let sheets = controller.sheets();
+            if let Some(index) = sheets
+                .iter()
+                .position(|s| Some(s.id) == controller.sheet.get_untracked())
+            {
+                let next = if chord.key == "PageUp" {
+                    index.saturating_sub(1)
+                } else {
+                    (index + 1).min(sheets.len() - 1)
+                };
+                controller.show_sheet(sheets[next].id);
+                focus_grid();
+            }
+            return;
+        }
         if ctrl && !ev.alt_key() {
             match chord.key.as_str() {
                 "z" => {
@@ -577,7 +778,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let x = f64::from(ev.client_x()) - rect.left();
         let y = f64::from(ev.client_y()) - rect.top();
         let extent = grid_extent.get_untracked();
-        Some(hit_test(
+        Some(panes.get_untracked().hit(
             &metrics.get_untracked(),
             &viewport.get_untracked(),
             extent.rows,
@@ -633,7 +834,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let (sx, sy) = scales();
         element.scroll_to_with_x_and_y(sx.physical(v.scroll_x + dx), sy.physical(v.scroll_y + dy));
         measure();
-        if let HitTarget::Cell { row, col } = hit_test(
+        if let HitTarget::Cell { row, col } = panes.get_untracked().hit(
             &m,
             &viewport.get_untracked(),
             MAX_ROW,
@@ -836,6 +1037,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .map(|cell| {
                     let address = cells::address(cell.row, cell.col);
                     let mut style = rect_style(&cell.rect);
+                    style.push_str(&panes.get().clip_style(cell.rect,&metrics.get(),&viewport.get(),Some(cell.row),Some(cell.col)));
                     let conditional = cell.shown.conditional.clone().unwrap_or_default();
                     // A conditional format's font colour comes before the number format's.
                     if let Some(color) = conditional.font_color.as_ref().or(cell.shown.color.as_ref()) {
@@ -933,7 +1135,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|header| {
                     let class = if areas.iter().any(|area| (area.first().column()..=area.last().column()).contains(&header.col)) { "dc-head dc-on" } else { "dc-head" };
-                    view! { <div class=class aria-hidden="true" data-dnacalc="column-header" data-column=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
+                    view! { <div class=class aria-hidden="true" data-dnacalc="column-header" data-column=header.label.clone() use:css=format!("{}{};font-size:{}px",rect_style(&header.rect),panes.get().clip_style(header.rect,&metrics.get(),&viewport.get(),None,Some(header.col)),12.0*zoom.get())>{header.label.clone()}</div> }
                 })
                 .collect_view();
             let rows = plan
@@ -941,7 +1143,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|header| {
                     let class = if areas.iter().any(|area| (area.first().row()..=area.last().row()).contains(&header.row)) { "dc-head dc-on" } else { "dc-head" };
-                    view! { <div class=class aria-hidden="true" data-dnacalc="row-header" data-row=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
+                    view! { <div class=class aria-hidden="true" data-dnacalc="row-header" data-row=header.label.clone() use:css=format!("{}{};font-size:{}px",rect_style(&header.rect),panes.get().clip_style(header.rect,&metrics.get(),&viewport.get(),Some(header.row),None),12.0*zoom.get())>{header.label.clone()}</div> }
                 })
                 .collect_view();
             (columns, rows)
@@ -949,58 +1151,26 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
     let active_rect = move || {
         let (row, col) = controller.active.get();
-        cell_rect(&metrics.get(), &viewport.get(), row, col)
+        panes.get().rect(&metrics.get(), &viewport.get(), row, col)
     };
-    // The selected range, clipped to what a rectangle in the layer can hold.
+    // A selection crossing a frozen boundary has one visible rectangle in each pane.
     let selection_view = move || {
-        let areas = controller.areas.get();
-        let m = metrics.get();
-        let v = viewport.get();
-        areas.into_iter().map(|area| {
-        let (first, last) = (area.first(), area.last());
-        let top_left = cell_rect(&m, &v, first.row(), first.column());
-        let bottom_right = cell_rect(&m, &v, last.row(), last.column());
-        let clip = |near: f64, far: f64, len: f64| (near.max(-2.0), far.min(len + 2.0));
-        let (x0, x1) = clip(top_left.x, bottom_right.x + bottom_right.w, v.width);
-        let (y0, y1) = clip(top_left.y, bottom_right.y + bottom_right.h, v.height);
-        let label = format!(
-            "{}:{}",
-            cells::address(first.row(), first.column()),
-            cells::address(last.row(), last.column())
-        );
-        let style = format!(
-            "left:{};top:{};width:{};height:{}",
-            px(x0),
-            px(y0),
-            px((x1 - x0).max(0.0)),
-            px((y1 - y0).max(0.0))
-        );
-        view! { <div class="dc-selection" data-dnacalc="selection" data-area=label use:css=style></div> }
+        controller.areas.get().into_iter().flat_map(|area| {
+            let label=format!("{}:{}",cells::address(area.first().row(),area.first().column()),cells::address(area.last().row(),area.last().column()));
+            panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(move |rect|view!{<div class="dc-selection" data-dnacalc="selection" data-area=label.clone() use:css=rect_style(&rect)></div>})
         }).collect_view()
     };
     let active_view = move || {
         let rect = active_rect();
-        view! { <div class="dc-active" data-dnacalc="active-cell" use:css=rect_style(&rect)></div> }
-    };
-    let range_rect = move |area: GridArea| {
-        let m = metrics.get();
-        let v = viewport.get();
-        let first = cell_rect(&m, &v, area.first().row(), area.first().column());
-        let last = cell_rect(&m, &v, area.last().row(), area.last().column());
-        geometry::CellRect {
-            x: first.x,
-            y: first.y,
-            w: last.x + last.w - first.x,
-            h: last.y + last.h - first.y,
-        }
+        view! { <div class="dc-active" data-dnacalc="active-cell" use:css=format!("{}{}",rect_style(&rect),panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(controller.active.get().0),Some(controller.active.get().1)))></div> }
     };
     let copy_outline = move || {
-        controller.clipboard.get().filter(|area|Some(area.sheet())==controller.sheet.get()).map(|area|view! {
-        <div class="dc-copy-outline" data-dnacalc="copy-outline" data-cut=move ||controller.cut.get().to_string() use:css=rect_style(&range_rect(area))></div>
-    })
+        controller.clipboard.get().filter(|area|Some(area.sheet())==controller.sheet.get()).map(|area|panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(|rect|view!{
+            <div class="dc-copy-outline" data-dnacalc="copy-outline" data-cut=move ||controller.cut.get().to_string() use:css=rect_style(&rect)></div>
+        }).collect_view())
     };
     let fill_preview = move || {
-        fill_target.get().map(|(area,_)|view!{<div class="dc-fill-preview" data-dnacalc="fill-preview" use:css=rect_style(&range_rect(area))></div>})
+        fill_target.get().map(|(area,_)|panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(|rect|view!{<div class="dc-fill-preview" data-dnacalc="fill-preview" use:css=rect_style(&rect)></div>}).collect_view())
     };
     let fill_handle = move || {
         if controller.areas.get().len() != 1 || controller.editing.get().is_some() {
@@ -1010,7 +1180,25 @@ fn grid_view(controller: Controller) -> impl IntoView {
         if area.cell_count() > calc_host::COPY_LIMIT {
             return None;
         }
-        let rect = range_rect(area);
+        let rect = panes.get().rect(
+            &metrics.get(),
+            &viewport.get(),
+            area.last().row(),
+            area.last().column(),
+        );
+        let bounds = panes.get().bounds(
+            &metrics.get(),
+            &viewport.get(),
+            area.last().row(),
+            area.last().column(),
+        );
+        if rect.x + rect.w <= bounds.x
+            || rect.y + rect.h <= bounds.y
+            || rect.x + rect.w > bounds.x + bounds.w
+            || rect.y + rect.h > bounds.y + bounds.h
+        {
+            return None;
+        }
         Some(
             view! {<button class="dc-fill-handle" data-dnacalc="fill-handle" title="Drag to fill; Escape cancels. Keyboard: Clipboard & fill, Fill through." tabindex="-1" aria-hidden="true"
                 use:css=format!("left:{};top:{}",px(rect.x+rect.w-6.0),px(rect.y+rect.h-6.0))
@@ -1026,7 +1214,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let z = zoom.get();
         let corner = |(key, dx, dy): &(wire::Key, f64, f64)| {
             let at = key.cell()?;
-            let r = cell_rect(&m, &v, at.row(), at.column());
+            let r = panes.get().rect(&m, &v, at.row(), at.column());
             Some((r.x + dx * z, r.y + dy * z))
         };
         charts
@@ -1194,27 +1382,12 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
         let m = metrics.get();
         let v = viewport.get();
-        let top = cell_rect(
-            &m,
-            &v,
-            pick.anchor.0.min(pick.corner.0),
-            pick.anchor.1.min(pick.corner.1),
-        );
-        let bottom = cell_rect(
-            &m,
-            &v,
-            pick.anchor.0.max(pick.corner.0),
-            pick.anchor.1.max(pick.corner.1),
-        );
-        let rect = geometry::CellRect {
-            x: top.x,
-            y: top.y,
-            w: bottom.x + bottom.w - top.x,
-            h: bottom.y + bottom.h - top.y,
-        };
-        Some(
-            view! { <div class="dc-reference" data-dnacalc="point-reference" use:css=rect_style(&rect)></div> },
+        let area = GridArea::new(
+            CellKey::new(pick.sheet, pick.anchor.0, pick.anchor.1).ok()?,
+            CellKey::new(pick.sheet, pick.corner.0, pick.corner.1).ok()?,
         )
+        .ok()?;
+        Some(panes.get().area_rects(area,&m,&v).into_iter().map(|rect|view!{<div class="dc-reference" data-dnacalc="point-reference" use:css=rect_style(&rect)></div>}).collect_view())
     };
     let space_width = move || {
         metrics.track();
@@ -1265,6 +1438,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
             <div
                 class="dc-grid"
                 data-dnacalc="grid"
+                data-frozen-rows=move ||panes.get().rows.to_string()
+                data-frozen-columns=move ||panes.get().columns.to_string()
                 role="grid"
                 aria-label=move || controller.sheet.get().and_then(|id| controller.sheets().into_iter().find(|tab| tab.id == id).map(|tab| format!("{} worksheet", tab.name))).unwrap_or_else(|| "Worksheet".to_owned())
                 aria-rowcount="1048576"
@@ -1296,8 +1471,15 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 <div class="dc-sr-only" role="rowgroup">{semantic_cells}</div>
                 <span class="dc-sr-only" id="dc-grid-keyboard">"Arrow keys move cells. F2 edits. F6 leaves the worksheet; Shift+F6 returns to the formula bar."</span>
                 <div class="dc-space" style:width=space_width style:height=space_height>
-                    <div class="dc-layer" node_ref=layer style:width=move || px(viewport.get().width) style:height=move || px(viewport.get().height)>
+                    <div class="dc-layer" node_ref=layer style:font-size=move ||px(13.0*zoom.get()) style:width=move || px(viewport.get().width) style:height=move || px(viewport.get().height)>
                         {gridlines}
+                        {move || {
+                            let m=metrics.get();let v=viewport.get();let (w,h)=panes.get().size(&m);
+                            view! {
+                                {(w>0.0 && m.header_w+w<v.width).then(||view!{<div class="dc-freeze-line" aria-hidden="true" use:css=format!("left:{};top:0;width:2px;height:{}",px(m.header_w+w-1.0),px(v.height))></div>})}
+                                {(h>0.0 && m.header_h+h<v.height).then(||view!{<div class="dc-freeze-line" aria-hidden="true" use:css=format!("left:0;top:{};width:{};height:2px",px(m.header_h+h-1.0),px(v.width))></div>})}
+                            }
+                        }}
                         {cells_view}
                         {charts_view}
                         {selection_view}
@@ -1319,6 +1501,18 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 </div>
             </div>
             {crate::clipboard::controls(controller)}
+            <details class="dc-clipboard-tools" data-dnacalc="pane-tools">
+                <summary>"View & panes"</summary>
+                <p data-dnacalc="pane-state">{move ||format!("Frozen: {} rows, {} columns",panes.get().rows,panes.get().columns)}</p>
+                {move ||split_window.get().then(||view!{<p class="dc-note">"This pane layout is retained in the file. This view shows one window; separate splits are unavailable."</p>})}
+                {move || {let (w,h)=panes.get().size(&metrics.get());let m=metrics.get();let v=viewport.get();((w>0.0 && w>=v.width-m.header_w) || (h>0.0 && h>=v.height-m.header_h)).then(||view!{<p class="dc-note">"The frozen area fills this viewport. Unfreeze to reach the cells after it."</p>})}}
+                <div class="dc-command-row">
+                    <button data-dnacalc="freeze-active" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("active")>"Freeze above & left of active cell"</button>
+                    <button data-dnacalc="freeze-row" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("first-row")>"Freeze first row"</button>
+                    <button data-dnacalc="freeze-column" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("first-column")>"Freeze first column"</button>
+                    <button data-dnacalc="unfreeze" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("none")>"Unfreeze"</button>
+                </div>
+            </details>
             <div class="dc-gridbar">
                 <span data-dnacalc="grid-note" class="dc-note">{move || note.get()}</span>
                 <button type="button" data-dnacalc="insert-cells" title="Insert the selected rows or columns (Ctrl++)"
@@ -1328,7 +1522,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 <span class="dc-zoom">
                     <button type="button" data-dnacalc="zoom-out" title="Zoom out"
                         on:click=move |_| zoom.update(|z| *z = viewport::clamp_zoom(*z / viewport::ZOOM_STEP))>"-"</button>
-                    <span data-dnacalc="zoom">{move || format!("{:.0}%", zoom.get() * 100.0)}</span>
+                    <span data-dnacalc="zoom" class="dc-sr-only">{move || format!("{:.0}%", zoom.get() * 100.0)}</span>
+                    <label><input data-dnacalc="zoom-percent" aria-label="Worksheet zoom percentage, 50 to 400" inputmode="decimal" prop:value=move ||zoom_text.get() on:input=move |ev|zoom_text.set(event_target_value(&ev)) on:change=move |ev|apply_zoom(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();apply_zoom(event_target_value(&ev));}}/>"%"</label>
+                    <button type="button" data-dnacalc="zoom-reset" on:click=move |_|zoom.set(1.0)>"Reset"</button>
                     <button type="button" data-dnacalc="zoom-in" title="Zoom in"
                         on:click=move |_| zoom.update(|z| *z = viewport::clamp_zoom(*z * viewport::ZOOM_STEP))>"+"</button>
                 </span>

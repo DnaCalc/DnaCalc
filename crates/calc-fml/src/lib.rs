@@ -40,7 +40,7 @@ pub use eval::{
     CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
     EvaluationReport, EvaluationServices, ExecutedCall, FormulaForm, FormulaInstance,
     MAX_CALL_DEPTH, PlanCache, ResolvedReference, compile, compile_loaded, compile_loaded_with,
-    compile_with, evaluate, instantiate,
+    compile_with, compile_with_functions, evaluate, instantiate,
 };
 pub use reference::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 pub use syntax::parse_formula;
@@ -49,9 +49,9 @@ pub use syntax::parse_formula;
 /// through [`EvaluationServices::with_random`] and [`ReferenceReader::subtotal_exclusions`].
 pub use calc_func::locale::{CalcEnvironment, DateSystem, FormatProfile};
 pub use calc_func::read_number_text;
-pub use calc_func::{HostFacts, RandomSource, SubtotalExclusions};
 /// The host's workbook facts CELL and INFO read ([`HostFacts::workbook_facts`], dc-uar).
 pub use calc_func::{
     ApplicationFacts, CalculationMode, CellFormatFacts, ColumnWidth, HorizontalAlignment,
     WorkbookFacts, WorkbookFile,
 };
+pub use calc_func::{HostFacts, RandomSource, SubtotalExclusions};

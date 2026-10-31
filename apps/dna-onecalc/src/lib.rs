@@ -5,9 +5,10 @@
 //! [`Session`] is the OneCalc application controller. It holds named sheets, typed inputs (a
 //! number, text, logical, error or blank value per cell) and one formula with the cell it is
 //! entered in. [`Session::calculate`] parses the formula with `calc_fml::parse_formula`, compiles
-//! it with `calc_fml::compile` into a plan the session's own `PlanCache` shares, places it with
+//! it with `calc_fml::compile_with_functions` into a plan the session's own `PlanCache` shares, places it with
 //! `calc_fml::instantiate` and runs it with `calc_fml::evaluate`, whose operators and functions
-//! are calc-func's. The session's sheets are the compile's `ReferenceCatalog`, and its inputs are
+//! are calc-func's. Caller-owned user functions use calc-func's engine-neutral contract;
+//! the optional loaded VBA module is adapted by calc-vba. The session's sheets are the compile's `ReferenceCatalog`, and its inputs are
 //! the evaluation's `ReferenceReader`: a cell the session holds no input for is reported missing,
 //! never given a value. The [`Calculation`] it returns holds the result, the typed
 //! [`Diagnostic`]s that stopped one, and the [`Read`]s the evaluation made, in order, with what

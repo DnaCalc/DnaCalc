@@ -968,7 +968,7 @@ mod tests {
         assert!(!rule("dna-onecalc").direct);
         assert_eq!(
             rule("calc-fml").forbidden,
-            ["calc-engine", "calc-host", "calc-doc"]
+            ["calc-engine", "calc-host", "calc-doc", "calc-vba"]
         );
         assert_eq!(rule("dna-calc").forbidden, ["calc-engine"]);
         assert!(rule("dna-calc").direct);

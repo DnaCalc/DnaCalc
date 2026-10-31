@@ -295,6 +295,7 @@ pub fn prepare_edit<'s, 'r>(
             // The iteration settings (dc-y2o.2) change no cell; the formulas on a circular
             // reference become pending when the change is committed.
             WorkbookOp::SetIteration(_) => {}
+            WorkbookOp::SetFrozenPanes { sheet, .. } => require_sheet(inputs, operation, *sheet)?,
         }
     }
 
@@ -494,6 +495,7 @@ fn structural_moves(
                 | WorkbookOp::SetFormat { .. }
                 | WorkbookOp::SetNameFormula { .. }
                 | WorkbookOp::SetIteration(_)
+                | WorkbookOp::SetFrozenPanes { .. }
         )
     }) {
         return Err(PrepareError::StructuralEdit {
@@ -512,7 +514,8 @@ fn structural_moves(
             | WorkbookOp::SetArray { .. }
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetNameFormula { .. }
-            | WorkbookOp::SetIteration(_) => unreachable!("refused above"),
+            | WorkbookOp::SetIteration(_)
+            | WorkbookOp::SetFrozenPanes { .. } => unreachable!("refused above"),
             WorkbookOp::EditAxis(edit) => {
                 require_sheet(inputs, operation, edit.sheet())?;
                 for (_, anchor) in &mut moves {

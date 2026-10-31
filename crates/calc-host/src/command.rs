@@ -16,6 +16,11 @@ use std::sync::Arc;
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
+    /// Changes a worksheet window's frozen leading bands without changing cells.
+    FrozenPanes {
+        sheet: calc_doc_model::value::SheetId,
+        panes: Option<calc_doc_model::FrozenPanes>,
+    },
     /// Sets a cell of an existing sheet to a value or a formula.
     Set { at: CellKey, input: CellInput },
     /// Removes the contents of every cell of an area of an existing sheet.
@@ -55,6 +60,7 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
+            CellEdit::FrozenPanes { sheet, panes } => WorkbookOp::SetFrozenPanes { sheet, panes },
             CellEdit::Set { at, input } => WorkbookOp::SetCell { at, input },
             CellEdit::Clear { area } => WorkbookOp::Clear { area },
             CellEdit::SetArray { array, formula } => WorkbookOp::SetArray {

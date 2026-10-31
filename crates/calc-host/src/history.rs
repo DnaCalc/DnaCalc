@@ -95,6 +95,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
             CellEdit::Axis(_)
+            | CellEdit::FrozenPanes { .. }
             | CellEdit::SetFormat { .. }
             | CellEdit::SetName { .. }
             | CellEdit::SetIteration(_) => continue,
@@ -176,7 +177,16 @@ pub(crate) fn inverse(
             .map(|(at, input)| CellEdit::Set { at, input }),
     );
     let mut formatted = BTreeSet::new();
+    let mut panes = BTreeSet::new();
     for edit in edits {
+        if let CellEdit::FrozenPanes { sheet, .. } = edit
+            && panes.insert(*sheet)
+        {
+            inverse.push(CellEdit::FrozenPanes {
+                sheet: *sheet,
+                panes: definitions.frozen_panes(*sheet),
+            });
+        }
         if let CellEdit::SetFormat { at, .. } = edit
             && formatted.insert(*at)
         {

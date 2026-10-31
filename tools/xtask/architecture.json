@@ -3,13 +3,13 @@
     {
       "package": "calc-func",
       "scope": "closure",
-      "forbidden": ["calc-fml", "calc-engine", "calc-host"],
+      "forbidden": ["calc-fml", "calc-engine", "calc-host", "calc-vba"],
       "reason": "plan 1.3: CalcFunc cannot depend on CalcFml, CalcEngine or CalcHost"
     },
     {
       "package": "calc-fml",
       "scope": "closure",
-      "forbidden": ["calc-engine", "calc-host", "calc-doc"],
+      "forbidden": ["calc-engine", "calc-host", "calc-doc", "calc-vba"],
       "reason": "plan 1.3: CalcFml cannot depend on CalcEngine, CalcHost or the CalcDoc codec"
     },
     {

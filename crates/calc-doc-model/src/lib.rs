@@ -69,23 +69,24 @@ pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use definitions::{
     ArrayFormula, ArrayKind, DataTable, DataTableInputs, DefinedName, Definitions, ExternalBook,
-    ExternalSheet,
-    IterationSettings, NameScope, RowHidden, Table, UnloadedCell,
+    ExternalSheet, IterationSettings, NameScope, RowHidden, Table, UnloadedCell,
 };
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
 pub use layout::{
     Block, BlockId, BlockKind, CanvasArea, LayoutError, LocatorName, Placement, PlacementId,
     SkinLayout, SkinLayoutEdit, Spot, ViewKind,
 };
-pub use op::{Axis, AxisChange, AxisEdit, AxisEditError, OpBatch, SheetEdit, WorkbookOp};
+pub use op::{
+    Axis, AxisChange, AxisEdit, AxisEditError, FrozenPanes, OpBatch, SheetEdit, WorkbookOp,
+};
 pub use revision::AuthoredRevision;
 pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};
+pub use sheet::{
+    SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetKey, SheetName, SheetNameError, SheetVisibility,
+};
 pub use structural::{
     FormulaRewriter, StructuralChange, moved_area, moved_cell, moved_position, moved_run,
     source_position,
-};
-pub use sheet::{
-    SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetKey, SheetName, SheetNameError, SheetVisibility,
 };
 pub use style::{
     Alignment, Border, BorderEdge, CellFormat, CellStyle, DifferentialFormat, Fill, Font,

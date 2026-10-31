@@ -41,16 +41,14 @@ pub(crate) mod tables;
 mod theme;
 pub(crate) mod validation;
 
+pub use chart::{Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, DrawingPoint, SheetCharts};
 pub use conditional::{
     ColorScale, ConditionalFormat, ConditionalRule, DataBar, IconSet, Threshold,
 };
-pub use chart::{
-    Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, DrawingPoint, SheetCharts,
-};
 pub use error::{CellError, LoadError};
-pub use validation::Validation;
 pub use geometry::{ColumnSpan, RowFormat, SheetGeometry, SheetView};
 pub use manifest::LayoutWarning;
+pub use validation::Validation;
 
 use crate::OpenedDocument;
 use crate::error::PartReadError;
@@ -1046,13 +1044,7 @@ pub fn load(
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
     for (declared, &id) in declared.iter().zip(&issued) {
-        let loaded = sheet::load_sheet(
-            package,
-            &context,
-            id,
-            &declared.part,
-            declared.macro_sheet,
-        )
+        let loaded = sheet::load_sheet(package, &context, id, &declared.part, declared.macro_sheet)
             .and_then(|loaded| Ok((loaded, tables::read_tables(package, &declared.part, id)?)));
         match loaded {
             Ok((loaded, sheet_tables)) => {
@@ -1156,6 +1148,11 @@ pub fn load(
         })
         .collect();
     let definitions = Definitions::new(arrays, names, tables, unloaded)
+        .with_panes(
+            sheets
+                .iter()
+                .filter_map(|s| s.view.frozen.map(|p| (s.id, p))),
+        )
         .with_hidden_rows(hidden_rows)
         .with_macro_enabled(macro_enabled)
         .with_iteration(iteration)

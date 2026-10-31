@@ -85,10 +85,11 @@ pub use calc_doc_model as model;
 pub use edit::{EditError, PreparedEdit, prepare_edit, prepare_structural_edit};
 pub use error::{OpenError, PartReadError, UnsafeName};
 pub use load::{
-    CalcMode, CellError, Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, ColorScale, ColumnSpan, ConditionalFormat, ConditionalRule, DataBar,
-    DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, IconSet, LayoutWarning, LoadError,
-    DrawingPoint, LoadedSheet, LoadedWorkbook, RowFormat, SharedFormula, SheetCharts,
-    SheetGeometry, Threshold, Validation, load,
+    CalcMode, CellError, Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, ColorScale,
+    ColumnSpan, ConditionalFormat, ConditionalRule, DataBar, DateSystem, DrawingPoint,
+    FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, IconSet, LayoutWarning, LoadError, LoadedSheet,
+    LoadedWorkbook, RowFormat, SharedFormula, SheetCharts, SheetGeometry, SheetView, Threshold,
+    Validation, load,
 };
 pub use opc::{
     CONTENT_TYPES_ENTRY, CONTENT_TYPES_NAMESPACE, ContentTypes, Package, Part,

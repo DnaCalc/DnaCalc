@@ -296,6 +296,7 @@ pub enum RowHidden {
 /// hidden rows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Definitions {
+    panes: BTreeMap<SheetId, crate::FrozenPanes>,
     arrays: BTreeMap<CellKey, ArrayFormula>,
     names: Vec<DefinedName>,
     tables: Vec<Table>,
@@ -316,6 +317,27 @@ pub struct Definitions {
 }
 
 impl Definitions {
+    pub fn frozen_panes(&self, sheet: SheetId) -> Option<crate::FrozenPanes> {
+        self.panes.get(&sheet).copied()
+    }
+    pub fn panes(&self) -> impl Iterator<Item = (SheetId, crate::FrozenPanes)> + '_ {
+        self.panes.iter().map(|(&s, &p)| (s, p))
+    }
+    pub fn with_panes(
+        mut self,
+        panes: impl IntoIterator<Item = (SheetId, crate::FrozenPanes)>,
+    ) -> Self {
+        self.panes = panes.into_iter().collect();
+        self
+    }
+    pub fn with_frozen_panes(mut self, sheet: SheetId, panes: Option<crate::FrozenPanes>) -> Self {
+        if let Some(panes) = panes {
+            self.panes.insert(sheet, panes);
+        } else {
+            self.panes.remove(&sheet);
+        }
+        self
+    }
     pub fn new(
         arrays: impl IntoIterator<Item = ArrayFormula>,
         names: Vec<DefinedName>,
@@ -323,6 +345,7 @@ impl Definitions {
         unloaded: impl IntoIterator<Item = (CellKey, UnloadedCell)>,
     ) -> Self {
         Definitions {
+            panes: BTreeMap::new(),
             arrays: arrays
                 .into_iter()
                 .map(|array| (array.anchor(), array))
@@ -454,7 +477,9 @@ impl Definitions {
 
     /// The data table whose area holds `at`.
     pub fn data_table_containing(&self, at: CellKey) -> Option<&DataTable> {
-        self.data_tables.iter().find(|table| table.area.contains(at))
+        self.data_tables
+            .iter()
+            .find(|table| table.area.contains(at))
     }
 
     /// These definitions with the workbook's iterative-calculation settings.
@@ -511,6 +536,7 @@ impl Definitions {
     /// These definitions without anything of `sheet`: its array formulas, tables, unloaded
     /// cells, hidden rows and the names scoped to it (a removed sheet).
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
+        self.panes.remove(&sheet);
         self.arrays.retain(|at, _| at.sheet() != sheet);
         self.tables.retain(|table| table.sheet != sheet);
         self.unloaded.retain(|at, _| at.sheet() != sheet);
@@ -536,7 +562,8 @@ impl Definitions {
 
     /// Whether nothing is defined.
     pub fn is_empty(&self) -> bool {
-        self.arrays.is_empty()
+        self.panes.is_empty()
+            && self.arrays.is_empty()
             && self.names.is_empty()
             && self.tables.is_empty()
             && self.unloaded.is_empty()
@@ -624,6 +651,7 @@ impl Definitions {
             .chain(self.unloaded.keys().map(|at| at.sheet()))
             .chain(self.tables.iter().map(|table| table.sheet))
             .chain(self.hidden_rows.keys().map(|(sheet, _)| *sheet))
+            .chain(self.panes.keys().copied())
             .chain(self.data_tables.iter().map(|table| table.area.sheet()))
             .chain(self.names.iter().filter_map(|name| match name.scope {
                 NameScope::Sheet(sheet) => Some(sheet),
