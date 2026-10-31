@@ -216,6 +216,7 @@ pub struct Controller {
     pub timings: RwSignal<Timings>,
     pub transport: RwSignal<port::Health>,
     pub download_unconfirmed: RwSignal<bool>,
+    pub ledger: crate::ledger::ViewState,
     pub notebook_drafts: RwSignal<BTreeMap<CellKey, String>>,
     pub pending_actions: RwSignal<usize>,
     pub replacing: RwSignal<bool>,
@@ -277,6 +278,7 @@ impl Controller {
             timings: RwSignal::new(Timings::default()),
             transport: RwSignal::new(port::Health::default()),
             download_unconfirmed: RwSignal::new(false),
+            ledger: crate::ledger::ViewState::new(),
             notebook_drafts: RwSignal::new(BTreeMap::new()),
             pending_actions: RwSignal::new(0),
             replacing: RwSignal::new(false),
@@ -727,6 +729,7 @@ impl Controller {
         self.notebook_drafts.set(BTreeMap::new());
         self.assist.readonly.set(false);
         self.find_open.set(None);
+        self.ledger.reset();
         self.context_menu.set(None);
         self.validation_decision.set(None);
         self.validation_callback.update_value(|callback| {

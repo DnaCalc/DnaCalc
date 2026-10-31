@@ -12,3 +12,21 @@
 .dc-ledger .dc-chip[data-provenance=calculated]{background:var(--dna-green-soft);color:var(--dna-value-ink)}
 .dc-ledger .dc-chip[data-provenance=refused]{background:var(--dna-red-soft);color:var(--dna-red-ink)}
 .dc-ledger .dc-chip[data-provenance=stale]{background:var(--dna-amber-soft);color:var(--dna-prov-ext)}
+
+/* dc-971p.12: primary audit fields, explicit recovery and deliberate narrow scrolling. */
+.dc-ledger{min-width:0;overflow-x:hidden;padding:16px;line-height:1.5}
+.dc-ledger .dc-cleave select,.dc-ledger .dc-cleave input{max-width:100%;box-sizing:border-box;font:inherit}
+.dc-ledger .dc-cleave{align-items:center}.dc-ledger .dc-cleave button{white-space:nowrap}
+.dc-ledger-table{overflow:auto;max-width:100%;border:1px solid var(--dna-line);border-radius:6px;margin-top:12px}
+.dc-ledger table{width:100%;min-width:920px}.dc-ledger th{z-index:1}
+.dc-ledger td{white-space:normal;vertical-align:top;padding:9px 10px;overflow-wrap:anywhere}
+.dc-ledger td:first-child{position:sticky;left:0;min-width:115px;background:var(--dna-paper);z-index:1}
+.dc-ledger tr[data-active=true] td:first-child{background:var(--dna-accent-soft)}
+.dc-ledger .dc-ledger-formula{min-width:200px;max-width:380px}.dc-ledger td:nth-child(4){min-width:200px;max-width:300px}
+.dc-ledger button{font:inherit;color:var(--dna-accent-ink);background:var(--dna-paper);border:1px solid var(--dna-ink-3);border-radius:4px;padding:5px 8px;cursor:pointer}
+.dc-ledger button:disabled{color:var(--dna-ink-3);cursor:default}.dc-ledger button:focus-visible,.dc-ledger [tabindex]:focus-visible{outline:2px solid var(--dna-accent-ink);outline-offset:2px}
+.dc-ledger-reason{font-size:12px;line-height:1.45;margin:6px 0 0;color:var(--dna-ink-2)}
+.dc-ledger-actions{min-width:160px}.dc-ledger-actions>button{margin:0 5px 6px 0}.dc-ledger details{max-width:260px;font-size:12px}.dc-ledger summary{cursor:pointer}
+.dc-ledger details dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px}.dc-ledger details dd{margin:0}
+.dc-ledger-population{font-weight:600;overflow-wrap:anywhere}.dc-ledger-recovery{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:700px){.dc-ledger{padding:12px}.dc-ledger td:first-child{min-width:105px}}
