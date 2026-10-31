@@ -42,24 +42,11 @@ pub fn registry() -> SkinRegistry {
 /// Offers `bytes` as a file the browser downloads under `name`.
 #[cfg(target_arch = "wasm32")]
 fn download(name: &str, bytes: &[u8]) -> Result<(), String> {
-    use wasm_bindgen::JsCast;
-    let array = js_sys::Uint8Array::from(bytes);
-    let parts = js_sys::Array::of1(&array);
-    let options = web_sys::BlobPropertyBag::new();
-    options.set_type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &options)
-        .map_err(|e| format!("{e:?}"))?;
-    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(|e| format!("{e:?}"))?;
-    let anchor: web_sys::HtmlAnchorElement = document()
-        .create_element("a")
-        .map_err(|e| format!("{e:?}"))?
-        .dyn_into()
-        .map_err(|_| "no anchor".to_owned())?;
-    anchor.set_href(&url);
-    anchor.set_download(name);
-    anchor.click();
-    let _ = web_sys::Url::revoke_object_url(&url);
-    Ok(())
+    dna_formula_ui::web::download_bytes(
+        name,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        bytes,
+    )
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -74,26 +61,18 @@ fn open_chosen(
     input: web_sys::HtmlInputElement,
     chosen: impl FnOnce(String, Vec<u8>) + 'static,
 ) {
-    let Some(file) = input.files().and_then(|files| files.get(0)) else {
-        return;
-    };
-    let name = file.name();
-    controller.status.set(crate::controller::Status {
-        text: format!("Opening {name}"),
-        refused: false,
-    });
-    wasm_bindgen_futures::spawn_local(async move {
-        match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
-            Ok(buffer) => {
-                let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
-                chosen(name, bytes);
-            }
-            Err(error) => controller.status.set(crate::controller::Status {
-                text: format!("{name} could not be read: {error:?}"),
-                refused: true,
-            }),
-        }
-        input.set_value("");
+    if let Some(file) = input.files().and_then(|f| f.get(0)) {
+        controller.status.set(crate::controller::Status {
+            text: format!("Opening {}", file.name()),
+            refused: false,
+        });
+    }
+    dna_formula_ui::web::read_chosen(input, None, move |result| match result {
+        Ok((name, bytes)) => chosen(name, bytes),
+        Err(error) => controller.status.set(crate::controller::Status {
+            text: error,
+            refused: true,
+        }),
     });
 }
 
