@@ -254,6 +254,7 @@ pub struct Edge {
 /// workspace member enabled.
 pub struct Resolved {
     names: BTreeMap<String, String>,
+    package_rows: BTreeSet<String>,
     edges: BTreeMap<String, Vec<Edge>>,
 }
 
@@ -284,14 +285,15 @@ impl Resolved {
         let metadata: Value = serde_json::from_slice(&out.stdout)
             .map_err(|e| format!("cargo metadata printed no JSON: {e}"))?;
         let mut names = BTreeMap::new();
+        let mut package_rows = BTreeSet::new();
         for package in metadata["packages"]
             .as_array()
             .ok_or("cargo metadata reports no packages")?
         {
-            names.insert(
-                string_field(package, "id", "a package")?,
-                string_field(package, "name", "a package")?,
-            );
+            let name = string_field(package, "name", "a package")?;
+            let version = string_field(package, "version", "a package")?;
+            package_rows.insert(format!("{name} v{version}"));
+            names.insert(string_field(package, "id", "a package")?, name);
         }
         let mut edges = BTreeMap::new();
         for node in metadata["resolve"]["nodes"]
@@ -317,7 +319,69 @@ impl Resolved {
             }
             edges.insert(id, out_edges);
         }
-        Ok(Resolved { names, edges })
+        Ok(Resolved {
+            names,
+            package_rows,
+            edges,
+        })
+    }
+
+    /// Target-specific reverse normal edges. Cargo metadata can unify features from an
+    /// inactive target-specific dependency before filtering its edges. Ask cargo tree for
+    /// the selected target before treating such an optional native crate as a wasm import.
+    /// Command semantics: https://doc.rust-lang.org/cargo/commands/cargo-tree.html#feature-unification
+    pub fn normal_dependents(
+        &self,
+        ws: &Workspace,
+        target: &str,
+        dependency: &str,
+    ) -> Result<BTreeSet<String>, String> {
+        let known = &self.package_rows;
+        let ids = self
+            .names
+            .iter()
+            .filter(|(_, name)| name.as_str() == dependency)
+            .map(|(id, _)| id);
+        let mut found = false;
+        let mut dependents = BTreeSet::new();
+        for id in ids {
+            found = true;
+            let mut command = Command::new(cargo_program());
+            command
+                .args([
+                    "tree",
+                    "--locked",
+                    "--workspace",
+                    "--all-features",
+                    "--target",
+                    target,
+                    "--edges",
+                    "normal",
+                    "--invert",
+                    id,
+                    "--prefix",
+                    "none",
+                    "--format",
+                    "{p}",
+                    "--color",
+                    "never",
+                ])
+                .current_dir(&ws.root);
+            let out = output(&mut command)?;
+            if !out.status.success() {
+                return Err(format!(
+                    "{:?} exited with {:?}: {}",
+                    argv(&command),
+                    out.status.code(),
+                    tail(&out.stderr, 20)
+                ));
+            }
+            dependents.extend(tree_package_names(&text(&out.stdout), known)?);
+        }
+        if !found {
+            return Err(format!("resolved metadata has no package {dependency}"));
+        }
+        Ok(dependents)
     }
 
     /// The names of the packages reachable from package `id` through edges that `follow` accepts,
@@ -342,6 +406,120 @@ impl Resolved {
             }
         }
         names
+    }
+}
+
+fn tree_package_names(output: &str, known: &BTreeSet<String>) -> Result<BTreeSet<String>, String> {
+    output
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let mut words = line.split_whitespace();
+            let name = words
+                .next()
+                .ok_or("cargo tree printed an empty package row")?;
+            let version = words
+                .next()
+                .ok_or("cargo tree package row has no version")?;
+            if !known.contains(&format!("{name} {version}")) {
+                return Err(format!("unrecognized cargo tree package row: {line}"));
+            }
+            Ok(name.to_owned())
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod target_dependency_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn inverted_tree_names_keep_duplicates_and_reject_unknown_rows() {
+        let known = BTreeSet::from(["adapter v1.0.0".to_owned(), "libc v0.1.0".to_owned()]);
+        assert_eq!(
+            tree_package_names(
+                "libc v0.1.0\nadapter v1.0.0 (/a path) (*)\nadapter v1.0.0\n",
+                &known
+            )
+            .unwrap(),
+            BTreeSet::from(["adapter".into(), "libc".into()])
+        );
+        assert!(tree_package_names("libc\n", &known).is_err());
+        assert!(tree_package_names("libc vgarbage\n", &known).is_err());
+        assert!(tree_package_names("libc v9.9.9\n", &known).is_err());
+        assert!(tree_package_names("unknown v1.0.0\n", &known).is_err());
+        assert!(tree_package_names("warning: nothing to print\n", &known).is_err());
+        assert!(tree_package_names("", &known).unwrap().is_empty());
+    }
+
+    #[test]
+    fn target_only_feature_does_not_hide_a_real_wasm_normal_dependency() {
+        let root = std::env::temp_dir().join(format!(
+            "dnacalc-target-feature-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        struct Fixture(PathBuf);
+        impl Drop for Fixture {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        std::fs::create_dir(&root).unwrap();
+        let _fixture = Fixture(root.clone());
+        let write = |name: &str, content: &str| {
+            let path = root.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, content).unwrap();
+        };
+        write(
+            "Cargo.toml",
+            "[workspace]\nresolver = \"2\"\nmembers = [\"adapter\"]\nexclude = [\"engine\", \"os\"]\n",
+        );
+        write(
+            "engine/Cargo.toml",
+            "[package]\nname = \"fixture-engine\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[features]\nnative = [\"dep:libc\"]\n[dependencies]\nlibc = { path = \"../os\", optional = true }\n",
+        );
+        write(
+            "os/Cargo.toml",
+            "[package]\nname = \"libc\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        );
+        for name in ["adapter", "engine", "os"] {
+            write(&format!("{name}/src/lib.rs"), "");
+        }
+        for normal_native in [false, true] {
+            let features = if normal_native {
+                ", features = [\"native\"]"
+            } else {
+                ""
+            };
+            write(
+                "adapter/Cargo.toml",
+                &format!(
+                    "[package]\nname = \"adapter\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nfixture-engine = {{ path = \"../engine\", default-features = false{features} }}\n[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\nfixture-engine = {{ path = \"../engine\", default-features = false, features = [\"native\"] }}\n"
+                ),
+            );
+            let out = Command::new(cargo_program())
+                .args(["generate-lockfile", "--offline"])
+                .current_dir(&root)
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "{}", text(&out.stderr));
+            let ws = Workspace::load(&root).unwrap();
+            let graph = Resolved::load(&ws, WASM_TARGET).unwrap();
+            // Metadata exposes the native optional package in both cases. The actual target
+            // tree must distinguish an inactive target-only feature from an active one.
+            let adapter = ws.member("adapter").unwrap();
+            assert!(
+                graph
+                    .reach(&adapter.id, |edge| edge.normal, false)
+                    .contains("libc")
+            );
+            let actual = graph.normal_dependents(&ws, WASM_TARGET, "libc").unwrap();
+            assert_eq!(actual.contains("adapter"), normal_native);
+        }
     }
 }
 

@@ -196,6 +196,15 @@ Public Function TypedLong(x As Long)
  TypedLong = x
 End Function
 "#;
+    // Verify admission of this exact host-object source: native results must exercise JIT,
+    // while the same portable cases exercise the interpreter in each browser.
+    let registrations = calc_vba::load_module("Grid", source, 1000).unwrap();
+    let selected = if cfg!(target_arch = "wasm32") {
+        "backend: Interpreter"
+    } else {
+        "backend: Jit"
+    };
+    assert!(format!("{registrations:?}").contains(selected));
     s.load_vba_module("Grid", source, 1000).unwrap();
     assert_eq!(
         result(&mut s, "=RangeCount(Z9:Z10)"),
@@ -289,6 +298,15 @@ Public Function UnsupportedCallback()
  UnsupportedCallback = 7
 End Function
 "#;
+    // Verify admission of this exact host-object source: native results must exercise JIT,
+    // while the same portable cases exercise the interpreter in each browser.
+    let registrations = calc_vba::load_module("Callbacks", source, 1000).unwrap();
+    let selected = if cfg!(target_arch = "wasm32") {
+        "backend: Interpreter"
+    } else {
+        "backend: Jit"
+    };
+    assert!(format!("{registrations:?}").contains(selected));
     s.load_vba_module("Callbacks", source, 1000).unwrap();
     assert_eq!(result(&mut s, "=Summaries(A1:A2)"), CalcValue::number(63.0));
     assert_eq!(result(&mut s, "=FindValue(A1)"), CalcValue::number(2.0));

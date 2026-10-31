@@ -14,6 +14,8 @@
 //!   (normal or build dependency) on a denied OS-binding crate on any shipped target, and none has
 //!   one anywhere in its wasm32-unknown-unknown closure (normal dependencies); a transitive
 //!   OS-binding crate on a native target (libc or rustix under a std-only crate) is allowed.
+//!   A flagged transitive wasm edge is confirmed with the selected target's cargo tree:
+//!   metadata can retain optional features activated by an inactive native target.
 //! - `wasm-refusal`: every native-only package fails to compile for wasm32-unknown-unknown, with
 //!   the error raised by a `compile_error!` in its own sources. Its wasm32 artifacts are removed
 //!   first (`cargo clean -p`), so a cached success can never answer for this run's compile.
@@ -550,6 +552,7 @@ fn os_imports(
             None => {}
         }
     }
+    let mut wasm_dependents = BTreeMap::new();
     for (target, result) in resolved {
         let Ok(graph) = result else {
             findings.push(format!(
@@ -567,6 +570,19 @@ fn os_imports(
             for name in direct.union(&closure) {
                 if !config.os_binding_crates.contains(name) {
                     continue;
+                }
+                if !direct.contains(name) {
+                    let actual = wasm_dependents
+                        .entry(name.clone())
+                        .or_insert_with(|| graph.normal_dependents(ws, target, name));
+                    match actual {
+                        Ok(dependents) if !dependents.contains(&member.name) => continue,
+                        Ok(_) => {}
+                        Err(error) => {
+                            findings.push(format!("[{target}] cannot establish {}'s normal dependency on {name}: {error}", member.name));
+                            continue;
+                        }
+                    }
                 }
                 let relation = if direct.contains(name) {
                     format!("depends directly on the OS-binding crate {name}")
@@ -595,6 +611,7 @@ fn os_imports(
         findings,
         json!({
             "scope": OS_IMPORTS_SCOPE,
+            "wasm_normal_dependency_source": "cargo tree --locked --workspace --all-features --target wasm32-unknown-unknown --edges normal --invert <resolved-package-id> --prefix none --format {p}",
             "files_scanned": files_scanned,
             "build_script_files_scanned": build_files,
             "targets": resolved.iter().map(|(target, _)| target.as_str()).collect::<Vec<_>>(),

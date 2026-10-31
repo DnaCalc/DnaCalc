@@ -167,7 +167,11 @@ pub fn family_counts(text: &str, families: &[Family]) -> BTreeMap<String, usize>
 
 /// The coverage findings: tracked files without an entry, entries for untracked files, and
 /// entries listed twice.
-pub fn coverage_findings(tracked: &BTreeSet<String>, entries: &[String]) -> Vec<String> {
+pub fn coverage_findings(
+    required: &BTreeSet<String>,
+    tracked: &BTreeSet<String>,
+    entries: &[String],
+) -> Vec<String> {
     let mut findings = Vec::new();
     let mut seen = BTreeSet::new();
     for entry in entries {
@@ -175,7 +179,7 @@ pub fn coverage_findings(tracked: &BTreeSet<String>, entries: &[String]) -> Vec<
             findings.push(format!("{LEDGER_PATH}: {entry} has more than one entry"));
         }
     }
-    for path in tracked.difference(&seen) {
+    for path in required.difference(&seen) {
         findings.push(format!(
             "{path} has no entry in {LEDGER_PATH}: add {{\"path\", \"class\", \"reason\"}} saying where its content comes from"
         ));
@@ -225,7 +229,18 @@ fn check_with(root: &Path, ledger: bool) -> CheckResult {
         Err(e) => return CheckResult::new(NAME, format!("not checked: {e}"), vec![e], Value::Null),
     };
     let mut findings = if ledger {
-        coverage_findings(&ledger_files, &scan.entries)
+        let all_tracked = match tracked(root, &[]) {
+            Ok(files) => files,
+            Err(error) => {
+                return CheckResult::new(
+                    NAME,
+                    format!("not checked: {error}"),
+                    vec![error],
+                    Value::Null,
+                );
+            }
+        };
+        coverage_findings(&ledger_files, &all_tracked, &scan.entries)
     } else {
         Vec::new()
     };
@@ -318,12 +333,33 @@ mod tests {
     fn coverage_names_missing_untracked_and_repeated_entries() {
         let tracked: BTreeSet<String> = ["a.rs", "b.rs"].map(str::to_owned).into();
         let entries = ["a.rs", "c.rs", "a.rs"].map(str::to_owned);
-        let findings = coverage_findings(&tracked, &entries);
+        let findings = coverage_findings(&tracked, &tracked, &entries);
         assert_eq!(findings.len(), 3, "{findings:?}");
         assert!(findings[0].contains("a.rs has more than one entry"));
         assert!(findings[1].starts_with("b.rs has no entry"));
         assert!(findings[2].contains("entry for c.rs"));
-        assert!(coverage_findings(&tracked, &["a.rs".to_owned(), "b.rs".to_owned()]).is_empty());
+        assert!(
+            coverage_findings(&tracked, &tracked, &["a.rs".to_owned(), "b.rs".to_owned()])
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn optional_provenance_entries_outside_required_roots_still_name_tracked_files() {
+        let required = BTreeSet::from(["crates/calc-func/a.rs".to_owned()]);
+        let tracked = BTreeSet::from([
+            "crates/calc-func/a.rs".to_owned(),
+            "tools/probe.rs".to_owned(),
+        ]);
+        let entries = vec![
+            "crates/calc-func/a.rs".to_owned(),
+            "tools/probe.rs".to_owned(),
+        ];
+        assert!(coverage_findings(&required, &tracked, &entries).is_empty());
+        assert!(coverage_findings(&required, &tracked, &entries[1..])[0].contains("has no entry"));
+        let mut bad = entries;
+        bad.push("tools/untracked.rs".into());
+        assert!(coverage_findings(&required, &tracked, &bad)[0].contains("not a tracked file"));
     }
 
     #[test]
