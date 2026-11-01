@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (36 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (38 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -882,6 +882,7 @@ fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
             )
         })?;
     let port = free_port()?;
+    // ubs:ignore — the executable comes from the local driver setting or PATH, never workbook data.
     let mut command = Command::new(&program);
     match browser.name {
         "firefox" => command.args(["--port", &port.to_string()]),
@@ -974,6 +975,8 @@ fn select(app: &App, name: &str) -> String {
 
 /// What a case does. A name is a role or a selector ([`select`]).
 pub enum Action {
+    /// Cell-boundary continuation in the bundled calculation worker, with an intervening Ping.
+    WorkerCalculation,
     /// A native wheel gesture, with observation of its completed scroll.
     ScrollGrid(i32, i32),
     /// Remember actual view/geometry for a later scroll or skin/sheet round trip.
@@ -1434,6 +1437,11 @@ fn faults(app: &App, session: &Session) -> Result<Vec<String>, String> {
 
 fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<(), String> {
     match action {
+        Action::WorkerCalculation => {
+            let result = session.script(&calc_cases::fixtures::calculation_script())?;
+            println!("{} WORKER finite calculation: {result}", app.label);
+            Ok(())
+        }
         Action::RememberFieldLink(name) => {
             let selector = serde_json::to_string(&select(app, name)).unwrap();
             session.script(&format!(
@@ -2632,7 +2640,7 @@ mod tests {
             .iter()
             .map(|app| SmokeSelection::default().count(app))
             .sum();
-        assert!((28..=36).contains(&total), "core has {total} cases");
+        assert_eq!(total, 38, "the two applications have 38 core cases");
     }
 
     #[test]

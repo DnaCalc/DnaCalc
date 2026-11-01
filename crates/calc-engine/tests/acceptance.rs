@@ -5010,3 +5010,569 @@ fn a_pass_pins_its_clock_across_steps() {
     assert_eq!(l1_value(&state, c(2)), CalcValue::number(40_001.0));
     assert_eq!(calculated(&state, c(3)).2, pure_tick);
 }
+
+// The single seven-cell SliceV1 fixture. D1 awaits the typed callback/P01/P03; the pure scope
+// never invents its value or evaluates it as part of these demonstrations.
+#[path = "fixtures/seven_cell.rs"]
+mod seven_cell;
+struct SevenCellSlice {
+    sheet: SheetId,
+    root: Arc<ModelRoot>,
+    state: EngineState,
+}
+impl SevenCellSlice {
+    fn new() -> Self {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = ids.issue().unwrap();
+        let c = |row, column| CellKey::new(sheet, row, column).unwrap();
+        let root = l3_root(
+            &[(sheet, "SliceV1")],
+            seven_cell::CELLS
+                .iter()
+                .map(|&(row, column, entry, stored)| {
+                    (
+                        c(row, column),
+                        stored
+                            .map(formula)
+                            .unwrap_or_else(|| number(entry.parse().unwrap())),
+                    )
+                })
+                .collect(),
+            Definitions::new(vec![l2_dynamic(c(1, 5))], vec![], vec![], []),
+        );
+        let state = EngineState::new(&root);
+        Self { sheet, root, state }
+    }
+    fn c(&self, row: u32, column: u32) -> CellKey {
+        CellKey::new(self.sheet, row, column).unwrap()
+    }
+    fn scope(&self) -> calc_engine::CalcScope {
+        calc_engine::CalcScope::Range(
+            seven_cell::PURE_SCOPE
+                .iter()
+                .map(|&(r, c)| GridArea::cell(self.c(r, c)))
+                .collect(),
+        )
+    }
+    fn begin(&mut self, selection: calc_engine::EvalSelection) -> calc_engine::RecalcWork {
+        let scope = self.scope();
+        calc_engine::begin_recalc_scoped(
+            &mut self.state,
+            &self.root,
+            NumericMode::Fast,
+            scope,
+            selection,
+        )
+        .unwrap()
+    }
+    fn complete(&mut self, mut work: calc_engine::RecalcWork) -> ValueDelta {
+        for _ in 0..64 {
+            match step(
+                &self.state,
+                &self.root,
+                &mut work,
+                WorkBudget::evaluations(1),
+                &mut Unobserved,
+            ) {
+                RecalcProgress::Pending { .. } => {}
+                RecalcProgress::Complete => {
+                    return finish(&mut self.state, &self.root, work).unwrap();
+                }
+                RecalcProgress::Failed => {
+                    panic!("{}", finish(&mut self.state, &self.root, work).unwrap_err())
+                }
+            }
+        }
+        panic!("the seven-cell calculation exceeded 64 finite slices")
+    }
+    fn hold_candidates(
+        &mut self,
+        selection: calc_engine::EvalSelection,
+    ) -> calc_engine::RecalcWork {
+        let b = self.state.node_at(self.c(1, 2)).unwrap();
+        let e = self.state.node_at(self.c(1, 5)).unwrap();
+        let mut work = self.begin(selection);
+        for _ in 0..16 {
+            if work.candidate(b).is_some() && work.candidate(e).is_some() {
+                return work;
+            }
+            assert!(!matches!(
+                step(
+                    &self.state,
+                    &self.root,
+                    &mut work,
+                    WorkBudget::evaluations(1),
+                    &mut Unobserved
+                ),
+                RecalcProgress::Failed
+            ));
+        }
+        panic!("the independent candidates were not produced within sixteen finite slices")
+    }
+    fn baseline(&mut self) {
+        let work = self.begin(calc_engine::EvalSelection::ForceAll);
+        let delta = self.complete(work);
+        assert_eq!(
+            delta.completion().unwrap().outcome,
+            calc_engine::contract::CompletionOutcome::Complete
+        );
+        assert_eq!(delta.completion().unwrap().coverage.calculated, 4);
+        assert!(
+            self.state.result(self.c(1, 4)).is_none(),
+            "P01/P03 callback is outside this pure scope"
+        );
+    }
+    fn change(&mut self, a: Option<f64>, f: Option<f64>) {
+        let mut ops = Vec::new();
+        if let Some(a) = a {
+            ops.push(set(self.c(1, 1), number(a)));
+        }
+        if let Some(f) = f {
+            ops.push(set(self.c(1, 6), number(f)));
+        }
+        self.root = edit(&mut self.state, &self.root, ops);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_successor_rejects_conflicts_and_reuses_independent_spill() {
+    use calc_engine::contract::{CalcEvent, CompletionOutcome, ComputationOrigin};
+    let mut book = SevenCellSlice::new();
+    book.baseline();
+    let b = book.c(1, 2);
+    let c = book.c(1, 3);
+    let e = book.c(1, 5);
+    let g = book.c(10, 7);
+    let prior_c = book.state.result(c).unwrap().stamp().unwrap().clone();
+    book.change(Some(10.0), Some(2.0));
+    assert!(
+        book.state.validated_result(&book.root, c).is_none(),
+        "a dirty B1 invalidates C1 before its value version changes"
+    );
+    assert_ne!(
+        book.state.requirement_at(b).unwrap().required,
+        prior_c.reads.dependencies[0].versions.required
+    );
+    let old = book.hold_candidates(calc_engine::EvalSelection::DirtyAndVolatile);
+    let old_id = old.admission().command;
+    let old_e = old
+        .candidate(book.state.node_at(e).unwrap())
+        .unwrap()
+        .stamp()
+        .unwrap()
+        .clone();
+    book.change(Some(20.0), None);
+    let next =
+        calc_engine::supersede_recalc(&mut book.state, &book.root, old, NumericMode::Fast).unwrap();
+    assert_eq!(next.admission().predecessor, Some(old_id));
+    assert_eq!(next.reused(), 1);
+    let new_id = next.admission().command;
+    let delta = book.complete(next);
+    assert_eq!(l1_value(&book.state, b), CalcValue::number(21.0));
+    assert_eq!(l1_value(&book.state, c), CalcValue::number(42.0));
+    assert_eq!(l1_value(&book.state, g), CalcValue::number(1.0));
+    let new_e = book.state.result(e).unwrap().stamp().unwrap();
+    assert_eq!(new_e.computed_by, old_e.computed_by);
+    assert_eq!(new_e.certification.command, new_id);
+    assert!(
+        matches!(&new_e.computed_by, ComputationOrigin::Evaluated { root } if root.pass.command == old_id)
+    );
+    assert!(book.state.validated_result(&book.root, e).is_some());
+    let events = delta.events();
+    let superseded = events.iter().position(|event| matches!(event, CalcEvent::Superseded(receipt) if receipt.command == old_id && receipt.outcome == CompletionOutcome::Superseded { by: new_id })).unwrap();
+    let admitted = events
+        .iter()
+        .position(
+            |event| matches!(event, CalcEvent::Admitted(receipt) if receipt.command == new_id),
+        )
+        .unwrap();
+    assert!(superseded < admitted);
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, CalcEvent::Rejected { at } if *at == b))
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, CalcEvent::Reused { at, .. } if *at == e))
+    );
+    assert!(
+        !events.iter().any(
+            |event| matches!(event, CalcEvent::Completed(receipt) if receipt.command == old_id)
+        )
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_repeated_dirtiness_advances_requirements_before_values() {
+    let mut book = SevenCellSlice::new();
+    book.baseline();
+    let b = book.c(1, 2);
+    let c = book.c(1, 3);
+    let before = book.state.requirement_at(b).unwrap();
+    book.change(Some(10.0), None);
+    let first = book.state.requirement_at(b).unwrap();
+    let first_c = book.state.requirement_at(c).unwrap();
+    book.change(Some(20.0), None);
+    let second = book.state.requirement_at(b).unwrap();
+    let second_c = book.state.requirement_at(c).unwrap();
+    assert!(before.required < first.required && first.required < second.required);
+    assert!(first_c.required < second_c.required);
+    assert_eq!(before.value_version, first.value_version);
+    assert_eq!(first.value_version, second.value_version);
+    assert!(book.state.validated_result(&book.root, c).is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_force_successors_evaluate_pure_targets_again() {
+    for explicit_request in [false, true] {
+        let mut book = SevenCellSlice::new();
+        book.baseline();
+        book.change(Some(10.0), Some(2.0));
+        let e = book.c(1, 5);
+        let scope = book.scope();
+        let old = book.hold_candidates(calc_engine::EvalSelection::ForceAll);
+        let origin = old
+            .candidate(book.state.node_at(e).unwrap())
+            .unwrap()
+            .stamp()
+            .unwrap()
+            .computed_by
+            .clone();
+        let next = if explicit_request {
+            calc_engine::supersede_recalc_scoped(
+                &mut book.state,
+                &book.root,
+                old,
+                NumericMode::Fast,
+                scope,
+                calc_engine::EvalSelection::ForceAll,
+            )
+            .unwrap()
+        } else {
+            book.change(Some(20.0), None);
+            calc_engine::supersede_recalc(&mut book.state, &book.root, old, NumericMode::Fast)
+                .unwrap()
+        };
+        assert_eq!(
+            next.reused(),
+            0,
+            "SliceV1 re-evaluates pure targets for inherited and newly requested ForceAll"
+        );
+        book.complete(next);
+        assert_ne!(
+            book.state.result(e).unwrap().stamp().unwrap().computed_by,
+            origin
+        );
+        assert_eq!(book.state.spill(e).unwrap().area().cell_count(), 2);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_scope_is_exact_and_boundary_cache_waits_for_p02() {
+    let mut book = SevenCellSlice::new();
+    book.baseline();
+    book.change(Some(10.0), None);
+    let c = book.c(1, 3);
+    let b = book.c(1, 2);
+    let old_b = calculated(&book.state, b);
+    let scope = calc_engine::CalcScope::Range(vec![GridArea::cell(c)]);
+    let mut work = calc_engine::begin_recalc_scoped(
+        &mut book.state,
+        &book.root,
+        NumericMode::Fast,
+        scope.clone(),
+        calc_engine::EvalSelection::ForceAll,
+    )
+    .unwrap();
+    assert_eq!(work.scheduled(), 1);
+    assert_eq!(
+        step(
+            &book.state,
+            &book.root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    let delta = finish(&mut book.state, &book.root, work).unwrap();
+    assert_eq!(delta.completion().unwrap().scope, scope);
+    assert_eq!(
+        delta.completion().unwrap().outcome,
+        calc_engine::contract::CompletionOutcome::Incomplete
+    );
+    assert_eq!(calculated(&book.state, b), old_b);
+    assert!(
+        matches!(book.state.result(c), Some(FormulaResult::NotModeled { refusal: NotModeled::Evaluation(EvalFault::NotModelled { owner: "dc-hsa5", construct }), .. }) if construct.contains("P02"))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_invalid_scope_has_no_admission_or_requirement_effect() {
+    let mut book = SevenCellSlice::new();
+    book.baseline();
+    let at = book.c(1, 2);
+    let requirement = book.state.requirement_at(at);
+    let foreign = SheetId::from_parts(500, 0);
+    for scope in [
+        calc_engine::CalcScope::Range(vec![]),
+        calc_engine::CalcScope::Sheet(foreign),
+    ] {
+        assert!(matches!(
+            calc_engine::begin_recalc_scoped(
+                &mut book.state,
+                &book.root,
+                NumericMode::Fast,
+                scope,
+                calc_engine::EvalSelection::ForceAll
+            ),
+            Err(StartError::InvalidScope { .. })
+        ));
+        assert_eq!(book.state.requirement_at(at), requirement);
+    }
+    let work = book.begin(calc_engine::EvalSelection::ForceAll);
+    assert_eq!(
+        work.admission().command.sequence,
+        2,
+        "rejected scopes do not consume command identities"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_low_level_successor_requires_a_transformed_structural_scope() {
+    let mut book = SevenCellSlice::new();
+    book.baseline();
+    let work = book.begin(calc_engine::EvalSelection::ForceAll);
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let axis = calc_doc_model::AxisEdit::new(
+        book.sheet,
+        calc_doc_model::Axis::Rows,
+        calc_doc_model::AxisChange::Insert,
+        1,
+        1,
+    )
+    .unwrap();
+    book.root = l3_structural(
+        &mut book.state,
+        &book.root,
+        vec![WorkbookOp::EditAxis(axis)],
+        &mut ids,
+    );
+    assert!(matches!(
+        calc_engine::supersede_recalc(&mut book.state, &book.root, work, NumericMode::Fast),
+        Err(StartError::ScopeTransformRequired)
+    ));
+    assert!(
+        book.state.result(book.c(2, 2)).is_some(),
+        "the moved prior result retains its origin until recalculation"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_pending_spill_growth_shrink_and_scoped_shape_wave() {
+    let mut book = SevenCellSlice::new();
+    book.baseline();
+    let e = book.c(1, 5);
+    let g = book.c(10, 7);
+    book.change(None, Some(10.0));
+    assert!(book.state.stale(&book.root).unwrap().contains(&g));
+    assert!(book.state.validated_result(&book.root, g).is_none());
+    let work = book.begin(calc_engine::EvalSelection::DirtyAndVolatile);
+    book.complete(work);
+    assert_eq!(l1_value(&book.state, g), CalcValue::number(11.0));
+    assert_eq!(book.state.spill(e).unwrap().area().cell_count(), 10);
+    assert!(book.state.validated_result(&book.root, g).is_some());
+    book.change(None, Some(1.0));
+    let old_g = book.state.result(g).unwrap().clone();
+    let work = calc_engine::begin_recalc_scoped(
+        &mut book.state,
+        &book.root,
+        NumericMode::Fast,
+        calc_engine::CalcScope::Range(vec![GridArea::cell(e)]),
+        calc_engine::EvalSelection::ForceAll,
+    )
+    .unwrap();
+    let delta = book.complete(work);
+    assert!(
+        delta
+            .changes()
+            .iter()
+            .all(|change| matches!(change, ValueChange::Published { at, .. } if *at == e))
+    );
+    assert_eq!(
+        book.state.result(g),
+        Some(&old_g),
+        "a shape wave cannot widen the scope"
+    );
+    assert!(book.state.stale(&book.root).unwrap().contains(&g));
+    let work = book.begin(calc_engine::EvalSelection::DirtyAndVolatile);
+    book.complete(work);
+    assert_eq!(l1_value(&book.state, g), CalcValue::number(1.0));
+    assert!(book.state.spill(e).is_none());
+    let stamp = book.state.result(g).unwrap().stamp().unwrap();
+    assert!(stamp.reads.absences.iter().any(|proof| proof.kind
+        == calc_engine::contract::AbsenceKind::ReadBlank
+        && proof.pending_producers == 0
+        && proof.blanks == vec![calc_engine::contract::BlankRun { offset: 0, len: 1 }]));
+    assert!(book.state.validated_result(&book.root, g).is_some());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_scoped_calculation_does_not_demand_unrelated_volatile_cells() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let a = key(s, 1, 1);
+    let b = key(s, 1, 2);
+    let root = l3_root(
+        &[(s, "Scope")],
+        vec![(a, formula("1+1")), (b, formula("NOW()"))],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    state.set_clock(Some(40_000.0));
+    recalc(&mut state, &root, &mut Unobserved);
+    let before = state.requirement_at(b).unwrap();
+    let value = state.result(b).unwrap().clone();
+    let mut work = calc_engine::begin_recalc_scoped(
+        &mut state,
+        &root,
+        NumericMode::Fast,
+        calc_engine::CalcScope::Range(vec![GridArea::cell(a)]),
+        calc_engine::EvalSelection::ForceAll,
+    )
+    .unwrap();
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, &root, work).unwrap();
+    assert_eq!(state.requirement_at(b), Some(before));
+    assert_eq!(state.result(b), Some(&value));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_bounded_integer_reference_model_matches_every_step_budget() {
+    // Independent arithmetic model: seven acyclic targets, eight edit/calculation pairs and
+    // two edits between slices (eighteen authored/calculation operations per trace).
+    // It does not call the production evaluator, scheduler or certificate validator to
+    // produce expected values. Effect/async and boundary-cache policies remain separate work.
+    fn expected(a: f64, b: f64) -> [f64; 7] {
+        let c = a + 1.0;
+        let d = c * 2.0;
+        let e = b * 3.0;
+        let f = e + 4.0;
+        let g = d + f;
+        let h = c + d + e + f;
+        [c, d, e, f, g, h, g + h]
+    }
+    for budget in [1, 2, usize::MAX] {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let s = ids.issue().unwrap();
+        let c = |row, col| key(s, row, col);
+        let mut inputs = [1.0, 2.0];
+        let mut cells = vec![(c(1, 1), number(inputs[0])), (c(2, 1), number(inputs[1]))];
+        for (i, text) in [
+            "A1+1",
+            "B1*2",
+            "A2*3",
+            "D1+4",
+            "C1+E1",
+            "B1+C1+D1+E1",
+            "F1+G1",
+        ]
+        .iter()
+        .enumerate()
+        {
+            cells.push((c(1, i as u32 + 2), formula(text)));
+        }
+        let mut root = l3_root(
+            &[(s, "Integer")],
+            cells,
+            Definitions::new(vec![], vec![], vec![], []),
+        );
+        let mut state = EngineState::new(&root);
+        recalc(&mut state, &root, &mut Unobserved);
+        for operation in 0..8 {
+            let input = operation % 2;
+            inputs[input] = f64::from(operation as u32 + 3);
+            root = edit(
+                &mut state,
+                &root,
+                vec![set(c(input as u32 + 1, 1), number(inputs[input]))],
+            );
+            let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+            if operation % 4 == 0 {
+                let progress = step(
+                    &state,
+                    &root,
+                    &mut work,
+                    WorkBudget::evaluations(1),
+                    &mut Unobserved,
+                );
+                assert!(matches!(progress, RecalcProgress::Pending { .. }));
+                let other = 1 - input;
+                inputs[other] += 10.0;
+                root = edit(
+                    &mut state,
+                    &root,
+                    vec![set(c(other as u32 + 1, 1), number(inputs[other]))],
+                );
+                work = calc_engine::supersede_recalc(&mut state, &root, work, NumericMode::Fast)
+                    .unwrap();
+            }
+            let command = work.admission().command;
+            let mut completed = false;
+            for _ in 0..32 {
+                match step(
+                    &state,
+                    &root,
+                    &mut work,
+                    WorkBudget::evaluations(budget),
+                    &mut Unobserved,
+                ) {
+                    RecalcProgress::Pending { .. } => {}
+                    RecalcProgress::Complete => {
+                        completed = true;
+                        break;
+                    }
+                    RecalcProgress::Failed => {
+                        panic!("the bounded integer model failed at operation {operation}")
+                    }
+                }
+            }
+            assert!(completed, "bounded acyclic work must terminate");
+            let delta = finish(&mut state, &root, work).unwrap();
+            assert_eq!(delta.completion().unwrap().command, command);
+            assert_eq!(
+                delta.completion().unwrap().outcome,
+                calc_engine::contract::CompletionOutcome::Complete
+            );
+            for (i, value) in expected(inputs[0], inputs[1]).into_iter().enumerate() {
+                let at = c(1, i as u32 + 2);
+                assert_eq!(
+                    l1_value(&state, at),
+                    CalcValue::number(value),
+                    "operation {operation}, budget {budget}, target {i}"
+                );
+                assert!(state.validated_result(&root, at).is_some());
+            }
+        }
+    }
+}

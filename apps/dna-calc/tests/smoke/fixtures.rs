@@ -1,4 +1,19 @@
 //! Synthetic documented OOXML variations of the retained features fixture, not Excel readings.
+#[path = "../../../../crates/calc-engine/tests/fixtures/seven_cell.rs"]
+mod seven_cell;
+
+pub(crate) fn calculation_script() -> String {
+    include_str!("recalc-worker.js")
+        .replace(
+            "$FIXTURE",
+            &serde_json::to_string(seven_cell::CELLS).expect("the fixture serializes"),
+        )
+        .replace(
+            "$PURE_SCOPE",
+            &serde_json::to_string(seven_cell::PURE_SCOPE).expect("the scope serializes"),
+        )
+}
+
 pub(crate) fn alignment(bytes: &[u8]) -> Result<Vec<u8>, String> {
     let parts = crate::oracle_cases::package_parts(bytes)?;
     let styles = std::str::from_utf8(parts.get("xl/styles.xml").ok_or("no styles")?)

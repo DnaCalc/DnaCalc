@@ -6300,6 +6300,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "recalculation contract: a real worker services Ping between finite calculation slices",
+        actions: &[Action::WorkerCalculation],
+        checks: &[],
+    },
+    Case {
         name: "presentation: the live RenderPlan contains a calculated volatile formula",
         actions: &[
             Action::Keys("grid", "="),
@@ -6973,9 +6978,16 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "presentation",
+        name: "recalculation-contract",
         start: 444,
-        end: 447,
+        end: 445,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "presentation",
+        start: 445,
+        end: 448,
         core: 3,
         setup: &[],
     },
