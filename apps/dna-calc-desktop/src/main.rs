@@ -20,6 +20,12 @@ fn run() -> Result<(), String> {
     let mut xlls = Vec::new();
     let mut formula = "=MyAdd(1,2)".to_owned();
     let mut self_test = false;
+    let mut cases_file = None;
+    let mut commands = Vec::new();
+    let mut early_commands = Vec::new();
+    let mut reload = false;
+    let mut reload_new_host = false;
+    let mut sheet_name = "X1".to_owned();
     let mut wait = None;
     let mut ready = None;
     let mut finished = None;
@@ -30,6 +36,19 @@ fn run() -> Result<(), String> {
             "--xll" => xlls.push(PathBuf::from(args.next().ok_or("--xll needs a path")?)),
             "--formula" => formula = args.next().ok_or("--formula needs text")?,
             "--self-test" => self_test = true,
+            "--cases" => {
+                cases_file = Some(PathBuf::from(args.next().ok_or("--cases needs a path")?))
+            }
+            "--command" => commands.push(args.next().ok_or("--command needs a name")?),
+            "--sheet" => sheet_name = args.next().ok_or("--sheet needs a name")?,
+            "--early-command" => {
+                early_commands.push(args.next().ok_or("--early-command needs a name")?)
+            }
+            "--reload" => reload = true,
+            "--reload-new-host" => {
+                reload = true;
+                reload_new_host = true;
+            }
             "--ready" => ready = Some(PathBuf::from(args.next().ok_or("--ready needs a path")?)),
             "--wait" => wait = Some(PathBuf::from(args.next().ok_or("--wait needs a path")?)),
             "--finished" => {
@@ -39,7 +58,9 @@ fn run() -> Result<(), String> {
                 release = Some(PathBuf::from(args.next().ok_or("--release needs a path")?))
             }
             "--help" => {
-                println!("dna-calc-desktop --xll PATH [--formula '=MyAdd(1,2)'] [--self-test]");
+                println!(
+                    "dna-calc-desktop --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH | --self-test] [--sheet NAME] [--command NAME] [--early-command NAME] [--reload]"
+                );
                 return Ok(());
             }
             _ => return Err(format!("unknown argument: {arg}")),
@@ -48,15 +69,20 @@ fn run() -> Result<(), String> {
     if xlls.is_empty() {
         return Err("provide --xll PATH".into());
     }
-    let shell = shell::Shell::new()?;
+    let mut shell = shell::Shell::new()?;
     if let Some(path) = ready {
         std::fs::write(path, "ready").map_err(|e| e.to_string())?;
     }
     if let Some(path) = wait {
         shell.wait_for(&path)?;
     }
-    let host = calc_xll_host::XllHost::new(shell.hwnd());
-    for xll in xlls {
+    let mut host = std::rc::Rc::new(calc_xll_host::XllHost::new(shell.hwnd()));
+    let mut session = dna_onecalc::Session::new(&sheet_name).map_err(|e| format!("{e:?}"))?;
+    for (name, id) in session.sheets() {
+        host.set_sheet(id, format!("[Book1]{name}"), true);
+    }
+    shell.attach_host(host.clone())?;
+    for xll in &xlls {
         if let Err(why) = host.load(&xll) {
             return Err(format!(
                 "{why}; after rollback: {} active registrations, {} callable names, {} callback allocations",
@@ -70,7 +96,13 @@ fn run() -> Result<(), String> {
         }
     }
     let registrations = host.registrations();
-    let mut session = dna_onecalc::Session::new("X1").map_err(|e| format!("{e:?}"))?;
+    let stale_name = registrations
+        .iter()
+        .find(|r| r.macro_type == 1)
+        .ok_or("add-in registered no worksheet functions")?
+        .name
+        .clone();
+    shell.pump_for(std::time::Duration::from_millis(100));
     session
         .set_formula_cell("B3")
         .map_err(|e| format!("{e:?}"))?;
@@ -81,11 +113,14 @@ fn run() -> Result<(), String> {
         )
         .map_err(|e| format!("{e:?}"))?;
     session.set_user_functions(host.functions()?);
-    let tests: Vec<(String, serde_json::Value)> = if self_test {
-        let cases: Vec<serde_json::Value> = serde_json::from_str(include_str!(
-            "../../../crates/calc-xll-reference/fixture/x1-cases.json"
-        ))
-        .map_err(|e| e.to_string())?;
+    let tests: Vec<(String, serde_json::Value)> = if self_test || cases_file.is_some() {
+        let text = if let Some(path) = cases_file {
+            std::fs::read_to_string(path).map_err(|e| e.to_string())?
+        } else {
+            include_str!("../../../crates/calc-xll-reference/fixture/x1-cases.json").to_owned()
+        };
+        let cases: Vec<serde_json::Value> =
+            serde_json::from_str(&text).map_err(|e| e.to_string())?;
         cases
             .into_iter()
             .map(|c| {
@@ -111,12 +146,71 @@ fn run() -> Result<(), String> {
                 .as_ref()
                 .ok_or("formula has no calculated value")?,
         );
-        if self_test && value != expected {
+        if !expected.is_null()
+            && value != expected
+            && !(value.is_number() && expected.is_number() && value.as_f64() == expected.as_f64())
+        {
             return Err(format!(
                 "{formula}: expected {expected}, calculated {value}"
             ));
         }
         results.push(serde_json::json!({"formula":formula,"value":value}));
+        shell.pump_for(std::time::Duration::from_millis(20));
+    }
+    let mut command_results = Vec::new();
+    for command in commands {
+        let value = host.run(&command, &[])?;
+        command_results.push(serde_json::json!({"command":command,"value":value_json(&value)}));
+        shell.pump_for(std::time::Duration::from_millis(200));
+    }
+    for command in early_commands {
+        let value = shell.run_early(&command)?;
+        command_results.push(
+            serde_json::json!({"command":command,"value":value_json(&value),"early_bound":true}),
+        );
+        shell.pump_for(std::time::Duration::from_millis(200));
+    }
+    let mut reload_results = Vec::new();
+    if reload {
+        let retained = host.functions()?;
+        for xll in xlls.iter().rev() {
+            host.unload(xll)?;
+        }
+        if retained.call(&stale_name, &[])?
+            != calc_value::CalcValue::error(calc_value::WorksheetErrorCode::Name)
+        {
+            return Err("retained registration ran after removal".into());
+        }
+        session.set_user_functions(host.functions()?);
+        drop(retained);
+        if reload_new_host {
+            host = std::rc::Rc::new(calc_xll_host::XllHost::new(shell.hwnd()));
+            for (name, id) in session.sheets() {
+                host.set_sheet(id, format!("[Book1]{name}"), true);
+            }
+            shell.attach_host(host.clone())?;
+        }
+        for xll in &xlls {
+            host.load(xll)?;
+        }
+        session.set_user_functions(host.functions()?);
+        shell.pump_for(std::time::Duration::from_millis(100));
+        for case in &results {
+            let formula = case["formula"].as_str().ok_or("missing reload formula")?;
+            session.set_formula(formula);
+            let calculation = session.calculate();
+            if !calculation.diagnostics.is_empty() {
+                return Err(format!(
+                    "after reload {formula}: {:?}",
+                    calculation.diagnostics
+                ));
+            }
+            let value = value_json(calculation.result.as_ref().ok_or("missing reload value")?);
+            if value != case["value"] {
+                return Err(format!("reload changed {formula}: {value}"));
+            }
+            reload_results.push(serde_json::json!({"formula":formula,"value":value}));
+        }
     }
     let retained = host.functions()?;
     if host.live_callback_allocations() != 0 {
@@ -132,13 +226,7 @@ fn run() -> Result<(), String> {
             host.live_callback_allocations()
         ));
     }
-    let stale = retained.call(
-        "MyAdd",
-        &[
-            calc_value::CalcValue::number(1.),
-            calc_value::CalcValue::number(2.),
-        ],
-    )?;
+    let stale = retained.call(&stale_name, &[])?;
     if stale != calc_value::CalcValue::error(calc_value::WorksheetErrorCode::Name) {
         return Err("retained registration ran after unload".into());
     }
@@ -147,7 +235,7 @@ fn run() -> Result<(), String> {
     }
     println!(
         "{}",
-        serde_json::json!({"host":"DNA Calc / OneCalc controller","registrations":registrations.len(),"duplicate_use_count":registrations.iter().find(|r|r.name=="MyAdd").map(|r|r.use_count),"results":results,"live_callback_allocations":host.live_callback_allocations(),"closed_registration":"#NAME?"})
+        serde_json::json!({"host":"DNA Calc / OneCalc controller","registrations":registrations.len(),"duplicate_use_count":registrations.iter().find(|r|r.name=="MyAdd").map(|r|r.use_count),"numbered_exports":registrations.iter().filter_map(|r|r.procedure.strip_prefix('f').and_then(|n|n.parse::<u32>().ok())).fold(None,|a:Option<(u32,u32)>,n|Some(a.map(|(lo,hi)|(lo.min(n),hi.max(n))).unwrap_or((n,n)))),"results":results,"reload_results":reload_results,"commands":command_results,"live_callback_allocations":host.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name})
     );
     if let Some(path) = finished {
         std::fs::write(path, "finished").map_err(|e| e.to_string())?;
@@ -171,6 +259,12 @@ fn value_json(value: &calc_value::CalcValue) -> serde_json::Value {
     }
 }
 fn main() -> std::process::ExitCode {
+    // Set before this process creates threads or loads any add-in. Older Excel-DNA
+    // releases can ignore this opt-in; the executable retains its own name.
+    #[cfg(windows)]
+    unsafe {
+        std::env::set_var("EXCELDNA_ASSUME_EXCEL_PROCESS", "1");
+    }
     #[cfg(windows)]
     {
         match run() {

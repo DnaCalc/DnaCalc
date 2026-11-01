@@ -1,0 +1,6 @@
+{"utc":"2026-11-01T07:37:51.8039118Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-01T07:37:52.2319676Z","operation":"=SayHello(\"x\")","value":"Hello, x"}
+{"utc":"2026-11-01T07:37:52.6019865Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-01T07:37:52.6094844Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-01T07:37:52.7211402Z","operation":"tracer exit","value":0}
+{"utc":"2026-11-01T07:37:53.4398544Z","operation":"cleanup","value":"Stopped owned Excel PID 56884"}

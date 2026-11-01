@@ -477,12 +477,22 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             .as_ref()
             .map(Panes::from_geometry)
             .unwrap_or_else(|| panes.get());
-        let mut plan = published_panes.plan(
+        let fonts = controller.font_revision.get();
+        let measure_text = |cell: &cells::CellShown, text: &str| {
+            autofit::plan_advance(cell, text, presentation.metrics.header_h / 22.0, fonts)
+        };
+        let published = published_geometry.get();
+        let options = render_plan::PlanOptions {
+            geometry: published.as_ref(),
+            measure: Some(&measure_text),
+        };
+        let mut plan = published_panes.plan_with(
             &shown,
             &presentation.metrics,
             &presentation.viewport,
             extent.rows,
             extent.cols,
+            &options,
         );
         plan.presentation = presentation.stamp;
         if let Some(sheet) = sheet {
@@ -1042,14 +1052,27 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         let x = f64::from(ev.client_x()) - rect.left();
         let y = f64::from(ev.client_y()) - rect.top();
         let extent = grid_extent.get_untracked();
-        Some(panes.get_untracked().hit(
+        let target = panes.get_untracked().hit(
             &metrics.get_untracked(),
             &viewport.get_untracked(),
             extent.rows,
             extent.cols,
             x,
             y,
-        ))
+        );
+        Some(if let HitTarget::Cell { row, col } = target {
+            controller
+                .sheet
+                .get_untracked()
+                .and_then(|sheet| CellKey::new(sheet, row, col).ok())
+                .and_then(|at| published_geometry.get_untracked().map(|g| g.anchor(at)))
+                .map_or(target, |at| HitTarget::Cell {
+                    row: at.row(),
+                    col: at.column(),
+                })
+        } else {
+            target
+        })
     };
     let stop_drag = move || {
         pointer_down.set_value(false);
@@ -1429,7 +1452,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 .map(|cell| {
                     let address = cells::address(cell.row, cell.col);
                     let mut style = rect_style(&cell.rect);
-                    style.push_str(&panes.get().clip_style(cell.rect,&metrics.get(),&viewport.get(),Some(cell.row),Some(cell.col)));
+                    style.push_str(&panes.get().cell_clip_style(cell,&metrics.get(),&viewport.get()));
+                    if cell.row_span > 1 || cell.col_span > 1 { style.push_str(";background-color:var(--dna-paper);border-right:1px solid var(--dna-line-soft);border-bottom:1px solid var(--dna-line-soft)"); }
                     let conditional = cell.shown.conditional.clone().unwrap_or_default();
                     // A conditional format's font colour comes before the number format's.
                     if let Some(color) = conditional.font_color.as_ref().or(cell.shown.color.as_ref()) {
@@ -1502,7 +1526,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             let (set,index)=conditional.icon.as_ref()?;
             let italic=matches!(cell.shown.provenance,cells::Provenance::FileCache|cells::Provenance::Refused);
             let layout=alignment::layout(cell,conditional,italic,plan.scale);
-            let style=format!("{}{}",rect_style(&cell.rect),panes.get().clip_style(cell.rect,&metrics.get(),&viewport.get(),Some(cell.row),Some(cell.col)));
+            let style=format!("{}{}",rect_style(&cell.rect),panes.get().cell_clip_style(cell,&metrics.get(),&viewport.get()));
             Some(view!{<div class="dc-canvas-icon" aria-hidden="true" use:css=style><span class="dc-icon" use:css=layout.icon inner_html=icons::icon_svg(set,*index)></span></div>})
         }).collect_view())
     };
@@ -1516,6 +1540,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     let cells=row.cells.iter().map(|cell| view! {
             <span role="gridcell" id=format!("dc-grid-cell-{}-{}-{}",ctx.index,cell.row,cell.col)
                 aria-colindex=cell.col.to_string() aria-selected=cell.selected.to_string()
+                aria-rowspan=cell.row_span.to_string() aria-colspan=cell.col_span.to_string()
+                aria-readonly=(!cell.editability.can_begin).to_string()
                 aria-label=cell.label.clone()>{cell.address.clone()}</span>
         }).collect_view();
                     view! { <div role="row" aria-rowindex=row.row.to_string()>{cells}</div> }
@@ -1547,7 +1573,28 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     };
     let active_rect = move || {
         let (row, col) = controller.active.get();
-        panes.get().rect(&metrics.get(), &viewport.get(), row, col)
+        let m = metrics.get();
+        if let Some(merge) = published_geometry.get().and_then(|g| {
+            controller
+                .sheet
+                .get()
+                .and_then(|s| CellKey::new(s, row, col).ok())
+                .and_then(|at| g.merge_at(at))
+        }) {
+            let mut rect = panes.get().rect(
+                &m,
+                &viewport.get(),
+                merge.first().row(),
+                merge.first().column(),
+            );
+            rect.w = m.col_start(merge.last().column()) + m.width(merge.last().column())
+                - m.col_start(merge.first().column());
+            rect.h = m.row_start(merge.last().row()) + m.height(merge.last().row())
+                - m.row_start(merge.first().row());
+            rect
+        } else {
+            panes.get().rect(&m, &viewport.get(), row, col)
+        }
     };
     // A selection crossing a frozen boundary has one visible rectangle in each pane.
     let selection_view = move || {
@@ -1557,8 +1604,22 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         }).collect_view()
     };
     let active_view = move || {
-        let rect = active_rect();
-        view! { <div class="dc-active" data-dnacalc="active-cell" use:css=format!("{}{}",rect_style(&rect),panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(controller.active.get().0),Some(controller.active.get().1)))></div> }
+        let (row, col) = controller.active.get();
+        let merged = published_geometry.get().and_then(|g| {
+            controller
+                .sheet
+                .get()
+                .and_then(|s| CellKey::new(s, row, col).ok())
+                .and_then(|at| g.merge_at(at))
+        });
+        let rects = if let Some(area) = merged {
+            panes
+                .get()
+                .area_rects(area, &metrics.get(), &viewport.get())
+        } else {
+            vec![active_rect()]
+        };
+        rects.into_iter().map(|rect|view! { <div class="dc-active" data-dnacalc="active-cell" use:css=format!("{}{}",rect_style(&rect),if merged.is_some(){String::new()}else{panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(row),Some(col))})></div> }).collect_view()
     };
     let copy_outline = move || {
         controller.clipboard.get().filter(|area|Some(area.sheet())==controller.sheet.get()).map(|area|panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(|rect|view!{
@@ -1901,9 +1962,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 aria-colcount="16384"
                 aria-describedby=format!("dc-grid-keyboard-{}",ctx.index)
                 aria-activedescendant=move || {
-                    let (row, col) = controller.active.get();
-                    plan.with(|plan| (plan.row_headers.iter().any(|r| r.row == row) && plan.col_headers.iter().any(|c| c.col == col))
-                        .then(|| format!("dc-grid-cell-{}-{row}-{col}",ctx.index)))
+                    plan.with(|plan| plan.semantic_rows.iter().flat_map(|r| &r.cells).find(|cell|cell.active).map(|cell|format!("dc-grid-cell-{}-{}-{}",ctx.index,cell.row,cell.col)))
                 }
                 tabindex="0"
                 node_ref=scroller

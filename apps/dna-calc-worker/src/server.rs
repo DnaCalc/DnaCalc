@@ -1060,15 +1060,144 @@ impl Server {
                         .map(wire::geometry_of)
                         .as_ref(),
                 );
-                SkinIntent::Select(dna_calc_model::selection::navigate(
-                    selection,
+                let mut selection = selection.clone();
+                let mut nav = nav;
+                let merges = host.merged_areas(at.sheet());
+                if extend
+                    && let Some(merged) = merges.iter().find(|a| a.contains(at))
+                    && selection.areas.as_slice() == [*merged]
+                    && matches!(
+                        nav,
+                        dna_calc_model::selection::Navigation::Step(
+                            dna_calc_model::selection::NavAction::Left
+                                | dna_calc_model::selection::NavAction::Up
+                        )
+                    )
+                {
+                    return Ok(self.done(false, Some("Merged selection extension across the anchor corner is not modelled (dc-971p.6); use the name box to select an explicit range".into()), 0.0));
+                }
+                if !extend && let Some(merged) = merges.iter().copied().find(|a| a.contains(at)) {
+                    use dna_calc_model::selection::{NavAction, Navigation};
+                    if let Navigation::Walk {
+                        horizontal,
+                        reverse,
+                    } = nav
+                        && selection.areas.as_slice() == [merged]
+                    {
+                        nav = Navigation::Step(match (horizontal, reverse) {
+                            (true, false) => NavAction::Right,
+                            (true, true) => NavAction::Left,
+                            (false, false) => NavAction::Down,
+                            (false, true) => NavAction::Up,
+                        });
+                    }
+                    let edge = match nav {
+                        Navigation::Step(NavAction::Down | NavAction::CommitDown) => {
+                            Some((merged.last().row(), merged.first().column()))
+                        }
+                        Navigation::Step(
+                            NavAction::Right | NavAction::NextColumn | NavAction::CommitRight,
+                        ) => Some((merged.first().row(), merged.last().column())),
+                        Navigation::Step(
+                            NavAction::Up | NavAction::Left | NavAction::PrevColumn,
+                        ) => Some((merged.first().row(), merged.first().column())),
+                        _ => None,
+                    };
+                    if let Some((row, col)) = edge {
+                        selection.active =
+                            Some(CellKey::new(at.sheet(), row, col).expect("merge edge"));
+                    }
+                }
+                let mut next = dna_calc_model::selection::navigate(
+                    &selection,
                     nav,
                     extend,
                     &metrics,
                     f64::from(page_height),
                     &occupied,
                     used,
-                ))
+                );
+                // Walk visits each merged identity once within a larger selected rectangle.
+                // Jump to the covered run's edge instead of snapping back to its anchor.
+                if !extend
+                    && let dna_calc_model::selection::Navigation::Walk {
+                        horizontal,
+                        reverse,
+                    } = nav
+                {
+                    let mut visited = std::collections::BTreeSet::new();
+                    while let Some(target) = next.active {
+                        let Some(merge) = merges
+                            .iter()
+                            .find(|a| a.contains(target) && a.first() != target)
+                        else {
+                            break;
+                        };
+                        if !visited.insert(target) {
+                            return Err("Merged selection navigation did not advance".into());
+                        }
+                        let area = next
+                            .areas
+                            .iter()
+                            .find(|a| a.contains(target))
+                            .copied()
+                            .unwrap_or_else(|| GridArea::cell(target));
+                        let full_line = if horizontal {
+                            area.first().column() == merge.first().column()
+                                && area.last().column() == merge.last().column()
+                        } else {
+                            area.first().row() == merge.first().row()
+                                && area.last().row() == merge.last().row()
+                        };
+                        if reverse
+                            && (full_line
+                                || if horizontal {
+                                    target.row() == merge.first().row()
+                                } else {
+                                    target.column() == merge.first().column()
+                                })
+                        {
+                            next.active = Some(merge.first());
+                            break;
+                        }
+                        let edge = if full_line {
+                            merge.last()
+                        } else if horizontal {
+                            CellKey::new(
+                                target.sheet(),
+                                target.row(),
+                                if reverse {
+                                    merge.first().column()
+                                } else {
+                                    merge.last().column()
+                                },
+                            )
+                            .expect("merged walk column")
+                        } else {
+                            CellKey::new(
+                                target.sheet(),
+                                if reverse {
+                                    merge.first().row()
+                                } else {
+                                    merge.last().row()
+                                },
+                                target.column(),
+                            )
+                            .expect("merged walk row")
+                        };
+                        next.active = Some(edge);
+                        next = dna_calc_model::selection::navigate(
+                            &next,
+                            nav,
+                            false,
+                            &metrics,
+                            f64::from(page_height),
+                            &occupied,
+                            used,
+                        );
+                    }
+                }
+                SkinIntent::Select(next)
             }
             Intent::EnterCell { at, text } => SkinIntent::EnterCell {
                 at: cell(at)?,
@@ -1153,6 +1282,44 @@ impl Server {
                 active: Some(cell(active)?),
                 areas: areas.into_iter().map(area).collect::<Result<_, _>>()?,
             }),
+        };
+        let intent = if let SkinIntent::Select(mut selection) = intent {
+            if let Some(at) = selection.active {
+                let merges = self.book.host().merged_areas(at.sheet());
+                if let Some(merged) = merges.iter().find(|a| a.contains(at)) {
+                    selection.active = Some(merged.first());
+                }
+                for area in &mut selection.areas {
+                    loop {
+                        let before = *area;
+                        for merge in &merges {
+                            if area.intersection(*merge).is_some() {
+                                *area = GridArea::new(
+                                    CellKey::new(
+                                        area.sheet(),
+                                        area.first().row().min(merge.first().row()),
+                                        area.first().column().min(merge.first().column()),
+                                    )
+                                    .expect("merge start"),
+                                    CellKey::new(
+                                        area.sheet(),
+                                        area.last().row().max(merge.last().row()),
+                                        area.last().column().max(merge.last().column()),
+                                    )
+                                    .expect("merge end"),
+                                )
+                                .expect("one sheet");
+                            }
+                        }
+                        if *area == before {
+                            break;
+                        }
+                    }
+                }
+            }
+            SkinIntent::Select(selection)
+        } else {
+            intent
         };
         self.dispatch_entry(intent, false)
     }
@@ -1437,6 +1604,18 @@ impl Server {
             .sheet_geometry(sheet.id())
             .map(|g| wire::geometry_of(&g))
             .unwrap_or_default();
+        geometry.merges = self
+            .book
+            .host()
+            .merged_areas(sheet.id())
+            .into_iter()
+            .map(wire::Area::of)
+            .collect();
+        geometry.edit_refusal = calc_host::can_edit(
+            self.book.host(),
+            CellKey::new(sheet.id(), 1, 1).expect("sheet origin"),
+        )
+        .err();
         if let Some(panes) = self
             .book
             .host()
@@ -2523,6 +2702,74 @@ fn conditional_change(change: wire::ConditionalChange) -> calc_host::Conditional
 mod tile_tests {
     use super::*;
     use dna_calc_model::{TileApply, ViewMirror};
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_subscription_to_a_covered_merge_cell_observes_its_source_anchor_and_edits() {
+        let mut server = Server::new();
+        server
+            .execute_current(
+                Request::Open {
+                    name: "features.xlsx".into(),
+                },
+                Some(
+                    include_bytes!("../../../crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx")
+                        .to_vec(),
+                ),
+            )
+            .reply
+            .unwrap();
+        let sheet = server.book().sheets()[0].id;
+        let anchor = CellKey::new(sheet, 1, 8).unwrap();
+        let covered = CellKey::new(sheet, 1, 9).unwrap();
+        let enter_anchor = |server: &mut Server, text: &str| {
+            let Reply::Done { outcome, .. } = server
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key::of(anchor),
+                        text: text.into(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap()
+            else {
+                panic!("entry receipt")
+            };
+            assert!(outcome.accepted, "{:?}", outcome.error);
+        };
+        enter_anchor(&mut server, "merge source");
+        server.take_events();
+        let workbook = server.workbook_id();
+        server
+            .execute_current(
+                Request::Subscribe {
+                    workbook,
+                    id: 1,
+                    interest: Interest::Area(Area::of(GridArea::cell(covered))),
+                },
+                None,
+            )
+            .reply
+            .unwrap();
+        let mut mirror = ViewMirror::default();
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        assert_eq!(mirror.cell(anchor).unwrap().text, "merge source");
+        assert_eq!(
+            mirror.cell(anchor).unwrap().provenance,
+            cells::Provenance::Literal
+        );
+        assert_eq!(
+            mirror.geometry(sheet).unwrap().merges,
+            [Area::of(GridArea::new(anchor, covered).unwrap())]
+        );
+        server
+            .handle(Request::TileAck(barrier), None)
+            .reply
+            .unwrap();
+        enter_anchor(&mut server, "changed source");
+        receive(&mut mirror, projection_events(&mut server));
+        assert_eq!(mirror.cell(anchor).unwrap().text, "changed source");
+    }
     fn projection_events(server: &mut Server) -> Vec<Event> {
         server
             .take_events()
@@ -2576,8 +2823,17 @@ mod tile_tests {
             height: 16_000.,
             ..Default::default()
         };
-        let mut plan =
-            dna_calc_model::render_plan::build_render_plan(&shown, &metrics, &view, 1000, 20);
+        let mut plan = dna_calc_model::render_plan::build_render_plan_with(
+            &shown,
+            &metrics,
+            &view,
+            1000,
+            20,
+            &dna_calc_model::render_plan::PlanOptions {
+                geometry: mirror.geometry(sheet),
+                ..Default::default()
+            },
+        );
         plan.attach_semantics(
             mirror,
             sheet,

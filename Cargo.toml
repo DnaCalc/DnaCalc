@@ -10,6 +10,7 @@ members = [
     "crates/calc-vba",
     "crates/calc-xll-abi",
     "crates/calc-xll-host",
+    "crates/calc-com-host",
     "crates/calc-xll-fixture",
     "crates/calc-doc-model",
     "crates/calc-doc",

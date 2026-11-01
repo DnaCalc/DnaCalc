@@ -1064,7 +1064,7 @@ impl HostSession {
 
     /// The areas an interest covers now.
     fn areas(&self, interest: &Interest) -> Vec<GridArea> {
-        match interest {
+        let mut areas = match interest {
             Interest::Area(area) => vec![*area],
             Interest::Areas(areas) => areas.clone(),
             Interest::Sheet(sheet) => vec![GridArea::full_sheet(*sheet)],
@@ -1075,7 +1075,25 @@ impl HostSession {
                 .map(|at| GridArea::cell(*at))
                 .chain(self.selection.areas.iter().copied())
                 .collect(),
+        };
+        // Seeing any part of a merge also observes its source anchor. Resolve this on every
+        // snapshot so structural edits cannot publish new merge geometry without its value.
+        let sheets: BTreeSet<_> = areas.iter().map(|a| a.sheet()).collect();
+        for sheet in sheets {
+            let anchors: Vec<_> = self
+                .host
+                .merged_areas(sheet)
+                .into_iter()
+                .filter(|merge| areas.iter().any(|a| a.intersection(*merge).is_some()))
+                .map(|merge| merge.first())
+                .collect();
+            for anchor in anchors {
+                if !areas.iter().any(|a| a.contains(anchor)) {
+                    areas.push(GridArea::cell(anchor));
+                }
+            }
         }
+        areas
     }
 
     /// The interest's cells that are not empty: every cell holding an input, every cell an array

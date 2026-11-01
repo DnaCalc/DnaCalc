@@ -10,8 +10,17 @@ use windows_sys::Win32::{
 
 pub struct Shell {
     root: HWND,
+    workbook: HWND,
+    projection: Option<Box<calc_com_host::Projection>>,
 }
 unsafe extern "system" fn window(hwnd: HWND, message: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+    if message == WM_GETOBJECT {
+        let pointer =
+            unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const calc_com_host::Projection;
+        if !pointer.is_null() {
+            return unsafe { &*pointer }.get_object(w, l);
+        }
+    }
     unsafe { DefWindowProcW(hwnd, message, w, l) }
 }
 fn wide(text: &str) -> Vec<u16> {
@@ -52,7 +61,7 @@ impl Shell {
                 CreateWindowExW(
                     0,
                     class.as_ptr(),
-                    wide("DNA Calc X1").as_ptr(),
+                    wide("DNA Calc").as_ptr(),
                     if parent.is_null() {
                         WS_OVERLAPPEDWINDOW
                     } else {
@@ -87,10 +96,53 @@ impl Shell {
             }
             parent = hwnd;
         }
-        Ok(Self { root })
+        Ok(Self {
+            root,
+            workbook: parent,
+            projection: None,
+        })
+    }
+    pub fn attach_host(&mut self, host: std::rc::Rc<calc_xll_host::XllHost>) -> Result<(), String> {
+        if let Some(old) = &self.projection {
+            old.close_addins()?;
+        }
+        let projection = Box::new(calc_com_host::Projection::new(self.hwnd(), host)?);
+        projection.verify_layout()?;
+        unsafe {
+            SetWindowLongPtrW(
+                self.workbook,
+                GWLP_USERDATA,
+                (&*projection as *const calc_com_host::Projection) as isize,
+            );
+        }
+        self.projection = Some(projection);
+        Ok(())
+    }
+    pub fn pump_for(&self, duration: Duration) {
+        let start = Instant::now();
+        loop {
+            let mut message: MSG = unsafe { std::mem::zeroed() };
+            while unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0
+            {
+                unsafe {
+                    TranslateMessage(&message);
+                    DispatchMessageW(&message);
+                }
+            }
+            if start.elapsed() >= duration {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
     pub fn hwnd(&self) -> usize {
         self.root as usize
+    }
+    pub fn run_early(&self, name: &str) -> Result<calc_value::CalcValue, String> {
+        self.projection
+            .as_ref()
+            .ok_or("COM projection is not attached")?
+            .run_early(name)
     }
     pub fn wait_for(&self, path: &Path) -> Result<(), String> {
         let start = Instant::now();
@@ -113,6 +165,17 @@ impl Shell {
 }
 impl Drop for Shell {
     fn drop(&mut self) {
+        if let Some(projection) = &self.projection {
+            if let Err(why) = projection.close_addins() {
+                eprintln!("desktop shutdown: {why}");
+            }
+        }
+        // Detach the callback pointer before freeing it. A later WM_GETOBJECT must
+        // never find the old Box, including while COM releases pump sent messages.
+        unsafe {
+            SetWindowLongPtrW(self.workbook, GWLP_USERDATA, 0);
+        }
+        self.projection.take();
         unsafe {
             DestroyWindow(self.root);
             CoUninitialize();

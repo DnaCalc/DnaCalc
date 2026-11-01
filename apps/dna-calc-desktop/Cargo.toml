@@ -11,6 +11,7 @@ portability = "native-only"
 
 [target.'cfg(windows)'.dependencies]
 calc-xll-host = { path = "../../crates/calc-xll-host" }
+calc-com-host = { path = "../../crates/calc-com-host" }
 calc-xll-abi = { path = "../../crates/calc-xll-abi" }
 calc-value = { path = "../../crates/calc-value" }
 dna-onecalc = { path = "../dna-onecalc" }

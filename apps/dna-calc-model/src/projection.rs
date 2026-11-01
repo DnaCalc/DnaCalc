@@ -619,6 +619,12 @@ pub struct Outcome {
 /// A sheet's sizes as the file states them (calc-host's sheet geometry).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
+    /// Imported merges, transformed by authored structural edits, in this publication.
+    #[serde(default)]
+    pub merges: Vec<Area>,
+    /// The same sheet preflight refusal returned by CanEdit. Commit validation remains separate.
+    #[serde(default)]
+    pub edit_refusal: Option<String>,
     pub top_left: Option<(u32, u32)>,
     pub pane_top_left: Option<(u32, u32)>,
     pub active_cell: Option<(u32, u32)>,
@@ -637,6 +643,16 @@ pub struct Geometry {
 }
 
 impl Geometry {
+    pub fn merge_at(&self, at: CellKey) -> Option<GridArea> {
+        self.merges
+            .iter()
+            .filter_map(|a| a.area())
+            .find(|a| a.contains(at))
+    }
+    pub fn anchor(&self, at: CellKey) -> CellKey {
+        self.merge_at(at).map_or(at, |a| a.first())
+    }
+
     /// A geometry snapshot is already neutral and can be used for physical layout directly.
     pub fn geometry(&self) -> Self {
         self.clone()

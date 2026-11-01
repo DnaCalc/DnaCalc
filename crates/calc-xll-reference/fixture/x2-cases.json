@@ -1,0 +1,9 @@
+[
+  {"formula":"=X0.Hello(\"world\")", "value":"Hello, world"},
+  {"formula":"=X0.Reference(A1)", "value":7.0},
+  {"formula":"=X0.Caller()", "value":null},
+  {"formula":"=X0.Async(41)", "value":42.0},
+  {"formula":"=SUM(X0.Big())", "value":8386560.0},
+  {"formula":"=X0.ThreadSafe(21)", "value":42.0},
+  {"formula":"=X0.NativeOwned()", "value":"native owned"}
+]

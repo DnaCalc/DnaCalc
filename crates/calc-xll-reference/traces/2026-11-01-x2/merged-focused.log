@@ -1,0 +1,232 @@
+   Compiling windows-sys v0.61.2
+   Compiling web-sys v0.3.94
+   Compiling oxvba-runtime v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling calc-xll-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-host)
+   Compiling calc-fml v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-fml)
+   Compiling calc-com-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-com-host)
+warning: function `covered` is never used
+    --> crates\calc-fml\src\syntax\parser.rs:1468:8
+     |
+1468 |     fn covered(source: &str, span: TextSpan) -> String {
+     |        ^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling oxvba-com v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling calcvba-host-api v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling winapi-util v0.1.11
+   Compiling wasmtime-internal-jit-icache-coherence v46.0.3
+   Compiling cranelift-jit v0.133.3
+   Compiling same-file v1.0.6
+   Compiling walkdir v2.5.0
+   Compiling leptos_hot_reload v0.8.7
+warning: `calc-fml` (lib test) generated 1 warning
+   Compiling oxvba-bundle v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-hal v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-oxir v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-eval v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-lib v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-symbol v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-bind v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-rt-abi v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-jit v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-vm3 v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling oxvba-embed v0.1.2 (https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1#325257ea)
+   Compiling calc-vba v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-vba)
+   Compiling gloo-utils v0.2.0
+   Compiling tachys v0.2.19
+   Compiling gloo-net v0.6.0
+   Compiling wasm-streams v0.5.0
+   Compiling server_fn v0.8.13
+   Compiling leptos_server v0.8.8
+   Compiling leptos_dom v0.8.8
+   Compiling leptos v0.8.19
+   Compiling dna-formula-ui v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\apps\dna-formula-ui)
+   Compiling dna-onecalc v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\apps\dna-onecalc)
+   Compiling dna-calc-desktop v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\apps\dna-calc-desktop)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 05s
+     Running unittests src\lib.rs (target/xtask-accept\debug\deps\calc_fml-0104fefa4a3d2162.exe)
+
+running 80 tests
+test eval::builtins::tests::names_are_sorted_and_found_in_any_case ... ok
+test callable::tests::registration_is_local_case_insensitive_and_rejects_duplicates ... ok
+test callable::tests::a_generic_adapter_cannot_publish_missing_as_a_value ... ok
+test callable::tests::divergent_table_clones_cannot_authorize_each_others_replacements_or_new_slots ... ok
+test callable::tests::reload_preserves_slots_and_revokes_old_handles_without_retargeting_leases ... ok
+test eval::cells::tests::a_short_read_breaks_the_contract ... ok
+test assist::tests::completion_is_not_offered_outside_a_name ... ok
+test assist::tests::highlight_runs_cover_the_text_with_roles ... ok
+test eval::cells::tests::missing_cells_are_unreadable ... ok
+test assist::tests::the_call_at_the_caret_gives_its_active_argument ... ok
+test assist::tests::function_names_complete_from_the_catalogue ... ok
+test eval::cells::tests::metadata_questions_keep_their_facets_without_reading_values ... ok
+test eval::cells::tests::values_are_visited_cell_by_cell_and_blanks_skipped ... ok
+test eval::compile::tests::file_prefixes ... ok
+test callable::tests::callable_ids_cannot_cross_thread_owners ... ok
+test eval::compile::tests::final_sum_check_instructions ... ok
+test eval::compile::tests::string_and_logical_literals ... ok
+test eval::compile::tests::number_literals ... ok
+test eval::legacy::tests::places_follow_the_measured_rows ... ok
+test eval::compile::tests::refusals_are_typed ... ok
+test eval::lift::tests::rows_and_columns_broadcast_and_short_arrays_leave_gaps ... ok
+test eval::refops::tests::implicit_intersection ... ok
+test eval::compile::tests::unsupported_constructs_name_their_owner ... ok
+test eval::refops::tests::reference_operators ... ok
+test eval::compile::tests::final_sums_are_marked ... ok
+test eval::run::tests::a_field_access_is_fieldvalue ... ok
+test eval::run::tests::diagnostic_snapshot_never_enters_a_user_function ... ok
+test eval::run::tests::function_faults_pass_through ... ok
+test eval::compile::tests::loaded_unprefixed_calls ... ok
+test eval::run::tests::iferror_runs_its_fallback_only_on_an_error ... ok
+test eval::run::tests::unavailable_read_policy_reports_one_refusal_without_executing ... ok
+test eval::run::tests::references_where_values_are_needed ... ok
+test eval::run::tests::legacy_n_intersects_range_expressions ... ok
+test reference::notation::tests::a1_forms_at_an_anchor ... ok
+test reference::bind::tests::endpoints_are_ordered_per_axis_without_the_anchor ... ok
+test reference::notation::tests::r1c1_forms ... ok
+test reference::bind::tests::qualifiers_and_refusals ... ok
+test reference::read::tests::a_stopped_read_is_not_short ... ok
+test eval::run::tests::sequence_slices_preserve_admission_errors_and_exact_refusals ... ok
+test reference::read::tests::runs_start_where_the_previous_run_ended ... ok
+test eval::run::tests::row_and_column_are_intersected_in_a_legacy_formula ... ok
+test reference::read::tests::too_few_or_too_many_cells_break_the_contract ... ok
+test reference::structured::tests::dc_cpr__table_and_column_names_compare_as_workbook_names ... ok
+test eval::run::tests::legacy_filterxml_intersects_its_result_outside_array_places ... ok
+test reference::structured::tests::the_bracket_grammar_splits_tables_sections_and_columns ... ok
+test eval::run::tests::a_final_sum_near_zero_is_adjusted_as_excel_adjusts_it ... ok
+test reference::bind::tests::ranges_bind_as_one_reference_only_between_endpoints_of_one_form_and_sheet ... ok
+test reference::template::tests::copies_share_a_template ... ok
+test reference::template::tests::dc_dxm__axes_are_written_as_the_formatter_wrote_them ... ok
+test eval::run::tests::user_volatility_is_an_executed_formula_effect ... ok
+test eval::run::tests::regression_removes_exactly_proportional_predictors ... ok
+test reference::text::tests::text_naming_a_workbook ... ok
+test reference::text::tests::text_that_is_not_utf16_throughout_is_not_modelled ... ok
+test reference::text::tests::names_in_text ... ok
+test reference::text::tests::r1c1_text ... ok
+test eval::run::tests::the_observer_is_shown_calls_and_the_outcome ... ok
+test reference::text::tests::a1_text ... ok
+test reference::transform::tests::a_move_takes_references_to_the_moved_cells_with_them ... ok
+test syntax::combining_marks::tests::recognises_marks_that_is_alphabetic_does_not ... ok
+test reference::transform::tests::sheets_renamed_and_removed ... ok
+test syntax::combining_marks::tests::rejects_letters_digits_punctuation_and_symbols ... ok
+test syntax::combining_marks::tests::table_is_sorted_and_non_overlapping ... ok
+test reference::transform::tests::formulas_convert_between_a1_and_r1c1 ... ok
+test reference::transform::tests::a_move_to_another_sheet_qualifies_and_cuts_as_excel_does ... ok
+test reference::transform::tests::rows_inserted_and_deleted_move_and_resize_references ... ok
+test syntax::parser::tests::deleted_sheet_ref_qualifies_a_reference ... ok
+test syntax::parser::tests::intersections_chain_inside_an_argument_list ... ok
+test syntax::parser::tests::non_ascii_names_lex_as_one_identifier_each ... ok
+test reference::transform::tests::three_d_references_and_names_under_row_and_column_edits ... ok
+test syntax::parser::tests::qualified_range_ends_are_two_qualified_references ... ok
+test syntax::parser::tests::space_before_call_is_an_intersection_without_the_catalogue ... ok
+test syntax::parser::tests::editor_inputs_reprint_and_keep_their_tokens ... ok
+test syntax::parser::tests::sheet_spans_claim_their_colon_only_before_a_bang ... ok
+test syntax::parser::tests::spaced_range_colon_suggests_the_range_without_the_spaces ... ok
+test syntax::parser::tests::whitespace_is_the_leading_trivia_of_the_next_token ... ok
+test syntax::parser::tests::token_kinds_and_unbalanced_nesting ... ok
+test syntax::parser::tests::trim_references_parse_as_trim_ranges ... ok
+test syntax::parser::tests::root_kinds_and_diagnostic_counts ... ok
+test eval::run::tests::kernel_suspension_preserves_random_occurrences_and_let_reuse ... ok
+test eval::run::tests::suspended_sequence_keeps_prefix_effects_operands_and_one_terminal_report ... ok
+
+test result: ok. 80 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\acceptance.rs (target/xtask-accept\debug\deps\acceptance-44469bef221ed14e.exe)
+
+running 48 tests
+test cfml_m1_1__tree_syntax_rejected ... ok
+test cfml_m1_3__lazy_if ... ok
+test cfml_m1_2__relative_absolute ... ok
+test cfml_m1_2__provider_reads ... ok
+test l1::arrays::dynamic_formulas_lift_over_ranges_and_spill ... ok
+test cfml_m1_3__reuse_plan ... ok
+test l1::arrays::array_constants_are_values ... ok
+test l1::arrays::functions_of_single_values_lift ... ok
+test l1::arrays::lazy_selectors_lift_over_an_array_that_decides ... ok
+test l1::arrays::legacy_formulas_refuse_unmeasured_places ... ok
+test f3::taking_choosing_stacking_and_wrapping ... ok
+test f3::lambda_helpers_call_their_lambda ... ok
+test l1::lambda::let_binds_names_in_order ... ok
+test l1::arrays::operators_lift_over_arrays_as_oxfml_fixture_rows ... ok
+test l1::lambda::names_resolve_as_excel_resolves_them ... ok
+test cfml_m1_1__lossless_roundtrip ... ok
+test l1::arrays::legacy_formulas_intersect_where_excel_writes_at ... ok
+test l1::lambda::lambdas_are_called_where_they_are_written_or_bound ... ok
+test l1::names::sheet_names_shadow_workbook_names ... ok
+test l1::names::names_with_relative_references_read_from_the_formula_cell ... ok
+test l1::lambda::optional_parameters_and_arity ... ok
+test l1::names::unknown_names_are_name_errors_and_unknown_catalogues_refuse ... ok
+test l1::references::ranges_meeting_values_follow_the_form ... ok
+test l1::references::implicit_intersection_takes_one_value ... ok
+test l1::names::workbook_names_hold_values_and_references ... ok
+test l1::names::named_lambdas_are_called_and_may_recurse ... ok
+test l1::references::spill_references_read_the_spilled_range ... ok
+test l1::references::offset_shifts_references ... ok
+test l1::references::the_intersection_operator_takes_shared_cells ... ok
+test l1::references::the_range_operator_spans_its_operands ... ok
+test l1::references::the_union_operator_joins_areas ... ok
+test l3::external_references_are_refused ... ok
+test l1::names::recursion_deeper_than_the_evaluator_nests_is_refused ... ok
+test l1::names::the_deepest_recursion_fits_a_one_megabyte_stack ... ok
+test l3::relative_names_unknown_calls_and_indirect_names ... ok
+test l3::unqualified_references_and_missing_parts ... ok
+test l3::structured_references_select_the_measured_parts_of_a_table ... ok
+test l3::legacy_places_follow_the_measured_parameters ... ok
+test l3::three_d_references_reach_the_functions_that_take_them ... ok
+test dc_ibp2__excel_comparison ... ok
+test f3::sequence_filter_sort_unique ... ok
+test dc_besk__prefixed_calls_evaluate ... ok
+test dc_51ka__excel_comparison ... ok
+test dc_l10u__reference_results_through_calc_fml ... ok
+test dc_2mlz__maximum_length ... ok
+test dc_ibp2__error_fallback ... ok
+test dc_l10u__reference_results_as_values ... ok
+test dc_51ka__indirect_text_references ... ok
+
+test result: ok. 48 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.43s
+
+     Running unittests src\lib.rs (target/xtask-accept\debug\deps\calc_xll_host-b8b6eaa41d8e8cb2.exe)
+
+running 3 tests
+test callbacks::tests::dropped_preparation_invalidates_its_handle_without_reuse ... ok
+test invoke::tests::native_publication_never_exposes_nonfinite_or_missing_values ... ok
+test callbacks::tests::duplicate_and_completed_async_handles_are_rejected ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target/xtask-accept\debug\deps\dna_calc_desktop-d19a2ea66b8241de.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\xll.rs (target/xtask-accept\debug\deps\xll-bdbded55a0d7cf37.exe)
+
+running 11 tests
+test known_but_unimplemented_worksheet_callbacks_keep_the_xll_owner ... ok
+test swallowed_unsupported_callbacks_remain_typed_refusals ... ok
+test worker_refusals_survive_native_swallowing_and_formula_handlers ... ok
+test worker_calls_keep_the_main_reader_and_native_memory_ownership ... ok
+test real_executable_uses_onecalc_for_the_same_excel_fixture ... ok
+test unimplemented_evaluate_expression_remains_a_typed_refusal ... ok
+test stack_headroom_is_available_in_context ... ok
+test helper_module_owns_the_return_and_its_free_callback ... ok
+test failed_second_load_restores_previous_names_and_use_counts ... ok
+test failed_load_rolls_back_every_registration_from_its_origin ... ok
+test ten_thousand_registrations_have_no_small_pool_limit ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.40s
+
+   Doc-tests calc_fml
+
+running 1 test
+test crates\calc-fml\src\eval\mod.rs - eval::EvaluationReport (line 579) - compile fail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+   Doc-tests calc_xll_host
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

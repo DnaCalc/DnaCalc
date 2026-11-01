@@ -1,0 +1,46 @@
+2026-11-01T08:28:11.0130908Z	53140	AutoOpen	C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-reference\runs\x2-publish-net48-host-traced\X0-AddIn64.xll
+2026-11-01T08:28:11.0140990Z	53140	Runtime	v4.0.30319
+2026-11-01T08:28:11.0156121Z	53140	Integration assembly	ExcelDna.Integration, Version=1.1.0.0, Culture=neutral, PublicKeyToken=f225e9659857edbe
+2026-11-01T08:28:20.3746000Z	53140	COM Application.Version get	16.0
+2026-11-01T08:28:21.7624788Z	53140	COM Application.Hwnd get	350493968
+2026-11-01T08:28:25.5598578Z	53140	COM AppEvents Advise	1
+2026-11-01T08:28:29.7180699Z	53140	QueueAsMacro enter	startup
+2026-11-01T08:28:30.3026893Z	53140	QueueAsMacro xlfCaller rc	XlReturnSuccess
+2026-11-01T08:28:30.3036890Z	53140	QueueAsMacro xlfCaller value	ExcelError:ExcelErrorRef
+2026-11-01T08:28:30.3046867Z	53140	QueueAsMacro exit	startup
+2026-11-01T08:28:30.7468284Z	53140	Hello	world
+2026-11-01T08:28:32.5236730Z	53140	Reference argument	ExcelReference sheet=1 rows=0:0 cols=0:0
+2026-11-01T08:28:35.3908568Z	53140	Caller	ExcelReference sheet=1 rows=2:2 cols=1:1
+2026-11-01T08:28:35.7165371Z	53140	Async enter	41
+2026-11-01T08:28:36.6589340Z	32256	Async SetResult	True
+2026-11-01T08:28:37.1792989Z	58036	ThreadSafe	21
+2026-11-01T08:28:38.0907499Z	53140	Queue request	command
+2026-11-01T08:28:41.4826593Z	53140	Queue executed	C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-reference\runs\x2-publish-net48-host-traced\X0-AddIn64.xll
+2026-11-01T08:28:42.5141410Z	53140	Context 16393	XlReturnSuccess String:C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-reference\runs\x2-publish-net48-host-traced\X0-AddIn64.xll
+2026-11-01T08:28:43.1020372Z	53140	Context 16385	XlReturnSuccess Double:1015064
+2026-11-01T08:28:43.6838285Z	53140	Context 89	XlReturnSuccess ExcelError:ExcelErrorRef
+2026-11-01T08:28:44.5249005Z	32256	Outside 16393	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-01T08:28:45.1658915Z	53140	Queue request	command
+2026-11-01T08:28:48.5847168Z	32256	Outside 16385	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-01T08:28:49.9593650Z	32256	Outside 89	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-01T08:28:49.9608786Z	53140	Queue executed	C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-reference\runs\x2-publish-net48-host-traced\X0-AddIn64.xll
+2026-11-01T08:28:52.7257448Z	53140	COM AppEvents Unadvise	1
+2026-11-01T08:28:52.7269417Z	53140	AutoClose	called
+2026-11-01T08:29:22.1115968Z	53140	AutoOpen	C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-reference\runs\x2-publish-net48-host-traced\X0-AddIn64.xll
+2026-11-01T08:29:22.1115968Z	53140	Runtime	v4.0.30319
+2026-11-01T08:29:22.1126014Z	53140	Integration assembly	ExcelDna.Integration, Version=1.1.0.0, Culture=neutral, PublicKeyToken=f225e9659857edbe
+2026-11-01T08:29:23.8364689Z	53140	COM Application.Version get	16.0
+2026-11-01T08:29:24.4145042Z	53140	COM Application.Hwnd get	350493968
+2026-11-01T08:29:27.9636246Z	53140	COM AppEvents Advise	1
+2026-11-01T08:29:32.2638349Z	53140	QueueAsMacro enter	startup
+2026-11-01T08:29:32.8504823Z	53140	QueueAsMacro xlfCaller rc	XlReturnSuccess
+2026-11-01T08:29:32.8504823Z	53140	QueueAsMacro xlfCaller value	ExcelError:ExcelErrorRef
+2026-11-01T08:29:32.8514789Z	53140	QueueAsMacro exit	startup
+2026-11-01T08:29:33.3149059Z	53140	Hello	world
+2026-11-01T08:29:35.0664127Z	53140	Reference argument	ExcelReference sheet=1 rows=0:0 cols=0:0
+2026-11-01T08:29:37.9466145Z	53140	Caller	ExcelReference sheet=1 rows=2:2 cols=1:1
+2026-11-01T08:29:38.2530964Z	53140	Async enter	41
+2026-11-01T08:29:39.2237337Z	32256	Async SetResult	True
+2026-11-01T08:29:39.6976191Z	55252	ThreadSafe	21
+2026-11-01T08:29:42.7045070Z	53140	COM AppEvents Unadvise	1
+2026-11-01T08:29:42.7045070Z	53140	AutoClose	called

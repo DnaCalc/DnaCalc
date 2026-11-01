@@ -1,0 +1,2 @@
+{"closed_name":"SayHello","closed_registration":"#NAME?","commands":[],"duplicate_use_count":null,"host":"DNA Calc / OneCalc controller","live_callback_allocations":0,"numbered_exports":[0,0],"registrations":3,"reload_results":[],"results":[{"formula":"=SayHello(\"x\")","value":"Hello, x"}]}
+

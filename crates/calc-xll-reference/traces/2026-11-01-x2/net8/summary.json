@@ -1,0 +1,563 @@
+{
+  "status": "verified X2 measured cases",
+  "fixture": "X0",
+  "formula_cases": 7,
+  "matched_each_capture": 7,
+  "controls_match": true,
+  "source_revisions": [
+    "169986d41383e82e9e0da9aa2755bce63f78ea1a",
+    "a84d1ce9eadecda43688571c069adf88f9562c49"
+  ],
+  "source_publication_revisions": [
+    "169986d41383e82e9e0da9aa2755bce63f78ea1a",
+    "1457bdac2a67f86e1b177cefb7e534f23ee849c2",
+    "27a8716a7b2e62fe330ec03eb5fee5d4c957549a"
+  ],
+  "same_fixture_files": {
+    "X0-AddIn64.deps.json": "0FAC1F4A5CDA4FF78BB0AD40372DA72348BBB84FF0BB521F879F72F99E0F39C5",
+    "X0-AddIn64.dna": "D0BAA61E4C9B28F9E60D73A34153AC7F2B0FD0E73CF09BD5753DD9F1A11D4170",
+    "X0-AddIn64.xll": "2B01A2FA6EF77A9466D12C76FA7976D5B7543050AA02E7DE51F7F9B075379360",
+    "X0.deps.json": "0FAC1F4A5CDA4FF78BB0AD40372DA72348BBB84FF0BB521F879F72F99E0F39C5",
+    "X0.dll": "907A38449EA134B1475E14A4608B3F91518D64E461DC7AB5E0F2E53A02B0E885",
+    "X0.runtimeconfig.json": "CCF34FE185A1C9A0114DAE9B55958A70B3CCDE47C8A236D361932C5B1EFC5914"
+  },
+  "registration_forms": {
+    "RegistrationInfo_<guid>": {
+      "procedure": "RegistrationInfo",
+      "type": "QQ",
+      "macro_type": 0
+    },
+    "SyncMacro_<guid>": {
+      "procedure": "SyncMacro",
+      "type": ">B",
+      "macro_type": 2
+    },
+    "X0.Queue": {
+      "procedure": "f0",
+      "type": "",
+      "macro_type": 2
+    },
+    "X0.Context": {
+      "procedure": "f1",
+      "type": "",
+      "macro_type": 2
+    },
+    "X0.ThreadSafe": {
+      "procedure": "f2",
+      "type": "QE$",
+      "macro_type": 1
+    },
+    "X0.Reference": {
+      "procedure": "f3",
+      "type": "QU#",
+      "macro_type": 1
+    },
+    "X0.Hello": {
+      "procedure": "f4",
+      "type": "QD%",
+      "macro_type": 1
+    },
+    "X0.Caller": {
+      "procedure": "f5",
+      "type": "Q#",
+      "macro_type": 1
+    },
+    "X0.Big": {
+      "procedure": "f6",
+      "type": "Q",
+      "macro_type": 1
+    },
+    "X0.Async": {
+      "procedure": "f7",
+      "type": ">EX",
+      "macro_type": 1
+    },
+    "X0.NativeOwned": {
+      "procedure": "NativeOwned",
+      "type": "Q",
+      "macro_type": 1
+    }
+  },
+  "native_invocations": {
+    "X0.Hello": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "same_ordered_callbacks": []
+    },
+    "X0.Reference": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "same_ordered_callbacks": [
+        [
+          89,
+          [],
+          0,
+          {
+            "type": 1024,
+            "value": {
+              "count": 1,
+              "rect": [
+                2,
+                2,
+                1,
+                1
+              ]
+            }
+          }
+        ],
+        [
+          16389,
+          [
+            {
+              "type": 1024,
+              "value": {
+                "count": 0,
+                "rect": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          ],
+          0,
+          {
+            "type": 2,
+            "value": "[Book1]X0"
+          }
+        ],
+        [
+          16388,
+          [
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          0,
+          {
+            "type": 8,
+            "value": {
+              "sheet": "<sheet>",
+              "null_reference_table": true
+            }
+          }
+        ],
+        [
+          16384,
+          [
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          0,
+          null
+        ],
+        [
+          16384,
+          [
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          0,
+          null
+        ],
+        [
+          16386,
+          [
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "areas": [
+                  [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ],
+          0,
+          {
+            "type": 1,
+            "value": 7
+          }
+        ],
+        [
+          16384,
+          [
+            {
+              "type": 1,
+              "value": 7
+            }
+          ],
+          0,
+          null
+        ]
+      ]
+    },
+    "X0.Caller": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "same_ordered_callbacks": [
+        [
+          89,
+          [],
+          0,
+          {
+            "type": 1024,
+            "value": {
+              "count": 1,
+              "rect": [
+                2,
+                2,
+                1,
+                1
+              ]
+            }
+          }
+        ],
+        [
+          89,
+          [],
+          0,
+          {
+            "type": 1024,
+            "value": {
+              "count": 1,
+              "rect": [
+                2,
+                2,
+                1,
+                1
+              ]
+            }
+          }
+        ],
+        [
+          16389,
+          [
+            {
+              "type": 1024,
+              "value": {
+                "count": 0,
+                "rect": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          ],
+          0,
+          {
+            "type": 2,
+            "value": "[Book1]X0"
+          }
+        ],
+        [
+          16388,
+          [
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          0,
+          {
+            "type": 8,
+            "value": {
+              "sheet": "<sheet>",
+              "null_reference_table": true
+            }
+          }
+        ],
+        [
+          16384,
+          [
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          0,
+          null
+        ],
+        [
+          16384,
+          [
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          0,
+          null
+        ],
+        [
+          16384,
+          [
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          0,
+          null
+        ]
+      ]
+    },
+    "X0.Async": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": false,
+      "same_ordered_callbacks": [],
+      "opaque_handle_cbData_excel_and_host": [
+        12948072266989568,
+        0
+      ]
+    },
+    "X0.Big": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "same_ordered_callbacks": []
+    },
+    "X0.ThreadSafe": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "same_ordered_callbacks": []
+    },
+    "X0.NativeOwned": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "same_ordered_callbacks": []
+    }
+  },
+  "excel_and_host": [
+    {
+      "records": 2732,
+      "paired_calls": 1300,
+      "c_api_calls": 66,
+      "trace_sha256": "ECB026EDF970D8E2830D35470244FEC6BA3372BF36B286B3EA383BB744948136"
+    },
+    {
+      "records": 946,
+      "paired_calls": 432,
+      "c_api_calls": 256,
+      "trace_sha256": "F05F8E3E8B193D5A3415CEB6F4E022B20810A8B590ECCE740738376E961644FE"
+    }
+  ],
+  "x0_callback_code_pairs_observed": 18,
+  "callback_counts_excel_and_host": [
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 89,
+        "return_code": 0,
+        "count": 5
+      },
+      {
+        "function": 89,
+        "return_code": 32,
+        "count": 1
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 11
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 28
+      },
+      {
+        "function": 16384,
+        "return_code": 32,
+        "count": 4
+      },
+      {
+        "function": 16385,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16385,
+        "return_code": 32,
+        "count": 1
+      },
+      {
+        "function": 16386,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16388,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16389,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16393,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16393,
+        "return_code": 32,
+        "count": 1
+      },
+      {
+        "function": 16400,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 32890,
+        "return_code": 0,
+        "count": 2
+      }
+    ],
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 22
+      },
+      {
+        "function": 89,
+        "return_code": 0,
+        "count": 9
+      },
+      {
+        "function": 89,
+        "return_code": 32,
+        "count": 1
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 36
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 36
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 121
+      },
+      {
+        "function": 16384,
+        "return_code": 32,
+        "count": 5
+      },
+      {
+        "function": 16385,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16385,
+        "return_code": 32,
+        "count": 1
+      },
+      {
+        "function": 16386,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16388,
+        "return_code": 0,
+        "count": 4
+      },
+      {
+        "function": 16389,
+        "return_code": 0,
+        "count": 4
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16393,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 16393,
+        "return_code": 32,
+        "count": 1
+      },
+      {
+        "function": 16400,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 32890,
+        "return_code": 0,
+        "count": 4
+      }
+    ]
+  ],
+  "reload_checked": true,
+  "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
+  "scope": "Single-invocation worker dispatch; no simultaneous workbook calculation, RTD, cancellation, delivered host AppEvents or full COM model claim.",
+  "known_difference": "xlAsyncReturn raw result operand: Excel type zero, host documented Boolean. Raw opaque handle cbData is retained separately; Excel-DNA reads only hData on entry. Codes and published values agree.",
+  "timing": "Debugger timing is not uninstrumented performance evidence."
+}

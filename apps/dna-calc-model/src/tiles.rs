@@ -122,10 +122,17 @@ impl TileBatch {
     }
 }
 pub fn geometry_bytes(g: &Geometry) -> usize {
-    1024usize.saturating_add(
-        g.rows
-            .len()
-            .saturating_add(g.columns.len())
-            .saturating_mul(128),
-    )
+    1024usize
+        .saturating_add(
+            g.rows
+                .len()
+                .saturating_add(g.columns.len())
+                .saturating_mul(128),
+        )
+        .saturating_add(g.merges.len().saturating_mul(128))
+        .saturating_add(
+            g.edit_refusal
+                .as_ref()
+                .map_or(0, |s| s.len().saturating_mul(6)),
+        )
 }

@@ -1,0 +1,5 @@
+{
+  "status": "typed refusal, not a compatibility pass",
+  "exit_code": 1,
+  "message": "dna-calc-desktop: dc-snz.18: reinitializing a packed Native AOT runtime already attempted in this process is not modelled; restart the host"
+}

@@ -174,9 +174,9 @@ fn known_but_unimplemented_worksheet_callbacks_keep_the_xll_owner() {
     assert!(!error.contains("dc-snz.5"), "{error}");
 }
 
-/// Native-only: an in-context xlStack call must refuse unmeasured stack headroom.
+/// Native-only: an in-context xlStack call uses this thread's actual Windows stack bounds.
 #[test]
-fn unmeasured_stack_headroom_cannot_become_a_value() {
+fn stack_headroom_is_available_in_context() {
     let fixture = Fixture::new();
     let output = fixture
         .command()
@@ -184,12 +184,8 @@ fn unmeasured_stack_headroom_cannot_become_a_value() {
         .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
         .output()
         .unwrap();
-    assert!(!output.status.success());
-    let error = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        error.contains("NotModelled") && error.contains("dc-snz.2"),
-        "{error}"
-    );
+    let result = checked(output);
+    assert_eq!(result["results"][0]["value"], 0.);
 }
 
 /// Native-only: a failed second XLL must restore another load's use counts and hidden names.
@@ -236,6 +232,75 @@ fn unimplemented_evaluate_expression_remains_a_typed_refusal() {
     let error = String::from_utf8_lossy(&output.stderr);
     assert!(
         error.contains("NotModelled") && error.contains("dc-snz.2"),
+        "{error}"
+    );
+}
+
+/// Native-only: the product worker uses the evaluator's reference reader and function route,
+/// copies DLL-owned values, and frees them on the same worker before returning to the STA.
+#[test]
+fn worker_calls_keep_the_main_reader_and_native_memory_ownership() {
+    let fixture = Fixture::new();
+    let result = checked(fixture.command().env("DNA_XLL_WORKER_TESTS", "1").args([
+        "--formula", "=AND(MyWorkerThread()<>MyMainThread(),MyWorkerReference(A1)=7,MyWorkerCallbacks(3,4)=7,LEN(MyWorkerOwned())=12,MyFreeCount()=1)"
+    ]).output().unwrap());
+    assert_eq!(result["results"][0]["value"], true);
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+
+/// Native-only: a worker's refusal is carried back to the same formula invocation.
+#[test]
+fn worker_refusals_survive_native_swallowing_and_formula_handlers() {
+    let fixture = Fixture::new();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_WORKER_TESTS", "1")
+        .args(["--formula", "=IFERROR(MyWorkerUnsupported(),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("NotModelled") && error.contains("dc-snz.2"),
+        "{error}"
+    );
+}
+
+/// Native-only: valid worker event/status requests must not succeed against a discarded snapshot.
+#[test]
+fn worker_state_mutations_remain_typed_refusals() {
+    for callback in ["16401", "32890"] {
+        let fixture = Fixture::new();
+        let output = fixture
+            .command()
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .env("DNA_XLL_NEGATIVE_CALLBACK", callback)
+            .args(["--formula", "=IFERROR(MyWorkerUnsupported(),123)"])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains("NotModelled") && error.contains("dc-snz.18"),
+            "{callback}: {error}"
+        );
+    }
+}
+
+/// Native-only: a nested native call cannot silently inherit a different reference-read mode.
+#[test]
+fn nested_read_mode_changes_remain_typed_refusals() {
+    let fixture = Fixture::new();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_NEGATIVE_CALLBACK", "255")
+        .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("dc-snz.18") && error.contains("NotModelled"),
         "{error}"
     );
 }

@@ -938,9 +938,10 @@ impl Controller {
                                 "Opened {name}: {size} bytes in {elapsed:.0} ms: read in {:.0} ms, calculated in {calculated:.0} ms",
                                 elapsed - calculated
                             ),
-                            None => format!(
+                            None if outcome.summary.manual => format!(
                                 "Opened {name}: {size} bytes in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
                             ),
+                            None => format!("Opened {name}: {size} bytes in {elapsed:.0} ms; calculation continues in the worker"),
                         };
                         controller.installed(outcome.summary, message);
                         opened(true);
@@ -2261,6 +2262,15 @@ impl Controller {
             self.say("Wait for the workbook before editing", true);
             return;
         }
+        let target = self.active_key_untracked().expect("checked active cell");
+        if let Some(reason) = self.selection.with_untracked(|mirror| {
+            mirror
+                .geometry(target.sheet())
+                .and_then(|g| g.edit_refusal.clone())
+        }) {
+            self.say(reason, true);
+            return;
+        }
         let original = self
             .active_key_untracked()
             .and_then(|at| {
@@ -2268,7 +2278,6 @@ impl Controller {
                     .with_untracked(|mirror| mirror.cell(at).map(|cell| cell.input.clone()))
             })
             .unwrap_or_default();
-        let target = self.active_key_untracked().expect("checked active cell");
         let areas = self.areas.get_untracked();
         self.model
             .update(|m| m.edit.begin(origin, target, original.clone(), seed, areas));

@@ -548,9 +548,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 cell!("A15"),
                 "left:64px;top:302px;width:117px;height:20px;color:#008000",
             ),
-            // Column E is 4 characters (33 px): a formatted number too wide shows ####, as in
-            // Excel, and a text overflows over the empty F to I.
-            Check::Text(cell!("E1"), "####"),
+            // Column E is 4 characters (33 px). The largest hash mask fitting the actual
+            // browser font signals numeric overflow; text uses the measured font too.
+            Check::HashMask("E1"),
+            Check::PlanCell("E1", "kind", "number"),
+            Check::PlanCell("E1", "format", "applied"),
             Check::Text(cell!("E2"), "12"),
             Check::Style(cell!("E3"), "left:425px;top:62px;width:289px;height:40px"),
             // A4's negative section is [Red].
@@ -3171,8 +3173,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Click("paste-snapshot"),
         ],
         checks: &[
-            Check::Text(cell!("G3"), "########"),
+            Check::HashMask("G3"),
             Check::Value(BAR, "45323"),
+            Check::PlanCell("G3", "kind", "number"),
             Check::PlanCell("G3", "format", "applied"),
             Check::PlanCell("G3", "formula", "false"),
         ],
@@ -3189,7 +3192,12 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "clipboard: Redo repaints a format-only paste",
         actions: &[Action::Click("redo")],
-        checks: &[Check::Text(cell!("G3"), "########")],
+        checks: &[
+            Check::HashMask("G3"),
+            Check::Value(BAR, "45323"),
+            Check::PlanCell("G3", "kind", "number"),
+            Check::PlanCell("G3", "format", "applied"),
+        ],
     },
     Case {
         name: "clipboard: Paste Special formulas keeps the destination format",
@@ -6385,6 +6393,104 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Focused("grid"),
         ],
     },
+    Case {
+        name: "layout: a two-dimensional merge has one paint and semantic anchor",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::ClearDownloads,
+            Action::AlignmentFixture,
+            Action::UploadDownload("alignment.xlsx"),
+            Action::DiscardReplacement,
+            Action::Into("zoom-percent", "100\u{E007}"),
+            Action::Into("name-box", "M2\u{E007}"),
+        ],
+        checks: &[
+            Check::MergedCell("L1", 2, 3),
+            Check::PlanCell("L1", "text", "merged"),
+            Check::Editability("L1", true),
+            Check::ActiveDescendant("grid"),
+        ],
+    },
+    Case {
+        name: "layout: Canvas uses the same merge and keyboard navigation skips its covered cells",
+        actions: &[
+            Action::OpenDetails("pane-tools"),
+            Action::RememberPresentation,
+            Action::SetPainter("canvas"),
+            Action::Wait(Check::PainterStable),
+            Action::Keys("grid", "\u{E014}"),
+            Action::Wait(Check::Value("name-box", "O1")),
+            Action::Into("name-box", "K1:O4\u{E007}"),
+            Action::Keys("grid", "\u{E004}"),
+            Action::Wait(Check::ActiveSemantic("L1")),
+            Action::Keys("grid", "\u{E004}"),
+            Action::Wait(Check::ActiveSemantic("O1")),
+            Action::Wait(Check::Attr("selection", "data-area", "K1:O4")),
+            Action::Keys("grid", "\u{E008}\u{E004}\u{E000}"),
+            Action::Wait(Check::ActiveSemantic("L1")),
+            Action::Into("name-box", "L1:N4\u{E007}"),
+            Action::Keys("grid", ENTER),
+            Action::Wait(Check::ActiveSemantic("L3")),
+            Action::Wait(Check::Attr("selection", "data-area", "L1:N4")),
+            Action::Keys("grid", "\u{E008}\u{E007}\u{E000}"),
+            Action::Wait(Check::ActiveSemantic("L1")),
+            Action::Into("name-box", "L1:N2\u{E007}"),
+            Action::Keys("grid", "\u{E008}\u{E012}\u{E000}"),
+            Action::Wait(Check::TextContains("status", "Merged selection extension")),
+            Action::Wait(Check::Attr("selection", "data-area", "L1:N2")),
+            Action::Into("name-box", "O1\u{E007}"),
+        ],
+        checks: &[
+            Check::MergedCell("L1", 2, 3),
+            Check::CanvasInk("L1"),
+            Check::Value("name-box", "O1"),
+            Check::ActiveDescendant("grid"),
+        ],
+    },
+    Case {
+        name: "layout: a real applied font changes measured overflow and actual text geometry only",
+        actions: &[
+            Action::SetPainter("dom"),
+            Action::Into("name-box", "B10\u{E007}"),
+            Action::Wait(Check::PlanCell("B10", "text", "iiiiiiiiiiiiiiiiiiiiiiii")),
+            Action::RememberPresentation,
+            Action::LoadAppliedFont,
+            Action::Wait(Check::FontReflow("B10")),
+            Action::Wait(Check::PresentationChanged("font")),
+            Action::RememberPresentation,
+            Action::SetPainter("canvas"),
+        ],
+        checks: &[
+            Check::PainterStable,
+            Check::CanvasInk("B10"),
+            Check::Editability("B10", true),
+        ],
+    },
+    Case {
+        name: "layout: populated and blank protected cells publish the same editor preflight refusal",
+        actions: &[
+            Action::SetPainter("dom"),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Into(BAR, "7\u{E007}"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::ProtectedDownloadFixture,
+            Action::UploadDownload("protected.xlsx"),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::RememberPresentation,
+            Action::Keys("grid", "\u{E032}"),
+        ],
+        checks: &[
+            Check::Editability("A1", false),
+            Check::Editability("B1", false),
+            Check::PlanCell("A1", "text", "7"),
+            Check::Absent("cell-editor"),
+            Check::TextContains("status", "protected"),
+            Check::PainterStable,
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -7044,6 +7150,13 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         start: 449,
         end: 452,
         core: 0,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "layout",
+        start: 452,
+        end: 456,
+        core: 4,
         setup: &[],
     },
 ];

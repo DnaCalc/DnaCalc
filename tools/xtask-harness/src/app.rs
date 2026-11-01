@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (38 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (42 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1063,6 +1063,8 @@ pub enum Action {
     FontLoaded,
     /// Load an installed font through FontFaceSet and require its real browser completion event.
     LoadLocalFont,
+    /// Load a real face under the family authored on the retained font-reflow fixture cell.
+    LoadAppliedFont,
     /// A real pointer drag between two rendered elements.
     Drag(&'static str, &'static str),
     DragToCell(&'static str, u32, &'static str),
@@ -1088,6 +1090,12 @@ pub enum Check {
     PlanReady,
     PainterStable,
     CanvasInk(&'static str),
+    MergedCell(&'static str, u32, u32),
+    Editability(&'static str, bool),
+    FontReflow(&'static str),
+    ActiveSemantic(&'static str),
+    /// Actual painted hash mask fits; adding one more glyph would overflow its content box.
+    HashMask(&'static str),
     /// A named layout input changed, values and command count stayed fixed, and the plan rebuilt.
     PresentationChanged(&'static str),
     PinnedCell,
@@ -1196,6 +1204,29 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
     }
     let script = match check {
         Check::PainterStable => format!("{READ_PLANS}return JSON.stringify(window.__dcPresentation)===JSON.stringify(plans[0]);"),
+        Check::HashMask(address) => {
+            let address = serde_json::to_string(address).unwrap();
+            format!(r#"var e=document.querySelector('[data-dnacalc=cell][data-cell='+{address}+']'),t=e?.querySelector('.dc-cell-text');if(!e||!t||!/^#+$/.test(t.textContent))return false;var s=getComputedStyle(e),capacity=e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight),have=t.getBoundingClientRect().width,probe=document.createElement('span');probe.className='dc-fit-measure';probe.style.setProperty('font',s.font);probe.style.setProperty('white-space','pre');probe.textContent=t.textContent+'#';document.body.appendChild(probe);var extra=probe.getBoundingClientRect().width;probe.remove();return have<=capacity+0.1&&extra>capacity+0.1;"#)
+        }
+        Check::ActiveSemantic(address) => {
+            let address = serde_json::to_string(address).unwrap();
+            format!("{READ_PLANS}var p=plans[0],a=p?.plan.semantic_rows.flatMap(r=>r.cells).filter(c=>c.active),g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]');return a?.length===1&&a[0].address==={address}&&g?.getAttribute('aria-activedescendant')==='dc-grid-cell-'+p.pane+'-'+a[0].row+'-'+a[0].col;")
+        }
+        Check::MergedCell(address, rows, cols) => {
+            let address = serde_json::to_string(address).unwrap();
+            format!(r#"{READ_PLANS}var p=plans[0],cells=p?.plan.cells.filter(c=>c.address==={address}),semantic=p?.plan.semantic_rows.flatMap(r=>r.cells),s=semantic?.find(c=>c.address==={address});if(!s||!cells.length)return {{ok:false}};
+            var covered=semantic.filter(c=>c.row>=s.row&&c.row<s.row+{rows}&&c.col>=s.col&&c.col<s.col+{cols}),e=document.getElementById('dc-grid-cell-'+p.pane+'-'+s.row+'-'+s.col);
+            return {{ok:cells.every(c=>c.row_span==={rows}&&c.col_span==={cols}&&c.anchor.w>0&&c.anchor.h>0)&&s.row_span==={rows}&&s.col_span==={cols}&&covered.length===1&&e?.getAttribute('aria-rowspan')==='{rows}'&&e?.getAttribute('aria-colspan')==='{cols}',paint:cells,semantic:s,covered:covered.map(c=>c.address)}};"#)
+        }
+        Check::Editability(address, allowed) => {
+            let address = serde_json::to_string(address).unwrap();
+            format!(r#"{READ_PLANS}var p=plans[0],s=p?.plan.semantic_rows.flatMap(r=>r.cells).find(c=>c.address==={address}),cells=p?.plan.cells.filter(c=>c.address==={address});if(!s)return {{ok:false}};var e=document.getElementById('dc-grid-cell-'+p.pane+'-'+s.row+'-'+s.col),a=s.editability;return {{ok:a.checked&&a.can_begin==={allowed}&&({allowed}||!!a.refusal)&&cells.every(c=>JSON.stringify(c.editability)===JSON.stringify(a))&&e?.getAttribute('aria-readonly')===String(!{allowed}),semantic:s}};"#)
+        }
+        Check::FontReflow(address) => {
+            let address = serde_json::to_string(address).unwrap();
+            format!(r#"{READ_PLANS}var a=window.__dcPresentation?.plan.cells.find(c=>c.address==={address}),b=plans[0]?.plan.cells.find(c=>c.address==={address}),e=document.querySelector('[data-dnacalc=cell][data-cell='+{address}+'] .dc-cell-text'),before=window.__dcTextBounds?.[{address}],after=e?.getBoundingClientRect().width;
+            return {{ok:!!a&&!!b&&a.text_measured&&b.text_measured&&a.shown.text===b.shown.text&&Math.abs(b.text_advance-a.text_advance)>1&&b.rect.w>a.rect.w&&Number.isFinite(before)&&Math.abs(after-before)>1&&Math.abs(after-b.text_advance)<1&&getComputedStyle(e).fontFamily.includes('DnacalcReflow')&&window.__dcAppliedFont?.trusted===true,before:a,after:b,dom_before:before,dom_after:after}};"#)
+        }
         Check::CanvasInk(address) => {
             let address=serde_json::to_string(address).unwrap();
             format!(r#"{READ_PLANS}var p=plans[0]?.plan,c=p?.cells.find(c=>c.address==={address}),g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]'),canvas=g?.querySelector('canvas');if(!c||!canvas||g.dataset.painter!=='canvas')return false;
@@ -1316,9 +1347,12 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
 
 fn satisfied(check: &Check, seen: &Value) -> bool {
     match check {
-        Check::PinnedCell | Check::ViewRetained | Check::PresentationChanged(_) => {
-            seen.get("ok").and_then(Value::as_bool) == Some(true)
-        }
+        Check::PinnedCell
+        | Check::ViewRetained
+        | Check::PresentationChanged(_)
+        | Check::MergedCell(..)
+        | Check::Editability(..)
+        | Check::FontReflow(_) => seen.get("ok").and_then(Value::as_bool) == Some(true),
         Check::FitsText(_) => seen.as_array().is_some_and(|v| {
             v[0].as_f64()
                 .zip(v[1].as_f64())
@@ -1370,6 +1404,8 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::PlanReady
         | Check::PainterStable
         | Check::CanvasInk(_)
+        | Check::ActiveSemantic(_)
+        | Check::HashMask(_)
         | Check::Spill(..)
         | Check::TextBounds(_)
         | Check::Before(_, _)
@@ -1420,6 +1456,21 @@ fn describe(check: &Check) -> String {
         Check::PresentationChanged(cause) => format!(
             "{cause} rebuilds the RenderPlan without changing values, model revision or submitting a workbook command"
         ),
+        Check::MergedCell(address, rows, cols) => {
+            format!("{address} has one semantic identity and {rows} by {cols} merged paint spans")
+        }
+        Check::Editability(address, allowed) => format!(
+            "{address} has committed host preflight editability {allowed} in paint and accessibility"
+        ),
+        Check::FontReflow(address) => {
+            format!("{address}'s applied real font changes measured and painted width and overflow")
+        }
+        Check::HashMask(address) => format!(
+            "{address}'s painted numeric overflow mask is the largest hash run that fits its actual font"
+        ),
+        Check::ActiveSemantic(address) => {
+            format!("{address} is the one active semantic cell and accessibility descendant")
+        }
         Check::Aligned(name, h, v) => {
             format!("{name} text aligns {h}/{v} in its physical source cell")
         }
@@ -1954,7 +2005,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 return Err(reason);
             }
             session.script(&format!(
-                "{READ_PLANS}window.__dcPresentation=plans[0];return null;"
+                "{READ_PLANS}window.__dcPresentation=plans[0];window.__dcTextBounds=Object.fromEntries(Array.from(document.querySelectorAll('[data-dnacalc=cell]')).map(e=>[e.dataset.cell,e.querySelector('.dc-cell-text')?.getBoundingClientRect().width]));return null;"
             ))?;
             Ok(())
         }
@@ -1963,9 +2014,11 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 .script("document.fonts.dispatchEvent(new Event('loadingdone'));return null;")?;
             Ok(())
         }
-        Action::LoadLocalFont => {
-            let result = session.script(r#"return (async function() {
-                const face = new FontFace('DnacalcSmokeFont', 'local("DejaVu Sans"), local("Liberation Sans"), local("Arial"), local("Segoe UI")');
+        Action::LoadLocalFont | Action::LoadAppliedFont => {
+            let applied = matches!(action, Action::LoadAppliedFont);
+            let script = r#"return (async function() {
+                const applied = $APPLIED, family = applied ? 'DnacalcReflow' : 'DnacalcSmokeFont';
+                const face = new FontFace(family, applied ? 'local("DejaVu Sans Mono"), local("Liberation Mono"), local("Courier New")' : 'local("DejaVu Sans"), local("Liberation Sans"), local("Arial"), local("Segoe UI")');
                 let finish, timer;
                 const completed = new Promise((resolve, reject) => {
                     timer = setTimeout(() => reject(new Error('The local font did not complete within 8 seconds')), 8000);
@@ -1975,15 +2028,18 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 document.fonts.addEventListener('loadingdone', finish);
                 document.fonts.add(face);
                 try {
-                    const [faces, trusted] = await Promise.all([document.fonts.load('13px DnacalcSmokeFont', '123'), completed]);
+                    const [faces, trusted] = await Promise.all([document.fonts.load('13px '+family, 'iiii123'), completed]);
                     if (!trusted || face.status !== 'loaded' || !faces.includes(face)) throw new Error('No real FontFaceSet completion for the loaded font');
-                    return { status: face.status, trusted, faces: faces.length };
+                    const result = { status: face.status, trusted, faces: faces.length };
+                    if (applied) window.__dcAppliedFont = result;
+                    return result;
                 } finally {
                     clearTimeout(timer);
                     document.fonts.removeEventListener('loadingdone', finish);
-                    document.fonts.delete(face);
+                    if (!applied) document.fonts.delete(face);
                 }
-            })();"#)?;
+            })();"#.replace("$APPLIED", if applied {"true"}else{"false"});
+            let result = session.script(&script)?;
             println!("{} FONT completion: {result}", app.label);
             Ok(())
         }
@@ -2815,7 +2871,10 @@ mod tests {
             .iter()
             .map(|app| SmokeSelection::default().count(app))
             .sum();
-        assert_eq!(total, 38, "the two applications have 38 core cases");
+        assert_eq!(
+            total, 42,
+            "the two applications have 42 core cases including merge, editability and applied-font reflow"
+        );
     }
 
     #[test]

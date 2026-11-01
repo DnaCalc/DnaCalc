@@ -20,12 +20,46 @@ use crate::geometry::{
     CellRect, GridMetrics, Viewport, cell_rect, visible_col_range, visible_row_range,
 };
 use crate::projection::CellShown;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+
+/// Layout facts from the committed root, plus an optional browser font measurement provider.
+/// Pure callers retain the explicit estimate when no browser is available.
+#[derive(Default)]
+pub struct PlanOptions<'a> {
+    pub geometry: Option<&'a crate::projection::Geometry>,
+    pub measure: Option<&'a dyn Fn(&CellShown, &str) -> Option<f64>>,
+}
+
+/// Permission to begin editing, as the host preflight checked this published sheet.
+/// Array, spill, validation and transaction rules still apply when an edit commits.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Editability {
+    pub checked: bool,
+    pub can_begin: bool,
+    pub refusal: Option<String>,
+}
+impl Editability {
+    fn from_geometry(geometry: Option<&crate::projection::Geometry>) -> Self {
+        Self {
+            checked: geometry.is_some(),
+            can_begin: geometry.is_some_and(|g| g.edit_refusal.is_none()),
+            refusal: geometry.and_then(|g| g.edit_refusal.clone()),
+        }
+    }
+}
 
 /// One cell of a [`RenderPlan`]: its 1-based address, its viewport-local rectangle and what it
 /// shows.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct PlannedCell {
+    pub row_span: u32,
+    pub col_span: u32,
+    pub editability: Editability,
+    /// Advance of the source shown text before fitting, in CSS pixels.
+    pub text_advance: f64,
+    pub text_measured: bool,
+    /// Viewport-local clipping of this fragment (a merge may cross frozen panes).
+    pub clip: Option<CellRect>,
     pub address: String,
     pub row: u32,
     pub col: u32,
@@ -84,7 +118,45 @@ pub fn build_render_plan<'a>(
     extent_rows: u32,
     extent_cols: u32,
 ) -> RenderPlan {
-    let cells: Vec<&CellShown> = cells.into_iter().collect();
+    build_render_plan_with(
+        cells,
+        m,
+        v,
+        extent_rows,
+        extent_cols,
+        &PlanOptions::default(),
+    )
+}
+
+pub fn build_render_plan_with<'a>(
+    cells: impl IntoIterator<Item = &'a CellShown>,
+    m: &GridMetrics,
+    v: &Viewport,
+    extent_rows: u32,
+    extent_cols: u32,
+    options: &PlanOptions<'_>,
+) -> RenderPlan {
+    let mut cells: Vec<&CellShown> = cells.into_iter().collect();
+    // A blank merge anchor is a geometry-backed empty identity, never a calculated value.
+    let empty: Vec<CellShown> = options
+        .geometry
+        .into_iter()
+        .flat_map(|g| &g.merges)
+        .filter_map(|a| a.area())
+        .filter(|a| !cells.iter().any(|c| c.at == a.first()))
+        .map(|a| CellShown {
+            at: a.first(),
+            style: Default::default(),
+            text: String::new(),
+            kind: "empty",
+            provenance: crate::projection::Provenance::Empty,
+            formula: false,
+            format: crate::projection::FormatShown::General,
+            color: None,
+            conditional: None,
+        })
+        .collect();
+    cells.extend(empty.iter());
     let occupied: std::collections::BTreeSet<(u32, u32)> = cells
         .iter()
         .filter(|shown| {
@@ -101,8 +173,29 @@ pub fn build_render_plan<'a>(
             if row > extent_rows || col > extent_cols {
                 return None;
             }
-            let rect = cell_rect(m, v, row, col);
+            let merged = options.geometry.and_then(|g| g.merge_at(shown.at));
+            if merged.is_some_and(|a| a.first() != shown.at) {
+                return None;
+            }
+            let mut rect = cell_rect(m, v, row, col);
+            if let Some(area) = merged {
+                rect.w = m.col_start(area.last().column()) + m.width(area.last().column())
+                    - m.col_start(col);
+                rect.h =
+                    m.row_start(area.last().row()) + m.height(area.last().row()) - m.row_start(row);
+            }
+            let measured = options
+                .measure
+                .and_then(|measure| measure(shown, &shown.text))
+                .filter(|w| w.is_finite() && *w >= 0.0);
             let mut cell = PlannedCell {
+                row_span: merged.map_or(1, |a| a.row_count()),
+                col_span: merged.map_or(1, |a| a.column_count()),
+                editability: Editability::from_geometry(options.geometry),
+                text_advance: measured
+                    .unwrap_or_else(|| text_width(&shown.text, m) - 5.0 * m.header_h / 22.0),
+                text_measured: measured.is_some(),
+                clip: None,
                 address: format!("{}{}", column_letters(col), row),
                 row,
                 col,
@@ -110,7 +203,7 @@ pub fn build_render_plan<'a>(
                 anchor: rect,
                 shown: shown.clone(),
             };
-            fit(&mut cell, m, &occupied, extent_cols);
+            fit(&mut cell, m, &occupied, extent_cols, options);
             rect_intersects_viewport(&cell.rect, v).then_some(cell)
         })
         .collect();
@@ -167,18 +260,35 @@ pub fn text_width(text: &str, m: &GridMetrics) -> f64 {
 /// format that is wider than its column shows as a row of `#` filling it, and a text wider than
 /// its column overflows into the empty cells in its alignment direction (`occupied`: the cells that show
 /// something). A number in General, which Excel narrows to fewer digits, is clipped here.
-fn fit(cell: &mut PlannedCell, m: &GridMetrics, occupied: &BTreeSet<(u32, u32)>, extent_cols: u32) {
-    if matches!(
-        cell.shown.style.horizontal.as_deref(),
-        Some("centerContinuous" | "fill")
-    ) {
+fn fit(
+    cell: &mut PlannedCell,
+    m: &GridMetrics,
+    occupied: &BTreeSet<(u32, u32)>,
+    extent_cols: u32,
+    options: &PlanOptions<'_>,
+) {
+    let blocked = |row, col| {
+        occupied.contains(&(row, col))
+            || options.geometry.is_some_and(|g| {
+                g.merges
+                    .iter()
+                    .any(|a| row >= a.0.2 && row <= a.1.2 && col >= a.0.3 && col <= a.1.3)
+            })
+    };
+    let merged = cell.row_span > 1 || cell.col_span > 1;
+    if !merged
+        && matches!(
+            cell.shown.style.horizontal.as_deref(),
+            Some("centerContinuous" | "fill")
+        )
+    {
         for col in cell.col + 1
             ..=cell
                 .col
                 .saturating_add(cell.shown.style.alignment_columns - 1)
                 .min(extent_cols)
         {
-            if occupied.contains(&(cell.row, col)) {
+            if blocked(cell.row, col) {
                 break;
             }
             cell.rect.w += m.width(col);
@@ -196,19 +306,55 @@ fn fit(cell: &mut PlannedCell, m: &GridMetrics, occupied: &BTreeSet<(u32, u32)>,
     {
         return;
     }
-    let needed = text_width(&cell.shown.text, m);
+    let scale = m.header_h / 22.0;
+    let insets = if cell.text_measured {
+        let indent = if cell.shown.style.indent == 0 {
+            0.0
+        } else {
+            let mut normal = cell.shown.clone();
+            normal.style = Default::default();
+            normal.conditional = None;
+            normal.provenance = crate::projection::Provenance::Literal;
+            options
+                .measure
+                .and_then(|f| f(&normal, "   "))
+                .unwrap_or(0.0)
+                * f64::from(cell.shown.style.indent)
+        };
+        8.0 * scale
+            + indent
+            + if cell
+                .shown
+                .conditional
+                .as_ref()
+                .is_some_and(|c| c.icon.is_some())
+            {
+                20.0 * scale
+            } else {
+                0.0
+            }
+    } else {
+        5.0 * scale
+    };
+    let needed = if cell.text_measured {
+        cell.text_advance + insets
+    } else {
+        text_width(&cell.shown.text, m)
+    };
     if needed <= cell.rect.w || cell.rect.w <= 0.0 {
         return;
     }
     match cell.shown.kind {
         "number" if cell.shown.format == crate::projection::FormatShown::Applied => {
-            let scale = m.header_h / 22.0;
-            let count = ((cell.rect.w - 5.0 * scale) / (7.0 * scale))
-                .floor()
-                .max(1.0) as usize;
+            let hash = options
+                .measure
+                .and_then(|f| f(&cell.shown, "#"))
+                .filter(|w| w.is_finite() && *w > 0.0)
+                .unwrap_or(7.0 * scale);
+            let count = ((cell.rect.w - insets) / hash).floor().max(1.0) as usize;
             cell.shown.text = "#".repeat(count);
         }
-        "text" => {
+        "text" if !merged => {
             let horizontal = cell.shown.style.horizontal.as_deref().unwrap_or("general");
             let (left, right) = match horizontal {
                 "right" => (needed - cell.rect.w, 0.0),
@@ -217,7 +363,7 @@ fn fit(cell: &mut PlannedCell, m: &GridMetrics, occupied: &BTreeSet<(u32, u32)>,
             };
             let mut col = cell.col;
             let mut grown = 0.0;
-            while grown < left && col > 1 && !occupied.contains(&(cell.row, col - 1)) {
+            while grown < left && col > 1 && !blocked(cell.row, col - 1) {
                 col -= 1;
                 let width = m.width(col);
                 grown += width;
@@ -226,7 +372,7 @@ fn fit(cell: &mut PlannedCell, m: &GridMetrics, occupied: &BTreeSet<(u32, u32)>,
             }
             col = cell.col;
             grown = 0.0;
-            while grown < right && col < extent_cols && !occupied.contains(&(cell.row, col + 1)) {
+            while grown < right && col < extent_cols && !blocked(cell.row, col + 1) {
                 col += 1;
                 let width = m.width(col);
                 grown += width;
@@ -564,6 +710,9 @@ mod tests {
 /// Empty cells have an identity too; an empty cell is never fabricated as calculated.
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct SemanticCell {
+    pub row_span: u32,
+    pub col_span: u32,
+    pub editability: Editability,
     pub at: crate::projection::Key,
     pub row: u32,
     pub col: u32,
@@ -605,18 +754,23 @@ impl RenderPlan {
         let rows = semantic_window(&self.row_headers, active.0, 4096 / cols.len().max(1), |h| {
             h.row
         });
-        self.semantic_rows = rows
-            .iter()
-            .map(|row| SemanticRow {
-                row: row.row,
-                cells: cols
-                    .iter()
-                    .map(|col| {
-                        let at = calc_value::CellKey::new(sheet, row.row, col.col)
-                            .expect("validated grid headers");
+        let geometry = mirror.geometry(sheet);
+        let mut identities = BTreeMap::new();
+        for row in rows {
+            for col in cols {
+                let position = calc_value::CellKey::new(sheet, row.row, col.col)
+                    .expect("validated grid headers");
+                let merged = geometry.and_then(|g| g.merge_at(position));
+                let at = merged.map_or(position, |a| a.first());
+                identities
+                    .entry(crate::projection::Key::of(at))
+                    .or_insert_with(|| {
                         let cell = mirror.cell(at);
-                        let address =
-                            format!("{}{}", crate::address::column_letters(col.col), row.row);
+                        let address = format!(
+                            "{}{}",
+                            crate::address::column_letters(at.column()),
+                            at.row()
+                        );
                         let text = cell.map_or("", |c| c.text.as_str()).to_owned();
                         let provenance = cell.map_or("empty", |c| c.provenance.name());
                         let mut label = if cell.is_some() {
@@ -630,20 +784,50 @@ impl RenderPlan {
                             label.push_str(": ");
                             label.push_str(&cell.why);
                         }
+                        let row_span = merged.map_or(1, |a| a.row_count());
+                        let col_span = merged.map_or(1, |a| a.column_count());
+                        if merged.is_some() {
+                            label.push_str(&format!(", spans {row_span} rows, {col_span} columns"));
+                        }
+                        let editability = Editability::from_geometry(geometry);
+                        if let Some(reason) = &editability.refusal {
+                            label.push_str(", read only: ");
+                            label.push_str(reason);
+                        }
+                        let footprint = merged.unwrap_or_else(|| calc_value::GridArea::cell(at));
                         SemanticCell {
                             at: crate::projection::Key::of(at),
-                            row: row.row,
-                            col: col.col,
+                            row: at.row(),
+                            col: at.column(),
                             address,
                             text,
                             provenance,
-                            selected: selected.iter().any(|area| area.contains(at)),
-                            active: active == (row.row, col.col),
+                            row_span,
+                            col_span,
+                            editability,
+                            selected: selected.iter().any(|a| {
+                                a.sheet() == sheet
+                                    && a.first().row() <= footprint.last().row()
+                                    && a.last().row() >= footprint.first().row()
+                                    && a.first().column() <= footprint.last().column()
+                                    && a.last().column() >= footprint.first().column()
+                            }),
+                            active: active.0 >= footprint.first().row()
+                                && active.0 <= footprint.last().row()
+                                && active.1 >= footprint.first().column()
+                                && active.1 <= footprint.last().column(),
                             label,
                         }
-                    })
-                    .collect(),
-            })
+                    });
+            }
+        }
+        let mut grouped: BTreeMap<u32, Vec<SemanticCell>> = BTreeMap::new();
+        for cell in identities.into_values() {
+            grouped.entry(cell.row).or_default().push(cell);
+        }
+        self.semantic_rows = grouped
+            .into_iter()
+            .map(|(row, cells)| SemanticRow { row, cells })
             .collect();
     }
 }
@@ -709,5 +893,186 @@ mod semantic_tests {
         plan.attach_semantics(&mirror, sheet, &[calc_value::GridArea::cell(at)], active);
         assert!(plan.interrupted);
         assert!(plan.publication.is_none());
+    }
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+    use crate::projection::{Area, Geometry, Key, Sheet};
+    fn text(row: u32, col: u32, text: &str) -> CellShown {
+        CellShown {
+            at: calc_value::CellKey::new(Sheet(0, 0).id(), row, col).unwrap(),
+            style: Default::default(),
+            text: text.into(),
+            kind: "text",
+            provenance: crate::projection::Provenance::Literal,
+            formula: false,
+            format: crate::projection::FormatShown::General,
+            color: None,
+            conditional: None,
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn offscreen_blank_merge_anchor_has_one_geometry_backed_identity() {
+        let geometry = Geometry {
+            merges: vec![Area(Key(0, 0, 1, 1), Key(0, 0, 2, 5))],
+            edit_refusal: Some("read only".into()),
+            ..Default::default()
+        };
+        let options = PlanOptions {
+            geometry: Some(&geometry),
+            ..Default::default()
+        };
+        let covered = text(1, 2, "covered source is not a second painted cell");
+        let view = Viewport {
+            width: 200.,
+            height: 100.,
+            scroll_x: 160.,
+            ..Default::default()
+        };
+        let plan = build_render_plan_with(
+            [&covered],
+            &GridMetrics {
+                col_width: 64.,
+                row_height: 20.,
+                ..Default::default()
+            },
+            &view,
+            100,
+            20,
+            &options,
+        );
+        assert_eq!(plan.cells.len(), 1);
+        let cell = &plan.cells[0];
+        assert_eq!(
+            (cell.address.as_str(), cell.row_span, cell.col_span),
+            ("A1", 2, 5)
+        );
+        assert_eq!(cell.anchor.w, 320.);
+        assert_eq!(cell.anchor.h, 40.);
+        assert!(cell.anchor.x < 0.);
+        assert_eq!(cell.shown.provenance, crate::projection::Provenance::Empty);
+        assert!(cell.shown.text.is_empty());
+        assert!(cell.editability.checked);
+        assert!(!cell.editability.can_begin);
+        assert_eq!(cell.editability.refusal.as_deref(), Some("read only"));
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn supplied_font_advances_change_overflow_without_changing_source_text() {
+        let cell = text(1, 1, "iiiiiiiiiiiiiiii");
+        let view = Viewport {
+            width: 400.,
+            height: 100.,
+            ..Default::default()
+        };
+        let m = GridMetrics {
+            col_width: 64.,
+            row_height: 20.,
+            ..Default::default()
+        };
+        let narrow = |_: &CellShown, _: &str| Some(48.);
+        let wide = |_: &CellShown, _: &str| Some(112.);
+        let a = build_render_plan_with(
+            [&cell],
+            &m,
+            &view,
+            100,
+            20,
+            &PlanOptions {
+                measure: Some(&narrow),
+                ..Default::default()
+            },
+        );
+        let b = build_render_plan_with(
+            [&cell],
+            &m,
+            &view,
+            100,
+            20,
+            &PlanOptions {
+                measure: Some(&wide),
+                ..Default::default()
+            },
+        );
+        assert_eq!(a.cells[0].rect.w, 64.);
+        assert_eq!(b.cells[0].rect.w, 128.);
+        assert_eq!(a.cells[0].text_advance, 48.);
+        assert_eq!(b.cells[0].text_advance, 112.);
+        assert!(a.cells[0].text_measured && b.cells[0].text_measured);
+        assert_eq!(a.cells[0].shown, b.cells[0].shown);
+        assert_eq!(a.cells[0].shown, cell);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn indentation_uses_the_normal_font_instead_of_the_cell_font() {
+        let mut cell = text(1, 1, "indented");
+        cell.style.family = Some("Large custom font".into());
+        cell.style.pixels = 40.0;
+        cell.style.indent = 2;
+        let measure = |shown: &CellShown, text: &str| {
+            if text == "   " {
+                assert_eq!(shown.style, crate::projection::TextStyle::default());
+                Some(6.0)
+            } else {
+                Some(40.0)
+            }
+        };
+        let plan = build_render_plan_with(
+            [&cell],
+            &GridMetrics::default(),
+            &Viewport {
+                width: 400.,
+                height: 100.,
+                ..Default::default()
+            },
+            100,
+            20,
+            &PlanOptions {
+                measure: Some(&measure),
+                ..Default::default()
+            },
+        );
+        assert_eq!(plan.cells[0].rect.w, 80.0);
+        assert_eq!(plan.cells[0].shown, cell);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn numeric_overflow_mask_fits_the_measured_hash_advance() {
+        let mut cell = text(1, 1, "123456");
+        cell.kind = "number";
+        cell.format = crate::projection::FormatShown::Applied;
+        let m = GridMetrics {
+            col_width: 33.,
+            ..Default::default()
+        };
+        let measure = |_: &CellShown, text: &str| Some(if text == "#" { 8.0 } else { 48.0 });
+        let view = Viewport {
+            width: 400.,
+            height: 100.,
+            ..Default::default()
+        };
+        let plan = build_render_plan_with(
+            [&cell],
+            &m,
+            &view,
+            100,
+            20,
+            &PlanOptions {
+                measure: Some(&measure),
+                ..Default::default()
+            },
+        );
+        assert_eq!(plan.cells[0].shown.text, "###");
+        assert_eq!(plan.cells[0].shown.provenance, cell.provenance);
+        assert_eq!(cell.text, "123456");
+        assert_eq!(
+            build_render_plan([&cell], &m, &view, 100, 20).cells[0]
+                .shown
+                .text,
+            "####"
+        );
     }
 }

@@ -46,6 +46,39 @@ pub fn span(span: TextSpan) -> String {
     format!("{}..{}", span.start, span.end())
 }
 
+/// User-function identities fold for lookup; their diagnostic label uses conventional
+/// ASCII uppercase spelling. Keep the runtime's explanation byte-for-byte after the separator.
+pub fn user_function_diagnostic(message: &str) -> String {
+    match message.split_once(": ") {
+        Some((name, detail)) => format!("{}: {detail}", name.to_ascii_uppercase()),
+        None => message.to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod user_function_diagnostic_tests {
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn folded_names_get_display_spelling_without_changing_runtime_detail() {
+        for name in ["spin", "SPIN", "SpIn"] {
+            assert_eq!(
+                super::user_function_diagnostic(&format!(
+                    "{name}: execution budget exhausted: MiXeD detail"
+                )),
+                "SPIN: execution budget exhausted: MiXeD detail"
+            );
+        }
+        assert_eq!(
+            super::user_function_diagnostic("module.work: mixed Case"),
+            "MODULE.WORK: mixed Case"
+        );
+        assert_eq!(
+            super::user_function_diagnostic("No function separator"),
+            "No function separator"
+        );
+    }
+}
+
 /// A compile refusal, in words.
 pub fn compile_owner(error: &CompileError) -> Option<&str> {
     match error {
@@ -198,7 +231,8 @@ fn function_fault(fault: &FunctionFault) -> String {
     match fault {
         FunctionFault::ContinuationTarget { expected, received } => format!(
             "function fault: a pending {} call cannot continue as {}",
-            function_label(*expected), function_label(*received)
+            function_label(*expected),
+            function_label(*received)
         ),
         FunctionFault::ArityMismatch { id, supplied } => format!(
             "function fault in {}: {supplied} arguments, which it does not admit",
