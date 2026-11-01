@@ -1,0 +1,21 @@
+{
+  "captured_utc": "2026-11-01T01:31:12.0281312Z",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "process_bitness": 64,
+  "cpu": [
+    {
+      "Name": "AMD Ryzen 7 4800H with Radeon Graphics         ",
+      "Manufacturer": "AuthenticAMD",
+      "NumberOfCores": 8,
+      "NumberOfLogicalProcessors": 16
+    }
+  ],
+  "locale": "en-ZA",
+  "supervisor": "OxVba/scripts/run-excel-vba-oracle.ps1, selected windows-scalar-interop descriptor",
+  "supervisor_commit": "6d63a3c27afd415a025722492a04deb667c68fbb",
+  "fixture_ancestor": "crates/calc-vba/tests/fixtures/excel-recalculation/probe.bas",
+  "safe_mode_requested": true,
+  "native_image": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P08\\native-order.xll",
+  "native_sha256": "F8351BDF5D6C1DC2D8B0C6D3BFF41B208A8D8E59685286EB489E0D64F1A478B1",
+  "excel_file_version": "16.0.20527.20088"
+}
