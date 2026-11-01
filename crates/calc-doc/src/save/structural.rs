@@ -1216,11 +1216,7 @@ impl<'a, 'r> Pass<'a, 'r> {
                             .invalid("a cell that is not after the cell before it"));
                     }
                     previous = column;
-                    let style = cell
-                        .attribute("s")
-                        .map(collapsed)
-                        .filter(|style| style.parse::<u32>() != Ok(0))
-                        .map(str::to_owned);
+                    let style = cell.attribute("s").map(collapsed).map(str::to_owned);
                     if keep_above && let Some(style) = &style {
                         styled.push((column, style.clone()));
                     }

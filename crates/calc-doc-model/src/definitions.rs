@@ -597,6 +597,11 @@ impl Definitions {
     /// cells, hidden rows and the names scoped to it (a removed sheet).
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
         self.conditional.remove(&sheet);
+        if self.styles.runs.iter().any(|r| r.area.sheet() == sheet) {
+            let mut styles = (*self.styles).clone();
+            styles.runs = styles.runs.without_sheet(sheet);
+            self.styles = std::sync::Arc::new(styles);
+        }
         self.axis_layouts.without_sheet(sheet);
         self.panes.remove(&sheet);
         self.arrays.retain(|at, _| at.sheet() != sheet);

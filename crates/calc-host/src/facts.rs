@@ -47,6 +47,25 @@ pub(crate) fn opened_position(edits: &[AxisEdit], at: CellKey) -> Option<(u32, u
     Some((row, column))
 }
 
+/// Resolve imported axis defaults even in a new first band or newly exposed grid edge.
+/// Ordinary positions keep explicit source-cell formats and preceding-band inheritance.
+pub(crate) fn imported_style(sheet: Option<&LoadedSheet>, edits: &[AxisEdit], at: CellKey) -> u32 {
+    let Some(sheet) = sheet else {
+        return 0;
+    };
+    if let Some((row, column)) = opened_position(edits, at) {
+        return sheet.style(row, column);
+    }
+    let mut runs = calc_doc_model::StyleRuns::default();
+    for run in sheet.default_styles() {
+        runs.assign(run);
+    }
+    for edit in edits {
+        runs = runs.moved(*edit);
+    }
+    runs.get(at).unwrap_or(0)
+}
+
 /// The maximum digit width, in pixels, of a font Excel uses as a workbook's default font, which
 /// a column width in characters counts in: measured for the fonts of Excel's default styles
 /// (Calibri 11 and Aptos Narrow 11 give a default column of 8.43 characters, 64 pixels).
@@ -99,13 +118,10 @@ impl HostFacts {
         if let Some(format) = self.model.definitions().cell_format(at) {
             return format;
         }
-        match (
-            self.sheet(at.sheet()),
-            opened_position(&self.axis_edits, at),
-        ) {
-            (Some(sheet), Some((row, column))) => sheet.style(row, column),
-            _ => 0,
+        if let Some(format) = self.model.definitions().styles().runs.get(at) {
+            return format;
         }
+        imported_style(self.sheet(at.sheet()), &self.axis_edits, at)
     }
 }
 

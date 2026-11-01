@@ -731,3 +731,278 @@ mod tests {
         while reader.next_event().unwrap().is_some() {}
     }
 }
+
+/// Compact defaults plus the rectangles SpreadsheetML must express as cell records.
+/// These are a save plan only: authored workbook storage remains sparse StyleRuns.
+#[derive(Default)]
+pub(super) struct SheetStyles {
+    pub columns: Vec<(u32, u32, u32)>,
+    pub rows: Vec<(u32, u32, u32)>,
+    pub cells: Vec<calc_doc_model::StyleRun>,
+}
+impl SheetStyles {
+    pub fn column(&self, index: u32) -> u32 {
+        self.columns
+            .iter()
+            .find(|(a, b, _)| (*a..=*b).contains(&index))
+            .map_or(0, |(_, _, s)| *s)
+    }
+    pub fn row(&self, index: u32) -> Option<u32> {
+        self.rows
+            .iter()
+            .find(|(a, b, _)| (*a..=*b).contains(&index))
+            .map(|(_, _, s)| *s)
+    }
+}
+pub(super) fn sheet_plan(
+    xml: &crate::xml::XmlPart,
+    sheet: calc_doc_model::value::SheetId,
+    runs: &calc_doc_model::StyleRuns,
+) -> Result<Option<SheetStyles>, super::SaveRefusal> {
+    use crate::load::MAIN_NAMESPACE;
+    use crate::xml::XmlEvent;
+    use calc_doc_model::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS};
+    use calc_doc_model::{StyleRun, StyleRuns};
+    if !runs.iter().any(|r| r.area.sheet() == sheet) {
+        return Ok(None);
+    }
+    let area = |r1, c1, r2, c2| {
+        GridArea::new(
+            CellKey::new(sheet, r1, c1).unwrap(),
+            CellKey::new(sheet, r2, c2).unwrap(),
+        )
+        .unwrap()
+    };
+    let mut reader = super::reader::Reader::new(xml);
+    reader.root("worksheet")?;
+    let mut cols = Vec::new();
+    let mut rows = Vec::new();
+    let mut previous_row = 0;
+    // Read only axis defaults; cell-specific records continue through the ordinary sheet writer.
+    loop {
+        match reader.expect()? {
+            (XmlEvent::Start(e), _) if e.name.is(MAIN_NAMESPACE, "cols") => loop {
+                match reader.expect()? {
+                    (XmlEvent::Start(col), _) => {
+                        if col.name.is(MAIN_NAMESPACE, "col") {
+                            let span = col
+                                .attribute("min")
+                                .and_then(|s| s.parse::<u32>().ok())
+                                .zip(col.attribute("max").and_then(|s| s.parse::<u32>().ok()));
+                            if let (Some((a, b)), Some(style)) =
+                                (span, col.attribute("style").and_then(|s| s.parse().ok()))
+                                && a >= 1
+                                && a <= b
+                                && b <= MAX_COLUMNS
+                            {
+                                cols.push(StyleRun {
+                                    area: area(1, a, MAX_ROWS, b),
+                                    format: style,
+                                });
+                            }
+                        }
+                        reader.element_end()?;
+                    }
+                    (XmlEvent::End(_), _) => break,
+                    _ => {}
+                }
+            },
+            (XmlEvent::Start(e), _) if e.name.is(MAIN_NAMESPACE, "sheetData") => loop {
+                match reader.expect()? {
+                    (XmlEvent::Start(row), _) => {
+                        if row.name.is(MAIN_NAMESPACE, "row") {
+                            let index = row
+                                .attribute("r")
+                                .and_then(|s| s.parse::<u32>().ok())
+                                .unwrap_or(previous_row + 1);
+                            previous_row = index;
+                            if let Some(style) = row.attribute("s").and_then(|s| s.parse().ok())
+                                && (1..=MAX_ROWS).contains(&index)
+                                && matches!(row.attribute("customFormat"), Some("1" | "true"))
+                            {
+                                rows.push(StyleRun {
+                                    area: area(index, 1, index, MAX_COLUMNS),
+                                    format: style,
+                                });
+                            }
+                        }
+                        reader.element_end()?;
+                    }
+                    (XmlEvent::End(_), _) => break,
+                    _ => {}
+                }
+            },
+            (XmlEvent::Start(_), _) => {
+                reader.element_end()?;
+            }
+            (XmlEvent::End(_), _) => break,
+            _ => {}
+        }
+    }
+    let plane = StyleRuns::regions(
+        GridArea::full_sheet(sheet),
+        cols.into_iter().rev().chain(rows).chain(runs.iter()),
+    );
+    let mut edges = std::collections::BTreeSet::from([1, MAX_ROWS + 1]);
+    for r in &plane {
+        edges.insert(r.area.first().row());
+        edges.insert(r.area.last().row() + 1);
+    }
+    let edges: Vec<_> = edges.into_iter().collect();
+    let strip = |row: u32| {
+        let mut spans: Vec<_> = plane
+            .iter()
+            .filter(|r| (r.area.first().row()..=r.area.last().row()).contains(&row))
+            .map(|r| (r.area.first().column(), r.area.last().column(), r.format))
+            .collect();
+        spans.sort();
+        let mut merged: Vec<(u32, u32, u32)> = Vec::new();
+        for (a, b, s) in spans {
+            if let Some(last) = merged.last_mut()
+                && last.1 + 1 == a
+                && last.2 == s
+            {
+                last.1 = b;
+            } else {
+                merged.push((a, b, s));
+            }
+        }
+        merged
+    };
+    // Pick the column defaults by the resulting XML work, rather than strip height:
+    // a uniform row override is much cheaper than thousands of cell exceptions.
+    let strips: Vec<_> = edges
+        .windows(2)
+        .map(|e| (e[0], e[1] - 1, strip(e[0])))
+        .collect();
+    let exceptions = |columns: &[(u32, u32, u32)], spans: &[(u32, u32, u32)]| {
+        let mut weights = std::collections::BTreeMap::<u32, u64>::new();
+        for &(a, b, s) in spans {
+            *weights.entry(s).or_default() += u64::from(b - a + 1);
+        }
+        let default = *weights
+            .iter()
+            .max_by_key(|(s, n)| (**n, std::cmp::Reverse(**s)))
+            .unwrap()
+            .0;
+        let mut differences = Vec::new();
+        for &(a, b, s) in spans {
+            for &(c, d, old) in columns {
+                let (first, last) = (a.max(c), b.min(d));
+                if first <= last && s != old {
+                    differences.push((first, last, s));
+                }
+            }
+        }
+        let by_column: u64 = differences
+            .iter()
+            .map(|(a, b, _)| u64::from(b - a + 1))
+            .sum();
+        let by_row = u64::from(MAX_COLUMNS) - weights[&default];
+        if by_column <= by_row {
+            (None, differences)
+        } else {
+            (
+                Some(default),
+                spans
+                    .iter()
+                    .copied()
+                    .filter(|(_, _, s)| *s != default)
+                    .collect(),
+            )
+        }
+    };
+    let mut candidates: Vec<_> = strips.iter().map(|(_, _, s)| s.clone()).collect();
+    candidates.push(vec![(1, MAX_COLUMNS, 0)]);
+    candidates.sort();
+    candidates.dedup();
+    let columns = candidates
+        .into_iter()
+        .min_by_key(|columns| {
+            strips
+                .iter()
+                .map(|(first, last, spans)| {
+                    let (row, cells) = exceptions(columns, spans);
+                    let width: u64 = cells.iter().map(|(a, b, _)| u64::from(b - a + 1)).sum();
+                    u64::from(last - first + 1) * (width * 32 + u64::from(row.is_some()) * 24)
+                })
+                .sum::<u64>()
+        })
+        .unwrap();
+    let mut plan = SheetStyles {
+        columns,
+        ..Default::default()
+    };
+    for (first, last, spans) in strips {
+        let (row, cells) = exceptions(&plan.columns, &spans);
+        if let Some(default) = row {
+            plan.rows.push((first, last, default));
+        }
+        for (a, b, s) in cells {
+            plan.cells.push(StyleRun {
+                area: area(first, a, last, b),
+                format: s,
+            });
+        }
+    }
+    let cells: u64 = plan.cells.iter().map(|r| r.area.cell_count()).sum();
+    if cells > 2_000_000 {
+        return Err(super::SaveRefusal::StyleExpansionNotModelled {
+            cells,
+            owner: "dc-971p.6",
+        });
+    }
+    Ok(Some(plan))
+}
+
+#[cfg(test)]
+mod sheet_style_tests {
+    use super::*;
+    use calc_doc_model::value::{CellKey, GridArea, MAX_ROWS, SheetId};
+    use calc_doc_model::{StyleRun, StyleRuns};
+    fn xml() -> XmlPart {
+        XmlPart::new("xl/worksheets/sheet1.xml".into(),br#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>"#.to_vec(),Default::default())
+    }
+    fn area(s: SheetId, r1: u32, c1: u32, r2: u32, c2: u32) -> GridArea {
+        GridArea::new(
+            CellKey::new(s, r1, c1).unwrap(),
+            CellKey::new(s, r2, c2).unwrap(),
+        )
+        .unwrap()
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn half_sheet_uses_axis_defaults_instead_of_billions_of_empty_cells() {
+        let s = SheetId::from_parts(0, 0);
+        let mut runs = StyleRuns::default();
+        runs.assign(StyleRun {
+            area: area(s, 1, 1, 524288, 8192),
+            format: 1,
+        });
+        let plan = sheet_plan(&xml(), s, &runs).unwrap().unwrap();
+        assert!(plan.cells.is_empty());
+        assert_eq!(plan.columns.len(), 2);
+        assert_eq!(plan.rows, vec![(524289, MAX_ROWS, 0)]);
+        assert_eq!(plan.column(1), 1);
+        assert_eq!(plan.column(8193), 0);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn serialization_refuses_excessive_cell_expansion_before_building_rows() {
+        let s = SheetId::from_parts(0, 0);
+        let mut runs = StyleRuns::default();
+        // A different permanent column default prevents representing the surrounding
+        // nonuniform rows with just a uniform row override.
+        runs.assign(StyleRun {
+            area: area(s, 1, 26, MAX_ROWS, 702),
+            format: 2,
+        });
+        runs.assign(StyleRun {
+            area: area(s, 2, 2, 300002, 13),
+            format: 1,
+        });
+        assert!(
+            matches!(sheet_plan(&xml(),s,&runs),Err(SaveRefusal::StyleExpansionNotModelled {cells,owner:"dc-971p.6"}) if cells>2_000_000)
+        );
+    }
+}

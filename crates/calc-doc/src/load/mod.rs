@@ -107,6 +107,8 @@ pub struct LoadedSheet {
     relationship: String,
     part: Arc<SourcePart>,
     styles: BTreeMap<(u32, u32), u32>,
+    row_styles: BTreeMap<u32, u32>,
+    column_styles: Vec<(u32, u32, u32)>,
     formulas: BTreeMap<(u32, u32), FormulaRecord>,
     value_caches: BTreeMap<(u32, u32), FileCached>,
     geometry: SheetGeometry,
@@ -128,6 +130,8 @@ impl LoadedSheet {
             relationship,
             part: Arc::new(SourcePart::new(name, 0, 0)),
             styles: BTreeMap::new(),
+            row_styles: BTreeMap::new(),
+            column_styles: Vec::new(),
             formulas: BTreeMap::new(),
             value_caches: BTreeMap::new(),
             geometry: SheetGeometry::default(),
@@ -221,15 +225,61 @@ impl LoadedSheet {
     /// The style (cell format) index of the cell at `row` and `column`: its `s` attribute, 0 when
     /// it has none or the sheet holds no record of it.
     pub fn style(&self, row: u32, column: u32) -> u32 {
-        self.styles.get(&(row, column)).copied().unwrap_or(0)
+        self.styles
+            .get(&(row, column))
+            .copied()
+            .unwrap_or_else(|| self.default_style(row, column))
     }
 
-    /// The cells whose style index is not 0, as (row, column, style), in row-major order. A
-    /// styled cell without a value is here and not in the model.
-    pub fn styled_cells(&self) -> impl Iterator<Item = (u32, u32, u32)> + '_ {
+    /// An absent cell inherits its row's custom style, then its column default.
+    pub fn default_style(&self, row: u32, column: u32) -> u32 {
+        self.row_styles
+            .get(&row)
+            .copied()
+            .or_else(|| {
+                self.column_styles
+                    .iter()
+                    .find(|(a, b, _)| (*a..=*b).contains(&column))
+                    .map(|(_, _, s)| *s)
+            })
+            .unwrap_or(0)
+    }
+    pub fn default_styles(&self) -> impl Iterator<Item = calc_doc_model::StyleRun> + '_ {
+        use calc_doc_model::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS};
+        self.column_styles
+            .iter()
+            .rev()
+            .map(|&(a, b, format)| calc_doc_model::StyleRun {
+                area: GridArea::new(
+                    CellKey::new(self.id, 1, a).unwrap(),
+                    CellKey::new(self.id, MAX_ROWS, b).unwrap(),
+                )
+                .unwrap(),
+                format,
+            })
+            .chain(self.row_styles.iter().map(|(&row, &format)| {
+                calc_doc_model::StyleRun {
+                    area: GridArea::new(
+                        CellKey::new(self.id, row, 1).unwrap(),
+                        CellKey::new(self.id, row, MAX_COLUMNS).unwrap(),
+                    )
+                    .unwrap(),
+                    format,
+                }
+            }))
+    }
+
+    /// Every explicit cell style, including zero overrides of row or column defaults.
+    pub fn explicit_styles(&self) -> impl Iterator<Item = (u32, u32, u32)> + '_ {
         self.styles
             .iter()
             .map(|(&(row, column), &style)| (row, column, style))
+    }
+
+    /// The cells whose explicit style index is not zero, in row-major order. A styled
+    /// cell without a value is here and not in the model.
+    pub fn styled_cells(&self) -> impl Iterator<Item = (u32, u32, u32)> + '_ {
+        self.explicit_styles().filter(|(_, _, style)| *style != 0)
     }
 
     /// The formula record of the cell at `row` and `column`.
@@ -1245,6 +1295,8 @@ pub fn load(
                     relationship: declared.relationship.clone(),
                     part: loaded.part,
                     styles: loaded.styles,
+                    row_styles: loaded.row_styles,
+                    column_styles: loaded.column_styles,
                     formulas: loaded.formulas,
                     value_caches: loaded.value_caches,
                     geometry: loaded.geometry,

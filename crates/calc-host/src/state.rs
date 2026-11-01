@@ -738,10 +738,10 @@ impl HostState {
         if let Some(format) = self.model.definitions().cell_format(at) {
             return format;
         }
-        match (self.loaded.sheet(at.sheet()), self.opened_position(at)) {
-            (Some(sheet), Some((row, column))) => sheet.style(row, column),
-            _ => 0,
+        if let Some(format) = self.styles().runs.get(at) {
+            return format;
         }
+        crate::facts::imported_style(self.loaded.sheet(at.sheet()), &self.axis_edits, at)
     }
 
     /// The effective workbook alignment, through the same resolver CELL("prefix") uses.
