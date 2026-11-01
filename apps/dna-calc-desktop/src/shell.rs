@@ -144,6 +144,11 @@ impl Shell {
             .ok_or("COM projection is not attached")?
             .run_early(name)
     }
+    pub fn projection(&self) -> Result<&calc_com_host::Projection, String> {
+        self.projection
+            .as_deref()
+            .ok_or("COM projection is not attached".into())
+    }
     pub fn wait_for(&self, path: &Path) -> Result<(), String> {
         let start = Instant::now();
         while !path.exists() {

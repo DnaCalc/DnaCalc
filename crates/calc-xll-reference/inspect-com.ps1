@@ -13,7 +13,7 @@ public static class ExcelInterfaceFacts {
   var layouts=new List<object>();
   try { for(int i=0;i<lib.GetTypeInfoCount();++i) {
    string name,doc,help;int context;lib.GetDocumentation(i,out name,out doc,out context,out help);
-   if(name!="_Application" && name!="Window" && name!="_Workbook" && name!="Workbooks") continue;
+   if(name!="_Application" && name!="Window" && name!="_Workbook" && name!="Workbooks" && name!="_Worksheet" && name!="Range") continue;
    ITypeInfo type;lib.GetTypeInfo(i,out type);
    bool dual=false;
    try { int reference;type.GetRefTypeOfImplType(-1,out reference);ITypeInfo actual;type.GetRefTypeInfo(reference,out actual);Marshal.ReleaseComObject(type);type=actual;dual=true; }
@@ -25,7 +25,7 @@ public static class ExcelInterfaceFacts {
      IntPtr fp;type.GetFuncDesc(f,out fp);
      try {
       var d=Marshal.PtrToStructure<FUNCDESC>(fp);string[] names=new string[64];int got;type.GetNames(d.memid,names,64,out got);
-      if(names[0]!="Application" && names[0]!="Parent" && names[0]!="Version" && names[0]!="Hwnd" && names[0]!="Run" && names[0]!="Path" && names[0]!="EnableEvents" && names[0]!="Workbooks" && names[0]!="Count" && names[0]!="Item" && names[0]!="Name" && names[0]!="FullName") continue;
+      if(names[0]!="Application" && names[0]!="Parent" && names[0]!="Version" && names[0]!="Hwnd" && names[0]!="Run" && names[0]!="Path" && names[0]!="EnableEvents" && names[0]!="Workbooks" && names[0]!="Count" && names[0]!="Item" && names[0]!="Name" && names[0]!="FullName" && names[0]!="ActiveWorkbook" && names[0]!="ActiveSheet" && names[0]!="Address" && names[0]!="Row" && names[0]!="Column" && names[0]!="Rows" && names[0]!="Columns" && names[0]!="Value2" && names[0]!="Range" && names[0]!="Worksheet") continue;
       var parameters=new List<object>();
       for(int p=0;p<d.cParams;++p) {
        var element=Marshal.PtrToStructure<ELEMDESC>(IntPtr.Add(d.lprgelemdescParam,p*Marshal.SizeOf<ELEMDESC>()));

@@ -139,6 +139,7 @@ struct Call {
     long long started; int fn = 0, count = 0;
     std::array<Address,9> raw{};
     std::vector<std::string> names;
+    Address run_result = 0;
 };
 static std::map<Address, Breakpoint> breakpoints;
 static std::map<Address, Module> modules;
@@ -160,7 +161,7 @@ static std::string guid(Address p) {
 }
 static void watchObject(Address p,const std::string& label,const std::string& kind="dispatch") {
     if(!p)return;
-    if(objects.count(p)&&!(interfaces[p]=="unknown"&&kind!="unknown"))return;
+    if(objects.count(p) && (interfaces[p]==kind || kind=="unknown" || (kind=="dispatch" && interfaces[p]!="unknown")))return;
     Address table=read<Address>(p);if(!table)return;
     objects[p]=label;interfaces[p]=kind;
     auto method=[&](int slot,const char* name){Entry e{std::string("COM!")+name,""};arm(read<Address>(table+8*slot),&e);};
@@ -168,6 +169,18 @@ static void watchObject(Address p,const std::string& label,const std::string& ki
     if(kind=="container")method(4,"FindConnectionPoint");
     else if(kind=="point"){method(5,"Advise");method(6,"Unadvise");}
     else if(kind!="unknown"){method(5,"GetIDsOfNames");method(6,"Invoke");}
+    auto early=[&](int slot,const char* member,const char* result){Entry e{"COM!early."+kind+"."+member,result};arm(read<Address>(table+8*slot),&e);};
+    if(kind=="application" || kind=="workbook" || kind=="workbooks" || kind=="worksheet") {
+        early(7,"Application","object1"); early(9,"Parent","object1");
+    }
+    if(kind=="application") {
+        early(16,"ActiveSheet","object1");early(18,"ActiveWorkbook","object1");early(52,"Workbooks","object1");
+        early(42,"Run","run");
+        early(223,"Path","bstr2");early(281,"Version","bstr2");early(300,"EnableEvents.get","bool1");early(301,"EnableEvents.put","putbool");early(351,"Hwnd","int1");
+    } else if(kind=="workbook") {
+        early(14,"ActiveSheet","object1");early(50,"FullName","bstr2");early(66,"Name","bstr1");early(76,"Path","bstr2");
+    } else if(kind=="workbooks") {early(12,"Count","int1");early(13,"Item","object2");}
+    else if(kind=="worksheet") early(18,"Name","bstr1");
     emit("\"event\":\"com_object\",\"object\":"+hex(p)+",\"label\":"+quote(label)+",\"interface\":"+quote(kind));
 }
 static std::string variant(Address p,int depth=0) {
@@ -349,8 +362,18 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
     std::string fields="\"event\":\"enter\",\"call\":"+std::to_string(c.id)+",\"thread\":"+std::to_string(thread)+",\"entry\":"+quote(entry.name)+",\"from\":"+location(c.ret);
     if(entry.name.rfind("COM!",0)==0) {
         if(!objects.count(ctx.Rcx))return; // Shared vtable code: observe only discovered objects.
+        if(entry.name.rfind("COM!early.",0)==0 && entry.name.rfind("COM!early."+interfaces[ctx.Rcx]+".",0)!=0)return;
         fields+=",\"object\":"+hex(ctx.Rcx)+",\"object_label\":"+quote(objects[ctx.Rcx]);
-        if(entry.name=="COM!QueryInterface")fields+=",\"iid\":"+quote(guid(ctx.Rdx));
+        if(entry.name.rfind("COM!early.",0)==0) {
+            fields+=",\"result_abi\":"+quote(entry.signature);
+            if(entry.signature=="putbool") fields+=",\"value\":"+std::string((int16_t)ctx.Rdx?"true":"false");
+            if(entry.name=="COM!early.workbooks.Item")fields+=",\"index\":"+variant(ctx.Rdx);
+            if(entry.signature=="run") {
+                fields+=",\"arguments\":[";
+                for(int i=1;i<=31;++i){if(i!=1)fields+=",";fields+=variant(argument(ctx,i));}
+                fields+="]";c.run_result=argument(ctx,32);
+            }
+        }else if(entry.name=="COM!QueryInterface")fields+=",\"iid\":"+quote(guid(ctx.Rdx));
         else if(entry.name=="COM!GetIDsOfNames") {
             if(interfaces[ctx.Rcx]=="container"||interfaces[ctx.Rcx]=="point")return;
             fields+=",\"names\":[";
@@ -403,7 +426,22 @@ static void leave(const Call& c,const CONTEXT& ctx) {
         fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);
         if((int32_t)ctx.Rax>=0){
             std::string kind=c.entry.name;
-            if(kind=="COM!GetIDsOfNames") {
+            if(kind.rfind("COM!early.",0)==0) {
+                const auto& abi=c.entry.signature;
+                Address out=abi.back()=='2'?c.raw[2]:c.raw[1];
+                if(abi.rfind("object",0)==0) {
+                    Address value=read<Address>(out);fields+=",\"object\":"+hex(value);
+                    std::string target="dispatch";
+                    if(kind=="COM!early.application.Workbooks")target="workbooks";
+                    else if(kind=="COM!early.application.ActiveWorkbook" || kind=="COM!early.workbooks.Item")target="workbook";
+                    else if(kind.size()>=12 && kind.substr(kind.size()-12)==".Application")target="application";
+                    watchObject(value,kind,target);
+                } else if(abi.rfind("bstr",0)==0) {
+                    Address value=read<Address>(out);fields+=",\"value\":"+(value?quote(utf8(wide(value,read<uint32_t>(value-4)/2))):"null");
+                } else if(abi=="int1")fields+=",\"value\":"+std::to_string(read<int32_t>(out));
+                else if(abi=="bool1")fields+=",\"value\":"+std::string(read<int16_t>(out)?"true":"false");
+                else if(abi=="run")fields+=",\"result\":"+variant(c.run_result);
+            }else if(kind=="COM!GetIDsOfNames") {
                 fields+=",\"dispids\":[";
                 for(size_t i=0;i<c.names.size();++i){int32_t id=read<int32_t>(c.raw[5]+i*4);members[{c.raw[0],id}]=c.names[i];if(i)fields+=",";fields+=std::to_string(id);}fields+="]";
             }else if(kind=="COM!Invoke") {
@@ -415,6 +453,11 @@ static void leave(const Call& c,const CONTEXT& ctx) {
                 if(iid=="00020400-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]]);
                 else if(iid=="00024413-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"sink");
                 else if(iid=="b196b284-bab4-101a-b69c-00aa00341d07")watchObject(p,objects[c.raw[0]]+".ConnectionPointContainer","container");
+                else if(iid=="000208d5-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"application");
+                else if(iid=="000208da-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"workbook");
+                else if(iid=="000208db-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"workbooks");
+                else if(iid=="000208d8-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"worksheet");
+                else if(iid=="00020846-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"range");
                 else watchObject(p,objects[c.raw[0]],"unknown");
             }else if(kind=="COM!FindConnectionPoint")watchObject(read<Address>(c.raw[2]),objects[c.raw[0]]+".ConnectionPoint","point");
             else if(kind=="COM!Advise"){
@@ -594,7 +637,7 @@ int wmain(int argc,wchar_t** argv) {
             break;
         }
         case LOAD_DLL_DEBUG_EVENT:{auto& d=ev.u.LoadDll;addModule((Address)d.lpBaseOfDll,filePath(d.hFile));if(d.hFile)CloseHandle(d.hFile);break;}
-        case UNLOAD_DLL_DEBUG_EVENT:{Address base=(Address)ev.u.UnloadDll.lpBaseOfDll;auto it=modules.find(base);if(it!=modules.end()){Address end=base+it->second.size;for(auto b=breakpoints.lower_bound(base);b!=breakpoints.end()&&b->first<end;)b=breakpoints.erase(b);modules.erase(it);}break;}
+        case UNLOAD_DLL_DEBUG_EVENT:{Address base=(Address)ev.u.UnloadDll.lpBaseOfDll;auto it=modules.find(base);if(it!=modules.end()){emit("\"event\":\"module_unload\",\"base\":"+hex(base));Address end=base+it->second.size;for(auto b=breakpoints.lower_bound(base);b!=breakpoints.end()&&b->first<end;)b=breakpoints.erase(b);modules.erase(it);}break;}
         case EXIT_THREAD_DEBUG_EVENT:exitedThreads.insert(ev.dwThreadId);emit("\"event\":\"thread_exit\",\"thread\":"+std::to_string(ev.dwThreadId)+",\"exit_code\":"+std::to_string(ev.u.ExitThread.dwExitCode));if(stepping.count(ev.dwThreadId))finishStep(ev.dwThreadId);if(!calls[ev.dwThreadId].empty())healthy=false;break;
         case EXCEPTION_DEBUG_EVENT:{
             DWORD code=ev.u.Exception.ExceptionRecord.ExceptionCode;
@@ -607,7 +650,7 @@ int wmain(int argc,wchar_t** argv) {
                 else if(!breakpoint(ev.dwThreadId,addr)){if(initialBreak){initialBreak=false;emit("\"event\":\"ready\"");}else status=DBG_EXCEPTION_NOT_HANDLED;}
             }else {
                 status=DBG_EXCEPTION_NOT_HANDLED;
-                if(!ev.u.Exception.dwFirstChance){healthy=false;emit("\"event\":\"second_chance_exception\",\"code\":"+hex(code));}
+                if(!ev.u.Exception.dwFirstChance){healthy=false;emit("\"event\":\"second_chance_exception\",\"code\":"+hex(code)+",\"address\":"+hex(addr)+",\"thread\":"+std::to_string(ev.dwThreadId));}
             }
             break;
         }
