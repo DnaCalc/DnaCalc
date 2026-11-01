@@ -6,6 +6,7 @@ Usage: python verify.py TRACED_DIRECTORY CONTROL_DIRECTORY [--out summary.json]
 import argparse
 from collections import Counter
 from functools import lru_cache
+from itertools import zip_longest
 import hashlib
 import json
 from pathlib import Path
@@ -49,10 +50,9 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest().upper()
 
 
+@lru_cache(maxsize=None)
 def source_matches(expected, source, revision):
     root = Path(__file__).resolve().parents[2]
-    if source.exists() and digest(source) == expected:
-        return True
     # A later extension of the tracer must not invalidate an older immutable capture.
     # Its exact original source must still exist at the recorded repository revision.
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
@@ -79,6 +79,23 @@ def source_matches(expected, source, revision):
 def require(condition, description):
     if not condition:
         raise AssertionError(description)
+
+
+def verify_sources(environments, publication_path=None):
+    root = Path(__file__).resolve().parents[2]
+    publications = json.loads(publication_path.read_text(encoding="utf-8-sig"))["publications"] if publication_path else []
+    def retained(sha, source, env):
+        require(not Path(source).is_absolute() and ".." not in Path(source).parts, "Invalid source path")
+        if source_matches(sha, root / source, env["repository_commit"]):
+            return True
+        return any(p["source_files"].get(source) == sha and source_matches(sha, root / source, p["revision"])
+                   for p in publications)
+    for env in environments:
+        require(retained(env["tracer_source_sha256"], "crates/calc-xll-reference/native/trace.cpp", env), "Tracer source not retained")
+        require(retained(env["runner_sha256"], "crates/calc-xll-reference/run.ps1", env), "Runner source not retained")
+        for source, sha in env["source_files"].items():
+            require(retained(sha, source, env), "Source not retained: " + source)
+    return publications
 
 
 def inspect_values(value):
@@ -469,21 +486,10 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
     if publication_path is None:
         candidate = excel.parent.parent / "source-publication.json"
         publication_path = candidate if candidate.exists() else None
-    publications = json.loads(publication_path.read_text(encoding="utf-8-sig"))["publications"] if publication_path else []
-    def retained(sha, source, env):
-        if source_matches(sha, root / source, env["repository_commit"]):
-            return True
-        # Publication after a dirty-tree capture is explicit, and every binding is
-        # checked against its actual Git object. The capture metadata stays untouched.
-        return any(p["source_files"].get(source) == sha and source_matches(sha, root / source, p["revision"])
-                   for p in publications)
+    publications = verify_sources(environments, publication_path)
     for env in environments:
         require(env["fixture_files"] == environments[0]["fixture_files"], "Different managed fixture files")
         require(env["cases_sha256"] == digest(cases_path), "Case file differs from capture")
-        require(retained(env["tracer_source_sha256"], "crates/calc-xll-reference/native/trace.cpp", env), "Tracer source not retained")
-        require(retained(env["runner_sha256"], "crates/calc-xll-reference/run.ps1", env), "Runner source not retained")
-        for source, sha in env["source_files"].items():
-            require(retained(sha, source, env), "Source not retained: " + source)
     require(environments[0]["excel_file_version"] == environments[1]["excel_file_version"], "Different Excel builds")
     require(environments[2]["executable_sha256"] == environments[3]["executable_sha256"], "Different host binaries")
     require(environments[2]["shim_sha256"] == environments[3]["shim_sha256"], "Different companion binaries")
@@ -705,7 +711,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                              and call["thread"] == entry["thread"]
                              and entry["seq"] < call["seq"] < trace[2][call["call"]]["seq"] < end]
                 sheet_changes.append({"flags": entry["flags"], "named_dispids": entry["named_dispids"],
-                                      "argument_types": [v["vt"] for v in entry["rgvarg"]], "addresses": addresses,
+                                      "argument_types": [v["vt"] for v in entry["rgvarg"]], "addresses": observed(addresses, env),
                                       "early_bound_calls": com_calls(trace, entry["seq"], end, entry["thread"], env)})
             changes.append(sheet_changes)
             delivered.append(dict(sorted(event_counts.items())))
@@ -743,6 +749,157 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             **x3_details,
             **x4_details,
             "timing": "Debugger timing is not uninstrumented performance evidence."}
+
+
+def verify_rtd(excel, excel_control, host, host_control, cases_path, publication_path):
+    directories = (excel, excel_control, host, host_control)
+    environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    outputs = []
+    for env in environments:
+        require(env["fixture_files"] == environments[0]["fixture_files"], "Different RTD fixture binaries")
+        require(env["cases_sha256"] == digest(cases_path), "RTD cases differ")
+    require(environments[2]["executable_sha256"] == environments[3]["executable_sha256"], "Different RTD host executables")
+    require(environments[0]["excel_file_version"] == environments[1]["excel_file_version"], "Different RTD Excel builds")
+    require(environments[2]["shim_sha256"] == environments[3]["shim_sha256"], "Different RTD companion binaries")
+    require(environments[0]["tracer_sha256"] == environments[2]["tracer_sha256"], "Different RTD tracers")
+    for directory, env in zip(directories[:2], environments[:2]):
+        observed = controller(directory)
+        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned RTD Excel PID")
+        require(observed["AutomationSecurity unchanged"] and observed["RTD termination before detach"], "RTD cleanup/security control failed")
+        for case in cases:
+            require(observed[case["formula"]] == case["value"], "Excel RTD formula differs")
+            require(observed["dependent " + case["formula"]] == case["dependent_value"], "Excel RTD dependent differs")
+    for directory in directories[2:]:
+        require(json.loads((directory / "host.exit.json").read_text()) == {"exit_code": 0, "finished": True}, "RTD host failed")
+        require(not (directory / "host.stderr").read_text().strip(), "RTD host diagnostics")
+        output = json.loads((directory / "host.stdout").read_text())
+        require(output["live_callback_allocations"] == output["rtd_subscriptions_after_close"] == 0 and output["closed_registration"] == "#NAME?", "RTD teardown incomplete")
+        require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c["dependent_value"]) for c in cases], "Host RTD outcomes differ")
+        updates = output["rtd_updates"]
+        require([(v["sequence"], v["value"], v["disposition"]) for v in updates] == [(1, 1, "Accepted"), (2, 42, "Accepted")], "RTD admissions differ")
+        require(output["results"][0]["provenance"]["rtd_inputs"] == [{"provider": updates[-1]["provider"], "subscription": updates[-1]["subscription"], "sequence": 2}], "RTD final certificate lacks its exact admitted input")
+        require(output["rtd_retired"] == [{"provider": updates[-1]["provider"], "subscription": updates[-1]["subscription"], "disposition": "Accepted"}], "RTD retirement differs")
+        require(not output["async_returns"] and not output["revoked_tokens"], "RTD used the async-completion route")
+        outputs.append(output)
+    traces = [boundary(p) for p in (excel, host)]
+    protocols, native, internals, notifications = [], [], [], []
+    method_names = {10: "ServerStart", 11: "ConnectData", 12: "RefreshData", 13: "DisconnectData", 14: "Heartbeat", 15: "ServerTerminate"}
+    for index, trace in enumerate(traces):
+        protocol, inner, notices = [], [], []
+        for entry in trace[1].values():
+            returned = trace[2][entry["call"]]
+            dispatch = entry["entry"] == "COM!Invoke" and entry.get("object_label") == "RTD server"
+            early = entry["entry"].startswith("COM!early.rtdserver.")
+            if entry["entry"] == "COM!early.rtdsink.UpdateNotify":
+                protocol.append({"method": "UpdateNotify", "hresult": returned["hresult"]})
+                notices.append({"thread": entry["thread"], "from": entry["from"], "hresult": returned["hresult"]})
+                continue
+            if not dispatch and not early:
+                continue
+            if entry["from"].get("module", "").lower() == "x5native64.xll":
+                inner.append({"entry": entry, "returned": returned})
+                continue
+            require(dispatch if index == 0 else early and entry["from"].get("module") == "dna-calc-desktop.exe", "Unexpected external RTD call transport/caller")
+            method = method_names[entry["dispid"]] if dispatch else entry["entry"].rsplit(".", 1)[-1]
+            row = {"method": method, "hresult": returned["hresult"]}
+            arguments = entry.get("rgvarg", [])
+            after = returned.get("arguments_after", [])
+            if method == "ServerStart": row["started"] = returned["result"]["value"] if dispatch else returned["started"]
+            elif method == "ConnectData":
+                row.update({"topic": arguments[2]["value"] if dispatch else entry["topic"], "strings": arguments[1]["value"] if dispatch else entry["strings"], "new_before": arguments[0]["value"]["value"] if dispatch else entry["new_values"], "new_after": after[0]["value"]["value"] if dispatch else returned["new_values"], "initial": returned["result"]})
+            elif method == "RefreshData": row.update({"count": after[0]["value"]["value"] if dispatch else returned["count"], "data": returned["result"]["value"] if dispatch else returned["data"]})
+            elif method == "DisconnectData": row["topic"] = arguments[0]["value"] if dispatch else entry["topic"]
+            elif method == "Heartbeat": row["value"] = returned["result"]["value"] if dispatch else returned["value"]
+            protocol.append(row)
+        require([r["method"] for r in protocol] == ["ServerStart", "ConnectData", "UpdateNotify", "RefreshData", "DisconnectData", "ServerTerminate"], "Missing or additional RTD client calls")
+        require(all(r["hresult"] == 0 for r in protocol), "RTD protocol call failed")
+        require(protocol[3]["count"] == 1 and protocol[3]["data"]["values"] == [{"vt": 3, "value": 1}, {"vt": 5, "value": 42}] and not protocol[3]["data"]["truncated"], "RTD array data differs")
+        protocols.append(protocol); internals.append(inner); notifications.append(notices)
+        records = all_invocations(trace, "X5.RtdValue", False)
+        for record in records:
+            require(record["arguments"] == [] and len(record["callbacks"]) == 1, "Unexpected RTD UDF boundary")
+            callback = record["callbacks"][0]
+            require(callback[0] == 379 and callback[2] == 0, "RTD callback failed")
+            require([a["value"] for a in callback[1]] == [f"DnaCalc.X5.{environments[0 if index == 0 else 2]['pid']}", "", "numeric"], "RTD callback topics/provider differ")
+            require(record["result"] == callback[3], "Native RTD UDF changed the callback value")
+        expected = [{"type": 1, "value": 1}, {"type": 1, "value": 42}]
+        if index: expected.insert(0, {"type": 16, "value": 42})
+        require([r["result"] for r in records] == expected, "RTD native result sequence differs")
+        native.append(records)
+    require(protocols[0] == protocols[1], "RTD client protocol payloads differ")
+    publications = verify_sources(environments, publication_path)
+    return {"status": "verified controlled numeric RTD protocol", "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
+            "client_protocol_each_host": protocols[0], "native_invocations_excel_and_host": native, "internal_server_body_observations": internals, "notification_threads": notifications,
+            "host_results": outputs, "source_publication_revisions": [p["revision"] for p in publications], "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in environments),
+            "transport": "Excel IDispatch vs host early-bound. Compare the external client method payloads; retain internal fixture body hits separately. SAFEARRAY bounds retain descriptor order.",
+            "initial_difference": "Host returns #N/A before the initial input is admitted, then1 and42; Excel returns1 then42. All raw invocations remain visible.",
+            "scope": "Controlled finite scalar RTD, exact P07 input certificate and retirement. Empty signaling-cache values, general providers/teardown, arrays and remote RTD remain open."}
+
+
+def verify_permissions(excel, control, hosts, cases_path, publication_path):
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in (excel, control)]
+    trace = boundary(excel)
+    require(environments[0]["fixture_files"] == environments[1]["fixture_files"], "Different permission control fixture binaries")
+    require(environments[0]["excel_file_version"] == environments[1]["excel_file_version"], "Different permission Excel builds")
+    observed = []
+    for directory, env in zip((excel, control), environments):
+        data = controller(directory)
+        require(data["AutomationSecurity unchanged"] and env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Permission control ownership/security failed")
+        observed.append([(r["operation"], r["value"]) for r in jsonl(directory / "controller.jsonl") if r["operation"].startswith("=")])
+        require(env["cases_sha256"] == digest(cases_path), "Permission cases changed")
+    require(observed[0] == observed[1] and [r[0] for r in observed[0]] == [c["formula"] for c in cases], "Excel permission controls differ or lack rows")
+    measured = [entry for entry in trace[1].values() if any(entry["entry"].endswith(":" + name) for name in ("X5.Permission", "X5.MacroPermission", "X5.PoolPermission"))]
+    require(len(measured) == len(cases), "Missing permission native invocations")
+    opens = [entry for entry in trace[1].values() if entry["entry"] == "X5Native64.xll!xlAutoOpen"]
+    require(len(opens) == 1, "Missing or repeated Excel permission initialization")
+    excel_owner = opens[0]["thread"]
+    forms = {"X5.Permission": "JB", "X5.MacroPermission": "JB#", "X5.PoolPermission": "JB$"}
+    registrations = {entry["entry"].rsplit(":", 1)[-1]: entry["signature"] for entry in trace[0] if entry["event"] == "registered_entry"}
+    require(all(registrations.get(name) == form for name, form in forms.items()), "Excel permission registration flags differ")
+    rows = []
+    for index, (case, entry) in enumerate(zip(cases, measured)):
+        function = int(re.search(r"\((\d+)\)", case["formula"])[1])
+        name = case["formula"].split("(", 1)[0].lstrip("=")
+        require(entry["entry"].endswith(":" + name) and entry["args"] == [{"code": "B", "value": function}], "Excel permission function/argument differs")
+        require((entry["thread"] != excel_owner) == (name == "X5.PoolPermission"), "Excel permission context used the wrong thread")
+        callbacks = [e for e in trace[1].values() if e.get("function") == function and entry["seq"] < e["seq"] < trace[2][entry["call"]]["seq"] and e["thread"] == entry["thread"]]
+        require(len(callbacks) == 1, "Permission callback was not observed once")
+        excel_code = trace[2][callbacks[0]["call"]]["return_code"]
+        require(excel_code == observed[0][index][1], "Permission UDF changed Excel callback status")
+        directory = hosts / f"{index:03d}"
+        env = json.loads((directory / "environment.json").read_text(encoding="utf-8-sig"))
+        require(env["fixture_files"] == environments[0]["fixture_files"], "Different permission fixture binary")
+        packet = hosts / "cases" / f"{index:03d}.json"
+        require(env["cases_sha256"] == digest(packet) and json.loads(packet.read_text(encoding="utf-8-sig")) == [case], "Host permission request packet changed")
+        environments.append(env)
+        log = [line.split("\t") for line in (directory / "rtd.tsv").read_text(encoding="utf-8-sig").splitlines()]
+        codes = [int(r[2]) for r in log if r[0] == "PermissionCode"]
+        functions = [int(r[2]) for r in log if r[0] == "PermissionFunction"]
+        require(len(codes) == 1 and functions == [function], "Host permission read missing or repeated")
+        owner = int(next(r[1] for r in log if r[0] == "PrivateClassRegistered"))
+        invocation = int(next(r[1] for r in log if r[0] == "PermissionContext"))
+        require((invocation != owner) == ("PoolPermission" in case["formula"]), "Host permission context used the wrong thread")
+        status = json.loads((directory / "host.exit.json").read_text(encoding="utf-8-sig"))
+        error = (directory / "host.stderr").read_text(encoding="utf-8-sig")
+        calculated = status == {"exit_code": 0, "finished": True}
+        if calculated:
+            output = json.loads((directory / "host.stdout").read_text(encoding="utf-8-sig"))
+            require(output["results"][0]["formula"] == case["formula"], "Host calculated a different permission formula")
+            require(not error.strip() and output["results"][0]["value"] == codes[0] and output["live_callback_allocations"] == 0 and output["closed_registration"] == "#NAME?", "Invalid permission calculation/teardown")
+            if function == 32890:
+                require(output["status_message"] == ("X5 permission" if "MacroPermission" in case["formula"] else None), "Permission call changed the wrong message state")
+        else:
+            require(status == {"exit_code": 1, "finished": False} and "NotModelled" in error and "dc-snz.2" in error, "Unexpected permission process failure")
+        rows.append({"formula": case["formula"], "function": function, "registration_form": forms[name], "excel_owner_thread": excel_owner, "excel_invocation_thread": entry["thread"], "excel_code": excel_code, "host_code": codes[0], "callback_code_match": excel_code == codes[0], "host_calculated": calculated, "matched_formula": calculated and excel_code == codes[0], "host_error": error.strip() or None, "excel_callback": {"entry": callbacks[0], "returned": trace[2][callbacks[0]["call"]]}, "host_owner_thread": owner, "host_invocation_thread": invocation})
+    require(len({env["executable_sha256"] for env in environments[2:]}) == 1, "Permission host executable changed during the batch")
+    require(len({env["shim_sha256"] for env in environments[2:]}) == 1, "Permission companion binary changed during the batch")
+    verify_sources(environments, publication_path)
+    matched = sum(r["matched_formula"] for r in rows)
+    return {"status": "measured permission matrix; refusals remain failures", "requests": len(rows), "pass": matched, "fail": len(rows) - matched, "pass_rate_all_requests": matched / len(rows), "callback_codes_matched": sum(r["callback_code_match"] for r in rows), "rows": rows,
+            "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in environments),
+            "scope": "13 callback requests across normal, # and $ registrations. Excel boundaries are traced and controlled; each host request uses an independent real executable and records its actual callback return code. This compares permission codes, not every discarded callback payload. General EVALUATE refusals remain failures; message state is checked, UI painting is unmeasured."}
 
 
 def verify_x2_controls(excel, host, identity=False):
@@ -800,21 +957,43 @@ if __name__ == "__main__":
     parser.add_argument("--x2-cases", type=Path)
     parser.add_argument("--x3-cases", type=Path)
     parser.add_argument("--x4-cases", type=Path)
+    parser.add_argument("--rtd-cases", type=Path)
+    parser.add_argument("--permission-cases", type=Path)
+    parser.add_argument("--permission-host", type=Path)
     parser.add_argument("--source-publication", type=Path)
     parser.add_argument("--identity", action="store_true")
     parser.add_argument("--pool", action="store_true")
     args = parser.parse_args()
-    if args.identity or args.pool:
-        result = verify_x2_controls(args.traced, args.control, args.identity)
-    elif args.host:
-        parser.error("--host requires --host-control") if args.host_control is None else None
-        result = (verify_x2(args.traced, args.control, args.host, args.host_control, args.x4_cases or args.x3_cases or args.x2_cases, args.source_publication, x3=bool(args.x3_cases or args.x4_cases), x4=bool(args.x4_cases))
-                  if args.x2_cases or args.x3_cases or args.x4_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
-    else:
-        result = verify(args.traced, args.control)
+    failed = False
+    try:
+        if args.permission_host:
+            result = verify_permissions(args.traced, args.control, args.permission_host, args.permission_cases, args.source_publication)
+        elif args.identity or args.pool:
+            result = verify_x2_controls(args.traced, args.control, args.identity)
+        elif args.host:
+            parser.error("--host requires --host-control") if args.host_control is None else None
+            result = (verify_rtd(args.traced, args.control, args.host, args.host_control, args.rtd_cases, args.source_publication) if args.rtd_cases else
+                      verify_x2(args.traced, args.control, args.host, args.host_control, args.x4_cases or args.x3_cases or args.x2_cases, args.source_publication, x3=bool(args.x3_cases or args.x4_cases), x4=bool(args.x4_cases))
+                      if args.x2_cases or args.x3_cases or args.x4_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
+        else:
+            result = verify(args.traced, args.control)
+    except Exception as error:
+        failed = True
+        result = {"status": "failed verification", "error": str(error), "error_type": type(error).__name__}
+        trace = error.__traceback__
+        while trace and trace.tb_frame.f_code.co_name not in ("verify_x2", "verify_rtd", "verify_permissions"):
+            trace = trace.tb_next
+        if trace:
+            data = trace.tb_frame.f_locals
+            if "changes" in data:
+                changes = data["changes"]
+                differences = [i for i, pair in enumerate(zip_longest(*(changes + [[]] * (2 - len(changes))))) if pair[0] != pair[1]]
+                result.update({"formula_cases_checked": len(data.get("cases", [])), "native_invocations_checked": data.get("call_comparisons", []), "sheet_changes_excel_and_host": changes, "udf_early_com_excel_and_host": data.get("nested", []), "sheet_change_differences": differences, "scope": "Strict X4 comparison remains failed; matching earlier checks do not convert the differing event calls into passes."})
     if rewritten_source_bindings:
         result["rewritten_source_bindings"] = sorted(rewritten_source_bindings.values(), key=lambda x: (x["path"], x["recorded_revision"]))
     rendered = json.dumps(result, indent=2) + "\n"
     if args.out:
         args.out.write_text(rendered, encoding="utf-8")
     print(rendered)
+    if failed:
+        raise SystemExit(1)
