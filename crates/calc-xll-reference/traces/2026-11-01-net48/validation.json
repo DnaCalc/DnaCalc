@@ -1,0 +1,111 @@
+{
+  "recorded_utc": "2026-11-01T02:32:38.340727+00:00",
+  "native_build": {
+    "command": "./build.ps1 -NativeOnly",
+    "status": "passed",
+    "compiler": "Visual C++ x64 /std:c++17 /O2 /W4"
+  },
+  "managed_build": {
+    "command": "dotnet build fixture/X0.csproj -c Release",
+    "status": "passed",
+    "target": "net48",
+    "package": "ExcelDna.AddIn 1.9.0"
+  },
+  "capture_verification": {
+    "command": "python verify.py traces/2026-11-01-net48/traced traces/2026-11-01-net48/control",
+    "status": "passed"
+  },
+  "cargo_xtask_check": {
+    "command": "cargo xtask check",
+    "status": "passed",
+    "repository": "9aa6cbb9d81d02f08b4dd5e62af450aaf0fc42a8",
+    "workspace_build": "passed",
+    "cargo_tests": "No workspace package touched; no Cargo tests selected. Live native and managed fixtures checked separately.",
+    "build_log_sha256": "58CC6C583520D9B68A350A9CC2BA46ACFB3A13F93F7833FE090C85BD2E8A6A56"
+  },
+  "corpus": {
+    "before": {
+      "command": "cargo xtask corpus --oracle --no-capture --out crates/calc-xll-reference/runs/corpus-before",
+      "repository": "abf55cf0c24c7290339009eff49b03d2a5703d16+dirty",
+      "finished_utc": "2026-11-01T01:16:06Z",
+      "summary_json_sha256": "F9DA58F3EDAF6E5412FA4AAC67680E027C11B70B9A9D4C1370ACFDD2DFDD51E8",
+      "workbooks": 21,
+      "counts": {
+        "awaiting_capture": 0,
+        "circular_rule": 14,
+        "external_links": 73,
+        "fail": 1191,
+        "failed_or_missing": 1,
+        "failed_or_missing_by_verdict": {
+          "not_run": 1
+        },
+        "formula_cells": 20030,
+        "mismatched": 1184,
+        "pass": 18752,
+        "pass_rate": 0.9361957064403394,
+        "refused": 6
+      }
+    },
+    "after": {
+      "command": "cargo xtask corpus --oracle --no-capture --out crates/calc-xll-reference/runs/corpus-after-final",
+      "repository": "9aa6cbb9d81d02f08b4dd5e62af450aaf0fc42a8+dirty",
+      "finished_utc": "2026-11-01T02:05:31Z",
+      "summary_json_sha256": "FAC4EAC62588A074A52BE624EABD5E62650A2468FAE67A802C5D29E484BDA57A",
+      "workbooks": 21,
+      "counts": {
+        "awaiting_capture": 0,
+        "circular_rule": 14,
+        "external_links": 73,
+        "fail": 1191,
+        "failed_or_missing": 1,
+        "failed_or_missing_by_verdict": {
+          "not_run": 1
+        },
+        "formula_cells": 20030,
+        "mismatched": 1184,
+        "pass": 18752,
+        "pass_rate": 0.9361957064403394,
+        "refused": 6
+      }
+    }
+  },
+  "corpus_counts_unchanged": true,
+  "limitations": [
+    "X0 observations only; no DNA Calc XLL host implemented.",
+    "Debugger pauses change latency and scheduling.",
+    "Ribbon loader skipped because its helper can change AutomationSecurity.",
+    "xlw/xlOil, RTD, .NET 8/AOT, cancellation, uncalculated retry, full context permissions, early-bound COM, x86 and Excel4 remain open."
+  ],
+  "read_only_review": "Passed: X0 source, staged source hashes, retained traces, verifier, study, corpus counts and proposed close note checked by one independent read-only agent.",
+  "source_and_captures_commit": "8e00362a23827effb713d2a3e96bbff53c44c368",
+  "integration_checks": [
+    {
+      "command": "cargo xtask check",
+      "status": "passed",
+      "upstream": "04b5fb4fb4fb64e61a9561a4cb1785bd482b31ae",
+      "passed": 531,
+      "failed": 0,
+      "ignored": 0,
+      "not_run": 1,
+      "harnesses": 41,
+      "packages": 11,
+      "build_log_sha256": "7F8C2074D118395AFCF9EA8832E112F7FB3EA3204DC2C88F13ECED6456F15718",
+      "test_log_sha256": "8AAD0D001B035069FB8C901B3F6A9E0A2D899BE1506AE10AAC049DC0C4234BBF",
+      "recorded_utc": "2026-11-01T02:43:15.661101+00:00"
+    },
+    {
+      "command": "cargo xtask check",
+      "status": "passed",
+      "upstream": "3d2b770cb3284cbe097d18b8548d3b33a286fbc8",
+      "passed": 1153,
+      "failed": 0,
+      "ignored": 3,
+      "not_run": 1,
+      "harnesses": 61,
+      "packages": 12,
+      "build_log_sha256": "86A116AFD92D9C7822B1116CF1A3068BB63DA48A3D76E7FFC6C8512D09EAED27",
+      "test_log_sha256": "10A1DDB490A73CCB573CDAB287947B044807391B582F05C1C146171372F95D59",
+      "recorded_utc": "2026-11-01T02:55:40.484943+00:00"
+    }
+  ]
+}
