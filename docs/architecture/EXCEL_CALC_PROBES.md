@@ -133,6 +133,10 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   bound for this sizing path, not a global graph-wave count; use new evaluations/draws per sizing attempt.
   [Full arrays, transient-error case and raw evidence](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P04/README.md).
 
+- **Nonvolatile control.** Seventy changed-seed workbooks: clean F9 made zero SizeUdf calls; range/Full/Rebuild
+  made one and installed two rows. Later scripted sizes/errors were not requested. The volatile eight-call bound
+  must not be generalized to every size expression. See the same P04 evidence folder.
+
 ### P05 ★ Blank occupancy, spill growth/shrink and conflicts (E06; A7 spill contention)
 - **Setup A.** Z1=1, A1=`=SEQUENCE(Z1)`, C10=`=A10+1`, calculated. **Setup B.** Z1=0; A3 and B1 both
   `=IF(Z1,SEQUENCE(4,3),1)`; F1=`=SUM(B3:C4)`; with Z1=1 the footprints overlap.

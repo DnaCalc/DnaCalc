@@ -2,7 +2,7 @@
 
 Excel 16.0.20527.20088 x64, CalculationVersion 191029, Windows/AMD Ryzen 7 4800H, safe mode.
 49 conditions x ten workbooks, six changed-seed conditions x ten, and ten corrected entry controls:
-560 saved workbooks,
+560 saved workbooks in those earlier runs, plus 70 nonvolatile controls below (630 total),
 zero probe faults, owned-process-zero cleanup. Full arrays, binary64 bits and saved XML are retained.
 
 Across the draw trials, RAND()-RAND(), each DrawName-DrawName, and two calls to a zero-argument
@@ -39,3 +39,10 @@ The original draws-entry operation accidentally replaced A1 with the SizeUdf wit
 valid after-entry snapshot. Its later A1 value and saved A1 formula are not RAND measurements.
 The other entry snapshots remain valid. `entry-raw-results.tsv` and entry-corrected-*.xlsm retain
 ten corrected controls: A1 remains RAND()-RAND(), and entry/after values agree in every clone.
+
+The nonvolatile changed-seed supplement (`P04-nonvolatile-seed-safe`, `nonvolatile-raw-results.tsv`) adds 70
+workbooks, seven conditions ten times each, for 630 retained artifacts in total. From a verified one-row seed,
+clean F9 never calls the nonvolatile SizeUdf and retains one row. Range, Full and Rebuild each call it once and
+install a two-row spill, despite the alternate-size script. The nonvolatile settles, late-change and transient-error
+Full controls also make only one call, so later scripted sizes/errors are never requested. This contrasts with
+the volatile eight-call cases; it does not establish a bound for arbitrary nonvolatile formulas or graph passes.
