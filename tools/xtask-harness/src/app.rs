@@ -1697,8 +1697,12 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 let properties = &xml[start..end];
                 let manual_properties = if properties.contains("calcMode=\"auto\"") {
                     properties.replacen("calcMode=\"auto\"", "calcMode=\"manual\"", 1)
+                } else if properties.contains("calcMode=\"manual\"") {
+                    properties.to_owned()
                 } else if properties.contains("calcMode=") {
-                    return Err("manual smoke fixture expects an Automatic package".to_owned());
+                    return Err(
+                        "manual smoke fixture has an unsupported calculation mode".to_owned()
+                    );
                 } else {
                     properties.replacen("<calcPr ", "<calcPr calcMode=\"manual\" ", 1)
                 };
@@ -2267,8 +2271,8 @@ fn measure_skins(
 
 fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
     let selector = select(app, name);
-    if name.starts_with("skin-") {
-        // Skin buttons are disabled until earlier workbook input has answered. WebDriver
+    if name.starts_with("skin-") || matches!(name, "save" | "new") {
+        // These buttons are disabled until earlier workbook input has answered. WebDriver
         // reports a successful click on a disabled button without dispatching it. Wait for
         // the same availability a person sees before making the ordinary pointer click.
         let quoted = serde_json::to_string(&selector).unwrap();
