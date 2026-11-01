@@ -1334,7 +1334,9 @@ pub fn load(
     for sheet in &sheets {
         sheet.geometry.add_to_model(sheet.id, &mut axis_layouts);
     }
+    let styles = Arc::new(styles);
     let mut definitions = Definitions::new(arrays, names, tables, unloaded)
+        .with_styles(Arc::clone(&styles))
         .with_axis_layouts(axis_layouts)
         .with_panes(
             sheets
@@ -1373,7 +1375,7 @@ pub fn load(
         workbook_part: workbook,
         sheets: sheets.into(),
         cell_formats,
-        styles: Arc::new(styles),
+        styles,
         theme_colors: theme_colors.into(),
         date_system,
         calc_mode,

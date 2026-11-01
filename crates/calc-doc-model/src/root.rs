@@ -550,6 +550,7 @@ impl ModelRoot {
         let mut added: Vec<(usize, ArrayFormula)> = Vec::new();
         // The cell formats the batch sets, in order.
         let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
+        let mut styles = None;
         let mut conditional = Vec::new();
         let mut panes = Vec::new();
         let mut axis_formats = Vec::new();
@@ -558,6 +559,7 @@ impl ModelRoot {
         let mut iteration: Option<crate::definitions::IterationSettings> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
+                WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
                 WorkbookOp::SetConditionalRules { sheet, rules } => {
                     self.position_of(operation, *sheet)?;
                     conditional.push((*sheet, rules.clone()));
@@ -706,7 +708,8 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if !conditional.is_empty()
+        if styles.is_some()
+            || !conditional.is_empty()
             || !formats.is_empty()
             || !panes.is_empty()
             || !axis_formats.is_empty()
@@ -714,6 +717,9 @@ impl ModelRoot {
             || iteration.is_some_and(|settings| settings != definitions.iteration())
         {
             let mut next = Definitions::clone(&definitions);
+            if let Some(styles) = styles {
+                next = next.with_styles(styles);
+            }
             for (sheet, rules) in conditional {
                 next = next.with_conditional_rules(sheet, rules);
             }

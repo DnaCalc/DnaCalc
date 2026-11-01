@@ -112,17 +112,20 @@ pub(super) fn paint(
         rect(&ctx, clip);
         ctx.clip();
         let conditional = cell.shown.conditional.clone().unwrap_or_default();
-        let background = conditional.fill.as_deref().map(str::to_owned).or_else(|| {
-            match cell.shown.provenance {
+        let background = conditional
+            .fill
+            .as_deref()
+            .or(cell.shown.style.fill.as_deref())
+            .map(str::to_owned)
+            .or_else(|| match cell.shown.provenance {
                 Provenance::Stale => Some(token(&style, "--dna-amber-soft")),
                 Provenance::Refused => Some(token(&style, "--dna-paper")),
                 _ if cell.row_span > 1 || cell.col_span > 1 => Some(paper.clone()),
                 _ => None,
-            }
-        });
+            });
         if let Some(fill) = background {
             ctx.set_fill_style_str(&fill);
-            ctx.fill_rect(cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h)
+            ctx.fill_rect(cell.anchor.x, cell.anchor.y, cell.anchor.w, cell.anchor.h)
         }
         if cell.row_span > 1 || cell.col_span > 1 {
             ctx.set_fill_style_str(&token(&style, "--dna-line-soft"));
@@ -176,6 +179,7 @@ pub(super) fn paint(
             .font_color
             .as_ref()
             .or(cell.shown.color.as_ref())
+            .or(cell.shown.style.font_color.as_ref())
             .cloned()
             .unwrap_or_else(|| {
                 token(
@@ -193,6 +197,48 @@ pub(super) fn paint(
         ctx.set_stroke_style_str(&color);
         ctx.set_font(&font(cell, plan.scale));
         text(&ctx, cell, plan.scale);
+        ctx.restore();
+    }
+    for cell in &plan.cells {
+        let r = cell.anchor;
+        let Some(clip) =
+            panes::intersection(r, panes.bounds(metrics, &plan.viewport, cell.row, cell.col))
+        else {
+            continue;
+        };
+        ctx.save();
+        ctx.begin_path();
+        rect(&ctx, clip);
+        ctx.clip();
+        for (side, edge) in cell.shown.style.borders.iter().enumerate() {
+            let Some(edge) = edge else {
+                continue;
+            };
+            let line = super::decoration::line(edge, plan.scale);
+            ctx.set_stroke_style_str(edge.color.as_deref().unwrap_or("#000000"));
+            let dashes = js_sys::Array::new();
+            for n in line.dash {
+                dashes.push(&wasm_bindgen::JsValue::from_f64(n * plan.scale));
+            }
+            let _ = ctx.set_line_dash(&dashes);
+            ctx.set_line_width(if line.double { plan.scale } else { line.width });
+            for offset in if line.double {
+                vec![0.5 * plan.scale, 2.5 * plan.scale]
+            } else {
+                vec![line.width / 2.]
+            } {
+                let (x1, y1, x2, y2) = match side {
+                    0 => (r.x + offset, r.y, r.x + offset, r.y + r.h),
+                    1 => (r.x + r.w - offset, r.y, r.x + r.w - offset, r.y + r.h),
+                    2 => (r.x, r.y + offset, r.x + r.w, r.y + offset),
+                    _ => (r.x, r.y + r.h - offset, r.x + r.w, r.y + r.h - offset),
+                };
+                ctx.begin_path();
+                ctx.move_to(x1, y1);
+                ctx.line_to(x2, y2);
+                ctx.stroke();
+            }
+        }
         ctx.restore();
     }
     // Inspection is metadata on the real surface, not another value source. A later rAF is
@@ -335,11 +381,11 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         } else {
             let _ = ctx.fill_text(line, x, y + baseline);
         }
-        if s.rotation == 0 && (c.underline || c.strike) {
+        if s.rotation == 0 && (c.underline || c.strike || s.underline || s.strike) {
             ctx.set_line_width(scale);
             for offset in [
-                c.underline.then_some(baseline + scale),
-                c.strike.then_some(line_height / 2.),
+                (c.underline || s.underline).then_some(baseline + scale),
+                (c.strike || s.strike).then_some(line_height / 2.),
             ]
             .into_iter()
             .flatten()

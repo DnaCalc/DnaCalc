@@ -106,7 +106,8 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
-            CellEdit::Layout(_)
+            CellEdit::Styles(_)
+            | CellEdit::Layout(_)
             | CellEdit::ConditionalRules { .. }
             | CellEdit::Axis(_)
             | CellEdit::Sheet(_)
@@ -225,6 +226,9 @@ pub(crate) fn inverse(
                 rules: definitions.conditional_rules(*sheet).to_vec(),
             });
         }
+    }
+    if edits.iter().any(|e| matches!(e, CellEdit::Styles(_))) {
+        inverse.push(CellEdit::Styles(Arc::clone(definitions.styles())));
     }
     let mut formatted = BTreeSet::new();
     let mut panes = BTreeSet::new();

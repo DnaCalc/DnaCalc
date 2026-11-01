@@ -54,6 +54,9 @@
 //! no way around these calls to change the authored revision or the engine state.
 
 mod actions;
+mod format;
+pub use facts::alignment as style_alignment;
+pub use format::{BorderPatch, FORMAT_LIMIT, FormatPatch, format_cells, patched_style};
 pub mod chart;
 mod command;
 mod envelope;
@@ -115,14 +118,15 @@ pub use calc_doc_model::{
     AxisFormat, AxisFormatEdit, AxisLayouts, BlockId, BlockKind, CachedValue, CellInput, CellText,
     DefinedName, Definitions, FileCached, FiniteNumber, FormulaText, FrozenPanes,
     IterationSettings, ModelRoot, NameScope, PlacementId, RowHidden, SheetEdit, SheetEntry,
-    SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, Spot, ViewKind,
+    SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, Spot, StyleColor, StyleTable,
+    ViewKind,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,
     RecalcFailure, StartError, Unobserved, ValueChange, ValueDelta, WorkBudget,
 };
-pub use calc_fml::{CallableTable, FormatProfile};
 pub use calc_fml::reference::CellRun;
+pub use calc_fml::{CallableTable, FormatProfile};
 
 /// The existing reference-text binder's typed result, exposed to host consumers.
 pub use calc_fml::reference::TextReference as ReferenceTarget;

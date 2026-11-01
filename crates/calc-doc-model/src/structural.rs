@@ -342,6 +342,7 @@ impl ModelRoot {
                 }
             });
         let mut next = Definitions::new(arrays, names, tables, unloaded)
+            .with_styles(std::sync::Arc::clone(definitions.styles()))
             .with_panes(definitions.panes().filter_map(|(sheet, panes)| {
                 Some((
                     sheet,

@@ -19,6 +19,97 @@ mod seven_cell;
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
+    use calc_host::{BorderPatch, FormatPatch, WorkbookCommand};
+    for bytes in [
+        calc_host::blank_package(),
+        include_bytes!("fixtures/dc_09v/formats.xlsx").to_vec(),
+    ] {
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        let a = at(s, "A1");
+        let b = at(s, "B2");
+        let original = book.host().styles().clone();
+        let old_a = book.host().cell_style(a);
+        let old_b = book.host().cell_style(b);
+        let values = [
+            book.host().model().cell(a).cloned(),
+            book.host().model().cell(b).cloned(),
+        ];
+        let patch = FormatPatch {
+            number_format: Some("0.0000 \"units\"".into()),
+            horizontal: Some("right".into()),
+            vertical: Some("center".into()),
+            wrap: Some(true),
+            rotation: Some(-30),
+            indent: Some(2),
+            font_name: Some("Arial".into()),
+            font_size: Some("18".into()),
+            bold: Some(true),
+            italic: Some(true),
+            underline: Some(true),
+            strike: Some(true),
+            font_color: Some("#123456".into()),
+            fill: Some("#ffeedd".into()),
+            borders: Some(BorderPatch {
+                left: true,
+                right: true,
+                top: true,
+                bottom: true,
+                style: "double".into(),
+                color: "#ff0000".into(),
+            }),
+        };
+        let areas = vec![GridArea::cell(a), GridArea::cell(b)];
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: areas.clone(),
+            patch: patch.clone(),
+        }));
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+        assert_eq!(book.host().model().cell(a).cloned(), values[0]);
+        assert_eq!(book.host().model().cell(b).cloned(), values[1]);
+        let after = book.host().styles().clone();
+        assert!(after.fonts.starts_with(&original.fonts));
+        assert!(after.cell_formats.starts_with(&original.cell_formats));
+        let authored = [book.host().cell_style(a), book.host().cell_style(b)];
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(book.host().styles(), &original);
+        assert_eq!(book.host().cell_style(a), old_a);
+        assert_eq!(book.host().cell_style(b), old_b);
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(book.host().styles(), &after);
+        let revision = book.host().revision();
+        let refusal = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas,
+            patch: FormatPatch {
+                font_size: Some("NaN".into()),
+                ..Default::default()
+            },
+        }));
+        assert!(!refusal.accepted());
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.host().styles(), &after);
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = open(&saved);
+        let r = reopened.sheets()[0].id();
+        assert_eq!(reopened.styles().fonts, after.fonts);
+        assert_eq!(reopened.styles().fills, after.fills);
+        assert_eq!(reopened.styles().borders, after.borders);
+        assert_eq!(reopened.styles().cell_formats, after.cell_formats);
+        assert_eq!(reopened.styles().number_formats, after.number_formats);
+        for (address, index) in ["A1", "B2"].into_iter().zip(authored) {
+            assert_eq!(reopened.cell_style(at(r, address)), index);
+            assert_eq!(
+                reopened.number_format(at(r, address)),
+                Some("0.0000 \"units\"")
+            );
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_scoped_cut_and_cell_shifts_follow_survivors_through_undo_redo() {
     use calc_engine::contract::{CalcEvent, CalcScope};
     let mut book = session(&calc_host::blank_package());

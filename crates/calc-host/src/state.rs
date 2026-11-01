@@ -243,6 +243,14 @@ impl HostState {
 
     /// The workbook as calc-doc loaded it: the loaded revision's model and the records it was
     /// loaded with (each sheet's styles and geometry as the file states them).
+    pub fn styles(&self) -> &Arc<calc_doc_model::StyleTable> {
+        self.model.definitions().styles()
+    }
+
+    pub fn style_color(&self, color: &calc_doc_model::StyleColor) -> Option<crate::LookColor> {
+        crate::conditional::resolve(self, color)
+    }
+
     pub fn loaded(&self) -> &LoadedWorkbook {
         &self.loaded
     }
@@ -712,7 +720,7 @@ impl HostState {
     /// ([`HostState::opened_position`]); a cell format an edit gave the cell
     /// ([`crate::CellEdit::SetFormat`], a copy's) comes first.
     pub fn number_format(&self, at: CellKey) -> Option<&str> {
-        self.loaded.styles().number_format_code(self.cell_style(at))
+        self.styles().number_format_code(self.cell_style(at))
     }
 
     /// The cell format (an index into the workbook's cell formats, a cell's `s`) of the cell at
@@ -732,19 +740,14 @@ impl HostState {
     /// Absent horizontal/vertical values mean General/Bottom; the stored record also carries
     /// wrapping, rotation and indentation for consumers of that same alignment.
     pub fn cell_alignment(&self, at: CellKey) -> Option<&calc_doc_model::Alignment> {
-        crate::facts::alignment(self.loaded.styles(), self.cell_style(at))
+        crate::facts::alignment(self.styles(), self.cell_style(at))
     }
 
     /// The RGB (`#rrggbb`) of entry `index` (1 to 56) of the workbook's color palette when the file
     /// redefines it (`<indexedColors>`, whose entry `index + 7` it is); `None` when it does not,
     /// and the default palette applies (dc-09v).
     pub fn palette_color(&self, index: u8) -> Option<String> {
-        let entry = self
-            .loaded
-            .styles()
-            .colors
-            .indexed
-            .get(usize::from(index) + 7)?;
+        let entry = self.styles().colors.indexed.get(usize::from(index) + 7)?;
         let argb = entry.rgb.as_deref()?;
         let rgb = argb.get(argb.len().checked_sub(6)?..)?;
         rgb.chars()

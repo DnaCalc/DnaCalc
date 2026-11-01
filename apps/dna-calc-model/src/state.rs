@@ -153,6 +153,7 @@ impl FindMode {
 
 #[derive(Default)]
 pub struct Model {
+    pub formatting: crate::format::FormatState,
     pub selection: SelectionState,
     pub edit: EditSession,
     pub editor: crate::EditorState,
@@ -183,6 +184,7 @@ impl Model {
         self.edit = EditSession::default();
         self.editor = crate::EditorState::default();
         self.find = None;
+        self.formatting = Default::default();
         self.runtime.tools.reset_workbook();
         self.focus.observe(None);
         self.views.reset();

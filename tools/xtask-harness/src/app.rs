@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (42 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (49 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1236,7 +1236,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
 
         Check::PlanCell(address, field, _) => {
             let address=serde_json::to_string(address).unwrap(); let field=serde_json::to_string(field).unwrap();
-            format!("{READ_PLANS}var c=plans.flatMap(s=>s.plan.cells).find(c=>c.address==={address});if(!c)return null;var v=c.shown[{field}];return typeof v==='boolean'?String(v):v;")
+            format!("{READ_PLANS}var c=plans.flatMap(s=>s.plan.cells).find(c=>c.address==={address});if(!c)return null;var v={field}.split('.').reduce((v,k)=>v?.[k],c.shown);return typeof v==='boolean'||typeof v==='number'?String(v):v;")
         }
         Check::PlanAbsent(address) => {
             let address=serde_json::to_string(address).unwrap();
@@ -2872,8 +2872,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 42,
-            "the two applications have 42 core cases including merge, editability and applied-font reflow"
+            total, 49,
+            "the two applications have 49 core cases including formatting, merge, editability and applied-font reflow"
         );
     }
 

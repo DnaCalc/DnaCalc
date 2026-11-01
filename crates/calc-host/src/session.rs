@@ -908,9 +908,14 @@ impl HostSession {
         let scope = coordinates.and_then(|edit| {
             crate::command::active_scope(&self.host).map(|scope| scope.transformed(edit))
         });
-        let refresh_rules = edits
-            .iter()
-            .any(|edit| matches!(edit, CellEdit::ConditionalRules { .. }));
+        let refresh_rules = edits.iter().any(|edit| {
+            matches!(
+                edit,
+                CellEdit::ConditionalRules { .. }
+                    | CellEdit::Styles(_)
+                    | CellEdit::SetFormat { .. }
+            )
+        });
         let base = self.host.revision();
         let committed =
             dispatch(&mut self.host, HostCommand { base, edits }).map_err(IntentError::Command)?;
@@ -1145,6 +1150,22 @@ impl HostSession {
                 cells.extend(cells_of(intersection(spill.area(), area)));
             }
             cells.extend(definitions.unloaded_in(area).map(|(at, _)| at));
+            cells.extend(
+                definitions
+                    .cell_formats()
+                    .filter_map(|(at, style)| (area.contains(at) && style != 0).then_some(at)),
+            );
+            if let Some(sheet) = self.host.loaded.sheet(area.sheet()) {
+                cells.extend(sheet.styled_cells().filter_map(|(row, col, _)| {
+                    let at = CellKey::new(area.sheet(), row, col).ok()?;
+                    let at = self
+                        .host
+                        .axis_edits
+                        .iter()
+                        .try_fold(at, |at, edit| calc_doc_model::moved_cell(*edit, at))?;
+                    (area.contains(at) && self.host.cell_style(at) != 0).then_some(at)
+                }));
+            }
         }
         let page = project(
             &self.host,
@@ -1158,6 +1179,7 @@ impl HostSession {
             .filter(|cell| {
                 cell.value() != &ProjectedValue::Empty
                     || cell.input().is_some()
+                    || self.host.cell_style(cell.at()) != 0
                     || rule_areas.iter().any(|a| a.contains(cell.at()))
             })
             .map(|cell| (cell.at(), cell.clone()))

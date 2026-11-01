@@ -6,10 +6,18 @@ pub fn text_style(
     at: calc_host::value::CellKey,
     width: f64,
 ) -> TextStyle {
-    let styles = host.loaded().styles();
+    text_style_for(host, at, width, host.styles(), host.cell_style(at))
+}
+
+pub fn text_style_for(
+    host: &calc_host::HostState,
+    at: calc_host::value::CellKey,
+    width: f64,
+    styles: &calc_host::StyleTable,
+    index: u32,
+) -> TextStyle {
     let mut out = TextStyle::default();
     out.width = width;
-    let index = host.cell_style(at);
     let Some(format) = styles.cell_formats.get(index as usize) else {
         if index != 0 {
             out.unsupported = Some("The cell style is unavailable".into());
@@ -46,10 +54,57 @@ pub fn text_style(
         }
         out.bold = font.bold;
         out.italic = font.italic;
+        out.underline = font.underline.as_deref().is_some_and(|v| v != "none");
+        out.strike = font.strike;
+        out.font_color = font
+            .color
+            .as_ref()
+            .and_then(|c| crate::cells::style_color(host, c));
     } else if font_id != 0 {
         out.unsupported = Some("The font record is unavailable".into());
     }
-    if let Some(a) = host.cell_alignment(at) {
+    let fill_id = format
+        .fill_id
+        .or_else(|| parent.and_then(|p| p.fill_id))
+        .unwrap_or(0);
+    if let Some(fill) = styles.fills.get(fill_id as usize) {
+        if fill.pattern_type.as_deref() == Some("solid") {
+            out.fill = fill
+                .fg_color
+                .as_ref()
+                .and_then(|c| crate::cells::style_color(host, c));
+        } else if !matches!(
+            fill.pattern_type.as_deref(),
+            None | Some("none" | "gray125")
+        ) || !fill.other_children.is_empty()
+        {
+            out.unsupported =
+                Some("This patterned or gradient fill is preserved but not painted".into());
+        }
+    }
+    let border_id = format
+        .border_id
+        .or_else(|| parent.and_then(|p| p.border_id))
+        .unwrap_or(0);
+    if let Some(b) = styles.borders.get(border_id as usize) {
+        out.borders = [&b.left, &b.right, &b.top, &b.bottom].map(|e| {
+            e.as_ref().and_then(|e| {
+                e.style
+                    .as_ref()
+                    .map(|style| dna_calc_model::projection::BorderShown {
+                        style: style.clone(),
+                        color: e
+                            .color
+                            .as_ref()
+                            .and_then(|c| crate::cells::style_color(host, c)),
+                    })
+            })
+        });
+        if b.diagonal_up || b.diagonal_down {
+            out.unsupported = Some("Diagonal borders are preserved but not painted".into());
+        }
+    }
+    if let Some(a) = calc_host::style_alignment(styles, index) {
         out.wrap = a.wrap_text;
         out.horizontal = a.horizontal.clone();
         out.vertical = a.vertical.clone();

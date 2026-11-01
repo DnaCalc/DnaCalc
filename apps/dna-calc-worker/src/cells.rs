@@ -266,3 +266,25 @@ mod tests {
         assert_eq!(input_text(None), "");
     }
 }
+
+/// The same indexed-colour resolution for stored and conditional styles.
+pub fn indexed_color(host: &HostState, index: u32) -> Option<String> {
+    const BASIC: [&str; 8] = [
+        "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff",
+    ];
+    match index {
+        0..=7 => Some(BASIC[index as usize].into()),
+        8..=63 => host
+            .palette_color((index - 7) as u8)
+            .or_else(|| Some(calc_func::DEFAULT_PALETTE[(index - 8) as usize].into())),
+        64 => Some("#000000".into()),
+        65 => Some("#ffffff".into()),
+        _ => None,
+    }
+}
+pub fn style_color(host: &HostState, color: &calc_host::StyleColor) -> Option<String> {
+    match host.style_color(color)? {
+        calc_host::LookColor::Rgb(rgb) => Some(rgb),
+        calc_host::LookColor::Indexed(index) => indexed_color(host, index),
+    }
+}

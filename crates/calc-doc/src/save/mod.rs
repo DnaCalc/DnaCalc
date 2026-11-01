@@ -26,6 +26,7 @@ mod sheet;
 mod sheets;
 mod strings;
 mod structural;
+mod styles;
 #[cfg(test)]
 mod tests;
 pub(crate) mod text;

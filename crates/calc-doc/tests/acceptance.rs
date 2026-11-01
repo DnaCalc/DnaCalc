@@ -496,6 +496,7 @@ fn describe(op: &WorkbookOp) -> String {
             array.kind(),
             describe_input(input)
         ),
+        WorkbookOp::SetStyles(_) => "styles".into(),
         WorkbookOp::SetFormat { at, format } => format!(
             "format {:?} R{}C{} {:?}",
             at.sheet(),
@@ -638,7 +639,7 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         // so no fixture holds one and it is not among the required features.
         WorkbookOp::SetArray { .. } => "op:set_array".to_owned(),
         // Wire version 1 has no form for a cell format either (EncodeError::CellFormat).
-        WorkbookOp::SetFormat { .. } => "op:set_format".to_owned(),
+        WorkbookOp::SetFormat { .. } | WorkbookOp::SetStyles(_) => "op:set_format".to_owned(),
         // Nor for a name's formula (EncodeError::NameFormula).
         WorkbookOp::SetNameFormula { .. } => "op:set_name_formula".to_owned(),
         WorkbookOp::RestoreNames(_) => "op:restore_names".to_owned(),

@@ -412,7 +412,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     // The iterative-calculation settings an edit changed (dc-y2o.2), written to the `calcPr`.
     let iteration = Some(model.definitions().iteration())
         .filter(|settings| *settings != base.definitions().iteration());
-    if !cells_changed
+    if base.definitions().styles() == model.definitions().styles()
+        && !cells_changed
         && layout.is_none()
         && !names_changed
         && !conditional_changed
@@ -862,6 +863,40 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     // package gains, as (part, content type).
     let mut relationships_added: Vec<(&str, String)> = Vec::new();
     let mut overrides: Vec<(String, &str)> = Vec::new();
+    if base.definitions().styles() != model.definitions().styles() {
+        let source = load::workbook_part_of(package, workbook_part, super::styles::RELATIONSHIP)
+            .map_err(|error| load_refusal(workbook_part, error))?;
+        if let Some(name) = source {
+            let xml = read_part(package, &name)?;
+            out.rewritten.insert(
+                name,
+                super::styles::rewrite(
+                    &xml,
+                    base.definitions().styles(),
+                    model.definitions().styles(),
+                )?,
+            );
+        } else {
+            let (name, target) = new_part_name(package, workbook_part, "styles");
+            let xml = crate::xml::XmlPart::new(
+                name.clone(),
+                format!(
+                    "<styleSheet xmlns=\"{}\"></styleSheet>",
+                    load::MAIN_NAMESPACE
+                )
+                .into_bytes(),
+                Default::default(),
+            );
+            let bytes = super::styles::rewrite(
+                &xml,
+                base.definitions().styles(),
+                model.definitions().styles(),
+            )?;
+            relationships_added.push((super::styles::RELATIONSHIP, target));
+            overrides.push((name.clone(), super::styles::CONTENT_TYPE));
+            out.added.push((name, bytes));
+        }
+    }
     if let Some((name, target)) = &new_strings {
         relationships_added.push((SHARED_STRINGS, target.clone()));
         overrides.push((name.clone(), strings::CONTENT_TYPE));

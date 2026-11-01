@@ -562,7 +562,7 @@ impl WireOp {
             WorkbookOp::SetArray { .. } => {
                 unreachable!("encode_batch refuses an array formula before it reaches here")
             }
-            WorkbookOp::SetFormat { .. } => {
+            WorkbookOp::SetFormat { .. } | WorkbookOp::SetStyles(_) => {
                 unreachable!("encode_batch refuses a cell format before it reaches here")
             }
             WorkbookOp::SetNameFormula { .. } | WorkbookOp::RestoreNames(_) => {

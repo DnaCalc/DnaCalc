@@ -79,7 +79,7 @@ fn shown_characters(width: f64, mdw: f64) -> f64 {
 
 /// The one alignment lookup for workbook facts and visual consumers. Cell records override
 /// their named style; a missing alignment inherits the named style's record.
-pub(crate) fn alignment(styles: &StyleTable, style: u32) -> Option<&calc_doc_model::Alignment> {
+pub fn alignment(styles: &StyleTable, style: u32) -> Option<&calc_doc_model::Alignment> {
     let format = styles.cell_formats.get(usize::try_from(style).ok()?)?;
     format.alignment.as_ref().or_else(|| {
         format
@@ -219,7 +219,7 @@ impl HostState {
     pub(crate) fn workbook_facts(&self) -> Arc<dyn WorkbookFacts> {
         Arc::new(HostFacts {
             model: Arc::clone(&self.model),
-            styles: Arc::clone(self.loaded.styles()),
+            styles: Arc::clone(self.styles()),
             sheets: self.loaded.shared_sheets(),
             axis_edits: self.axis_edits.clone().into(),
             file: self.file.clone(),

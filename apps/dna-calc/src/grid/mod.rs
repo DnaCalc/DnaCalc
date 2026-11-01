@@ -25,6 +25,7 @@
 mod alignment;
 pub mod autofit;
 pub mod axis;
+mod decoration;
 pub mod geometry;
 pub mod icons;
 mod inspect;
@@ -1442,6 +1443,20 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         )
     };
 
+    let decorations_view = move || {
+        if ctx.canvas.get() {
+            return Vec::new().collect_view();
+        }
+        plan.with(|plan|plan.cells.iter().filter(|cell|cell.shown.style.fill.is_some() || cell.shown.style.borders.iter().any(Option::is_some)).map(|cell|{
+            let mut style=rect_style(&cell.anchor);
+            style.push_str(";position:absolute;box-sizing:border-box;pointer-events:none");
+            style.push_str(&panes.get().clip_style(cell.anchor,&metrics.get(),&viewport.get(),Some(cell.row),Some(cell.col)));
+            if let Some(fill)=cell.shown.conditional.as_ref().and_then(|c|c.fill.as_ref()).or(cell.shown.style.fill.as_ref()) {style.push_str(&format!(";background-color:{fill}"));}
+            style.push_str(&decoration::css(&cell.shown.style.borders,plan.scale));
+            view!{<div aria-hidden="true" data-dnacalc="cell-decoration" data-cell=cell.address.clone() use:css=style></div>}
+        }).collect_view())
+    };
+
     let cells_view = move || {
         if ctx.canvas.get() {
             return Vec::new().collect_view();
@@ -1456,7 +1471,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     if cell.row_span > 1 || cell.col_span > 1 { style.push_str(";background-color:var(--dna-paper);border-right:1px solid var(--dna-line-soft);border-bottom:1px solid var(--dna-line-soft)"); }
                     let conditional = cell.shown.conditional.clone().unwrap_or_default();
                     // A conditional format's font colour comes before the number format's.
-                    if let Some(color) = conditional.font_color.as_ref().or(cell.shown.color.as_ref()) {
+                    if let Some(color) = conditional.font_color.as_ref().or(cell.shown.color.as_ref()).or(cell.shown.style.font_color.as_ref()) {
                         style.push_str(&format!(";color:{color}"));
                     }
                     if let Some(fill) = &conditional.fill {
@@ -1475,7 +1490,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     if conditional.italic {
                         style.push_str(";font-style:italic");
                     }
-                    match (conditional.underline, conditional.strike) {
+                    match (conditional.underline || cell.shown.style.underline, conditional.strike || cell.shown.style.strike) {
                         (true, true) => style.push_str(";text-decoration:underline line-through"),
                         (true, false) => style.push_str(";text-decoration:underline"),
                         (false, true) => style.push_str(";text-decoration:line-through"),
@@ -1997,6 +2012,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                                 {(h>0.0 && m.header_h+h<v.height).then(||view!{<div class="dc-freeze-line" aria-hidden="true" use:css=format!("left:0;top:{};width:{};height:2px",px(m.header_h+h-1.0),px(v.width))></div>})}
                             }
                         }}
+                        {decorations_view}
                         {cells_view}
                         {canvas_icons}
                         {charts_view}

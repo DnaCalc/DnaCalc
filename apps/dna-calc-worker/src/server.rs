@@ -230,6 +230,24 @@ impl Server {
         let mut out = None;
         let reply = (|| -> Result<Reply, String> {
             match request {
+                Request::FormatSelection(areas) => Ok(Reply::FormatSelection(
+                    areas
+                        .into_iter()
+                        .map(area)
+                        .collect::<Result<Vec<_>, _>>()
+                        .and_then(|areas| crate::format::selection(&self.book, areas)),
+                )),
+                Request::PreviewFormat {
+                    at,
+                    revision,
+                    patch,
+                } => Ok(Reply::FormatPreview(
+                    if revision != self.book.host().revision().get() {
+                        Err("The workbook changed; reopen Format Cells".into())
+                    } else {
+                        cell(at).and_then(|at| crate::format::preview(&self.book, at, patch))
+                    },
+                )),
                 Request::Summary => Ok(Reply::Summary(self.summary())),
                 Request::Command(_) => Err("Nested command envelope".into()),
                 Request::Find(options) => {
@@ -881,6 +899,19 @@ impl Server {
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
+            Intent::FormatCells {
+                areas,
+                revision,
+                patch,
+            } => {
+                if revision != self.book.host().revision().get() {
+                    return Err("The workbook changed; reopen Format Cells".into());
+                }
+                SkinIntent::Command(calc_host::WorkbookCommand::FormatCells {
+                    areas: areas.into_iter().map(area).collect::<Result<Vec<_>, _>>()?,
+                    patch: crate::format::host_patch(patch),
+                })
+            }
             Intent::AcceptValidation { token } => {
                 let (held, revision, selection, intent) = self
                     .validation_pending
@@ -1721,6 +1752,7 @@ impl Server {
                 if projected.input().is_none()
                     && projected.value() == &ProjectedValue::Empty
                     && shown.conditional.is_none()
+                    && self.book.host().cell_style(projected.at()) == 0
                 {
                     retained = retained.saturating_add(16);
                     if retained > wire::MAX_PUBLICATION_BYTES - wire::MAX_TILE_BYTES {
@@ -2741,6 +2773,85 @@ fn conditional_change(change: wire::ConditionalChange) -> calc_host::Conditional
 mod tile_tests {
     use super::*;
     use dna_calc_model::{TileApply, ViewMirror};
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_blank_formatted_cell_survives_the_wire_and_renders_until_undo() {
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let at = CellKey::new(sheet, 2, 2).unwrap();
+        subscribe(&mut server, 1);
+        let mut mirror = ViewMirror::default();
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        server
+            .handle(Request::TileAck(barrier), None)
+            .reply
+            .unwrap();
+        let answer = server.execute_current(
+            Request::Intent(Intent::FormatCells {
+                areas: vec![Area::of(GridArea::cell(at))],
+                revision: server.book().host().revision().get(),
+                patch: dna_calc_model::format::FormatPatch {
+                    fill: Some("#ffeedd".into()),
+                    ..Default::default()
+                },
+            }),
+            None,
+        );
+        assert!(
+            matches!(
+                answer.reply,
+                Ok(Reply::Done {
+                    outcome: Outcome { accepted: true, .. },
+                    ..
+                })
+            ),
+            "{:?}",
+            answer.reply
+        );
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        let cell = mirror
+            .cell(at)
+            .expect("style-only cell is a projected identity");
+        assert_eq!(cell.provenance, cells::Provenance::Empty);
+        assert!(cell.text.is_empty());
+        assert!(cell.input.is_empty());
+        assert_eq!(cell.style.fill.as_deref(), Some("#ffeedd"));
+        assert_eq!(
+            render(&mirror, &server)
+                .cells
+                .iter()
+                .find(|c| c.address == "B2")
+                .unwrap()
+                .shown
+                .style
+                .fill
+                .as_deref(),
+            Some("#ffeedd")
+        );
+        server
+            .handle(Request::TileAck(barrier), None)
+            .reply
+            .unwrap();
+        server
+            .execute_current(Request::Intent(Intent::Undo), None)
+            .reply
+            .unwrap();
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        assert!(mirror.cell(at).is_none());
+        server
+            .handle(Request::TileAck(barrier), None)
+            .reply
+            .unwrap();
+        server
+            .execute_current(Request::Intent(Intent::Redo), None)
+            .reply
+            .unwrap();
+        receive(&mut mirror, projection_events(&mut server));
+        assert_eq!(
+            mirror.cell(at).unwrap().style.fill.as_deref(),
+            Some("#ffeedd")
+        );
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_subscription_to_a_covered_merge_cell_observes_its_source_anchor_and_edits() {

@@ -97,7 +97,7 @@ pub use structural::{
 };
 pub use style::{
     Alignment, Border, BorderEdge, CellFormat, CellStyle, DifferentialFormat, Fill, Font,
-    NumberFormat, Protection, StyleColor, StyleTable, TableStyles, WorkbookColors,
+    NumberFormat, Protection, StyleColor, StyleSources, StyleTable, TableStyles, WorkbookColors,
     builtin_number_format,
 };
 pub use wire::{

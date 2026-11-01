@@ -16,6 +16,8 @@ use std::sync::Arc;
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
+    /// Authored style table, in the same transaction as its cell assignments.
+    Styles(Arc<calc_doc_model::StyleTable>),
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
     /// Replaces authored conditional rules, retaining original XML fields.
@@ -73,6 +75,7 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
+            CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
             CellEdit::ConditionalRules { sheet, rules } => {
                 WorkbookOp::SetConditionalRules { sheet, rules }

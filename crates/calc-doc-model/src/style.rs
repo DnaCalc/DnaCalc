@@ -141,7 +141,17 @@ pub struct WorkbookColors {
 
 /// A workbook's style table. A cell's style index names an entry of [`StyleTable::cell_formats`].
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct StyleSources {
+    pub fonts: std::collections::BTreeMap<u32, u32>,
+    pub fills: std::collections::BTreeMap<u32, u32>,
+    pub borders: std::collections::BTreeMap<u32, u32>,
+    pub cell_formats: std::collections::BTreeMap<u32, u32>,
+}
+
+/// Imported records followed by authored records, with their source for lossless derivation.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct StyleTable {
+    pub sources: StyleSources,
     pub number_formats: Vec<NumberFormat>,
     pub fonts: Vec<Font>,
     pub fills: Vec<Fill>,

@@ -34,6 +34,10 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    FormatCells {
+        areas: Vec<GridArea>,
+        patch: crate::FormatPatch,
+    },
     Sheet {
         sheet: Option<SheetId>,
         change: SheetChange,
@@ -83,6 +87,9 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::FormatCells { areas, patch } => {
+            crate::format::prepare(host, &areas, &patch)
+        }
         WorkbookCommand::Sheet { sheet, change } => sheet_edits(host, keys, sheet, change),
         WorkbookCommand::AxisFormat {
             sheet,

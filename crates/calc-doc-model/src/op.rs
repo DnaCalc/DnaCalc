@@ -31,6 +31,8 @@ pub struct NameRestoration {
 /// One authored change to a workbook.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum WorkbookOp {
+    /// The immutable style table, committed atomically with cell style assignments.
+    SetStyles(std::sync::Arc<crate::StyleTable>),
     /// Replaces a worksheet's complete conditional-rule state, retaining source fields.
     SetConditionalRules {
         sheet: SheetId,

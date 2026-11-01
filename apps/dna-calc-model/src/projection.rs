@@ -101,6 +101,12 @@ impl FormatShown {
 /// system font; other families must be available in the browser before AutoFit can use them.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TextStyle {
+    pub font_color: Option<String>,
+    pub fill: Option<String>,
+    pub underline: bool,
+    pub strike: bool,
+    /// Left, right, top and bottom at the physical cell boundary.
+    pub borders: [Option<BorderShown>; 4],
     pub family: Option<String>,
     pub pixels: f64,
     pub bold: bool,
@@ -115,9 +121,19 @@ pub struct TextStyle {
     pub width: f64,
     pub unsupported: Option<String>,
 }
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BorderShown {
+    pub style: String,
+    pub color: Option<String>,
+}
 impl Default for TextStyle {
     fn default() -> Self {
         Self {
+            font_color: None,
+            fill: None,
+            underline: false,
+            strike: false,
+            borders: Default::default(),
             family: None,
             pixels: 13.,
             bold: false,
@@ -247,6 +263,11 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    FormatCells {
+        areas: Vec<Area>,
+        revision: u64,
+        patch: crate::format::FormatPatch,
+    },
     NotebookLink {
         anchor: Area,
         prose: bool,
@@ -440,6 +461,12 @@ pub struct ToServer {
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    FormatSelection(Vec<Area>),
+    PreviewFormat {
+        at: Key,
+        revision: u64,
+        patch: crate::format::FormatPatch,
+    },
     Summary,
     Command(CommandEnvelope),
     Find(FindOptions),
@@ -750,6 +777,8 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    FormatSelection(Result<crate::format::FormatSelection, String>),
+    FormatPreview(Result<Cell, String>),
     Summary(Summary),
     Found(Result<Found, String>),
     SelectionStats(Result<SelectionStats, String>),

@@ -2,6 +2,7 @@
 //! reactive toolkit, evaluator or host implementation. Browser adapters execute its effects.
 pub mod address;
 mod editor;
+pub mod format;
 pub use editor::{EditorState, PointEdit, PointSyntax, TextHistory, replace_text};
 pub mod command;
 pub mod geometry;

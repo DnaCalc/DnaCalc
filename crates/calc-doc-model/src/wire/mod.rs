@@ -315,7 +315,10 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         if matches!(operation, WorkbookOp::SetArray { .. }) {
             return Err(EncodeError::ArrayFormula { operation: index });
         }
-        if matches!(operation, WorkbookOp::SetFormat { .. }) {
+        if matches!(
+            operation,
+            WorkbookOp::SetFormat { .. } | WorkbookOp::SetStyles(_)
+        ) {
             return Err(EncodeError::CellFormat { operation: index });
         }
         if matches!(

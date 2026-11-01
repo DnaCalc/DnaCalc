@@ -5,6 +5,7 @@ use calc_value::{CellKey, GridArea, NameId, SheetId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CommandId {
+    FormatCells,
     Undo,
     Redo,
     Find,
@@ -15,7 +16,8 @@ pub enum CommandId {
     SwitchSkin,
 }
 impl CommandId {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
+        Self::FormatCells,
         Self::Undo,
         Self::Redo,
         Self::Find,
@@ -27,6 +29,7 @@ impl CommandId {
     ];
     pub const fn stable_id(self) -> &'static str {
         match self {
+            Self::FormatCells => "format.cells",
             Self::Undo => "edit.undo",
             Self::Redo => "edit.redo",
             Self::Find => "edit.find",
@@ -39,6 +42,7 @@ impl CommandId {
     }
     pub const fn label(self) -> &'static str {
         match self {
+            Self::FormatCells => "Format Cells",
             Self::Undo => "Undo",
             Self::Redo => "Redo",
             Self::Find => "Find",
@@ -65,6 +69,7 @@ pub enum RevealTarget {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    FormatCells,
     Undo,
     Redo,
     Find,
@@ -77,6 +82,7 @@ pub enum Command {
 impl Command {
     pub const fn id(&self) -> CommandId {
         match self {
+            Self::FormatCells => CommandId::FormatCells,
             Self::Undo => CommandId::Undo,
             Self::Redo => CommandId::Redo,
             Self::Find => CommandId::Find,
@@ -89,6 +95,7 @@ impl Command {
     }
     pub fn simple(id: CommandId) -> Option<Self> {
         Some(match id {
+            CommandId::FormatCells => Self::FormatCells,
             CommandId::Undo => Self::Undo,
             CommandId::Redo => Self::Redo,
             CommandId::Find => Self::Find,
@@ -136,6 +143,7 @@ pub struct CommandRequest {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
+    FormatCells,
     Undo {
         editor: bool,
     },
@@ -171,7 +179,11 @@ impl Model {
         if self.edit.surface.is_some()
             && matches!(
                 id,
-                CommandId::Find | CommandId::Replace | CommandId::GoTo | CommandId::Recalculate
+                CommandId::FormatCells
+                    | CommandId::Find
+                    | CommandId::Replace
+                    | CommandId::GoTo
+                    | CommandId::Recalculate
             )
         {
             return Err(Unavailable::EditInProgress);
@@ -207,6 +219,15 @@ impl Model {
         let CommandRequest { command, focus } = request;
         self.availability(command.id(), context)?;
         Ok(match command {
+            Command::FormatCells => {
+                if !self.formatting.open {
+                    self.formatting = crate::format::FormatState {
+                        open: true,
+                        ..Default::default()
+                    };
+                }
+                Effect::FormatCells
+            }
             Command::Undo => Effect::Undo {
                 editor: self.edit.surface.is_some(),
             },
@@ -248,6 +269,13 @@ pub struct CommandBinding {
     pub command: CommandId,
 }
 pub const SHELL_KEYMAP: &[CommandBinding] = &[
+    CommandBinding {
+        key: "1",
+        ctrl: true,
+        shift: false,
+        alt: false,
+        command: CommandId::FormatCells,
+    },
     CommandBinding {
         key: "z",
         ctrl: true,

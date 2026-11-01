@@ -293,6 +293,7 @@ pub enum RowHidden {
 /// hidden rows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Definitions {
+    styles: std::sync::Arc<crate::StyleTable>,
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::FrozenPanes>,
@@ -316,6 +317,14 @@ pub struct Definitions {
 }
 
 impl Definitions {
+    pub fn styles(&self) -> &std::sync::Arc<crate::StyleTable> {
+        &self.styles
+    }
+    pub fn with_styles(mut self, styles: std::sync::Arc<crate::StyleTable>) -> Self {
+        self.styles = styles;
+        self
+    }
+
     pub fn conditional_rules(&self, sheet: SheetId) -> &[crate::ConditionalRuleSource] {
         self.conditional
             .get(&sheet)
@@ -384,6 +393,7 @@ impl Definitions {
         unloaded: impl IntoIterator<Item = (CellKey, UnloadedCell)>,
     ) -> Self {
         Definitions {
+            styles: Default::default(),
             conditional: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),

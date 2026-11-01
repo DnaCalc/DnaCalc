@@ -3001,6 +3001,21 @@ where
 }
 
 impl Controller {
+    pub(crate) fn format_field<T>(
+        &self,
+        get: fn(&dna_calc_model::format::FormatState) -> &T,
+        get_mut: fn(&mut dna_calc_model::format::FormatState) -> &mut T,
+    ) -> ModelField<T>
+    where
+        T: Clone + PartialEq + Send + Sync + 'static,
+    {
+        Field::new(
+            self.model,
+            move |m| get(&m.formatting),
+            move |m| get_mut(&mut m.formatting),
+        )
+    }
+
     pub(crate) fn tool_field<T>(
         &self,
         get: fn(&dna_calc_model::ToolState) -> &T,
@@ -3096,6 +3111,7 @@ impl Controller {
             }
             Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
             Ok(CommandEffect::Dialog) => self.focus_command_dialog(),
+            Ok(CommandEffect::FormatCells) => {}
             Ok(CommandEffect::FocusSkin { skin, ticket }) => {
                 // The model already transferred the edit; only the ticketed effect may focus it.
                 self.edit_field.set_value(self.assist);

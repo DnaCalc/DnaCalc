@@ -209,7 +209,7 @@ pub fn indent_pixels(
         .map(|(w, _)| w * f64::from(style.indent))
         .unwrap_or(0.)
 }
-fn font_available(style: &TextStyle) -> bool {
+pub fn font_available(style: &TextStyle) -> bool {
     let Some(family) = style.family.as_deref() else {
         return true;
     };

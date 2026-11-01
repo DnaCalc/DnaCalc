@@ -287,22 +287,7 @@ impl Workbook {
     /// A palette colour as `#rrggbb`: the eight basic colours (0 to 7), the workbook's palette
     /// (8 to 63, its entries 1 to 56), the system's foreground (64) and background (65).
     fn indexed_color(&self, index: u32) -> Option<String> {
-        const BASIC: [&str; 8] = [
-            "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff",
-        ];
-        match index {
-            0..=7 => Some(BASIC[index as usize].to_owned()),
-            8..=63 => {
-                let entry = (index - 7) as usize;
-                self.palette
-                    .as_ref()
-                    .and_then(|palette| palette.get(entry - 1).cloned().flatten())
-                    .or_else(|| Some(calc_func::DEFAULT_PALETTE[entry - 1].to_owned()))
-            }
-            64 => Some("#000000".to_owned()),
-            65 => Some("#ffffff".to_owned()),
-            _ => None,
-        }
+        cells::indexed_color(self.host(), index)
     }
 
     fn look_color(&self, color: &Option<calc_host::LookColor>) -> Option<String> {
