@@ -6,7 +6,7 @@ use crate::recalc::{ReadersCache, dirty_closure, live_anchor};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
 use crate::spill::{Spill, SpillIndex};
 use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
-use calc_fml::{CalcEnvironment, CompiledPlan, FormulaForm, FormulaInstance, PlanCache};
+use calc_fml::{CalcEnvironment, CompiledPlan, FormulaInstance, PlanCache};
 use calc_value::{CellKey, GridArea, IdAllocator, NameId, NodeId, NumericMode, SheetId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
@@ -424,7 +424,8 @@ pub struct EngineState {
     /// the plan cache's plans, they were compiled against the state's sheets and defined names:
     /// sheet edits are refused (dc-m3u), and an edit that sets a defined name's formula (dc-gf0)
     /// empties them when it commits.
-    pub(crate) templates: HashMap<(SheetId, FormulaForm, String), Arc<CompiledPlan>>,
+    pub(crate) templates:
+        HashMap<(SheetId, calc_doc_model::SemanticTemplateKey), Arc<CompiledPlan>>,
     /// Stable date and locale semantics, apart from the pass clock. `None` refuses the date, time and
     /// number-format functions.
     pub(crate) environment: Option<calc_fml::SemanticEnvironment>,

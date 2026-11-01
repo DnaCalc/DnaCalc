@@ -88,29 +88,7 @@ pub struct CompiledPlan {
     callable_bindings: Box<[crate::CallableBindingProof]>,
 }
 
-/// How a formula's text is evaluated where a range or an array meets a place that takes one
-/// value, and how its result is published.
-///
-/// Excel keeps two forms of a cell formula. A dynamic-array formula (entered in Excel 365, or set
-/// through `Range.Formula2`) lifts: a function of single values given a range or an array runs on
-/// each element, and a result of more than one value spills. A legacy formula (every formula a
-/// file holds without dynamic-array cell metadata, or one set through `Range.Formula`) takes one
-/// value by implicit intersection where Excel 365 shows an `@` in its `Formula2` text: a range at
-/// a single-value parameter or an operator's operand gives the cell in the formula's row or
-/// column, and the formula's result is one value. Inside an array parameter (SUMPRODUCT's,
-/// LOOKUP's vectors, INDEX's array) a legacy formula lifts too. Measured on Excel 16.0 through COM
-/// on 2026-10-23 (`Range.Formula` entry, then `Range.Formula2` and the value): `=SUM(A1:A3*2)` in
-/// row 2 is `=SUM(@A1:A3*2)`, 4; `=SUMPRODUCT(A1:A3*2)` keeps no `@`, 12; `=SUM(ABS({-1,-2}))`
-/// keeps no `@`, 3; `=ABS({-1,-2})` is `=ABS(@{-1,-2})`, 1; `=SUMPRODUCT(IF(A1:A3>1,1,0))` is
-/// `=SUMPRODUCT(IF(@A1:A3>1,1,0))`, 1.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum FormulaForm {
-    /// Implicit intersection where Excel 365 writes `@` for a legacy formula; the `legacy`
-    /// module says where it applies and where this package refuses rather than guess.
-    Legacy,
-    /// Lifting and spilling, as a dynamic-array formula.
-    Dynamic,
-}
+pub use calc_syntax::FormulaForm;
 
 impl CompiledPlan {
     pub fn callable_bindings(&self) -> &[crate::CallableBindingProof] {

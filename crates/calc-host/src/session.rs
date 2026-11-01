@@ -859,8 +859,21 @@ impl HostSession {
             };
             let links = self.host.model.definitions().external_file_names();
             let form = calc_doc::file_form_with_lookup(formula, &lookup, &links).ok()?;
-            let text = FormulaText::new(ExcelText::from_utf16_code_units(form.text)).ok()?;
-            Some((text, form.dynamic))
+            let dynamic = if formula.is_form_explicit() {
+                formula.form() == calc_doc_model::FormulaForm::Dynamic
+            } else {
+                form.dynamic
+            };
+            let text = FormulaText::with_form(
+                ExcelText::from_utf16_code_units(form.text),
+                if dynamic {
+                    calc_doc_model::FormulaForm::Dynamic
+                } else {
+                    calc_doc_model::FormulaForm::Legacy
+                },
+            )
+            .ok()?;
+            Some((text, dynamic))
         };
         match edit {
             CellEdit::Set {
@@ -883,11 +896,18 @@ impl HostSession {
                     input: CellInput::Formula(formula),
                 },
             },
-            CellEdit::SetArray { array, formula } => CellEdit::SetArray {
-                array,
-                formula: file_form(&formula, array.anchor().sheet())
-                    .map_or(formula, |(text, _)| text),
-            },
+            CellEdit::SetArray { array, formula } => {
+                let text =
+                    file_form(&formula, array.anchor().sheet()).map_or(formula, |(text, _)| text);
+                CellEdit::SetArray {
+                    array,
+                    formula: FormulaText::with_form(
+                        text.text().clone(),
+                        calc_doc_model::FormulaForm::Dynamic,
+                    )
+                    .expect("a nonempty array source"),
+                }
+            }
             edit => edit,
         }
     }

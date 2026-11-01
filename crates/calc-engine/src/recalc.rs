@@ -2423,7 +2423,13 @@ fn bind(
 ) {
     let anchor = FormulaAnchor::new(at);
     let (form, role) = match inputs.definitions().array(at) {
-        None => (FormulaForm::Legacy, ArrayRole::Cell),
+        None => (
+            text.form(),
+            match text.form() {
+                FormulaForm::Legacy => ArrayRole::Cell,
+                FormulaForm::Dynamic => ArrayRole::Spill,
+            },
+        ),
         Some(array) => match array.kind() {
             ArrayKind::Legacy if array.area().cell_count() == 1 => {
                 (FormulaForm::Dynamic, ArrayRole::LegacyCell)
@@ -2436,13 +2442,29 @@ fn bind(
     // placed from that plan without being parsed; the plan is the one compiling it would give.
     // The stored UTF-16 text decoded into characters once (dc-dxm), for the template and, when
     // the template is new, the compilation; an unpaired surrogate refuses it.
+    let (source, source_anchor) = match text.block() {
+        Some(block) if text.member_at() == Some(at) => (
+            block.source().source(),
+            FormulaAnchor::new(block.source().anchor()),
+        ),
+        _ => (text.text(), anchor),
+    };
     let decoded: Result<Vec<char>, _> =
-        char::decode_utf16(text.text().utf16_code_units().iter().copied()).collect();
+        char::decode_utf16(source.utf16_code_units().iter().copied()).collect();
     let name_trace = RefCell::new(Vec::new());
     let binding = match decoded {
         Err(_) => Binding::Refused(NotModeled::FormulaText),
         Ok(chars) => {
-            let key = template_key_of_chars(&chars, anchor).map(|key| (at.sheet(), form, key));
+            let key = template_key_of_chars(&chars, source_anchor).map(|key| {
+                (
+                    at.sheet(),
+                    calc_doc_model::SemanticTemplateKey {
+                        normalized_ir: key.into(),
+                        placement: calc_doc_model::TemplatePlacement::Cell,
+                        evaluation: form,
+                    },
+                )
+            });
             match key
                 .as_ref()
                 .and_then(|key| state.templates.get(key))
@@ -2457,7 +2479,7 @@ fn bind(
                 None => match compile_loaded_with_bindings(
                     &parse_formula(&chars.iter().collect::<String>()),
                     ReferenceNotation::A1,
-                    anchor,
+                    source_anchor,
                     &SnapshotCatalog::traced(inputs, &name_trace),
                     &mut state.plans,
                     form,

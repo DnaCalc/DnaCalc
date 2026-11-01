@@ -107,6 +107,20 @@ impl CellPage {
         })
     }
 
+    /// Authored equality permits an inline formula and a shared member to compare equal;
+    /// page reuse must also preserve a deliberate group detachment.
+    pub(crate) fn same_storage(&self, other: &Self) -> bool {
+        self.places == other.places
+            && self
+                .inputs
+                .iter()
+                .zip(&other.inputs)
+                .all(|(a, b)| match (a, b) {
+                    (CellInput::Formula(a), CellInput::Formula(b)) => a.same_storage(b),
+                    _ => a == b,
+                })
+    }
+
     /// The page's cells as a map from place to input, for an edit to change.
     pub(crate) fn working_copy(&self) -> BTreeMap<u16, CellInput> {
         self.places

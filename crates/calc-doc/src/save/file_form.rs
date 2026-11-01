@@ -737,9 +737,14 @@ pub fn file_form_with_lookup<'d>(
     let Some(expression) = tree.expression() else {
         return Err(FileFormError::Unreadable);
     };
-    // A top-level @ is dropped: the formula is an ordinary (implicitly intersecting) one.
+    // A top-level @ can be dropped when choosing legacy intersection. An explicitly
+    // dynamic formula retains SINGLE: removing it would change the expression into a spill.
     let (expression, dropped) = match (expression.kind(), first_token(expression)) {
-        (SyntaxKind::PrefixExpr, Some(token)) if token.kind() == TokenKind::At => {
+        (SyntaxKind::PrefixExpr, Some(token))
+            if token.kind() == TokenKind::At
+                && !(formula.is_form_explicit()
+                    && formula.form() == calc_doc_model::FormulaForm::Dynamic) =>
+        {
             let span = token.span();
             match expression.child_nodes().next() {
                 Some(operand) => (operand, Some(span)),

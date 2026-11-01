@@ -170,7 +170,16 @@ impl WireValue for CellInput {
             }
             CellInput::Formula(formula) => {
                 out.push_str("{\"formula\":");
-                write_units(out, formula.text());
+                if formula.is_form_explicit() {
+                    out.push_str(match formula.form() {
+                        crate::FormulaForm::Dynamic => "{\"form\":\"dynamic\",\"text\":",
+                        crate::FormulaForm::Legacy => "{\"form\":\"legacy\",\"text\":",
+                    });
+                    write_units(out, formula.text());
+                    out.push('}');
+                } else {
+                    write_units(out, formula.text());
+                }
                 out.push('}');
             }
         }
@@ -207,9 +216,50 @@ impl WireValue for CellInput {
             }
             .ok_or_else(|| json::malformed(&at, "the wire name of a worksheet error code")),
             // Fields::new admitted only INPUT_KINDS, so this kind is "formula".
-            _ => FormulaText::new(read_units(value, &at)?)
+            _ => {
+                let (text, form) = if matches!(value, Node::Object(members) if members.iter().any(|(key,_)| key == "form"))
+                {
+                    let fields = Fields::new(value, &at, &["form", "text"])?;
+                    let members = fields.members();
+                    let form = members
+                        .iter()
+                        .find(|(name, _)| name == "form")
+                        .map(|(_, value)| value);
+                    let text = members
+                        .iter()
+                        .find(|(name, _)| name == "text")
+                        .map(|(_, value)| value);
+                    if members.len() != 2
+                        || !matches!(form,Some(Node::Text(name)) if name == "dynamic" || name == "legacy")
+                    {
+                        return Err(json::malformed(
+                            &at,
+                            "a formula with explicit form and text",
+                        ));
+                    }
+                    (
+                        read_units(
+                            text.ok_or_else(|| json::malformed(&at, "formula text"))?,
+                            &at,
+                        )?,
+                        Some(
+                            if matches!(form,Some(Node::Text(name)) if name == "dynamic") {
+                                crate::FormulaForm::Dynamic
+                            } else {
+                                crate::FormulaForm::Legacy
+                            },
+                        ),
+                    )
+                } else {
+                    (read_units(value, &at)?, None)
+                };
+                (match form {
+                    Some(form) => FormulaText::with_form(text, form),
+                    None => FormulaText::new(text),
+                })
                 .map(CellInput::Formula)
-                .map_err(|error| DecodeError::InvalidFormula { at, error }),
+                .map_err(|error| DecodeError::InvalidFormula { at, error })
+            }
         }
     }
 }

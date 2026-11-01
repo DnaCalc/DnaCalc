@@ -79,10 +79,18 @@ impl FormulaRewriter for ReferenceRewriter {
             at,
             &fml_edit(root, change),
             &SnapshotCatalog::new(root),
-        )?;
-        FormulaText::new(ExcelText::from_utf16_code_units(
-            rewritten.encode_utf16().collect(),
-        ))
+        );
+        // A structural edit may split one group's reference occurrences differently. The
+        // first slice materializes it before moving any member, even for constant formulas.
+        let rewritten = match rewritten {
+            Some(text) => text,
+            None if formula.block().is_some() => text,
+            None => return None,
+        };
+        FormulaText::with_form(
+            ExcelText::from_utf16_code_units(rewritten.encode_utf16().collect()),
+            formula.form(),
+        )
         .ok()
     }
 
@@ -135,9 +143,10 @@ pub fn relocate_formula(
         ReferenceNotation::A1,
         &catalog,
     )?;
-    FormulaText::new(ExcelText::from_utf16_code_units(
-        placed.encode_utf16().collect(),
-    ))
+    FormulaText::with_form(
+        ExcelText::from_utf16_code_units(placed.encode_utf16().collect()),
+        formula.form(),
+    )
     .ok()
 }
 
@@ -176,9 +185,10 @@ pub fn move_references(
         &move_edit(root, area, to)?,
         &SnapshotCatalog::new(root),
     )?;
-    FormulaText::new(ExcelText::from_utf16_code_units(
-        moved.encode_utf16().collect(),
-    ))
+    FormulaText::with_form(
+        ExcelText::from_utf16_code_units(moved.encode_utf16().collect()),
+        formula.form(),
+    )
     .ok()
 }
 

@@ -15,7 +15,8 @@ use calc_doc_model::value::{
 };
 use calc_doc_model::{
     ArrayFormula, ArrayKind, CachedValue, CellInput, CellText, FileCached, FiniteNumber,
-    FormulaText, SourcePart, UnloadedCell,
+    FormulaBlock, FormulaBlockId, FormulaForm, FormulaTemplateSource, FormulaText,
+    SemanticTemplateKey, SourcePart, TemplatePlacement, UnloadedCell,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -101,6 +102,37 @@ struct Group {
     text: Option<String>,
     /// (top, left, bottom, right)
     area: (u32, u32, u32, u32),
+}
+
+/// Validated once by the existing shared-reference occurrence mover.
+#[derive(Debug)]
+struct SharedSource {
+    anchor: CellKey,
+    source: ExcelText,
+    moves: Option<shift::Moves>,
+}
+impl FormulaTemplateSource for SharedSource {
+    fn anchor(&self) -> CellKey {
+        self.anchor
+    }
+    fn source(&self) -> &ExcelText {
+        &self.source
+    }
+    fn render(&self, at: CellKey) -> ExcelText {
+        if at == self.anchor {
+            return self.source.clone();
+        }
+        let text = self
+            .moves
+            .as_ref()
+            .expect("a validated shared member has a mover")
+            .apply(
+                i64::from(at.row()) - i64::from(self.anchor.row()),
+                i64::from(at.column()) - i64::from(self.anchor.column()),
+            )
+            .expect("every admitted member was validated against the grid");
+        ExcelText::from_utf16_code_units(text.encode_utf16().collect())
+    }
 }
 
 /// A member of a shared formula group, waiting for every master of the sheet to be read.
@@ -259,7 +291,7 @@ impl Sheet<'_> {
         if units.len() > FORMULA_MAX_UTF16_CODE_UNITS {
             return Err(CellError::FormulaTooLong { units: units.len() });
         }
-        FormulaText::new(ExcelText::from_utf16_code_units(units))
+        FormulaText::with_form(ExcelText::from_utf16_code_units(units), FormulaForm::Legacy)
             .map(CellInput::Formula)
             .map_err(|_| CellError::EmptyFormula)
     }
@@ -594,7 +626,13 @@ impl Sheet<'_> {
                         return Err(CellError::UnsupportedMetadata);
                     }
                 };
-                let input = Self::formula_input(&formula.text)?;
+                let CellInput::Formula(text) = Self::formula_input(&formula.text)? else {
+                    unreachable!()
+                };
+                let input = CellInput::Formula(
+                    FormulaText::with_form(text.text().clone(), FormulaForm::Dynamic)
+                        .expect("a validated nonempty array source"),
+                );
                 self.load.inputs.push((key, input));
                 self.load.arrays.push(ArrayFormula::new(
                     GridArea::new(key, self.key(bottom, right)).expect("two corners on one sheet"),
@@ -623,7 +661,8 @@ impl Sheet<'_> {
                     .as_deref()
                     .and_then(|text| collapsed(text).parse().ok())
                     .ok_or(detail("a shared formula without an si that is a number"))?;
-                if formula.text.is_empty() {
+                if formula.area.is_none() {
+                    // A dependent may carry text; its si/master define the formula.
                     self.members.push(Member {
                         row,
                         column,
@@ -665,11 +704,12 @@ impl Sheet<'_> {
         }
     }
 
-    /// Gives each shared formula member its input: its group's text, moved from the master.
+    /// Validates member spellings, then retains one source and explicit actual membership.
     fn finish_members(&mut self) -> Result<(), LoadError> {
-        // Each group's text read once, for all of its members.
         let mut moves: BTreeMap<u32, Result<shift::Moves, &'static str>> = BTreeMap::new();
-        for member in std::mem::take(&mut self.members) {
+        let members = std::mem::take(&mut self.members);
+        let mut positions: BTreeMap<u32, Vec<CellKey>> = BTreeMap::new();
+        for member in &members {
             let (row, column) = (member.row, member.column);
             let error = |error| self.cell_error(row, column, error);
             let detail = |detail| error(CellError::SharedFormula { detail });
@@ -695,11 +735,90 @@ impl Sheet<'_> {
                     i64::from(column) - i64::from(group.master.1),
                 )
                 .map_err(|shift::PastGrid| error(CellError::SharedFormulaPastGrid))?;
-            let input = Self::formula_units(text.encode_utf16().collect()).map_err(error)?;
-            let shared = self.shared(member.index, group);
-            let key = self.key(row, column);
-            self.load.inputs.push((key, input));
-            self.record(row, column, Some(shared), member.cache);
+            // Preserve all existing load refusals, including post-shift formula length. The
+            // temporary validation spelling is discarded; members retain no expanded source.
+            Self::formula_units(text.encode_utf16().collect()).map_err(error)?;
+            positions
+                .entry(member.index)
+                .or_default()
+                .push(self.key(row, column));
+        }
+        let masters: BTreeMap<CellKey, u32> = self
+            .groups
+            .iter()
+            .map(|(&index, group)| (self.key(group.master.0, group.master.1), index))
+            .collect();
+        let sources: BTreeMap<u32, ExcelText> = self
+            .load
+            .inputs
+            .iter()
+            .filter_map(|(at, input)| match (masters.get(at), input) {
+                (Some(&index), CellInput::Formula(text)) => Some((index, text.text().clone())),
+                _ => None,
+            })
+            .collect();
+        let mut blocks = BTreeMap::new();
+        for (&index, group) in &self.groups {
+            let master = self.key(group.master.0, group.master.1);
+            let source = sources[&index].clone();
+            let key = group
+                .text
+                .as_ref()
+                .and_then(|text| {
+                    calc_fml::reference::template_key(
+                        text,
+                        calc_fml::reference::FormulaAnchor::new(master),
+                    )
+                })
+                .map(|normalized_ir| SemanticTemplateKey {
+                    normalized_ir: normalized_ir.into(),
+                    placement: TemplatePlacement::Cell,
+                    evaluation: FormulaForm::Legacy,
+                });
+            let source = Arc::new(SharedSource {
+                anchor: master,
+                source,
+                moves: moves.remove(&index).and_then(Result::ok),
+            });
+            let area = self.shared(index, group).area;
+            let cells = positions
+                .remove(&index)
+                .unwrap_or_default()
+                .into_iter()
+                .chain([master]);
+            let block = FormulaBlock::new(
+                FormulaBlockId {
+                    sheet: master.sheet(),
+                    local: index,
+                },
+                area,
+                cells,
+                key,
+                FormulaForm::Legacy,
+                source,
+            )
+            .expect("validated shared group and actual membership");
+            blocks.insert(index, block);
+        }
+        for (at, input) in &mut self.load.inputs {
+            if let Some(index) = masters.get(at) {
+                *input = CellInput::Formula(
+                    FormulaText::member(Arc::clone(&blocks[index]), *at)
+                        .expect("the master is a member"),
+                );
+            }
+        }
+        for member in members {
+            let at = self.key(member.row, member.column);
+            let block = &blocks[&member.index];
+            self.load.inputs.push((
+                at,
+                CellInput::Formula(
+                    FormulaText::member(Arc::clone(block), at).expect("validated member"),
+                ),
+            ));
+            let shared = self.shared(member.index, &self.groups[&member.index]);
+            self.record(member.row, member.column, Some(shared), member.cache);
         }
         Ok(())
     }
