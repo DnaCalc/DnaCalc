@@ -1,5 +1,5 @@
 //! Dedicated workbook worker entry, loaded from its separate wasm module by worker.js.
-//! The existing JSON control protocol and transferred package bytes are unchanged.
+//! JSON controls, binary tile fragments and transferred package bytes travel independently.
 //!
 //! Follows DnaTreeCalc bf6dfd7 `src/dnatreecalc-web/src/worker_runtime.rs`.
 
@@ -69,7 +69,31 @@ fn handle(event: web_sys::MessageEvent) {
     // The events first, as the in-process transport delivers them: a reply finds its
     // subscriptions' cells already applied.
     for event in events {
-        post(&FromServer::Event(event));
+        if let wire::Event::Tiles(batch) = event {
+            match wire::encode_tiles(&batch) {
+                Ok(bytes) => {
+                    let array = js_sys::Uint8Array::from(bytes.as_slice());
+                    let buffer = array.buffer();
+                    let pair = js_sys::Array::of2(&wire::TILE_TAG.into(), &buffer);
+                    if scope()
+                        .post_message_with_transfer(&pair, &js_sys::Array::of1(&buffer))
+                        .is_err()
+                    {
+                        post(&FromServer::Failed {
+                            id: None,
+                            message: "Could not transfer tile fragment".into(),
+                        });
+                        return;
+                    }
+                }
+                Err(message) => {
+                    post(&FromServer::Failed { id: None, message });
+                    return;
+                }
+            }
+        } else {
+            post(&FromServer::Event(event));
+        }
     }
     let message = wasm_bindgen::JsValue::from_str(&reply);
     match out {

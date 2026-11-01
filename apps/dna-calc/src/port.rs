@@ -178,8 +178,33 @@ pub fn call(
     // Build each message while holding the port, then release it before invoking an answer.
     let served = PORT.with(|port| {
         let mut port = port.borrow_mut();
+        let control = matches!(
+            &request,
+            Request::TileAck(_) | Request::ResetTiles { .. } | Request::Unsubscribe { .. }
+        );
+        // Keep room for acknowledgements and recovery while normal requests fill their budget.
+        let limit = wire::MAX_PENDING_REQUESTS
+            - if control {
+                0
+            } else {
+                2 * wire::MAX_SUBSCRIPTIONS
+            };
+        if port.answers.len() >= limit {
+            return Some((
+                vec![wire::encode(&FromServer::Failed {
+                    id: None,
+                    message: "The workbook request queue is full; wait for the current operation"
+                        .into(),
+                })],
+                None,
+                answer,
+            ));
+        }
         let id = port.next_id;
-        port.next_id += 1;
+        port.next_id = port
+            .next_id
+            .checked_add(1)
+            .expect("Transport identities exhausted");
         let text = wire::encode(&ToServer { id, request });
         let Port {
             transport, answers, ..
@@ -314,6 +339,17 @@ fn receive(event: web_sys::MessageEvent) {
         fail("The worker sent an unreadable message".to_owned());
         return;
     };
+    if text == wire::TILE_TAG {
+        match bytes
+            .as_deref()
+            .ok_or("A tile fragment has no binary payload".to_owned())
+            .and_then(wire::decode_tiles)
+        {
+            Ok(batch) => deliver(Event::Tiles(batch)),
+            Err(message) => fail(message),
+        }
+        return;
+    }
     let message = match wire::decode::<FromServer>(&text) {
         Ok(message) => message,
         Err(e) => {

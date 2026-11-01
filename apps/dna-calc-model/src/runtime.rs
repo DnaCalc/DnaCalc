@@ -1,7 +1,8 @@
 //! The application values retained across mounts. Reactive signals and browser handles are
 //! adapters over these fields, never a second writable copy.
-use crate::projection::{self as wire, Cells, Outcome, Summary};
-use calc_value::{CellKey, GridArea, SheetId};
+use crate::ViewMirror;
+use crate::projection::{self as wire, Outcome, Summary};
+use calc_value::{GridArea, SheetId};
 use std::collections::BTreeMap;
 
 #[derive(Debug)]
@@ -56,47 +57,6 @@ pub struct Status {
 pub struct Timings {
     pub open_ms: Option<f64>,
     pub last_intent_ms: Option<f64>,
-}
-
-/// The cells of one subscription as the server last sent them.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ViewMirror {
-    seq: u64,
-    cells: BTreeMap<CellKey, wire::Cell>,
-}
-
-impl ViewMirror {
-    /// Applies the server's changed cells: a reset replaces every cell. A change that is not the
-    /// next of the subscription is refused (`false`) unless it is a reset.
-    pub fn apply(&mut self, cells: &Cells) -> bool {
-        if !cells.reset && cells.seq != self.seq + 1 {
-            return false;
-        }
-        if cells.reset {
-            self.cells.clear();
-        }
-        for at in &cells.emptied {
-            if let Some(at) = at.cell() {
-                self.cells.remove(&at);
-            }
-        }
-        for cell in &cells.cells {
-            if let Some(at) = cell.at.cell() {
-                self.cells.insert(at, cell.clone());
-            }
-        }
-        self.seq = cells.seq;
-        true
-    }
-
-    pub fn cell(&self, at: CellKey) -> Option<&wire::Cell> {
-        self.cells.get(&at)
-    }
-
-    /// Every cell, in cell order.
-    pub fn cells(&self) -> impl Iterator<Item = (&CellKey, &wire::Cell)> {
-        self.cells.iter()
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
