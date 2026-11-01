@@ -307,3 +307,6 @@ fn area(sheet: SheetId, top: u32, left: u32, bottom: u32, right: u32) -> GridAre
     let last = CellKey::new(sheet, bottom, right).expect("row_at and column_at checked the corner");
     GridArea::new(first, last).expect("both corners lie on one sheet")
 }
+
+mod tracked;
+pub use tracked::{ReferenceTracker, ReferenceView};

@@ -17,6 +17,8 @@ pub(super) fn entries(
             let ty = |ty: &OxTy| match ty {
                 OxTy::Long => Some(api::ScalarType::Long),
                 OxTy::Double => Some(api::ScalarType::Double),
+                OxTy::Object(oxvba_oxir::ObjClass::ComIface(id)|oxvba_oxir::ObjClass::Iface(id))
+                    if inner.com_interfaces().get(id.0).is_some_and(|interface|matches!(interface,oxvba_oxir::ComInterface::Com(meta) if meta.iid==Some(spreadsheet::typed_iid()))) => Some(api::ScalarType::HostObject),
                 _ => None,
             };
             if procedure
@@ -32,6 +34,7 @@ pub(super) fn entries(
                 .map(|p| ty(&p.ty))
                 .collect::<Option<Vec<_>>>()?;
             let result = ty(procedure.return_type.as_ref()?)?;
+            if result==api::ScalarType::HostObject {return None;}
             inner
                 .bind_slots(neutral::handle(bound).ok()?, &arguments, result)
                 .ok()?;
@@ -42,6 +45,7 @@ pub(super) fn entries(
                 .map(|ty| match ty {
                     api::ScalarType::Long => api::Slot::Long(0),
                     api::ScalarType::Double => api::Slot::Double(0.0),
+                api::ScalarType::HostObject=>api::Slot::Nothing,
                     _ => unreachable!(),
                 })
                 .collect();
@@ -79,13 +83,37 @@ impl OwnedSession {
                 received: args.len(),
             });
         }
+        let objects: Vec<_> = args
+            .iter()
+            .zip(&procedure.parameters)
+            .map(|(value, parameter)| {
+                if matches!(parameter.ty, OxTy::Object(_)) {
+                    match value {
+                        Value::Range(range) => self
+                            .spreadsheet
+                            .as_ref()
+                            .map(|host| Some(host.typed_range(*range)))
+                            .ok_or_else(|| Error::ValueConversion("Range requires a host".into())),
+                        _ => Err(Error::ValueConversion(
+                            "typed Range argument required".into(),
+                        )),
+                    }
+                } else {
+                    Ok(None)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let mut slots = Vec::with_capacity(args.len());
-        for (value, parameter) in args.iter().zip(&procedure.parameters) {
+        for ((value, parameter), object) in args.iter().zip(&procedure.parameters).zip(&objects) {
+            if let Some(object) = object {
+                slots.push(object.borrow_slot());
+                continue;
+            }
             let value = if let Value::Range(range) = value {
                 self.spreadsheet
                     .as_ref()
                     .ok_or_else(|| Error::ValueConversion("Range requires a host".into()))?
-                    .read_range(*range)?
+                    .read_argument_range(*range)?
             } else {
                 value.clone()
             };

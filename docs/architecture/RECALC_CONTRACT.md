@@ -282,8 +282,12 @@ nonterminal certified scalar units through that same host/worker projection rout
   suspension and async waits; other activations on that state wait; permitted nested callbacks follow the reentry
   policy; impermissible reentry is refused, never self-queued. Reload revokes result authority, keeps old leases only
   to drain, binds new invocations to the new generation.
-- **Today**: a VBA read of a not-yet-calculated formula is discarded and re-run after it (`recalc.rs:611-614`), i.e.
-  calculate-before-read, and saved Range handles read through the next call's reader (`VBA_UDFS.md:33-35`).
+- **Implemented 2026-11-01**: DNA VBA Range reads use an invocation-pinned cached model/result view;
+  they neither demand producers nor add hidden dependency edges. Scalar argument readiness remains an ordinary
+  dependency. The root evaluator retains supported typed VM/JIT activations across worker slices. A dependency or
+  spill-placement wait discovered after an effect is a typed refusal until that continuation exists. Stored Ranges
+  resolve workbook-owned identities through the admitted reference view, including edits, deletion and close.
+  General provisional reevaluation, nested callback reentry and async completion remain open.
 
 P10 (O, 20527 safe mode) refines retained-reference authority: a Range tracks insert/delete-above/cut and union
 areas, but deleting its cell or closing the owner makes its properties fail with error424 even though TypeName
@@ -394,8 +398,13 @@ waves retain reference order. Competing spills retain semantic reservation order
 The host requests installation handoffs before a later fence can enter: completed prefix values,
 spill ownership and removals publish together. An unprovable prefix stops before the callback.
 Headless callers enabling those handoffs must drain `publish_ready` between `step` calls.
-Actual callback admission, read-view leases, async completion and VM3/JIT suspension still require
-the callable runtime; these scheduling and publication tests do not demonstrate VBA effects.
+The callable runtime now supplies checked slot/generation bindings, invocation identities and pinned
+cached/reference views. Root typed Long/Double and DNA numeric Range calls retain owning VM/JIT activations;
+counted native tests demonstrate suspension and reload without repeating the prefix. Variant adapters
+retain an explicit synchronous interval, and nested CalcFml blocks are not yet sliced internally.
+Reload revokes command publication authority and rebinds compiled consumers whose callable watches
+changed. Unresolved compilation refusals are retried conservatively when registrations change.
+General P03 semantic reevaluation and P07 async completion remain unimplemented.
 Live range scopes follow cut/paste and cell shifts through the product command and Undo/Redo paths,
 as well as axis/sheet edits. Overwritten cut destinations and deleted locations leave the command;
 Undo never revives them. Disjoint surviving pieces stay disjoint, including cross-sheet moves.
@@ -409,7 +418,8 @@ P04 volatile dynamic resizing compares the held or preceding valid footprint and
 pass when it changes, with fresh draws and at most eight sizing evaluations per anchor. A repeated
 size settles earlier; an unstable size publishes #SPILL! without a footprint. Error elements do not
 invalidate an array's shape. Nonvolatile resizing runs once; the separate graph-repair bound stays 32.
-Deterministic tests exercise finite and unlimited budgets; scripted VBA witnesses await the runtime.
+Deterministic tests exercise finite and unlimited budgets. The VBA witness alternates sizes under
+Application.Volatile and demonstrates eight entries versus one for the nonvolatile control, in VM and JIT.
 Owned save plans pin installed prefix values while another cell remains suspended. Ordinary Manual
 XML Save(false) preserves permitted scalar caches with ca=1 and calcCompleted=0/calcOnSave=0.
 Re-entry never inherits an orphaned cache; dirty array topology remains excluded from this save policy.

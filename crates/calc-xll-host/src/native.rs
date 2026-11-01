@@ -480,6 +480,9 @@ impl fmt::Debug for XllFunction {
     }
 }
 impl UserFunction for XllFunction {
+    fn cached_reads(&self) -> bool {
+        self.registration.info.signature.macro_equivalent
+    }
     fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
         self.invoke(arguments, None)
     }

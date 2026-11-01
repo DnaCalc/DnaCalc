@@ -36,6 +36,10 @@ const LINK1: &str = r#"<?xml version="1.0" encoding="UTF-8"?><externalLink xmlns
 const LINK2: &str = r#"<?xml version="1.0" encoding="UTF-8"?><externalLink xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><externalBook r:id="rId1"><sheetNames><sheetName val="Sheet1"/></sheetNames><sheetDataSet><sheetData sheetId="0" refreshError="1"/></sheetDataSet></externalBook></externalLink>"#;
 
 fn package() -> Vec<u8> {
+    package_with_sheet(SHEET)
+}
+
+fn package_with_sheet(sheet: &str) -> Vec<u8> {
     let types = r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/externalLinks/externalLink1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml"/><Override PartName="/xl/externalLinks/externalLink2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml"/></Types>"#;
     let root = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="{RELATIONSHIPS}"><Relationship Id="rId1" Type="{R}/officeDocument" Target="xl/workbook.xml"/></Relationships>"#
@@ -57,7 +61,7 @@ fn package() -> Vec<u8> {
         ("_rels/.rels", root.as_bytes()),
         ("xl/workbook.xml", workbook.as_bytes()),
         ("xl/_rels/workbook.xml.rels", workbook_rels.as_bytes()),
-        ("xl/worksheets/sheet1.xml", SHEET.as_bytes()),
+        ("xl/worksheets/sheet1.xml", sheet.as_bytes()),
         ("xl/externalLinks/externalLink1.xml", LINK1.as_bytes()),
         (
             "xl/externalLinks/_rels/externalLink1.xml.rels",
@@ -318,4 +322,123 @@ fn dc_ylr__a_typed_formula_names_the_book_by_its_file_name() {
             "{text}"
         );
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_cached_external_observations_preserve_qualification_and_observer_stop() {
+    let worksheet = SHEET.replace(
+        "</row>",
+        "<c r=\"H1\"><f>Peek(A1)</f></c><c r=\"I1\"><f>H1+1</f></c></row>",
+    );
+    let source = "Public Function Peek(ByVal r As Range)\n Peek=r.Value2\nEnd Function\n";
+    let open = || {
+        let mut host = HostState::open(
+            Arc::new(MemorySource::new(package_with_sheet(&worksheet))),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..HostOptions::default()
+            },
+        )
+        .unwrap();
+        host.set_user_functions(
+            calc_vba::load_module_with_backend(
+                "External",
+                source,
+                100_000,
+                calc_vba::Backend::Interpreter,
+            )
+            .unwrap(),
+        );
+        host
+    };
+    let mut host = open();
+    loop {
+        match step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved) {
+            HostProgress::Calculating { .. } | HostProgress::Published(_) => {}
+            _ => break,
+        }
+    }
+    let sheet = host.sheets()[0].id();
+    for (column, expected) in [(8, 111.0), (9, 112.0)] {
+        let at = CellKey::new(sheet, 1, column).unwrap();
+        let p = project(&host, &ProjectionRequest { cells: vec![at] }).unwrap();
+        let (value, calculation) = match p.cells()[0].value() {
+            ProjectedValue::Calculated { value, calculation } => (value, calculation),
+            ProjectedValue::Stale(held) => {
+                (held.last_value().unwrap(), held.last_calculation().unwrap())
+            }
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(value.as_number(), Some(expected));
+        assert!(calculation.reads_external_links());
+        let stamp = calculation.stamp().unwrap();
+        assert!(stamp.reads.external_cache);
+        assert!(
+            stamp
+                .reads
+                .observations
+                .iter()
+                .any(|read| read.external_cache)
+        );
+    }
+    struct StopCached;
+    impl calc_engine::ReadObserver for StopCached {
+        fn observe(
+            &mut self,
+            formula: CellKey,
+            _: calc_host::value::GridArea,
+            _: u64,
+            _: calc_host::CellRun<'_>,
+        ) -> std::ops::ControlFlow<()> {
+            if formula.column() == 8 {
+                std::ops::ControlFlow::Break(())
+            } else {
+                std::ops::ControlFlow::Continue(())
+            }
+        }
+    }
+    let mut stopped = open();
+    let failed = loop {
+        match step(&mut stopped, WorkBudget::UNLIMITED, &mut StopCached) {
+            HostProgress::Calculating { .. } | HostProgress::Published(_) => {}
+            other => break other,
+        }
+    };
+    assert!(
+        matches!(failed,HostProgress::Failed(calc_host::RecalcFailed::Failed(calc_engine::RecalcFailure::ReadFailed {formula,..})) if formula.column()==8),
+        "{failed:?}"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_cached_read_of_a_refused_formula_cannot_become_zero() {
+    let worksheet = SHEET
+        .replace("[1]Sheet1!$A$1", "NOW()")
+        .replace("</row>", "<c r=\"H1\"><f>Peek(A1)</f></c></row>");
+    let mut host = HostState::open(
+        Arc::new(MemorySource::new(package_with_sheet(&worksheet))),
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Automatic),
+            ..HostOptions::default()
+        },
+    )
+    .unwrap();
+    host.set_user_functions(calc_vba::load_module_with_backend("Refused","Public Function Peek(ByVal r As Range)\n On Error Resume Next\n Peek=r.Value2\nEnd Function\n",100_000,calc_vba::Backend::Interpreter).unwrap());
+    loop {
+        match step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved) {
+            HostProgress::Calculating { .. } | HostProgress::Published(_) => {}
+            _ => break,
+        }
+    }
+    let at = CellKey::new(host.sheets()[0].id(), 1, 8).unwrap();
+    let p = project(&host, &ProjectionRequest { cells: vec![at] }).unwrap();
+    assert!(
+        matches!(p.cells()[0].value(), ProjectedValue::NotModeled { .. }),
+        "{:?}",
+        p.cells()[0].value()
+    );
 }

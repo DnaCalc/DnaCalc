@@ -129,7 +129,7 @@ impl XllFunction {
                     value = context
                         .as_mut()
                         .ok_or("dc-snz.2: XLL reference needs a reader")?
-                        .values_of(reference)?;
+                        .argument_values_of(reference)?;
                 }
             }
             let slot = marshal(

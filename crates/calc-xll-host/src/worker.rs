@@ -61,6 +61,7 @@ impl Drop for Pool {
 type Reply = Sender<Result<CalcValue, String>>;
 enum Request {
     Read(ReferenceLike, Reply),
+    ArgumentRead(ReferenceLike, Reply),
     Worksheet(String, Vec<CalcValue>, &'static str, Reply),
     Refuse(&'static str, &'static str),
     Volatile(bool),
@@ -88,6 +89,13 @@ impl UserFunctionContext for Reader {
         let (reply, result) = mpsc::channel();
         self.sender
             .send(Request::Read(reference.clone(), reply))
+            .map_err(|_| "XLL reader disconnected")?;
+        result.recv().map_err(|_| "XLL reader disconnected")?
+    }
+    fn argument_values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
+        let (reply, result) = mpsc::channel();
+        self.sender
+            .send(Request::ArgumentRead(reference.clone(), reply))
             .map_err(|_| "XLL reader disconnected")?;
         result.recv().map_err(|_| "XLL reader disconnected")?
     }
@@ -206,6 +214,13 @@ pub(crate) fn invoke(
     loop {
         let request = receiver.recv().map_err(|_| "native worker disconnected")?;
         match request {
+            Request::ArgumentRead(reference, reply) => {
+                let result = context
+                    .as_mut()
+                    .ok_or("XLL has no formula reader".to_owned())
+                    .and_then(|c| c.argument_values_of(&reference));
+                let _ = reply.send(result);
+            }
             Request::Read(reference, reply) => {
                 let result = context
                     .as_mut()

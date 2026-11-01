@@ -499,6 +499,8 @@ pub(crate) struct BoundarySnapshot {
     view: crate::contract::ReadViewId,
     entries: BTreeMap<CellKey, BoundaryValue>,
     spills: SpillIndex,
+    empty: CalcValue,
+    refused: BTreeSet<CellKey>,
 }
 #[derive(Debug)]
 struct BoundaryValue {
@@ -577,6 +579,8 @@ impl BoundarySnapshot {
             view: state.result_view(),
             entries,
             spills,
+            empty: CalcValue::empty(),
+            refused: BTreeSet::new(),
         }
     }
     pub(crate) fn span(&self, region: GridArea) -> Option<crate::contract::BoundaryReadSpan> {
@@ -621,6 +625,7 @@ impl BoundarySnapshot {
 /// generation.
 #[derive(Clone, Copy)]
 pub(crate) struct RecalcView<'a> {
+    pub(crate) cached_observation: bool,
     pub(crate) caller: Option<NodeId>,
     pub(crate) scope: Option<&'a crate::contract::CalcScope>,
     pub(crate) boundary: Option<&'a Cell<Option<calc_fml::ReadDenial>>>,
@@ -794,6 +799,9 @@ impl<'a> RecalcView<'a> {
     /// recalculation calculates and has not evaluated yet. Both `Ok(None)` when no spill holds
     /// the cell.
     pub(crate) fn spill_at(&self, at: CellKey) -> Result<Option<&'a Spill>, (NodeId, CellKey)> {
+        if self.cached_observation {
+            return Ok(self.boundary_caches.and_then(|pin| pin.spills.covering(at)));
+        }
         if let Some(spill) = self.spills.covering(at) {
             return Ok(Some(spill));
         }
@@ -871,6 +879,7 @@ pub(crate) struct WorkbookReader<'a> {
     /// A formula result read was calculated from values another workbook's link caches
     /// ([`Calculation::reads_external_links`], dc-ylr).
     external: Cell<bool>,
+    denial: Cell<Option<calc_fml::ReadDenial>>,
 }
 
 impl<'a> WorkbookReader<'a> {
@@ -883,6 +892,7 @@ impl<'a> WorkbookReader<'a> {
             uncomputed,
             batch: Vec::new(),
             external: Cell::new(false),
+            denial: Cell::new(None),
         }
     }
 
@@ -1023,6 +1033,33 @@ impl<'a> WorkbookReader<'a> {
 
     /// [`WorkbookReader::formula_lookup`] of the formula cell `at`, whose node is `node`.
     fn node_lookup(&self, node: NodeId, at: CellKey) -> Result<Option<&'a CalcValue>, Unread> {
+        if self.view.cached_observation {
+            let Some(pin) = self.view.boundary_caches else {
+                return Ok(None);
+            };
+            if pin.refused.contains(&at)
+                || (!pin.entries.contains_key(&at)
+                    && self.view.inputs.definitions().array(at).is_some())
+            {
+                self.denial.set(Some(calc_fml::ReadDenial {
+                    construct: "a cached VBA observation without a permitted value",
+                    owner: "dc-hsa5.4",
+                }));
+                return Ok(None);
+            }
+            if pin.entries.get(&at).is_some_and(|value| value.external) {
+                self.external.set(true);
+            }
+            return Ok(pin.entries.get(&at).map(|value| &value.value).or_else(|| {
+                self.view
+                    .inputs
+                    .definitions()
+                    .array(at)
+                    .is_none()
+                    .then_some(&pin.empty)
+            }));
+        }
+
         if self.view.scope.is_some_and(|scope| !scope.contains(at)) {
             if let Some(value) = self
                 .view
@@ -1297,7 +1334,9 @@ fn scope_denial() -> calc_fml::ReadDenial {
 
 impl ReferenceReader for WorkbookReader<'_> {
     fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
-        self.view.boundary.and_then(Cell::get)
+        self.denial
+            .get()
+            .or_else(|| self.view.boundary.and_then(Cell::get))
     }
 
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
@@ -1485,6 +1524,12 @@ impl ReferenceReader for WorkbookReader<'_> {
 
     fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
         let view = self.view;
+        if view.cached_observation {
+            return view
+                .boundary_caches
+                .and_then(|pin| pin.spills.get(anchor))
+                .map_or(SpillExtent::None, |spill| SpillExtent::Area(spill.area()));
+        }
         let Some(node) = view.state.node_at(anchor) else {
             return SpillExtent::None;
         };
@@ -1649,5 +1694,187 @@ fn literal_value(input: &CellInput) -> Option<CalcValue> {
         CellInput::Logical(logical) => Some(CalcValue::logical(*logical)),
         CellInput::Error(code) => Some(CalcValue::error(*code)),
         CellInput::Formula(_) => None,
+    }
+}
+
+/// An immutable observation view. A result retains its historical model and caches;
+/// validation checks this pin rather than demanding the observed cells again.
+#[derive(Clone)]
+pub struct CachedReadLease(std::sync::Arc<CachedReadView>);
+#[derive(Debug)]
+struct CachedReadView {
+    id: u64,
+    model: std::sync::Arc<ModelRoot>,
+    cache: BoundarySnapshot,
+    inputs: u64,
+    progress: Progress,
+    spills: SpillIndex,
+    provisional: BTreeSet<CellKey>,
+}
+impl std::fmt::Debug for CachedReadLease {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachedReadLease")
+            .field("id", &self.0.id)
+            .field("model", &self.0.model.revision())
+            .field("results", &self.0.cache.view)
+            .finish()
+    }
+}
+impl PartialEq for CachedReadLease {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.id == other.0.id
+    }
+}
+impl Eq for CachedReadLease {}
+impl std::hash::Hash for CachedReadLease {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.0.id, state)
+    }
+}
+impl CachedReadLease {
+    pub fn id(&self) -> u64 {
+        self.0.id
+    }
+    pub fn frontier(&self) -> crate::contract::ObservationFrontier {
+        crate::contract::ObservationFrontier {
+            model: self.0.model.revision(),
+            results: self.0.cache.view,
+            inputs: self.0.inputs,
+        }
+    }
+    pub(crate) fn capture(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        progress: &Progress,
+        spills: &SpillIndex,
+        inputs_cut: u64,
+    ) -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let id = NEXT
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |n| n.checked_add(1),
+            )
+            .expect("observation view identity exhausted");
+        let mut cache =
+            BoundarySnapshot::capture(state, inputs, &crate::CalcScope::Range(Vec::new()));
+        let mut refused: BTreeSet<_> = state
+            .nodes()
+            .filter_map(|node| {
+                let at = node.anchor();
+                let unsupported = !matches!(inputs.cell(at), Some(CellInput::Formula(_)))
+                    || (!state.entered.contains(&node.id())
+                        && matches!(state.result(at), Some(FormulaResult::NotModeled { .. }))
+                        && state.permitted_cache(at).is_none());
+                unsupported.then_some(at)
+            })
+            .collect();
+        for (node, result) in progress.staged_results() {
+            let Some(record) = state.node(node) else {
+                continue;
+            };
+            let at = record.anchor();
+            cache.spills.remove(at);
+            match result {
+                FormulaResult::Calculated { value, calculation }
+                    if matches!(inputs.cell(at), Some(CellInput::Formula(_))) =>
+                {
+                    let spill = spills.get(at);
+                    if let Some(spill) = spill {
+                        cache.spills.insert(spill.clone());
+                    }
+                    cache.entries.insert(
+                        at,
+                        BoundaryValue {
+                            node,
+                            value: value.clone(),
+                            dirty: false,
+                            imported: result
+                                .stamp()
+                                .is_some_and(|stamp| stamp.reads.uses_imported_cache),
+                            external: calculation.reads_external_links(),
+                            source: None,
+                            extent: spill.map(Spill::area),
+                        },
+                    );
+                }
+                FormulaResult::NotModeled { .. } => {
+                    cache.entries.remove(&at);
+                    refused.insert(at);
+                }
+                FormulaResult::FileCached(_) => {}
+                FormulaResult::Calculated { .. } => {
+                    cache.entries.remove(&at);
+                    refused.insert(at);
+                }
+            }
+        }
+        cache.refused = refused.clone();
+        let provisional = state
+            .nodes()
+            .map(|node| node.anchor())
+            .filter(|at| !cache.entries.contains_key(at) && !refused.contains(at))
+            .collect();
+        Self(std::sync::Arc::new(CachedReadView {
+            id,
+            model: inputs.pin(),
+            cache,
+            inputs: inputs_cut,
+            progress: Progress::new(0),
+            spills: SpillIndex::default(),
+            provisional,
+        }))
+    }
+    pub(crate) fn view<'a>(
+        &'a self,
+        state: &'a EngineState,
+        facts: Option<&'a std::sync::Arc<dyn calc_fml::WorkbookFacts>>,
+    ) -> RecalcView<'a> {
+        RecalcView {
+            cached_observation: true,
+            caller: None,
+            scope: None,
+            boundary: None,
+            boundary_caches: Some(&self.0.cache),
+            boundary_used: None,
+            workbook_facts: facts,
+            inputs: &self.0.model,
+            state,
+            progress: &self.0.progress,
+            spills: &self.0.spills,
+            iterates: None,
+            kept: None,
+        }
+    }
+    pub(crate) fn observation(
+        &self,
+        request: calc_fml::ReadRequest,
+        region: GridArea,
+    ) -> crate::contract::CachedObservation {
+        crate::contract::CachedObservation {
+            view: self.clone(),
+            request,
+            region,
+            external_cache: self
+                .0
+                .model
+                .definitions()
+                .external_sheet(region.sheet())
+                .is_some()
+                || self.0.cache.entries.iter().any(|(at, value)| {
+                    value.external
+                        && (region.contains(*at)
+                            || value
+                                .extent
+                                .is_some_and(|extent| extent.intersection(region).is_some()))
+                }),
+            lineage: self.0.cache.span(region),
+            provisional: self
+                .0
+                .provisional
+                .range(region.first()..=region.last())
+                .any(|at| region.contains(*at)),
+        }
     }
 }

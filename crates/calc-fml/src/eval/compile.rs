@@ -191,7 +191,7 @@ pub fn compile_with_functions(
         anchor,
         catalog,
         cache,
-        Some(&functions.bindings()),
+        Some((&functions.bindings(), true)),
     )
 }
 
@@ -214,11 +214,13 @@ pub fn compile_loaded_with_functions(
         anchor,
         catalog,
         cache,
-        Some(&functions.bindings()),
+        Some((&functions.bindings(), true)),
     )
 }
 
 /// Compile against the executable-free projection of the current callable table.
+/// The catalog decides unresolved-call behavior: a lookup projection does not prove
+/// that every workbook macro or external provider has been represented.
 #[allow(clippy::too_many_arguments)]
 pub fn compile_loaded_with_bindings(
     tree: &SyntaxTree,
@@ -237,7 +239,7 @@ pub fn compile_loaded_with_bindings(
         anchor,
         catalog,
         cache,
-        Some(functions),
+        Some((functions, false)),
     )
 }
 
@@ -250,7 +252,7 @@ fn compile_as(
     anchor: FormulaAnchor,
     catalog: &dyn ReferenceCatalog,
     cache: &mut PlanCache,
-    functions: Option<&crate::CallableBindings>,
+    functions: Option<(&crate::CallableBindings, bool)>,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
     if let Some(first) = tree.diagnostics().first() {
         return Err(CompileError::Syntax { span: first.span });
@@ -264,7 +266,8 @@ fn compile_as(
         form,
         anchor,
         catalog,
-        functions,
+        functions: functions.map(|(bindings, _)| bindings),
+        complete_registry: functions.is_some_and(|(_, complete)| complete),
         sites: HashMap::new(),
         blocks: vec![Vec::new()],
         references: Vec::new(),
@@ -276,6 +279,7 @@ fn compile_as(
         floor: 0,
         names: HashMap::new(),
         name_bindings: Vec::new(),
+        callable_bindings: Vec::new(),
         active_name: None,
         name_sheet: None,
         last_name: None,
@@ -295,6 +299,7 @@ fn compile_as(
         wrapped: lowering.wrapped.into_boxed_slice(),
         externals: lowering.externals.into_boxed_slice(),
         name_bindings: lowering.name_bindings.into_boxed_slice(),
+        callable_bindings: lowering.callable_bindings.into_boxed_slice(),
         form,
     };
     Ok(cache.share(plan))
@@ -322,6 +327,7 @@ struct Lowering<'c> {
     anchor: FormulaAnchor,
     catalog: &'c dyn ReferenceCatalog,
     functions: Option<&'c crate::CallableBindings>,
+    complete_registry: bool,
     /// The binder's sites of the tree being lowered, by span; each is taken once, by the node it
     /// spans.
     sites: Sites,
@@ -353,6 +359,7 @@ struct Lowering<'c> {
         NameTarget,
     >,
     name_bindings: Vec<NameBindingProof>,
+    callable_bindings: Vec<crate::CallableBindingProof>,
     active_name: Option<calc_func::value::NameId>,
     name_sheet: Option<calc_func::value::SheetId>,
     last_name: Option<BoundName>,
@@ -1062,6 +1069,16 @@ impl<'c> Lowering<'c> {
     /// LAMBDA parameter or defined name, called with `arguments`. A built-in function the
     /// catalogue does not hold yet is refused as `unknown`, and so is a call of a name that no
     /// defined name holds.
+    fn watch_callable(&mut self, provider: Option<&str>, name: &str) {
+        let proof = crate::CallableBindingProof {
+            provider: provider.map(str::to_owned),
+            name: calc_func::value::fold_workbook_name(name),
+            bound: self.functions.and_then(|f| f.bind(provider, name)),
+        };
+        if !self.callable_bindings.contains(&proof) {
+            self.callable_bindings.push(proof);
+        }
+    }
     fn named_call<'t>(
         &mut self,
         name: &Token,
@@ -1078,7 +1095,11 @@ impl<'c> Lowering<'c> {
             self.blocks[block].push(Instruction::Local(slot));
         } else {
             let scope = NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet()));
-            match self.lookup_name(name.text(), scope) {
+            let definition = self.lookup_name(name.text(), scope);
+            if matches!(&definition, NameDefinition::Unknown) {
+                self.watch_callable(None, spelling);
+            }
+            match definition {
                 NameDefinition::Formula(definition) => {
                     let name_block = self.name_block(name.text(), &definition, name.span())?;
                     self.blocks[block].push(Instruction::Name(name_block));
@@ -1092,7 +1113,7 @@ impl<'c> Lowering<'c> {
                     return Ok(());
                 }
                 NameDefinition::Unknown
-                    if self.functions.is_some() || self.catalog.unknown_calls_are_names() =>
+                    if self.complete_registry || self.catalog.unknown_calls_are_names() =>
                 {
                     self.blocks[block].push(Instruction::Literal(Literal::Error(
                         WorksheetErrorCode::Name,
@@ -1223,6 +1244,7 @@ impl<'c> Lowering<'c> {
                 NameDefinition::Unknown => {}
             }
         }
+        self.watch_callable(target.as_deref(), name.text());
         if self
             .functions
             .is_some_and(|f| f.contains_for(target.as_deref(), name.text()))
@@ -1234,10 +1256,16 @@ impl<'c> Lowering<'c> {
                 block,
                 tasks,
             );
-        } else if self.functions.is_some() {
+        } else if self.complete_registry {
             self.blocks[block].push(Instruction::Literal(Literal::Error(
                 WorksheetErrorCode::Name,
             )));
+        } else if self.functions.is_some() {
+            // A failed qualified binding must remain eligible for registration changes.
+            return Err(CompileError::UnknownFunction {
+                span: name.span(),
+                spelling: name.text().to_owned(),
+            });
         } else {
             return Err(unsupported(
                 span,

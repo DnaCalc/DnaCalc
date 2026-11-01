@@ -305,6 +305,15 @@ impl Server {
                         }),
                     }
                 }
+                Request::LoadVbaModule {
+                    name,
+                    source,
+                    max_steps,
+                } => {
+                    self.book.load_vba_module(&name, &source, max_steps)?;
+                    self.collect();
+                    Ok(self.done(true, None, 0.0))
+                }
                 Request::Save => {
                     let name = self.book.save_name();
                     match self.book.save() {

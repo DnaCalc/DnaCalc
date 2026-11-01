@@ -50,11 +50,38 @@ pub trait UserFunctionInvocation: fmt::Debug {
     ) -> Result<UserFunctionStep, String>;
 }
 
+/// An owned reference identity. Tracked handles never identify a workbook by name.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum StoredReference {
+    Inline(ReferenceLike),
+    Tracked { owner: u64, slot: u64 },
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReferenceHandleError {
+    ForeignWorkbook,
+    ClosedWorkbook,
+    Deleted,
+    ExpiredView,
+    NotModelledEdit,
+}
+impl fmt::Display for ReferenceHandleError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+pub trait ReferenceHandles {
+    fn retain(&self, reference: &ReferenceLike) -> Result<StoredReference, ReferenceHandleError>;
+    fn resolve(&self, reference: &StoredReference) -> Result<ReferenceLike, ReferenceHandleError>;
+}
+
 /// A user function. The default host entry reads references eagerly; adapters can instead
 /// use live reference/caller services for one invocation. An adapter
 /// returns worksheet errors as values and execution failures as diagnostics (mapped to #VALUE!).
 /// No Send/Sync promise is made: a desktop add-in may belong to its owning thread.
 pub trait UserFunction: fmt::Debug {
+    fn cached_reads(&self) -> bool {
+        false
+    }
     fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String>;
 
     /// Prepare a cooperative activation when this exact signature/body supports it. None is
@@ -77,7 +104,7 @@ pub trait UserFunction: fmt::Debug {
         let arguments = arguments
             .iter()
             .map(|value| match value.as_reference() {
-                Some(reference) => context.values_of(reference),
+                Some(reference) => context.argument_values_of(reference),
                 None => Ok(value.clone()),
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -89,6 +116,21 @@ pub trait UserFunction: fmt::Debug {
 /// adapters can retain reference identities, and must read their values through this context.
 pub trait UserFunctionContext {
     fn caller(&self) -> Option<CellKey>;
+    fn retain_reference(
+        &mut self,
+        reference: &ReferenceLike,
+    ) -> Result<StoredReference, ReferenceHandleError> {
+        Ok(StoredReference::Inline(reference.clone()))
+    }
+    fn resolve_reference(
+        &mut self,
+        reference: &StoredReference,
+    ) -> Result<ReferenceLike, ReferenceHandleError> {
+        match reference {
+            StoredReference::Inline(reference) => Ok(reference.clone()),
+            _ => Err(ReferenceHandleError::ForeignWorkbook),
+        }
+    }
     fn invocation(&self) -> Option<&UserInvocationFrame> {
         None
     }
@@ -103,6 +145,10 @@ pub trait UserFunctionContext {
         self.refuse(reason)
     }
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String>;
+    /// Explicit scalar-argument readiness is a dependency, distinct from a VBA Range read.
+    fn argument_values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
+        self.values_of(reference)
+    }
     /// Invoke the ordinary CalcFunc catalogue through the evaluator's existing call route.
     fn worksheet_function(
         &mut self,

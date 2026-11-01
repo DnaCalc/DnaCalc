@@ -286,3 +286,21 @@ fn worker_state_mutations_remain_typed_refusals() {
         );
     }
 }
+
+/// Native-only: a nested native call cannot silently inherit a different reference-read mode.
+#[test]
+fn nested_read_mode_changes_remain_typed_refusals() {
+    let fixture = Fixture::new();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_NEGATIVE_CALLBACK", "255")
+        .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("dc-snz.18") && error.contains("NotModelled"),
+        "{error}"
+    );
+}

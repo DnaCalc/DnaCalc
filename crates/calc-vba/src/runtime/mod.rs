@@ -12,7 +12,7 @@ mod cache;
 pub(crate) mod spreadsheet;
 pub use cache::{CodeCache, OwnedSession};
 pub use oxvba_embed::{Backend, CacheStats};
-pub(crate) use spreadsheet::{Range, SpreadsheetContext};
+pub(crate) use spreadsheet::{ContextError, Range, RangeInfo, SpreadsheetContext};
 
 /// Spreadsheet values; array cells are row-major and contain scalar values.
 #[derive(Debug, Clone, PartialEq)]
@@ -109,6 +109,14 @@ impl Module {
                 vec![
                     sym::ProjectReference::HostInjected {
                         referenced_project_name: "DnaCalc.Application".into(),
+                    },
+                    sym::ProjectReference::TypeLibrary {
+                        name: "DnaCalcObjects".into(),
+                        guid: None,
+                        version_major: None,
+                        version_minor: None,
+                        lcid: None,
+                        import_lib: None,
                     },
                     sym::ProjectReference::TypeLibrary {
                         name: "Excel".into(),
@@ -236,7 +244,7 @@ fn call_function(
                                 "Range requires spreadsheet host objects".into(),
                             )
                         })?
-                        .read_range(*range)?,
+                        .read_argument_range(*range)?,
                 )?
             }
             Some(value) if !matches!(value, Value::Missing) => argument(value)?,

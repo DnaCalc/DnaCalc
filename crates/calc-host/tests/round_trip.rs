@@ -4677,3 +4677,684 @@ fn names_batch_delete_preserves_imported_duplicate_fallback() {
     assert_eq!(text.text().to_string_lossy(), "Rate+1");
     assert_eq!(book.host().model().definitions().name_table().len(), 1);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_cached_reads_keep_their_view_and_create_no_hidden_dependency() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    for backend in backends {
+        let source = "Private held As Range\nPublic Function Hold(ByVal r As Range) As Double\n Set held=r\n Hold=1#\nEnd Function\nPublic Function PeekB1() As Double\n PeekB1=held.Value2\nEnd Function\n";
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_user_functions(
+            calc_vba::load_module_with_backend("Cached", source, 100_000, backend).unwrap(),
+        );
+        for (address, text) in [
+            ("A1", "1"),
+            ("B1", "=A1+1"),
+            ("D1", "=PeekB1()"),
+            ("Z1", "=Hold(B1)"),
+            ("E1", "=D1+1"),
+        ] {
+            enter(&mut book, at(s, address), text);
+        }
+        let force = |book: &mut HostSession, address: &str| {
+            let receipt = book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::cell(at(s, address))],
+            });
+            assert!(receipt.accepted(), "{receipt:?}");
+            while book.has_pending_calculation() {
+                book.advance_calculation();
+            }
+        };
+        let last = |book: &HostSession, address: &str| match value(book.host(), at(s, address)) {
+            ProjectedValue::Calculated { value, .. } => Some(value),
+            ProjectedValue::Stale(held) => held.last_value().cloned(),
+            _ => None,
+        };
+        force(&mut book, "B1");
+        force(&mut book, "Z1");
+        force(&mut book, "D1");
+        assert_eq!(last(&book, "D1"), Some(CalcValue::number(2.0)));
+        enter(&mut book, at(s, "A1"), "10");
+        book.take_calculation_events();
+        force(&mut book, "D1");
+        assert_eq!(last(&book, "D1"), Some(CalcValue::number(2.0)));
+        assert_eq!(last(&book, "B1"), Some(CalcValue::number(2.0)));
+        let stamp = match value(book.host(), at(s, "D1")) {
+            ProjectedValue::Calculated { calculation, .. } => calculation.stamp().unwrap().clone(),
+            ProjectedValue::Stale(held) => {
+                held.last_calculation().unwrap().stamp().unwrap().clone()
+            }
+            other => panic!("{other:?}"),
+        };
+        assert!(
+            stamp
+                .reads
+                .dependencies
+                .iter()
+                .all(|read| !read.region.contains(at(s, "B1")))
+        );
+        assert_eq!(stamp.reads.observations.len(), 1);
+        assert_eq!(
+            stamp.reads.observations[0].region,
+            GridArea::cell(at(s, "B1"))
+        );
+        assert_eq!(
+            stamp.reads.observations[0].request.policy,
+            calc_fml::ReadPolicy::CachedMacroObservation
+        );
+        assert!(stamp.reads.observations[0].lineage.as_ref().unwrap().dirty > 0);
+        let old_view = stamp.reads.observations[0].view.clone();
+        assert!(book.take_calculation_events().iter().all(
+            |event| !matches!(event,calc_engine::CalcEvent::Completed(c) if c.coverage.required>1)
+        ));
+        force(&mut book, "E1");
+        let e = match value(book.host(), at(s, "E1")) {
+            ProjectedValue::Calculated { calculation, .. } => calculation,
+            ProjectedValue::Stale(held) => held.last_calculation().unwrap().clone(),
+            other => panic!("{other:?}"),
+        };
+        assert!(
+            e.stamp()
+                .unwrap()
+                .reads
+                .observations
+                .iter()
+                .any(|read| read.view == old_view)
+        );
+        force(&mut book, "B1");
+        assert_eq!(last(&book, "B1"), Some(CalcValue::number(11.0)));
+        assert_eq!(
+            last(&book, "D1"),
+            Some(CalcValue::number(2.0)),
+            "publishing the hidden producer never invokes its observer"
+        );
+        force(&mut book, "D1");
+        assert_eq!(last(&book, "D1"), Some(CalcValue::number(11.0)));
+        assert_eq!(old_view.frontier().model, stamp.observed.model);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_vm_slices_resume_the_same_counted_cached_read_in_vm_and_jit() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    for backend in backends {
+        let source = "Private entries As Long\nPublic Function CountAndPeek(ByVal r As DnaCalcObjects.Range,ByVal count As Long) As Double\n Dim total As Long\n Dim initial As Long\n initial=count\n entries=entries+1\n Do While count>0\n total=total+1\n count=count-1\n Loop\n CountAndPeek=r.NumericValue+total-initial\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n";
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_user_functions(
+            calc_vba::load_module_with_backend("Counted", source, 100_000, backend).unwrap(),
+        );
+        for (address, text) in [
+            ("A1", "1"),
+            ("B1", "=A1+1"),
+            ("D1", "=CountAndPeek(B1,2000)"),
+            ("E1", "=EntryCount()"),
+        ] {
+            enter(&mut book, at(s, address), text);
+        }
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "B1"))],
+        });
+        enter(&mut book, at(s, "A1"), "10");
+        book.take_calculation_events();
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "D1"))],
+        });
+        assert!(
+            book.has_pending_calculation(),
+            "{backend:?}: must pause inside the procedure"
+        );
+        let mut slices = 0;
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+            slices += 1;
+            assert!(slices < 1000);
+        }
+        assert!(slices > 3);
+        let calculation = match value(book.host(), at(s, "D1")) {
+            ProjectedValue::Calculated { value, calculation } => {
+                assert_eq!(value, CalcValue::number(2.0));
+                calculation
+            }
+            ProjectedValue::Stale(held) => {
+                assert_eq!(held.last_value(), Some(&CalcValue::number(2.0)));
+                held.last_calculation().unwrap().clone()
+            }
+            other => panic!("{backend:?}: {other:?}"),
+        };
+        let stamp = calculation.stamp().unwrap();
+        assert_eq!(stamp.reads.invocations.len(), 1);
+        assert!(stamp.reads.invocations[0].completed);
+        assert!(
+            !stamp.reads.invocations[0].non_preemptible,
+            "{backend:?}: actual owning VM/JIT activation required"
+        );
+        assert_eq!(
+            stamp.reads.invocations[0].identity.pass,
+            stamp.certification.pass
+        );
+        assert_ne!(
+            Some(stamp.reads.invocations[0].runtime),
+            stamp.reads.invocations[0].parent
+        );
+        assert!(stamp.reads.dependencies.is_empty());
+        assert_eq!(stamp.reads.observations.len(), 1);
+        assert!(
+            book.take_calculation_events()
+                .iter()
+                .any(|event| matches!(event, calc_engine::CalcEvent::Yielded { .. }))
+        );
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "E1"))],
+        });
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        assert_eq!(
+            calculated(book.host(), at(s, "E1")),
+            Some(CalcValue::number(1.0))
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_stored_ranges_track_unions_and_never_revive_after_delete_or_reopen() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    for backend in backends {
+        let source = "Private kept As Range\nPublic Function Hold(ByVal r As Range) As Long\n Set kept=r\n Hold=r.Count\nEnd Function\nPublic Function WhereHeld() As String\n On Error GoTo Gone\n WhereHeld=kept.Address\n Exit Function\nGone:\n WhereHeld=\"error\" & CStr(Err.Number)\nEnd Function\nPublic Function ReadHeld()\n On Error GoTo Gone\n ReadHeld=kept.Cells(1,1).Value2\n Exit Function\nGone:\n ReadHeld=Err.Number\nEnd Function\nPublic Function AreaCount() As Long\n AreaCount=kept.Areas.Count\nEnd Function\nPublic Function SecondArea()\n SecondArea=kept.Areas.Item(2).Value2\nEnd Function\nPublic Function StillObject() As Boolean\n StillObject=IsObject(kept)\nEnd Function\n";
+        // The caller-owned provider intentionally survives the first workbook, like a
+        // controller add-in. Its stored Range still belongs to the first incarnation.
+        let functions =
+            calc_vba::load_module_with_backend("Stored", source, 100_000, backend).unwrap();
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_user_functions(functions.clone());
+        enter(&mut book, at(s, "A2"), "7");
+        enter(&mut book, at(s, "C4"), "9");
+        let evaluate = |book: &mut HostSession, formula: &str| {
+            enter(book, at(s, "H100"), formula);
+            let receipt = book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::cell(at(s, "H100"))],
+            });
+            assert!(receipt.accepted(), "{receipt:?}");
+            while book.has_pending_calculation() {
+                book.advance_calculation();
+            }
+            match value(book.host(), at(s, "H100")) {
+                ProjectedValue::Calculated { value, .. } => value,
+                ProjectedValue::Stale(held) => held
+                    .last_value()
+                    .unwrap_or_else(|| panic!("{formula}: {held:?}"))
+                    .clone(),
+                other => panic!("{formula}: {other:?}"),
+            }
+        };
+        let text = |value: &str| {
+            CalcValue::text(calc_host::value::ExcelText::from_utf16_code_units(
+                value.encode_utf16().collect(),
+            ))
+        };
+        assert_eq!(
+            evaluate(&mut book, "=Hold((A2,C4))"),
+            CalcValue::number(2.0)
+        );
+        assert_eq!(evaluate(&mut book, "=AreaCount()"), CalcValue::number(2.0));
+        assert_eq!(evaluate(&mut book, "=SecondArea()"), CalcValue::number(9.0));
+        assert_eq!(evaluate(&mut book, "=WhereHeld()"), text("$A$2,$C$4"));
+        assert!(
+            book.dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap()
+            ))
+            .accepted()
+        );
+        assert_eq!(evaluate(&mut book, "=WhereHeld()"), text("$A$3,$C$5"));
+        assert_eq!(evaluate(&mut book, "=ReadHeld()"), CalcValue::number(7.0));
+        assert!(
+            book.dispatch(SkinIntent::Copy {
+                from: GridArea::cell(at(s, "A3")),
+                to: GridArea::cell(at(s, "D6")),
+                cut: true
+            })
+            .accepted()
+        );
+        assert_eq!(evaluate(&mut book, "=WhereHeld()"), text("$D$6,$C$5"));
+        assert_eq!(evaluate(&mut book, "=ReadHeld()"), CalcValue::number(7.0));
+        // Calculation has no history entry. Remove the two query authoring steps before
+        // undoing the cut, then redo it; the retained object follows both coordinates.
+        for _ in 0..3 {
+            assert!(book.dispatch(SkinIntent::Undo).accepted());
+        }
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "H100"))],
+        });
+        assert_eq!(
+            calculated(book.host(), at(s, "H100")),
+            Some(CalcValue::number(7.0))
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(evaluate(&mut book, "=WhereHeld()"), text("$D$6,$C$5"));
+        assert_eq!(evaluate(&mut book, "=Hold(D6)"), CalcValue::number(1.0));
+        assert!(
+            book.dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 6, 1).unwrap()
+            ))
+            .accepted()
+        );
+        assert_eq!(evaluate(&mut book, "=ReadHeld()"), CalcValue::number(424.0));
+        assert_eq!(
+            evaluate(&mut book, "=StillObject()"),
+            CalcValue::logical(true)
+        );
+        for _ in 0..3 {
+            assert!(book.dispatch(SkinIntent::Undo).accepted());
+        }
+        assert_eq!(
+            evaluate(&mut book, "=ReadHeld()"),
+            CalcValue::number(424.0),
+            "Undo never resurrects a deleted Range identity"
+        );
+        assert_eq!(evaluate(&mut book, "=Hold(D6)"), CalcValue::number(1.0));
+        assert_eq!(evaluate(&mut book, "=ReadHeld()"), CalcValue::number(7.0));
+        drop(book);
+        let mut reopened = session(&calc_host::blank_package());
+        assert_eq!(
+            reopened.host().sheets()[0].id(),
+            s,
+            "sheet IDs can coincide across workbook incarnations"
+        );
+        reopened.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        reopened.set_user_functions(functions);
+        enter(&mut reopened, at(s, "D6"), "99");
+        assert_eq!(
+            evaluate(&mut reopened, "=StillObject()"),
+            CalcValue::logical(true)
+        );
+        assert_eq!(
+            evaluate(&mut reopened, "=ReadHeld()"),
+            CalcValue::number(424.0),
+            "a same-name reopen cannot retarget a stored Range"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_reload_revokes_live_publication_and_keeps_old_prefix_effects_once() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    for backend in backends {
+        let source = "Private entries As Long\nPublic Function Counted(ByVal r As DnaCalcObjects.Range,ByVal count As Long) As Double\n Dim total As Long\n entries=entries+1\n Do While count>0\n total=total+1\n count=count-1\n Loop\n Counted=r.NumericValue+total\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n";
+        let functions =
+            calc_vba::load_module_with_backend("Reload", source, 100_000, backend).unwrap();
+        let old_counter = functions
+            .resolve(functions.bind(None, "EntryCount").unwrap())
+            .unwrap()
+            .clone();
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_user_functions(functions);
+        enter(&mut book, at(s, "A1"), "2");
+        enter(&mut book, at(s, "D1"), "=Counted(A1,2000)");
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.take_calculation_events();
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "D1"))],
+        });
+        assert!(book.has_pending_calculation());
+        let old = book
+            .take_calculation_events()
+            .into_iter()
+            .find_map(|event| match event {
+                calc_engine::CalcEvent::Admitted(a) => Some(a.command),
+                _ => None,
+            })
+            .unwrap();
+        let replacement = "Private entries As Long\nPublic Function Counted(ByVal value As Double,ByVal ignored As Long) As Double\n entries=entries+1\n Counted=value+50#\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n";
+        book.set_user_functions(
+            calc_vba::load_module_with_backend("Reload", replacement, 100_000, backend).unwrap(),
+        );
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        assert_eq!(old_counter.call(&[]).unwrap(), CalcValue::number(1.0));
+        let (number, calculation) = match value(book.host(), at(s, "D1")) {
+            ProjectedValue::Calculated { value, calculation } => (value, calculation),
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(number, CalcValue::number(52.0));
+        let invocation = &calculation.stamp().unwrap().reads.invocations[0];
+        assert_eq!(
+            invocation.identity.reason,
+            calc_engine::contract::ReevaluationReason::CallableReload
+        );
+        assert_ne!(invocation.identity.pass.command, old);
+        let events = book.take_calculation_events();
+        assert!(events.iter().any(|event|matches!(event,calc_engine::CalcEvent::Superseded(terminal) if terminal.command==old)));
+        assert!(
+            !events.iter().any(
+                |event| matches!(event,calc_engine::CalcEvent::Completed(c) if c.command==old)
+            )
+        );
+        enter(&mut book, at(s, "E1"), "=EntryCount()");
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "E1"))],
+        });
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        assert_eq!(
+            calculated(book.host(), at(s, "E1")),
+            Some(CalcValue::number(1.0))
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_typed_range_survives_variant_inspection_and_materialization() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    for backend in backends {
+        let source = "Private kept As DnaCalcObjects.Range\nPublic Function HoldTyped(ByVal r As DnaCalcObjects.Range) As Long\n Set kept=r\n HoldTyped=1\nEnd Function\nPublic Function InspectHeld() As String\n InspectHeld=TypeName(kept)\nEnd Function\nPublic Function FetchHeld()\n Set FetchHeld=kept\nEnd Function\n";
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_user_functions(
+            calc_vba::load_module_with_backend("Mixed", source, 100_000, backend).unwrap(),
+        );
+        for (address, text) in [
+            ("A1", "7"),
+            ("B1", "=HoldTyped(A1)"),
+            ("C1", "=InspectHeld()"),
+            ("D1", "=FetchHeld()"),
+        ] {
+            enter(&mut book, at(s, address), text);
+        }
+        for (address, expected) in [
+            ("B1", CalcValue::number(1.0)),
+            (
+                "C1",
+                CalcValue::text(calc_host::value::ExcelText::from_interop_assignment(
+                    "Range",
+                )),
+            ),
+            ("D1", CalcValue::number(7.0)),
+        ] {
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::cell(at(s, address))],
+            });
+            while book.has_pending_calculation() {
+                book.advance_calculation();
+            }
+            let actual = match value(book.host(), at(s, address)) {
+                ProjectedValue::Calculated { value, .. } => Some(value),
+                ProjectedValue::Stale(held) => held.last_value().cloned(),
+                _ => None,
+            };
+            assert_eq!(actual, Some(expected), "{backend:?}: {address}");
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_volatile_spill_sizing_and_skipped_calls_use_executed_effects() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    for backend in backends {
+        for volatile in [true, false] {
+            let source = format!(
+                "Private entries As Long\nPublic Function SizeUdf() As Long\n Application.Volatile {}\n entries=entries+1\n SizeUdf=2+(entries Mod 2)\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n",
+                if volatile { "True" } else { "False" }
+            );
+            let mut book = session(&calc_host::blank_package());
+            let s = book.host().sheets()[0].id();
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            book.set_user_functions(
+                calc_vba::load_module_with_backend("Sizing", &source, 100_000, backend).unwrap(),
+            );
+            enter(&mut book, at(s, "A1"), "=_xlfn.SEQUENCE(SizeUdf())");
+            enter(&mut book, at(s, "H1"), "=EntryCount()");
+            for address in ["A1", "H1"] {
+                book.dispatch(SkinIntent::CalculateRange {
+                    areas: vec![GridArea::cell(at(s, address))],
+                });
+                while book.has_pending_calculation() {
+                    book.advance_calculation();
+                }
+            }
+            assert_eq!(
+                calculated(book.host(), at(s, "H1")),
+                Some(CalcValue::number(if volatile { 8.0 } else { 1.0 })),
+                "{backend:?}: volatile={volatile}"
+            );
+            let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, "A1"))
+            else {
+                panic!("sizing calculation")
+            };
+            assert_eq!(
+                calculation.stamp().unwrap().reads.invocations[0]
+                    .identity
+                    .reason,
+                if volatile {
+                    calc_engine::contract::ReevaluationReason::SpillShapePass
+                } else {
+                    calc_engine::contract::ReevaluationReason::NewCommandDemand
+                }
+            );
+            if volatile {
+                assert!(matches!(
+                    calculated(book.host(), at(s, "A1")).unwrap().core_ref(),
+                    calc_host::value::CoreRef::Error(calc_host::value::WorksheetErrorCode::Spill)
+                ));
+            }
+        }
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_user_functions(calc_vba::load_module_with_backend("Skipped","Public Function Mark() As Long\n Application.Volatile True\n Mark=7\nEnd Function\n",100_000,backend).unwrap());
+        enter(&mut book, at(s, "A1"), "TRUE");
+        enter(&mut book, at(s, "B1"), "=IF(A1,Mark(),2)");
+        let force = |book: &mut HostSession| {
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::cell(at(s, "B1"))],
+            });
+            while book.has_pending_calculation() {
+                book.advance_calculation();
+            }
+        };
+        force(&mut book);
+        enter(&mut book, at(s, "A1"), "FALSE");
+        force(&mut book);
+        let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, "B1")) else {
+            panic!("calculated")
+        };
+        assert_eq!(calculation.stamp().unwrap().reads.udf_volatile, Some(false));
+        assert!(calculation.stamp().unwrap().reads.invocations.is_empty());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_spill_placement_wait_refuses_without_repeating_the_effect() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    book.set_user_functions(calc_vba::load_module_with_backend("Placement","Private entries As Long\nPublic Function Counted() As Long\n entries=entries+1\n Counted=entries\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n",100_000,calc_vba::Backend::Interpreter).unwrap());
+    let force = |book: &mut HostSession, addresses: &[&str]| {
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: addresses
+                .iter()
+                .map(|address| GridArea::cell(at(s, address)))
+                .collect(),
+        });
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+    };
+    enter(&mut book, at(s, "C1"), "3");
+    enter(
+        &mut book,
+        at(s, "B1"),
+        "=IF(TRUE,SEQUENCE(C1+RANDBETWEEN(0,0)),A2)",
+    );
+    force(&mut book, &["B1"]);
+    enter(&mut book, at(s, "A2"), "=SEQUENCE(1,2,Counted())");
+    enter(&mut book, at(s, "C1"), "1");
+    force(&mut book, &["A2", "B1"]);
+    let result = value(book.host(), at(s, "A2"));
+    assert!(
+        matches!(result, ProjectedValue::NotModeled { .. }),
+        "{result:?}"
+    );
+    enter(&mut book, at(s, "H1"), "=EntryCount()");
+    force(&mut book, &["H1"]);
+    assert_eq!(
+        calculated(book.host(), at(s, "H1")),
+        Some(CalcValue::number(1.0))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_new_registration_rebinds_an_unknown_call_and_preserves_unrelated_results() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [("A1", "=Later()"), ("B1", "=A1+1"), ("H1", "=SUM(40,2)")] {
+        enter(&mut book, at(s, address), text);
+    }
+    let ProjectedValue::Calculated {
+        calculation: before,
+        ..
+    } = value(book.host(), at(s, "H1"))
+    else {
+        panic!("calculated")
+    };
+    assert_eq!(
+        calculated(book.host(), at(s, "A1")),
+        Some(CalcValue::error(calc_host::value::WorksheetErrorCode::Name))
+    );
+    book.set_user_functions(
+        calc_vba::load_module_with_backend(
+            "Added",
+            "Public Function Later() As Long\n Later=52\nEnd Function\nPublic Function SUM(ByVal a As Double,ByVal b As Double) As Double\n SUM=999#\nEnd Function\n",
+            100_000,
+            calc_vba::Backend::Interpreter,
+        )
+        .unwrap(),
+    );
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    assert_eq!(
+        calculated(book.host(), at(s, "A1")),
+        Some(CalcValue::number(52.0))
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "B1")),
+        Some(CalcValue::number(53.0))
+    );
+    let ProjectedValue::Calculated {
+        calculation: after, ..
+    } = value(book.host(), at(s, "H1"))
+    else {
+        panic!("calculated")
+    };
+    assert_eq!(
+        before, after,
+        "a new provider cannot reevaluate unrelated formulas"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_input_edit_starts_a_new_invocation_without_replaying_a_resume() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    for backend in backends {
+        let source = "Private entries As Long\nPublic Function Counted(ByVal r As DnaCalcObjects.Range,ByVal count As Long) As Double\n Dim initial As Long\n Dim total As Long\n initial=count\n entries=entries+1\n Do While count>0\n total=total+1\n count=count-1\n Loop\n Counted=r.NumericValue+entries+total-initial\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n";
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_user_functions(
+            calc_vba::load_module_with_backend("Edited", source, 100_000, backend).unwrap(),
+        );
+        enter(&mut book, at(s, "A1"), "1");
+        enter(&mut book, at(s, "D1"), "=Counted(A1,2000)");
+        enter(&mut book, at(s, "E1"), "=EntryCount()");
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.take_calculation_events();
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "D1"))],
+        });
+        assert!(book.has_pending_calculation());
+        let old = book
+            .take_calculation_events()
+            .into_iter()
+            .find_map(|event| match event {
+                calc_engine::CalcEvent::Admitted(receipt) => Some(receipt.command),
+                _ => None,
+            })
+            .unwrap();
+        enter(&mut book, at(s, "A1"), "10");
+        let revision = book.host().revision();
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        let (number, calculation) = match value(book.host(), at(s, "D1")) {
+            ProjectedValue::Calculated { value, calculation } => (value, calculation),
+            ProjectedValue::Stale(held) => (
+                held.last_value().unwrap().clone(),
+                held.last_calculation().unwrap().clone(),
+            ),
+            other => panic!("edited calculation: {other:?}"),
+        };
+        assert_eq!(number, CalcValue::number(12.0));
+        let stamp = calculation.stamp().unwrap();
+        assert_eq!(
+            stamp.reads.invocations[0].identity.reason,
+            calc_engine::contract::ReevaluationReason::AuthoredOrInputChange
+        );
+        assert_ne!(stamp.reads.invocations[0].identity.pass.command, old);
+        assert!(
+            stamp
+                .reads
+                .observations
+                .iter()
+                .all(|read| read.view.frontier().model == revision)
+        );
+        let events = book.take_calculation_events();
+        assert!(events.iter().any(|event|matches!(event,calc_engine::CalcEvent::Superseded(receipt) if receipt.command==old)));
+        assert!(!events.iter().any(|event|matches!(event,calc_engine::CalcEvent::Completed(receipt) if receipt.command==old)));
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "E1"))],
+        });
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        assert_eq!(
+            calculated(book.host(), at(s, "E1")),
+            Some(CalcValue::number(2.0)),
+            "one entry per admitted command, no resume replay"
+        );
+    }
+}

@@ -75,7 +75,12 @@ pub fn step(
     }
     let force = std::mem::take(&mut host.full_calculate_requested);
     let mut work = match host.work.take() {
-        Some(work) if work.revision() != host.model.revision() || force => {
+        Some(work)
+            if work.revision() != host.model.revision()
+                || force
+                || !work.callables_current(&host.engine) =>
+        {
+            let reloaded = !work.callables_current(&host.engine);
             let facts = host.workbook_facts();
             host.engine.set_workbook_facts(Some(facts));
             let transformed = host.transformed_calculation_scope.take();
@@ -108,7 +113,22 @@ pub fn step(
                 )
             };
             match started {
-                Ok(work) => work,
+                Ok(work) => {
+                    let work = work
+                        .with_functions(&host.functions)
+                        .with_reference_tracker(host.references.clone());
+                    if reloaded {
+                        work.with_reevaluation_reason(
+                            calc_engine::contract::ReevaluationReason::CallableReload,
+                        )
+                    } else {
+                        work.with_reevaluation_reason(if force {
+                            calc_engine::contract::ReevaluationReason::NewCommandDemand
+                        } else {
+                            calc_engine::contract::ReevaluationReason::AuthoredOrInputChange
+                        })
+                    }
+                }
                 Err(error) => return failed(host, RecalcFailed::Refused(error)),
             }
         }
@@ -148,7 +168,9 @@ pub fn step(
                 )
             };
             match started {
-                Ok(work) => work,
+                Ok(work) => work
+                    .with_functions(&host.functions)
+                    .with_reference_tracker(host.references.clone()),
                 Err(error) => return failed(host, RecalcFailed::Refused(error)),
             }
         }

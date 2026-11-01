@@ -257,6 +257,19 @@ impl PartialEq for ModelRoot {
 impl Eq for ModelRoot {}
 
 impl ModelRoot {
+    /// Retain this exact authored root when the caller holds a borrowed view. Pages,
+    /// definitions and layout stay shared; no revision or lineage is invented.
+    pub fn pin(&self) -> Arc<Self> {
+        Arc::new(Self {
+            revision: self.revision,
+            sheets: self.sheets.clone(),
+            cells: self.cells.clone(),
+            layout: self.layout.clone(),
+            definitions: self.definitions.clone(),
+            lineage: self.lineage,
+        })
+    }
+
     /// The root of these sheets, in this order, with no cells and an empty layout, at `revision`;
     /// refused when two sheets share a key or an ID.
     pub fn new(

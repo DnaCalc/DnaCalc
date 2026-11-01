@@ -346,7 +346,12 @@ pub unsafe extern "system" fn MyUnsupported() -> *mut XlOper12 {
         .and_then(|s| s.parse().ok())
         .unwrap_or(12345);
     let mut arena = Arena::new();
-    if function == 32890 {
+    if function == XL_UDF {
+        let mut target = arena.text("MyReference").unwrap();
+        unsafe {
+            call(function, &[&mut target], &mut result);
+        }
+    } else if function == 32890 {
         let mut show = XlOper12::boolean(true);
         let mut text = arena.text("worker status").unwrap();
         unsafe {

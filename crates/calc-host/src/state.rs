@@ -110,6 +110,8 @@ pub struct HostState {
     pub(crate) options: HostOptions,
     /// The recalculation in progress, between two [`crate::step`] calls.
     pub(crate) work: Option<RecalcWork>,
+    pub(crate) functions: calc_fml::CallableTable,
+    pub(crate) references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
     pub(crate) calculation_interest: Vec<calc_doc_model::value::GridArea>,
     pub(crate) full_calculate_requested: bool,
     pub(crate) transformed_calculation_scope: Option<calc_engine::CalcScope>,
@@ -143,6 +145,14 @@ pub struct HostState {
 }
 
 impl HostState {
+    pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
+        self.functions.replace(functions);
+        self.engine
+            .set_callable_bindings(&self.model, self.functions.bindings());
+        self.published = None;
+        self.last_failure = None;
+    }
+
     /// Opens the package `source` under `policy`, loads its workbook at the document's first
     /// revision, and builds the engine state of that revision with every result the file cached
     /// for a formula published as a file cache. Nothing is calculated: each formula cell projects
@@ -194,6 +204,8 @@ impl HostState {
             engine,
             options,
             work: None,
+            functions: calc_fml::CallableTable::new(),
+            references: calc_fml::reference::ReferenceTracker::new(),
             calculation_interest: Vec::new(),
             full_calculate_requested: false,
             transformed_calculation_scope: None,
@@ -811,5 +823,11 @@ impl HostState {
             })
             .collect();
         review
+    }
+}
+
+impl Drop for HostState {
+    fn drop(&mut self) {
+        self.references.close();
     }
 }

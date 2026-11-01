@@ -372,6 +372,7 @@ pub(crate) enum ArrayRole {
 pub struct EngineState {
     pub(crate) contract: crate::contract::ContractState,
     revision: AuthoredRevision,
+    pub(crate) callables: calc_fml::CallableBindings,
     pub(crate) ids: IdAllocator<NodeId>,
     pub(crate) by_anchor: BTreeMap<CellKey, NodeId>,
     /// The same entries as `by_anchor`, for lookup ([`AnchorIndex`]): [`EngineState::node_at`],
@@ -478,6 +479,47 @@ impl Default for ParallelMinimum {
 }
 
 impl EngineState {
+    /// Publish binding metadata only. Executable owners remain on the serial host/command.
+    /// Positive and negative callable watches rebind only consumers of changed entries.
+    pub fn set_callable_bindings(&mut self, inputs: &ModelRoot, next: calc_fml::CallableBindings) {
+        if self.callables == next {
+            return;
+        }
+        let affected: BTreeSet<_> = self
+            .bindings
+            .iter()
+            .filter_map(|(node, binding)| {
+                let changed = match binding {
+                    Binding::Placed(instance, _) => instance
+                        .plan()
+                        .callable_bindings()
+                        .iter()
+                        .any(|proof| !next.validates(proof)),
+                    Binding::Refused(NotModeled::Compile(
+                        calc_fml::CompileError::UnknownFunction { .. },
+                    )) => true,
+                    _ => false,
+                };
+                changed.then_some(*node)
+            })
+            .collect();
+        let dirty = crate::recalc::dirty_closure(self, inputs, affected.clone(), &|node| {
+            crate::recalc::invalidation_areas(self, inputs, node)
+        })
+        .members()
+        .to_vec();
+        for node in affected {
+            self.rebind_names(node);
+        }
+        self.contract.invalidate(dirty);
+        self.templates.retain(|_, plan| {
+            plan.callable_bindings()
+                .iter()
+                .all(|proof| next.validates(proof))
+        });
+        self.callables = next;
+    }
+
     /// The state of the snapshot `inputs`, at its revision: one unbound, pending node for each
     /// formula cell, its ID issued in sheet order and then in row-major order, read through the
     /// snapshot's pages. Literal cells get no node and nothing of them is copied. No result is
@@ -485,6 +527,7 @@ impl EngineState {
     pub fn new(inputs: &ModelRoot) -> Self {
         let mut state = EngineState {
             contract: crate::contract::ContractState::new(),
+            callables: calc_fml::CallableBindings::default(),
             revision: inputs.revision(),
             ids: IdAllocator::new(),
             by_anchor: BTreeMap::new(),
@@ -920,6 +963,7 @@ impl EngineState {
     /// edit that brings back a whole earlier revision ([`calc_doc_model::ModelRoot::restored`]).
     pub fn rebuilt(&self, inputs: &ModelRoot) -> EngineState {
         let mut state = EngineState::new(inputs);
+        state.callables = self.callables.clone();
         state.last_tick = self.last_tick;
         state.generation = self
             .generation

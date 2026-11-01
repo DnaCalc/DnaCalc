@@ -187,6 +187,19 @@ impl Workbook {
         &self.session
     }
 
+    pub fn load_vba_module(
+        &mut self,
+        name: &str,
+        source: &str,
+        max_steps: u64,
+    ) -> Result<(), String> {
+        if source.len() > 1_048_576 {
+            return Err("VBA module source exceeds one MiB".into());
+        }
+        let functions = calc_vba::load_module(name, source, max_steps)?;
+        self.session.set_user_functions(functions);
+        Ok(())
+    }
     pub fn set_calculation_budget(&mut self, budget: calc_host::WorkBudget) {
         self.session.set_calculation_budget(budget);
     }

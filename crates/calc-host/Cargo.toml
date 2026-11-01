@@ -24,6 +24,7 @@ calc-fml = { path = "../calc-fml" }
 # from the context the host reports. Test-only: calc-verdict depends on no CalcHost package
 # (tools/xtask/architecture.json), so the code under test is not part of its own judge.
 [dev-dependencies]
+calc-vba = { path = "../calc-vba" }
 calc-verdict = { path = "../../tools/calc-verdict" }
 # Reuse CalcDoc's independent ZIP fixture reader for the actual Host XLSB save test.
 miniz_oxide = "=0.8.9"

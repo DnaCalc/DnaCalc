@@ -596,6 +596,22 @@ fn run(
             let Some(registration) = registration else {
                 return Ok(Some(CalcValue::error(WorksheetErrorCode::Name)));
             };
+            if registration.uses.get() == 0 {
+                return Ok(Some(CalcValue::error(WorksheetErrorCode::Name)));
+            }
+            if registration.info.macro_type == 2 && frame.signature.is_some() {
+                return Err((
+                    INVALID_FUNCTION,
+                    "dc-snz.18: worksheet functions cannot invoke registered commands".into(),
+                ));
+            }
+            if frame.context.is_some()
+                && frame.signature.as_ref().is_some_and(|s| s.macro_equivalent)
+                    != registration.info.signature.macro_equivalent
+            {
+                return Err((INVALID_FUNCTION,
+                    "dc-snz.18: nested registered calls that change cached-read mode are not modelled".into()));
+            }
             let adapter = crate::native::XllFunction {
                 state: frame.state.clone(),
                 registration,
