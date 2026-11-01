@@ -253,7 +253,9 @@ unsafe fn read(
         return Err("XLL result exceeds conversion limit".into());
     }
     *budget -= 1;
-    let oper = unsafe { &*oper };
+    // xlw's temporary pool packs operands after variable-length strings. Excel's
+    // x64 boundary accepts those addresses; never form an aligned Rust reference.
+    let oper = unsafe { oper.read_unaligned() };
     Ok(match oper.xltype & TYPE_MASK {
         XL_NUM => {
             let n = unsafe { oper.value.number };
@@ -272,12 +274,14 @@ unsafe fn read(
             if ptr.is_null() {
                 return Err("null XLL string".into());
             }
-            let len = usize::from(unsafe { *ptr });
+            let len = usize::from(unsafe { ptr.read_unaligned() });
             if len > 32767 {
                 return Err("XLL string exceeds 32767 UTF-16 units".into());
             }
-            let units = unsafe { std::slice::from_raw_parts(ptr.add(1), len) };
-            CalcValue::text(ExcelText::from_utf16_code_units(units.to_vec()))
+            let units = (0..len)
+                .map(|i| unsafe { ptr.add(i + 1).read_unaligned() })
+                .collect();
+            CalcValue::text(ExcelText::from_utf16_code_units(units))
         }
         XL_ERR => {
             let n = unsafe { oper.value.integer };
@@ -327,14 +331,13 @@ unsafe fn read(
             if reference.table.is_null() {
                 return Err("null XLL reference table".into());
             }
-            let count = usize::from(unsafe { (*reference.table).count });
+            let count = usize::from(unsafe { reference.table.cast::<u16>().read_unaligned() });
             if count == 0 || count > *budget {
                 return Err("invalid XLL reference count".into());
             }
             let ptr = unsafe { reference.table.cast::<u8>().add(4).cast::<XlRef12>() };
-            let areas = unsafe { std::slice::from_raw_parts(ptr, count) }
-                .iter()
-                .map(|r| rectangle(*r, sheet))
+            let areas = (0..count)
+                .map(|i| rectangle(unsafe { ptr.add(i).read_unaligned() }, sheet))
                 .collect::<Result<Vec<_>, _>>()?;
             CalcValue::reference(ReferenceLike::from_areas(areas).map_err(|e| e.to_string())?)
         }
@@ -359,6 +362,45 @@ unsafe fn read(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Native-only: reproduces xlw's packed temporary operands without aligned references.
+    #[test]
+    fn packed_operands_and_array_elements_are_copied() {
+        let mut bytes = vec![0u8; 3 * std::mem::size_of::<XlOper12>() + 1];
+        let first = unsafe { bytes.as_mut_ptr().add(1).cast::<XlOper12>() };
+        let second = unsafe { first.add(1) };
+        let array = unsafe { first.add(2) };
+        unsafe {
+            first.write_unaligned(XlOper12::number(7.5));
+            second.write_unaligned(XlOper12::integer(-2));
+            array.write_unaligned(XlOper12 {
+                value: XlValue12 {
+                    array: XlArray12 {
+                        values: first,
+                        rows: 1,
+                        columns: 2,
+                    },
+                },
+                xltype: XL_MULTI,
+            });
+        }
+        let result = unsafe { from_oper(array, &SheetMap::default(), None) }.unwrap();
+        let array = result.as_array().unwrap();
+        assert_eq!(array.get(0, 0).unwrap().as_number(), Some(7.5));
+        assert_eq!(array.get(0, 1).unwrap().as_number(), Some(-2.));
+        let mut string = [0u8; 7];
+        let ptr = unsafe { string.as_mut_ptr().add(1).cast::<u16>() };
+        unsafe {
+            ptr.write_unaligned(2);
+            ptr.add(1).write_unaligned(65);
+            ptr.add(2).write_unaligned(66);
+        }
+        let oper = XlOper12 {
+            value: XlValue12 { string: ptr },
+            xltype: XL_STR,
+        };
+        let result = unsafe { from_oper(&oper, &SheetMap::default(), None) }.unwrap();
+        assert_eq!(result.as_text().unwrap().to_string_lossy(), "AB");
+    }
     /// Native-only: traverses native ABI pointers and checks allocation lifetime.
     #[test]
     fn values_copy_before_the_arena_is_freed() {

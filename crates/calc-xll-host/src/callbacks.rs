@@ -115,11 +115,10 @@ pub unsafe fn dispatch(
         if count > 0 && args.is_null() {
             return INVALID_OPER;
         }
-        let args = if count == 0 {
-            &[][..]
-        } else {
-            std::slice::from_raw_parts(args, count as usize)
-        };
+        let pointers: Vec<_> = (0..count as usize)
+            .map(|i| args.add(i).read_unaligned())
+            .collect();
+        let args = pointers.as_slice();
         if args.iter().any(|a| a.is_null()) {
             return INVALID_OPER;
         }
@@ -132,6 +131,23 @@ pub unsafe fn dispatch(
                 return FAILED;
             }
             let frame = &mut *ptr;
+            if function == 16403 {
+                if count != 0 {
+                    return INVALID_COUNT;
+                }
+                if !result.is_null() {
+                    result.write_unaligned(XlOper12 {
+                        value: XlValue12 {
+                            big_data: XlBigData {
+                                data: crate::native::GetModuleHandleW(std::ptr::null()).cast(),
+                                byte_count: 0,
+                            },
+                        },
+                        xltype: XL_BIG_DATA,
+                    });
+                }
+                return SUCCESS;
+            }
             if matches!(function, 16388 | 16389) {
                 return sheet_callback(frame, function, args, result);
             }
@@ -140,7 +156,7 @@ pub unsafe fn dispatch(
                     if result.is_null() {
                         return SUCCESS;
                     }
-                    match publish(frame, function, &value, result) {
+                    match publish(frame, function, args, &value, result) {
                         Ok(()) => SUCCESS,
                         Err(why) => {
                             refuse(frame, &why);
@@ -186,7 +202,7 @@ unsafe fn sheet_callback(
     }
     let selected = current_sheet(&frame.context).or(frame.state.borrow().active_sheet);
     let sheet = if let Some(arg) = args.first() {
-        let oper = unsafe { &**arg };
+        let oper = unsafe { (*arg).read_unaligned() };
         match oper.xltype & TYPE_MASK {
             XL_SREF => selected,
             XL_REF => frame
@@ -220,7 +236,7 @@ unsafe fn sheet_callback(
     if function == 16388 {
         let id = frame.state.borrow_mut().sheets.encode(sheet);
         unsafe {
-            *result = XlOper12 {
+            result.write_unaligned(XlOper12 {
                 value: XlValue12 {
                     reference: XlReference12 {
                         table: std::ptr::null_mut(),
@@ -228,7 +244,7 @@ unsafe fn sheet_callback(
                     },
                 },
                 xltype: XL_REF,
-            };
+            });
         }
     } else {
         let name = frame.state.borrow().sheet_names.get(&sheet).cloned();
@@ -236,7 +252,7 @@ unsafe fn sheet_callback(
             return FAILED;
         };
         let value = CalcValue::text(ExcelText::from_interop_assignment(&name));
-        if unsafe { publish(frame, function, &value, result) }.is_err() {
+        if unsafe { publish(frame, function, args, &value, result) }.is_err() {
             return FAILED;
         }
     }
@@ -262,30 +278,40 @@ pub(crate) fn allocation_key(oper: &XlOper12) -> Option<usize> {
 unsafe fn publish(
     frame: &mut Frame<'_>,
     function: i32,
+    args: &[*mut XlOper12],
     value: &CalcValue,
     result: *mut XlOper12,
 ) -> Result<(), String> {
     if function == 16392 {
         unsafe {
-            *result = XlOper12 {
+            result.write_unaligned(XlOper12 {
                 value: XlValue12 {
                     integer: frame.state.borrow().hwnd as i32,
                 },
                 xltype: XL_INT,
-            };
+            });
         }
         return Ok(());
     }
-    if function == XL_STACK {
+    let integer_coercion = function == XL_COERCE
+        && args.get(1).is_some_and(|p| {
+            let kind = unsafe { (*p).read_unaligned() };
+            match kind.xltype & TYPE_MASK {
+                XL_INT => unsafe { kind.value.integer == XL_INT as i32 },
+                XL_NUM => unsafe { kind.value.number == XL_INT as f64 },
+                _ => false,
+            }
+        });
+    if function == XL_STACK || integer_coercion {
         unsafe {
-            *result = XlOper12::integer(value.as_number().unwrap_or(0.) as i32);
+            result.write_unaligned(XlOper12::integer(value.as_number().unwrap_or(0.) as i32));
         }
         return Ok(());
     }
     if function == XLF_CALLER {
         if let Some(cell) = frame.context.as_ref().and_then(|c| c.caller()) {
             unsafe {
-                *result = XlOper12 {
+                result.write_unaligned(XlOper12 {
                     value: XlValue12 {
                         single_reference: XlSRef12 {
                             count: 1,
@@ -298,7 +324,7 @@ unsafe fn publish(
                         },
                     },
                     xltype: XL_SREF,
-                };
+                });
             }
             return Ok(());
         }
@@ -315,7 +341,7 @@ unsafe fn publish(
         );
     }
     unsafe {
-        *result = oper;
+        result.write_unaligned(oper);
     }
     Ok(())
 }
@@ -329,7 +355,7 @@ unsafe fn async_return(args: &[*mut XlOper12], result: *mut XlOper12) -> i32 {
     if args.len() != 2 {
         return INVALID_COUNT;
     }
-    let handle = unsafe { &*args[0] };
+    let handle = unsafe { args[0].read_unaligned() };
     if handle.xltype & TYPE_MASK != XL_BIG_DATA {
         return INVALID_ASYNC;
     }
@@ -350,7 +376,7 @@ unsafe fn async_return(args: &[*mut XlOper12], result: *mut XlOper12) -> i32 {
     // build leave type zero here; that observed difference is recorded separately.
     if !result.is_null() {
         unsafe {
-            *result = XlOper12::boolean(true);
+            result.write_unaligned(XlOper12::boolean(true));
         }
     }
     SUCCESS
@@ -363,7 +389,7 @@ fn run(
 ) -> Result<Option<CalcValue>, (i32, String)> {
     if function == XL_FREE_FN {
         for pointer in args {
-            free(&frame.state, unsafe { &**pointer });
+            free(&frame.state, &unsafe { (*pointer).read_unaligned() });
         }
         return Ok(None);
     }
@@ -418,7 +444,14 @@ fn run(
             if !(1..=2).contains(&args.len()) {
                 return Err((INVALID_COUNT, "MESSAGE expects one or two arguments".into()));
             }
-            frame.state.borrow_mut().status_message = values.get(1).map(text).transpose()?;
+            let show = values[0]
+                .as_logical()
+                .unwrap_or_else(|| values[0].as_number().is_some_and(|n| n != 0.));
+            frame.state.borrow_mut().status_message = if show {
+                values.get(1).map(text).transpose()?
+            } else {
+                None
+            };
             CalcValue::logical(true)
         }
         XL_GET_NAME => {
@@ -479,13 +512,16 @@ fn run(
         }
         186 => {
             require(1)?;
-            if values[0].as_number() != Some(2.) {
-                return Err((
-                    INVALID_FUNCTION,
-                    "dc-snz.2: GET.WORKSPACE item not modelled".into(),
-                ));
+            match values[0].as_number() {
+                Some(2.) => CalcValue::text(ExcelText::from_interop_assignment("16.0")),
+                Some(37.) => crate::international::settings().map_err(err)?,
+                _ => {
+                    return Err((
+                        INVALID_FUNCTION,
+                        "dc-snz.2: GET.WORKSPACE item not modelled".into(),
+                    ));
+                }
             }
-            CalcValue::text(ExcelText::from_interop_assignment("16.0"))
         }
         16392 => {
             require(0)?;
@@ -631,14 +667,15 @@ fn run(
                     format!("dc-snz.2: unsupported C API callback {other}"),
                 )
             })?;
-            let context = frame.context.as_mut().ok_or_else(|| {
-                err(format!(
-                    "dc-snz.2: worksheet callback {name} outside a formula"
-                ))
-            })?;
-            context
-                .worksheet_function_for(name, &values, "dc-snz.2")
-                .map_err(err)?
+            if let Some(context) = frame.context.as_mut() {
+                context
+                    .worksheet_function_for(name, &values, "dc-snz.2")
+                    .map_err(err)?
+            } else {
+                // Lifecycle callbacks still use the ordinary kernel. Without an
+                // evaluator there are no cell, workbook, random or clock services.
+                worksheet_value(name, &values).map_err(err)?
+            }
         }
     };
     Ok(Some(value))
@@ -647,6 +684,7 @@ fn run(
 fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, String)> {
     let matches = match kind {
         XL_NUM => value.as_number().is_some(),
+        XL_INT => false,
         XL_STR => matches!(value.core_ref(), CoreRef::Text(_)),
         XL_BOOL => value.as_logical().is_some(),
         XL_MULTI => value.as_array().is_some(),
@@ -657,6 +695,20 @@ fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, String)> {
         return Ok(value);
     }
     match (value.core_ref(), kind) {
+        (CoreRef::Text(t), XL_NUM | XL_INT) => {
+            let environment = calc_func::locale::CalcEnvironment {
+                date_system: calc_func::locale::DateSystem::System1900,
+                profile: calc_func::locale::FormatProfile::for_culture("en-US"),
+                now: None,
+            };
+            let number = calc_func::read_number_text(t.utf16_code_units(), &environment)
+                .map_err(|_| err("dc-snz.20: xlCoerce text parsing is not modelled"))?
+                .ok_or_else(|| err("xlCoerce text is not a number"))?;
+            coerce(CalcValue::number(number), kind)
+        }
+        (CoreRef::Number(n), XL_INT) if n >= i32::MIN as f64 && n <= i32::MAX as f64 => {
+            Ok(CalcValue::number(n.trunc()))
+        }
         (CoreRef::Logical(b), XL_NUM) => Ok(CalcValue::number(f64::from(u8::from(b)))),
         (CoreRef::Empty, XL_NUM) => Ok(CalcValue::number(0.)),
         (CoreRef::Number(n), XL_BOOL) => Ok(CalcValue::logical(n != 0.)),
@@ -665,6 +717,28 @@ fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, String)> {
         }
         _ => Err((FAILED, "dc-snz.2: xlCoerce conversion not modelled".into())),
     }
+}
+
+fn worksheet_value(name: &str, values: &[CalcValue]) -> Result<CalcValue, String> {
+    struct Given<'a>(&'a [CalcValue]);
+    impl calc_func::PreparedArguments for Given<'_> {
+        fn count(&self) -> usize {
+            self.0.len()
+        }
+        fn argument(&mut self, index: usize) -> CalcValue {
+            self.0[index].clone()
+        }
+    }
+    let target = calc_func::catalogue()
+        .resolve_surface(calc_func::Notation::Call, name)
+        .map_err(|e| format!("dc-snz.20: worksheet callback {name}: {e:?}"))?;
+    calc_func::invoke(
+        target,
+        &mut Given(values),
+        &mut calc_func::EvalServices::new(&calc_value::NumericMode::Fast),
+        &mut calc_func::FunctionCallScratch::new(),
+    )
+    .map_err(|e| format!("dc-snz.20: worksheet callback {name}: {e:?}"))
 }
 
 fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i32, String)> {
@@ -767,6 +841,41 @@ fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Native-only: the same dispatcher the executable exports accepts xlw's packed
+    /// argument pointers, operands and result buffer, and reports the real module handle.
+    #[test]
+    fn packed_callback_coercion_and_instance_handle() {
+        let host = crate::XllHost::new(0);
+        let module = Module::loaded(std::env::current_exe().unwrap().to_str().unwrap()).unwrap();
+        let mut frame = Frame::lifecycle(host.state.clone(), module);
+        let _guard = unsafe { enter(&mut frame) };
+        let mut arena = Arena::new();
+        let mut bytes = vec![0u8; 97];
+        let input = unsafe { bytes.as_mut_ptr().add(1).cast::<XlOper12>() };
+        let kind = unsafe { input.add(1) };
+        let result = unsafe { input.add(2) };
+        let mut pointers = vec![0u8; 2 * std::mem::size_of::<usize>() + 1];
+        let args = unsafe { pointers.as_mut_ptr().add(1).cast::<*mut XlOper12>() };
+        unsafe {
+            input.write_unaligned(arena.text("16.0").unwrap());
+            kind.write_unaligned(XlOper12::integer(XL_INT as i32));
+            args.write_unaligned(input);
+            args.add(1).write_unaligned(kind);
+            assert_eq!(dispatch(XL_COERCE, 2, args, result), SUCCESS);
+            let value = result.read_unaligned();
+            assert_eq!(value.xltype, XL_INT);
+            assert_eq!(value.value.integer, 16);
+            assert_eq!(dispatch(16403, 0, std::ptr::null(), result), SUCCESS);
+            let value = result.read_unaligned();
+            assert_eq!(value.xltype, XL_BIG_DATA);
+            assert_eq!(value.value.big_data.byte_count, 0);
+            assert_eq!(
+                value.value.big_data.data,
+                crate::native::GetModuleHandleW(std::ptr::null()).cast()
+            );
+        }
+        assert!(host.diagnostics().is_empty());
+    }
     fn handle(key: usize) -> XlOper12 {
         XlOper12 {
             value: XlValue12 {

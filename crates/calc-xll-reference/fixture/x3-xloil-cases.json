@@ -1,0 +1,14 @@
+[
+  {"formula":"=INDEX(xloVersion(),1,2)","value":"0.22.1"},
+  {"formula":"=xloConcat(\"-\",\"a\",\"b\",3)","value":"a-b-3"},
+  {"formula":"=INDEX(xloSplit(\"alpha,beta\",\",\"),2,1)","value":"beta"},
+  {"formula":"=SUM(xloFill(2,3,4))","value":24},
+  {"formula":"=INDEX(xloFill(\"tag\",2,2),2,2)","value":"","observation":"Original 0.22.1 returns an empty string here in Excel too; retained full-control capture."},
+  {"formula":"=xloRegex(\"Alpha123\",\"[0-9]+\")","value":true},
+  {"formula":"=xloRegex(\"Alpha123\",\"([0-9]+)\",\"[$1]\")","value":"[123]"},
+  {"formula":"=INDEX(xloSort({3;1;2}),1,1)","value":1},
+  {"formula":"=xloConcat(\",\",xloSplit(\"a,b\",\",\"))","value":"a,b"},
+  {"formula":"=INDEX(xloSplit({\"a,b\";\"c,d\"},\",\"),2,2)","value":"d"},
+  {"formula":"=xloConcat(\"-\",A1)","value":"7"},
+  {"formula":"=INDEX(xloSql(\"SELECT 2 + 3\"),1,1)","value":5}
+]
