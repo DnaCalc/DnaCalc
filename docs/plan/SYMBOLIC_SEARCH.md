@@ -7,6 +7,72 @@ A better match count does not identify it. No fitted coefficients, residual cuto
 answer tables or switches chosen by disagreement belong in the implementation.
 Published methods remain generic fallbacks until Excel's actual program is identified.
 
+## Round 14: non-annuity corpus families, 2026-11-01
+
+The fresh Linux checkout reproduces 18,812 matches among 20,030 formula cells (93.9191%);
+1,131 failures comprise 1,124 mismatches, six refusals and one missing result.
+The 73 external-link cells and 14 circular-rule cells remain counted apart.
+All 3,874,848 decoded full-bank identities, answers and calculated outputs are
+unchanged: 3,230,357 matches among 3,874,964 counted rows (83.3648%), including 116 unread
+failures. These are the committed oracle workbooks and existing banks, not a
+new external workbook collection or new Excel readings.
+
+The priority counts are VAR/STDEV 232, Bessel 223, binomial 75, regression 45
+and GEOMEAN 39. Workbook and registered-function operand/result audits agree on
+622 variance calls, 364 Bessel calls, 221 discrete calls, 1,970 selected regression
+cells and 224 simple GEOMEAN calls. Reference arguments remain outside this typed
+research adapter; the corpus comparison continues to count their results.
+The two reference-bearing GEOMEAN misses separately reproduce from their original
+static numeric operands 1,5,3 through the registered function, with the same stored bits.
+The selected mismatches have numeric/logical argument leaves and stored results;
+their captures disable precision as displayed. Two Bessel admission boundaries
+and regression numerical-rank behavior remain unresolved ordinary product obligations.
+
+Each of twelve variance functions independently rejects the declared 153,125
+coherent arithmetic/store programs; this assumes no shared private alias body.
+These counts are labelled assignments, including dead or redundant choices;
+native/software replays are not additional programs.
+Exact three-input closures additionally exclude the targets of 21 of 26 corpus
+observations for every sum tree/permutation and independent five-model annotation
+at each site, for both plain and corrected two-pass variance. The corrected
+closure drops dependencies between the two sums and is a conservative superset.
+Reachable roots are not reusable programs or product gains.
+The same closures check all 148 bounded three-input VAR.S bank calls, retaining
+76 matched controls and 72 mismatches. Plain roots exclude 20 mismatching targets;
+corrected roots exclude those 20 and one already-matched control. These are
+algorithm exclusions, with no increase in the product mismatch count.
+Joint-state online closures additionally exclude 17 of 26 corpus targets for
+Welford updates and 16 for Youngs-Cramer, across all six input permutations and
+independent five-model annotations at each unrolled site. The 148-row bank
+excludes 27 and 22 targets respectively, including five and six matched controls;
+these counts remain algorithm exclusions, never additional product failures.
+
+The 500 order-two Bessel consumers reject for J and I even with arbitrary Ext80
+seeds constrained by the recorded order-zero/one publications. Y and K each retain
+345 necessary conditions; these are not seed producers or complete programs.
+The specified binomial initial-mass recurrence family rejects all 18,750 profiles;
+the single-predictor LINEST coefficient family rejects all 84,375 programs.
+Thirty declared CDF sum profiles reject independently for each of four discrete
+functions, across 1,275 complete PMF/CDF prefix cohorts and 7,440 checked boxes.
+These remain conditional on the original source/environment and shared PMF
+publication assumptions. Seven J0 observations also exclude all six specified
+Cody small-argument rational variants in 42 checked boxes, including arbitrary
+five-model arithmetic sites and RN53/RN64 loads of the published literals.
+The fixed A&S 9.4.1/9.4.4 J0/J1 polynomials also reject all 24 declared variants
+per order: 192 checked boxes over eight observations with positive x in [1/4,3].
+Their approximation remainders are not chosen as free correction terms.
+GEOMEAN's 12,288 native x87 programs also reject. Its independent checker verifies
+294,708 full-width instruction values and separately replays native microcode
+leaves; no correctly-rounded-library or general Windows CPU equivalence follows.
+
+No numeric body, pin or recorded Excel answer changes, and no ordinary product
+fix is claimed. No removed selector, fitted constant, rank tolerance or Bessel
+cutoff is restored. All observations remain discovery. The research units,
+independent receipts and limitations are indexed by `DnaCalc-Research/round14-result.json`
+and `/home/ubuntu/codex-runs/dna-firehorse-20261101-round14/`.
+The annuity family remains open awaiting the R13 Windows packet; this round adds
+no annuity search. Keep dc-j9k open.
+
 ## Round 11: corpus causes and cumulative principal, 2026-11-01
 
 The 21 committed oracle workbooks reproduce the stated baseline: 18,752 matches
