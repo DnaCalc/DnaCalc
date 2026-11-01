@@ -1,0 +1,16 @@
+{"utc":"2026-11-01T07:26:01.6997873Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-01T07:26:04.7224300Z","operation":"RegisterXLL native","value":true}
+{"utc":"2026-11-01T07:26:45.4367179Z","operation":"=X0.Hello(\"world\")","value":"Hello, world"}
+{"utc":"2026-11-01T07:27:14.1851092Z","operation":"=X0.Reference(A1)","value":7.0}
+{"utc":"2026-11-01T07:27:47.2715824Z","operation":"=X0.Caller()","value":"ExcelReference sheet=1686924870992 rows=2:2 cols=1:1"}
+{"utc":"2026-11-01T07:28:20.5631435Z","operation":"=X0.Async(41)","value":42.0}
+{"utc":"2026-11-01T07:28:46.7402666Z","operation":"=SUM(X0.Big())","value":8386560.0}
+{"utc":"2026-11-01T07:29:15.2007755Z","operation":"=X0.ThreadSafe(21)","value":42.0}
+{"utc":"2026-11-01T07:29:45.0819368Z","operation":"=X0.NativeOwned()","value":"native owned"}
+{"utc":"2026-11-01T07:29:48.6306097Z","operation":"Application.Run X0.Queue","value":true}
+{"utc":"2026-11-01T07:29:50.2170535Z","operation":"Application.Run X0.Context","value":true}
+{"utc":"2026-11-01T07:29:55.3975604Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-01T07:29:56.3521127Z","operation":"ExecuteExcel4Macro UNREGISTER(native)","value":true}
+{"utc":"2026-11-01T07:29:56.5253191Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-01T07:29:56.6358633Z","operation":"tracer exit","value":0}
+{"utc":"2026-11-01T07:29:57.3392648Z","operation":"cleanup","value":"Stopped owned Excel PID 41504"}

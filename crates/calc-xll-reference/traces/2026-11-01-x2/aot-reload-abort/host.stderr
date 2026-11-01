@@ -1,0 +1,5 @@
+Unhandled exception. System.InvalidOperationException: A resolver is already set for the assembly.
+   at System.Runtime.InteropServices.NativeLibrary.SetDllImportResolver(Assembly, DllImportResolver) + 0xb5
+   at ExcelDna.ManagedHost.AddInInitialize.InitializeNativeAOT(Void*, Void*, Void*, Byte, Void*, Assembly) + 0xaa
+   at ExcelDna.SourceGenerator.NativeAOT.AddInInitialize.Initialize(Void*, Void*, Void*, Byte, Void*) + 0x282
+

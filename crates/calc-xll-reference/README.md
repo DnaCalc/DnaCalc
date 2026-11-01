@@ -188,3 +188,67 @@ The source follows the documented
 [registration ABI](https://learn.microsoft.com/en-us/office/client-developer/excel/xlfregister-form-1),
 [memory ownership](https://learn.microsoft.com/en-us/office/client-developer/excel/memory-management-in-excel),
 and [async return contract](https://learn.microsoft.com/en-us/office/client-developer/excel/xlasyncreturn).
+
+## X2: original Excel-DNA packages
+
+The [X2 captures](traces/2026-11-01-x2/) run the original ExcelDna.AddIn 1.9.0
+loaders on net48 and net8.0-windows, and ExcelDna.AddIn.NativeAOT 1.10.0-preview5
+on net10.0-windows. Each managed runtime matches Excel in six Excel-DNA UDF
+cases plus the native ownership control (7/7). Native AOT matches the hello case
+(1/1). The same files run in Excel and DNA Calc; each traced run has a separate
+control without the debugger. These are add-in boundary cases, not corpus scores.
+
+The executable keeps its DNA Calc name and version 16.x. It sets
+`EXCELDNA_ASSUME_EXCEL_PROCESS=1` before creating threads. The additional
+1.10.0-preview6 identity fixture exercises the switch and ExcelDna.Interop
+15.0.1's actual PIA calls. Framework runs in an isolated AppDomain; Version,
+Hwnd and Run work through Excel's interfaces. The
+[local COM package](../calc-com-host/README.md) records the measured layout.
+No class registration or Excel security setting is changed.
+
+The export-pool fixture registers every original f0 through f9999 and checks
+their first and last delegate results in both hosts. It does not claim that
+all 10,000 delegate outputs were compared. Empty-type commands read their native
+Boolean return: TRUE in these net48 captures and FALSE in net8. SyncMacro's
+explicit `>B` returns double zero. QueueAsMacro runs through that command on
+the STA; `$` functions use calculation workers, with reads serviced by the
+owning evaluator. This is worker placement, not concurrent workbook calculation.
+
+Build and use the existing runner:
+
+```powershell
+./build.ps1 -X2
+cargo build -p calc-xll-shim -p dna-calc-desktop
+pwsh -NoProfile -Sta -File ./run.ps1 -ExcelDnaDirectory fixture/bin/Release/net48 -HostExecutable ../../target/debug/dna-calc-desktop.exe -Reload -NoTrace -RunDirectory runs/example-x2
+```
+
+Use `-AddInName X2Aot` with the Native AOT publish directory for hello,
+`-AddInName X2Pool` for the export pool, or `-AddInName X2Identity -Cases
+fixture/x2-identity-cases.json` for the PIA/identity control. Native AOT reload
+is refused: the original preview aborts on a second import-resolver setup.
+Process-lifetime payload/runtime identities also prevent reinitialization through
+a fresh host or a renamed XLL copy. dc-snz.19 tracks safe runtime reinitialization.
+
+Reproduce each retained comparison with `verify.py`: supply its Excel traced
+and control directories, `--host` and `--host-control`, and `--x2-cases
+fixture/x2-cases.json` (or `x2-hello-cases.json` for AOT). `--identity` and
+`--pool` compare the two respective control directories. `source-publication.json`
+binds dirty-tree captures to the commits publishing their exact source hashes.
+
+The verifier preserves two raw async differences: Excel's direct xlAsyncReturn
+result operand has type zero while the host supplies the documented Boolean;
+net8's incoming opaque handle cbData also differs. Excel-DNA reads only hData on
+this entry path. Defined arguments, results and ordered nested callbacks match;
+the raw differences remain in the captures and summaries. RTD, cancellation,
+overwrites/late completion, full callback permissions, delivered host AppEvents,
+the general COM model, legacy Excel4 and x86 remain open.
+
+The existing corpus is unchanged in all 20,030 cell records: 18,812 matches
+(93.9191%), 1,131 failures (1,124 mismatches, six refusals and one not run),
+73 external-link cells and 14 circular-rule cells. The retained comparison
+includes the before/after report hashes. A read-only review reproduced the
+profile, PIA and export-pool checks and checked ownership and source bindings.
+The structural sweep passes layering, OS imports, native wasm refusals,
+provenance and dependency ceilings. Its token scan flags four uses of the
+external VBA HAL type name; dc-hsa5.4.1 records that failure. Browser, application
+smoke and the long acceptance suite were skipped in that structural run.
