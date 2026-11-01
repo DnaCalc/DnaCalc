@@ -3867,6 +3867,10 @@ impl ReferenceReader for Observed<'_, '_> {
         self.cells.pending_producer(at)
     }
 
+    fn provisional_argument_pending(&self, reference: &calc_fml::value::ReferenceLike) -> bool {
+        self.cells.provisional_argument_pending(reference)
+    }
+
     fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
         self.cells.read_denial()
     }

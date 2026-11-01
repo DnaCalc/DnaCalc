@@ -197,40 +197,41 @@ impl Node {
         out
     }
 }
-fn val_node(prefix: &str, local: &str, value: &str) -> Node {
-    let mut node = Node::new(prefix, local);
-    node.attr("val", Some(value.into()));
-    node
-}
 fn value_child(node: &mut Node, key: &str, before: &Option<String>, after: &Option<String>) {
     if before != after {
-        node.set_child(
-            key,
-            after.as_ref().map(|v| val_node(&node.prefix(), key, v)),
-        );
+        let value = after.as_ref().map(|v| {
+            let mut child = node
+                .child(key)
+                .cloned()
+                .unwrap_or_else(|| Node::new(&node.prefix(), key));
+            child.attr("val", Some(v.clone()));
+            child
+        });
+        node.set_child(key, value);
     }
 }
 fn boolean_child(node: &mut Node, key: &str, before: bool, after: bool) {
     if before != after {
-        node.set_child(key, after.then(|| Node::new(&node.prefix(), key)));
+        let value = if let Some(mut child) = node.child(key).cloned() {
+            child.attr("val", Some(if after { "1" } else { "0" }.into()));
+            Some(child)
+        } else {
+            after.then(|| Node::new(&node.prefix(), key))
+        };
+        node.set_child(key, value);
     }
 }
-fn colour(prefix: &str, local: &str, c: &StyleColor) -> Node {
-    let mut n = Node::new(prefix, local);
+fn colour(mut node: Node, c: &StyleColor) -> Node {
     for (k, v) in [
         ("rgb", &c.rgb),
         ("indexed", &c.indexed),
         ("theme", &c.theme),
         ("tint", &c.tint),
     ] {
-        if let Some(v) = v {
-            n.attr(k, Some(v.clone()));
-        }
+        node.attr(k, v.clone());
     }
-    if c.auto {
-        n.attr("auto", Some("1".into()));
-    }
-    n
+    node.attr("auto", c.auto.then(|| "1".into()));
+    node
 }
 fn color_child(
     node: &mut Node,
@@ -239,7 +240,14 @@ fn color_child(
     after: &Option<StyleColor>,
 ) {
     if before != after {
-        node.set_child(key, after.as_ref().map(|c| colour(&node.prefix(), key, c)));
+        let value = after.as_ref().map(|c| {
+            let child = node
+                .child(key)
+                .cloned()
+                .unwrap_or_else(|| Node::new(&node.prefix(), key));
+            colour(child, c)
+        });
+        node.set_child(key, value);
     }
 }
 fn font(mut node: Node, before: &Font, after: &Font) -> Node {
@@ -582,11 +590,15 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn derived_styles_keep_unread_fields_and_original_records() {
         let source = format!(
-            r#"<s:styleSheet xmlns:s="{MAIN_NAMESPACE}" xmlns:v="urn:vendor"><s:fonts count="1"><s:font v:keep="font"><s:name val="Example"/><s:vAlign val="superscript"/></s:font></s:fonts><s:cellXfs count="1"><s:xf fontId="0" v:keep="xf"><s:alignment horizontal="left" readingOrder="2"/><s:extLst><v:keep/></s:extLst></s:xf></s:cellXfs><s:extLst><v:root/></s:extLst></s:styleSheet>"#
+            r#"<s:styleSheet xmlns:s="{MAIN_NAMESPACE}" xmlns:v="urn:vendor"><s:fonts count="1"><s:font v:keep="font"><s:name val="Example" v:keep="name"/><s:b val="0" v:keep="bold"/><s:color indexed="8" v:keep="color"/><s:vAlign val="superscript"/></s:font></s:fonts><s:cellXfs count="1"><s:xf fontId="0" v:keep="xf"><s:alignment horizontal="left" readingOrder="2"/><s:extLst><v:keep/></s:extLst></s:xf></s:cellXfs><s:extLst><v:root/></s:extLst></s:styleSheet>"#
         );
         let before = StyleTable {
             fonts: vec![Font {
                 name: Some("Example".into()),
+                color: Some(StyleColor {
+                    indexed: Some("8".into()),
+                    ..Default::default()
+                }),
                 other_children: vec!["vAlign".into()],
                 ..Default::default()
             }],
@@ -602,9 +614,17 @@ mod tests {
         };
         let mut after = before.clone();
         let mut f = before.fonts[0].clone();
+        f.name = Some("Changed".into());
         f.bold = true;
-        after.fonts.push(f);
+        f.color = Some(StyleColor {
+            rgb: Some("FF123456".into()),
+            ..Default::default()
+        });
+        after.fonts.push(f.clone());
         after.sources.fonts.insert(1, 0);
+        f.bold = false;
+        after.fonts.push(f);
+        after.sources.fonts.insert(2, 1);
         let mut x = before.cell_formats[0].clone();
         x.font_id = Some(1);
         x.apply_font = true;
@@ -619,10 +639,28 @@ mod tests {
         let bytes = rewrite(&xml, &before, &after).unwrap();
         let written = String::from_utf8(bytes.clone()).unwrap();
         assert!(written.contains(
-            r#"<s:font v:keep="font"><s:name val="Example"/><s:vAlign val="superscript"/></s:font>"#
+            r#"<s:font v:keep="font"><s:name val="Example" v:keep="name"/><s:b val="0" v:keep="bold"/><s:color indexed="8" v:keep="color"/><s:vAlign val="superscript"/></s:font>"#
         ));
         assert!(written.contains(r#"<s:xf fontId="0" v:keep="xf"><s:alignment horizontal="left" readingOrder="2"/><s:extLst><v:keep/></s:extLst></s:xf>"#));
-        assert_eq!(written.matches("superscript").count(), 2);
+        assert_eq!(written.matches("superscript").count(), 3);
+        for field in ["name", "bold", "color"] {
+            assert_eq!(
+                written.matches(&format!("v:keep=\"{field}\"")).count(),
+                3,
+                "{written}"
+            );
+        }
+        assert_eq!(written.matches("val=\"Changed\"").count(), 2);
+        assert_eq!(written.matches("rgb=\"FF123456\"").count(), 2);
+        assert_eq!(written.matches("indexed=\"8\"").count(), 1);
+        assert_eq!(
+            written.matches(r#"<s:b val="0" v:keep="bold"/>"#).count(),
+            2
+        );
+        assert_eq!(
+            written.matches(r#"<s:b val="1" v:keep="bold"/>"#).count(),
+            1
+        );
         assert_eq!(written.matches("readingOrder=\"2\"").count(), 2);
         assert_eq!(written.matches("<v:keep/>").count(), 2);
         assert!(written.contains("wrapText=\"1\""));

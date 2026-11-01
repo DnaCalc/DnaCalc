@@ -423,8 +423,17 @@ with distinct ordinals/reasons and prior call records. A provisional body retain
 across physical safepoints and finishes before the next semantic evaluation is admitted. The
 producer and surviving fences install before that next cached view. Nested synchronous callbacks
 inherit the invocation frame/pin and file positive/negative callable watches; an occupied state
-lane requires explicit reentry permission. Nested waits, general Range provisional ordering and
-nested CalcFml continuations remain bounded refusals or later work. P07's owner boundary is in 3.4.
+lane requires explicit reentry permission. An actual Value2 read of an explicit Range argument
+can now identify an admitted unfinished producer while preserving the pinned cached read. It
+requests a fresh semantic evaluation after that producer; merely passing or retaining an unused
+Range does not. The synthetic Host/worker controls use a reference returned by INDIRECT so the
+producer is discovered late: the VBA Range remains an object, observes Empty then 11, and enters
+twice; the unused Range and scalar-expression controls enter once. A retained spill-child control
+observes 2 then 21 after its producer's input changes; the query includes published and complete
+imported array footprints before the producer stages again. This establishes those routes,
+not parity for every area ordering. Hidden stored-Range reads retain P01's observer-only policy.
+Nested waits, the remaining Range-order profiles and nested CalcFml continuations remain bounded
+refusals or later work. P07's owner boundary is in 3.4.
 RTD events use a separate provider/subscription sequence and immutable input snapshot. They mark
 provider consumers required for later demand, never supply a formula result or resume an async
 activation. Manual mode waits for a calculation command. Duplicates/stale/conflicting sequences,
