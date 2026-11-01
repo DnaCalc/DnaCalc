@@ -443,11 +443,24 @@ def framework_ownership(trace):
             "by_module": dict(by_module)}
 
 
-def verify_x2(excel, excel_control, host, host_control, cases_path, publication_path=None, x3=False):
+def verify_x2(excel, excel_control, host, host_control, cases_path, publication_path=None, x3=False, x4=False):
     directories = (excel, excel_control, host, host_control)
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
-    expected = {c["formula"]: c["value"] for c in cases}
+    expected = [(c["formula"], c["value"]) for c in cases]
+    def observed(value, env):
+        value = normalize_x2(value)
+        # Excel chooses blank-workbook names per process/session. Retain the raw
+        # returned name and normalize only the independently recorded identity.
+        if x4 and isinstance(value, str) and value.startswith(env["workbook_name"] + "|"):
+            return "<workbook>" + value[len(env["workbook_name"]):]
+        if x4 and isinstance(value, str) and value == env["workbook_name"]:
+            return "<workbook>"
+        if isinstance(value, dict):
+            return {key: observed(child, env) for key, child in value.items()}
+        if isinstance(value, list):
+            return [observed(child, env) for child in value]
+        return value
     root = Path(__file__).resolve().parents[2]
     if publication_path is None:
         candidate = excel.parent.parent / "source-publication.json"
@@ -477,8 +490,9 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
         observations = controller(directory)
         require(observations["AutomationSecurity unchanged"] is True, "Security setting changed")
-        outcomes.append({k: normalize_x2(v) for k, v in observations.items() if k.startswith("=")})
-    for directory in directories[2:]:
+        rows = [json.loads(line) for line in (directory / "controller.jsonl").read_text(encoding="utf-8-sig").splitlines() if line.strip()]
+        outcomes.append([(r["operation"], observed(r["value"], env)) for r in rows if r["operation"].startswith("=")])
+    for directory, env in zip(directories[2:], environments[2:]):
         if x3:
             status = json.loads((directory / "host.exit.json").read_text(encoding="utf-8-sig"))
             require(status == {"exit_code": 0, "finished": True}, "Host did not finish and exit successfully")
@@ -488,15 +502,15 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         require(output["closed_registration"] == "#NAME?" and output["closed_name"], "Old registration was not checked after close")
         require(not output["reload_results"] or output["reload_results"] == output["results"], "Reload changed formula outcomes")
         host_outputs.append(output)
-        outcomes.append({r["formula"]: normalize_x2(r["value"]) for r in output["results"]})
-    require(all(set(actual) == set(expected) for actual in outcomes), "Missing formula cases")
+        outcomes.append([(r["formula"], observed(r["value"], env)) for r in output["results"]])
+    require(all([f for f, _ in actual] == [f for f, _ in expected] for actual in outcomes), "Missing or reordered formula cases")
     if environments[0]["fixture_name"] == "X0":
         command_values = {name: controller(excel)["Application.Run " + name] for name in ("X0.Queue", "X0.Context")}
         for output in host_outputs:
             for command in output["commands"]:
                 require(command["value"] == command_values[command["command"]], "Native command return differs: " + command["command"])
-    for formula, value in expected.items():
-        actual = [o[formula] for o in outcomes]
+    for index, (formula, value) in enumerate(expected):
+        actual = [o[index][1] for o in outcomes]
         require(all(v == actual[0] for v in actual), "Formula differs between captures: " + formula)
         if value is not None:
             require(actual[0] == value, "Formula differs from expected value: " + formula)
@@ -519,6 +533,8 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
     opaque_storage = []
     for name in measured_names:
         records = [(all_invocations(trace, name) if x3 else x2_invocation(trace, name)) for trace in traces]
+        if x4:
+            records = [observed(rows, env) for rows, env in zip(records, (environments[0], environments[2]))]
         raw_equal = records[0] == records[1]
         if name == "X0.Async":
             # Excel-DNA's ObjectParam reads hData only for XlTypeBigData
@@ -608,7 +624,69 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                       "raw_callback_differences": differences, "ownership_excel_and_host": ownership,
                       "rewritten_export_registrations_each_host": [len(x) for x in dynamic],
                       "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted."}
-    return {"status": "verified X3 measured cases" if x3 else "verified X2 measured cases", "fixture": fixture_name,
+    x4_details = {}
+    if x4:
+        def com_calls(trace, start, end, thread, env):
+            records = []
+            for entry in trace[1].values():
+                if entry["thread"] != thread or not (start < entry["seq"] < trace[2][entry["call"]]["seq"] < end):
+                    continue
+                if entry["entry"].startswith("COM!early."):
+                    returned = trace[2][entry["call"]]
+                    record = {"entry": entry["entry"], "hresult": returned["hresult"]}
+                    if "value" in returned: record["value"] = observed(returned["value"], env)
+                    if "object" in returned: record["returned_object"] = bool(int(returned["object"], 16))
+                    if "index" in entry: record["index"] = observed(entry["index"], env)
+                    if "arguments" in entry: record["arguments"] = observed(entry["arguments"], env)
+                    if "result" in returned: record["result"] = observed(returned["result"], env)
+                    records.append(record)
+            return records
+        nested = []
+        changes = []
+        delivered = []
+        for trace, env in zip(traces, (environments[0], environments[2])):
+            by_udf = {}
+            for entry in trace[1].values():
+                if ":" in entry["entry"]:
+                    name = entry["entry"].rsplit(":", 1)[1]
+                    by_udf.setdefault(name, []).append(com_calls(trace, entry["seq"], trace[2][entry["call"]]["seq"], entry["thread"], env))
+            nested.append(by_udf)
+            sheet_changes = []
+            event_counts = Counter()
+            for entry in trace[1].values():
+                if entry["entry"] != "COM!Invoke" or not entry.get("object_label", "").startswith("AppEvents sink"):
+                    continue
+                event_counts[entry["dispid"]] += 1
+                if entry["dispid"] != 0x61c: continue
+                require(entry["flags"] == 3 and entry["named_dispids"] == [0, 1], "SheetChange flags/named arguments differ")
+                require([v["vt"] for v in entry["rgvarg"]] == [9, 9], "SheetChange needs worksheet then Range dispatch objects")
+                require(trace[2][entry["call"]]["hresult"] == 0, "SheetChange sink failed")
+                end = trace[2][entry["call"]]["seq"]
+                addresses = [trace[2][call["call"]]["result"] for call in trace[1].values()
+                             if call["entry"] == "COM!Invoke" and call.get("dispid") == 0xec
+                             and call["thread"] == entry["thread"]
+                             and entry["seq"] < call["seq"] < trace[2][call["call"]]["seq"] < end]
+                sheet_changes.append({"flags": entry["flags"], "named_dispids": entry["named_dispids"],
+                                      "argument_types": [v["vt"] for v in entry["rgvarg"]], "addresses": addresses,
+                                      "early_bound_calls": com_calls(trace, entry["seq"], end, entry["thread"], env)})
+            changes.append(sheet_changes)
+            delivered.append(dict(sorted(event_counts.items())))
+            unadvise = [entry for entry in trace[1].values() if entry["entry"] == "COM!Unadvise"]
+            require(unadvise and all(trace[2][e["call"]]["hresult"] == 0 for e in unadvise), "Event disconnection was not successful")
+        require(nested[0] == nested[1], "Early-bound calls inside a measured UDF differ")
+        require(changes[0] == changes[1] and changes[0], "Ordered SheetChange calls/addresses differ")
+        a1 = sum(any(a == {"vt": 8, "value": "A1"} for a in change["addresses"]) for change in changes[0])
+        require(a1 == 3, "A1 changes were missing or delivered while EnableEvents was false")
+        require(nested[0].get("xloRunInXLLContext"), "The xlOil context command was not observed")
+        require(sum(call["entry"] == "COM!early.application.Run" for change in changes[0] for call in change["early_bound_calls"]) == 1,
+                "The single event-driven early-bound Application.Run was not measured")
+        require(any(nested[0].get("X4.PyCom", [])), "No early-bound application/workbook/worksheet reads")
+        x4_details = {"nested_early_bound_com_calls": nested[0], "ordered_sheet_changes": changes[0],
+                      "sheet_change_count_each_host": len(changes[0]), "a1_changes_each_host": a1,
+                      "all_delivered_event_counts_excel_and_host": delivered,
+                      "event_scope": "Ordered SheetChange calls and addresses agree; other event counts are retained separately. Retained Python COM objects/futures are explicitly released before teardown.",
+                      "raw_workbook_names": [env["workbook_name"] for env in environments]}
+    return {"status": "verified X4 measured cases" if x4 else "verified X3 measured cases" if x3 else "verified X2 measured cases", "fixture": fixture_name,
             "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
             "source_revisions": sorted({e["repository_commit"] for e in environments}),
             "source_publication_revisions": [p["revision"] for p in publications],
@@ -617,12 +695,14 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             "x0_callback_code_pairs_observed": len(old_codes),
             "callback_counts_excel_and_host": [[{"function": fn, "return_code": rc, "count": count} for (fn, rc), count in sorted(c.items())] for c in callback_counts],
             "reload_checked": bool(host_outputs[0]["reload_results"]),
-            "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
-            "scope": ("Single-invocation worker dispatch; no simultaneous workbook calculation, RTD, cancellation, delivered host AppEvents or full COM model claim."
+            "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories; X4 also replaces only the independently recorded blank-workbook name. Early COM object results check nonnull presence, not a complete identity graph. Other value/type/ownership bits and nested callback order remain exact.",
+            "scope": ("Original xlOil Python; measured single-workbook properties, local single-cell event ranges, SheetChange delivery and context command. General COM, RTD, arbitrary Python teardown and safe reload remain open."
+                      if x4 else "Single-invocation worker dispatch; no simultaneous workbook calculation, RTD, cancellation, delivered host AppEvents or full COM model claim."
                       if fixture_name == "X0" else "All observed native UDF invocations, including repetitions; no full COM, event delivery, RTD or reload claim." if x3 else "Hello only; no COM, worker, async or reload claim."),
             "known_difference": ("xlAsyncReturn raw result operand: Excel type zero, host documented Boolean. Raw opaque handle cbData is retained separately; Excel-DNA reads only hData on entry. Codes and published values agree."
                                  if fixture_name == "X0" else None),
             **x3_details,
+            **x4_details,
             "timing": "Debugger timing is not uninstrumented performance evidence."}
 
 
@@ -680,6 +760,7 @@ if __name__ == "__main__":
     parser.add_argument("--host-control", type=Path)
     parser.add_argument("--x2-cases", type=Path)
     parser.add_argument("--x3-cases", type=Path)
+    parser.add_argument("--x4-cases", type=Path)
     parser.add_argument("--source-publication", type=Path)
     parser.add_argument("--identity", action="store_true")
     parser.add_argument("--pool", action="store_true")
@@ -688,8 +769,8 @@ if __name__ == "__main__":
         result = verify_x2_controls(args.traced, args.control, args.identity)
     elif args.host:
         parser.error("--host requires --host-control") if args.host_control is None else None
-        result = (verify_x2(args.traced, args.control, args.host, args.host_control, args.x3_cases or args.x2_cases, args.source_publication, x3=bool(args.x3_cases))
-                  if args.x2_cases or args.x3_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
+        result = (verify_x2(args.traced, args.control, args.host, args.host_control, args.x4_cases or args.x3_cases or args.x2_cases, args.source_publication, x3=bool(args.x3_cases or args.x4_cases), x4=bool(args.x4_cases))
+                  if args.x2_cases or args.x3_cases or args.x4_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
     else:
         result = verify(args.traced, args.control)
     if rewritten_source_bindings:

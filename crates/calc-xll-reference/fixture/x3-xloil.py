@@ -15,3 +15,64 @@ def hello(name: str) -> str:
 @xloil.func(name="X3.PyArray", threaded=True)
 def array(n: int):
     return [[i, i * i] for i in range(n)]
+
+
+# X4 deliberately keeps Python callbacks in the original plugin. These are
+# observations of COM objects and delivered events, not stored worksheet answers.
+_changes = []
+_last_range = None
+_queued = None
+
+
+def _sheet_change(name, target):
+    global _last_range, _queued
+    address = target.address(local=True)
+    if address == "A1":
+        _changes.append(name + "|" + address)
+        _last_range = target
+        if _queued is None:
+            # AppEvents enter outside XLL context. The unmodified plugin uses
+            # its registered xloRunInXLLContext command through Application.Run.
+            _queued = xloil.call_async("SUM", 20, 22)
+
+
+xloil.event.SheetChange += _sheet_change
+
+
+@xloil.func(name="X4.PyCom")
+def com_properties() -> str:
+    app = xloil.app()
+    return "|".join((app.active_workbook.name, app.active_worksheet.name,
+                     str(len(app.workbooks)), str(app.enable_events)))
+
+
+@xloil.func(name="X4.PyEvents")
+def events() -> str:
+    return ";".join(_changes)
+
+
+@xloil.func(name="X4.PyBounds")
+def bounds() -> str:
+    if _last_range is None:
+        return "no delivered range"
+    return "|".join((str(_last_range.row), str(_last_range.column),
+                     str(_last_range.shape), _last_range.parent.name,
+                     _last_range.address(style="$a$1", local=True)))
+
+
+@xloil.func(name="X4.PyCall")
+def call_in_context() -> float:
+    return xloil.call("SUM", 19, 23)
+
+
+@xloil.func(name="X4.PyQueued")
+def queued_result() -> float:
+    return _queued.result()
+
+
+@xloil.func(name="X4.PyRelease")
+def release_objects() -> int:
+    global _last_range, _queued
+    _last_range = None
+    _queued = None
+    return len(_changes)

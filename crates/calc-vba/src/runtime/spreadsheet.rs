@@ -164,11 +164,21 @@ fn fault(code: i32, message: impl Into<String>) -> HalError {
 
 pub(crate) const TYPED_RANGE_IID: calcvba_host_api::InterfaceId = *b"DnaCalcRange0001";
 pub(crate) fn typed_iid() -> oxvba_com::ComInterfaceIid {
+    dna_iid(TYPED_RANGE_IID)
+}
+
+// Nominal identity for the Variant-valued projection, distinct from the numeric slot ABI.
+// This is DNA's own descriptor identity, not Excel's COM interface identity.
+fn projected_range_iid() -> oxvba_com::ComInterfaceIid {
+    dna_iid(*b"DnaCalcRange0002")
+}
+
+fn dna_iid(bytes: [u8; 16]) -> oxvba_com::ComInterfaceIid {
     oxvba_com::ComInterfaceIid {
-        data1: u32::from_le_bytes(TYPED_RANGE_IID[..4].try_into().unwrap()),
-        data2: u16::from_le_bytes(TYPED_RANGE_IID[4..6].try_into().unwrap()),
-        data3: u16::from_le_bytes(TYPED_RANGE_IID[6..8].try_into().unwrap()),
-        data4: TYPED_RANGE_IID[8..].try_into().unwrap(),
+        data1: u32::from_le_bytes(bytes[..4].try_into().unwrap()),
+        data2: u16::from_le_bytes(bytes[4..6].try_into().unwrap()),
+        data3: u16::from_le_bytes(bytes[6..8].try_into().unwrap()),
+        data4: bytes[8..].try_into().unwrap(),
     }
 }
 impl SpreadsheetHost {
@@ -731,10 +741,15 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
         request: &TypeLibResolveRequest,
         _: &TypeLibMetadataBlob,
     ) -> Option<oxvba_com::ComInterfaceIid> {
-        request
-            .reference_name
-            .eq_ignore_ascii_case("DnaCalcObjects")
-            .then(typed_iid)
+        if request.reference_name.eq_ignore_ascii_case("DnaCalcObjects") {
+            Some(typed_iid())
+        } else if request.reference_name.eq_ignore_ascii_case("Excel") {
+            // Without a nominal identity, declaration lowering continues to the next
+            // library and can attach the numeric-only Range to an Excel.Value2 call.
+            Some(projected_range_iid())
+        } else {
+            None
+        }
     }
     fn resolve(&self, request: &TypeLibResolveRequest) -> Option<TypeLibMetadataBlob> {
         use oxvba_com::{

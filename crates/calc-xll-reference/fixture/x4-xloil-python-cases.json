@@ -1,0 +1,14 @@
+[
+  {"formula":"=X3.PyAdd(3,4)","value":7},
+  {"formula":"=X4.PyCom()","value":"<workbook>|X0|1|True"},
+  {"formula":"=X4.PyEvents()","value":"X0|A1"},
+  {"edit":{"cell":"A1","value":9},"formula":"=X4.PyEvents()","value":"X0|A1;X0|A1"},
+  {"enable_events":false,"edit":{"cell":"A1","value":10},"formula":"=X4.PyEvents()","value":"X0|A1;X0|A1"},
+  {"formula":"=X4.PyCom()","value":"<workbook>|X0|1|False"},
+  {"enable_events":true,"edit":{"cell":"A1","value":11},"formula":"=X4.PyEvents()","value":"X0|A1;X0|A1;X0|A1"},
+  {"formula":"=X4.PyQueued()","value":42},
+  {"formula":"=X4.PyBounds()","value":"0|0|(1, 1)|X0|$A$1"},
+  {"formula":"=X4.PyCall()","value":42},
+  {"formula":"=SUM(X3.PyArray(4))","value":20},
+  {"formula":"=X4.PyRelease()","value":3}
+]

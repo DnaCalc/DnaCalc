@@ -188,6 +188,30 @@ fn stack_headroom_is_available_in_context() {
     assert_eq!(result["results"][0]["value"], 0.);
 }
 
+/// Native-only: Application.Run accepts a registered worksheet entry on the STA.
+#[test]
+fn application_run_can_enter_a_hidden_or_worksheet_registration() {
+    let fixture = Fixture::new();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .args([
+                "--formula",
+                "=MyAdd(1,2)",
+                "--command",
+                "MyFreeCount",
+                "--early-command",
+                "MyFreeCount",
+            ])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["commands"][0]["value"], 0.);
+    assert_eq!(result["commands"][1]["value"], 0.);
+    assert_eq!(result["commands"][1]["early_bound"], true);
+}
+
 /// Native-only: a failed second XLL must restore another load's use counts and hidden names.
 #[test]
 fn failed_second_load_restores_previous_names_and_use_counts() {

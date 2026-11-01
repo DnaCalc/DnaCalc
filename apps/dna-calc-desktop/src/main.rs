@@ -82,6 +82,7 @@ fn run() -> Result<(), String> {
         host.set_sheet(id, format!("[Book1]{name}"), true);
     }
     shell.attach_host(host.clone())?;
+    shell.projection()?.set_sheet(&sheet_name)?;
     for xll in &xlls {
         if let Err(why) = host.load(&xll) {
             return Err(format!(
@@ -106,14 +107,17 @@ fn run() -> Result<(), String> {
     session
         .set_formula_cell("B3")
         .map_err(|e| format!("{e:?}"))?;
-    session
+    let input_cell = session
         .set_input(
             "A1",
             dna_onecalc::InputValue::number(7.).map_err(|e| format!("{e:?}"))?,
         )
         .map_err(|e| format!("{e:?}"))?;
+    shell
+        .projection()?
+        .sheet_change(input_cell.row(), input_cell.column())?;
     session.set_user_functions(host.functions()?);
-    let tests: Vec<(String, serde_json::Value)> = if self_test || cases_file.is_some() {
+    let tests: Vec<serde_json::Value> = if self_test || cases_file.is_some() {
         let text = if let Some(path) = cases_file {
             std::fs::read_to_string(path).map_err(|e| e.to_string())?
         } else {
@@ -122,20 +126,41 @@ fn run() -> Result<(), String> {
         let cases: Vec<serde_json::Value> =
             serde_json::from_str(&text).map_err(|e| e.to_string())?;
         cases
-            .into_iter()
-            .map(|c| {
-                (
-                    c["formula"].as_str().unwrap().to_owned(),
-                    c["value"].clone(),
-                )
-            })
-            .collect()
     } else {
-        vec![(formula, serde_json::Value::Null)]
+        vec![serde_json::json!({"formula": formula, "value": null})]
     };
     let mut results = Vec::new();
-    for (formula, expected) in tests {
+    for case in tests {
+        let formula = case["formula"].as_str().ok_or("case needs formula")?;
+        let expected = match case["value"].as_str() {
+            Some(text) if text.starts_with("<workbook>|") => {
+                serde_json::json!(text.replacen("<workbook>", "Book1", 1))
+            }
+            _ => case["value"].clone(),
+        };
+        if let Some(enabled) = case["enable_events"].as_bool() {
+            shell.projection()?.enable_events(enabled)?;
+        }
+        if let Some(edit) = case.get("edit") {
+            let address = edit["cell"].as_str().ok_or("edit needs cell")?;
+            let value = edit["value"]
+                .as_f64()
+                .ok_or("desktop case edit needs a number")?;
+            let cell = session
+                .set_input(
+                    address,
+                    dna_onecalc::InputValue::number(value).map_err(|e| format!("{e:?}"))?,
+                )
+                .map_err(|e| format!("{e:?}"))?;
+            shell
+                .projection()?
+                .sheet_change(cell.row(), cell.column())?;
+        }
         session.set_formula(&formula);
+        let cell = session.formula_cell();
+        shell
+            .projection()?
+            .sheet_change(cell.row(), cell.column())?;
         let calculation = session.calculate();
         if !calculation.diagnostics.is_empty() {
             return Err(format!("{formula}: {:?}", calculation.diagnostics));
@@ -155,6 +180,7 @@ fn run() -> Result<(), String> {
             ));
         }
         results.push(serde_json::json!({"formula":formula,"value":value}));
+        shell.projection()?.after_calculate()?;
         shell.pump_for(std::time::Duration::from_millis(20));
     }
     let mut command_results = Vec::new();
@@ -189,6 +215,7 @@ fn run() -> Result<(), String> {
                 host.set_sheet(id, format!("[Book1]{name}"), true);
             }
             shell.attach_host(host.clone())?;
+            shell.projection()?.set_sheet(&sheet_name)?;
         }
         for xll in &xlls {
             host.load(xll)?;

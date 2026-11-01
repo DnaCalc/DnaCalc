@@ -527,3 +527,32 @@ loader now returns a typed refusal after teardown, across host instances in the
 same process. Safe reload remains dc-snz.21; Native AOT remains dc-snz.19.
 Delivered events, RTD, cancellation, workbook concurrency, UI/ribbon behavior,
 general COM, xlwDotNet, Excel4 and x86 have not been established by these cases.
+
+## 13. X4 worksheet interfaces and AppEvents (dc-snz.22)
+
+The Windows projection now exposes the measured `_Worksheet` IID and its complete
+158-slot layout, plus Excel's dispatch-only Range interface for single-cell event
+targets. Application.ActiveWorkbook/ActiveSheet, Workbook.ActiveSheet and worksheet
+Name use the measured slots. Range identity, parent, local address and bounds are available;
+workbook-qualified addresses return E_NOTIMPL until the shared name printer is connected;
+general Range value/formula editing remains unimplemented and returns a failing HRESULT.
+No type library, Excel COM identity or security setting is registered or changed.
+
+AppEvents subscriptions belong to the source across connection-point lookups. The
+desktop composition delivers SheetChange after committed OneCalc edits and
+AfterCalculate after calculation. Named arguments preserve Excel's measured
+declaration order. A native regression checks fan-out, EnableEvents suppression,
+reentrant Unadvise, cross-point cookies and disconnected retained Range objects.
+The original xlOil Python fixture additionally reads these properties and retains
+an event range across edits. Its event callback enters `xloRunInXLLContext` through
+Application.Run; hidden macro-equivalent registrations use the ordinary native
+invocation path on the STA. Async Application.Run remains a typed refusal.
+
+The reference runner now measures close/open in Excel as well as the host. Original
+xlOil 0.22.1 also crashes in Excel after UNREGISTER followed by RegisterXLL, with an
+access violation retained by the debugger. The source destroys its COM connector
+on close without recreating it on open. Safe runtime reinitialization remains
+dc-snz.21; the existing measured-runtime refusal is retained and is not a pass.
+Python COM references and completed futures in this fixture are explicitly released
+before normal teardown. The unreleased-future failure is kept outside the repository.
+These cases do not establish general COM, arbitrary Python teardown, RTD or safe reload.
