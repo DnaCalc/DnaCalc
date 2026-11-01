@@ -59,7 +59,7 @@ mod definitions;
 pub use conditional::ConditionalRuleSource;
 mod input;
 mod name_table;
-pub use name_table::{NameNode, NameTable};
+pub use name_table::{NameNode, NameOrigin, NameTable};
 mod layout;
 pub use axis_layout::{AxisFormat, AxisFormatEdit, AxisLayouts};
 mod op;
@@ -83,7 +83,8 @@ pub use layout::{
     SkinLayout, SkinLayoutEdit, Spot, ViewKind,
 };
 pub use op::{
-    Axis, AxisChange, AxisEdit, AxisEditError, FrozenPanes, OpBatch, SheetEdit, WorkbookOp,
+    Axis, AxisChange, AxisEdit, AxisEditError, FrozenPanes, NameRestoration, OpBatch, RetainedName,
+    SheetEdit, WorkbookOp,
 };
 pub use revision::AuthoredRevision;
 pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};

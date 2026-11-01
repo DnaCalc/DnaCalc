@@ -61,6 +61,8 @@ pub enum CellEdit {
         /// `None` removes the name; a name the workbook does not hold is defined.
         formula: Option<String>,
     },
+    /// The complete scoped records retained by name undo.
+    RestoreNames(Vec<calc_doc_model::NameRestoration>),
     /// Sets the workbook's iterative-calculation settings
     /// ([`calc_doc_model::WorkbookOp::SetIteration`], dc-y2o.2): Excel's "Enable iterative
     /// calculation", "Maximum Iterations" and "Maximum Change", which the workbook saves in its
@@ -95,6 +97,7 @@ impl CellEdit {
                 scope,
                 formula,
             },
+            CellEdit::RestoreNames(names) => WorkbookOp::RestoreNames(names),
             CellEdit::SetIteration(settings) => WorkbookOp::SetIteration(settings),
         }
     }

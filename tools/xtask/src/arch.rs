@@ -24,6 +24,8 @@
 //!   build script) contains a denied phrase, in any case or joining (`TreeRef`, `tree_ref`,
 //!   `tree-ref`, `Tree ref` are one phrase). Plain comments, `tests/`, `benches/`, `examples/` and
 //!   `#[cfg(test)]` items are outside its scope by design.
+//!   Reviewed foreign API identifiers may be excepted at an exact source path; literals, doc
+//!   comments and longer identifiers still undergo the whole phrase scan.
 //!
 //! Neither source scan follows `include!`, `include_str!` or `include_bytes!`: a portable package
 //! that uses one, in a shipped target or its build script, fails both `os-imports` and
@@ -80,6 +82,12 @@ struct Rule {
     reason: String,
 }
 
+struct IdentifierAllowance {
+    path: String,
+    identifier: String,
+    reason: String,
+}
+
 pub struct Config {
     rules: Vec<Rule>,
     os_binding_crates: BTreeSet<String>,
@@ -88,6 +96,7 @@ pub struct Config {
     os_import_attributes: Vec<String>,
     /// The distinct word sequences of the denied phrases (`TreeRef` and `tree_ref` are one).
     tree_reference_phrases: Vec<Vec<String>>,
+    tree_reference_identifier_allowances: Vec<IdentifierAllowance>,
 }
 
 fn string_list(value: &Value, what: &str) -> Result<Vec<String>, String> {
@@ -132,6 +141,7 @@ impl Config {
                 "os_import_abis",
                 "os_import_attributes",
                 "tree_reference_phrases",
+                "tree_reference_identifier_allowances",
             ],
             CONFIG_PATH,
         )?;
@@ -187,6 +197,40 @@ impl Config {
                 tree_reference_phrases.push(words);
             }
         }
+        let mut tree_reference_identifier_allowances = Vec::new();
+        for allowance in value["tree_reference_identifier_allowances"]
+            .as_array()
+            .ok_or("tree_reference_identifier_allowances is not an array")?
+        {
+            only_keys(
+                allowance,
+                &["path", "identifier", "reason"],
+                "an identifier allowance",
+            )?;
+            let field = |name: &str| {
+                allowance[name]
+                    .as_str()
+                    .filter(|value| !value.trim().is_empty())
+                    .map(str::to_owned)
+                    .ok_or_else(|| format!("an identifier allowance has no non-empty {name}"))
+            };
+            let path = field("path")?;
+            if Path::new(&path).is_absolute()
+                || path.contains(['\\', '*', '?', ':'])
+                || path.split('/').any(|part| matches!(part, "" | "." | ".."))
+                || !path.ends_with(".rs")
+            {
+                return Err("an identifier allowance needs an exact relative Rust path".into());
+            }
+            let identifier = field("identifier")?;
+            syn::parse_str::<syn::Ident>(&identifier)
+                .map_err(|_| "an identifier allowance needs one complete Rust identifier")?;
+            tree_reference_identifier_allowances.push(IdentifierAllowance {
+                path,
+                identifier,
+                reason: field("reason")?,
+            });
+        }
         Ok(Config {
             rules,
             os_binding_crates: string_list(&value["os_binding_crates"], "os_binding_crates")?
@@ -199,6 +243,7 @@ impl Config {
                 "os_import_attributes",
             )?,
             tree_reference_phrases,
+            tree_reference_identifier_allowances,
         })
     }
 
@@ -798,7 +843,19 @@ pub fn tree_reference_findings(file: &SourceFile, config: &Config) -> Vec<String
     rust_source::each_level(file.syntax.to_token_stream(), &mut |tokens| {
         for token in tokens {
             let (kind, value) = match token {
-                TokenTree::Ident(ident) => ("identifier", ident.to_string()),
+                TokenTree::Ident(ident) => {
+                    let value = ident.to_string();
+                    if config
+                        .tree_reference_identifier_allowances
+                        .iter()
+                        .any(|allowance| {
+                            allowance.path == file.rel && allowance.identifier == value
+                        })
+                    {
+                        continue;
+                    }
+                    ("identifier", value)
+                }
                 TokenTree::Literal(literal) => match rust_source::string_literal_value(literal) {
                     Some(value) => ("string or doc comment", value),
                     None => continue,
@@ -824,7 +881,7 @@ pub fn tree_reference_findings(file: &SourceFile, config: &Config) -> Vec<String
 }
 
 /// What `tree-reference-tokens` covers, recorded in every receipt.
-const TREE_REFERENCE_SCOPE: &str = "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check";
+const TREE_REFERENCE_SCOPE: &str = "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; reviewed identifiers are excepted only by full case-sensitive token and exact relative path, never in strings or docs; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check";
 
 fn tree_reference_tokens(
     ws: &Workspace,
@@ -865,8 +922,9 @@ fn tree_reference_tokens(
         .map(|words| words.join(" "))
         .collect();
     let summary = format!(
-        "{files} non-test source files and {build_files} build-script files of {packages} portable packages against {} denied phrases and the include macros",
-        phrases.len()
+        "{files} non-test source files and {build_files} build-script files of {packages} portable packages against {} denied phrases and the include macros; {} exact identifier allowances",
+        phrases.len(),
+        config.tree_reference_identifier_allowances.len()
     );
     CheckResult::new(
         "tree-reference-tokens",
@@ -875,6 +933,11 @@ fn tree_reference_tokens(
         json!({
             "scope": TREE_REFERENCE_SCOPE,
             "phrases": phrases,
+            "identifier_allowances": config.tree_reference_identifier_allowances.iter().map(|allowance| json!({
+                "path": allowance.path,
+                "identifier": allowance.identifier,
+                "reason": allowance.reason,
+            })).collect::<Vec<_>>(),
             "files_scanned": files,
             "build_script_files_scanned": build_files,
         }),
@@ -937,6 +1000,40 @@ mod tests {
             "build.rs:6: include_bytes! reads a file that tree-reference-tokens does not follow, so that file is unchecked",
         ];
         assert_eq!(found, expected, "{found:#?}");
+    }
+
+    #[test]
+    fn foreign_identifier_allowance_is_exact_and_never_exempts_other_tokens() {
+        let config = real_config();
+        let mut file = SourceFile {
+            rel: "crates/calc-vba/src/runtime/spreadsheet.rs".into(),
+            syntax: syn::parse_file(
+                "use oxvba_hal::model::HalProfileId;\nfn f(_: HalProfileId) {}\n",
+            )
+            .unwrap(),
+        };
+        assert!(tree_reference_findings(&file, &config).is_empty());
+        file.rel = "crates/calc-vba/src/other.rs".into();
+        assert_eq!(tree_reference_findings(&file, &config).len(), 2);
+        file.rel = "crates/calc-vba/src/runtime/spreadsheet.rs".into();
+        file.syntax = syn::parse_file(concat!(
+            "struct ProfileId;\nstruct profile_id;\nstruct ReferenceProfile;\n",
+            "struct OtherHalProfileId;\nstruct HalProfileIds;\n",
+            "const TEXT: &str = \"HalProfileId\";\n",
+            "/// HalProfileId\nstruct Documented;\n",
+            "const INCLUDED: &str = include_str!(\"other.txt\");\n",
+        ))
+        .unwrap();
+        let found = tree_reference_findings(&file, &config);
+        assert_eq!(found.len(), 8, "{found:#?}");
+        assert_eq!(
+            found
+                .iter()
+                .filter(|finding| finding.contains("string or doc comment"))
+                .count(),
+            2
+        );
+        assert!(found.iter().any(|finding| finding.contains("include_str!")));
     }
 
     /// Check (b): every denied std module path, use-group member, glob, rename, ABI, attribute and

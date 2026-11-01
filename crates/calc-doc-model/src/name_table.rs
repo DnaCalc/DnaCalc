@@ -13,21 +13,46 @@ const BUCKETS: usize = 1024;
 type NamePage = Arc<Vec<Option<NameNode>>>;
 type NameBucket = Arc<HashMap<Arc<NameKey>, NameId>>;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Allocation {
+    lineage: u64,
     next_slot: AtomicU64,
     next_version: AtomicU64,
+}
+
+/// A source record identity retained when Undo creates a new live name identity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct NameOrigin {
+    pub lineage: u64,
+    pub record: NameId,
+}
+impl Default for Allocation {
+    fn default() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        let lineage = NEXT
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+            .expect("name lineage exhausted");
+        Self {
+            lineage,
+            next_slot: AtomicU64::new(0),
+            next_version: AtomicU64::new(0),
+        }
+    }
 }
 
 /// An authored non-cell node: its definition and binding version, never a cached evaluation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameNode {
     id: NameId,
+    origin: NameOrigin,
     key: Arc<NameKey>,
     definition: Arc<DefinedName>,
     version: u64,
 }
 impl NameNode {
+    pub fn origin(&self) -> NameOrigin {
+        self.origin
+    }
     pub fn id(&self) -> NameId {
         self.id
     }
@@ -174,6 +199,10 @@ impl NameTable {
         let version = self.advance();
         let node = NameNode {
             id,
+            origin: NameOrigin {
+                lineage: self.allocation.lineage,
+                record: id,
+            },
             key: key.clone(),
             definition: Arc::new(definition),
             version,
@@ -274,6 +303,186 @@ impl NameTable {
             }
             (None, None) => false,
         }
+    }
+    fn records_for_key(&self, key: &NameKey) -> Vec<&NameNode> {
+        if self.duplicates.contains(key) {
+            self.nodes()
+                .filter(|node| node.key.as_ref() == key)
+                .collect()
+        } else {
+            self.lookup_key(key).into_iter().collect()
+        }
+    }
+    /// Retain only the edited scoped records. Ordinary formula edits use indexed lookup;
+    /// deletion history also retains live order in one scan of the existing table.
+    pub fn snapshot_keys(&self, keys: &[NameKey], positions: bool) -> Vec<crate::NameRestoration> {
+        let selected: HashSet<_> = keys.iter().collect();
+        let order: HashMap<_, _> = if positions {
+            self.nodes()
+                .enumerate()
+                .filter(|(_, node)| selected.contains(node.key.as_ref()))
+                .map(|(position, node)| (node.id, position))
+                .collect()
+        } else {
+            HashMap::new()
+        };
+        keys.iter()
+            .map(|key| crate::NameRestoration {
+                key: key.clone(),
+                records: self
+                    .records_for_key(key)
+                    .into_iter()
+                    .map(|node| crate::RetainedName {
+                        origin: node.origin,
+                        position: order.get(&node.id).copied(),
+                        definition: node.definition().clone(),
+                    })
+                    .collect(),
+            })
+            .collect()
+    }
+    pub fn restoration_changes(&self, snapshot: &crate::NameRestoration) -> bool {
+        let current = self.records_for_key(&snapshot.key);
+        current.len() != snapshot.records.len()
+            || current.iter().zip(&snapshot.records).any(|(node, record)| {
+                node.origin != record.origin || node.definition() != &record.definition
+            })
+    }
+    /// Restore scoped groups by source origin, retaining live identities where possible.
+    /// Recreated rows get fresh live IDs and keep their source record provenance.
+    pub(crate) fn restore_records(&mut self, snapshots: &[crate::NameRestoration]) -> bool {
+        let keys: HashSet<_> = snapshots
+            .iter()
+            .map(|snapshot| snapshot.key.clone())
+            .collect();
+        let plans: Vec<_> = snapshots
+            .iter()
+            .map(|snapshot| {
+                let current = self.records_for_key(&snapshot.key);
+                let ids: Vec<_> = current.iter().map(|node| node.id).collect();
+                let by_origin: HashMap<_, _> =
+                    current.iter().map(|node| (node.origin, node.id)).collect();
+                let targets: Vec<_> = snapshot
+                    .records
+                    .iter()
+                    .map(|record| by_origin.get(&record.origin).copied())
+                    .collect();
+                (snapshot, ids, targets)
+            })
+            .collect();
+        let positioned = plans.iter().any(|(snapshot, ids, targets)| {
+            snapshot
+                .records
+                .iter()
+                .any(|record| record.position.is_some())
+                || targets
+                    .iter()
+                    .enumerate()
+                    .any(|(index, target)| index < ids.len() && *target != Some(ids[index]))
+        });
+        let before: Vec<_> = if positioned {
+            self.nodes().map(NameNode::id).collect()
+        } else {
+            Vec::new()
+        };
+        let positions: HashMap<_, _> = before
+            .iter()
+            .enumerate()
+            .map(|(position, id)| (*id, position))
+            .collect();
+        let mut retained = Vec::new();
+        let mut primaries = Vec::new();
+        let mut changed = false;
+        for (snapshot, ids, targets) in plans {
+            let mut used = HashSet::new();
+            let mut primary = None;
+            for (index, (record, target)) in snapshot.records.iter().zip(targets).enumerate() {
+                let id = if let Some(id) = target {
+                    changed |= self.replace_definition(id, record.definition.clone());
+                    id
+                } else {
+                    changed = true;
+                    let id = self.insert_record(record.definition.clone());
+                    self.set_origin(id, record.origin);
+                    id
+                };
+                used.insert(id);
+                primary.get_or_insert(id);
+                if positioned {
+                    retained.push((
+                        record
+                            .position
+                            .or_else(|| ids.get(index).and_then(|id| positions.get(id).copied()))
+                            .unwrap_or(usize::MAX),
+                        id,
+                    ));
+                }
+            }
+            primaries.push((snapshot.key.clone(), primary));
+            for id in ids {
+                if !used.contains(&id) {
+                    changed |= self.remove_id(id);
+                }
+            }
+        }
+        if positioned {
+            let others: Vec<_> = self
+                .nodes()
+                .filter(|node| !keys.contains(node.key.as_ref()))
+                .map(NameNode::id)
+                .collect();
+            let mut others = others.into_iter();
+            retained.sort_by_key(|(position, _)| *position);
+            let mut order = Vec::with_capacity(self.len);
+            for (position, id) in retained {
+                while order.len() < position {
+                    let Some(other) = others.next() else { break };
+                    order.push(other);
+                }
+                order.push(id);
+            }
+            order.extend(others);
+            if order != before {
+                self.advance();
+                changed = true;
+                self.order_len = order.len();
+                self.order = Arc::new(
+                    order
+                        .chunks(PAGE)
+                        .map(|page| Arc::new(page.to_vec()))
+                        .collect(),
+                );
+            }
+        }
+        for (key, first) in primaries {
+            if self.lookup_key(&key).map(NameNode::id) == first {
+                continue;
+            }
+            if let Some(id) = first {
+                self.index_mut(&key).insert(Arc::new(key.clone()), id);
+            } else {
+                self.index_mut(&key).remove(&key);
+            }
+        }
+        changed
+    }
+    fn set_origin(&mut self, id: NameId, origin: crate::NameOrigin) {
+        let slot = id.slot() as usize;
+        Arc::make_mut(&mut Arc::make_mut(&mut self.pages)[slot / PAGE])[slot % PAGE]
+            .as_mut()
+            .expect("live restored name")
+            .origin = origin;
+    }
+    pub(crate) fn restored_from(&self, earlier: &Self) -> Self {
+        let keys: std::collections::BTreeSet<_> = self
+            .nodes()
+            .chain(earlier.nodes())
+            .map(|node| node.key().clone())
+            .collect();
+        let snapshots = earlier.snapshot_keys(&keys.into_iter().collect::<Vec<_>>(), true);
+        let mut restored = self.clone();
+        restored.restore_records(&snapshots);
+        restored
     }
     pub(crate) fn retain(&mut self, keep: impl Fn(&DefinedName) -> bool) {
         let removed: Vec<_> = self

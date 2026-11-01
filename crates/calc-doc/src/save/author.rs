@@ -743,15 +743,38 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     // Each defined name whose formula the edits rewrote (rows or columns inserted or deleted,
     // cells moved by a cut, dc-gf0), and the other parts the edits' passes moved.
     if names_changed {
-        // No edit removes a name the file holds (an undo removes only a name an edit defined), so
-        // each name of the model is the file's, changed or not, or one an edit defined.
-        for now in model.definitions().names() {
-            let loaded = base.definitions().names().iter().find(|loaded| {
-                loaded.scope == now.scope && loaded.name.eq_ignore_ascii_case(&now.name)
-            });
-            if loaded.is_some_and(|loaded| loaded.formula == now.formula) {
-                continue;
-            }
+        let base_names: Vec<_> = base.definitions().name_table().nodes().collect();
+        let mut by_key =
+            std::collections::HashMap::<calc_doc_model::value::NameKey, Vec<usize>>::new();
+        let mut by_id = std::collections::HashMap::new();
+        let mut targets = Vec::new();
+        for (index, node) in base_names.iter().enumerate() {
+            let group = by_key.entry(node.key().clone()).or_default();
+            let occurrence = group.len();
+            group.push(index);
+            by_id.insert(node.origin(), index);
+            let sheet = match node.definition().scope {
+                NameScope::Workbook => Some(None),
+                NameScope::Sheet(id) => model
+                    .sheets()
+                    .iter()
+                    .position(|sheet| sheet.id() == id)
+                    .map(|index| Some(index as u32)),
+            };
+            targets.push(sheet.map(|sheet| parts::NameTarget {
+                name: node.definition().name.clone(),
+                sheet,
+                occurrence,
+            }));
+        }
+        let mut used = vec![false; base_names.len()];
+        let mut order = Vec::new();
+        for node in model.definitions().name_table().nodes() {
+            let now = node.definition();
+            let loaded = by_id
+                .get(&node.origin())
+                .copied()
+                .filter(|index| !used[*index]);
             let sheet = match now.scope {
                 NameScope::Workbook => None,
                 NameScope::Sheet(id) => {
@@ -761,16 +784,50 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                     }
                 }
             };
-            let change = (
-                now.name.clone(),
-                sheet,
-                now.formula.encode_utf16().collect(),
-            );
-            match loaded {
-                Some(_) => names.replaced.push(change),
-                None => names.defined.push(change),
+            if let Some(index) = loaded {
+                used[index] = true;
+                let before = base_names[index].definition();
+                let Some(target) = targets[index].clone() else {
+                    continue;
+                };
+                order.push(parts::NamePlacement::Source(target.clone()));
+                if before == now {
+                    continue;
+                }
+                let attributes_changed = before.name != now.name
+                    || before.scope != now.scope
+                    || before.hidden != now.hidden
+                    || before.comment != now.comment
+                    || before.function != now.function
+                    || before.vb_procedure != now.vb_procedure
+                    || before.xlm != now.xlm;
+                names.replaced.push(parts::NameWrite {
+                    target,
+                    sheet,
+                    definition: now.clone(),
+                    attributes_changed,
+                });
+            } else {
+                order.push(parts::NamePlacement::Defined(names.defined.len()));
+                names.defined.push(parts::NameWrite {
+                    sheet,
+                    target: parts::NameTarget {
+                        name: now.name.clone(),
+                        sheet,
+                        occurrence: 0,
+                    },
+                    definition: now.clone(),
+                    attributes_changed: true,
+                });
             }
         }
+        names.order = Some(order);
+        names.record_removed.extend(
+            targets
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, target)| (!used[index]).then_some(target).flatten()),
+        );
     }
     if let Some(moved) = moved.as_mut() {
         for (part, content) in std::mem::take(&mut moved.parts) {

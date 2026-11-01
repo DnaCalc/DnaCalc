@@ -12,7 +12,7 @@
 //! commits forward, so an entry here carries the inverse edits instead.
 
 use crate::command::CellEdit;
-use calc_doc_model::value::{CellKey, GridArea, fold_workbook_name};
+use calc_doc_model::value::{CellKey, GridArea};
 use calc_doc_model::{AxisEdit, CellInput, ModelRoot};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -114,6 +114,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::FrozenPanes { .. }
             | CellEdit::SetFormat { .. }
             | CellEdit::SetName { .. }
+            | CellEdit::RestoreNames(_)
             | CellEdit::SetIteration(_) => continue,
         };
         if !areas.contains(&area) {
@@ -261,22 +262,31 @@ pub(crate) fn inverse(
             });
         }
     }
-    let mut named = std::collections::HashSet::new();
+    let mut keys = std::collections::BTreeSet::new();
+    let mut positions = false;
     for edit in edits {
-        if let CellEdit::SetName { name, scope, .. } = edit
-            && named.insert((fold_workbook_name(name), *scope))
-        {
-            // A name the edit defined goes again.
-            let held = definitions
-                .name_table()
-                .lookup(*scope, name)
-                .map(|n| n.definition());
-            inverse.push(CellEdit::SetName {
-                name: held.map_or_else(|| name.clone(), |held| held.name.clone()),
-                scope: *scope,
-                formula: held.map(|held| held.formula.clone()),
-            });
+        match edit {
+            CellEdit::SetName {
+                name,
+                scope,
+                formula,
+            } => {
+                keys.insert(calc_doc_model::value::NameKey::new(*scope, name));
+                positions |= formula.is_none();
+            }
+            CellEdit::RestoreNames(names) => {
+                keys.extend(names.iter().map(|name| name.key.clone()));
+                positions = true;
+            }
+            _ => {}
         }
+    }
+    if !keys.is_empty() {
+        inverse.push(CellEdit::RestoreNames(
+            definitions
+                .name_table()
+                .snapshot_keys(&keys.into_iter().collect::<Vec<_>>(), positions),
+        ));
     }
     if edits
         .iter()

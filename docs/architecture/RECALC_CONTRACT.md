@@ -437,6 +437,15 @@ Deletion and restoration never revive a removed name identity or an earlier bind
 The existing ordered `names()` view remains available for file writers and materializes on request;
 ordinary edits, binding and product authoring use the indexed table and a sparse pending-name preview.
 
+Name history follow-up (dc-hsa5.6, 2026-11-01): Undo retains complete scoped record groups,
+including imported duplicate fallbacks and their order, through the existing authored batch route.
+Recreated rows receive fresh live identifiers and retain qualified source-record origins. This lets
+an earlier edit Undo target the recreated record and lets the existing XML writer retain raw attributes
+without confusing equal duplicate formulas. Ordinary update inverses use indexed lookup; deletion
+order capture and restoration scan the name order. Scoped consumers rebind without rebuilding
+unrelated formulas. NameView commands, P12 cross-scope Excel measurement, memo eligibility and
+plan eviction remain open.
+
 A definition node has no synthetic cell or shared cached value. Its existing evaluator block
 returns a reference or value per caller; unused names do not evaluate, and repeated volatile uses
 remain separate. Local definitions select their sheet for unqualified references and nested names;

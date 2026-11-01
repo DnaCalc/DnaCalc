@@ -14,6 +14,20 @@ use calc_value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId};
 use std::fmt;
 use std::num::NonZeroU32;
 
+/// One complete imported record retained by name history, with optional live order.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RetainedName {
+    pub origin: crate::NameOrigin,
+    pub position: Option<usize>,
+    pub definition: crate::DefinedName,
+}
+/// All original records for one scoped key, including imported duplicate fallbacks.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NameRestoration {
+    pub key: calc_value::NameKey,
+    pub records: Vec<RetainedName>,
+}
+
 /// One authored change to a workbook.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum WorkbookOp {
@@ -52,6 +66,8 @@ pub enum WorkbookOp {
         scope: crate::definitions::NameScope,
         formula: Option<String>,
     },
+    /// Restore retained scoped name groups through the ordinary authored edit route.
+    RestoreNames(Vec<NameRestoration>),
     /// Set the workbook's iterative-calculation settings (dc-y2o.2): whether circular references
     /// are calculated iteratively, the most iterations and the maximum change, as the workbook
     /// part's `calcPr` holds them. It changes no cell.

@@ -30,20 +30,126 @@ pub(super) struct NameChanges {
     pub(super) removed: Vec<String>,
     /// Each name added, hidden and workbook-scoped, with its formula text as UTF-16 code units.
     pub(super) added: Vec<(String, Vec<u16>)>,
-    /// Each name whose formula changed (rows or columns were inserted or deleted): its name, its
-    /// `localSheetId` (`None` for a workbook-scoped name) and its new formula text.
-    pub(super) replaced: Vec<(String, Option<u32>, Vec<u16>)>,
-    /// Each visible name an edit defined (dc-gf0: a formula moved to another sheet takes the
-    /// sheet-scoped names it uses), as `replaced` gives a name.
-    pub(super) defined: Vec<(String, Option<u32>, Vec<u16>)>,
+    /// Modelled source records removed, addressed by scoped occurrence.
+    pub(super) record_removed: Vec<NameTarget>,
+    pub(super) replaced: Vec<NameWrite>,
+    pub(super) defined: Vec<NameWrite>,
+    pub(super) order: Option<Vec<NamePlacement>>,
+}
+
+pub(super) enum NamePlacement {
+    Source(NameTarget),
+    Defined(usize),
+}
+#[derive(Clone)]
+pub(super) struct NameTarget {
+    pub(super) name: String,
+    pub(super) sheet: Option<u32>,
+    pub(super) occurrence: usize,
+}
+impl NameTarget {
+    fn key(&self) -> (String, Option<u32>, usize) {
+        (
+            calc_doc_model::value::fold_workbook_name(&self.name),
+            self.sheet,
+            self.occurrence,
+        )
+    }
+}
+pub(super) struct NameWrite {
+    pub(super) target: NameTarget,
+    pub(super) sheet: Option<u32>,
+    pub(super) definition: calc_doc_model::DefinedName,
+    pub(super) attributes_changed: bool,
+}
+
+fn name_attributes<'a>(
+    definition: &'a calc_doc_model::DefinedName,
+    sheet: Option<&'a str>,
+) -> [(&'static str, Option<&'a str>); 7] {
+    [
+        ("name", Some(definition.name.as_str())),
+        ("localSheetId", sheet),
+        ("hidden", definition.hidden.then_some("1")),
+        ("comment", definition.comment.as_deref()),
+        ("function", definition.function.then_some("1")),
+        ("vbProcedure", definition.vb_procedure.then_some("1")),
+        ("xlm", definition.xlm.then_some("1")),
+    ]
+}
+
+fn new_name(write: &NameWrite, prefix: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.push(b'<');
+    out.extend_from_slice(prefix);
+    out.extend_from_slice(b"definedName");
+    let sheet = write.sheet.map(|sheet| sheet.to_string());
+    for (name, value) in name_attributes(&write.definition, sheet.as_deref()) {
+        if let Some(value) = value {
+            out.push(b' ');
+            out.extend_from_slice(name.as_bytes());
+            out.push(b'=');
+            attribute_value(value, &mut out);
+        }
+    }
+    out.push(b'>');
+    xstring(
+        &write.definition.formula.encode_utf16().collect::<Vec<_>>(),
+        &mut out,
+    );
+    out.extend_from_slice(b"</");
+    out.extend_from_slice(prefix);
+    out.extend_from_slice(b"definedName>");
+    out
+}
+fn rewritten_name(
+    source: &[u8],
+    range: (usize, usize),
+    scope: &NameScope,
+    write: Option<&NameWrite>,
+) -> Vec<u8> {
+    let Some(write) = write else {
+        return source[range.0..range.1].to_vec();
+    };
+    let tag = RawTag::parse(&source[scope.tag.0..scope.tag.1]);
+    let sheet = write.sheet.map(|sheet| sheet.to_string());
+    let attributes = name_attributes(&write.definition, sheet.as_deref());
+    let changes = if write.attributes_changed {
+        attributes.as_slice()
+    } else {
+        &[]
+    };
+    let mut out = if tag.is_empty() || write.attributes_changed {
+        tag.rebuilt(changes, false)
+    } else {
+        source[scope.tag.0..scope.tag.1].to_vec()
+    };
+    xstring(
+        &write.definition.formula.encode_utf16().collect::<Vec<_>>(),
+        &mut out,
+    );
+    if tag.is_empty() {
+        out.extend_from_slice(b"</");
+        out.extend_from_slice(tag.prefix());
+        out.extend_from_slice(b"definedName>");
+    } else {
+        let end = source[..range.1]
+            .windows(2)
+            .rposition(|window| window == b"</")
+            .expect("a nonempty element has an end tag");
+        out.extend_from_slice(&source[end..range.1]);
+    }
+    out
 }
 
 impl NameChanges {
     pub(super) fn is_empty(&self) -> bool {
         self.removed.is_empty()
             && self.added.is_empty()
+            && self.record_removed.is_empty()
             && self.replaced.is_empty()
             && self.defined.is_empty()
+            && self.order.is_none()
     }
 }
 
@@ -169,25 +275,49 @@ pub(super) fn workbook(
     // Each change as (range replaced, its order among changes at one offset, new bytes).
     let mut changes: Vec<((usize, usize), u8, Vec<u8>)> = Vec::new();
     if !names.is_empty() {
-        // A name is dropped only when it is a hidden, workbook-scoped name the save removes; every
-        // other workbook-scoped name is kept, and an added name may not be one of those.
-        let dropped = |child: &Option<NameScope>| {
-            child.as_ref().is_some_and(|scope| {
-                scope.workbook_scoped
-                    && scope.hidden
-                    && names
-                        .removed
-                        .iter()
-                        .any(|removed| removed.eq_ignore_ascii_case(&scope.name))
-            })
-        };
         let held = defined
             .as_ref()
             .map(|d| d.children.as_slice())
             .unwrap_or_default();
+        let mut occurrences = std::collections::HashMap::new();
+        let targets: Vec<_> = held
+            .iter()
+            .map(|(_, scope)| {
+                scope.as_ref().map(|scope| {
+                    let key = (
+                        calc_doc_model::value::fold_workbook_name(&scope.name),
+                        scope.local_sheet,
+                    );
+                    let occurrence = occurrences.entry(key.clone()).or_insert(0usize);
+                    let target = (key.0, key.1, *occurrence);
+                    *occurrence += 1;
+                    target
+                })
+            })
+            .collect();
+        let removed: std::collections::HashSet<_> =
+            names.record_removed.iter().map(NameTarget::key).collect();
+        let replacements: std::collections::HashMap<_, _> = names
+            .replaced
+            .iter()
+            .map(|write| (write.target.key(), write))
+            .collect();
+        let dropped = |index: usize, child: &Option<NameScope>| {
+            targets[index]
+                .as_ref()
+                .is_some_and(|key| removed.contains(key))
+                || child.as_ref().is_some_and(|scope| {
+                    scope.workbook_scoped
+                        && scope.hidden
+                        && names
+                            .removed
+                            .iter()
+                            .any(|name| name.eq_ignore_ascii_case(&scope.name))
+                })
+        };
         for (added, _) in &names.added {
-            let taken = held.iter().any(|(_, child)| {
-                !dropped(child)
+            let taken = held.iter().enumerate().any(|(index, (_, child))| {
+                !dropped(index, child)
                     && child.as_ref().is_some_and(|scope| {
                         scope.workbook_scoped && scope.name.eq_ignore_ascii_case(added)
                     })
@@ -217,86 +347,132 @@ pub(super) fn workbook(
             added.extend_from_slice(&element_prefix);
             added.extend_from_slice(b"definedName>");
         }
-        for (name, sheet, text) in &names.defined {
-            added.push(b'<');
-            added.extend_from_slice(&element_prefix);
-            added.extend_from_slice(b"definedName name=");
-            attribute_value(name, &mut added);
-            if let Some(sheet) = sheet {
-                added.extend_from_slice(format!(" localSheetId=\"{sheet}\"").as_bytes());
-            }
-            added.push(b'>');
-            xstring(text, &mut added);
-            added.extend_from_slice(b"</");
-            added.extend_from_slice(&element_prefix);
-            added.extend_from_slice(b"definedName>");
+        for write in names.defined.iter().filter(|_| names.order.is_none()) {
+            added.extend_from_slice(&new_name(write, &element_prefix));
         }
         let close = |out: &mut Vec<u8>| {
             out.extend_from_slice(b"</");
             out.extend_from_slice(&element_prefix);
             out.extend_from_slice(b"definedNames>");
         };
-        match &defined {
-            Some(defined) => {
-                let remaining = defined.children.iter().filter(|(_, c)| !dropped(c)).count();
-                let whole = (defined.start_tag.0, defined.end_tag.1);
-                let tag = RawTag::parse(&source[defined.start_tag.0..defined.start_tag.1]);
-                if remaining == 0 && added.is_empty() {
-                    changes.push((whole, 0, Vec::new()));
-                } else if tag.is_empty() {
-                    let mut bytes = tag.rebuilt(&[], false);
-                    bytes.extend_from_slice(&added);
-                    close(&mut bytes);
-                    changes.push((whole, 0, bytes));
-                } else {
-                    for (range, child) in &defined.children {
-                        if dropped(child) {
-                            changes.push((*range, 0, Vec::new()));
+        if let Some(order) = &names.order {
+            let sources: std::collections::HashMap<_, _> = targets
+                .iter()
+                .enumerate()
+                .filter_map(|(index, key)| key.as_ref().map(|key| (key.clone(), index)))
+                .collect();
+            let mut used = std::collections::HashSet::new();
+            let mut body = Vec::new();
+            for placement in order {
+                match placement {
+                    NamePlacement::Source(target) => {
+                        let key = target.key();
+                        let Some(&index) = sources.get(&key) else {
+                            return Err(reader.invalid(
+                                "a retained name record is missing from the workbook part",
+                            ));
+                        };
+                        used.insert(index);
+                        if dropped(index, &held[index].1) {
                             continue;
                         }
-                        let Some(scope) = child else {
-                            continue;
-                        };
-                        let replaced = names.replaced.iter().find(|(name, sheet, _)| {
-                            name.eq_ignore_ascii_case(&scope.name)
-                                && *sheet == scope.local_sheet
-                                && scope.workbook_scoped == sheet.is_none()
-                        });
-                        let Some((_, _, text)) = replaced else {
-                            continue;
-                        };
-                        let mut content = Vec::new();
-                        xstring(text, &mut content);
-                        let child_tag = RawTag::parse(&source[scope.tag.0..scope.tag.1]);
-                        if child_tag.is_empty() {
-                            let mut bytes = child_tag.rebuilt(&[], false);
-                            bytes.extend_from_slice(&content);
-                            bytes.extend_from_slice(b"</");
-                            bytes.extend_from_slice(child_tag.prefix());
-                            bytes.extend_from_slice(b"definedName>");
-                            changes.push((*range, 0, bytes));
-                        } else {
-                            let end_tag = source[..range.1]
-                                .windows(2)
-                                .rposition(|window| window == b"</")
-                                .expect("an element that is not empty has an end tag");
-                            changes.push(((scope.tag.1, end_tag), 0, content));
-                        }
+                        let (range, scope) = &held[index];
+                        let scope = scope.as_ref().expect("a source name has a parsed scope");
+                        body.extend_from_slice(&rewritten_name(
+                            source,
+                            *range,
+                            scope,
+                            replacements.get(&key).copied(),
+                        ));
                     }
-                    let at = defined.end_tag.0;
-                    changes.push(((at, at), 0, added));
+                    NamePlacement::Defined(index) => {
+                        body.extend_from_slice(&new_name(&names.defined[*index], &element_prefix))
+                    }
                 }
             }
-            None if !added.is_empty() => {
-                let at = insert_names_at.expect("set when the document element ends");
-                let mut bytes = b"<".to_vec();
-                bytes.extend_from_slice(&element_prefix);
-                bytes.extend_from_slice(b"definedNames>");
-                bytes.extend_from_slice(&added);
-                close(&mut bytes);
-                changes.push(((at, at), 0, bytes));
+            for (index, (range, child)) in held.iter().enumerate() {
+                if !used.contains(&index) && !dropped(index, child) {
+                    body.extend_from_slice(&source[range.0..range.1]);
+                }
             }
-            None => {}
+            body.extend_from_slice(&added);
+            match &defined {
+                Some(defined) => {
+                    let mut bytes = Vec::new();
+                    if !body.is_empty() {
+                        bytes = RawTag::parse(&source[defined.start_tag.0..defined.start_tag.1])
+                            .rebuilt(&[], false);
+                        bytes.extend_from_slice(&body);
+                        close(&mut bytes);
+                    }
+                    changes.push(((defined.start_tag.0, defined.end_tag.1), 0, bytes));
+                }
+                None if !body.is_empty() => {
+                    let mut bytes = Vec::new();
+                    bytes.push(b'<');
+                    bytes.extend_from_slice(&element_prefix);
+                    bytes.extend_from_slice(b"definedNames>");
+                    bytes.extend_from_slice(&body);
+                    close(&mut bytes);
+                    let at = insert_names_at.expect("the root end is a place for definedNames");
+                    changes.push(((at, at), 0, bytes));
+                }
+                None => {}
+            }
+        } else {
+            match &defined {
+                Some(defined) => {
+                    let remaining = defined
+                        .children
+                        .iter()
+                        .enumerate()
+                        .filter(|(index, (_, c))| !dropped(*index, c))
+                        .count();
+                    let whole = (defined.start_tag.0, defined.end_tag.1);
+                    let tag = RawTag::parse(&source[defined.start_tag.0..defined.start_tag.1]);
+                    if remaining == 0 && added.is_empty() {
+                        changes.push((whole, 0, Vec::new()));
+                    } else if tag.is_empty() {
+                        let mut bytes = tag.rebuilt(&[], false);
+                        bytes.extend_from_slice(&added);
+                        close(&mut bytes);
+                        changes.push((whole, 0, bytes));
+                    } else {
+                        for (index, (range, child)) in defined.children.iter().enumerate() {
+                            if dropped(index, child) {
+                                changes.push((*range, 0, Vec::new()));
+                                continue;
+                            }
+                            let Some(scope) = child else {
+                                continue;
+                            };
+                            let Some(write) = targets[index]
+                                .as_ref()
+                                .and_then(|key| replacements.get(key))
+                            else {
+                                continue;
+                            };
+                            changes.push((
+                                *range,
+                                0,
+                                rewritten_name(source, *range, scope, Some(write)),
+                            ));
+                        }
+                        let at = defined.end_tag.0;
+                        changes.push(((at, at), 0, added));
+                    }
+                }
+                None if !added.is_empty() => {
+                    let at = insert_names_at.expect("set when the document element ends");
+                    let mut bytes = b"<".to_vec();
+                    bytes.extend_from_slice(&element_prefix);
+                    bytes.extend_from_slice(b"definedNames>");
+                    bytes.extend_from_slice(&added);
+                    close(&mut bytes);
+                    changes.push(((at, at), 0, bytes));
+                }
+                None => {}
+            }
         }
     }
     let mut calc_attributes: Vec<(&str, Option<String>)> = Vec::new();

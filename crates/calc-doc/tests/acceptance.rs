@@ -508,6 +508,7 @@ fn describe(op: &WorkbookOp) -> String {
             scope,
             formula,
         } => format!("name {name} {scope:?} {formula:?}"),
+        WorkbookOp::RestoreNames(names) => format!("retained names {names:?}"),
         WorkbookOp::SetAxisFormat(edit) => format!("axis format {edit:?}"),
         WorkbookOp::SetFrozenPanes { sheet, panes } => format!(
             "panes {sheet:?} {:?}",
@@ -640,6 +641,7 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         WorkbookOp::SetFormat { .. } => "op:set_format".to_owned(),
         // Nor for a name's formula (EncodeError::NameFormula).
         WorkbookOp::SetNameFormula { .. } => "op:set_name_formula".to_owned(),
+        WorkbookOp::RestoreNames(_) => "op:restore_names".to_owned(),
         // Nor for the iteration settings (EncodeError::Iteration).
         WorkbookOp::SetIteration(_) => "op:set_iteration".to_owned(),
         // Wire version 1 has no pane form (EncodeError::FrozenPanes).
