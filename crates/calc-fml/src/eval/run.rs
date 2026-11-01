@@ -14,15 +14,12 @@
 //! above the operand stack ([`EvalScratch`]'s locals): a LAMBDA call and a defined name's formula
 //! each run in a new frame. A LAMBDA value is a [`Closure`] over the plan's block.
 //!
-//! Operator chains and eager calls, however long or deep, run in one block's loop over the
-//! operand stack. Evaluation recurses on the native stack in three places: a lazy call's
-//! arguments run from inside calc-func's kernel (`Run::block`, `Run::lazy_call`,
-//! `calc_func::invoke`, the kernel, `Blocks::argument`, then `Run::block` for the argument's
-//! block), once for each lazy call nested inside another's argument, which the parser limits to
-//! 64 levels (Excel's documented limit of nested levels of functions); a LAMBDA call runs its body
-//! from `Run::invoke`; and a defined name's formula runs from `Run::name`. LAMBDA calls and names
-//! nest at most [`MAX_CALL_DEPTH`] deep; a deeper evaluation is refused. The explicit evaluation
-//! stack that removes the recursion is bead dc-m3u's.
+//! Operator chains and eager calls run in one block loop. Lazy arguments, direct LAMBDA
+//! calls and defined names own child cursors with retained operands, locals and activations.
+//! A physical yield unwinds Rust frames while keeping those cursors; resumption restores
+//! the same lexical frames. LAMBDA/name descent is bounded by [`MAX_CALL_DEPTH`]. Kernels
+//! invoking helper LAMBDAs still use their declared synchronous boundary and refuse an
+//! external wait they cannot retain.
 
 use super::cells::{ReaderCells, ReaderHost, SharedReader};
 use super::closure::Closure;
@@ -170,9 +167,57 @@ struct BlockCursor {
     at: usize,
     base: Option<usize>,
     pending: Option<PendingCall>,
-    // Nested lazy/name blocks also carry a cursor. Keep cooperative UDF state off
-    // those recursive frames; ordinary formulas do not allocate it.
+    // Heap-owned nested frames allocate only when that instruction is entered.
     pending_user: Option<Box<PendingUserCall>>,
+    child: Option<Box<PendingBlock>>,
+    lazy: Option<Box<PendingLazy>>,
+}
+
+#[derive(Debug)]
+struct PendingBlock {
+    block: usize,
+    frame: usize,
+    cost: usize,
+    cursor: BlockCursor,
+}
+
+#[derive(Debug)]
+struct PendingLazy {
+    values: Vec<Option<CalcValue>>,
+    wanted: Option<usize>,
+    cursor: BlockCursor,
+}
+
+enum ClosureCall {
+    Value(CalcValue),
+    Block(Box<PendingBlock>),
+}
+
+impl BlockCursor {
+    fn completed_elements(&self) -> usize {
+        self.pending
+            .as_ref()
+            .map(|call| call.scratch.completed_elements())
+            .or_else(|| Some(self.child.as_ref()?.cursor.completed_elements()))
+            .or_else(|| Some(self.lazy.as_ref()?.cursor.completed_elements()))
+            .unwrap_or(0)
+    }
+    fn active_user(&self) -> Option<&PendingUserCall> {
+        self.pending_user
+            .as_deref()
+            .or_else(|| self.child.as_ref()?.cursor.active_user())
+            .or_else(|| self.lazy.as_ref()?.cursor.active_user())
+    }
+
+    fn active_user_mut(&mut self) -> Option<&mut PendingUserCall> {
+        if self.pending_user.is_some() {
+            self.pending_user.as_deref_mut()
+        } else if let Some(child) = &mut self.child {
+            child.cursor.active_user_mut()
+        } else {
+            self.lazy.as_mut()?.cursor.active_user_mut()
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -197,8 +242,8 @@ struct PendingUserCall {
     external: Option<(u64, Option<CalcValue>)>,
 }
 
-/// One owned activation. Nested lazy calls, names, LAMBDAs and kernels without resumable
-/// metadata run to completion at their instruction boundary. They do not promise safepoints.
+/// One owned activation, including lazy arguments, defined names and direct LAMBDA frames.
+/// Kernels without resumable metadata retain their synchronous instruction boundary.
 #[derive(Debug)]
 pub struct EvalContinuation {
     instance: FormulaInstance,
@@ -220,13 +265,13 @@ impl EvalContinuation {
     }
     /// The pending provider request; the callable frame stays owned by this continuation.
     pub fn pending_external(&self) -> Option<(u64, u64)> {
-        let call = self.cursor.pending_user.as_ref()?;
+        let call = self.cursor.active_user()?;
         let (request, value) = call.external.as_ref()?;
         value.is_none().then_some((call.frame.id, *request))
     }
     /// Owner identity/certificate checks precede this operation. Delivery never runs user code.
     pub fn accept_external(&mut self, invocation: u64, request: u64, value: CalcValue) -> bool {
-        let Some(call) = self.cursor.pending_user.as_mut() else {
+        let Some(call) = self.cursor.active_user_mut() else {
             return false;
         };
         if call.frame.id != invocation
@@ -243,11 +288,7 @@ impl EvalContinuation {
     pub fn progress(&self) -> ContinuationProgress {
         ContinuationProgress {
             next_instruction: self.cursor.at,
-            completed_elements: self
-                .cursor
-                .pending
-                .as_ref()
-                .map_or(0, |call| call.scratch.completed_elements()),
+            completed_elements: self.cursor.completed_elements(),
         }
     }
     /// Continue with the same semantic services and random stream. A completed activation must
@@ -394,16 +435,14 @@ fn evaluate_slice(
         },
     };
     let at = instance.anchor.cell();
-    let value = match run.block_slice(0, cursor, quantum) {
+    let mut remaining = quantum;
+    let value = match run.block_slice(0, cursor, &mut remaining) {
         Ok(Some(value)) => Ok(value),
         Err(fault) => Err(fault),
         Ok(None) => {
             return EvalStep::Suspended(ContinuationProgress {
                 next_instruction: cursor.at,
-                completed_elements: cursor
-                    .pending
-                    .as_ref()
-                    .map_or(0, |call| call.scratch.completed_elements()),
+                completed_elements: cursor.completed_elements(),
             });
         }
     };
@@ -755,37 +794,29 @@ impl Run<'_, '_> {
             }
         }
     }
-    fn block(&mut self, index: usize) -> Result<CalcValue, EvalFault> {
-        // Lazy calls and names can nest on a 1 MB native stack. Their cursors own
-        // kernel/activation storage, so retain that storage on the heap per block.
-        let mut cursor = Box::<BlockCursor>::default();
-        match self.block_slice(index, &mut cursor, usize::MAX)? {
-            Some(value) => Ok(value),
-            None => Err(not_modelled_by(
-                "a nested external wait without a retained block continuation",
-                "dc-hsa5.4",
-            )),
-        }
-    }
-
     fn block_slice(
         &mut self,
         index: usize,
         cursor: &mut BlockCursor,
-        quantum: usize,
+        remaining: &mut usize,
     ) -> Result<Option<CalcValue>, EvalFault> {
         let base = *cursor.base.get_or_insert(self.stack.len());
         let instance = self.instance;
         let block = &instance.plan.blocks[index];
         let mut at = cursor.at;
-        let mut instructions = 0usize;
         while let Some(instruction) = block.get(at) {
-            if instructions >= quantum {
+            if *remaining == 0 {
                 cursor.at = at;
                 return Ok(None);
             }
+            let resuming = cursor.pending.is_some()
+                || cursor.pending_user.is_some()
+                || cursor.child.is_some()
+                || cursor.lazy.is_some();
+            if !resuming && *remaining != usize::MAX {
+                *remaining -= 1;
+            }
             at += 1;
-            instructions += 1;
             let step = match instruction {
                 Instruction::Literal(literal) => {
                     self.stack.push(literal.value());
@@ -813,19 +844,20 @@ impl Run<'_, '_> {
                         name,
                         *binding,
                         *argc,
-                        at - 1,
+                        instance.plan.blocks[..index]
+                            .iter()
+                            .map(|block| block.len())
+                            .sum::<usize>()
+                            + at
+                            - 1,
                         &mut cursor.pending_user,
-                        if quantum == usize::MAX {
-                            usize::MAX
-                        } else {
-                            quantum.saturating_sub(instructions).max(1)
-                        },
+                        (*remaining).max(1),
                     )? {
                         cursor.at = at - 1;
                         return Ok(None);
                     }
-                    if quantum != usize::MAX {
-                        instructions = quantum;
+                    if *remaining != usize::MAX {
+                        *remaining = 0;
                     }
                     Ok(())
                 }
@@ -843,19 +875,15 @@ impl Run<'_, '_> {
                         *synthetic,
                         *admission,
                         &mut cursor.pending,
-                        if quantum == usize::MAX {
-                            usize::MAX
-                        } else {
-                            quantum.saturating_sub(instructions).max(1)
-                        },
+                        (*remaining).max(1),
                     ) {
                         Ok(false) => {
                             cursor.at = at - 1;
                             return Ok(None);
                         }
                         Ok(true) => {
-                            if target.0.is_resumable() && quantum != usize::MAX {
-                                instructions = quantum;
+                            if target.0.is_resumable() && *remaining != usize::MAX {
+                                *remaining = 0;
                             }
                         }
                         Err(fault) => {
@@ -870,7 +898,20 @@ impl Run<'_, '_> {
                     first_block,
                     argc,
                     admission,
-                } => self.lazy_call(*target, *first_block, *argc, *admission),
+                } => {
+                    if !self.lazy_call_slice(
+                        *target,
+                        *first_block,
+                        *argc,
+                        *admission,
+                        &mut cursor.lazy,
+                        remaining,
+                    )? {
+                        cursor.at = at - 1;
+                        return Ok(None);
+                    }
+                    Ok(())
+                }
                 Instruction::Copy(depth) => {
                     let value = self.stack[self.stack.len() - 1 - depth].clone();
                     self.stack.push(value);
@@ -953,13 +994,34 @@ impl Run<'_, '_> {
                     self.stack.push(closure.into_value());
                     Ok(())
                 }
-                Instruction::Invoke { argc } => self.invoke(*argc),
+                Instruction::Invoke { argc } => {
+                    if !self.invoke_slice(*argc, &mut cursor.child, remaining)? {
+                        cursor.at = at - 1;
+                        return Ok(None);
+                    }
+                    Ok(())
+                }
                 Instruction::Function(target) => {
                     self.stack
                         .push(super::closure::FunctionValue { target: *target }.into_value());
                     Ok(())
                 }
-                Instruction::Name(target) => self.name(target.block),
+                Instruction::Name(target) => {
+                    if cursor.child.is_none() {
+                        self.check_depth()?;
+                        cursor.child = Some(Box::new(PendingBlock {
+                            block: target.block,
+                            frame: self.locals.len(),
+                            cost: 0,
+                            cursor: BlockCursor::default(),
+                        }));
+                    }
+                    if !self.child_slice(&mut cursor.child, remaining)? {
+                        cursor.at = at - 1;
+                        return Ok(None);
+                    }
+                    Ok(())
+                }
                 Instruction::External(index) => self.external(*index),
             };
             if let Err(fault) = step {
@@ -1405,69 +1467,115 @@ impl Run<'_, '_> {
         result.map_err(|fault| self.function_fault(fault))
     }
 
-    fn lazy_call(
+    fn lazy_call_slice(
         &mut self,
         target: Target,
         first_block: usize,
         argc: usize,
         admission: Admission,
-    ) -> Result<(), EvalFault> {
-        // The first argument decides which others run; it runs first, and when it is an array
-        // the call lifts over it with every argument evaluated.
-        let first = self
-            .block(first_block)
-            .and_then(|value| self.admit(target, 0, value, admission));
-        if let Ok(value) = &first
-            && is_lifted(target, self.instance.plan.form, 0, value)
-        {
-            let mut arguments = Vec::with_capacity(argc);
-            arguments.push(value.clone());
-            for index in 1..argc {
-                let value = self.block(first_block + index)?;
-                let value = self.admit(target, index, value, admission)?;
-                arguments.push(self.lift_operand(value, admission)?);
+        pending: &mut Option<Box<PendingLazy>>,
+        remaining: &mut usize,
+    ) -> Result<bool, EvalFault> {
+        let call = pending.get_or_insert_with(|| {
+            Box::new(PendingLazy {
+                values: vec![None; argc],
+                wanted: Some(0),
+                cursor: BlockCursor::default(),
+            })
+        });
+        loop {
+            if let Some(index) = call.wanted {
+                let evaluated = self
+                    .block_slice(first_block + index, &mut call.cursor, remaining)
+                    .and_then(|value| {
+                        value
+                            .map(|value| self.admit(target, index, value, admission))
+                            .transpose()
+                    });
+                let value = match evaluated {
+                    Ok(Some(value)) => value,
+                    Ok(None) => return Ok(false),
+                    Err(fault) => {
+                        if index == 0
+                            || !is_lifted(
+                                target,
+                                self.instance.plan.form,
+                                0,
+                                call.values[0].as_ref().expect("first argument"),
+                            )
+                        {
+                            self.show_call(target, false);
+                        }
+                        return Err(fault);
+                    }
+                };
+                call.values[index] = Some(value);
+                call.wanted = None;
+                call.cursor = BlockCursor::default();
             }
-            let value = self.lifted_lazy(target, &arguments)?;
+            if is_lifted(
+                target,
+                self.instance.plan.form,
+                0,
+                call.values[0].as_ref().expect("first argument"),
+            ) {
+                if let Some(index) = call.values.iter().position(Option::is_none) {
+                    call.wanted = Some(index);
+                    continue;
+                }
+                let values = call
+                    .values
+                    .iter()
+                    .enumerate()
+                    .map(|(i, value)| {
+                        let value = value.as_ref().expect("evaluated argument").clone();
+                        if i == 0 {
+                            Ok(value)
+                        } else {
+                            self.lift_operand(value, admission)
+                        }
+                    })
+                    .collect::<Result<Vec<_>, EvalFault>>()?;
+                let value = self.lifted_lazy(target, &values)?;
+                self.stack.push(value);
+                *pending = None;
+                return Ok(true);
+            }
+            // The catalogue's lazy kernels only select arguments. Re-enter that pure
+            // selection with retained values; never re-enter an argument or its effects.
+            let mut arguments = PendingArguments {
+                values: &call.values,
+                wanted: None,
+            };
+            let mut scratch = self.calls.pop().unwrap_or_default();
+            self.reader.clear_refusal();
+            let result = {
+                let mut cells = ReaderCells::new(self.reader);
+                let mut host = ReaderHost {
+                    shared: self.reader,
+                };
+                let environment = self.reader.environment();
+                let mut draws = self.random.map(RandomDraws);
+                let mut services = call_services(
+                    self.numeric,
+                    &mut cells,
+                    draws.as_mut(),
+                    &mut host,
+                    environment.as_ref(),
+                );
+                invoke(target.0, &mut arguments, &mut services, &mut scratch)
+            };
+            self.calls.push(scratch);
+            if let Some(index) = arguments.wanted {
+                call.wanted = Some(index);
+                continue;
+            }
+            self.show_call(target, false);
+            let value = result.map_err(|fault| self.function_fault(fault))?;
             self.stack.push(value);
-            return Ok(());
+            *pending = None;
+            return Ok(true);
         }
-        let mut scratch = self.calls.pop().unwrap_or_default();
-        let reader = self.reader;
-        let numeric = self.numeric;
-        let random = self.random;
-        reader.clear_refusal();
-        let mut arguments = Blocks {
-            run: &mut *self,
-            target,
-            first_block,
-            argc,
-            admission,
-            first: Some(first),
-            fault: None,
-        };
-        let result = {
-            let mut cells = ReaderCells::new(reader);
-            let mut host = ReaderHost { shared: reader };
-            let environment = reader.environment();
-            let mut draws = random.map(RandomDraws);
-            let mut services = call_services(
-                numeric,
-                &mut cells,
-                draws.as_mut(),
-                &mut host,
-                environment.as_ref(),
-            );
-            invoke(target.0, &mut arguments, &mut services, &mut scratch)
-        };
-        let fault = arguments.fault.take();
-        self.calls.push(scratch);
-        self.show_call(target, false);
-        if let Some(fault) = fault {
-            return Err(fault);
-        }
-        let value = result.map_err(|fault| self.function_fault(fault))?;
-        self.stack.push(value);
-        Ok(())
     }
 
     /// An argument of a lazy call lifted over an array, as each element's call receives it: a
@@ -1536,36 +1644,106 @@ impl Run<'_, '_> {
         ))
     }
 
-    /// Calls the LAMBDA value beneath the top `argc` values with them as its arguments.
-    fn invoke(&mut self, argc: usize) -> Result<(), EvalFault> {
-        let start = self.stack.len() - argc;
-        let callee = self.stack[start - 1].clone();
-        let arguments: Vec<CalcValue> = self.stack.drain(start..).collect();
-        self.stack.pop();
-        let value = self.call_closure(&callee, arguments)?;
-        self.stack.push(value);
-        Ok(())
+    /// Direct calls retain the same argument/capture frame until their body completes.
+    fn invoke_slice(
+        &mut self,
+        argc: usize,
+        pending: &mut Option<Box<PendingBlock>>,
+        remaining: &mut usize,
+    ) -> Result<bool, EvalFault> {
+        if pending.is_none() {
+            let start = self.stack.len() - argc;
+            let arguments = self.stack.drain(start..).collect();
+            let callee = self.stack.pop().expect("callee");
+            match self.prepare_closure(&callee, arguments)? {
+                ClosureCall::Value(value) => {
+                    self.stack.push(value);
+                    return Ok(true);
+                }
+                ClosureCall::Block(call) => *pending = Some(call),
+            }
+        }
+        self.child_slice(pending, remaining)
     }
 
-    /// The value of calling `callee` with `arguments`: a LAMBDA call's value, or the worksheet
-    /// error Excel gives a call of something else or of the wrong number of arguments.
+    fn check_depth(&self) -> Result<(), EvalFault> {
+        if self.depth >= MAX_CALL_DEPTH {
+            Err(not_modelled(
+                "LAMBDA calls or defined names nested more deeply than this package evaluates",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn child_slice(
+        &mut self,
+        pending: &mut Option<Box<PendingBlock>>,
+        remaining: &mut usize,
+    ) -> Result<bool, EvalFault> {
+        let call = pending.as_mut().expect("retained block frame");
+        let caller = std::mem::replace(&mut self.base, call.frame);
+        self.depth += 1;
+        self.budget += call.cost;
+        let result = self.block_slice(call.block, &mut call.cursor, remaining);
+        self.budget -= call.cost;
+        self.depth -= 1;
+        self.base = caller;
+        if matches!(result, Ok(None)) {
+            return Ok(false);
+        }
+        self.locals.truncate(call.frame);
+        *pending = None;
+        self.stack.push(result?.expect("completed block"));
+        Ok(true)
+    }
+
+    /// Helper kernels still have a synchronous boundary; use the same closure admission
+    /// and block runner, and refuse a wait they cannot own rather than replaying effects.
     fn call_closure(
         &mut self,
         callee: &CalcValue,
         arguments: Vec<CalcValue>,
     ) -> Result<CalcValue, EvalFault> {
+        match self.prepare_closure(callee, arguments)? {
+            ClosureCall::Value(value) => Ok(value),
+            ClosureCall::Block(call) => {
+                let frame = call.frame;
+                let mut remaining = usize::MAX;
+                if self.child_slice(&mut Some(call), &mut remaining)? {
+                    Ok(self.stack.pop().expect("closure result"))
+                } else {
+                    self.locals.truncate(frame);
+                    Err(not_modelled_by(
+                        "a helper callback without a retained kernel continuation",
+                        "dc-hsa5.4",
+                    ))
+                }
+            }
+        }
+    }
+
+    fn prepare_closure(
+        &mut self,
+        callee: &CalcValue,
+        arguments: Vec<CalcValue>,
+    ) -> Result<ClosureCall, EvalFault> {
         let argc = arguments.len();
         if let Some(function) = super::closure::FunctionValue::of(callee) {
-            // A function value: its entry called with these arguments, which lift over an array
-            // given to a single-value parameter as in a dynamic-array formula (dc-h9u).
             let target = function.target;
             if !target.0.arity().accepts(argc) {
-                return Ok(CalcValue::error(WorksheetErrorCode::Value));
+                return Ok(ClosureCall::Value(CalcValue::error(
+                    WorksheetErrorCode::Value,
+                )));
             }
             self.stack.extend(arguments);
             let depth = self.stack.len() - argc;
             match self.call(target, argc, false, false, Admission::Lift) {
-                Ok(()) => return Ok(self.stack.pop().expect("the call's result")),
+                Ok(()) => {
+                    return Ok(ClosureCall::Value(
+                        self.stack.pop().expect("the call's result"),
+                    ));
+                }
                 Err(fault) => {
                     self.stack.truncate(depth);
                     return Err(fault);
@@ -1573,18 +1751,18 @@ impl Run<'_, '_> {
             }
         }
         let Some(closure) = Closure::of(callee) else {
-            // Excel 16.0, 2026-10-23: `=(A1)(2)` is #REF! and `=LET(x,1,x(2))` #VALUE!.
-            return Ok(match callee.core_ref() {
+            return Ok(ClosureCall::Value(match callee.core_ref() {
                 CoreRef::Reference(_) => CalcValue::error(WorksheetErrorCode::Ref),
                 _ => CalcValue::error(WorksheetErrorCode::Value),
-            });
+            }));
         };
         if closure.plan != plan_address(self.instance) {
             return Err(not_modelled("a LAMBDA value made by another formula"));
         }
-        // Excel 16.0, 2026-10-23: `=LAMBDA(x,y,x)(1)` and `=LAMBDA(x,x)(1,2)` are #VALUE!.
         if argc > closure.params || argc < closure.required {
-            return Ok(CalcValue::error(WorksheetErrorCode::Value));
+            return Ok(ClosureCall::Value(CalcValue::error(
+                WorksheetErrorCode::Value,
+            )));
         }
         let cost = CALL_COST
             + CALLABLE_ARGUMENT_COST
@@ -1593,48 +1771,23 @@ impl Run<'_, '_> {
                     .filter(|value| value.callable_value().is_some())
                     .count();
         if self.budget + cost > RECURSION_BUDGET {
-            return Ok(CalcValue::error(WorksheetErrorCode::Num));
+            return Ok(ClosureCall::Value(CalcValue::error(
+                WorksheetErrorCode::Num,
+            )));
         }
-        if self.depth >= MAX_CALL_DEPTH {
-            return Err(EvalFault::NotModelled {
-                construct: "LAMBDA calls or defined names nested more deeply than this package evaluates",
-                owner: "dc-10y",
-            });
-        }
+        self.check_depth()?;
         let frame = self.locals.len();
         self.locals.extend(closure.captured.iter().cloned());
         self.locals.extend(arguments);
         for _ in argc..closure.params {
             self.locals.push(CalcValue::missing());
         }
-        let caller = std::mem::replace(&mut self.base, frame);
-        self.depth += 1;
-        self.budget += cost;
-        let value = self.block(closure.block);
-        self.budget -= cost;
-        self.depth -= 1;
-        self.base = caller;
-        self.locals.truncate(frame);
-        value
-    }
-
-    /// Runs the block of a defined name's formula in a frame of its own and pushes its value.
-    fn name(&mut self, block: usize) -> Result<(), EvalFault> {
-        if self.depth >= MAX_CALL_DEPTH {
-            return Err(EvalFault::NotModelled {
-                construct: "LAMBDA calls or defined names nested more deeply than this package evaluates",
-                owner: "dc-10y",
-            });
-        }
-        let frame = self.locals.len();
-        let caller = std::mem::replace(&mut self.base, frame);
-        self.depth += 1;
-        let value = self.block(block);
-        self.depth -= 1;
-        self.base = caller;
-        self.locals.truncate(frame);
-        self.stack.push(value?);
-        Ok(())
+        Ok(ClosureCall::Block(Box::new(PendingBlock {
+            block: closure.block,
+            frame,
+            cost,
+            cursor: BlockCursor::default(),
+        })))
     }
 
     /// The spill reference: the range spilled from the one cell the operand names, #REF! when
@@ -1926,41 +2079,21 @@ impl PreparedArguments for Evaluated<'_> {
     }
 }
 
-/// The arguments of a lazy call: argument `i` runs block `first_block + i` when the kernel asks
-/// for it, except the first, which ran before the call. The first fault stops every further
-/// argument; the call's result is then discarded.
-struct Blocks<'b, 'a, 'r> {
-    run: &'b mut Run<'a, 'r>,
-    target: Target,
-    first_block: usize,
-    argc: usize,
-    admission: Admission,
-    first: Option<Result<CalcValue, EvalFault>>,
-    fault: Option<EvalFault>,
+/// A lazy kernel can select a missing argument without entering its block. The
+/// enclosing cursor then runs that block and retains its result across every wait.
+struct PendingArguments<'a> {
+    values: &'a [Option<CalcValue>],
+    wanted: Option<usize>,
 }
-
-impl PreparedArguments for Blocks<'_, '_, '_> {
+impl PreparedArguments for PendingArguments<'_> {
     fn count(&self) -> usize {
-        self.argc
+        self.values.len()
     }
-
     fn argument(&mut self, index: usize) -> CalcValue {
-        if self.fault.is_some() {
-            return CalcValue::error(ABANDONED);
-        }
-        let evaluated = match (index, self.first.take()) {
-            (0, Some(first)) => first,
-            (_, first) => {
-                self.first = first;
-                self.run
-                    .block(self.first_block + index)
-                    .and_then(|value| self.run.admit(self.target, index, value, self.admission))
-            }
-        };
-        match evaluated {
-            Ok(value) => value,
-            Err(fault) => {
-                self.fault = Some(fault);
+        match &self.values[index] {
+            Some(value) => value.clone(),
+            None => {
+                self.wanted.get_or_insert(index);
                 CalcValue::error(ABANDONED)
             }
         }
@@ -2982,6 +3115,11 @@ mod tests {
         for (formula, calls) in [
             ("=RAND()+SUM(SEQUENCE(10000))+RAND()", 2),
             ("=LET(r,RAND(),r+SUM(SEQUENCE(10000))+r)", 1),
+            ("=LET(r,RAND(),IF(TRUE,r+SUM(SEQUENCE(10000))+r,RAND()))", 1),
+            (
+                "=LAMBDA(r,IF(TRUE,r+SUM(SEQUENCE(10000))+r,RAND()))(RAND())",
+                1,
+            ),
         ] {
             let anchor = observed_anchor();
             let plan = crate::compile_with(
@@ -2996,6 +3134,7 @@ mod tests {
             let instance = instantiate(&plan, anchor);
             let mut reader = Everywhere(CalcValue::empty(), 0);
             let mut direct = Draws(0);
+            let mut direct_shown = Shown::default();
             let expected = evaluate(
                 EvalFrame::new(&instance, &mut EvalScratch::new()),
                 &mut FormulaEvaluationContext::new(
@@ -3005,10 +3144,12 @@ mod tests {
                     None,
                     crate::ReadRequest::DEPENDENCY,
                 )
-                .with_random(&mut direct),
+                .with_random(&mut direct)
+                .observed_by(&mut direct_shown),
             );
             assert_eq!(direct.0, calls);
             let mut sliced = Draws(0);
+            let mut sliced_shown = Shown::default();
             let mut activation = EvalContinuation::new(&instance, EvalScratch::new());
             let actual = loop {
                 match activation.advance(
@@ -3019,7 +3160,8 @@ mod tests {
                         None,
                         crate::ReadRequest::DEPENDENCY,
                     )
-                    .with_random(&mut sliced),
+                    .with_random(&mut sliced)
+                    .observed_by(&mut sliced_shown),
                     17,
                 ) {
                     EvalStep::Suspended(progress) => {
@@ -3032,6 +3174,8 @@ mod tests {
             };
             assert_eq!(sliced.0, calls);
             assert_eq!(actual, expected, "{formula}");
+            assert_eq!(sliced_shown.calls, direct_shown.calls, "{formula}");
+            assert_eq!(sliced_shown.outcomes, direct_shown.outcomes, "{formula}");
         }
     }
 }
