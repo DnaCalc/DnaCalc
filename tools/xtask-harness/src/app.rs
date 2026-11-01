@@ -882,6 +882,7 @@ fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
             )
         })?;
     let port = free_port()?;
+    // ubs:ignore — the executable comes from the local driver setting or PATH, never workbook data.
     let mut command = Command::new(&program);
     match browser.name {
         "firefox" => command.args(["--port", &port.to_string()]),
@@ -974,6 +975,8 @@ fn select(app: &App, name: &str) -> String {
 
 /// What a case does. A name is a role or a selector ([`select`]).
 pub enum Action {
+    /// Cell-boundary continuation in the bundled calculation worker, with an intervening Ping.
+    WorkerCalculation,
     /// A native wheel gesture, with observation of its completed scroll.
     ScrollGrid(i32, i32),
     /// Remember actual view/geometry for a later scroll or skin/sheet round trip.
@@ -1392,6 +1395,11 @@ fn faults(app: &App, session: &Session) -> Result<Vec<String>, String> {
 
 fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<(), String> {
     match action {
+        Action::WorkerCalculation => {
+            let result = session.script(&calc_cases::fixtures::calculation_script())?;
+            println!("{} WORKER finite calculation: {result}", app.label);
+            Ok(())
+        }
         Action::RememberFieldLink(name) => {
             let selector = serde_json::to_string(&select(app, name)).unwrap();
             session.script(&format!(

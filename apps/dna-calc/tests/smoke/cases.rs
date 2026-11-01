@@ -6277,7 +6277,6 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Attr("skin-ledger", "aria-pressed", "true"),
         ],
     },
-
     Case {
         name: "model navigation: reveal the same active cell after scrolling",
         actions: &[
@@ -6297,7 +6296,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Value("name-box", "A1"),
         ],
     },
-
+    Case {
+        name: "recalculation contract: a real worker services Ping between finite calculation slices",
+        actions: &[Action::WorkerCalculation],
+        checks: &[],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -6502,31 +6505,60 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
     Case {
         name: "worker latency: a registered Notebook editor retains typing while selection replies arrive",
         actions: &[
-            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
             Action::DiscardReplacement,
             Action::Wait(Check::Text("document", "cut-base.xlsx")),
             Action::PauseMillis(800),
             Action::Click("skin-notebook"),
             Action::Wait(Check::Count("[data-dnacalc=block][data-cell=A1]", 1)),
             Action::Click("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-select]"),
-            Action::Into("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "5\u{E007}"),
-            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "5")),
-            Action::Into("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "7\u{E007}"),
+            Action::Into(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]",
+                "5\u{E007}",
+            ),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "5",
+            )),
+            Action::Into(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]",
+                "7\u{E007}",
+            ),
             // Release the modifier at the WebDriver call boundary: Firefox 151 treats an
             // embedded NULL as Unidentified and otherwise keeps Control for the following text.
-            Action::Keys("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "\u{E009}a\u{E000}"),
-            Action::Keys("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "\u{E003}9\u{E007}"),
-            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "9")),
-            Action::Into("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]", "5\u{E007}"),
-            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "5")),
+            Action::Keys(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]",
+                "\u{E009}a\u{E000}",
+            ),
+            Action::Keys(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]",
+                "\u{E003}9\u{E007}",
+            ),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "9",
+            )),
+            Action::Into(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-input]",
+                "5\u{E007}",
+            ),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "5",
+            )),
         ],
         checks: &[
-            Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "5"),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]",
+                "5",
+            ),
             Check::Value("name-box", "A1"),
             Check::Attr("skin-notebook", "aria-pressed", "true"),
         ],
     },
-
     Case {
         name: "worker latency: registered formula bar preserves consecutive multi-character entries",
         actions: &[
@@ -6544,7 +6576,6 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Check::Focused("grid"),
         ],
     },
-
     Case {
         name: "worker latency: a delayed skin focus request preserves a newer native field focus",
         actions: &[
@@ -6561,7 +6592,6 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Check::Absent("cell-editor"),
         ],
     },
-
     Case {
         name: "worker latency: drag selection and its next entry reach the same worker target",
         actions: &[
@@ -6592,22 +6622,30 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Action::OpenDetails("notebook-insert-tools"),
             Action::Into("notebook-content", "=6*7"),
             Action::Click("notebook-insert"),
-            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=B7] [data-dnacalc=block-value]", "42")),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=block][data-cell=B7] [data-dnacalc=block-value]",
+                "42",
+            )),
             Action::Click("undo"),
             Action::Wait(Check::Count("[data-dnacalc=block]", 0)),
             Action::Click("redo"),
-            Action::Wait(Check::Text("[data-dnacalc=block][data-cell=B7] [data-dnacalc=block-value]", "42")),
+            Action::Wait(Check::Text(
+                "[data-dnacalc=block][data-cell=B7] [data-dnacalc=block-value]",
+                "42",
+            )),
         ],
         checks: &[
             Check::Count("[data-dnacalc=block]", 1),
             Check::Value("name-box", "B7"),
         ],
     },
-
     Case {
         name: "worker latency: an old AutoFit preflight cannot change the replacement workbook",
         actions: &[
-            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
+            ),
             Action::DiscardReplacement,
             Action::Wait(Check::Text("document", "formats.xlsx")),
             Action::PauseMillis(1000),
@@ -6626,7 +6664,6 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Check::Attr("undo", "disabled", ""),
         ],
     },
-
     Case {
         name: "worker latency: a completed entry preserves newer native field focus",
         actions: &[
@@ -6660,7 +6697,6 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Check::Count("block", 1),
         ],
     },
-
     Case {
         name: "worker latency: Ledger page correction preserves newer native field focus",
         actions: &[
@@ -6688,7 +6724,6 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Check::Count("ledger-row", 50),
         ],
     },
-
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[
@@ -6714,7 +6749,6 @@ pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[
             Check::Reachable("worker-status"),
         ],
     },
-
 ];
 
 pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
@@ -6907,5 +6941,11 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         core: 1,
         setup: &[],
     },
-
+    CaseGroup {
+        name: "recalculation-contract",
+        start: 444,
+        end: 445,
+        core: 1,
+        setup: &[],
+    },
 ];

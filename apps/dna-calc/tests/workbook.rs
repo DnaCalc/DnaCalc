@@ -5,6 +5,290 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
+#[path = "../../../crates/calc-engine/tests/fixtures/seven_cell.rs"]
+mod seven_cell;
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_seven_cell_scope_yields_and_delivers_receipts_through_the_wire() {
+    use dna_calc_worker::{
+        server::{Server, answer_text},
+        wire::{
+            self, Area, CalculationEvent as C, CalculationOutcome, Event, FromServer, Intent, Key,
+            Reply, Request, ToServer,
+        },
+    };
+    let mut server = Server::new();
+    server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
+    let sheet = server.book().sheets()[0].id;
+    let cell = |row, col| CellKey::new(sheet, row, col).unwrap();
+    let send = |server: &mut Server, request: Request| {
+        let request = if request.is_command() {
+            server.envelope(request)
+        } else {
+            request
+        };
+        let (text, _) = answer_text(server, &wire::encode(&ToServer { id: 1, request }), None);
+        wire::decode::<FromServer>(&text).unwrap()
+    };
+    assert!(matches!(
+        send(
+            &mut server,
+            Request::Intent(Intent::SetCalcMode { manual: true })
+        ),
+        FromServer::Reply { .. }
+    ));
+    for &(row, col, entry, _) in seven_cell::CELLS {
+        assert!(
+            matches!(send(&mut server,Request::Intent(Intent::EnterCell{at:Key::of(cell(row,col)),text:entry.into()})),
+            FromServer::Reply{reply:Reply::Done{outcome,..},..} if outcome.accepted)
+        );
+    }
+    server.take_events();
+    let areas: Vec<_> = seven_cell::PURE_SCOPE
+        .iter()
+        .map(|&(row, col)| Area::of(GridArea::cell(cell(row, col))))
+        .collect();
+    assert!(
+        matches!(send(&mut server,Request::Intent(Intent::CalculateRange{areas:areas.clone()})),
+        FromServer::Reply{reply:Reply::Done{outcome,..},..} if outcome.accepted)
+    );
+    assert!(server.has_pending_calculation());
+    let mut events = server.take_events();
+    assert!(events.iter().any(|event|matches!(event,Event::Calculation{receipt:C::Admitted{scope:wire::CalculationScope::Range(scope),selection:wire::CalculationSelection::ForceAll,..},..} if *scope==areas)));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        Event::Calculation {
+            receipt: C::Yielded { .. },
+            ..
+        }
+    )));
+    let revision = server.book().host().revision();
+    let history = server.book().session().history_depth();
+    assert!(matches!(
+        send(&mut server, Request::Ping),
+        FromServer::Reply {
+            reply: Reply::Pong { .. },
+            ..
+        }
+    ));
+    assert!(
+        server.has_pending_calculation(),
+        "Ping does not drive or replace the active calculation"
+    );
+    for _ in 0..64 {
+        if !server.has_pending_calculation() {
+            break;
+        }
+        server.advance_calculation();
+        events.extend(server.take_events());
+    }
+    assert!(!server.has_pending_calculation());
+    assert_eq!(server.book().host().revision(), revision);
+    assert_eq!(server.book().session().history_depth(), history);
+    for (row, col, value) in [(1, 2, "2"), (1, 3, "4"), (1, 5, "1"), (10, 7, "1")] {
+        assert_eq!(shown(server.book(), cell(row, col)).text, value);
+    }
+    assert!(
+        !matches!(
+            shown(server.book(), cell(1, 4)).provenance,
+            Provenance::Calculated
+        ),
+        "D1's P01/P03 callback is not part of the pure scope"
+    );
+    let admitted = events
+        .iter()
+        .position(|event| {
+            matches!(
+                event,
+                Event::Calculation {
+                    receipt: C::Admitted { .. },
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let published = events
+        .iter()
+        .position(|event| {
+            matches!(
+                event,
+                Event::Calculation {
+                    receipt: C::Published(_),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let completed = events
+        .iter()
+        .position(|event| {
+            matches!(
+                event,
+                Event::Calculation {
+                    receipt: C::Completed {
+                        outcome: CalculationOutcome::Complete,
+                        calculated: 4,
+                        refused: 0,
+                        ..
+                    },
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    assert!(admitted < published && published < completed);
+    let first_command = match &events[admitted] {
+        Event::Calculation {
+            receipt: C::Admitted { command, .. },
+            ..
+        } => *command,
+        _ => unreachable!(),
+    };
+    // A C1-only replay needs the P02 out-of-scope B1 cache. This check explicitly requests
+    // the same pure scope, so equal values need no unimplemented boundary-cache policy.
+    let replay_scope = areas.clone();
+    assert!(matches!(
+        send(&mut server, Request::Intent(Intent::CalculateRange { areas: replay_scope.clone() })),
+        FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted
+    ));
+    for _ in 0..64 {
+        if !server.has_pending_calculation() {
+            break;
+        }
+        server.advance_calculation();
+    }
+    assert!(!server.has_pending_calculation());
+    let replay = server.take_events();
+    let replay_command = replay
+        .iter()
+        .find_map(|event| match event {
+            Event::Calculation {
+                receipt:
+                    C::Admitted {
+                        command,
+                        scope: wire::CalculationScope::Range(scope),
+                        ..
+                    },
+                ..
+            } if *scope == replay_scope => Some(*command),
+            _ => None,
+        })
+        .unwrap();
+    assert_ne!(first_command, replay_command);
+    assert_eq!(shown(server.book(), cell(1, 3)).text, "4");
+    let replay_publication = replay.iter().position(|event| matches!(event,
+        Event::Calculation { receipt: C::Published(publication), .. } if publication.command == replay_command
+    )).unwrap();
+    let replay_complete = replay.iter().position(|event| matches!(event,
+        Event::Calculation { receipt: C::Completed { command, calculated: 4, outcome: CalculationOutcome::Complete, .. }, .. }
+            if *command == replay_command
+    )).unwrap();
+    assert!(
+        replay_publication < replay_complete,
+        "equal values still publish calculation status"
+    );
+    // SliceV1 salvages only dirty successors. Request that selection explicitly; the Manual
+    // CalculateRange command above and below continues to normalize to ForceAll.
+    for (col, text) in [(1, "10"), (6, "2")] {
+        assert!(
+            matches!(send(&mut server,Request::Intent(Intent::EnterCell{at:Key::of(cell(1,col)),text:text.into()})),
+            FromServer::Reply{reply:Reply::Done{outcome,..},..} if outcome.accepted)
+        );
+    }
+    send(
+        &mut server,
+        Request::Intent(Intent::Calculate {
+            scope: wire::CalculationScope::Range(areas.clone()),
+            selection: wire::CalculationSelection::DirtyAndVolatile,
+        }),
+    );
+    let mut successor_events = server.take_events();
+    let predecessor = successor_events
+        .iter()
+        .find_map(|event| match event {
+            Event::Calculation {
+                receipt:
+                    C::Admitted {
+                        command,
+                        selection: wire::CalculationSelection::DirtyAndVolatile,
+                        ..
+                    },
+                ..
+            } => Some(*command),
+            _ => None,
+        })
+        .unwrap();
+    for _ in 0..2 {
+        server.advance_calculation();
+        successor_events.extend(server.take_events());
+    }
+    assert!(server.has_pending_calculation());
+    assert!(
+        matches!(send(&mut server,Request::Intent(Intent::EnterCell{at:Key::of(cell(1,1)),text:"20".into()})),
+        FromServer::Reply{reply:Reply::Done{outcome,..},..} if outcome.accepted)
+    );
+    successor_events.extend(server.take_events());
+    for _ in 0..64 {
+        if !server.has_pending_calculation() {
+            break;
+        }
+        server.advance_calculation();
+        successor_events.extend(server.take_events());
+    }
+    assert!(!server.has_pending_calculation());
+    for (row, col, text) in [
+        (1, 2, "21"),
+        (1, 3, "42"),
+        (1, 5, "1"),
+        (2, 5, "2"),
+        (10, 7, "1"),
+    ] {
+        assert_eq!(shown(server.book(), cell(row, col)).text, text);
+    }
+    assert!(successor_events.iter().any(|event|matches!(event,Event::Calculation{
+        receipt:C::Reused{at,computed_by,certified_for},..} if *at==Key::of(cell(1,5)) && *computed_by==predecessor && *certified_for!=predecessor)));
+    assert!(
+        successor_events
+            .iter()
+            .any(|event| matches!(event,Event::Calculation{
+        receipt:C::Rejected{at},..} if *at==Key::of(cell(1,2))))
+    );
+    assert!(!successor_events.iter().any(|event|matches!(event,Event::Calculation{
+        receipt:C::Completed{command,outcome:CalculationOutcome::Complete,..},..} if *command==predecessor)));
+    // A client may replace the book before draining its completed control messages. They
+    // carry the old workbook identity and must remain deliverable exactly once.
+    let again = send(
+        &mut server,
+        Request::Intent(Intent::CalculateRange { areas }),
+    );
+    assert!(
+        matches!(again,FromServer::Reply{reply:Reply::Done{outcome,..},..} if outcome.accepted)
+    );
+    for _ in 0..64 {
+        if !server.has_pending_calculation() {
+            break;
+        }
+        server.advance_calculation();
+    }
+    let old_workbook = server.book().host().revision();
+    assert!(matches!(
+        send(&mut server, Request::New),
+        FromServer::Reply { .. }
+    ));
+    let retained = server.take_events();
+    assert!(retained.iter().any(
+        |event| matches!(event,Event::Calculation{receipt:C::Completed{revision,..},..}
+        if *revision==old_workbook.get())
+    ));
+    assert!(
+        !retained
+            .iter()
+            .any(|event| matches!(event, Event::Tiles(_)))
+    );
+    assert!(server.take_events().is_empty());
+}
+
 use calc_host::value::{CellKey, GridArea, SheetId};
 use calc_host::{DeltaMirror, Interest, SkinIntent};
 use dna_calc::controller::{Controller, EditOrigin};
