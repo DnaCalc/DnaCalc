@@ -1,0 +1,196 @@
+{
+  "workbook_sha256": "6443AC2E9DECE90777610B7D7A434A86C690C48BBC2695255C3B3634E7E040A4",
+  "merge_cell_count": 0,
+  "cells": {
+    "B1": {
+      "type": "str",
+      "formula": "_xll.X0.Hello(\"world\")",
+      "cache": "Hello, world"
+    },
+    "D1": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "2"
+    },
+    "B2": {
+      "type": null,
+      "formula": "_xll.X0.Reference(A1)",
+      "cache": "7"
+    },
+    "D2": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "4"
+    },
+    "B3": {
+      "type": "str",
+      "formula": "_xll.X0.Caller()",
+      "cache": "ExcelReference sheet=1585511490896 rows=2:2 cols=1:1"
+    },
+    "D3": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "6"
+    },
+    "B4": {
+      "type": null,
+      "formula": "_xll.X0.Async(41)",
+      "cache": "42"
+    },
+    "D4": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "8"
+    },
+    "B5": {
+      "type": null,
+      "formula": "SUM(_xll.X0.Big())",
+      "cache": "8386560"
+    },
+    "D5": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "10"
+    },
+    "B6": {
+      "type": "str",
+      "formula": "_xll.X0.NativeOwned()",
+      "cache": "native owned"
+    },
+    "D6": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "12"
+    },
+    "D7": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "14"
+    },
+    "D8": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "16"
+    },
+    "D9": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "18"
+    },
+    "D10": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "20"
+    },
+    "D11": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "22"
+    },
+    "D12": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "24"
+    },
+    "D13": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "26"
+    },
+    "D14": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "28"
+    },
+    "D15": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "30"
+    },
+    "D16": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "32"
+    },
+    "D17": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "34"
+    },
+    "D18": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "36"
+    },
+    "D19": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "38"
+    },
+    "D20": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "40"
+    },
+    "D21": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "42"
+    },
+    "D22": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "44"
+    },
+    "D23": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "46"
+    },
+    "D24": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "48"
+    },
+    "D25": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "50"
+    },
+    "D26": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "52"
+    },
+    "D27": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "54"
+    },
+    "D28": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "56"
+    },
+    "D29": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "58"
+    },
+    "D30": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "60"
+    },
+    "D31": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "62"
+    },
+    "D32": {
+      "type": null,
+      "formula": "_xll.X0.ThreadSafe(ROW())",
+      "cache": "64"
+    }
+  }
+}

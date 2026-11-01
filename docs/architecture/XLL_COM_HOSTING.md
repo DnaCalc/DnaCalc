@@ -4,6 +4,10 @@ Date 2026-10-31. Read-only research for the architecture review; connects to SYN
 Markers: **[V]** verified this session in source or Microsoft documentation (link or path given);
 **[I]** inference; **[P]** must be measured in Excel on this machine before the dependent type freezes.
 
+Owner direction (2026-11-01): full `.xll` compatibility, including Excel-DNA, xlw and xlOil out
+of the box, and broad COM support are an early focus. Section 9 records the first X0 boundary
+measurements; the remaining [P] items are still open.
+
 Sources read: Excel-DNA local clone `C:\Work\Excel-DNA\ExcelDna` (master f4847492, 2026-09-13; paths under
 `Source/`, https://github.com/Excel-DNA/ExcelDna/tree/master/Source); xlOil https://github.com/cunnane/xloil (master);
 xlw https://github.com/xlw/xlw (master; branch `2026-update` for Native AOT). Microsoft: xlfRegister (Form 1) https://learn.microsoft.com/en-us/office/client-developer/excel/xlfregister-form-1;
@@ -306,3 +310,104 @@ per-process class objects (CoRegisterClassObject), registration-free COM through
 manifests, a process-local Running Object Table entry for GetObject, and hooking activation calls.
 Hard constraint: nothing may change or shadow the machine's COM registrations for Excel (ProgIDs,
 CLSIDs, type libraries, interfaces) in HKCU or HKLM; Excel must keep working exactly as before.
+
+## 9. X0 measurements (2026-11-01, dc-snz.16)
+
+The source, runner, verifier and small text captures are in
+[`crates/calc-xll-reference`](../../crates/calc-xll-reference/README.md). This is a native x64
+debugger observing real Excel, not a DNA Calc dispatcher or a second calculation verdict path.
+It loads the source-built fixture with `Application.RegisterXLL` and observes the original
+Excel-DNA NuGet XLL and loader. Excel files, its COM registrations and security settings are
+unchanged. Temporary breakpoints are confined to the newly created Excel process and restored
+before detach. No disassembly was used.
+
+These observations apply to Excel **16.0.20527.20088 x64**, Windows, en-ZA, and
+**ExcelDna.AddIn 1.9.0**, fixture target **net48**, CLR **v4.0.30319**. The captures retain binary and source hashes.
+QPC times include debugger pauses and thread suspension; they do not establish normal latency
+or an unperturbed calculation schedule. A separate untraced run checks worksheet outcomes.
+The retained run has 2,524 records, 1,207 paired boundary/COM calls and 117 C API callbacks;
+all calls have matching returns, and detach reports zero restore failures or outstanding calls.
+
+### 9.1 Registration and execution
+
+The observed type strings settle the fixture registrations, rather than every signature a
+framework can produce:
+
+| Fixture | Type string |
+|---|---|
+| `X0.Hello(string)` | `QD%` |
+| `X0.ThreadSafe(double)` | `QE$` |
+| `X0.Reference(object, AllowReference=true, IsMacroType=true)` | `QU#` |
+| `X0.Caller()` (macro type) | `Q#` |
+| `X0.Big()` (mixed array) | `Q` |
+| `X0.Async(double, ExcelAsyncHandle)` | `>EX` |
+| Excel-DNA `SyncMacro_<guid>` | `>B`, macro type 2 |
+| Native `X0.NativeOwned()` | `Q` |
+
+The original Excel-DNA binary exports 10,000 numbered `fN` stubs and no `xlAutoRegister12`.
+The tracer observes `xlAutoOpen` and discovers the actual `fN` entries from `xlfRegister`
+arguments. `$` calls occur on calculation worker threads; reference/caller and ordinary calls
+occur on the load thread in this fixture (64 `$` invocations across 16 calculation threads).
+Two native async completions call `xlAsyncReturn` (16400)
+from background threads and receive return code 0. This does not test cancel, overwrite or a
+late handle. `XLCallVer` returns 3072 (0xC00), not a 16.x Office build number.
+
+`ExcelReference` coercion uses `xlCoerce` (16386). The reference descriptors and sheet IDs are
+retained in the trace, including Excel's SRef-to-Ref steps. `X0.Caller` identifies B3 as zero-based
+rectangle `[2,2,1,1]`. The queued macro and explicit command contexts receive return code 0
+from `xlfCaller` with an `xltypeErr` value of 23 (`#REF!`), not a cell caller.
+
+On a ThreadPool thread outside any calculation or command, this Excel-DNA fixture calls
+`xlGetName` (16393), `xlStack` (16385), and `xlfCaller` (89): each returns **32 (`xlretFailed`)**.
+Excel-DNA then attempts `xlFree` (16384), which also returns 32 there. This narrows the
+out-of-context [P] in section 2: do not assume `xlretInvXlfn` for this measured route. It does
+not complete the full permission table for all thread and function contexts.
+
+`QueueAsMacro` executes through `Application.Run` of the registered `SyncMacro_<guid>`;
+`LPenHelper` is also observed. The queued body has C API access and `xlGetName` identifies its
+own Excel-DNA XLL even after a second native XLL has loaded. Application.Run of the fixture's
+zero-argument commands returns Boolean TRUE in the controller. The two observed Run calls of
+`SyncMacro_<guid>` return `VT_R8` (5), value 0; this settles that `>B` command's Run return
+for this build, separately from the fixture commands' Boolean return.
+
+### 9.2 Ownership, COM and persistence
+
+The 1-by-4096 mixed-array return is observed with type 64, without DLLFree. Source expectations
+about allocation thresholds are not substituted for that binary observation. A separate small
+native fixture explicitly returns an allocated counted string with `xlbitDLLFree`; Excel calls
+`xlAutoFree12` once, with the exact returned pointer and on the same native thread.
+This measures the single-thread ownership case, not every shape or a worker-thread free.
+
+Application lookup is observed as `AccessibleObjectFromWindow(OBJID_NATIVEOM, IID_IDispatch)`,
+then Window.Application through IDispatch (DISPID 148 / 0x94). The fixture reads Version (392 /
+0x188) and Hwnd (1950 / 0x79E); Excel-DNA's macro queue uses Run (259 / 0x103). COM traffic from
+the external controller is also retained, so its Ready, calculation and workbook calls must not
+all be attributed to the add-in. The managed fixture log identifies its own explicit accesses.
+
+**AppEvents argument order [measured]:** FindConnectionPoint requests
+`00024413-0000-0000-C000-000000000046`; Advise installs the fixture's sink. SheetChange arrives
+at IDispatch::Invoke as DISPID **1564 (0x61C)** with `wFlags=3`, two `rgvarg` entries and named
+DISPIDs **[0,1]**. `rgvarg[0]` is the worksheet (Name returns `X0`), and `rgvarg[1]` is the range
+(Address returns `$A$1`). This settles section 3's ordering question for this event and Excel
+build: preserve the named-argument mapping rather than blindly reversing the array. The sink
+also observes SheetCalculate (1563 / 0x61B) and AfterCalculate (2612 / 0xA34). AppEvents
+AfterCalculate is distinct from the C API CalculationEnded event; these observations do not
+change the C API event claim in section 5.
+
+Excel saves these registered UDF formulas into xlsx with `_xll.` prefixes, including nested
+`SUM(_xll.X0.Big())`. The saved package is inspected for the recorded formula text and caches.
+No missing-add-in reopen, rebinding or xlsb result is claimed.
+
+`ExecuteExcel4Macro("UNREGISTER(<path>)")` returns TRUE and calls native `xlAutoClose`.
+For Excel-DNA this is not proof of managed AutoClose, AppEvents Unadvise, CLR unload or
+FreeLibrary: Add-in Manager removal has a different route. Full removal/reload stays [P].
+
+### 9.3 What remains open
+
+The automatic Excel-DNA ribbon/COM-add-in helper is not run because its
+`AutomationSecurityOverride` can change Application.AutomationSecurity, prohibited in this
+session. Ribbon activation and DllGetClassObject therefore remain unmeasured. RTD-based async,
+.NET 8/Native AOT, cancellation/late returns, uncalculated-cell retry, the complete permission
+table, early-bound COM vtables, legacy Excel4 and x86 also remain open. xlw and xlOil were not
+built or loaded; the reference README records the upstream source-build requirements. These
+captures establish X0 observations, not compatibility of a DNA Calc host that does not yet exist.

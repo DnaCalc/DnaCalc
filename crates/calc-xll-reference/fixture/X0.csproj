@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ExcelDnaCreate32BitAddIn>false</ExcelDnaCreate32BitAddIn>
+    <ExcelDnaCreate64BitAddIn>true</ExcelDnaCreate64BitAddIn>
+    <ExcelDnaPackExcelDnaConfig>false</ExcelDnaPackExcelDnaConfig>
+    <ExcelDnaPublishPath>publish</ExcelDnaPublishPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ExcelDna.AddIn" Version="1.9.0" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+</Project>
