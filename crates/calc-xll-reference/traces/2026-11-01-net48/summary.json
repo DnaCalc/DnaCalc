@@ -1,0 +1,184 @@
+{
+  "status": "verified",
+  "excel_file_version": "16.0.20527.20088",
+  "trace_sha256": "3660816D4A578A7250FB9C47922CA29739352F06FB9F71A8832868A31DA276C0",
+  "trace_records": 2524,
+  "paired_calls": 1207,
+  "c_api_calls": 117,
+  "main_thread": 32008,
+  "thread_safe_threads": [
+    14360,
+    15872,
+    19640,
+    31468,
+    38228,
+    40684,
+    42036,
+    42272,
+    42376,
+    43608,
+    45620,
+    46560,
+    50144,
+    50512,
+    52776,
+    57908
+  ],
+  "thread_safe_calls": 64,
+  "async_returns": 2,
+  "xlAutoFree12_calls": 1,
+  "managed_array_return_types": [
+    64
+  ],
+  "registration_signatures": {
+    "X0.Queue": "",
+    "X0.Context": "",
+    "X0.ThreadSafe": "QE$",
+    "X0.Reference": "QU#",
+    "X0.Hello": "QD%",
+    "X0.Caller": "Q#",
+    "X0.Big": "Q",
+    "X0.Async": ">EX",
+    "X0.NativeOwned": "Q"
+  },
+  "callback_return_codes": [
+    {
+      "function": 88,
+      "return_code": 0,
+      "calls": 1
+    },
+    {
+      "function": 89,
+      "return_code": 0,
+      "calls": 13
+    },
+    {
+      "function": 89,
+      "return_code": 32,
+      "calls": 1
+    },
+    {
+      "function": 149,
+      "return_code": 0,
+      "calls": 11
+    },
+    {
+      "function": 186,
+      "return_code": 0,
+      "calls": 1
+    },
+    {
+      "function": 201,
+      "return_code": 0,
+      "calls": 1
+    },
+    {
+      "function": 16384,
+      "return_code": 0,
+      "calls": 49
+    },
+    {
+      "function": 16384,
+      "return_code": 32,
+      "calls": 5
+    },
+    {
+      "function": 16385,
+      "return_code": 0,
+      "calls": 1
+    },
+    {
+      "function": 16385,
+      "return_code": 32,
+      "calls": 1
+    },
+    {
+      "function": 16386,
+      "return_code": 0,
+      "calls": 7
+    },
+    {
+      "function": 16388,
+      "return_code": 0,
+      "calls": 9
+    },
+    {
+      "function": 16389,
+      "return_code": 0,
+      "calls": 9
+    },
+    {
+      "function": 16392,
+      "return_code": 0,
+      "calls": 1
+    },
+    {
+      "function": 16393,
+      "return_code": 0,
+      "calls": 2
+    },
+    {
+      "function": 16393,
+      "return_code": 32,
+      "calls": 1
+    },
+    {
+      "function": 16400,
+      "return_code": 0,
+      "calls": 2
+    },
+    {
+      "function": 32890,
+      "return_code": 0,
+      "calls": 2
+    }
+  ],
+  "com_members": {
+    "Application": 1,
+    "Run": 4,
+    "Version": 3,
+    "dispid:110": 2,
+    "dispid:1388": 9,
+    "dispid:1805": 1,
+    "dispid:1932": 15,
+    "dispid:1950": 1,
+    "dispid:197": 32,
+    "dispid:236": 1,
+    "dispid:261": 6,
+    "dispid:264": 1,
+    "dispid:30": 1,
+    "dispid:350": 2,
+    "dispid:806": 4
+  },
+  "com_members_managed_origin": {
+    "Application": 1,
+    "Run": 2,
+    "Version": 3,
+    "dispid:110": 1,
+    "dispid:1950": 1,
+    "dispid:236": 1
+  },
+  "com_origin_note": "Managed/JIT origin is an attribution inference; all observed COM traffic also includes the external controller.",
+  "app_events": {
+    "2612": 9,
+    "1564": 8,
+    "1563": 8,
+    "1571": 1,
+    "2911": 1
+  },
+  "control_outcomes_match": true,
+  "saved_xlsx": {
+    "traced_sha256": "6443AC2E9DECE90777610B7D7A434A86C690C48BBC2695255C3B3634E7E040A4",
+    "control_sha256": "01B338220D13F990825602E4276595F54D252EAAB7637ED6E8CA744DBA3D0F9C",
+    "merged_cells": 0,
+    "xll_prefix_checked_cells": [
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B6"
+    ]
+  },
+  "timing": "QPC includes debugger pauses; no uninstrumented latency or scheduling claim"
+}
