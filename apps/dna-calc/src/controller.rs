@@ -92,6 +92,7 @@ pub struct Controller {
     pub summary: ModelField<Snapshot<Summary>>,
     /// Advances with every change to the workbook, an open included.
     pub revision: ModelField<u64>,
+    pub(crate) font_revision: ModelField<u64>,
     /// Advances with every workbook opened: subscriptions belong to one generation.
     pub generation: ModelField<u64>,
     pub sheet: ModelField<Option<SheetId>>,
@@ -155,6 +156,7 @@ impl Controller {
         #[cfg(target_arch = "wasm32")]
         let _ = any_spawner::Executor::init_wasm_bindgen();
         let model = RwSignal::new(Model::default());
+        crate::presentation::install(model);
         let edit_text = Field::new(model, |m| &m.edit.draft, |m| &mut m.edit.draft);
         let assist = FormulaAssist::new_with_state(
             edit_text.text_binding(),
@@ -245,6 +247,11 @@ impl Controller {
             ),
             summary: Field::new(model, |m| &m.runtime.summary, |m| &mut m.runtime.summary),
             revision: Field::new(model, |m| &m.runtime.revision, |m| &mut m.runtime.revision),
+            font_revision: Field::new(
+                model,
+                |m| &m.runtime.font_revision,
+                |m| &mut m.runtime.font_revision,
+            ),
             generation: Field::new(
                 model,
                 |m| &m.runtime.generation,
@@ -2717,12 +2724,7 @@ impl Controller {
                 .insert(id, ViewMirror::default().into());
         });
         let model = self.model;
-        on_cleanup(move || {
-            model.try_update(|model| {
-                model.runtime.projected_views.remove(&id);
-            });
-        });
-        Field::new(
+        let field = Field::new(
             model,
             move |m| m.runtime.projected_views.get(&id).expect("live projection"),
             move |m| {
@@ -2731,7 +2733,14 @@ impl Controller {
                     .get_mut(&id)
                     .expect("live projection")
             },
-        )
+        );
+        on_cleanup(move || {
+            field.retire();
+            model.try_update(|model| {
+                model.runtime.projected_views.remove(&id);
+            });
+        });
+        field
     }
 
     /// Registers a subscription whose cells go to `mirror`; its number for later changes.
