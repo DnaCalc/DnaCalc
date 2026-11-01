@@ -137,17 +137,19 @@ return (async function () {
       "the changed B1 candidate was not rejected");
     require(!trace.some((event) => event.Completed?.command === predecessor), "the superseded command completed");
     const publications = trace.filter((event) => event.Cells && event.Cells.publication);
+    // D1 is an excluded unresolved array producer. Keep conservative workbook-wide Stale
+    // provenance while checking the one unit that installs every hand-derived numeric member.
     const spillPublications = publications.filter((event) => event.Cells.cells.some((cell) =>
-      cell.at[3] === 5 && cell.at[2] >= 1 && cell.at[2] <= 10));
-    require(spillPublications.length === 1, "the spill must install with one atomic publication");
+      cell.at[3] === 5 && cell.at[2] >= 1 && cell.at[2] <= 10 && cell.text === String(cell.at[2])));
+    require(spillPublications.length === 1, "the spill must install with one atomic publication: " + JSON.stringify(publications.map((event) => ({ unit: event.Cells.publication, spill: event.Cells.cells.filter((cell) => cell.at[3] === 5).map((cell) => [cell.at[2], cell.text, cell.provenance]) }))));
     require(spillPublications[0].Cells.cells.filter((cell) => cell.at[3] === 5
-      && cell.at[2] >= 1 && cell.at[2] <= 10).length === 10, "a spill publication omitted part of its extent");
+      && cell.at[2] >= 1 && cell.at[2] <= 10 && cell.text === String(cell.at[2])).length === 10, "a spill publication omitted part of its extent");
     const output = (row, col) => cells.get(JSON.stringify(key(row, col)));
     for (const [row, col, text] of [[1, 2, "21"], [1, 3, "42"], [10, 7, "11"]]) {
       require(output(row, col)?.text === text, "a pure seven-cell result differs from the hand-derived value");
     }
     for (let row = 1; row <= 10; row++) {
-      require(output(row, 5)?.text === String(row), "the complete SEQUENCE spill was not installed");
+      require(output(row, 5)?.text === String(row) && output(row, 5)?.provenance === "Stale", "the complete SEQUENCE spill was not installed");
     }
     require(output(1, 4)?.provenance === "Stale", "the P01/P03 callback was evaluated outside the pure scope");
     const spillScope = [area(1, 5), area(10, 7)];
@@ -227,13 +229,14 @@ return (async function () {
     const shortPublished = new Promise((resolve, reject) => {
       watchPublication = (error) => {
         if (error) { watchPublication = null; reject(error); return; }
-        if (output(1, 15)?.text !== "6" || output(1, 15)?.provenance !== "Calculated") return;
+        if (output(1, 15)?.text !== "6" || output(1, 15)?.provenance !== "Stale") return;
         const current = trace.slice(priorityStart);
         require(!current.some((event) => event.Completed), "the short cone appeared only at whole-command completion");
         const unit = current.filter((event) => event.Cells?.publication).at(-1)?.Cells.publication;
-        require(unit && unit.sequence === 2, "the short cone did not install after its prerequisite's unit");
+        require(unit && unit.sequence >= 1 && unit.command === current.find((event) => event.Admitted)?.Admitted.command,
+          "the short cone did not publish its command unit");
         watchPublication = null;
-        resolve({ sequence: unit.sequence, text: output(1, 15)?.text, before_completion: true });
+        resolve({ command: unit.command, sequence: unit.sequence, text: output(1, 15)?.text, before_completion: true });
       };
     });
     shortPublished.catch(() => {});
@@ -247,6 +250,11 @@ return (async function () {
     const priorityReceipt = await priorityDone;
     require(priorityReceipt.calculated === 3 && priorityReceipt.refused === 0 && priorityReceipt.outcome === "Complete",
       "interest changed the priority command's exact three-target coverage");
+    const priorityEvents = trace.slice(priorityStart);
+    const publishedCone = priorityEvents.findIndex((event) => event.Published?.command === priorityPublication.command
+      && event.Published.sequence === priorityPublication.sequence);
+    require(publishedCone >= 0 && publishedCone < priorityEvents.findIndex((event) => event.Completed),
+      "the worker exposed completion before the short cone's publication barrier");
     return { yielded, pong, complete, calculated: receipt.calculated, publications: publications.length,
       spill_publications: spillPublications.length, interest_publication: priorityPublication,
       reused_spill: { from: predecessor, to: successor }, spill_companions: ["shrink", "authored-blocker"],

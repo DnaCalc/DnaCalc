@@ -513,9 +513,17 @@ pub(crate) fn restore(
         let mut after: Vec<_> = earlier.sheets().iter().map(|sheet| sheet.id()).collect();
         before.sort();
         after.sort();
-        if before != after {
-            return Err(CommandError::ScopeTransformNotModeled);
-        }
+        // Restoring authored sheets never revives locations removed from an active command.
+        // Only sheets present on both sides keep their scope identity. A fresh explicit
+        // calculation may target restored sheets after this successor completes.
+        let removed: Vec<_> = before
+            .iter()
+            .chain(&after)
+            .copied()
+            .filter(|sheet| {
+                before.binary_search(sheet).is_err() || after.binary_search(sheet).is_err()
+            })
+            .collect();
         let common = host
             .axis_edits
             .iter()
@@ -523,6 +531,12 @@ pub(crate) fn restore(
             .take_while(|(a, b)| a == b)
             .count();
         active_scope(host).map(|mut scope| {
+            for sheet in &removed {
+                scope = scope.transformed(&calc_fml::reference::StructuralEdit::RemoveSheet {
+                    sheet: *sheet,
+                    order: Vec::new(),
+                });
+            }
             for edit in host.axis_edits[common..].iter().rev() {
                 let change = match edit.change() {
                     calc_doc_model::AxisChange::Insert => calc_doc_model::AxisChange::Delete,

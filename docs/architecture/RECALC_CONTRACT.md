@@ -394,6 +394,11 @@ Competing spill producers keep their reference order. Interested scalar candidat
 their certificates validate against installed operands and contain no absence, imported-cache or boundary-cache
 qualifications. Complete spills and the remaining results still install at finish. This is narrower than the
 full eight demonstrations below; callable/async and VM3/JIT suspension remain open.
+Live scopes follow axis and sheet edits, including sheet-set Undo without reviving deleted command locations.
+Owned save plans can pin already installed scalar units while another cell remains suspended. The application
+records the excluded D1 callback as a dynamic-array producer: its unresolved corridor can conservatively keep
+E/G and other dependents stale for the workbook, despite actual scoped calculation and reuse. P05 boundary
+absence qualifications remain open; a completed scoped command does not claim workbook-wide freshness.
 
 ## 10. First slice: the eight demonstrations and their oracles
 

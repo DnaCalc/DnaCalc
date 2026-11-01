@@ -168,6 +168,13 @@ pub fn step(
     }
     work.set_interest(&host.engine, &host.model, &host.calculation_interest);
     host.calc_events.extend(work.take_events());
+    // Interest can promote candidates already computed by age escapes. Publish those before
+    // spending another quantum on an unrelated suspended activation.
+    if let Some(delta) = calc_engine::publish_ready(&mut host.engine, &host.model, &mut work) {
+        host.calc_events.extend(delta.events().iter().cloned());
+        host.work = Some(work);
+        return HostProgress::Published(delta);
+    }
     match calc_engine::step(&host.engine, &host.model, &mut work, budget, observer) {
         RecalcProgress::Pending { remaining } => {
             host.calc_events.extend(work.take_events());

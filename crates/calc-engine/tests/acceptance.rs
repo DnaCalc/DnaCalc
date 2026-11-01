@@ -6227,3 +6227,42 @@ fn contract_interest_age_escape_rotates_between_suspended_other_cells() {
         assert_eq!(l1_value(&state, at), CalcValue::number(536_887_296.0));
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_first_spill_reuse_after_prefix_publication_retains_valid_provenance() {
+    let mut book = SevenCellSlice::new();
+    book.change(Some(2.0), Some(10.0));
+    let mut old = book.begin(calc_engine::EvalSelection::DirtyAndVolatile);
+    let interest = [GridArea::new(book.c(1, 2), book.c(10, 7)).unwrap()];
+    old.set_interest(&book.state, &book.root, &interest);
+    step(
+        &book.state,
+        &book.root,
+        &mut old,
+        WorkBudget::evaluations(3),
+        &mut Unobserved,
+    );
+    assert!(
+        old.candidate(book.state.node_at(book.c(1, 5)).unwrap())
+            .is_some()
+    );
+    calc_engine::publish_ready(&mut book.state, &book.root, &mut old).unwrap();
+    book.change(Some(20.0), None);
+    let next =
+        calc_engine::supersede_recalc(&mut book.state, &book.root, old, NumericMode::Fast).unwrap();
+    assert_eq!(next.reused(), 1);
+    book.complete(next);
+    let e = book.c(1, 5);
+    assert!(
+        book.state.validated_result(&book.root, e).is_some(),
+        "E stamp {:?}; req {:?}; stale {:?}",
+        book.state.result(e).unwrap().stamp(),
+        book.state.requirement_at(e),
+        book.state.stale(&book.root)
+    );
+    assert!(
+        !book.state.stale(&book.root).unwrap().contains(&e),
+        "a completed reused spill must project as calculated"
+    );
+}
