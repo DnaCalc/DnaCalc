@@ -185,6 +185,7 @@ struct PendingCall {
 
 #[derive(Debug)]
 struct PendingUserCall {
+    cached: bool,
     activation: Box<dyn calc_func::UserFunctionInvocation>,
     frame: calc_func::UserInvocationFrame,
     record: Option<usize>,
@@ -344,6 +345,7 @@ fn evaluate_slice(
         numeric: services.numeric,
         read_policy: services.request.policy,
         invocation: services.invocation.clone(),
+        reference_handles: services.reference_handles,
         observation_reader: observation_reader.as_ref(),
         reader: &reader,
         catalog: services.catalog,
@@ -402,6 +404,7 @@ fn evaluate_slice(
 struct Run<'a, 'r> {
     read_policy: crate::ReadPolicy,
     invocation: Option<calc_func::UserInvocationFrame>,
+    reference_handles: Option<&'a dyn calc_func::ReferenceHandles>,
     observation_reader: Option<&'a SharedReader<'r>>,
     instance: &'a FormulaInstance,
     stack: &'a mut Vec<CalcValue>,
@@ -545,7 +548,9 @@ impl Run<'_, '_> {
                 });
                 index
             });
+            let cached = function.cached_reads();
             let mut context = UserCallContext {
+                cached,
                 run: self,
                 fault: None,
                 frame: Some(frame.clone()),
@@ -557,6 +562,7 @@ impl Run<'_, '_> {
             match started {
                 Ok(Some(activation)) => {
                     *pending = Some(PendingUserCall {
+                        cached,
                         activation,
                         frame,
                         record,
@@ -573,6 +579,7 @@ impl Run<'_, '_> {
                     let result = match other {
                         Ok(None) => {
                             let mut context = UserCallContext {
+                                cached,
                                 run: self,
                                 fault: None,
                                 frame: Some(frame),
@@ -600,6 +607,7 @@ impl Run<'_, '_> {
         }
         let call = pending.as_mut().expect("prepared activation");
         let mut context = UserCallContext {
+            cached: call.cached,
             run: self,
             fault: None,
             frame: Some(call.frame.clone()),
@@ -2907,6 +2915,7 @@ mod tests {
 }
 
 struct UserCallContext<'b, 'a, 'r> {
+    cached: bool,
     run: &'b mut Run<'a, 'r>,
     fault: Option<EvalFault>,
     frame: Option<calc_func::UserInvocationFrame>,
@@ -2918,6 +2927,27 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     }
     fn caller(&self) -> Option<CellKey> {
         Some(self.run.instance.anchor.cell())
+    }
+    fn retain_reference(
+        &mut self,
+        reference: &ReferenceLike,
+    ) -> Result<calc_func::StoredReference, calc_func::ReferenceHandleError> {
+        self.run.reference_handles.map_or_else(
+            || Ok(calc_func::StoredReference::Inline(reference.clone())),
+            |handles| handles.retain(reference),
+        )
+    }
+    fn resolve_reference(
+        &mut self,
+        reference: &calc_func::StoredReference,
+    ) -> Result<ReferenceLike, calc_func::ReferenceHandleError> {
+        match self.run.reference_handles {
+            Some(handles) => handles.resolve(reference),
+            None => match reference {
+                calc_func::StoredReference::Inline(reference) => Ok(reference.clone()),
+                _ => Err(calc_func::ReferenceHandleError::ForeignWorkbook),
+            },
+        }
     }
 
     fn set_volatile(&mut self, volatile: bool) {
@@ -2940,12 +2970,23 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         text
     }
 
+    fn argument_values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
+        match self.run.reader.values_of(reference) {
+            Ok(value) => Ok(value),
+            Err(fault) => {
+                let text = format!("{fault:?}");
+                self.fault.get_or_insert(fault);
+                Err(text)
+            }
+        }
+    }
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
-        match self
-            .run
-            .observation_reader
-            .unwrap_or(self.run.reader)
-            .values_of(reference)
+        match (if self.cached {
+            self.run.observation_reader.unwrap_or(self.run.reader)
+        } else {
+            self.run.reader
+        })
+        .values_of(reference)
         {
             Ok(value) => Ok(value),
             Err(fault) => {
@@ -2977,7 +3018,11 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         // Scalar positions accept a scalar or one cell; broader array behavior needs its own
         // measured host contract rather than silently borrowing the formula's rules.
         let previous = self.run.reader;
-        self.run.reader = self.run.observation_reader.unwrap_or(previous);
+        self.run.reader = if self.cached {
+            self.run.observation_reader.unwrap_or(previous)
+        } else {
+            previous
+        };
         let result = (|| {
             let arguments = arguments
                 .iter()

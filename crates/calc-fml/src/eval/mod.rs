@@ -85,6 +85,7 @@ pub struct CompiledPlan {
     externals: Box<[ExternalOperand]>,
     form: FormulaForm,
     name_bindings: Box<[crate::reference::NameBindingProof]>,
+    callable_bindings: Box<[crate::CallableBindingProof]>,
 }
 
 /// How a formula's text is evaluated where a range or an array meets a place that takes one
@@ -112,6 +113,9 @@ pub enum FormulaForm {
 }
 
 impl CompiledPlan {
+    pub fn callable_bindings(&self) -> &[crate::CallableBindingProof] {
+        &self.callable_bindings
+    }
     pub fn name_bindings(&self) -> &[crate::reference::NameBindingProof] {
         &self.name_bindings
     }

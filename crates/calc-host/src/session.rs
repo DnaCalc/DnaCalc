@@ -80,13 +80,18 @@ impl SubscriptionId {
 /// What a [`HostDelta`] follows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DeltaCause {
+    CallablesChanged {
+        revision: AuthoredRevision,
+    },
     /// The subscription was registered: its interest's cells as they stand.
     Subscribed,
     /// The subscription's interest moved (a new area, or a new selection for a selection
     /// interest): the new interest's cells as they stand.
     InterestMoved,
     /// A transaction committed this revision.
-    Committed { revision: AuthoredRevision },
+    Committed {
+        revision: AuthoredRevision,
+    },
     /// A recalculation of this revision published a generation.
     Recalculated {
         publication: calc_engine::contract::PublicationUnitId,
@@ -95,7 +100,9 @@ pub enum DeltaCause {
     },
     /// A recalculation of this revision published nothing; the results it would have replaced
     /// are stale ([`crate::StaleCause::RecalcFailed`]).
-    RecalcFailed { revision: AuthoredRevision },
+    RecalcFailed {
+        revision: AuthoredRevision,
+    },
 }
 
 /// The cells of a subscription's interest that changed.
@@ -330,6 +337,16 @@ impl fmt::Debug for HostSession {
 }
 
 impl HostSession {
+    pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
+        self.host.set_user_functions(functions);
+        self.deliver_changes(
+            DeltaCause::CallablesChanged {
+                revision: self.host.revision(),
+            },
+            false,
+        );
+    }
+
     /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
         HostSession {
@@ -887,6 +904,9 @@ impl HostSession {
         let base = self.host.revision();
         let committed =
             dispatch(&mut self.host, HostCommand { base, edits }).map_err(IntentError::Command)?;
+        if let Some(edit) = coordinates {
+            self.host.references.apply(edit);
+        }
         if let Some(scope) = scope {
             self.host.transformed_calculation_scope = Some(scope);
         }

@@ -2730,3 +2730,65 @@ fn dc_971p_26__evicted_command_and_calculation_retries_never_run_again() {
     assert_eq!(server.book().session().history_depth(), depth);
     assert_eq!(shown(server.book(), at).text, "3");
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project() {
+    use dna_calc_worker::{
+        server::{Server, answer_text},
+        wire::{self, Area, FromServer, Intent, Key, Reply, Request, ToServer},
+    };
+    let mut server = Server::new();
+    let sheet = server.book().sheets()[0].id;
+    let at = CellKey::new(sheet, 1, 1).unwrap();
+    let exchange = |server: &mut Server, request: Request| {
+        let (text, _) = answer_text(server, &wire::encode(&ToServer { id: 1, request }), None);
+        wire::decode::<FromServer>(&text).unwrap()
+    };
+    let send = |server: &mut Server, request: Request| {
+        let request = server.envelope(request);
+        exchange(server, request)
+    };
+    send(
+        &mut server,
+        Request::Intent(Intent::SetCalcMode { manual: true }),
+    );
+    let load=server.envelope(Request::LoadVbaModule {name:"Wire".into(),source:"Private entries As Long\nPublic Function Counter() As Long\n entries=entries+1\n Counter=entries\nEnd Function\n".into(),max_steps:100_000});
+    assert!(
+        matches!(exchange(&mut server,load.clone()),FromServer::Reply {reply:Reply::Done {outcome,..},..} if outcome.accepted)
+    );
+    send(
+        &mut server,
+        Request::Intent(Intent::EnterCell {
+            at: Key::of(at),
+            text: "=Counter()".into(),
+        }),
+    );
+    let force = |server: &mut Server| {
+        send(
+            server,
+            Request::Intent(Intent::CalculateRange {
+                areas: vec![Area::of(GridArea::cell(at))],
+            }),
+        );
+        while server.has_pending_calculation() {
+            server.advance_calculation();
+        }
+    };
+    force(&mut server);
+    assert_eq!(shown(server.book(), at).text, "1");
+    exchange(&mut server, load); // A retried load must not reset module state.
+    force(&mut server);
+    assert_eq!(shown(server.book(), at).text, "2");
+    let bad = send(
+        &mut server,
+        Request::LoadVbaModule {
+            name: "Wire".into(),
+            source: "Public Function Broken(".into(),
+            max_steps: 100_000,
+        },
+    );
+    assert!(matches!(bad, FromServer::Failed { .. }), "{bad:?}");
+    force(&mut server);
+    assert_eq!(shown(server.book(), at).text, "3");
+}

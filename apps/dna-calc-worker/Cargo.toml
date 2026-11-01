@@ -7,6 +7,7 @@ license.workspace = true
 [package.metadata.dnacalc]
 portability = "portable"
 [dependencies]
+calc-vba = {path="../../crates/calc-vba"}
 dna-calc-model = {path="../dna-calc-model"}
 dna-calc-protocol = {path="../dna-calc-protocol"}
 dna-formula-ui = {path="../dna-formula-ui"}

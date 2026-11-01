@@ -462,6 +462,16 @@ pub fn dispatch(
 
     let committed = calc_engine::commit_edit(engine);
     host.model = document.into_model();
+    for edit in &axis_edits {
+        host.references.apply(&axis_transform(*edit));
+    }
+    if let Some(calc_doc_model::SheetEdit::Remove { sheet }) = sheet_edit {
+        host.references
+            .apply(&calc_fml::reference::StructuralEdit::RemoveSheet {
+                sheet: *sheet,
+                order: Vec::new(),
+            });
+    }
     if transformed_scope.is_some() {
         host.transformed_calculation_scope = transformed_scope;
     }
@@ -557,6 +567,41 @@ pub(crate) fn restore(
     } else {
         None
     };
+    let mut reference_edits = Vec::new();
+    for sheet in host.model.sheets() {
+        if earlier.sheet_by_id(sheet.id()).is_none() {
+            reference_edits.push(calc_fml::reference::StructuralEdit::RemoveSheet {
+                sheet: sheet.id(),
+                order: Vec::new(),
+            });
+        }
+    }
+    let common = host
+        .axis_edits
+        .iter()
+        .zip(&axis_edits)
+        .take_while(|(a, b)| a == b)
+        .count();
+    for edit in host.axis_edits[common..].iter().rev() {
+        let change = match edit.change() {
+            calc_doc_model::AxisChange::Insert => calc_doc_model::AxisChange::Delete,
+            calc_doc_model::AxisChange::Delete => calc_doc_model::AxisChange::Insert,
+        };
+        let inverse = AxisEdit::new(
+            edit.sheet(),
+            edit.axis(),
+            change,
+            edit.first(),
+            edit.count(),
+        )
+        .expect("checked inverse axis edit");
+        reference_edits.push(axis_transform(inverse));
+    }
+    reference_edits.extend(
+        axis_edits[common..]
+            .iter()
+            .map(|edit| axis_transform(*edit)),
+    );
     let base = host.model.revision();
     let model = host
         .model
@@ -564,6 +609,9 @@ pub(crate) fn restore(
         .map_err(|error| CommandError::Document(EditError::Model(error)))?;
     let engine = host.engine.rebuilt(&model);
     host.model = model;
+    for edit in reference_edits {
+        host.references.apply(&edit);
+    }
     if transformed_scope.is_some() {
         host.transformed_calculation_scope = transformed_scope;
     }
@@ -608,12 +656,15 @@ pub(crate) fn active_scope(host: &HostState) -> Option<calc_engine::CalcScope> {
 }
 
 fn axis_scope(scope: calc_engine::CalcScope, edit: AxisEdit) -> calc_engine::CalcScope {
+    scope.transformed(&axis_transform(edit))
+}
+fn axis_transform(edit: AxisEdit) -> calc_fml::reference::StructuralEdit {
     use calc_fml::reference::{EditAxis, StructuralEdit};
     let axis = match edit.axis() {
         calc_doc_model::Axis::Rows => EditAxis::Rows,
         calc_doc_model::Axis::Columns => EditAxis::Columns,
     };
-    let transform = match edit.change() {
+    match edit.change() {
         calc_doc_model::AxisChange::Insert => StructuralEdit::Insert {
             sheet: edit.sheet(),
             axis,
@@ -626,6 +677,5 @@ fn axis_scope(scope: calc_engine::CalcScope, edit: AxisEdit) -> calc_engine::Cal
             first: edit.first(),
             count: edit.count(),
         },
-    };
-    scope.transformed(&transform)
+    }
 }

@@ -87,11 +87,38 @@ pub enum EvalSelection {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ReevaluationReason {
     DependencyRepair,
+    CallableReload,
+    XllUncalcedUnwind,
+    ProvisionalArguments,
     NewCommandDemand,
     AuthoredOrInputChange,
     SpillShapePass,
     IterationSweep,
     TableScenario,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CachedObservation {
+    pub external_cache: bool,
+    pub view: crate::CachedReadLease,
+    pub request: calc_fml::ReadRequest,
+    pub region: GridArea,
+    pub lineage: Option<BoundaryReadSpan>,
+    pub provisional: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CallInvocation {
+    pub identity: InvocationId,
+    pub runtime: u64,
+    pub parent: Option<u64>,
+    pub callable: calc_fml::CallableHandle,
+    pub completed: bool,
+    pub non_preemptible: bool,
+}
+#[derive(Clone, Debug)]
+pub struct InvocationReadView {
+    pub root: InvocationId,
+    pub view: crate::CachedReadLease,
 }
 
 /// A value version is the producing pass. Every semantic reevaluation starts a new pass;
@@ -164,6 +191,10 @@ pub struct BoundaryReadSpan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ReadCertificate {
+    pub observations: Vec<CachedObservation>,
+    pub callables: Vec<calc_fml::CallableBindingProof>,
+    pub invocations: Vec<CallInvocation>,
+    pub udf_volatile: Option<bool>,
     /// The calculation consumed a saved external-link cache without a versioned live input
     /// view. Arithmetic preserves this qualification; it is not a FreshFor guarantee.
     pub external_cache: bool,
@@ -573,6 +604,31 @@ pub(crate) fn boundary_ancestry_at(
     spans
 }
 
+pub(crate) fn observation_ancestry_at(
+    state: &EngineState,
+    progress: &Progress,
+    region: GridArea,
+) -> Vec<CachedObservation> {
+    let mut observations = Vec::new();
+    for node in span_nodes_at(state, progress, region) {
+        let result = if progress.is_evaluated(node) {
+            progress.staged(node)
+        } else if progress.is_scheduled(node) {
+            None
+        } else {
+            state.results.of(node)
+        };
+        if let Some(stamp) = result.and_then(FormulaResult::stamp) {
+            for read in &stamp.reads.observations {
+                if !observations.contains(read) {
+                    observations.push(read.clone());
+                }
+            }
+        }
+    }
+    observations
+}
+
 pub(crate) fn producer_version_at(
     state: &EngineState,
     region: GridArea,
@@ -782,6 +838,11 @@ pub(crate) fn certificate_valid_at(
         || !name_bindings_valid(inputs, &stamp.reads.names)
         || stamp
             .reads
+            .callables
+            .iter()
+            .any(|proof| !state.callables.validates(proof))
+        || stamp
+            .reads
             .volatile_inputs
             .is_some_and(|version| version != volatile_inputs)
     {
@@ -905,31 +966,7 @@ fn scope_area(area: GridArea, edit: &calc_fml::reference::StructuralEdit) -> Vec
             }
             pieces
         }
-        E::ShiftCells {
-            area: band, down, ..
-        } if band.sheet() == area.sheet() => {
-            let stripe = if *down {
-                GridArea::new(
-                    CellKey::new(band.sheet(), 1, band.first().column()).expect("valid stripe"),
-                    CellKey::new(band.sheet(), calc_value::MAX_ROWS, band.last().column())
-                        .expect("valid stripe"),
-                )
-            } else {
-                GridArea::new(
-                    CellKey::new(band.sheet(), band.first().row(), 1).expect("valid stripe"),
-                    CellKey::new(band.sheet(), band.last().row(), calc_value::MAX_COLUMNS)
-                        .expect("valid stripe"),
-                )
-            }
-            .expect("one sheet");
-            let Some(common) = area.intersection(stripe) else {
-                return vec![area];
-            };
-            let mut pieces = area.subtract(common);
-            pieces.extend(edit.area(common));
-            pieces
-        }
-        _ => edit.area(area).into_iter().collect(),
+        _ => edit.tracked_areas(area),
     }
 }
 

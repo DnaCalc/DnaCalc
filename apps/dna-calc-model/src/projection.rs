@@ -465,6 +465,12 @@ pub enum Request {
     Open {
         name: String,
     },
+    /// Prepare and replace the workbook's live VBA procedures. Source is not persisted here.
+    LoadVbaModule {
+        name: String,
+        source: String,
+        max_steps: u64,
+    },
     /// Saves the workbook: its bytes travel back beside the reply.
     Save,
     Intent(Intent),
@@ -549,7 +555,11 @@ impl Request {
     pub fn is_command(&self) -> bool {
         matches!(
             self,
-            Self::New | Self::Open { .. } | Self::Save | Self::Intent(_)
+            Self::New
+                | Self::Open { .. }
+                | Self::Save
+                | Self::Intent(_)
+                | Self::LoadVbaModule { .. }
         )
     }
 }

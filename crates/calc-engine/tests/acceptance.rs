@@ -7373,3 +7373,109 @@ fn names_refused_bodies_and_missing_calls_keep_binding_watches() {
     assert_eq!(l1_value(&state, c(1)), CalcValue::number(8.0));
     assert_eq!(l1_value(&state, c(2)), CalcValue::number(8.0));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_callable_reload_revokes_staged_publication_authority() {
+    #[derive(Debug)]
+    struct Unused;
+    impl calc_fml::UserFunction for Unused {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::number(9.0))
+        }
+    }
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let a = key(s, 1, 1);
+    let root = l3_root(
+        &[(s, "Reload")],
+        vec![(a, formula("1+1"))],
+        Definitions::default(),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    work.set_interest(&state, &root, &[GridArea::cell(a)]);
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register("Unused", std::rc::Rc::new(Unused))
+        .unwrap();
+    state.set_callable_bindings(&root, functions.bindings());
+    assert!(calc_engine::publish_ready(&mut state, &root, &mut work).is_none());
+    assert!(matches!(
+        finish(&mut state, &root, work),
+        Err(RecalcFailure::Superseded { .. })
+    ));
+    assert!(state.result(a).is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_partial_callable_projection_preserves_refusals_and_rebinds_qualified_misses() {
+    #[derive(Debug)]
+    struct Constant(f64);
+    impl calc_fml::UserFunction for Constant {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::number(self.0))
+        }
+    }
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let cell = |col| key(s, 1, col);
+    let root = l3_root(
+        &[(s, "Partial")],
+        vec![
+            (cell(1), formula("Later()")),
+            (cell(2), formula("[0]!Later()")),
+        ],
+        Definitions::default().with_macro_enabled(true),
+    );
+    let mut state = EngineState::new(&root);
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register("Unrelated", std::rc::Rc::new(Constant(9.0)))
+        .unwrap();
+    let run = |state: &mut EngineState, functions: &calc_fml::CallableTable| {
+        state.set_callable_bindings(&root, functions.bindings());
+        let mut work = begin_recalc(state, &root, NumericMode::Fast)
+            .unwrap()
+            .with_functions(functions);
+        assert_eq!(
+            step(
+                state,
+                &root,
+                &mut work,
+                WorkBudget::UNLIMITED,
+                &mut Unobserved
+            ),
+            RecalcProgress::Complete
+        );
+        finish(state, &root, work).unwrap();
+    };
+    run(&mut state, &functions);
+    for column in [1, 2] {
+        assert!(
+            matches!(
+                state.result(cell(column)),
+                Some(FormulaResult::NotModeled { .. })
+            ),
+            "a partial registry cannot prove a missing workbook macro is #NAME?"
+        );
+    }
+    functions
+        .register("Later", std::rc::Rc::new(Constant(52.0)))
+        .unwrap();
+    run(&mut state, &functions);
+    for column in [1, 2] {
+        assert_eq!(l1_value(&state, cell(column)), CalcValue::number(52.0));
+    }
+}

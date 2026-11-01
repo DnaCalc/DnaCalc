@@ -139,6 +139,7 @@ pub struct Calculation {
 pub struct Session {
     fixture: Fixture,
     functions: calc_fml::CallableTable,
+    references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
     formula: String,
     formula_cell: CellKey,
     plans: PlanCache,
@@ -173,6 +174,7 @@ impl Session {
         Ok(Session {
             fixture,
             functions: calc_fml::CallableTable::new(),
+            references: calc_fml::reference::ReferenceTracker::new(),
             formula: String::new(),
             formula_cell: CellKey::new(sheet, 1, 1).expect("A1 is on the grid"),
             plans: PlanCache::new(),
@@ -392,6 +394,7 @@ impl Session {
         let mut reader = TracingReader::new(&self.fixture);
         // The session's sheets are the workbook context INDIRECT's text is bound in.
         let mut function_diagnostics = Vec::new();
+        let references = self.references.pin();
         let outcome = evaluate(
             EvalFrame::new(&instance, &mut self.scratch),
             &mut FormulaEvaluationContext::new(
@@ -403,6 +406,7 @@ impl Session {
             )
             .with_catalog(&self.fixture)
             .with_functions(&self.functions)
+            .with_reference_handles(&*references)
             .with_function_diagnostics(&mut function_diagnostics),
         );
         let reads = reader.into_reads();

@@ -284,6 +284,45 @@ return (async function () {
       && event.Published.sequence === priorityPublication.sequence);
     require(publishedCone >= 0 && publishedCone < priorityEvents.findIndex((event) => event.Completed),
       "the worker exposed completion before the short cone's publication barrier");
+    await intent({ EditSheet: { sheet: null, change: { Add: { name: "VBA Contract" } } } });
+    sheet = summary.sheets.find(([, name]) => name === "VBA Contract")[0];
+    const vbaSource = "Private entries As Long\nPublic Function CountAndPeek(ByVal r As DnaCalcObjects.Range, ByVal count As Long) As Double\n Dim total As Long\n Dim initial As Long\n initial=count\n entries=entries+1\n Do While count>0\n total=total+1\n count=count-1\n Loop\n CountAndPeek=r.NumericValue+total-initial\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n";
+    await command({ LoadVbaModule: { name: "Counted", source: vbaSource, max_steps: 5000000 } });
+    for (const [col, text] of [[1, "1"], [2, "=A1+1"], [4, "=CountAndPeek(B1,200000)"], [5, "=EntryCount()"]]) {
+      await intent({ EnterCell: { at: key(1, col), text } });
+    }
+    await send({ SetInterest: { id: 1, workbook: summary.workbook, interest: { Areas: [area(1, 1, 1, 5)] } } });
+    await intent({ CalculateRange: { areas: [area(1, 2)] } });
+    require(output(1, 2)?.text === "2", "the VBA cache was not calculated before the edit");
+    await intent({ EnterCell: { at: key(1, 1), text: "10" } });
+    const vbaStart = trace.length;
+    const vbaDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+    vbaDone.catch(() => {});
+    const vbaCalculation = intent({ CalculateRange: { areas: [area(1, 4)] } });
+    const vbaPing = send("Ping");
+    await vbaCalculation;
+    require((await vbaPing).Pong, "the worker did not service Ping during the VBA activation");
+    const vbaReceipt = await vbaDone;
+    const vbaEvents = trace.slice(vbaStart);
+    const vbaYield = vbaEvents.findIndex((event) => event.Yielded);
+    const vbaPong = vbaEvents.findIndex((event) => event.Pong);
+    const vbaComplete = vbaEvents.findIndex((event) => event.Completed);
+    require(vbaYield >= 0 && vbaYield < vbaPong && vbaPong < vbaComplete,
+      "the single-cell VBA procedure did not yield inside its interpreter activation");
+    require(vbaReceipt.outcome === "Complete" && vbaReceipt.calculated === 1 && vbaReceipt.refused === 0,
+      "the VBA command did not complete exactly its one admitted target");
+    require(output(1, 4)?.text === "2" && output(1, 4)?.provenance === "Stale" && output(1, 2)?.text === "2",
+      "the VBA callback did not retain its qualified old cache without demanding B1");
+    await intent({ CalculateRange: { areas: [area(1, 5)] } });
+    require(output(1, 5)?.text === "1", "resuming the VBA activation repeated its counter effect");
+    const replacement = "Private entries As Long\nPublic Function CountAndPeek(ByVal value As Double, ByVal count As Long) As Double\n entries=entries+1\n CountAndPeek=value+50#\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n";
+    await command({ LoadVbaModule: { name: "Counted", source: replacement, max_steps: 100000 } });
+    await intent({ CalculateRange: { areas: [area(1, 4)] } });
+    require(output(1, 4)?.text === "52", "VBA reload did not bind the replacement signature and code");
+    await intent({ CalculateRange: { areas: [area(1, 5)] } });
+    require(output(1, 5)?.text === "1", "VBA reload did not start fresh project state");
+    const vbaWitness = { targets: vbaReceipt.calculated, yielded: vbaYield, pong: vbaPong,
+      completed: vbaComplete, old_cache: "2", entries: "1", reload: output(1, 4)?.text };
     sheet = fixtureSheet;
     // Exercise Save/Open over transferred package bytes, through the product worker itself.
     for (const [col, text] of [[17, "1"], [18, "=Q1*2"], [19, "=R1+1"]]) {
@@ -315,7 +354,7 @@ return (async function () {
     const manualSave = { input: savedCell(17)?.text, caches: [savedCell(18)?.text, savedCell(19)?.text],
       provenance: "FileCache", bytes: packageBytes };
     return { yielded, pong, complete, calculated: receipt.calculated, publications: publications.length,
-      manual_save: manualSave,
+      manual_save: manualSave, vba: vbaWitness,
       spill_publications: spillPublications.length, interest_publication: priorityPublication,
       reused_spill: { from: predecessor, to: successor }, spill_companions: ["shrink", "authored-blocker"],
       equal_value_status: { command: replayCommand, text: equalText },

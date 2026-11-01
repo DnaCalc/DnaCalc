@@ -19,7 +19,9 @@ Built-ins, locals and known defined names keep precedence. Plans retain table, s
 generation, plus spelling for diagnostics; invocation uses the checked slot directly.
 Replacement preserves surviving slots and advances generations. Retained activations own
 their previous code and project state; they cannot call an incompatible replacement.
-Callers recompile when adding a previously unknown name. The default UserFunction entry still eagerly reads references for existing adapters;
+Callers recompile when adding a previously unknown name. Metadata compilation preserves
+the workbook's unresolved-macro refusal policy, including qualified misses; OneCalc's
+explicit registry retains its existing name-error behavior. The default UserFunction entry still eagerly reads references for existing adapters;
 the reference-aware entry borrows the evaluator's caller, reader and CalcFunc services.
 
 One loaded VBA module retains globals, Static and Err across calls. Separate modules,
@@ -31,24 +33,27 @@ ByRef inputs remain private copies. Shared immutable code never shares mutable V
 The Range, Application and WorksheetFunction implementation now belongs to DNA Calc in
 calc-vba's runtime composition, extracted from OxVba 325257ea's frozen spreadsheet adapter.
 There is no spreadsheet-compat dependency. The neutral host API carries bound procedure
-handles, typed slots and owning activations. Admission prepares Long/Double shims where
+handles, typed slots and owning activations. Admission prepares Long/Double and DNA numeric Range shims where
 the actual body supports typed execution. Other signatures retain the explicit Variant
 adapter; their synchronous interval is recorded. Errors never select a second entry.
 CalcFml retains an admitted typed activation at an instruction boundary and resumes it,
 with the same invocation identity and read-view lease, without re-entering the procedure.
 The one-operation replacement test exercises both interpreter and native JIT. General
-Variant object calls do not yet promise an internal safepoint. Workbook cached observation
-views and stored-Range structural tracking still need engine/host integration.
+Variant object calls retain an explicit synchronous interval. Typed owning activations
+use VM/JIT safepoints; arbitrary Variant bodies do not yet promise an internal safepoint.
 
-A single rectangular reference becomes a live read-only Range object. Supported:
+A reference becomes a workbook-owned read-only Range object. Supported:
 Value2, Count, Row, Column, Address, Cells/Item, and Rows/Columns Count. Variant reference
 arguments have TypeName Range; a numeric literal is Double. Application.Caller identifies
 the formula cell. VarType reflects the live Range default value (Number5, Empty0, text8, Variant array8204),
 while TypeName/IsObject retain the Range. Date/Currency format-dependent defaults and other
 object defaults remain open. Saved Range references read current inputs through the next call's
-reader, so reads are recorded and missing inputs remain explicit refusals. Returning a
-Range materializes Value2. Multi-area ranges, writes and other object members remain open. The bounded host
-deduplicates Range identities by coordinates; VBA object-identity parity remains unmeasured.
+reader. Returning a Range materializes Value2. Multi-area handles support Areas.Count,
+Areas.Item and Address; union Value2 and union worksheet callbacks remain typed refusals.
+The host tracks identities through axis edits, partial cuts and cell shifts. A partial
+cut that splits one Range across worksheets is a typed refusal; its Excel behavior is open. A deleted or
+closed-workbook Range remains an object but raises VBA error 424 on access. Undo and
+same-name reopen cannot revive its identity. Full VBA object-identity parity is unmeasured.
 
 Application.WorksheetFunction calls SUM/MIN/MAX/AVERAGE (1..30 arguments) or MATCH
 (2..3 arguments) through the ordinary CalcFunc evaluator and its existing reader and
@@ -104,8 +109,11 @@ branch makes no request. Each reevaluation starts nonvolatile, so a conditional 
 that stops requesting volatility becomes nonvolatile. A nested VBA helper's request
 affects its caller; a request made outside a worksheet UDF has no scheduling effect.
 Internal VBA reads of a cell absent from the formula's arguments did not create an
-Excel dependency; its old value persisted until explicit calculation. Wider saved-Range
-dependency behavior in the adapter remains an open parity question.
+Excel dependency; its old value persisted until explicit calculation. The workbook host pins the cached-read view at invocation admission: hidden Range reads
+observe that view without demanding or registering producer dependencies. Observations
+retain imported, external and provisional qualifications and propagate to dependent results.
+Scalar parameter readiness remains an ordinary dependency. Unavailable observations are
+typed refusals; they cannot become blank or zero. Wider Excel object behavior remains open.
 
 OneCalc deliberately calculates its one formula whenever its controller is asked.
 That explicit call advances state even with unchanged inputs, like a forced range
@@ -143,3 +151,20 @@ The corpus remains 19,284/20,030 matched, 659 failed, with 73 external-link and1
 circular-rule values separate. The repository-wide acceptance suite was skipped;
 no whole-workset completion or Linux execution claim is made. Exact logs/report are
 under C:/Work/DnaCalc/codex-runs (calcvba-report-3.md).
+
+Engine integration, 2026-11-01 (`dc-hsa5.4`): CalcHost owns live callable registrations;
+CalcEngine holds only binding metadata. Reload rebinds positive and negative watches,
+invalidates their consumers and revokes old command publication authority. Unresolved
+compilation refusals are retried conservatively when registrations change. Retained old
+activations keep old code/state until discarded. Invocation certificates record
+callable identities, call sites, completion and synchronous intervals. A typed activation
+resumes against the same pinned model/cache/reference views without repeating its prefix.
+A dependency or spill-placement wait discovered after an effect currently returns a named
+continuation-unavailable refusal rather than restarting the procedure. General P03
+provisional reevaluation, nested callback reentry and P07 async completion remain open.
+
+The product worker accepts a deduplicated LoadVbaModule command. A failed compile preserves
+the prior project; successful reload replaces it and starts new module state. Source is
+not yet persisted. The interpreter-only browser path remains the OneCalc route as well.
+The cache pin currently copies the workbook's cache map per user formula and the reference
+view copies live handles; large-workbook cost and handle reclamation remain unmeasured.

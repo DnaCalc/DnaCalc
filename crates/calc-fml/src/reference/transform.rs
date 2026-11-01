@@ -89,6 +89,38 @@ pub enum StructuralEdit {
 }
 
 impl StructuralEdit {
+    /// Locations retained by a live Range, splitting partial cuts and cell shifts into
+    /// areas. This shares the structural arithmetic used by command scope transforms.
+    pub fn tracked_areas(&self, area: GridArea) -> Vec<GridArea> {
+        let split = match self {
+            Self::MoveCells { area: source, .. } => Some(*source),
+            Self::ShiftCells {
+                area: band, down, ..
+            } if band.sheet() == area.sheet() => Some(
+                if *down {
+                    GridArea::new(
+                        CellKey::new(band.sheet(), 1, band.first().column()).expect("stripe"),
+                        CellKey::new(band.sheet(), MAX_ROWS, band.last().column()).expect("stripe"),
+                    )
+                } else {
+                    GridArea::new(
+                        CellKey::new(band.sheet(), band.first().row(), 1).expect("stripe"),
+                        CellKey::new(band.sheet(), band.last().row(), MAX_COLUMNS).expect("stripe"),
+                    )
+                }
+                .expect("one sheet"),
+            ),
+            _ => None,
+        };
+        if let Some(common) = split.and_then(|band| area.intersection(band)) {
+            let mut pieces = area.subtract(common);
+            pieces.extend(self.area(common));
+            pieces
+        } else {
+            self.area(area).into_iter().collect()
+        }
+    }
+
     /// Where the 1-based position `index` on `axis` of `sheet` lies after the edit: `None` when
     /// the edit deletes it or pushes it past the grid's edge.
     pub fn position(&self, sheet: SheetId, axis: EditAxis, index: u32) -> Option<u32> {

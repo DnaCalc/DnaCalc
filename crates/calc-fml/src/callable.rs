@@ -13,11 +13,21 @@ pub struct CallableHandle {
 }
 
 /// Binding-only projection; no session or thread-bound executable owners.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CallableBindings {
     entries: BTreeMap<(Option<String>, String), CallableHandle>,
 }
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CallableBindingProof {
+    pub provider: Option<String>,
+    pub name: String,
+    pub bound: Option<CallableHandle>,
+}
 impl CallableBindings {
+    pub fn validates(&self, proof: &CallableBindingProof) -> bool {
+        self.bind(proof.provider.as_deref(), &proof.name) == proof.bound
+    }
+
     pub fn bind(&self, provider: Option<&str>, name: &str) -> Option<CallableHandle> {
         self.entries
             .get(&CallableTable::key(provider, name))

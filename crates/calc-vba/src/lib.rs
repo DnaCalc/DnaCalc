@@ -3,7 +3,7 @@
 
 use calc_fml::CallableTable as UserFunctions;
 use calc_func::value::{ArrayShape, CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
-use calc_func::value::{CellKey, GridArea, ReferenceLike, SheetId};
+use calc_func::value::{CellKey, ReferenceLike};
 use calc_func::{UserFunction, UserFunctionContext};
 pub use oxvba_embed::Backend;
 mod runtime;
@@ -165,6 +165,9 @@ impl calc_func::UserFunctionInvocation for VbaActivation {
     }
 }
 impl UserFunction for VbaFunction {
+    fn cached_reads(&self) -> bool {
+        true
+    }
     fn begin_call(
         &self,
         arguments: &[CalcValue],
@@ -619,41 +622,28 @@ mod tests {
 }
 
 #[derive(Default)]
-struct Sheets(Vec<SheetId>);
+struct Sheets(Vec<calc_func::StoredReference>);
 impl Sheets {
-    fn range(&mut self, area: GridArea) -> Range {
-        let sheet = self
+    fn insert(&mut self, reference: calc_func::StoredReference) -> Range {
+        let id = self
             .0
             .iter()
-            .position(|id| *id == area.sheet())
+            .position(|held| *held == reference)
             .unwrap_or_else(|| {
-                self.0.push(area.sheet());
+                self.0.push(reference);
                 self.0.len() - 1
             });
-        Range {
-            sheet: sheet as u64,
-            row: area.first().row(),
-            column: area.first().column(),
-            rows: area.row_count(),
-            columns: area.column_count(),
-        }
+        Range { id: id as u64 }
     }
-    fn reference(&self, range: Range) -> Result<ReferenceLike, String> {
-        range.validate()?;
-        let sheet = *self
-            .0
-            .get(usize::try_from(range.sheet).map_err(|_| "invalid host sheet")?)
-            .ok_or("unknown host sheet")?;
-        let first = CellKey::new(sheet, range.row, range.column).map_err(|e| e.to_string())?;
-        let last = CellKey::new(
-            sheet,
-            range.row + range.rows - 1,
-            range.column + range.columns - 1,
-        )
-        .map_err(|e| e.to_string())?;
-        Ok(ReferenceLike::area(
-            GridArea::new(first, last).map_err(|e| e.to_string())?,
-        ))
+    fn get(&self, range: Range) -> Result<calc_func::StoredReference, runtime::ContextError> {
+        self.0
+            .get(
+                usize::try_from(range.id).map_err(|_| {
+                    runtime::ContextError::Vba(424, "invalid Range identity".into())
+                })?,
+            )
+            .cloned()
+            .ok_or_else(|| runtime::ContextError::Vba(424, "unknown Range identity".into()))
     }
 }
 struct ContextBridge<'a> {
@@ -662,28 +652,75 @@ struct ContextBridge<'a> {
 }
 impl ContextBridge<'_> {
     fn refuse(&self, reason: &'static str) -> String {
-        match self.context.try_borrow_mut() {
-            Ok(mut context) => context.refuse(reason),
-            Err(_) => "reentrant worksheet capability refusal".into(),
+        self.context
+            .try_borrow_mut()
+            .map(|mut context| context.refuse(reason))
+            .unwrap_or_else(|_| "reentrant worksheet capability refusal".into())
+    }
+    fn range(&self, reference: &ReferenceLike) -> Result<Range, runtime::ContextError> {
+        if reference.spans_sheets() {
+            return Err(self.refuse("a VBA Range spanning worksheets").into());
         }
+        let retained = {
+            self.context
+                .try_borrow_mut()
+                .map_err(|_| "reentrant reference admission")?
+                .retain_reference(reference)
+        };
+        let handle = retained.map_err(|error| self.reference_error(error))?;
+        Ok(self.sheets.borrow_mut().insert(handle))
+    }
+    fn reference_error(&self, error: calc_func::ReferenceHandleError) -> runtime::ContextError {
+        match error {
+            calc_func::ReferenceHandleError::NotModelledEdit => self
+                .context
+                .try_borrow_mut()
+                .map(|mut context| {
+                    context.refuse_by(
+                        "a stored Range split across worksheets by an edit",
+                        "dc-hsa5.4",
+                    )
+                })
+                .unwrap_or_else(|_| "reentrant reference resolution".into())
+                .into(),
+            calc_func::ReferenceHandleError::ExpiredView => self
+                .context
+                .try_borrow_mut()
+                .map(|mut context| {
+                    context.refuse_by(
+                        "creating a stored Range after its invocation view expired",
+                        "dc-hsa5.4",
+                    )
+                })
+                .unwrap_or_else(|_| "reentrant reference admission".into())
+                .into(),
+            _ => runtime::ContextError::Vba(424, format!("stored Range is unavailable: {error}")),
+        }
+    }
+    fn reference(&self, range: Range) -> Result<ReferenceLike, runtime::ContextError> {
+        let handle = self.sheets.borrow().get(range)?;
+        let resolved = {
+            self.context
+                .try_borrow_mut()
+                .map_err(|_| "reentrant Range resolution")?
+                .resolve_reference(&handle)
+        };
+        resolved.map_err(|error| self.reference_error(error))
     }
     fn argument(&self, value: &CalcValue) -> Result<Value, String> {
         if let Some(reference) = value.as_reference() {
-            let [area] = reference.areas() else {
-                return Err(self.refuse("a VBA Range with more than one rectangular area"));
-            };
-            Ok(Value::Range(self.sheets.borrow_mut().range(*area)))
+            self.range(reference)
+                .map(Value::Range)
+                .map_err(|error| error.to_string())
         } else {
             to_vba(value)
                 .map_err(|_| self.refuse("a VBA argument outside the supported value surface"))
         }
     }
-    fn value(&self, value: &Value) -> Result<CalcValue, String> {
+    fn value(&self, value: &Value) -> Result<CalcValue, runtime::ContextError> {
         match value {
-            Value::Range(range) => Ok(CalcValue::reference(
-                self.sheets.borrow().reference(*range)?,
-            )),
-            value => from_vba(value.clone()),
+            Value::Range(range) => Ok(CalcValue::reference(self.reference(*range)?)),
+            value => from_vba(value.clone()).map_err(Into::into),
         }
     }
 }
@@ -693,53 +730,150 @@ impl SpreadsheetContext for ContextBridge<'_> {
     }
     fn caller(&self) -> Option<Range> {
         let caller = self.context.try_borrow().ok()?.caller()?;
-        Some(self.sheets.borrow_mut().range(GridArea::cell(caller)))
+        self.range(&ReferenceLike::cell(caller)).ok()
     }
-    fn read_range(&self, range: Range) -> Result<Value, String> {
-        let reference = self.sheets.borrow().reference(range)?;
+    fn metadata(&self, range: Range) -> Result<runtime::RangeInfo, runtime::ContextError> {
+        let reference = self.reference(range)?;
+        let first = reference.areas()[0];
+        fn cell(at: CellKey) -> String {
+            let mut col = at.column();
+            let mut name = Vec::new();
+            while col > 0 {
+                col -= 1;
+                name.push(b'A' + (col % 26) as u8);
+                col /= 26;
+            }
+            name.reverse();
+            format!(
+                "${}${}",
+                String::from_utf8(name).expect("ASCII column"),
+                at.row()
+            )
+        }
+        let address = reference
+            .areas()
+            .iter()
+            .map(|area| {
+                if area.cell_count() == 1 {
+                    cell(area.first())
+                } else {
+                    format!("{}:{}", cell(area.first()), cell(area.last()))
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        Ok(runtime::RangeInfo {
+            row: first.first().row(),
+            column: first.first().column(),
+            rows: first.row_count(),
+            columns: first.column_count(),
+            cells: reference.areas().iter().map(|area| area.cell_count()).sum(),
+            areas: reference.area_count() as u32,
+            address,
+        })
+    }
+    fn cell(&self, range: Range, row: u32, column: u32) -> Result<Range, runtime::ContextError> {
+        let reference = self.reference(range)?;
+        let first = reference.areas()[0].first();
+        let row = first
+            .row()
+            .checked_add(row - 1)
+            .ok_or_else(|| runtime::ContextError::Vba(1004, "Range row overflow".into()))?;
+        let col = first
+            .column()
+            .checked_add(column - 1)
+            .ok_or_else(|| runtime::ContextError::Vba(1004, "Range column overflow".into()))?;
+        let cell = CellKey::new(first.sheet(), row, col)
+            .map_err(|error| runtime::ContextError::Vba(1004, error.to_string()))?;
+        self.range(&ReferenceLike::cell(cell))
+    }
+    fn area(&self, range: Range, index: u32) -> Result<Range, runtime::ContextError> {
+        let reference = self.reference(range)?;
+        let area = *reference
+            .areas()
+            .get(index.saturating_sub(1) as usize)
+            .filter(|_| index > 0)
+            .ok_or_else(|| {
+                runtime::ContextError::Vba(1004, "Range area index out of bounds".into())
+            })?;
+        self.range(&ReferenceLike::area(area))
+    }
+    fn read_argument_range(&self, range: Range) -> Result<Value, runtime::ContextError> {
+        let reference = self.reference(range)?;
+        let value = self
+            .context
+            .try_borrow_mut()
+            .map_err(|_| "reentrant argument read")?
+            .argument_values_of(&reference)?;
+        to_vba(&value).map_err(|_| {
+            self.refuse("a VBA scalar argument outside the supported value surface")
+                .into()
+        })
+    }
+    fn read_range(&self, range: Range) -> Result<Value, runtime::ContextError> {
+        let reference = self.reference(range)?;
+        if reference.area_count() != 1 {
+            return Err(self
+                .refuse("Value2 of a multi-area Range (dc-hsa5.4)")
+                .into());
+        }
         let value = self
             .context
             .try_borrow_mut()
             .map_err(|_| "reentrant worksheet read")?
             .values_of(&reference)?;
-        to_vba(&value)
-            .map_err(|_| self.refuse("a Range.Value2 outside the supported value surface"))
+        to_vba(&value).map_err(|_| {
+            self.refuse("a Range.Value2 outside the supported value surface")
+                .into()
+        })
     }
-    fn worksheet_function(&self, name: &str, args: &[Value]) -> Result<Value, String> {
+    fn worksheet_function(
+        &self,
+        name: &str,
+        args: &[Value],
+    ) -> Result<Value, runtime::ContextError> {
         let name = name.to_ascii_uppercase();
-        let valid_arity = match name.as_str() {
+        let valid = match name.as_str() {
             "SUM" | "MIN" | "MAX" | "AVERAGE" => (1..=30).contains(&args.len()),
             "MATCH" => (2..=3).contains(&args.len()),
             _ => {
-                return Err(
-                    self.refuse("a worksheet callback outside the measured VBA host surface")
-                );
+                return Err(self
+                    .refuse("a worksheet callback outside the measured VBA host surface")
+                    .into());
             }
         };
-        if !valid_arity {
+        if !valid {
             return Err(self
-                .refuse("a worksheet callback argument count outside the supported host surface"));
+                .refuse("a worksheet callback argument count outside the supported host surface")
+                .into());
         }
         let arguments = args
             .iter()
             .map(|value| self.value(value))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| {
-                self.refuse("a worksheet callback argument outside the supported value surface")
-            })?;
+            .collect::<Result<Vec<_>, _>>()?;
+        if arguments.iter().any(|value| {
+            value
+                .as_reference()
+                .is_some_and(|reference| reference.area_count() != 1)
+        }) {
+            return Err(self
+                .refuse("a worksheet callback over multiple Range areas")
+                .into());
+        }
         let value = self
             .context
             .try_borrow_mut()
             .map_err(|_| "reentrant worksheet callback")?
             .worksheet_function(&name, &arguments)?;
         if value.as_reference().is_some() {
-            return Err(self.refuse("a reference-valued worksheet callback"));
+            return Err(self.refuse("a reference-valued worksheet callback").into());
         }
         to_vba(&value).map_err(|_| {
             self.refuse("a worksheet callback result outside the supported value surface")
+                .into()
         })
     }
-    fn set_volatile(&self, value: bool) -> Result<(), String> {
+    fn set_volatile(&self, value: bool) -> Result<(), runtime::ContextError> {
         self.context
             .try_borrow_mut()
             .map_err(|_| "reentrant volatility request")?

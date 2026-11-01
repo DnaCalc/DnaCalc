@@ -94,8 +94,8 @@ use calc_fml::reference::{
 };
 use calc_fml::{
     EvalFault, EvalScratch, EvaluationObserver, EvaluationReport, ExecutedCall,
-    FormulaEvaluationContext, FormulaForm, FormulaInstance, ResolvedReference, compile_loaded_with,
-    instantiate, parse_formula,
+    FormulaEvaluationContext, FormulaForm, FormulaInstance, ResolvedReference,
+    compile_loaded_with_bindings, instantiate, parse_formula,
 };
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode, SheetId};
 use std::cell::{Cell, RefCell};
@@ -174,6 +174,7 @@ impl std::error::Error for StartError {}
 /// generation is unchanged.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RecalcFailure {
+    CallableBindingMismatch,
     /// A read of `area` by the evaluation of the formula at `formula` did not complete, so the
     /// evaluation's result was discarded: the read observer stopped the recalculation there
     /// ([`ReadObserver::observe`]), or the reads broke CalcFml's reader contract, which the
@@ -216,6 +217,9 @@ impl fmt::Display for RecalcFailure {
                 f,
                 "a read of {area:?} by the formula at {formula:?} did not complete"
             ),
+            RecalcFailure::CallableBindingMismatch => {
+                f.write_str("the executable callable table differs from its admitted bindings")
+            }
             RecalcFailure::UnscheduledRead { formula, cell } => write!(
                 f,
                 "the formula at {formula:?} read {cell:?}, which this recalculation had not evaluated yet"
@@ -320,6 +324,10 @@ impl<T> BySlot<T> {
 /// moved on since [`begin_recalc`].
 #[derive(Debug)]
 pub struct RecalcWork {
+    functions: Option<calc_fml::CallableTable>,
+    references: Option<std::rc::Rc<calc_fml::reference::ReferenceTracker>>,
+    callable_bindings: calc_fml::CallableBindings,
+    root_reason: ReevaluationReason,
     admission: AdmissionReceipt,
     pass: CalcPassId,
     requirements: BTreeMap<NodeId, RequirementState>,
@@ -406,6 +414,11 @@ struct Sizing {
 /// evaluation read, the reader's gathering storage, and whether it read a formula of `kept`.
 #[derive(Debug, Default)]
 pub(crate) struct EvalLocal {
+    effects: calc_fml::UserFunctionEffects,
+    references: Option<std::rc::Rc<calc_fml::reference::ReferenceView>>,
+    observation: Option<crate::CachedReadLease>,
+    observation_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
+    invocation: Option<calc_fml::UserInvocationFrame>,
     scratch: EvalScratch,
     activation: Option<calc_fml::EvalContinuation>,
     random: Option<RandomStream>,
@@ -430,6 +443,7 @@ pub(crate) struct EvalLocal {
 /// all of it is only read.
 pub(crate) struct EvalShared<'a> {
     pass: CalcPassId,
+    root_reason: ReevaluationReason,
     requirements: &'a BTreeMap<NodeId, RequirementState>,
     facts_version: u64,
     volatile_inputs: u64,
@@ -457,6 +471,7 @@ impl<'a> EvalShared<'a> {
         local: &'a EvalLocal,
     ) -> RecalcView<'a> {
         RecalcView {
+            cached_observation: false,
             inputs,
             state,
             progress: self.progress,
@@ -479,6 +494,7 @@ macro_rules! shared_of {
     ($work:expr) => {
         EvalShared {
             pass: $work.pass,
+            root_reason: $work.root_reason,
             requirements: &$work.requirements,
             facts_version: $work.facts_version,
             volatile_inputs: $work.volatile_input_version,
@@ -500,6 +516,30 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
+    pub fn with_reference_tracker(
+        mut self,
+        references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
+    ) -> Self {
+        self.references = Some(references);
+        self
+    }
+
+    pub fn with_functions(mut self, functions: &calc_fml::CallableTable) -> Self {
+        if self.callable_bindings != functions.bindings() {
+            self.failure = Some(RecalcFailure::CallableBindingMismatch);
+        } else {
+            self.functions = Some(functions.clone());
+        }
+        self
+    }
+    pub fn callables_current(&self, state: &EngineState) -> bool {
+        self.callable_bindings == state.callables
+    }
+    pub fn with_reevaluation_reason(mut self, reason: ReevaluationReason) -> Self {
+        self.root_reason = reason;
+        self
+    }
+
     /// Request installation handoffs before crossing observation fences. A caller
     /// using this route must drain `publish_ready` between `step` calls.
     pub fn enable_publication_fences(&mut self) {
@@ -1107,6 +1147,10 @@ fn begin_with_scope(
         publication_fences: false,
         fence_flush: None,
         publication_sequence: 0,
+        functions: None,
+        references: None,
+        callable_bindings: state.callables.clone(),
+        root_reason: ReevaluationReason::NewCommandDemand,
         boundary_caches,
         admission: admission.clone(),
         pass,
@@ -1360,6 +1404,7 @@ pub fn step(
         && (state.revision() != work.revision
             || inputs.revision() != work.revision
             || state.generation != work.generation
+            || !work.callables_current(state)
             || state.environment != work.environment.map(Into::into))
     {
         work.failure = Some(RecalcFailure::Superseded {
@@ -1768,7 +1813,8 @@ mod parallel {
                 }
                 for index in from..(from + CHUNK).min(positions.len()) {
                     let node = order[positions[index]];
-                    let attempt = evaluate_with(state, inputs, &shared, local, node, &mut silent);
+                    let attempt =
+                        evaluate_with(state, inputs, &shared, local, node, None, None, &mut silent);
                     if attempts[index].set(attempt).is_err() {
                         unreachable!("each formula of a level is taken once");
                     }
@@ -1810,6 +1856,7 @@ pub fn publish_ready(
         || state.revision() != work.revision
         || inputs.revision() != work.revision
         || state.generation != work.generation
+        || !work.callables_current(state)
         || state.environment != work.environment.map(Into::into)
     {
         return None;
@@ -1903,6 +1950,14 @@ pub fn publish_ready(
         state.contract.satisfy(node, stamp, work.pass);
         work.early_published.insert(node, stamp.cloned());
         state.cached_arrays.remove(&node);
+        if let Some(volatile) = result.stamp().and_then(|stamp| stamp.reads.udf_volatile) {
+            let built_in = matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile());
+            if volatile || built_in {
+                state.volatile.insert(node);
+            } else {
+                state.volatile.remove(&node);
+            }
+        }
         state.results.publish(node, at, result);
         state.pending.remove(&node);
         state.entered.remove(&node);
@@ -1996,6 +2051,7 @@ pub fn finish(
     if state.revision() != work.revision
         || inputs.revision() != work.revision
         || state.generation != work.generation
+        || !work.callables_current(state)
         || state.environment != work.environment.map(Into::into)
     {
         return Err(RecalcFailure::Superseded {
@@ -2078,6 +2134,14 @@ pub fn finish(
         }
         state.contract.satisfy(node, result.stamp(), work.pass);
         state.cached_arrays.remove(&node);
+        if let Some(volatile) = result.stamp().and_then(|stamp| stamp.reads.udf_volatile) {
+            let built_in = matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile());
+            if volatile || built_in {
+                state.volatile.insert(node);
+            } else {
+                state.volatile.remove(&node);
+            }
+        }
         state.results.publish(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
     }
@@ -2216,16 +2280,22 @@ fn bind(
             match key
                 .as_ref()
                 .and_then(|key| state.templates.get(key))
-                .filter(|plan| crate::contract::name_bindings_valid(inputs, plan.name_bindings()))
-            {
+                .filter(|plan| {
+                    crate::contract::name_bindings_valid(inputs, plan.name_bindings())
+                        && plan
+                            .callable_bindings()
+                            .iter()
+                            .all(|proof| state.callables.validates(proof))
+                }) {
                 Some(plan) => Binding::Placed(instantiate(plan, anchor), role),
-                None => match compile_loaded_with(
+                None => match compile_loaded_with_bindings(
                     &parse_formula(&chars.iter().collect::<String>()),
                     ReferenceNotation::A1,
                     anchor,
                     &SnapshotCatalog::traced(inputs, &name_trace),
                     &mut state.plans,
                     form,
+                    &state.callables,
                 ) {
                     Ok(plan) => {
                         if let Some(key) = key {
@@ -3458,7 +3528,12 @@ fn stage(
                 }),
         },
     };
-    if state.volatile.contains(&node)
+    let user_volatile = done
+        .result
+        .stamp()
+        .and_then(|stamp| stamp.reads.udf_volatile);
+    let volatile=user_volatile.map_or_else(||state.volatile.contains(&node),|value|value||matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile()));
+    if volatile
         && matches!(
             state.bindings.get(&node),
             Some(Binding::Placed(_, ArrayRole::Spill))
@@ -3824,6 +3899,24 @@ fn queue_certificate_repairs(
     true
 }
 
+fn root_invocation(state: &EngineState, shared: &EvalShared<'_>, node: NodeId) -> InvocationId {
+    InvocationId {
+        pass: shared.pass,
+        workbook: state.contract.workbook,
+        locus: live_anchor(state, node),
+        evaluation: 0,
+        call_site: 0,
+        occurrence: Vec::new(),
+        reason: match shared.pass.reason {
+            PassReason::SpillShape => ReevaluationReason::SpillShapePass,
+            PassReason::IterationSweep(_) => ReevaluationReason::IterationSweep,
+            PassReason::Scenario(_) => ReevaluationReason::TableScenario,
+            PassReason::DependencyRepair => ReevaluationReason::DependencyRepair,
+            _ => shared.root_reason,
+        },
+    }
+}
+
 /// Evaluates one scheduled node and gives what to stage, or the failure that stops the
 /// recalculation.
 fn evaluate_node(
@@ -3834,7 +3927,16 @@ fn evaluate_node(
     observer: &mut dyn ReadObserver,
 ) -> Result<Attempt, RecalcFailure> {
     let shared = shared_of!(work);
-    evaluate_with(state, inputs, &shared, &mut work.local, node, observer)
+    evaluate_with(
+        state,
+        inputs,
+        &shared,
+        &mut work.local,
+        node,
+        work.functions.as_ref(),
+        work.references.as_ref(),
+        observer,
+    )
 }
 
 /// Evaluates `node` against what `shared` holds of the recalculation, in `local`'s storage: the one
@@ -3846,6 +3948,8 @@ fn evaluate_with(
     shared: &EvalShared<'_>,
     local: &mut EvalLocal,
     node: NodeId,
+    functions: Option<&calc_fml::CallableTable>,
+    references: Option<&std::rc::Rc<calc_fml::reference::ReferenceTracker>>,
     observer: &mut dyn ReadObserver,
 ) -> Result<Attempt, RecalcFailure> {
     if !shared.scope.contains(live_anchor(state, node)) {
@@ -3854,6 +3958,16 @@ fn evaluate_with(
         });
     }
     if local.activation.is_none() {
+        local.effects = calc_fml::UserFunctionEffects::default();
+        local.references = if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls())
+        {
+            references.map(|references| references.pin())
+        } else {
+            None
+        };
+        local.observation = None;
+        local.observation_reads.clear();
+        local.invocation = None;
         local.fact_reads.clear();
         local.value_reads.clear();
         local.read_stamps.clear();
@@ -3867,7 +3981,7 @@ fn evaluate_with(
     } else {
         debug_assert_eq!(local.current_node.get(), Some(node));
     }
-    let attempt = evaluate_unstamped(state, inputs, shared, local, node, observer)?;
+    let attempt = evaluate_unstamped(state, inputs, shared, local, node, functions, observer)?;
     // Stamp at the slice that actually performed the read. A later slice must never certify
     // an old operand against a newer staged value after the activation resumes.
     for &(request, region) in &local.value_reads {
@@ -3920,6 +4034,37 @@ fn evaluate_with(
         bindings: state.contract.bindings,
         ..ReadCertificate::default()
     };
+    reads.callables = match state.bindings.get(&node) {
+        Some(Binding::Placed(instance, _)) => instance.plan().callable_bindings().to_vec(),
+        _ => Vec::new(),
+    };
+    if let Some(pin) = &local.observation {
+        for (request, region) in &local.observation_reads {
+            let read = pin.observation(*request, *region);
+            if !reads.observations.contains(&read) {
+                reads.observations.push(read);
+            }
+        }
+    }
+    reads.invocations = local
+        .effects
+        .invocations()
+        .iter()
+        .map(|record| {
+            let mut identity = root_invocation(state, shared, node);
+            identity.call_site = record.call_site;
+            identity.occurrence = record.occurrence.clone();
+            crate::contract::CallInvocation {
+                identity,
+                runtime: record.id,
+                parent: record.parent,
+                callable: record.callable,
+                completed: record.completed,
+                non_preemptible: record.non_preemptible,
+            }
+        })
+        .collect();
+    reads.udf_volatile=matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls()).then_some(local.effects.volatile());
     reads.names = match state.bindings.get(&node) {
         Some(Binding::Placed(instance, _)) => instance.plan().name_bindings().to_vec(),
         _ => state.index.name_bindings(node).to_vec(),
@@ -3947,12 +4092,36 @@ fn evaluate_with(
             }
         }
     }
-    reads.uses_boundary_cache = !reads.boundary_caches.is_empty()
+    for dependency in &reads.dependencies {
+        for observation in
+            crate::contract::observation_ancestry_at(state, shared.progress, dependency.region)
+        {
+            if !reads.observations.contains(&observation) {
+                reads.observations.push(observation);
+            }
+        }
+    }
+    if reads.observations.iter().any(|read| read.external_cache) {
+        reads.external_cache = true;
+        match &mut done.result {
+            FormulaResult::Calculated { calculation, .. }
+            | FormulaResult::NotModeled { calculation, .. } => {
+                *calculation = calculation.clone().with_external_links()
+            }
+            _ => {}
+        }
+    }
+    reads.uses_boundary_cache = !reads.observations.is_empty()
+        || !reads.boundary_caches.is_empty()
         || reads
             .dependencies
             .iter()
             .any(|read| read.versions.boundary_cache > 0);
-    reads.uses_imported_cache = reads.boundary_caches.iter().any(|span| span.imported > 0)
+    reads.uses_imported_cache = reads
+        .observations
+        .iter()
+        .any(|read| read.lineage.as_ref().is_some_and(|span| span.imported > 0))
+        || reads.boundary_caches.iter().any(|span| span.imported > 0)
         || reads
             .dependencies
             .iter()
@@ -4069,24 +4238,12 @@ fn evaluate_with(
         ComputationOrigin::EngineRefusal
     } else {
         ComputationOrigin::Evaluated {
-            root: InvocationId {
-                pass: shared.pass,
-                workbook: state.contract.workbook,
-                locus: at,
-                evaluation: 0,
-                call_site: 0,
-                occurrence: Vec::new(),
-                reason: match shared.pass.reason {
-                    PassReason::SpillShape => ReevaluationReason::SpillShapePass,
-                    PassReason::IterationSweep(_) => ReevaluationReason::IterationSweep,
-                    PassReason::Scenario(_) => ReevaluationReason::TableScenario,
-                    PassReason::DependencyRepair => ReevaluationReason::DependencyRepair,
-                    _ => ReevaluationReason::NewCommandDemand,
-                },
-            },
+            root: root_invocation(state, shared, node),
         }
     };
-    if state.volatile.contains(&node) {
+    if reads.udf_volatile == Some(true)
+        || matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile())
+    {
         reads.volatile_inputs = Some(shared.volatile_inputs);
     }
     let completion = match &done.result {
@@ -4131,6 +4288,7 @@ fn evaluate_unstamped(
     shared: &EvalShared<'_>,
     local: &mut EvalLocal,
     node: NodeId,
+    functions: Option<&calc_fml::CallableTable>,
     observer: &mut dyn ReadObserver,
 ) -> Result<Attempt, RecalcFailure> {
     let formula = live_anchor(state, node);
@@ -4183,6 +4341,41 @@ fn evaluate_unstamped(
             });
         }
     };
+    if instance.plan().has_user_calls() && functions.is_none() {
+        return Ok(Attempt::Done(refused_by(
+            &calculation,
+            NotModeled::Evaluation(EvalFault::NotModelled {
+                construct: "a callable provider missing from its admitted command",
+                owner: "dc-hsa5.4",
+            }),
+        )));
+    }
+    if instance.plan().has_user_calls() && local.observation.is_none() {
+        let pin = crate::CachedReadLease::capture(
+            state,
+            inputs,
+            shared.progress,
+            shared.spills,
+            shared.volatile_inputs,
+        );
+        local.invocation = Some(calc_fml::UserInvocationFrame::new(
+            None,
+            std::rc::Rc::new(crate::contract::InvocationReadView {
+                root: root_invocation(state, shared, node),
+                view: pin.clone(),
+            }),
+        ));
+        local.observation = Some(pin);
+    }
+    let reference_view = local.references.clone();
+    let observation_pin = local.observation.clone();
+    let invocation = local.invocation.clone();
+    let mut user_effects = std::mem::take(&mut local.effects);
+    let observation_reads = RefCell::new(std::mem::take(&mut local.observation_reads));
+    let observation_footprint = RefCell::new(Vec::new());
+    let observation_facts = RefCell::new(Vec::new());
+    let observation_blanks = RefCell::new(Vec::new());
+    let observation_uncomputed = Cell::new(None);
     let uncomputed = Cell::new(None);
     let footprint = RefCell::new(std::mem::take(&mut local.footprint));
     let facts = RefCell::new(std::mem::take(&mut local.fact_reads));
@@ -4226,7 +4419,24 @@ fn evaluate_unstamped(
             uncomputed: &uncomputed,
             kept_read: &local.kept_read,
         };
-        let outcome = {
+        let (outcome, cached_stopped) = {
+            let mut observation_cells = observation_pin.as_ref().map(|pin| {
+                WorkbookReader::new(
+                    pin.view(state, shared.workbook_facts),
+                    &observation_uncomputed,
+                )
+            });
+            let mut cached_observed = observation_cells.as_mut().map(|cells| Observed {
+                observer: &observer,
+                silent,
+                formula,
+                cells,
+                footprint: &observation_footprint,
+                facts: &observation_facts,
+                value_reads: &observation_reads,
+                blanks: &observation_blanks,
+                stopped: None,
+            });
             let mut host = WorkbookReader::new(view, &uncomputed);
             let mut services = FormulaEvaluationContext::new(
                 calculation.mode(),
@@ -4237,17 +4447,35 @@ fn evaluate_unstamped(
             )
             .with_catalog(&catalog)
             .with_random(&mut random)
+            .with_user_function_effects(&mut user_effects)
             .observed_by(instrument);
-            activation.advance(
+            if let Some(functions) = functions {
+                services = services.with_functions(functions);
+            }
+            if let Some(references) = reference_view.as_deref() {
+                services = services.with_reference_handles(references);
+            }
+            if let Some(invocation) = invocation {
+                services = services.with_invocation(invocation);
+            }
+            if let Some(cached) = cached_observed.as_mut() {
+                services = services.with_observation_reader(cached);
+            }
+            let step = activation.advance(
                 &mut services,
                 if local.quantum == 0 {
                     usize::MAX
                 } else {
                     local.quantum
                 },
+            );
+            drop(services);
+            (
+                step,
+                cached_observed.as_ref().and_then(|reader| reader.stopped),
             )
         };
-        (outcome, observed.stopped)
+        (outcome, observed.stopped.or(cached_stopped))
     };
     let calculation = if instance.plan().reads_external_links() || cells.read_external_links() {
         calculation.with_external_links()
@@ -4255,6 +4483,8 @@ fn evaluate_unstamped(
         calculation
     };
     local.read_batch = cells.into_batch();
+    local.effects = user_effects;
+    local.observation_reads = observation_reads.into_inner();
     local.name_reads = name_reads.into_inner();
     local.fact_reads = facts.into_inner();
     local.value_reads = value_reads.into_inner();
@@ -4271,6 +4501,15 @@ fn evaluate_unstamped(
     if local.boundary_read.get().is_none()
         && let Some((cell, on)) = uncomputed.get()
     {
+        if local.effects.calls() > 0 {
+            return Ok(Attempt::Done(refused_by(
+                &calculation,
+                NotModeled::Evaluation(EvalFault::NotModelled {
+                    construct: "an effectful callable requiring a dependency continuation",
+                    owner: "dc-hsa5.4",
+                }),
+            )));
+        }
         // A formula cell one of the formula's own placed references names was ordered before it,
         // unless it waits itself or is on a cycle: the graph missed an edge.
         let named = instance
@@ -4331,7 +4570,18 @@ fn evaluate_unstamped(
         value,
     ) {
         Ok(outcome) => outcome,
-        Err(Placed::Waits { on, cell }) => return Ok(Attempt::Waits { on, cell }),
+        Err(Placed::Waits { on, cell }) => {
+            if local.effects.calls() > 0 {
+                return Ok(Attempt::Done(refused_by(
+                    &calculation,
+                    NotModeled::Evaluation(EvalFault::NotModelled {
+                        construct: "an effectful callable requiring a spill placement continuation",
+                        owner: "dc-hsa5.4",
+                    }),
+                )));
+            }
+            return Ok(Attempt::Waits { on, cell });
+        }
         Err(Placed::Refused(refusal)) => {
             return Ok(Attempt::Done(Done {
                 result: FormulaResult::NotModeled {
