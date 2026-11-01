@@ -283,6 +283,7 @@ pub fn patched_style(
             .get(source as usize)
             .ok_or("The source fill is unavailable")?;
         let fill = Fill {
+            gradient: None,
             pattern_type: Some(if v.is_empty() { "none" } else { "solid" }.into()),
             fg_color: color(v)?,
             bg_color: None,

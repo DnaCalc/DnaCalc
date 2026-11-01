@@ -52,6 +52,9 @@ impl Editability {
 /// shows.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct PlannedCell {
+    /// Uniform physical sides, with varying merged sides represented by boundary strokes.
+    pub borders: [Option<crate::projection::BorderShown>; 4],
+    pub boundary: Vec<BorderSegment>,
     pub row_span: u32,
     pub col_span: u32,
     pub editability: Editability,
@@ -68,6 +71,16 @@ pub struct PlannedCell {
     pub anchor: CellRect,
     #[serde(serialize_with = "serialize_shown")]
     pub shown: CellShown,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct BorderSegment {
+    pub side: u8,
+    pub x1: f64,
+    pub y1: f64,
+    pub x2: f64,
+    pub y2: f64,
+    pub edge: crate::projection::BorderShown,
 }
 
 /// One visible column-header band: the 1-based column, its rectangle in the top strip, and its
@@ -160,6 +173,7 @@ pub fn build_render_plan_with<'a>(
         })
         .collect();
     cells.extend(empty.iter());
+    let boundary_cells = cells.clone();
     let occupied: std::collections::BTreeSet<(u32, u32)> = cells
         .iter()
         .filter(|shown| {
@@ -191,7 +205,13 @@ pub fn build_render_plan_with<'a>(
                 .measure
                 .and_then(|measure| measure(shown, &shown.text))
                 .filter(|w| w.is_finite() && *w >= 0.0);
+            let (borders, boundary) = merged.map_or_else(
+                || (shown.style.borders.clone(), Vec::new()),
+                |area| merge_boundary(shown, area, &boundary_cells, m),
+            );
             let mut cell = PlannedCell {
+                borders,
+                boundary,
                 row_span: merged.map_or(1, |a| a.row_count()),
                 col_span: merged.map_or(1, |a| a.column_count()),
                 editability: Editability::from_geometry(options.geometry),
@@ -389,6 +409,97 @@ fn fit(
     }
 }
 
+/// Covered cells replace the corresponding perimeter intervals, never interior grid lines.
+/// A side with varying styles becomes disjoint strokes, avoiding a wider anchor border
+/// showing through beneath a thinner covered-cell border.
+fn merge_boundary(
+    shown: &CellShown,
+    area: calc_value::GridArea,
+    cells: &[&CellShown],
+    m: &GridMetrics,
+) -> (
+    [Option<crate::projection::BorderShown>; 4],
+    Vec<BorderSegment>,
+) {
+    let mut borders = shown.style.borders.clone();
+    let mut segments = Vec::new();
+    let origin = (
+        m.col_start(area.first().column()),
+        m.row_start(area.first().row()),
+    );
+    let w = m.col_start(area.last().column()) + m.width(area.last().column()) - origin.0;
+    let h = m.row_start(area.last().row()) + m.height(area.last().row()) - origin.1;
+    for side in 0..4 {
+        let base = shown.style.borders[side].as_ref();
+        let mut actual = Vec::new();
+        for cell in cells
+            .iter()
+            .copied()
+            .filter(|c| c.at != area.first() && area.contains(c.at))
+        {
+            let (row, col) = (cell.at.row(), cell.at.column());
+            let on_edge = match side {
+                0 => col == area.first().column(),
+                1 => col == area.last().column(),
+                2 => row == area.first().row(),
+                _ => row == area.last().row(),
+            };
+            if !on_edge {
+                continue;
+            }
+            if let Some(edge) = &cell.style.borders[side] {
+                let (from, to) = if side < 2 {
+                    (
+                        m.row_start(row) - origin.1,
+                        m.row_start(row) + m.height(row) - origin.1,
+                    )
+                } else {
+                    (
+                        m.col_start(col) - origin.0,
+                        m.col_start(col) + m.width(col) - origin.0,
+                    )
+                };
+                if to > from {
+                    actual.push((from, to, edge.clone()));
+                }
+            }
+        }
+        if actual.iter().all(|(_, _, edge)| Some(edge) == base) {
+            continue;
+        }
+        borders[side] = None;
+        actual.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)));
+        let mut emit = |from: f64, to: f64, edge: Option<&crate::projection::BorderShown>| {
+            if let Some(edge) = edge
+                && to > from
+            {
+                let (x1, y1, x2, y2) = match side {
+                    0 => (0., from, 0., to),
+                    1 => (w, from, w, to),
+                    2 => (from, 0., to, 0.),
+                    _ => (from, h, to, h),
+                };
+                segments.push(BorderSegment {
+                    side: side as u8,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    edge: edge.clone(),
+                });
+            }
+        };
+        let mut cursor = 0.;
+        for (from, to, edge) in actual {
+            emit(cursor, from, base);
+            emit(from, to, Some(&edge));
+            cursor = to;
+        }
+        emit(cursor, if side < 2 { h } else { w }, base);
+    }
+    (borders, segments)
+}
+
 /// The A1 letters of a 1-based column: 1 is A, 26 Z, 27 AA, 703 AAA; 0 gives nothing.
 #[must_use]
 pub fn col_label(col: u32) -> String {
@@ -477,6 +588,81 @@ mod tests {
             width,
             height,
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn merge_perimeter_and_glyph_clip_come_from_the_same_plan_in_any_arrival_order() {
+        let s = sheet();
+        let m = GridMetrics::default();
+        let v = viewport(600., 300.);
+        let area = calc_value::GridArea::new(
+            CellKey::new(s, 1, 1).unwrap(),
+            CellKey::new(s, 2, 3).unwrap(),
+        )
+        .unwrap();
+        let geometry = crate::projection::Geometry {
+            merges: vec![crate::projection::Area::of(area)],
+            ..Default::default()
+        };
+        let mut anchor = cell(s, 1, 1, &"W".repeat(100));
+        anchor.kind = "text";
+        anchor.provenance = Provenance::Literal;
+        anchor.formula = false;
+        let edge = |color: &str| {
+            Some(crate::projection::BorderShown {
+                style: "thick".into(),
+                color: Some(color.into()),
+            })
+        };
+        anchor.style.borders[1] = edge("#cc0000");
+        let mut right = cell(s, 1, 3, "");
+        right.style.borders[1] = edge("#008000");
+        let mut bottom = cell(s, 2, 2, "");
+        bottom.style.borders[3] = edge("#0000ff");
+        let mut interior = cell(s, 1, 2, "");
+        interior.style.borders[1] = edge("#ff0000");
+        let mut source = vec![anchor, right, bottom, interior];
+        for c in &mut source[1..] {
+            c.kind = "empty";
+            c.provenance = Provenance::Empty;
+            c.formula = false;
+        }
+        let options = PlanOptions {
+            geometry: Some(&geometry),
+            ..Default::default()
+        };
+        let a = build_render_plan_with(&source, &m, &v, 100, 100, &options);
+        source.reverse();
+        let b = build_render_plan_with(&source, &m, &v, 100, 100, &options);
+        assert_eq!(a, b);
+        assert_eq!(a.cells.len(), 1);
+        let c = &a.cells[0];
+        assert_eq!(c.rect, c.anchor);
+        assert_eq!(c.rect.w, 3. * m.width(1));
+        assert_eq!(c.rect.h, 2. * m.height(1));
+        assert_eq!(c.boundary.len(), 3);
+        assert!(c.borders[1].is_none());
+        assert!(
+            c.boundary
+                .iter()
+                .all(|s| s.edge.color.as_deref() != Some("#ff0000"))
+        );
+        let right = c.boundary.iter().find(|s| s.side == 1).unwrap();
+        assert_eq!(
+            (right.x1, right.y1, right.x2, right.y2),
+            (3. * m.width(1), 0., 3. * m.width(1), m.height(1))
+        );
+        let bottom = c.boundary.iter().find(|s| s.side == 3).unwrap();
+        assert_eq!(
+            (bottom.x1, bottom.y1, bottom.x2, bottom.y2),
+            (
+                m.width(1),
+                2. * m.height(1),
+                2. * m.width(1),
+                2. * m.height(1)
+            )
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

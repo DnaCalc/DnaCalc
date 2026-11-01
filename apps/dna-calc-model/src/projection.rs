@@ -103,6 +103,10 @@ impl FormatShown {
 pub struct TextStyle {
     pub font_color: Option<String>,
     pub fill: Option<String>,
+    #[serde(default)]
+    pub brush: Option<FillShown>,
+    #[serde(default)]
+    pub diagonal: [Option<BorderShown>; 2],
     pub underline: bool,
     pub strike: bool,
     /// Left, right, top and bottom at the physical cell boundary.
@@ -131,6 +135,8 @@ impl Default for TextStyle {
         Self {
             font_color: None,
             fill: None,
+            brush: None,
+            diagonal: Default::default(),
             underline: false,
             strike: false,
             borders: Default::default(),
@@ -1260,4 +1266,20 @@ pub enum AsyncReturnDisposition {
     Accepted,
     Duplicate,
     Rejected(String),
+}
+
+/// Resolved colours and geometry of a physical fill. Both painters consume this projection.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum FillShown {
+    Pattern {
+        name: String,
+        foreground: String,
+        background: String,
+    },
+    Gradient {
+        kind: String,
+        degree: f64,
+        rectangle: [f64; 4],
+        stops: Vec<(f64, String)>,
+    },
 }

@@ -789,13 +789,13 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Click("skin-grid"),
         ],
         checks: &[
-            Check::Style(cell!("A2"), "background-color:#ffc7ce"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=A2]", "background-color:#ffc7ce"),
             Check::Style(cell!("A2"), "color:#9c0006"),
             Check::Style(cell!("B1"), "font-weight:700"),
-            Check::Style(cell!("C2"), "background-color:#ffeb9c"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]", "background-color:#ffeb9c"),
             Check::Style(cell!("D2"), "font-style:italic"),
-            Check::Style(cell!("E2"), "background-color:#86c97e"),
-            Check::Style(cell!("J2"), "background-color:#83cceb"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=E2]", "background-color:#86c97e"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=J2]", "background-color:#83cceb"),
             Check::Attr(cell!("H2"), "data-icon", "3Arrows:2"),
             Check::Attr(cell!("H3"), "data-icon", "3Arrows:0"),
             Check::Attr(cell!("G6"), "data-bar", "1.0000"),
@@ -810,7 +810,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("grid", "8"),
             Action::Keys("cell-editor", ENTER),
         ],
-        checks: &[Check::Style(cell!("A3"), "background-color:#ffc7ce")],
+        checks: &[Check::Style("[data-dnacalc=cell-decoration][data-cell=A3]", "background-color:#ffc7ce")],
     },
     Case {
         name: "rule review explains the imported priority and active-cell condition",
@@ -841,6 +841,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 "Condition false for this cell",
             ),
             Check::Computed(cell!("A2"), "background-color:transparent"),
+            Check::Absent("[data-dnacalc=cell-decoration][data-cell=A2]"),
         ],
     },
     Case {
@@ -872,8 +873,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Click("review-close"),
         ],
         checks: &[
-            Check::Style(cell!("A2"), "background-color:#ffc7ce"),
-            Check::Style(cell!("A3"), "background-color:#ffc7ce"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=A2]", "background-color:#ffc7ce"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=A3]", "background-color:#ffc7ce"),
             Check::Focused("grid"),
         ],
     },
@@ -937,7 +938,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Focused("grid"),
             Check::Attr(cell!("G6"), "data-bar", "1.0000"),
-            Check::Style(cell!("A2"), "background-color:#ffc7ce"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=A2]", "background-color:#ffc7ce"),
         ],
     },
     Case {
@@ -953,7 +954,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("name-box", "P1\u{E007}"),
         ],
         checks: &[
-            Check::Style(cell!("P1"), "background-color:#ffeb9c"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=P1]", "background-color:#ffeb9c"),
             Check::Text(cell!("P1"), ""),
             Check::PlanCell("P1", "provenance", "empty"),
         ],
@@ -961,7 +962,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "undo removes the blank-cell conditional appearance through the subscription",
         actions: &[Action::Click("undo")],
-        checks: &[Check::Absent(cell!("P1"))],
+        checks: &[Check::Absent(cell!("P1")),Check::Absent("[data-dnacalc=cell-decoration][data-cell=P1]")],
     },
     // dc-6yw: data validation (calc-host's dc_6yw/dv-excel.txt).
     Case {
@@ -6503,9 +6504,13 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "layout: a real applied font changes measured overflow and actual text geometry only",
         actions: &[
+            // Keep every synthetic input in view before and after the missing-font
+            // notice disappears, so the strict value-list comparison has one coverage.
+            Action::Window(1440, 2000),
             Action::SetPainter("dom"),
             Action::Into("name-box", "B10\u{E007}"),
             Action::Wait(Check::PlanCell("B10", "text", "iiiiiiiiiiiiiiiiiiiiiiii")),
+            Action::Wait(Check::PlanCell("D18", "text", "double X")),
             Action::RememberPresentation,
             Action::LoadAppliedFont,
             Action::Wait(Check::FontReflow("B10")),
@@ -6522,6 +6527,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "layout: populated and blank protected cells publish the same editor preflight refusal",
         actions: &[
+            Action::Window(1440, 1000),
             Action::SetPainter("dom"),
             Action::Click("new"),
             Action::DiscardReplacement,
@@ -6819,6 +6825,58 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("name-box","B1048576\u{E007}"),
         ],
         checks: &[Check::PlanCell("B1048576","style.fill","#ffeedd"),Check::PlanCell("B1048576","style.family","monospace"),Check::PlanCell("B1048576","provenance","empty")],
+    },
+
+    Case {
+        name: "physical styles: imported pattern fills reach the DOM as repeating physical tiles",
+        actions: &[
+            Action::SetPainter("dom"),Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,
+            Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady),Action::Into("name-box","B12\u{E007}"),
+        ],
+        checks: &[Check::PlanCell("B12","style.brush.Pattern.name","darkGray"),Check::PlanCell("E12","style.brush.Pattern.name","gray125"),Check::PlanCell("B13","style.brush.Pattern.name","darkDown"),Check::PlanCell("I13","style.brush.Pattern.name","lightTrellis"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B12]","background-repeat:repeat")],
+    },
+    Case {
+        name: "physical styles: linear and path gradients share resolved stops and merged geometry",
+        actions: &[Action::Into("name-box","B15\u{E007}")],
+        checks: &[Check::MergedCell("B15",2,3),Check::MergedCell("F15",2,3),Check::PlanCell("B15","style.brush.Gradient.degree","90"),Check::PlanCell("B15","style.brush.Gradient.stops.0.1","#ff0000"),Check::PlanCell("F15","style.brush.Gradient.kind","path"),Check::PlanCell("F15","style.brush.Gradient.rectangle.0","0.2"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B15]","background-repeat:no-repeat;background-size:100% 100%")],
+    },
+    Case {
+        name: "physical styles: both diagonal directions retain their colour and double strokes",
+        actions: &[Action::Into("name-box","B18\u{E007}")],
+        checks: &[Check::PlanCell("B18","style.diagonal.0.style","thin"),Check::PlanCell("D18","style.diagonal.0.style","double"),Check::PlanCell("D18","style.diagonal.1.color","#008000"),Check::Count("[data-dnacalc=cell-borders][data-cell=B18] line",1),Check::Count("[data-dnacalc=cell-borders][data-cell=D18] line",4)],
+    },
+    Case {
+        name: "physical styles: merged glyphs clip to one anchor and covered perimeter styles replace wider borders",
+        actions: &[Action::Into("name-box","L5\u{E007}")],
+        checks: &[Check::MergedCell("L5",2,3),Check::Text(cell!("L5"),"MERGED GLYPHS WWWWWWWWWWWWWW"),Check::Computed(cell!("L5"),"font-family:monospace"),Check::Count("[data-dnacalc=cell-borders][data-cell=L5] line",7),Check::Style("[data-dnacalc=cell-borders][data-cell=L5]","border-top:3px solid #cc0000"),Check::Computed("[data-dnacalc=cell-borders][data-cell=L5]","border-right-width:0px;border-bottom-width:0px")],
+    },
+    Case {
+        name: "physical styles: Canvas draws the same merged glyphs without submitting a workbook command",
+        actions: &[Action::RememberPresentation,Action::SetPainter("canvas")],
+        checks: &[Check::PainterStable,Check::CanvasInk("L5"),Check::PlanCell("L5","style.fill","#ffffff"),Check::MergedCell("L5",2,3)],
+    },
+    Case {
+        name: "physical styles: an unrelated font edit and real xlsx reopen preserve gradients diagonals and merged edges",
+        actions: &[
+            Action::Into("name-box","B15:D16\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Choose("format-bold","true"),Action::Click("format-apply"),
+            Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady),
+            Action::Into("name-box","B15\u{E007}"),Action::Wait(Check::PlanCell("B15","style.brush.Gradient.degree","90")),Action::Into("name-box","D18\u{E007}"),Action::Wait(Check::PlanCell("D18","style.diagonal.1.style","double")),Action::Into("name-box","L5\u{E007}"),Action::SetPainter("dom"),
+        ],
+        checks: &[Check::MergedCell("L5",2,3),Check::Count("[data-dnacalc=cell-borders][data-cell=L5] line",7),Check::Style("[data-dnacalc=cell-borders][data-cell=L5]","border-top:3px solid #cc0000")],
+    },
+
+
+    Case {
+        name: "physical styles: gradient and glyph merges retain their four clips across both frozen boundaries",
+        actions: &[
+            Action::ViewDownloadFixtureFor("alignment.xlsx","<sheetViews><sheetView workbookViewId=\"0\" topLeftCell=\"B15\"><pane xSplit=\"1\" ySplit=\"1\" topLeftCell=\"C16\" activePane=\"bottomRight\" state=\"frozen\"/><selection pane=\"bottomRight\" activeCell=\"B15\" sqref=\"B15:D16\"/></sheetView></sheetViews>"),
+            Action::UploadDownload("view.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady),Action::Wait(Check::Count("[data-dnacalc=cell-decoration][data-cell=B15]",4)),
+            Action::RememberPresentation,Action::SetPainter("canvas"),Action::Wait(Check::PainterStable),Action::SetPainter("dom"),
+            Action::ViewDownloadFixtureFor("alignment.xlsx","<sheetViews><sheetView workbookViewId=\"0\" topLeftCell=\"L5\"><pane xSplit=\"1\" ySplit=\"1\" topLeftCell=\"M6\" activePane=\"bottomRight\" state=\"frozen\"/><selection pane=\"bottomRight\" activeCell=\"L5\" sqref=\"L5:N6\"/></sheetView></sheetViews>"),
+            Action::UploadDownload("view.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady),Action::Wait(Check::Count("[data-dnacalc=cell-borders][data-cell=L5]",4)),Action::Wait(Check::Count("[data-dnacalc=cell-borders][data-cell=L5] line",28)),
+            Action::RememberPresentation,Action::SetPainter("canvas"),
+        ],
+        checks: &[Check::PainterStable,Check::CanvasInk("L5"),Check::Attr("grid","data-frozen-rows","5"),Check::Attr("grid","data-frozen-columns","12"),Check::ActiveSemantic("L5")],
     },
 
 ];
@@ -7498,4 +7556,5 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     },
     CaseGroup {name:"name-manager",start:464,end:474,core:10,setup:&[]},
     CaseGroup {name:"large-format",start:474,end:480,core:6,setup:&[]},
+    CaseGroup {name:"physical-styles",start:480,end:487,core:7,setup:&[]},
 ];

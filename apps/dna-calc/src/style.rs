@@ -15,5 +15,7 @@ use leptos::wasm_bindgen::JsCast;
 pub fn css(element: web_sys::Element, declarations: String) {
     if let Some(element) = element.dyn_ref::<web_sys::HtmlElement>() {
         element.style().set_css_text(&declarations);
+    } else if let Some(element) = element.dyn_ref::<web_sys::SvgElement>() {
+        element.style().set_css_text(&declarations);
     }
 }

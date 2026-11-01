@@ -103,9 +103,36 @@ impl Cell {
                 .flatten(),
             );
         }
-        strings.into_iter().fold(2048usize, |n, s| {
-            n.saturating_add(s.len().saturating_mul(6))
-        })
+        let mut brush_bytes = 0usize;
+        if let Some(brush) = &self.style.brush {
+            match brush {
+                crate::projection::FillShown::Pattern {
+                    name,
+                    foreground,
+                    background,
+                } => strings.extend([name.as_str(), foreground.as_str(), background.as_str()]),
+                crate::projection::FillShown::Gradient { kind, stops, .. } => {
+                    strings.push(kind.as_str());
+                    strings.extend(stops.iter().map(|(_, color)| color.as_str()));
+                    brush_bytes = stops.len().saturating_mul(64);
+                }
+            }
+        }
+        for edge in self
+            .style
+            .borders
+            .iter()
+            .chain(self.style.diagonal.iter())
+            .flatten()
+        {
+            strings.push(edge.style.as_str());
+            strings.extend(edge.color.as_deref());
+        }
+        strings
+            .into_iter()
+            .fold(2048usize.saturating_add(brush_bytes), |n, s| {
+                n.saturating_add(s.len().saturating_mul(6))
+            })
     }
 }
 impl TileBatch {

@@ -284,16 +284,25 @@ impl Panes {
         v: &Viewport,
     ) -> String {
         if let Some(clip) = cell.clip {
-            let rect = cell.rect;
-            format!(
-                ";clip-path:inset({}px {}px {}px {}px)",
-                (clip.y - rect.y).max(0.0),
-                (rect.x + rect.w - clip.x - clip.w).max(0.0),
-                (rect.y + rect.h - clip.y - clip.h).max(0.0),
-                (clip.x - rect.x).max(0.0)
-            )
+            fragment_inset(cell.rect, clip)
         } else {
             self.clip_style(cell.rect, m, v, Some(cell.row), Some(cell.col))
+        }
+    }
+    /// Physical fills and borders use the same fragment, measured against the anchor.
+    pub fn anchor_clip_style(
+        self,
+        cell: &render_plan::PlannedCell,
+        m: &GridMetrics,
+        v: &Viewport,
+    ) -> String {
+        if let Some(clip) = cell.clip {
+            intersection(cell.anchor, clip).map_or_else(
+                || ";clip-path:inset(100%)".into(),
+                |clip| fragment_inset(cell.anchor, clip),
+            )
+        } else {
+            self.clip_style(cell.anchor, m, v, Some(cell.row), Some(cell.col))
         }
     }
     pub fn area_rects(self, area: GridArea, m: &GridMetrics, v: &Viewport) -> Vec<CellRect> {
@@ -698,4 +707,14 @@ mod origin_tests {
         g.split = Some((0f64.to_bits(), 1800f64.to_bits()));
         assert_eq!(split_slots(&g), [0, 2]);
     }
+}
+
+fn fragment_inset(rect: CellRect, clip: CellRect) -> String {
+    format!(
+        ";clip-path:inset({}px {}px {}px {}px)",
+        (clip.y - rect.y).max(0.),
+        (rect.x + rect.w - clip.x - clip.w).max(0.),
+        (rect.y + rect.h - clip.y - clip.h).max(0.),
+        (clip.x - rect.x).max(0.)
+    )
 }

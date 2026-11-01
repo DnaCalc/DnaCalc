@@ -110,7 +110,7 @@
     if(!plan||!canvas)return {handled:true,seen:null};
     const address=spec.address||spec.selector?.match(/data-cell\s*=\s*["']?([A-Z]+[0-9]+)/)?.[1];
     const cell=plan.cells.find(c=>c.address===address);
-    const target=spec.selector?.includes('cell-decoration')?!!cell&&(cell.row_span>1||cell.col_span>1||!!cell.shown.style.fill||!!cell.shown.conditional?.fill):spec.selector?.includes('cell-borders')?!!cell&&cell.shown.style.borders.some(Boolean):!!cell;
+    const target=spec.selector?.includes('cell-decoration')?!!cell&&(cell.row_span>1||cell.col_span>1||!!cell.shown.style.fill||!!cell.shown.style.brush||!!cell.shown.conditional?.fill||!!cell.shown.conditional?.bar):spec.selector?.includes('cell-borders')?!!cell&&(cell.borders||cell.shown.style.borders).some(Boolean)||!!cell?.boundary?.length||cell?.shown.style.diagonal?.some(Boolean):!!cell;
     if(spec.op==='empty')return {handled:true,seen:plan.cells.length===0};
     if(spec.op==='count')return {handled:true,seen:address?(target?1:0):plan.cells.length};
     if(spec.op==='absent')return {handled:true,seen:!target};
@@ -210,7 +210,7 @@
         if(key==='color')rasterOK=rasterOK&&hasColour(foreground,rect);
         if(key==='background-color')rasterOK=rasterOK&&!!actual&&hasColour(actual,anchor);
         const index=['border-left','border-right','border-top','border-bottom'].indexOf(key);
-        if(index>=0){const edge=s.borders[index];if(edge){const [w,kind]=line(edge.style),colour=edge.color||'#000000';actual=`${w*scale}px ${kind} ${colour}`;const band=index<2?{x:index===0?anchor.x:anchor.x+anchor.w-w*scale,y:anchor.y,w:w*scale,h:anchor.h}:{x:anchor.x,y:index===2?anchor.y:anchor.y+anchor.h-w*scale,w:anchor.w,h:w*scale};rasterOK=rasterOK&&hasColour(colour,band);}}
+        if(index>=0){const edge=(cell.borders||s.borders)[index];if(edge){const [w,kind]=line(edge.style),colour=edge.color||'#000000';actual=`${w*scale}px ${kind} ${colour}`;const band=index<2?{x:index===0?anchor.x:anchor.x+anchor.w-w*scale,y:anchor.y,w:w*scale,h:anchor.h}:{x:anchor.x,y:index===2?anchor.y:anchor.y+anchor.h-w*scale,w:anchor.w,h:w*scale};rasterOK=rasterOK&&hasColour(colour,band);}}
         return [key,actual===undefined?'':norm(key,actual),norm(key,expected)];
       });
       return {handled:true,seen:rasterOK?pairs:null};

@@ -42,10 +42,11 @@ pub struct Font {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Fill {
+    pub gradient: Option<GradientFill>,
     pub pattern_type: Option<String>,
     pub fg_color: Option<StyleColor>,
     pub bg_color: Option<StyleColor>,
-    /// Child elements without a field here (a gradient fill's), by local name.
+    /// Additional child elements without a field here, by local name.
     pub other_children: Vec<String>,
 }
 
@@ -546,4 +547,19 @@ mod run_tests {
         assert_eq!(moved.get(CellKey::new(s, MAX_ROWS, 1).unwrap()), Some(1));
         assert!(moved.iter().count() < 8);
     }
+}
+
+/// Source strings are retained so reading a fill never normalizes its saved attributes.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct GradientFill {
+    pub kind: Option<String>,
+    pub degree: Option<String>,
+    /// Left, right, top, bottom convergence coordinates, each from zero to one.
+    pub rectangle: [Option<String>; 4],
+    pub stops: Vec<GradientStop>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct GradientStop {
+    pub position: Option<String>,
+    pub color: Option<StyleColor>,
 }

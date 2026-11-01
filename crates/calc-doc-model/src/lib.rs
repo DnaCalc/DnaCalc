@@ -102,8 +102,9 @@ pub use structural::{
 };
 pub use style::{
     Alignment, Border, BorderEdge, CellFormat, CellStyle, DifferentialFormat, Fill, Font,
-    NumberFormat, Protection, StyleColor, StyleRun, StyleRuns, StyleSources, StyleTable,
-    TableStyles, WorkbookColors, builtin_number_format, style_intersection,
+    GradientFill, GradientStop, NumberFormat, Protection, StyleColor, StyleRun, StyleRuns,
+    StyleSources, StyleTable, TableStyles, WorkbookColors, builtin_number_format,
+    style_intersection,
 };
 pub use wire::{
     BATCH_FORMAT, BATCH_VERSION, DecodeError, EncodeError, OpCapability, decode_batch,

@@ -8208,3 +8208,58 @@ fn dc_hsa5_9__master_edits_keep_the_shared_source_through_history_and_save() {
         matches!(value(reopened.host(),at(t,"C3")),ProjectedValue::Literal(value) if value.as_number()==Some(9.0))
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__gradient_stops_and_pattern_records_survive_an_unrelated_font_edit() {
+    let bytes = package_with_part("xl/styles.xml", |xml| {
+        xml.replacen("<styleSheet ","<styleSheet xmlns:v=\"urn:fill-test\" ",1)
+        .replacen("<fills count=\"2\"","<fills count=\"5\"",1)
+        .replacen("</fills>",r#"<fill><gradientFill degree="90" v:keep="linear"><stop position="0" v:keep="stop"><color rgb="FFFF0000" v:keep="color"/></stop><stop position="1"><color rgb="FF0000FF"/></stop></gradientFill></fill><fill><gradientFill type="path" left="0.2" right="0.8" top="0.3" bottom="0.7"><stop position="0"><color rgb="FFFFFFFF"/></stop><stop position="1"><color rgb="FF000000"/></stop></gradientFill></fill><fill><patternFill patternType="lightTrellis"><fgColor rgb="FFFF0000"/><bgColor rgb="FFFFFFFF"/></patternFill></fill></fills>"#,1)
+        .replacen("<cellXfs count=\"1\"","<cellXfs count=\"4\"",1)
+        .replacen("</cellXfs>",r#"<xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0"/><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0"/><xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0"/></cellXfs>"#,1)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>",r#"<sheetData><row r="1"><c r="A1" s="1"><v>1</v></c><c r="B1" s="2"><v>2</v></c><c r="C1" s="3"><v>3</v></c></row></sheetData>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let fills = book.host().styles().fills.clone();
+    let linear = fills[2].gradient.as_ref().unwrap();
+    assert_eq!(linear.degree.as_deref(), Some("90"));
+    assert_eq!(linear.stops.len(), 2);
+    assert_eq!(
+        linear.stops[0].color.as_ref().unwrap().rgb.as_deref(),
+        Some("FFFF0000")
+    );
+    assert_eq!(
+        fills[3].gradient.as_ref().unwrap().rectangle,
+        [
+            Some("0.2".into()),
+            Some("0.8".into()),
+            Some("0.3".into()),
+            Some("0.7".into())
+        ]
+    );
+    assert_eq!(fills[4].pattern_type.as_deref(), Some("lightTrellis"));
+    assert!(
+        book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::FormatCells {
+                areas: vec![GridArea::new(at(s, "A1"), at(s, "C1")).unwrap()],
+                patch: calc_host::FormatPatch {
+                    bold: Some(true),
+                    ..Default::default()
+                }
+            }
+        ))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    assert_eq!(reopened.styles().fills, fills);
+    let xml = part_text(&saved, "xl/styles.xml");
+    for marker in ["linear", "stop", "color"] {
+        assert!(xml.contains(&format!("v:keep=\"{marker}\"")));
+    }
+}

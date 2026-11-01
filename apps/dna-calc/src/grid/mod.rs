@@ -1472,21 +1472,47 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             return Vec::new().collect_view();
         }
         plan.with(|plan| plan.cells.iter().filter(|cell| {
-            if borders {cell.shown.style.borders.iter().any(Option::is_some)} else {
-                cell.shown.style.fill.is_some() || cell.shown.conditional.as_ref().is_some_and(|c|c.fill.is_some()) || cell.row_span>1 || cell.col_span>1
+            if borders {cell.borders.iter().any(Option::is_some)||!cell.boundary.is_empty()||cell.shown.style.diagonal.iter().any(Option::is_some)} else {
+                cell.shown.style.fill.is_some() || cell.shown.style.brush.is_some() || cell.shown.conditional.as_ref().is_some_and(|c|c.fill.is_some()||c.bar.is_some()) || cell.row_span>1 || cell.col_span>1
             }
         }).map(|cell| {
             let mut style=rect_style(&cell.anchor);
             style.push_str(";position:absolute;box-sizing:border-box;pointer-events:none");
-            style.push_str(&panes.get().clip_style(cell.anchor,&metrics.get(),&viewport.get(),Some(cell.row),Some(cell.col)));
+            style.push_str(&panes.get().anchor_clip_style(cell,&metrics.get(),&viewport.get()));
             if borders {
-                style.push_str(&decoration::css(&cell.shown.style.borders,plan.scale));
+                style.push_str(&decoration::css(&cell.borders,plan.scale));
             } else if let Some(fill)=cell.shown.conditional.as_ref().and_then(|c|c.fill.as_ref()).or(cell.shown.style.fill.as_ref()) {
                 style.push_str(&format!(";background-color:{fill}"));
+            } else if let Some(brush)=&cell.shown.style.brush {
+                if let Some((_,url))=decoration::texture(brush,cell.anchor.w,cell.anchor.h,plan.scale) {
+                    let (size,repeat)=if matches!(brush,dna_calc_model::projection::FillShown::Pattern {..}) {(format!("{}px {}px",8.*plan.scale,8.*plan.scale),"repeat")}else {("100% 100%".into(),"no-repeat")};
+                    style.push_str(&format!(";background-image:url({url});background-size:{size};background-repeat:{repeat}"));
+                }
             } else if cell.row_span>1 || cell.col_span>1 {
                 style.push_str(";background-color:var(--dna-paper);border-right:1px solid var(--dna-line-soft);border-bottom:1px solid var(--dna-line-soft)");
             }
-            view!{<div aria-hidden="true" data-dnacalc=if borders {"cell-borders"} else {"cell-decoration"} data-cell=cell.address.clone() use:css=style></div>}
+            if !borders && let Some((share,color,gradient))=cell.shown.conditional.as_ref().and_then(|c|c.bar.as_ref()) {
+                let end=if *gradient {"#ffffff"}else {color.as_str()};
+                let under=cell.shown.conditional.as_ref().filter(|c|c.fill.is_none()).and(cell.shown.style.brush.as_ref()).and_then(|brush|decoration::texture(brush,cell.anchor.w,cell.anchor.h,plan.scale)).map(|(_,url)|url);
+                if let Some(url)=under {
+                    let (size,repeat)=if matches!(cell.shown.style.brush,Some(dna_calc_model::projection::FillShown::Pattern {..})) {(format!("{}px {}px",8.*plan.scale,8.*plan.scale),"repeat")}else {("100% 100%".into(),"no-repeat")};
+                    style.push_str(&format!(";background-image:linear-gradient(to right,{color},{end}),url({url});background-size:{:.1}% 72%,{size};background-position:left center,0 0;background-repeat:no-repeat,{repeat}",share*100.));
+                }
+                else {style.push_str(&format!(";background-image:linear-gradient(to right,{color},{end});background-size:{:.1}% 72%;background-position:left center;background-repeat:no-repeat",share*100.));}
+            }
+            let strokes=if borders {decoration::strokes(cell,plan.scale)}else {Vec::new()};
+            let lines=(!strokes.is_empty()).then(|| {
+                let left=cell.borders[0].as_ref().map_or(0.,|e|decoration::line(e,plan.scale).width);
+                let top=cell.borders[2].as_ref().map_or(0.,|e|decoration::line(e,plan.scale).width);
+                let svg_style=format!("position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;overflow:visible",-left,-top,cell.anchor.w,cell.anchor.h);
+                view! {<svg data-dnacalc="cell-lines" viewBox=format!("0 0 {} {}",cell.anchor.w,cell.anchor.h) use:css=svg_style>
+                    {strokes.into_iter().map(|line| {
+                        let dash=line.dash.iter().map(|n|n.to_string()).collect::<Vec<_>>().join(" ");
+                        view! {<line x1=line.x1 y1=line.y1 x2=line.x2 y2=line.y2 stroke=line.color stroke-width=line.width stroke-dasharray=dash fill="none"/>}
+                    }).collect_view()}
+                </svg>}
+            });
+            view!{<div aria-hidden="true" data-dnacalc=if borders {"cell-borders"} else {"cell-decoration"} data-cell=cell.address.clone() use:css=style>{lines}</div>}
         }).collect_view())
     };
 
@@ -1506,16 +1532,6 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     // A conditional format's font colour comes before the number format's.
                     if let Some(color) = conditional.font_color.as_ref().or(cell.shown.color.as_ref()).or(cell.shown.style.font_color.as_ref()) {
                         style.push_str(&format!(";color:{color}"));
-                    }
-                    if let Some(fill) = &conditional.fill {
-                        style.push_str(&format!(";background-color:{fill}"));
-                    }
-                    if let Some((share, color, gradient)) = &conditional.bar {
-                        let end = if *gradient { "#ffffff" } else { color.as_str() };
-                        style.push_str(&format!(
-                            ";background-image:linear-gradient(to right,{color},{end});background-size:{:.1}% 72%;background-position:left center;background-repeat:no-repeat",
-                            share * 100.0
-                        ));
                     }
                     if conditional.bold {
                         style.push_str(";font-weight:700");

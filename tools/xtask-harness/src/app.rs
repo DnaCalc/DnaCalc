@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (66 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (73 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1053,6 +1053,8 @@ pub enum Action {
     ProtectedDownloadFixture,
     /// Import a documented OOXML view using the existing package-part fixture editor.
     ViewDownloadFixture(&'static str),
+    /// The same view-part editor applied to a named downloaded workbook.
+    ViewDownloadFixtureFor(&'static str, &'static str),
     StyledFixture,
     AlignmentFixture,
     /// Observe delayed external events in fault cases.
@@ -1699,6 +1701,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::ManualDownloadFixture
         | Action::ProtectedDownloadFixture
         | Action::ViewDownloadFixture(_)
+        | Action::ViewDownloadFixtureFor(_, _)
         | Action::StyledFixture
         | Action::AlignmentFixture => {
             #[cfg(target_arch = "wasm32")]
@@ -1711,7 +1714,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     ws.root
                         .join("crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx")
                 } else {
-                    session.downloads.join("Book1.xlsx")
+                    session.downloads.join(match action {Action::ViewDownloadFixtureFor(name,_)=>*name,_=>"Book1.xlsx"})
                 };
                 let started = Instant::now();
                 while !path.is_file() && started.elapsed() < SETTLE {
@@ -1726,7 +1729,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     .map_err(|e| e.to_string());
                 }
                 let parts = crate::oracle_cases::package_parts(&bytes)?;
-                if let Action::ViewDownloadFixture(view) = action {
+                if let Some(view)=match action {Action::ViewDownloadFixture(view)|Action::ViewDownloadFixtureFor(_,view)=>Some(view),_=>None} {
                     let name = "xl/worksheets/sheet1.xml";
                     let xml = std::str::from_utf8(parts.get(name).ok_or("no worksheet part")?)
                         .map_err(|e| e.to_string())?;
@@ -2875,8 +2878,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 66,
-            "the two applications have 66 core cases including formatting, merge, editability and applied-font reflow"
+            total, 73,
+            "the two applications have 73 core cases including formatting, merge, editability and applied-font reflow"
         );
     }
 

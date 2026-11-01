@@ -75,13 +75,80 @@ pub fn text_style_for(
                 .fg_color
                 .as_ref()
                 .and_then(|c| crate::cells::style_color(host, c));
-        } else if !matches!(
-            fill.pattern_type.as_deref(),
-            None | Some("none" | "gray125")
-        ) || !fill.other_children.is_empty()
-        {
-            out.unsupported =
-                Some("This patterned or gradient fill is preserved but not painted".into());
+        } else if let Some(g) = &fill.gradient {
+            let parse = |n: Option<&str>, default: f64| {
+                n.map_or(Some(default), |s| s.parse::<f64>().ok())
+                    .filter(|n| n.is_finite())
+            };
+            let kind = g.kind.as_deref().unwrap_or("linear");
+            let degree = parse(g.degree.as_deref(), 0.);
+            let rectangle: Option<Vec<_>> = g
+                .rectangle
+                .iter()
+                .map(|s| parse(s.as_deref(), 0.).filter(|n| (0. ..=1.).contains(n)))
+                .collect();
+            let stops: Option<Vec<_>> = g
+                .stops
+                .iter()
+                .map(|s| {
+                    Some((
+                        parse(s.position.as_deref(), f64::NAN)
+                            .filter(|n| (0. ..=1.).contains(n))?,
+                        crate::cells::style_color(host, s.color.as_ref()?)?,
+                    ))
+                })
+                .collect();
+            match (degree,rectangle,stops) {
+                (Some(degree),Some(rectangle),Some(mut stops)) if matches!(kind,"linear"|"path")&&rectangle[0]<=rectangle[1]&&rectangle[2]<=rectangle[3]&&(2..=256).contains(&stops.len())=> {
+                    stops.sort_by(|a,b|a.0.total_cmp(&b.0));
+                    out.brush=Some(dna_calc_model::projection::FillShown::Gradient {kind:kind.into(),degree,rectangle:rectangle.try_into().unwrap(),stops});
+                },
+                _=>out.unsupported=Some("This gradient's geometry or colours are unavailable; its stored fill is preserved".into()),
+            }
+        } else if let Some(name) = fill.pattern_type.as_deref().filter(|p| *p != "none") {
+            if matches!(
+                name,
+                "darkGray"
+                    | "mediumGray"
+                    | "lightGray"
+                    | "gray125"
+                    | "gray0625"
+                    | "darkHorizontal"
+                    | "lightHorizontal"
+                    | "darkVertical"
+                    | "lightVertical"
+                    | "darkDown"
+                    | "lightDown"
+                    | "darkUp"
+                    | "lightUp"
+                    | "darkGrid"
+                    | "lightGrid"
+                    | "darkTrellis"
+                    | "lightTrellis"
+            ) {
+                let foreground = fill
+                    .fg_color
+                    .as_ref()
+                    .and_then(|c| crate::cells::style_color(host, c));
+                let background = fill
+                    .bg_color
+                    .as_ref()
+                    .and_then(|c| crate::cells::style_color(host, c));
+                if (foreground.is_none() && fill.fg_color.as_ref().is_some_and(|c| !c.auto))
+                    || (background.is_none() && fill.bg_color.as_ref().is_some_and(|c| !c.auto))
+                {
+                    out.unsupported=Some("This pattern's supplied colour is unavailable; its stored fill is preserved".into());
+                } else {
+                    out.brush = Some(dna_calc_model::projection::FillShown::Pattern {
+                        name: name.into(),
+                        foreground: foreground.unwrap_or_else(|| "#000000".into()),
+                        background: background.unwrap_or_else(|| "#ffffff".into()),
+                    });
+                }
+            } else {
+                out.unsupported =
+                    Some("This fill pattern is unavailable; its stored fill is preserved".into());
+            }
         }
     }
     let border_id = format
@@ -93,6 +160,7 @@ pub fn text_style_for(
             e.as_ref().and_then(|e| {
                 e.style
                     .as_ref()
+                    .filter(|style| style.as_str() != "none")
                     .map(|style| dna_calc_model::projection::BorderShown {
                         style: style.clone(),
                         color: e
@@ -110,8 +178,24 @@ pub fn text_style_for(
         }) {
             out.unsupported=Some("This border dash pattern is approximated by the DOM painter; its stored style is preserved".into());
         }
-        if b.diagonal_up || b.diagonal_down {
-            out.unsupported = Some("Diagonal borders are preserved but not painted".into());
+        if let Some(edge) = b.diagonal.as_ref().and_then(|e| {
+            e.style
+                .as_ref()
+                .filter(|s| s.as_str() != "none")
+                .map(|style| dna_calc_model::projection::BorderShown {
+                    style: style.clone(),
+                    color: e
+                        .color
+                        .as_ref()
+                        .and_then(|c| crate::cells::style_color(host, c)),
+                })
+        }) {
+            if b.diagonal_up {
+                out.diagonal[0] = Some(edge.clone());
+            }
+            if b.diagonal_down {
+                out.diagonal[1] = Some(edge);
+            }
         }
     }
     if let Some(a) = calc_host::style_alignment(styles, index) {
@@ -225,5 +309,76 @@ mod tests {
             assert_eq!(style.pixels, 14. * 96. / 72.);
             assert_eq!(style.family.as_deref(), Some("monospace"));
         }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn physical_pattern_gradient_and_diagonal_project_resolved_geometry_and_colours() {
+        let host = calc_host::HostState::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let at = calc_host::value::CellKey::new(host.sheets()[0].id(), 1, 1).unwrap();
+        let mut table = (**host.styles()).clone();
+        let rgb = |s: &str| calc_host::StyleColor {
+            rgb: Some(s.into()),
+            ..Default::default()
+        };
+        let mut fill = table.fills[0].clone();
+        fill.pattern_type = Some("darkDown".into());
+        fill.fg_color = Some(rgb("FFFF0000"));
+        fill.bg_color = Some(rgb("FFFFFFFF"));
+        table.fills.push(fill);
+        let pattern = table.fills.len() - 1;
+        let mut fill = table.fills[0].clone();
+        fill.gradient = Some(Default::default());
+        let g = fill.gradient.as_mut().unwrap();
+        g.degree = Some("90".into());
+        g.stops.resize_with(2, Default::default);
+        for (i, color) in ["FFFF0000", "FF0000FF"].into_iter().enumerate() {
+            g.stops[i].position = Some(i.to_string());
+            g.stops[i].color = Some(rgb(color));
+        }
+        table.fills.push(fill);
+        let gradient = table.fills.len() - 1;
+        let mut border = table.borders[0].clone();
+        border.diagonal_up = true;
+        border.diagonal_down = true;
+        let mut edge = border.diagonal.take().unwrap_or_default();
+        edge.style = Some("double".into());
+        edge.color = Some(rgb("FF008000"));
+        border.diagonal = Some(edge);
+        table.borders.push(border);
+        let mut xf = table.cell_formats[0].clone();
+        xf.fill_id = Some(pattern as u32);
+        xf.border_id = Some((table.borders.len() - 1) as u32);
+        table.cell_formats.push(xf);
+        let index = (table.cell_formats.len() - 1) as u32;
+        let projected = text_style_for(&host, at, 100., &table, index);
+        assert_eq!(projected.unsupported, None);
+        assert_eq!(
+            projected.brush,
+            Some(dna_calc_model::projection::FillShown::Pattern {
+                name: "darkDown".into(),
+                foreground: "#ff0000".into(),
+                background: "#ffffff".into()
+            })
+        );
+        for edge in projected.diagonal {
+            let edge = edge.unwrap();
+            assert_eq!(edge.style, "double");
+            assert_eq!(edge.color.as_deref(), Some("#008000"));
+        }
+        table.cell_formats[index as usize].fill_id = Some(gradient as u32);
+        let projected = text_style_for(&host, at, 100., &table, index);
+        assert_eq!(projected.unsupported, None);
+        assert!(
+            matches!(projected.brush,Some(dna_calc_model::projection::FillShown::Gradient {degree,stops,..}) if degree==90. && stops==vec![(0.,"#ff0000".into()),(1.,"#0000ff".into())])
+        );
+        table.fills[gradient].gradient.as_mut().unwrap().stops[0].position = Some("NaN".into());
+        let refused = text_style_for(&host, at, 100., &table, index);
+        assert!(refused.brush.is_none());
+        assert!(refused.unsupported.is_some());
     }
 }

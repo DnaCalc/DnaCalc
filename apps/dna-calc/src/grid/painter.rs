@@ -127,7 +127,41 @@ pub(super) fn paint(
             ctx.set_fill_style_str(&fill);
             ctx.fill_rect(cell.anchor.x, cell.anchor.y, cell.anchor.w, cell.anchor.h)
         }
-        if cell.row_span > 1 || cell.col_span > 1 {
+        if conditional.fill.is_none()
+            && let Some(brush) = &cell.shown.style.brush
+            && let Some((texture, _)) =
+                super::decoration::texture(brush, cell.anchor.w, cell.anchor.h, plan.scale)
+        {
+            if matches!(brush, dna_calc_model::projection::FillShown::Pattern { .. }) {
+                if let Ok(Some(pattern)) =
+                    ctx.create_pattern_with_html_canvas_element(&texture, "repeat")
+                {
+                    ctx.save();
+                    // Keep the source mask's discrete foreground/background pixels at
+                    // fractional scroll offsets; gradients keep interpolation below.
+                    ctx.set_image_smoothing_enabled(false);
+                    let _ = ctx.translate(cell.anchor.x, cell.anchor.y);
+                    let unit = 8. * plan.scale / f64::from(texture.width());
+                    let _ = ctx.scale(unit, unit);
+                    ctx.set_fill_style_canvas_pattern(&pattern);
+                    ctx.fill_rect(0., 0., cell.anchor.w / unit, cell.anchor.h / unit);
+                    ctx.restore();
+                }
+            } else {
+                let _ = ctx.draw_image_with_html_canvas_element_and_dw_and_dh(
+                    &texture,
+                    cell.anchor.x,
+                    cell.anchor.y,
+                    cell.anchor.w,
+                    cell.anchor.h,
+                );
+            }
+        }
+        if (cell.row_span > 1 || cell.col_span > 1)
+            && conditional.fill.is_none()
+            && cell.shown.style.fill.is_none()
+            && cell.shown.style.brush.is_none()
+        {
             ctx.set_fill_style_str(&token(&style, "--dna-line-soft"));
             ctx.fill_rect(
                 cell.rect.x + cell.rect.w - 1.0,
@@ -175,6 +209,24 @@ pub(super) fn paint(
                 cell.rect.h * 0.72,
             );
         }
+        ctx.restore();
+    }
+    // Paint all glyphs after all physical backgrounds. An adjacent styled blank must not
+    // erase an earlier cell's overflowing text, and merged fragments use their own clip.
+    for cell in &plan.cells {
+        let Some(clip) = cell.clip.or_else(|| {
+            panes::intersection(
+                cell.rect,
+                panes.bounds(metrics, &plan.viewport, cell.row, cell.col),
+            )
+        }) else {
+            continue;
+        };
+        ctx.save();
+        ctx.begin_path();
+        rect(&ctx, clip);
+        ctx.clip();
+        let conditional = cell.shown.conditional.clone().unwrap_or_default();
         let color = conditional
             .font_color
             .as_ref()
@@ -201,16 +253,18 @@ pub(super) fn paint(
     }
     for cell in &plan.cells {
         let r = cell.anchor;
-        let Some(clip) =
-            panes::intersection(r, panes.bounds(metrics, &plan.viewport, cell.row, cell.col))
-        else {
+        let Some(clip) = panes::intersection(
+            r,
+            cell.clip
+                .unwrap_or_else(|| panes.bounds(metrics, &plan.viewport, cell.row, cell.col)),
+        ) else {
             continue;
         };
         ctx.save();
         ctx.begin_path();
         rect(&ctx, clip);
         ctx.clip();
-        for (side, edge) in cell.shown.style.borders.iter().enumerate() {
+        for (side, edge) in cell.borders.iter().enumerate() {
             let Some(edge) = edge else {
                 continue;
             };
@@ -238,6 +292,19 @@ pub(super) fn paint(
                 ctx.line_to(x2, y2);
                 ctx.stroke();
             }
+        }
+        for line in super::decoration::strokes(cell, plan.scale) {
+            ctx.set_stroke_style_str(&line.color);
+            ctx.set_line_width(line.width);
+            let dashes = js_sys::Array::new();
+            for n in line.dash {
+                dashes.push(&wasm_bindgen::JsValue::from_f64(n));
+            }
+            let _ = ctx.set_line_dash(&dashes);
+            ctx.begin_path();
+            ctx.move_to(r.x + line.x1, r.y + line.y1);
+            ctx.line_to(r.x + line.x2, r.y + line.y2);
+            ctx.stroke();
         }
         ctx.restore();
     }

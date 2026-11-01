@@ -62,6 +62,27 @@ fn font_child(font: &mut Font, element: &XmlElement) {
 
 fn fill_child(fill: &mut Fill, element: &XmlElement) {
     match element.name.local.as_str() {
+        "gradientFill" => {
+            fill.gradient = Some(calc_doc_model::GradientFill {
+                kind: text(element, "type"),
+                degree: text(element, "degree"),
+                rectangle: ["left", "right", "top", "bottom"].map(|key| text(element, key)),
+                stops: Vec::new(),
+            })
+        }
+        "stop" => {
+            if let Some(g) = fill.gradient.as_mut() {
+                g.stops.push(calc_doc_model::GradientStop {
+                    position: text(element, "position"),
+                    color: None,
+                });
+            }
+        }
+        "color" => {
+            if let Some(stop) = fill.gradient.as_mut().and_then(|g| g.stops.last_mut()) {
+                stop.color = Some(color(element));
+            }
+        }
         "patternFill" => fill.pattern_type = text(element, "patternType"),
         "fgColor" => fill.fg_color = Some(color(element)),
         "bgColor" => fill.bg_color = Some(color(element)),
