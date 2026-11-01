@@ -1,0 +1,43 @@
+{"utc":"2026-11-01T19:40:19.5925785Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-01T19:40:20.0334194Z","operation":"=X5.Permission(4)","value":0.0}
+{"utc":"2026-11-01T19:40:20.0921496Z","operation":"=X5.Permission(16393)","value":0.0}
+{"utc":"2026-11-01T19:40:20.1125648Z","operation":"=X5.Permission(16385)","value":0.0}
+{"utc":"2026-11-01T19:40:20.1424302Z","operation":"=X5.Permission(89)","value":0.0}
+{"utc":"2026-11-01T19:40:20.1604499Z","operation":"=X5.Permission(16386)","value":0.0}
+{"utc":"2026-11-01T19:40:20.1784611Z","operation":"=X5.Permission(16388)","value":0.0}
+{"utc":"2026-11-01T19:40:20.1927817Z","operation":"=X5.Permission(16389)","value":0.0}
+{"utc":"2026-11-01T19:40:20.2076359Z","operation":"=X5.Permission(16392)","value":0.0}
+{"utc":"2026-11-01T19:40:20.2226877Z","operation":"=X5.Permission(16403)","value":0.0}
+{"utc":"2026-11-01T19:40:20.2379274Z","operation":"=X5.Permission(237)","value":2.0}
+{"utc":"2026-11-01T19:40:20.2559211Z","operation":"=X5.Permission(186)","value":2.0}
+{"utc":"2026-11-01T19:40:20.2777305Z","operation":"=X5.Permission(257)","value":0.0}
+{"utc":"2026-11-01T19:40:20.2996502Z","operation":"=X5.Permission(32890)","value":2.0}
+{"utc":"2026-11-01T19:40:20.3273857Z","operation":"=X5.MacroPermission(4)","value":0.0}
+{"utc":"2026-11-01T19:40:20.3486208Z","operation":"=X5.MacroPermission(16393)","value":0.0}
+{"utc":"2026-11-01T19:40:20.3709224Z","operation":"=X5.MacroPermission(16385)","value":0.0}
+{"utc":"2026-11-01T19:40:20.4168119Z","operation":"=X5.MacroPermission(89)","value":0.0}
+{"utc":"2026-11-01T19:40:20.4545645Z","operation":"=X5.MacroPermission(16386)","value":0.0}
+{"utc":"2026-11-01T19:40:20.4828841Z","operation":"=X5.MacroPermission(16388)","value":0.0}
+{"utc":"2026-11-01T19:40:20.5315273Z","operation":"=X5.MacroPermission(16389)","value":0.0}
+{"utc":"2026-11-01T19:40:20.5793066Z","operation":"=X5.MacroPermission(16392)","value":0.0}
+{"utc":"2026-11-01T19:40:20.5983549Z","operation":"=X5.MacroPermission(16403)","value":0.0}
+{"utc":"2026-11-01T19:40:20.6196651Z","operation":"=X5.MacroPermission(237)","value":0.0}
+{"utc":"2026-11-01T19:40:20.6424416Z","operation":"=X5.MacroPermission(186)","value":0.0}
+{"utc":"2026-11-01T19:40:20.6876640Z","operation":"=X5.MacroPermission(257)","value":0.0}
+{"utc":"2026-11-01T19:40:20.7380011Z","operation":"=X5.MacroPermission(32890)","value":0.0}
+{"utc":"2026-11-01T19:40:20.7743001Z","operation":"=X5.PoolPermission(4)","value":0.0}
+{"utc":"2026-11-01T19:40:20.8109556Z","operation":"=X5.PoolPermission(16393)","value":0.0}
+{"utc":"2026-11-01T19:40:20.8286885Z","operation":"=X5.PoolPermission(16385)","value":0.0}
+{"utc":"2026-11-01T19:40:20.8651075Z","operation":"=X5.PoolPermission(89)","value":0.0}
+{"utc":"2026-11-01T19:40:20.8950132Z","operation":"=X5.PoolPermission(16386)","value":0.0}
+{"utc":"2026-11-01T19:40:20.9170923Z","operation":"=X5.PoolPermission(16388)","value":0.0}
+{"utc":"2026-11-01T19:40:20.9394081Z","operation":"=X5.PoolPermission(16389)","value":0.0}
+{"utc":"2026-11-01T19:40:20.9562343Z","operation":"=X5.PoolPermission(16392)","value":0.0}
+{"utc":"2026-11-01T19:40:20.9725834Z","operation":"=X5.PoolPermission(16403)","value":0.0}
+{"utc":"2026-11-01T19:40:20.9890574Z","operation":"=X5.PoolPermission(237)","value":2.0}
+{"utc":"2026-11-01T19:40:21.0562329Z","operation":"=X5.PoolPermission(186)","value":2.0}
+{"utc":"2026-11-01T19:40:21.0703343Z","operation":"=X5.PoolPermission(257)","value":128.0}
+{"utc":"2026-11-01T19:40:21.0937081Z","operation":"=X5.PoolPermission(32890)","value":128.0}
+{"utc":"2026-11-01T19:40:21.4628839Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-01T19:40:21.4810303Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-01T19:40:22.4167147Z","operation":"cleanup","value":"Stopped owned Excel PID 28092"}

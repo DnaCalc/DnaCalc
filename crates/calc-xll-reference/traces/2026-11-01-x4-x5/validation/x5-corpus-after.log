@@ -1,0 +1,75 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.15s
+     Running `target\debug\xtask.exe corpus --oracle --no-capture --out C:\Work\DnaCalc\codex-runs\x5-corpus-after`
+   Compiling calc-doc-model v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-doc-model)
+   Compiling calc-doc v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-doc)
+   Compiling calc-engine v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-engine)
+   Compiling calc-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-host)
+   Compiling xtask-harness v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\tools\xtask-harness)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 59.16s
+warning: method `opened_position` is never used
+   --> crates\calc-host\src\state.rs:719:19
+    |
+162 | impl HostState {
+    | -------------- method in this implementation
+...
+719 |     pub(crate) fn opened_position(&self, at: CellKey) -> Option<(u32, u32)> {
+    |                   ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `driver_pid` is never read
+   --> tools\xtask-harness\src\app.rs:797:5
+    |
+793 | struct Session {
+    |        ------- field in this struct
+...
+797 |     driver_pid: u32,
+    |     ^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+xtask corpus: building the release xtask the comparisons run in (C:\Work\DnaCalc\DnaCalc-win\target/xtask-corpus)
+xtask corpus: [1/21] calc-engine/dc_10y/oracle.xlsx
+xtask corpus:   formula cells 1436; pass 1431; external links 0; circular rule 0; awaiting capture 0; fail 5 (mismatched 5, refused 0, failed or missing 0); pass rate 99.65%
+xtask corpus: [2/21] calc-engine/dc_10y_iteration/oracle.xlsx
+xtask corpus:   formula cells 17; pass 17; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [3/21] calc-engine/dc_86f/oracle.xlsx
+xtask corpus:   formula cells 22; pass 22; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [4/21] calc-engine/dc_y2o/oracle.xlsx
+xtask corpus:   formula cells 17; pass 3; external links 0; circular rule 14; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 17.64%
+xtask corpus: [5/21] calc-engine/l3/oracle.xlsx
+xtask corpus:   formula cells 112; pass 112; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [6/21] calc-fml/dc_51ka/oracle.xlsx
+xtask corpus:   formula cells 183; pass 183; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [7/21] calc-fml/dc_ibp2/oracle.xlsx
+xtask corpus:   formula cells 83; pass 83; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [8/21] calc-fml/dc_l10u/oracle.xlsx
+xtask corpus:   formula cells 57; pass 57; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [9/21] calc-func/catalogue/oracle.xlsx
+xtask corpus:   formula cells 13509; pass 12392; external links 0; circular rule 0; awaiting capture 0; fail 1117 (mismatched 1111, refused 6, failed or missing 0); pass rate 91.73%
+xtask corpus: [10/21] calc-func/cdoc_jpha/oracle.xlsx
+xtask corpus:   formula cells 1526; pass 1526; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [11/21] calc-func/cfunc_m1_2/oracle.xlsx
+xtask corpus:   formula cells 234; pass 234; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [12/21] calc-func/cfunc_m3_2/oracle.xlsx
+xtask corpus:   formula cells 218; pass 215; external links 0; circular rule 0; awaiting capture 0; fail 3 (mismatched 3, refused 0, failed or missing 0); pass rate 98.62%
+xtask corpus: [13/21] calc-func/cfunc_m3_4/oracle.xlsx
+xtask corpus:   formula cells 112; pass 112; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [14/21] calc-func/cfunc_m3_5/oracle.xlsx
+xtask corpus:   formula cells 136; pass 136; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [15/21] calc-func/cfunc_m3_6/oracle.xlsx
+xtask corpus:   formula cells 596; pass 596; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [16/21] calc-func/dc_e00t/oracle.xlsx
+xtask corpus:   formula cells 1144; pass 1144; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [17/21] calc-func/dc_fwpz/oracle.xlsx
+xtask corpus:   formula cells 115; pass 115; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [18/21] calc-func/dc_nzpw/oracle.xlsx
+xtask corpus:   formula cells 186; pass 185; external links 0; circular rule 0; awaiting capture 0; fail 1 (mismatched 0, refused 0, failed or missing 1); pass rate 99.46%
+xtask corpus: [19/21] calc-func/dc_q9rb/oracle.xlsx
+xtask corpus:   formula cells 86; pass 81; external links 0; circular rule 0; awaiting capture 0; fail 5 (mismatched 5, refused 0, failed or missing 0); pass rate 94.18%
+xtask corpus: [20/21] calc-func/dc_xrxb/oracle.xlsx
+xtask corpus:   formula cells 167; pass 167; external links 0; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 100.00%
+xtask corpus: [21/21] calc-host/dc_ylr/oracle.xlsx
+xtask corpus:   formula cells 74; pass 1; external links 73; circular rule 0; awaiting capture 0; fail 0 (mismatched 0, refused 0, failed or missing 0); pass rate 1.35%
+xtask corpus: 21 workbooks (21 compared, 0 not compared); formula cells 20030; pass 18812; external links 73; circular rule 14; awaiting capture 0; fail 1131 (mismatched 1124, refused 6, failed or missing 1); pass rate over all formula cells 93.91%
+xtask corpus: wrote summary.md and summary.json to C:\Work\DnaCalc\codex-runs\x5-corpus-after

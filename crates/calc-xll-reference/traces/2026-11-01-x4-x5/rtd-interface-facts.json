@@ -1,0 +1,151 @@
+{
+  "measured_utc": "2026-11-01T18:01:57.0404923Z",
+  "excel_file_version": "16.0.20527.20088",
+  "excel_sha256": "63C67292DDAB6EBE0571181EBE77FEE37D42639F7FABB327021DEE03BAA9BC20",
+  "pointer_bytes": 8,
+  "interfaces": [
+    {
+      "name": "IRTDUpdateEvent",
+      "iid": "a43788c1-d91b-11d3-8f39-00c04f3651b8",
+      "kind": "TKIND_INTERFACE",
+      "dual": true,
+      "vtable_bytes": 88,
+      "members": [
+        {
+          "name": "UpdateNotify",
+          "dispid": 10,
+          "descriptor_slot": 7,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": []
+        },
+        {
+          "name": "HeartbeatInterval",
+          "dispid": 11,
+          "descriptor_slot": 8,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "HeartbeatInterval",
+          "dispid": 11,
+          "descriptor_slot": 9,
+          "invoke_kind": "INVOKE_PROPERTYPUT",
+          "parameters": [
+            {
+              "variant_type": 3,
+              "flags": "PARAMFLAG_FIN"
+            }
+          ]
+        },
+        {
+          "name": "Disconnect",
+          "dispid": 12,
+          "descriptor_slot": 10,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": []
+        }
+      ]
+    },
+    {
+      "name": "IRtdServer",
+      "iid": "ec0e6191-db51-11d3-8f3e-00c04f3651b8",
+      "kind": "TKIND_INTERFACE",
+      "dual": true,
+      "vtable_bytes": 104,
+      "members": [
+        {
+          "name": "ServerStart",
+          "dispid": 10,
+          "descriptor_slot": 7,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FIN"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "ConnectData",
+          "dispid": 11,
+          "descriptor_slot": 8,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": [
+            {
+              "variant_type": 3,
+              "flags": "PARAMFLAG_FIN"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FIN"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOUT"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "RefreshData",
+          "dispid": 12,
+          "descriptor_slot": 9,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOUT"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "DisconnectData",
+          "dispid": 13,
+          "descriptor_slot": 10,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": [
+            {
+              "variant_type": 3,
+              "flags": "PARAMFLAG_FIN"
+            }
+          ]
+        },
+        {
+          "name": "Heartbeat",
+          "dispid": 14,
+          "descriptor_slot": 11,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "ServerTerminate",
+          "dispid": 15,
+          "descriptor_slot": 12,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": []
+        }
+      ]
+    }
+  ]
+}

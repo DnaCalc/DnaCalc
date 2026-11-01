@@ -1,0 +1,2079 @@
+{
+  "status": "measured permission matrix; refusals remain failures",
+  "requests": 39,
+  "pass": 37,
+  "fail": 2,
+  "pass_rate_all_requests": 0.9487179487179487,
+  "callback_codes_matched": 37,
+  "rows": [
+    {
+      "formula": "=X5.Permission(4)",
+      "function": 4,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 41,
+          "qpc": 13581025055116,
+          "event": "enter",
+          "call": 13,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 4,
+          "args": [
+            {
+              "type": 1,
+              "value": 19
+            },
+            {
+              "type": 1,
+              "value": 23
+            }
+          ]
+        },
+        "returned": {
+          "seq": 42,
+          "qpc": 13581027359567,
+          "event": "leave",
+          "call": 13,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 2304678,
+          "rax": "0x0",
+          "function": 4,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1,
+            "value": 42
+          }
+        }
+      },
+      "host_owner_thread": 14260,
+      "host_invocation_thread": 14260
+    },
+    {
+      "formula": "=X5.Permission(16393)",
+      "function": 16393,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 49,
+          "qpc": 13581038761561,
+          "event": "enter",
+          "call": 16,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16393,
+          "args": []
+        },
+        "returned": {
+          "seq": 50,
+          "qpc": 13581040869200,
+          "event": "leave",
+          "call": 16,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 2107775,
+          "rax": "0x0",
+          "function": 16393,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2,
+            "value": "C:\\Work\\DnaCalc\\codex-runs\\x5-runs\\release\\permissions\\excel-traced\\X5Native64.xll"
+          }
+        }
+      },
+      "host_owner_thread": 50580,
+      "host_invocation_thread": 50580
+    },
+    {
+      "formula": "=X5.Permission(16385)",
+      "function": 16385,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 55,
+          "qpc": 13581051270474,
+          "event": "enter",
+          "call": 19,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16385,
+          "args": []
+        },
+        "returned": {
+          "seq": 56,
+          "qpc": 13581053257434,
+          "event": "leave",
+          "call": 19,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1986995,
+          "rax": "0x0",
+          "function": 16385,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2048,
+            "value": 884833
+          }
+        }
+      },
+      "host_owner_thread": 15896,
+      "host_invocation_thread": 15896
+    },
+    {
+      "formula": "=X5.Permission(89)",
+      "function": 89,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 61,
+          "qpc": 13581063883526,
+          "event": "enter",
+          "call": 22,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 89,
+          "args": []
+        },
+        "returned": {
+          "seq": 62,
+          "qpc": 13581065810389,
+          "event": "leave",
+          "call": 22,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1926898,
+          "rax": "0x0",
+          "function": 89,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1024,
+            "value": {
+              "count": 1,
+              "rect": [
+                2,
+                2,
+                1,
+                1
+              ]
+            }
+          }
+        }
+      },
+      "host_owner_thread": 35604,
+      "host_invocation_thread": 35604
+    },
+    {
+      "formula": "=X5.Permission(16386)",
+      "function": 16386,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 67,
+          "qpc": 13581076661992,
+          "event": "enter",
+          "call": 25,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16386,
+          "args": [
+            {
+              "type": 1,
+              "value": 19
+            }
+          ]
+        },
+        "returned": {
+          "seq": 68,
+          "qpc": 13581078590947,
+          "event": "leave",
+          "call": 25,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1929014,
+          "rax": "0x0",
+          "function": 16386,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1,
+            "value": 19
+          }
+        }
+      },
+      "host_owner_thread": 33384,
+      "host_invocation_thread": 33384
+    },
+    {
+      "formula": "=X5.Permission(16388)",
+      "function": 16388,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 73,
+          "qpc": 13581089276365,
+          "event": "enter",
+          "call": 28,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16388,
+          "args": []
+        },
+        "returned": {
+          "seq": 74,
+          "qpc": 13581091540978,
+          "event": "leave",
+          "call": 28,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 2264640,
+          "rax": "0x0",
+          "function": 16388,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 8,
+            "value": {
+              "sheet": "0x1539a529450",
+              "null_reference_table": true
+            }
+          }
+        }
+      },
+      "host_owner_thread": 33356,
+      "host_invocation_thread": 33356
+    },
+    {
+      "formula": "=X5.Permission(16389)",
+      "function": 16389,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 81,
+          "qpc": 13581106461062,
+          "event": "enter",
+          "call": 32,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16389,
+          "args": [
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ]
+        },
+        "returned": {
+          "seq": 82,
+          "qpc": 13581108476723,
+          "event": "leave",
+          "call": 32,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 2015793,
+          "rax": "0x0",
+          "function": 16389,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2,
+            "value": "[Book3]X0"
+          }
+        }
+      },
+      "host_owner_thread": 50988,
+      "host_invocation_thread": 50988
+    },
+    {
+      "formula": "=X5.Permission(16392)",
+      "function": 16392,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 89,
+          "qpc": 13581123635548,
+          "event": "enter",
+          "call": 36,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16392,
+          "args": []
+        },
+        "returned": {
+          "seq": 90,
+          "qpc": 13581125459875,
+          "event": "leave",
+          "call": 36,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1824433,
+          "rax": "0x0",
+          "function": 16392,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2048,
+            "value": 32245028
+          }
+        }
+      },
+      "host_owner_thread": 14488,
+      "host_invocation_thread": 14488
+    },
+    {
+      "formula": "=X5.Permission(16403)",
+      "function": 16403,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 96,
+          "qpc": 13581135029799,
+          "event": "enter",
+          "call": 39,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16403,
+          "args": []
+        },
+        "returned": {
+          "seq": 97,
+          "qpc": 13581136903456,
+          "event": "leave",
+          "call": 39,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1873591,
+          "rax": "0x0",
+          "function": 16403,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2050,
+            "value": {
+              "opaque_handle": "0x7ff79c650000",
+              "byte_count": 0
+            }
+          }
+        }
+      },
+      "host_owner_thread": 37412,
+      "host_invocation_thread": 37412
+    },
+    {
+      "formula": "=X5.Permission(237)",
+      "function": 237,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 2,
+      "host_code": 2,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 103,
+          "qpc": 13581146394122,
+          "event": "enter",
+          "call": 42,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 237,
+          "args": [
+            {
+              "type": 4,
+              "value": false
+            }
+          ]
+        },
+        "returned": {
+          "seq": 104,
+          "qpc": 13581148328004,
+          "event": "leave",
+          "call": 42,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1934159,
+          "rax": "0x2",
+          "function": 237,
+          "return_code": 2,
+          "result_valid": false,
+          "result": {
+            "type": 16,
+            "value": 15
+          }
+        }
+      },
+      "host_owner_thread": 38756,
+      "host_invocation_thread": 38756
+    },
+    {
+      "formula": "=X5.Permission(186)",
+      "function": 186,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 2,
+      "host_code": 2,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 108,
+          "qpc": 13581153783133,
+          "event": "enter",
+          "call": 44,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 186,
+          "args": [
+            {
+              "type": 1,
+              "value": 2
+            }
+          ]
+        },
+        "returned": {
+          "seq": 109,
+          "qpc": 13581155351654,
+          "event": "leave",
+          "call": 44,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1568560,
+          "rax": "0x2",
+          "function": 186,
+          "return_code": 2,
+          "result_valid": false,
+          "result": {
+            "type": 16,
+            "value": 15
+          }
+        }
+      },
+      "host_owner_thread": 38400,
+      "host_invocation_thread": 38400
+    },
+    {
+      "formula": "=X5.Permission(257)",
+      "function": 257,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 2,
+      "callback_code_match": false,
+      "host_calculated": false,
+      "matched_formula": false,
+      "host_error": "dna-calc-desktop: cell has no current engine calculation: NotModeled { refusal: Evaluation(NotModelled { construct: \"an XLL callback is not modelled\", owner: \"dc-snz.2\" }), calculation: Calculation { revision: AuthoredRevision(3), tick: CalcTick(1), mode: Fast, external_links: false, circular_rule: false, stamp: Some(ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(3), formula_generation: 2, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(3), results: ReadViewId(0), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"x5.permission\", bound: Some(UserCallableIdentity { table: 2, slot: 2, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 2, parent: Some(1), callable: UserCallableIdentity { table: 2, slot: 2, generation: 1 }, completed: false, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"x5.permission\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"x5.permission\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(3), external_through: 0 }, required: 8 }, completion: EngineRefusal }) } }",
+      "excel_callback": {
+        "entry": {
+          "seq": 112,
+          "qpc": 13581161323161,
+          "event": "enter",
+          "call": 46,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 257,
+          "args": [
+            {
+              "type": 2,
+              "value": "1+1"
+            }
+          ]
+        },
+        "returned": {
+          "seq": 113,
+          "qpc": 13581162811022,
+          "event": "leave",
+          "call": 46,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1488039,
+          "rax": "0x0",
+          "function": 257,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1,
+            "value": 2
+          }
+        }
+      },
+      "host_owner_thread": 57684,
+      "host_invocation_thread": 57684
+    },
+    {
+      "formula": "=X5.Permission(32890)",
+      "function": 32890,
+      "registration_form": "JB",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 2,
+      "host_code": 2,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 119,
+          "qpc": 13581171289377,
+          "event": "enter",
+          "call": 49,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 32890,
+          "args": [
+            {
+              "type": 4,
+              "value": true
+            },
+            {
+              "type": 2,
+              "value": "X5 permission"
+            }
+          ]
+        },
+        "returned": {
+          "seq": 120,
+          "qpc": 13581172925002,
+          "event": "leave",
+          "call": 49,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1635752,
+          "rax": "0x2",
+          "function": 32890,
+          "return_code": 2,
+          "result_valid": false,
+          "result": {
+            "type": 16,
+            "value": 15
+          }
+        }
+      },
+      "host_owner_thread": 50580,
+      "host_invocation_thread": 50580
+    },
+    {
+      "formula": "=X5.MacroPermission(4)",
+      "function": 4,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 123,
+          "qpc": 13581178159648,
+          "event": "enter",
+          "call": 51,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 4,
+          "args": [
+            {
+              "type": 1,
+              "value": 19
+            },
+            {
+              "type": 1,
+              "value": 23
+            }
+          ]
+        },
+        "returned": {
+          "seq": 124,
+          "qpc": 13581179774960,
+          "event": "leave",
+          "call": 51,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1615543,
+          "rax": "0x0",
+          "function": 4,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1,
+            "value": 42
+          }
+        }
+      },
+      "host_owner_thread": 42680,
+      "host_invocation_thread": 42680
+    },
+    {
+      "formula": "=X5.MacroPermission(16393)",
+      "function": 16393,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 129,
+          "qpc": 13581188161748,
+          "event": "enter",
+          "call": 54,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16393,
+          "args": []
+        },
+        "returned": {
+          "seq": 130,
+          "qpc": 13581189804045,
+          "event": "leave",
+          "call": 54,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1642159,
+          "rax": "0x0",
+          "function": 16393,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2,
+            "value": "C:\\Work\\DnaCalc\\codex-runs\\x5-runs\\release\\permissions\\excel-traced\\X5Native64.xll"
+          }
+        }
+      },
+      "host_owner_thread": 46912,
+      "host_invocation_thread": 46912
+    },
+    {
+      "formula": "=X5.MacroPermission(16385)",
+      "function": 16385,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 135,
+          "qpc": 13581198818788,
+          "event": "enter",
+          "call": 57,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16385,
+          "args": []
+        },
+        "returned": {
+          "seq": 136,
+          "qpc": 13581200396456,
+          "event": "leave",
+          "call": 57,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1577800,
+          "rax": "0x0",
+          "function": 16385,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2048,
+            "value": 884833
+          }
+        }
+      },
+      "host_owner_thread": 39612,
+      "host_invocation_thread": 39612
+    },
+    {
+      "formula": "=X5.MacroPermission(89)",
+      "function": 89,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 141,
+          "qpc": 13581208413015,
+          "event": "enter",
+          "call": 60,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 89,
+          "args": []
+        },
+        "returned": {
+          "seq": 142,
+          "qpc": 13581210067267,
+          "event": "leave",
+          "call": 60,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1654285,
+          "rax": "0x0",
+          "function": 89,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1024,
+            "value": {
+              "count": 1,
+              "rect": [
+                2,
+                2,
+                1,
+                1
+              ]
+            }
+          }
+        }
+      },
+      "host_owner_thread": 56108,
+      "host_invocation_thread": 56108
+    },
+    {
+      "formula": "=X5.MacroPermission(16386)",
+      "function": 16386,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 147,
+          "qpc": 13581218540180,
+          "event": "enter",
+          "call": 63,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16386,
+          "args": [
+            {
+              "type": 1,
+              "value": 19
+            }
+          ]
+        },
+        "returned": {
+          "seq": 148,
+          "qpc": 13581220198660,
+          "event": "leave",
+          "call": 63,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1658685,
+          "rax": "0x0",
+          "function": 16386,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1,
+            "value": 19
+          }
+        }
+      },
+      "host_owner_thread": 57072,
+      "host_invocation_thread": 57072
+    },
+    {
+      "formula": "=X5.MacroPermission(16388)",
+      "function": 16388,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 153,
+          "qpc": 13581228806487,
+          "event": "enter",
+          "call": 66,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16388,
+          "args": []
+        },
+        "returned": {
+          "seq": 154,
+          "qpc": 13581230578701,
+          "event": "leave",
+          "call": 66,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1772212,
+          "rax": "0x0",
+          "function": 16388,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 8,
+            "value": {
+              "sheet": "0x1539a529450",
+              "null_reference_table": true
+            }
+          }
+        }
+      },
+      "host_owner_thread": 53532,
+      "host_invocation_thread": 53532
+    },
+    {
+      "formula": "=X5.MacroPermission(16389)",
+      "function": 16389,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 161,
+          "qpc": 13581242295379,
+          "event": "enter",
+          "call": 70,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16389,
+          "args": [
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ]
+        },
+        "returned": {
+          "seq": 162,
+          "qpc": 13581244137449,
+          "event": "leave",
+          "call": 70,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1842498,
+          "rax": "0x0",
+          "function": 16389,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2,
+            "value": "[Book3]X0"
+          }
+        }
+      },
+      "host_owner_thread": 52908,
+      "host_invocation_thread": 52908
+    },
+    {
+      "formula": "=X5.MacroPermission(16392)",
+      "function": 16392,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 169,
+          "qpc": 13581255529133,
+          "event": "enter",
+          "call": 74,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16392,
+          "args": []
+        },
+        "returned": {
+          "seq": 170,
+          "qpc": 13581257187087,
+          "event": "leave",
+          "call": 74,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1658075,
+          "rax": "0x0",
+          "function": 16392,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2048,
+            "value": 32245028
+          }
+        }
+      },
+      "host_owner_thread": 24556,
+      "host_invocation_thread": 24556
+    },
+    {
+      "formula": "=X5.MacroPermission(16403)",
+      "function": 16403,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 175,
+          "qpc": 13581265391285,
+          "event": "enter",
+          "call": 77,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16403,
+          "args": []
+        },
+        "returned": {
+          "seq": 176,
+          "qpc": 13581266955776,
+          "event": "leave",
+          "call": 77,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1564580,
+          "rax": "0x0",
+          "function": 16403,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2050,
+            "value": {
+              "opaque_handle": "0x7ff79c650000",
+              "byte_count": 0
+            }
+          }
+        }
+      },
+      "host_owner_thread": 20896,
+      "host_invocation_thread": 20896
+    },
+    {
+      "formula": "=X5.MacroPermission(237)",
+      "function": 237,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 181,
+          "qpc": 13581275298394,
+          "event": "enter",
+          "call": 80,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 237,
+          "args": [
+            {
+              "type": 4,
+              "value": false
+            }
+          ]
+        },
+        "returned": {
+          "seq": 182,
+          "qpc": 13581276988363,
+          "event": "leave",
+          "call": 80,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1690143,
+          "rax": "0x0",
+          "function": 237,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 4,
+            "value": true
+          }
+        }
+      },
+      "host_owner_thread": 34500,
+      "host_invocation_thread": 34500
+    },
+    {
+      "formula": "=X5.MacroPermission(186)",
+      "function": 186,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 187,
+          "qpc": 13581285492847,
+          "event": "enter",
+          "call": 83,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 186,
+          "args": [
+            {
+              "type": 1,
+              "value": 2
+            }
+          ]
+        },
+        "returned": {
+          "seq": 188,
+          "qpc": 13581287188238,
+          "event": "leave",
+          "call": 83,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1695390,
+          "rax": "0x0",
+          "function": 186,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2,
+            "value": "16.0"
+          }
+        }
+      },
+      "host_owner_thread": 4952,
+      "host_invocation_thread": 4952
+    },
+    {
+      "formula": "=X5.MacroPermission(257)",
+      "function": 257,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 2,
+      "callback_code_match": false,
+      "host_calculated": false,
+      "matched_formula": false,
+      "host_error": "dna-calc-desktop: cell has no current engine calculation: NotModeled { refusal: Evaluation(NotModelled { construct: \"an XLL callback is not modelled\", owner: \"dc-snz.2\" }), calculation: Calculation { revision: AuthoredRevision(3), tick: CalcTick(1), mode: Fast, external_links: false, circular_rule: false, stamp: Some(ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(3), formula_generation: 2, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(3), results: ReadViewId(0), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"x5.macropermission\", bound: Some(UserCallableIdentity { table: 2, slot: 1, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 2, parent: Some(1), callable: UserCallableIdentity { table: 2, slot: 1, generation: 1 }, completed: false, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"x5.macropermission\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"x5.macropermission\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(3), external_through: 0 }, required: 8 }, completion: EngineRefusal }) } }",
+      "excel_callback": {
+        "entry": {
+          "seq": 193,
+          "qpc": 13581295624204,
+          "event": "enter",
+          "call": 86,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 257,
+          "args": [
+            {
+              "type": 2,
+              "value": "1+1"
+            }
+          ]
+        },
+        "returned": {
+          "seq": 194,
+          "qpc": 13581297497266,
+          "event": "leave",
+          "call": 86,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1873238,
+          "rax": "0x0",
+          "function": 257,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1,
+            "value": 2
+          }
+        }
+      },
+      "host_owner_thread": 36432,
+      "host_invocation_thread": 36432
+    },
+    {
+      "formula": "=X5.MacroPermission(32890)",
+      "function": 32890,
+      "registration_form": "JB#",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 27172,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 199,
+          "qpc": 13581306068252,
+          "event": "enter",
+          "call": 89,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 32890,
+          "args": [
+            {
+              "type": 4,
+              "value": true
+            },
+            {
+              "type": 2,
+              "value": "X5 permission"
+            }
+          ]
+        },
+        "returned": {
+          "seq": 200,
+          "qpc": 13581308073184,
+          "event": "leave",
+          "call": 89,
+          "thread": 27172,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 2005178,
+          "rax": "0x0",
+          "function": 32890,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 4,
+            "value": false
+          }
+        }
+      },
+      "host_owner_thread": 19144,
+      "host_invocation_thread": 19144
+    },
+    {
+      "formula": "=X5.PoolPermission(4)",
+      "function": 4,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 24524,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 206,
+          "qpc": 13581316120952,
+          "event": "enter",
+          "call": 92,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 4,
+          "args": [
+            {
+              "type": 1,
+              "value": 19
+            },
+            {
+              "type": 1,
+              "value": 23
+            }
+          ]
+        },
+        "returned": {
+          "seq": 207,
+          "qpc": 13581317813229,
+          "event": "leave",
+          "call": 92,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1692518,
+          "rax": "0x0",
+          "function": 4,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1,
+            "value": 42
+          }
+        }
+      },
+      "host_owner_thread": 14692,
+      "host_invocation_thread": 45648
+    },
+    {
+      "formula": "=X5.PoolPermission(16393)",
+      "function": 16393,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 17028,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 215,
+          "qpc": 13581326363567,
+          "event": "enter",
+          "call": 95,
+          "thread": 17028,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16393,
+          "args": []
+        },
+        "returned": {
+          "seq": 216,
+          "qpc": 13581328142881,
+          "event": "leave",
+          "call": 95,
+          "thread": 17028,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1779475,
+          "rax": "0x0",
+          "function": 16393,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2,
+            "value": "C:\\Work\\DnaCalc\\codex-runs\\x5-runs\\release\\permissions\\excel-traced\\X5Native64.xll"
+          }
+        }
+      },
+      "host_owner_thread": 57476,
+      "host_invocation_thread": 32436
+    },
+    {
+      "formula": "=X5.PoolPermission(16385)",
+      "function": 16385,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 24524,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 221,
+          "qpc": 13581336078610,
+          "event": "enter",
+          "call": 98,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16385,
+          "args": []
+        },
+        "returned": {
+          "seq": 222,
+          "qpc": 13581337748439,
+          "event": "leave",
+          "call": 98,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1670077,
+          "rax": "0x0",
+          "function": 16385,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2048,
+            "value": 945841
+          }
+        }
+      },
+      "host_owner_thread": 1688,
+      "host_invocation_thread": 11140
+    },
+    {
+      "formula": "=X5.PoolPermission(89)",
+      "function": 89,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 24524,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 227,
+          "qpc": 13581345928025,
+          "event": "enter",
+          "call": 101,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 89,
+          "args": []
+        },
+        "returned": {
+          "seq": 228,
+          "qpc": 13581347504030,
+          "event": "leave",
+          "call": 101,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1576163,
+          "rax": "0x0",
+          "function": 89,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1024,
+            "value": {
+              "count": 1,
+              "rect": [
+                2,
+                2,
+                1,
+                1
+              ]
+            }
+          }
+        }
+      },
+      "host_owner_thread": 50848,
+      "host_invocation_thread": 57328
+    },
+    {
+      "formula": "=X5.PoolPermission(16386)",
+      "function": 16386,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 17028,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 233,
+          "qpc": 13581355648958,
+          "event": "enter",
+          "call": 104,
+          "thread": 17028,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16386,
+          "args": [
+            {
+              "type": 1,
+              "value": 19
+            }
+          ]
+        },
+        "returned": {
+          "seq": 234,
+          "qpc": 13581357091789,
+          "event": "leave",
+          "call": 104,
+          "thread": 17028,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1443081,
+          "rax": "0x0",
+          "function": 16386,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 1,
+            "value": 19
+          }
+        }
+      },
+      "host_owner_thread": 39988,
+      "host_invocation_thread": 16504
+    },
+    {
+      "formula": "=X5.PoolPermission(16388)",
+      "function": 16388,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 24524,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 239,
+          "qpc": 13581365339897,
+          "event": "enter",
+          "call": 107,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16388,
+          "args": []
+        },
+        "returned": {
+          "seq": 240,
+          "qpc": 13581367038229,
+          "event": "leave",
+          "call": 107,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1698583,
+          "rax": "0x0",
+          "function": 16388,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 8,
+            "value": {
+              "sheet": "0x1539a529450",
+              "null_reference_table": true
+            }
+          }
+        }
+      },
+      "host_owner_thread": 30556,
+      "host_invocation_thread": 48992
+    },
+    {
+      "formula": "=X5.PoolPermission(16389)",
+      "function": 16389,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 17028,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 247,
+          "qpc": 13581378399282,
+          "event": "enter",
+          "call": 111,
+          "thread": 17028,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16389,
+          "args": [
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ]
+        },
+        "returned": {
+          "seq": 248,
+          "qpc": 13581379920184,
+          "event": "leave",
+          "call": 111,
+          "thread": 17028,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1521042,
+          "rax": "0x0",
+          "function": 16389,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2,
+            "value": "[Book3]X0"
+          }
+        }
+      },
+      "host_owner_thread": 8624,
+      "host_invocation_thread": 36056
+    },
+    {
+      "formula": "=X5.PoolPermission(16392)",
+      "function": 16392,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 24524,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 255,
+          "qpc": 13581391144808,
+          "event": "enter",
+          "call": 115,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16392,
+          "args": []
+        },
+        "returned": {
+          "seq": 256,
+          "qpc": 13581392820627,
+          "event": "leave",
+          "call": 115,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1675813,
+          "rax": "0x0",
+          "function": 16392,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2048,
+            "value": 32245028
+          }
+        }
+      },
+      "host_owner_thread": 56204,
+      "host_invocation_thread": 16956
+    },
+    {
+      "formula": "=X5.PoolPermission(16403)",
+      "function": 16403,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 17028,
+      "excel_code": 0,
+      "host_code": 0,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 261,
+          "qpc": 13581401410283,
+          "event": "enter",
+          "call": 118,
+          "thread": 17028,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 16403,
+          "args": []
+        },
+        "returned": {
+          "seq": 262,
+          "qpc": 13581403023806,
+          "event": "leave",
+          "call": 118,
+          "thread": 17028,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1613617,
+          "rax": "0x0",
+          "function": 16403,
+          "return_code": 0,
+          "result_valid": true,
+          "result": {
+            "type": 2050,
+            "value": {
+              "opaque_handle": "0x7ff79c650000",
+              "byte_count": 0
+            }
+          }
+        }
+      },
+      "host_owner_thread": 31896,
+      "host_invocation_thread": 19764
+    },
+    {
+      "formula": "=X5.PoolPermission(237)",
+      "function": 237,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 24524,
+      "excel_code": 2,
+      "host_code": 2,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 267,
+          "qpc": 13581411142055,
+          "event": "enter",
+          "call": 121,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 237,
+          "args": [
+            {
+              "type": 4,
+              "value": false
+            }
+          ]
+        },
+        "returned": {
+          "seq": 268,
+          "qpc": 13581412765286,
+          "event": "leave",
+          "call": 121,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1623641,
+          "rax": "0x2",
+          "function": 237,
+          "return_code": 2,
+          "result_valid": false,
+          "result": {
+            "type": 16,
+            "value": 15
+          }
+        }
+      },
+      "host_owner_thread": 37520,
+      "host_invocation_thread": 23624
+    },
+    {
+      "formula": "=X5.PoolPermission(186)",
+      "function": 186,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 24524,
+      "excel_code": 2,
+      "host_code": 2,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 271,
+          "qpc": 13581417677702,
+          "event": "enter",
+          "call": 123,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 186,
+          "args": [
+            {
+              "type": 1,
+              "value": 2
+            }
+          ]
+        },
+        "returned": {
+          "seq": 272,
+          "qpc": 13581419342288,
+          "event": "leave",
+          "call": 123,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1664876,
+          "rax": "0x2",
+          "function": 186,
+          "return_code": 2,
+          "result_valid": false,
+          "result": {
+            "type": 16,
+            "value": 15
+          }
+        }
+      },
+      "host_owner_thread": 2708,
+      "host_invocation_thread": 2376
+    },
+    {
+      "formula": "=X5.PoolPermission(257)",
+      "function": 257,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 45648,
+      "excel_code": 128,
+      "host_code": 128,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 275,
+          "qpc": 13581424779977,
+          "event": "enter",
+          "call": 125,
+          "thread": 45648,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 257,
+          "args": [
+            {
+              "type": 2,
+              "value": "1+1"
+            }
+          ]
+        },
+        "returned": {
+          "seq": 276,
+          "qpc": 13581426486302,
+          "event": "leave",
+          "call": 125,
+          "thread": 45648,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1706724,
+          "rax": "0x80",
+          "function": 257,
+          "return_code": 128,
+          "result_valid": false,
+          "result": {
+            "type": 16,
+            "value": 15
+          }
+        }
+      },
+      "host_owner_thread": 31620,
+      "host_invocation_thread": 37248
+    },
+    {
+      "formula": "=X5.PoolPermission(32890)",
+      "function": 32890,
+      "registration_form": "JB$",
+      "excel_owner_thread": 27172,
+      "excel_invocation_thread": 24524,
+      "excel_code": 128,
+      "host_code": 128,
+      "callback_code_match": true,
+      "host_calculated": true,
+      "matched_formula": true,
+      "host_error": null,
+      "excel_callback": {
+        "entry": {
+          "seq": 279,
+          "qpc": 13581431468550,
+          "event": "enter",
+          "call": 127,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "from": {
+            "module": "X5Native64.xll",
+            "rva": 18331
+          },
+          "function": 32890,
+          "args": [
+            {
+              "type": 4,
+              "value": true
+            },
+            {
+              "type": 2,
+              "value": "X5 permission"
+            }
+          ]
+        },
+        "returned": {
+          "seq": 280,
+          "qpc": 13581433040688,
+          "event": "leave",
+          "call": 127,
+          "thread": 24524,
+          "entry": "EXCEL.EXE!MdCallBack12",
+          "elapsed_qpc": 1572525,
+          "rax": "0x80",
+          "function": 32890,
+          "return_code": 128,
+          "result_valid": false,
+          "result": {
+            "type": 16,
+            "value": 15
+          }
+        }
+      },
+      "host_owner_thread": 54616,
+      "host_invocation_thread": 39432
+    }
+  ],
+  "source_bindings_checked": 19024,
+  "scope": "13 callback requests across normal, # and $ registrations. Excel boundaries are traced and controlled; each host request uses an independent real executable and records its actual callback return code. This compares permission codes, not every discarded callback payload. General EVALUATE refusals remain failures; message state is checked, UI painting is unmeasured."
+}

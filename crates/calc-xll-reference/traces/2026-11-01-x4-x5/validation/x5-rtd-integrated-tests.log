@@ -1,0 +1,543 @@
+   Compiling calc-doc-model v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-doc-model)
+   Compiling calc-vba v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-vba)
+   Compiling calc-xll-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-xll-host)
+   Compiling dna-formula-ui v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\apps\dna-formula-ui)
+   Compiling calc-com-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-com-host)
+   Compiling calc-engine v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-engine)
+   Compiling calc-doc v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-doc)
+   Compiling dna-onecalc v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\apps\dna-onecalc)
+   Compiling calc-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-host)
+warning: method `opened_position` is never used
+   --> crates\calc-host\src\state.rs:719:19
+    |
+162 | impl HostState {
+    | -------------- method in this implementation
+...
+719 |     pub(crate) fn opened_position(&self, at: CellKey) -> Option<(u32, u32)> {
+    |                   ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `calc-host` (lib) generated 1 warning
+   Compiling dna-calc-desktop v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\apps\dna-calc-desktop)
+warning: constant `K` is never used
+  --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:13:7
+   |
+13 | const K: [u32; 64] = [
+   |       ^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `sha256` is never used
+  --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:25:8
+   |
+25 | pub fn sha256(data: &[u8]) -> String {
+   |        ^^^^^^
+
+warning: multiple fields are never read
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:113:9
+    |
+111 | pub struct ZipEntry {
+    |            -------- fields in this struct
+112 |     pub name: String,
+113 |     pub version_made_by: u16,
+    |         ^^^^^^^^^^^^^^^
+114 |     pub version_needed: u16,
+    |         ^^^^^^^^^^^^^^
+115 |     pub flags: u16,
+    |         ^^^^^
+116 |     pub method: u16,
+117 |     pub time: u16,
+    |         ^^^^
+118 |     pub date: u16,
+    |         ^^^^
+119 |     pub crc32: u32,
+120 |     pub compressed_size: u32,
+    |         ^^^^^^^^^^^^^^^
+121 |     pub size: u32,
+122 |     pub internal_attributes: u16,
+    |         ^^^^^^^^^^^^^^^^^^^
+123 |     pub external_attributes: u32,
+    |         ^^^^^^^^^^^^^^^^^^^
+124 |     pub local_offset: u32,
+    |         ^^^^^^^^^^^^
+125 |     pub central_extra: Vec<u8>,
+    |         ^^^^^^^^^^^^^
+126 |     pub comment: Vec<u8>,
+    |         ^^^^^^^
+127 |     /// The local header's 30 fixed bytes.
+128 |     pub local_header: Vec<u8>,
+    |         ^^^^^^^^^^^^
+129 |     pub local_extra: Vec<u8>,
+    |         ^^^^^^^^^^^
+...
+133 |     pub descriptor: Vec<u8>,
+    |         ^^^^^^^^^^
+    |
+    = note: `ZipEntry` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `end` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:142:12
+    |
+136 | impl ZipEntry {
+    | ------------- method in this implementation
+...
+142 |     pub fn end(&self) -> usize {
+    |            ^^^
+
+warning: fields `central_offset`, `central_size`, and `comment` are never read
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:152:9
+    |
+150 | pub struct Zip {
+    |            --- fields in this struct
+151 |     pub entries: Vec<ZipEntry>,
+152 |     pub central_offset: usize,
+    |         ^^^^^^^^^^^^^^
+153 |     pub central_size: usize,
+    |         ^^^^^^^^^^^^
+154 |     pub comment: Vec<u8>,
+    |         ^^^^^^^
+    |
+    = note: `Zip` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `entry` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:158:12
+    |
+157 | impl Zip {
+    | -------- method in this implementation
+158 |     pub fn entry(&self, name: &str) -> &ZipEntry {
+    |            ^^^^^
+
+warning: struct `BitWriter` is never constructed
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:368:8
+    |
+368 | struct BitWriter {
+    |        ^^^^^^^^^
+
+warning: methods `bit`, `field`, `code`, and `align` are never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:374:8
+    |
+373 | impl BitWriter {
+    | -------------- methods in this implementation
+374 |     fn bit(&mut self, bit: u32) {
+    |        ^^^
+...
+383 |     fn field(&mut self, value: u32, count: u32) {
+    |        ^^^^^
+...
+390 |     fn code(&mut self, code: u32, count: u32) {
+    |        ^^^^
+...
+397 |     fn align(&mut self) {
+    |        ^^^^^
+
+warning: constant `EMPTY_STORED_BLOCK` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:406:11
+    |
+406 | pub const EMPTY_STORED_BLOCK: [u8; 5] = [0x00, 0x00, 0x00, 0xFF, 0xFF];
+    |           ^^^^^^^^^^^^^^^^^^
+
+warning: function `final_stored_block` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:410:8
+    |
+410 | pub fn final_stored_block(content: &[u8]) -> Vec<u8> {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `flushed` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:424:8
+    |
+424 | pub fn flushed(content: &[u8]) -> Vec<u8> {
+    |        ^^^^^^^
+
+warning: function `fixed_zeros` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:451:8
+    |
+451 | pub fn fixed_zeros(matches: usize) -> Vec<u8> {
+    |        ^^^^^^^^^^^
+
+warning: function `allocated` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:478:8
+    |
+478 | pub fn allocated() -> u64 {
+    |        ^^^^^^^^^
+
+warning: function `largest` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:484:8
+    |
+484 | pub fn largest() -> u64 {
+    |        ^^^^^^^
+
+warning: function `reset_largest` is never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:489:8
+    |
+489 | pub fn reset_largest() {
+    |        ^^^^^^^^^^^^^
+
+warning: struct `RecordingSource` is never constructed
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:523:12
+    |
+523 | pub struct RecordingSource {
+    |            ^^^^^^^^^^^^^^^
+
+warning: associated items `new` and `reads` are never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:529:12
+    |
+528 | impl RecordingSource {
+    | -------------------- associated items in this implementation
+529 |     pub fn new(bytes: Vec<u8>) -> Self {
+    |            ^^^
+...
+537 |     pub fn reads(&self) -> Vec<(u64, u64)> {
+    |            ^^^^^
+
+warning: struct `ChangingSource` is never constructed
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:561:12
+    |
+561 | pub struct ChangingSource {
+    |            ^^^^^^^^^^^^^^
+
+warning: associated items `new` and `change` are never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:566:12
+    |
+565 | impl ChangingSource {
+    | ------------------- associated items in this implementation
+566 |     pub fn new(bytes: Vec<u8>) -> Self {
+    |            ^^^
+...
+572 |     pub fn change(&self, edit: impl FnOnce(&mut Vec<u8>)) {
+    |            ^^^^^^
+
+warning: struct `FailingSource` is never constructed
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:598:12
+    |
+598 | pub struct FailingSource {
+    |            ^^^^^^^^^^^^^
+
+warning: struct `UnreadableRangeSource` is never constructed
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:614:12
+    |
+614 | pub struct UnreadableRangeSource {
+    |            ^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `set_unreadable`, `reads`, and `error` are never used
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:621:12
+    |
+620 | impl UnreadableRangeSource {
+    | -------------------------- associated items in this implementation
+621 |     pub fn new(bytes: Vec<u8>, unreadable: std::ops::Range<u64>) -> Self {
+    |            ^^^
+...
+630 |     pub fn set_unreadable(&self, range: std::ops::Range<u64>) {
+    |            ^^^^^^^^^^^^^^
+...
+635 |     pub fn reads(&self) -> Vec<(u64, u64, bool)> {
+    |            ^^^^^
+...
+640 |     pub fn error(range: &std::ops::Range<u64>) -> SourceError {
+    |            ^^^^^
+
+warning: struct `FullSink` is never constructed
+   --> crates\calc-host\tests\..\..\calc-doc\tests\cdoc_m1_1_support\mod.rs:678:12
+    |
+678 | pub struct FullSink {
+    |            ^^^^^^^^
+
+warning: `calc-host` (lib test) generated 1 warning (1 duplicate)
+warning: `calc-host` (test "round_trip") generated 23 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 51.37s
+     Running unittests src\lib.rs (target/xtask-accept\debug\deps\calc_com_host-6b1c291a2525faf6.exe)
+
+running 1 test
+test projection::event_source_owns_cookies_and_disconnects_retained_ranges ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target/xtask-accept\debug\deps\calc_host-7c861d4dd009701b.exe)
+
+running 10 tests
+test conditional::tests::a_tint_follows_windows_hls_arithmetic ... ok
+test facts::tests::file_widths_show_as_excel_shows_them ... ok
+test conditional::tests::a_scale_interpolates_each_channel_and_rounds ... ok
+test facts::tests::alignment_resolves_one_record_for_cell_facts_and_visual_consumers ... ok
+test search::tests::documented_wildcards_and_literal_utf8_replacements ... ok
+test entry::tests::entry_formulas_and_refusals ... ok
+test entry::tests::entry_literals ... ok
+test entry::tests::entries_read_under_a_locale ... ok
+test names::tests::selected_name_identity_overrides_only_the_root_lookup_and_preserves_name_wrapping ... ok
+test names::tests::name_manager_edits_rebind_users_and_use_existing_undo_redo_and_save ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\acceptance.rs (target/xtask-accept\debug\deps\acceptance-5be9659d53e2c5f0.exe)
+
+running 6 tests
+test chost_m1_1__atomic_prepare_failure ... ok
+test dc_0k9__calculation_modes ... ok
+test dc_hqcv__applied_context_reported ... ok
+test chost_m1_1__recalc_failure_keeps_edit ... ok
+test dc_besk__loaded_package_calculates ... ok
+test dc_xrxb__unprefixed_file_spelling_gives_name ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests\charts.rs (target/xtask-accept\debug\deps\charts-aaea4c288a1f3200.exe)
+
+running 2 tests
+test dc_6yw__chart_colours_follow_the_theme ... ok
+test dc_6yw__charts_show_what_excel_draws ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\circular.rs (target/xtask-accept\debug\deps\circular-d461758cd1c1a086.exe)
+
+running 2 tests
+test dc_y2o__the_oracle_holds_its_stored_values_by_the_circular_rule ... ok
+test dc_y2o__iteration_is_switched_undone_and_saved ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests\conditional.rs (target/xtask-accept\debug\deps\conditional-444ddb4c3d480839.exe)
+
+running 2 tests
+test dc_6yw__icons_and_data_bars_as_excel_draws_them ... ok
+test dc_6yw__conditional_formats_look_as_excel_shows_them ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\external_links.rs (target/xtask-accept\debug\deps\external_links-df5c2d6902eff2b1.exe)
+
+running 5 tests
+test dc_ylr__external_references_read_the_links_cached_values ... ok
+test contract_vba_cached_read_of_a_refused_formula_cannot_become_zero ... ok
+test contract_vba_cached_external_observations_preserve_qualification_and_observer_stop ... ok
+test dc_ylr__a_typed_formula_names_the_book_by_its_file_name ... ok
+test dc_ylr__the_excel_oracle_and_its_binary_twin_read_the_link_as_references ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests\held_arrays.rs (target/xtask-accept\debug\deps\held_arrays-b0bd946413d39649.exe)
+
+running 1 test
+test dc_h9u__a_groupby_cell_holds_its_lambdas_array ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests\incremental.rs (target/xtask-accept\debug\deps\incremental-b06fbed9fc5e36b9.exe)
+
+running 3 tests
+test dc_2m0__recalculating_on_four_threads_matches_a_fresh_open ... ok
+test dc_dxm__recalculating_with_spills_on_four_threads_matches_a_fresh_open ... ok
+test dc_dxm__recalculating_after_every_edit_matches_a_fresh_open ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.28s
+
+     Running tests\names.rs (target/xtask-accept\debug\deps\names-45718f3d928f3bc5.exe)
+
+running 7 tests
+test names_product_edit_cost_measurement ... ignored, run explicitly for the name edit measurements
+test dc_cpr__a_case_variant_redefines_the_one_name ... ok
+test names_product_edit_undo_redo_rebind_without_reauthoring_cells ... ok
+test names_qualified_function_spellings_keep_their_defining_sheet_when_authored ... ok
+test dc_cpr__accents_width_and_turkic_i_stay_significant ... ok
+test dc_cpr__let_parameters_follow_the_simple_fold ... ok
+test dc_cpr__workbook_names_resolve_under_the_full_fold_across_scripts ... ok
+
+test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests\reference_arrays.rs (target/xtask-accept\debug\deps\reference_arrays-1878e86ccf896a3c.exe)
+
+running 1 test
+test dc_b1l__offset_and_indirect_over_an_array_give_references ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\round_trip.rs (target/xtask-accept\debug\deps\round_trip-72cb4020deecc6b6.exe)
+
+running 108 tests
+test async_contract::contract_p07_async_suffix_resumes_once_and_dependents_get_a_later_pass ... ok
+test async_contract::contract_p07_clock_input_change_supersedes_a_waiting_command_without_stranding_it ... ok
+test async_contract::contract_p07_async_lazy_array_publishes_one_complete_footprint ... ok
+test async_contract::contract_p07_old_and_new_async_requests_return_in_reverse_order ... ok
+test async_contract::contract_p03_provisional_body_finishes_across_safepoints_before_semantic_reentry ... ok
+test async_contract::contract_p03_terminal_unavailable_arguments_do_not_enter_a_provisional_body ... ok
+test async_contract::contract_p03_rtd_events_are_ordered_inputs_and_manual_demand_pins_the_view ... ok
+test async_contract::contract_p03_nested_callbacks_inherit_the_frame_and_enforce_state_lane_policy ... ok
+test async_contract::contract_p07_calculated_save_waits_for_one_existing_live_invocation ... ok
+test async_contract::contract_p07_tampering_cannot_consume_or_redirect_the_real_token ... ok
+test contract_deleted_cell_shift_scope_does_not_revive_on_undo ... ok
+test async_contract::contract_p07_calculated_save_receipt_survives_a_live_rebuild ... ok
+test async_contract::contract_p07_two_sites_keep_distinct_tokens_and_one_root_activation ... ok
+test contract_deleting_the_whole_active_scope_completes_empty_without_widening ... ok
+test async_contract::contract_p07_two_nested_async_sites_keep_locals_and_distinct_tokens ... ok
+test async_contract::contract_p07_calculated_save_pins_the_model_and_never_publishes_into_live ... ok
+test async_contract::contract_p07_waiting_live_save_cannot_succeed_after_edit_or_cancel ... ok
+test contract_interest_publishes_already_computed_cones_before_another_kernel_quantum ... ok
+test async_contract::contract_p07_calculated_save_cancel_reload_and_close_have_no_success_image ... ok
+test contract_manual_range_keeps_only_its_targets_required_for_the_next_f9 ... ok
+test contract_interest_publishes_the_short_cone_before_resuming_the_long_cell ... ok
+test async_contract::contract_p03_unwind_and_provisional_arguments_are_new_semantic_evaluations ... ok
+test contract_p02_manual_range_followup_demand_survives_the_p06_save_metadata ... ok
+test contract_cancel_is_terminal_and_advance_creates_no_history ... ok
+test contract_removing_an_active_sheet_scope_completes_empty ... ok
+test contract_paste_cut_drops_overwritten_scope_locations_before_undo ... ok
+test contract_scoped_axis_successors_and_undo_keep_the_transformed_area ... ok
+test contract_sheet_undo_keeps_a_surviving_narrow_scope_without_workbook_fallback ... ok
+test contract_p06_excel_saved_manual_cache_image_keeps_its_values_without_vba_entry ... ok
+test contract_prefix_units_survive_cancel_and_remain_the_terminal_barrier ... ok
+test contract_scoped_cut_and_cell_shifts_follow_survivors_through_undo_redo ... ok
+test contract_sheet_undo_restores_authored_cells_without_reviving_a_deleted_command_scope ... ok
+test contract_prepared_save_keeps_its_model_and_results_after_the_live_host_changes ... ok
+test contract_save_pin_during_prefix_publication_keeps_only_its_installed_values ... ok
+test contract_product_range_reads_imported_array_children_without_calculating_the_anchor ... ok
+test async_contract::contract_p07_edits_moves_undo_reload_cancel_and_reopen_reject_late_results ... ok
+test contract_p09_loaded_formula_forms_keep_their_measured_scalar_and_array_behavior ... ok
+test contract_p06_manual_save_preserves_permitted_scalar_caches_with_dirty_metadata ... ok
+test d1_round_trip__external_workbook ... ok
+test contract_vba_new_registration_rebinds_an_unknown_call_and_preserves_unrelated_results ... ok
+test contract_vba_spill_placement_wait_refuses_without_repeating_the_effect ... ok
+test d1_round_trip__readers_of_a_removed_array_recalculate ... ok
+test d2_review__a_pending_spill_makes_its_readers_stale_in_manual_mode ... ok
+test d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values ... ok
+test d2_review__subscribers_get_the_cells_a_spill_fills ... ok
+test async_contract::contract_p07_async_waits_retain_lazy_name_and_lambda_frames ... ok
+test d2_session__a_selection_interest_follows_the_selection ... ok
+test d2_review__undo_keeps_a_value_inside_a_dynamic_arrays_area ... ok
+test d2_m1_proof__open_edit_undo_recalculate_save_reopen ... ok
+test contract_vba_cached_reads_keep_their_view_and_create_no_hidden_dependency ... ok
+test contract_vba_typed_range_survives_variant_inspection_and_materialization ... ok
+test d2_session__an_entered_array_formula_spills ... ok
+test d2_session__an_interest_moves_and_an_unknown_subscription_is_refused ... ok
+test d2_session__clear_and_undo_restore_formulas_and_values ... ok
+test async_contract::contract_p03_many_provisional_parents_share_a_consumer_without_growing_fence_ranks ... ok
+test d2_session__refused_entries_change_nothing ... ok
+test d2_session__manual_mode_recalculates_when_asked ... ok
+test d2_session__now_and_today_read_the_clock_the_application_sets ... ok
+test d2_session__edits_undo_redo_and_deltas ... ok
+test d2_session__undo_restores_an_array_formula ... ok
+test d2b_structural__edits_excel_refuses_are_refused ... ok
+test dc_09v__copy_relocates_formulas_and_fills ... ok
+test d2_session__the_intent_log_replays ... ok
+test dc_09v__copy_arrays_and_cut_moves_references ... ok
+test dc_09v__number_formats_and_sizes_as_the_file_states_them ... ok
+test dc_971p_22__typed_workbook_commands_keep_history_and_replay ... ok
+test d2_review__typed_newer_functions_calculate_and_save_with_their_prefix ... ok
+test dc_10d9__a_full_recalculation_calculates_every_formula_again ... ok
+test dc_09v__copy_and_cut_take_cell_formats ... ok
+test dc_971p_22__paste_and_replace_are_atomic_revision_bound_host_commands ... ok
+test dc_971p_5__fill_series_partial_repetitions_and_stale_cut_are_atomic ... ok
+test dc_1yp__an_edited_save_extends_dynamic_array_metadata_where_it_belongs ... ok
+test dc_971p_5__values_require_current_results_and_spill_writes_are_whole ... ok
+test dc_971p_5__snapshot_and_paste_special_are_independent_of_later_source_edits ... ok
+test dc_971p_7__physical_dimension_edits_invalidate_unverified_file_caches ... ok
+test dc_971p__cell_shift_moves_sparse_range_styles_without_point_holes ... ok
+test dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches ... ok
+test contract_vba_volatile_spill_sizing_and_skipped_calls_use_executed_effects ... ok
+test dc_971p_7__merged_ranges_follow_the_current_structural_history ... ok
+test dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles ... ok
+test dc_gf0__precedents_and_dependents_from_the_graph ... ok
+test contract_vba_vm_slices_resume_the_same_counted_cached_read_in_vm_and_jit ... ok
+test dc_971p_7__physical_dimensions_recalculate_facts_and_hidden_rows_and_round_trip ... ok
+test contract_vba_stored_ranges_track_unions_and_never_revive_after_delete_or_reopen ... ok
+test dc_hsa5_7__dialects_stay_distinct_through_wire_engine_and_save ... ok
+test dc_hsa5_7__explicit_dynamic_intersection_survives_copy_and_save ... ok
+test contract_vba_input_edit_starts_a_new_invocation_without_replaying_a_resume ... ok
+test dc_rif__a_new_workbook_is_edited_saved_and_reopened ... ok
+test dc_hsa5_7__blocks_bind_without_expansion_and_edit_save_through_host ... ok
+test dc_hsa5_9__master_edits_keep_the_shared_source_through_history_and_save ... ok
+test names_batch_delete_preserves_imported_duplicate_fallback ... ok
+test dc_hsa5_8__sparse_result_columns_compact_without_recalculation ... ok
+test dc_snz_14__host_save_preserves_unchanged_xlsb_and_refuses_edits ... ok
+test dc_rif__the_intent_log_keeps_the_latest_records ... ok
+test names_history_tracks_a_recreated_definition_through_earlier_undo_and_redo ... ok
+test names_saved_equal_duplicate_formulas_keep_their_source_attributes ... ok
+test contract_vba_reload_revokes_live_publication_and_keeps_old_prefix_effects_once ... ok
+test names_undo_restores_full_imported_records_without_recalculating_unrelated_cells ... ok
+test dc_snz_15__project_reading_leaves_host_file_caches_unexecuted ... ok
+test names_history_restores_sequential_same_key_batches_and_saved_duplicate_fallbacks ... ok
+test dc_971p_7__frozen_panes_follow_history_axes_and_saved_packages ... ok
+test d2b_structural__edits_match_excel_and_undo_restores ... ok
+test contract_worker_sized_first_spill_reuse_retains_its_scope_origin_and_stale_qualification ... ok
+test dc_gf0__cuts_move_cells_references_and_names_as_excel_does ... ok
+test contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not ... ok
+test dc_971p__whole_axes_and_large_ranges_are_sparse_and_round_trip ... ok
+test dc_971p__imported_axis_defaults_and_explicit_zero_survive_sparse_edit_and_structural_save ... ok
+test d2_review__random_sessions_agree_with_fresh_projections_and_calculations ... ok
+
+test result: ok. 108 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.99s
+
+     Running tests\threads.rs (target/xtask-accept\debug\deps\threads-e4c6a4b01429a144.exe)
+
+running 2 tests
+test dc_2m0__oracle_workbooks_recalculate_alike_on_one_thread_and_several ... ok
+test dc_dxm__competing_spills_recalculate_alike_on_one_thread_and_four has been running for over 60 seconds
+test dc_dxm__competing_spills_recalculate_alike_on_one_thread_and_four ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 65.71s
+
+     Running tests\validation.rs (target/xtask-accept\debug\deps\validation-2731ac2b5a47f097.exe)
+
+running 2 tests
+test dc_6yw__lists_prompts_and_refusals ... ok
+test dc_6yw__entries_allowed_as_excel_allows_them ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target/xtask-accept\debug\deps\calc_xll_host-cabb6add6c50e31a.exe)
+
+running 5 tests
+test callbacks::tests::dropped_preparation_invalidates_its_handle_without_reuse ... ok
+test callbacks::tests::duplicate_and_completed_async_handles_are_rejected ... ok
+test invoke::tests::native_publication_never_exposes_nonfinite_or_missing_values ... ok
+test callbacks::tests::packed_callback_coercion_and_instance_handle ... ok
+test callbacks::tests::cancelled_native_call_keeps_its_module_lease_until_a_late_return ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target/xtask-accept\debug\deps\dna_calc_desktop-cf3dfef540d83712.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\xll.rs (target/xtask-accept\debug\deps\xll-f186fbe71ad1c550.exe)
+
+running 18 tests
+test known_but_unimplemented_worksheet_callbacks_keep_the_xll_owner ... ok
+test real_executable_uses_onecalc_for_the_same_excel_fixture ... ok
+test stack_headroom_is_available_in_context ... ok
+test engine_pool_overlaps_workbooks_and_services_borrowed_reads ... ok
+test overwritten_native_async_call_rejects_its_late_return ... ok
+test swallowed_unsupported_callbacks_remain_typed_refusals ... ok
+test unimplemented_evaluate_expression_remains_a_typed_refusal ... ok
+test ten_thousand_registrations_have_no_small_pool_limit ... ok
+test application_run_can_enter_a_hidden_or_worksheet_registration ... ok
+test worker_calls_keep_the_main_reader_and_native_memory_ownership ... ok
+test nested_read_mode_changes_remain_typed_refusals ... ok
+test native_async_resumes_the_existing_engine_activation_and_dependents ... ok
+test helper_module_owns_the_return_and_its_free_callback ... ok
+test failed_load_rolls_back_every_registration_from_its_origin ... ok
+test failed_second_load_restores_previous_names_and_use_counts ... ok
+test worker_refusals_survive_native_swallowing_and_formula_handlers ... ok
+test cooperative_native_abi_refusals_cannot_be_swallowed ... ok
+test worker_state_mutations_remain_typed_refusals ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 22.43s
+
+   Doc-tests calc_com_host
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests calc_host
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests calc_xll_host
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

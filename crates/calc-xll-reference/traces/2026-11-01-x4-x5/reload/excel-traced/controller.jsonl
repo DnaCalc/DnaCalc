@@ -1,0 +1,18 @@
+{"utc":"2026-11-01T17:05:42.1984709Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-01T17:06:05.2507885Z","operation":"=INDEX(xloVersion(),1,2)","value":"0.22.1"}
+{"utc":"2026-11-01T17:06:29.1905175Z","operation":"=xloConcat(\"-\",\"a\",\"b\",3)","value":"a-b-3"}
+{"utc":"2026-11-01T17:06:46.8556960Z","operation":"=INDEX(xloSplit(\"alpha,beta\",\",\"),2,1)","value":"beta"}
+{"utc":"2026-11-01T17:07:06.1858414Z","operation":"=SUM(xloFill(2,3,4))","value":24.0}
+{"utc":"2026-11-01T17:07:25.0808292Z","operation":"=INDEX(xloFill(\"tag\",2,2),2,2)","value":""}
+{"utc":"2026-11-01T17:07:43.1173133Z","operation":"=xloRegex(\"Alpha123\",\"[0-9]+\")","value":true}
+{"utc":"2026-11-01T17:08:01.1546105Z","operation":"=xloRegex(\"Alpha123\",\"([0-9]+)\",\"[$1]\")","value":"[123]"}
+{"utc":"2026-11-01T17:08:19.8625377Z","operation":"=INDEX(xloSort({3;1;2}),1,1)","value":1.0}
+{"utc":"2026-11-01T17:08:39.3157742Z","operation":"=xloConcat(\",\",xloSplit(\"a,b\",\",\"))","value":"a,b"}
+{"utc":"2026-11-01T17:08:57.0552126Z","operation":"=INDEX(xloSplit({\"a,b\";\"c,d\"},\",\"),2,2)","value":"d"}
+{"utc":"2026-11-01T17:09:14.6944009Z","operation":"=xloConcat(\"-\",A1)","value":"7"}
+{"utc":"2026-11-01T17:09:32.4582086Z","operation":"=INDEX(xloSql(\"SELECT 2 + 3\"),1,1)","value":5.0}
+{"utc":"2026-11-01T17:10:04.7499637Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-01T17:10:19.9938857Z","operation":"failure","value":"System.Runtime.InteropServices.COMException (0x800706BE): The remote procedure call failed. (0x800706BE)\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, Object)\r\n   at System.Dynamic.UpdateDelegates.UpdateAndExecute2[T0,T1,TRet](CallSite site, T0 arg0, T1 arg1)\r\n   at System.Management.Automation.Interpreter.DynamicInstruction`3.Run(InterpretedFrame frame)\r\n   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)"}
+{"utc":"2026-11-01T17:10:20.0055315Z","operation":"Close exception","value":"The RPC server is unavailable. (0x800706BA)"}
+{"utc":"2026-11-01T17:10:20.0125127Z","operation":"Quit exception","value":"The RPC server is unavailable. (0x800706BA)"}
+{"utc":"2026-11-01T17:10:20.5578732Z","operation":"cleanup","value":"Owned Excel exited"}

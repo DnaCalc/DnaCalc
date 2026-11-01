@@ -1,0 +1,5 @@
+Exception: C:\Work\DnaCalc\DnaCalc-win\crates\calc-xll-reference\run.ps1:145
+Line |
+ 145 |  … deadline) { throw 'Native host did not finish; inspect host.stderr.'  …
+     |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Native host did not finish; inspect host.stderr.

@@ -1,0 +1,17 @@
+NativeRegisterCode	43512	0
+NativeRegisterType	43512	1
+PrivateClassRegistered	43512	0
+Invoke	43512	10
+ServerStart	43512	0
+Invoke	43512	11
+ConnectData	43512	1
+xlfRtd	43512	0
+UpdateNotify	2688	42
+Invoke	43512	12
+RefreshData	43512	42
+xlfRtd	43512	0
+AutoCloseLiveServers	43512	1
+Invoke	43512	13
+DisconnectData	43512	1
+Invoke	43512	15
+ServerTerminate	43512	0

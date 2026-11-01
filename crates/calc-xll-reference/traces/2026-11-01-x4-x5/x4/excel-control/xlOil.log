@@ -1,0 +1,214 @@
+[2026-11-01 21:40:24.358] [logger] [info] [AddinLoader.cpp:65] Found settings file 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.ini' for 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.dll'
+[2026-11-01 21:40:24.358] [logger] [debug] [AddinLoader.cpp:112] Creating addin context for 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.xll'
+[2026-11-01 21:40:24.358] [logger] [debug] [CoreEntryPoint.cpp:71] Loaded xlOil core from: C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.dll
+[2026-11-01 21:40:24.359] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRunInXLLContext" at entry point xloRunInXLLContext with 0 args
+[2026-11-01 21:40:24.359] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloVersion" at entry point xloVersion with 0 args
+[2026-11-01 21:40:24.360] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloLog" at entry point xloLog with 1 args
+[2026-11-01 21:40:24.361] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloHelp" at entry point xloHelp with 1 args
+[2026-11-01 21:40:24.361] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRef" at entry point xloRef with 1 args
+[2026-11-01 21:40:24.361] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloVal" at entry point xloVal with 1 args
+[2026-11-01 21:40:24.362] [logger] [debug] [FuncRegistry.cpp:229] Registering "RegistrationInfo_b9a9eb0195915447bf62cf75571ba03a" at entry point IntellisenseRegistrationInfo with 1 args
+[2026-11-01 21:40:24.362] [logger] [info] [PluginLoader.cpp:62] Loading plugins from settings file C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.ini
+[2026-11-01 21:40:24.363] [logger] [info] [PluginLoader.cpp:79] Loading plugin xlOil_Python
+[2026-11-01 21:40:24.363] [logger] [debug] [PluginLoader.cpp:95] Setting environment variable: PYTHONEXECUTABLE='C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\python.exe'
+[2026-11-01 21:40:24.363] [logger] [debug] [PluginLoader.cpp:95] Setting environment variable: PYTHONPATH='C:\Work\DnaCalc\codex-runs\x3-upstream/xloil-wheel312;C:\Users\GovertvanDrimmelen\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages'
+[2026-11-01 21:40:24.364] [logger] [debug] [PluginLoader.cpp:95] Setting environment variable: XLOIL_PYTHON_VERSION='312'
+[2026-11-01 21:40:24.498] [logger] [debug] [Main.cpp:122] Python interpreter starting
+[2026-11-01 21:40:24.803] [logger] [info] [Main.cpp:302] Python started with environment: sys.prefix=C:\Users\GovertvanDrimmelen\AppData\Local\Programs\Python\Python312
+sys.base_prefix=C:\Users\GovertvanDrimmelen\AppData\Local\Programs\Python\Python312
+sys.path=['C:\\Work\\DnaCalc\\codex-runs\\x3-upstream\\xloil-wheel312', 'C:\\Users\\GovertvanDrimmelen\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages', 'C:\\Users\\GovertvanDrimmelen\\AppData\\Local\\Programs\\Python\\Python312\\python312.zip', 'C:\\Users\\GovertvanDrimmelen\\AppData\\Local\\Programs\\Python\\Python312\\DLLs', 'C:\\Users\\GovertvanDrimmelen\\AppData\\Local\\Programs\\Python\\Python312\\Lib', 'C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0', 'C:\\Users\\GovertvanDrimmelen\\AppData\\Roaming\\Python\\Python312\\site-packages', 'C:\\Users\\GovertvanDrimmelen\\AppData\\Local\\Programs\\Python\\Python312', 'C:\\Users\\GovertvanDrimmelen\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages', 'C:\\Work\\DnaCalc\\codex-runs\\x5-runs\\release\\x4\\excel-control\\']
+[2026-11-01 21:40:24.803] [logger] [debug] [Main.cpp:304] Python importing xloil_core
+[2026-11-01 21:40:24.803] [logger] [debug] [PyCore.cpp:142] Python importing numpy
+[2026-11-01 21:40:26.453] [logger] [debug] [Main.cpp:320] Python importing xloil
+[2026-11-01 21:40:26.623] [logger] [debug] [importer.py:469] Installed importlib hook to call scan_module
+[2026-11-01 21:40:26.626] [logger] [debug] [Events.cpp:61] Started directory watch on 'C:\Users\GovertvanDrimmelen\AppData\Local\Programs\Python\Python312'
+[2026-11-01 21:40:26.626] [logger] [info] [PyEvents.cpp:117] Event C:\Users\GovertvanDrimmelen\AppData\Local\Programs\Python\Python312\ added handler 0x2216a0d2b80
+[2026-11-01 21:40:26.626] [logger] [info] [PyEvents.cpp:117] Event C:\Users\GovertvanDrimmelen\AppData\Local\Programs\Python\Python312\ added handler 0x22207303800
+[2026-11-01 21:40:26.626] [logger] [debug] [Events.cpp:61] Started directory watch on 'C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\'
+[2026-11-01 21:40:26.627] [logger] [info] [PyEvents.cpp:117] Event C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\com.py added handler 0x22207303800
+[2026-11-01 21:40:26.629] [logger] [info] [PyEvents.cpp:117] Event C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\rtd.py added handler 0x222072dca40
+[2026-11-01 21:40:26.631] [logger] [info] [PyEvents.cpp:117] Event C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\_event_loop.py added handler 0x222073b7a40
+[2026-11-01 21:40:26.631] [logger] [debug] [PluginLoader.cpp:137] Finished loading plugin xlOil_Python
+[2026-11-01 21:40:26.632] [logger] [debug] [PyEvents.cpp:360] Events enabled: Excel=true, xlOil=false
+[2026-11-01 21:40:26.641] [logger] [debug] [register.py:110] Interpreted arg 'a:float' => 'a:float ()'
+[2026-11-01 21:40:26.641] [logger] [debug] [register.py:110] Interpreted arg 'b:float=2' => 'b:float ()'
+[2026-11-01 21:40:26.641] [logger] [debug] [register.py:426] Declared excel func: X3.PyAdd(a: float, b: float) -> float
+[2026-11-01 21:40:26.642] [logger] [debug] [register.py:110] Interpreted arg 'name:str' => 'name:str ()'
+[2026-11-01 21:40:26.642] [logger] [debug] [register.py:426] Declared excel func: X3.PyHello(name: str) -> str
+[2026-11-01 21:40:26.646] [logger] [info] [PyEvents.cpp:117] Event C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\debug.py added handler 0x222077ac6c0
+[2026-11-01 21:40:26.646] [logger] [debug] [register.py:110] Interpreted arg 'n:int' => 'n:int ()'
+[2026-11-01 21:40:26.646] [logger] [debug] [register.py:426] Declared excel func: X3.PyArray(n: int)
+[2026-11-01 21:40:26.647] [logger] [info] [PyEvents.cpp:117] Event SheetChange added handler 0x222077bc7c0
+[2026-11-01 21:40:26.647] [logger] [info] [PyEvents.cpp:117] Event AfterCalculate added handler 0x222077bcb80
+[2026-11-01 21:40:26.647] [logger] [debug] [register.py:426] Declared excel func: X4.PyCom() -> str
+[2026-11-01 21:40:26.647] [logger] [debug] [register.py:426] Declared excel func: X4.PyEvents() -> str
+[2026-11-01 21:40:26.648] [logger] [debug] [register.py:426] Declared excel func: X4.PyBounds() -> str
+[2026-11-01 21:40:26.648] [logger] [debug] [register.py:426] Declared excel func: X4.PyCall() -> float
+[2026-11-01 21:40:26.648] [logger] [debug] [register.py:426] Declared excel func: X4.PyQueued() -> float
+[2026-11-01 21:40:26.649] [logger] [debug] [register.py:426] Declared excel func: X4.PyRelease() -> int
+[2026-11-01 21:40:26.649] [logger] [debug] [Events.cpp:61] Started directory watch on 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\'
+[2026-11-01 21:40:26.649] [logger] [info] [PyEvents.cpp:117] Event C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.py added handler 0x222077ac800
+[2026-11-01 21:40:26.649] [logger] [debug] [register.py:476] Found 9 xloil functions in <module 'xlOil' from 'C:\\Work\\DnaCalc\\codex-runs\\x5-runs\\release\\x4\\excel-control\\xlOil.py'>
+[2026-11-01 21:40:26.849] [logger] [debug] [PyFunctionRegister.cpp:548] Registered Python module 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.py' with linked workbook 'none' for addin 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.dll'
+[2026-11-01 21:40:26.850] [logger] [debug] [Thunker.cpp:104] Building thunk with 0 arguments
+[2026-11-01 21:40:26.850] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X4.PyCom
+[2026-11-01 21:40:26.850] [logger] [debug] [FuncRegistry.cpp:229] Registering "X4.PyCom" at entry point xloil_stub with 0 args
+[2026-11-01 21:40:26.851] [logger] [debug] [Thunker.cpp:104] Building thunk with 1 arguments
+[2026-11-01 21:40:26.851] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X3.PyArray
+[2026-11-01 21:40:26.851] [logger] [debug] [FuncRegistry.cpp:229] Registering "X3.PyArray" at entry point xloil_stub with 1 args
+[2026-11-01 21:40:26.852] [logger] [debug] [Thunker.cpp:104] Building thunk with 0 arguments
+[2026-11-01 21:40:26.852] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X4.PyQueued
+[2026-11-01 21:40:26.852] [logger] [debug] [FuncRegistry.cpp:229] Registering "X4.PyQueued" at entry point xloil_stub with 0 args
+[2026-11-01 21:40:26.852] [logger] [debug] [Thunker.cpp:104] Building thunk with 2 arguments
+[2026-11-01 21:40:26.852] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X3.PyAdd
+[2026-11-01 21:40:26.853] [logger] [debug] [FuncRegistry.cpp:229] Registering "X3.PyAdd" at entry point xloil_stub with 2 args
+[2026-11-01 21:40:26.853] [logger] [debug] [Thunker.cpp:104] Building thunk with 1 arguments
+[2026-11-01 21:40:26.853] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X3.PyHello
+[2026-11-01 21:40:26.853] [logger] [debug] [FuncRegistry.cpp:229] Registering "X3.PyHello" at entry point xloil_stub with 1 args
+[2026-11-01 21:40:26.854] [logger] [debug] [Thunker.cpp:104] Building thunk with 0 arguments
+[2026-11-01 21:40:26.854] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X4.PyBounds
+[2026-11-01 21:40:26.854] [logger] [debug] [FuncRegistry.cpp:229] Registering "X4.PyBounds" at entry point xloil_stub with 0 args
+[2026-11-01 21:40:26.854] [logger] [debug] [Thunker.cpp:104] Building thunk with 0 arguments
+[2026-11-01 21:40:26.854] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X4.PyCall
+[2026-11-01 21:40:26.855] [logger] [debug] [FuncRegistry.cpp:229] Registering "X4.PyCall" at entry point xloil_stub with 0 args
+[2026-11-01 21:40:26.855] [logger] [debug] [Thunker.cpp:104] Building thunk with 0 arguments
+[2026-11-01 21:40:26.855] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X4.PyRelease
+[2026-11-01 21:40:26.855] [logger] [debug] [FuncRegistry.cpp:229] Registering "X4.PyRelease" at entry point xloil_stub with 0 args
+[2026-11-01 21:40:26.855] [logger] [debug] [Thunker.cpp:104] Building thunk with 0 arguments
+[2026-11-01 21:40:26.856] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for X4.PyEvents
+[2026-11-01 21:40:26.856] [logger] [debug] [FuncRegistry.cpp:229] Registering "X4.PyEvents" at entry point xloil_stub with 0 args
+[2026-11-01 21:40:26.856] [logger] [debug] [importer.py:223] Loaded python module 'xlOil' for addin 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.dll'
+[2026-11-01 21:40:26.856] [logger] [debug] [PyEvents.cpp:360] Events enabled: Excel=true, xlOil=true
+[2026-11-01 21:40:26.856] [logger] [info] [PluginLoader.cpp:62] Loading plugins from settings file C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.ini
+[2026-11-01 21:40:26.857] [logger] [info] [PluginLoader.cpp:79] Loading plugin xlOil_SQL
+[2026-11-01 21:40:26.871] [logger] [info] [FuncRegistry.cpp:222] Excel does not support help strings longer than 255 chars. Truncating for function 'xloSql'
+[2026-11-01 21:40:26.871] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSql" at entry point xloSql with 12 args
+[2026-11-01 21:40:26.872] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlDB" at entry point xloSqlDB with 0 args
+[2026-11-01 21:40:26.872] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlQuery" at entry point xloSqlQuery with 2 args
+[2026-11-01 21:40:26.873] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlTable" at entry point xloSqlTable with 5 args
+[2026-11-01 21:40:26.873] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlTables" at entry point xloSqlTables with 1 args
+[2026-11-01 21:40:26.874] [logger] [debug] [PluginLoader.cpp:137] Finished loading plugin xlOil_SQL
+[2026-11-01 21:40:26.874] [logger] [info] [PluginLoader.cpp:62] Loading plugins from settings file C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.ini
+[2026-11-01 21:40:26.874] [logger] [info] [PluginLoader.cpp:79] Loading plugin xlOil_Utils
+[2026-11-01 21:40:26.927] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloBlock" at entry point xloBlock with 31 args
+[2026-11-01 21:40:26.927] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloConcat" at entry point xloConcat with 11 args
+[2026-11-01 21:40:26.928] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloFill" at entry point xloFill with 3 args
+[2026-11-01 21:40:26.929] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloFillNA" at entry point xloFillNA with 3 args
+[2026-11-01 21:40:26.929] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloIndex" at entry point xloIndex with 5 args
+[2026-11-01 21:40:26.930] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloPad" at entry point xloPad with 1 args
+[2026-11-01 21:40:26.930] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRegex" at entry point xloRegex with 6 args
+[2026-11-01 21:40:26.932] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSearch" at entry point xloSearch with 5 args
+[2026-11-01 21:40:26.932] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSort" at entry point xloSort with 10 args
+[2026-11-01 21:40:26.933] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSplit" at entry point xloSplit with 3 args
+[2026-11-01 21:40:26.933] [logger] [debug] [PluginLoader.cpp:137] Finished loading plugin xlOil_Utils
+[2026-11-01 21:40:26.939] [logger] [debug] [Connect.cpp:93] Made COM connection to Excel at 'C:\Program Files\Microsoft Office\Root\Office16' with hwnd=11996198
+[2026-11-01 21:40:26.959] [logger] [debug] [Events.h:175] Firing event Watch_C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\ C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\, controller.jsonl, add,
+[2026-11-01 21:40:26.990] [logger] [debug] [Events.h:175] Firing event Watch_C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\ C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\, xlOil.log, modify,
+[2026-11-01 21:40:27.260] [logger] [debug] [PyEvents.cpp:360] Events enabled: Excel=true, xlOil=false
+[2026-11-01 21:40:27.264] [logger] [debug] [register.py:110] Interpreted arg 'ModuleName:str' => 'ModuleName:str ()'
+[2026-11-01 21:40:27.265] [logger] [debug] [register.py:110] Interpreted arg 'From:=None' => 'From:object ()'
+[2026-11-01 21:40:27.265] [logger] [debug] [register.py:110] Interpreted arg 'As:=None' => 'As:object ()'
+[2026-11-01 21:40:27.265] [logger] [debug] [register.py:426] Declared excel func: xloImport(ModuleName: str, From: object, As: object)
+[2026-11-01 21:40:27.266] [logger] [debug] [register.py:110] Interpreted arg 'Object:' => 'Object:object ()'
+[2026-11-01 21:40:27.266] [logger] [debug] [register.py:110] Interpreted arg 'Name:str' => 'Name:str ()'
+[2026-11-01 21:40:27.267] [logger] [debug] [register.py:110] Interpreted arg '*Args' => 'Args:object (,vargs)'
+[2026-11-01 21:40:27.267] [logger] [debug] [register.py:426] Declared excel func: xloAttr(Object: object, Name: str, Args: object, Kwargs)
+[2026-11-01 21:40:27.268] [logger] [debug] [register.py:110] Interpreted arg 'Object:' => 'Object:object ()'
+[2026-11-01 21:40:27.268] [logger] [debug] [register.py:110] Interpreted arg 'Name:str' => 'Name:str ()'
+[2026-11-01 21:40:27.268] [logger] [debug] [register.py:110] Interpreted arg '*Args' => 'Args:object (,vargs)'
+[2026-11-01 21:40:27.269] [logger] [debug] [register.py:426] Declared excel func: xloAttrObj(Object: object, Name: str, Args: object, Kwargs) -> Cache
+[2026-11-01 21:40:27.269] [logger] [debug] [register.py:110] Interpreted arg 'Debugger:str=' => 'Debugger:str ()'
+[2026-11-01 21:40:27.270] [logger] [debug] [register.py:426] Declared excel func: xloPyDebug(Debugger: str)
+[2026-11-01 21:40:27.270] [logger] [info] [PyEvents.cpp:117] Event C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\excelfuncs.py added handler 0x222077c3c00
+[2026-11-01 21:40:27.270] [logger] [debug] [register.py:476] Found 4 xloil functions in <module 'xloil.excelfuncs' from 'C:\\Work\\DnaCalc\\codex-runs\\x3-upstream\\xloil-wheel312\\xloil\\excelfuncs.py'>
+[2026-11-01 21:40:27.285] [logger] [debug] [PyFunctionRegister.cpp:548] Registered Python module 'C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\excelfuncs.py' with linked workbook 'none' for addin 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.dll'
+[2026-11-01 21:40:27.286] [logger] [debug] [importer.py:223] Loaded python module 'xloil.excelfuncs' for addin 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.dll'
+[2026-11-01 21:40:27.286] [logger] [debug] [PyEvents.cpp:360] Events enabled: Excel=true, xlOil=true
+[2026-11-01 21:40:27.288] [logger] [debug] [ClassFactory.cpp:212] Writing registry key Software\Classes\XlOil.5myNaVtZJsbKgngnw86zhD\CLSID\ = {F5B8E37D-458A-4370-BB85-858D2A46FEF0}
+[2026-11-01 21:40:27.290] [logger] [debug] [ClassFactory.cpp:212] Writing registry key Software\Classes\CLSID\{F5B8E37D-458A-4370-BB85-858D2A46FEF0}\InProcServer32\ = xlOil.dll
+[2026-11-01 21:40:27.295] [logger] [debug] [Thunker.cpp:104] Building thunk with 1 arguments
+[2026-11-01 21:40:27.296] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for xloPyDebug
+[2026-11-01 21:40:27.296] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloPyDebug" at entry point xloil_stub with 1 args
+[2026-11-01 21:40:27.296] [logger] [debug] [Thunker.cpp:104] Building thunk with 60 arguments
+[2026-11-01 21:40:27.296] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for xloAttrObj
+[2026-11-01 21:40:27.297] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloAttrObj" at entry point xloil_stub with 60 args
+[2026-11-01 21:40:27.297] [logger] [debug] [Thunker.cpp:104] Building thunk with 3 arguments
+[2026-11-01 21:40:27.297] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for xloImport
+[2026-11-01 21:40:27.297] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloImport" at entry point xloil_stub with 3 args
+[2026-11-01 21:40:27.298] [logger] [debug] [Thunker.cpp:104] Building thunk with 60 arguments
+[2026-11-01 21:40:27.298] [logger] [debug] [DynamicRegistration.cpp:167] Hooking thunk for xloAttr
+[2026-11-01 21:40:27.298] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloAttr" at entry point xloil_stub with 60 args
+[2026-11-01 21:40:27.411] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:27.413] [logger] [debug] [Events.h:175] Firing event Watch_C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\ C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\, x4-startup-ready, add,
+[2026-11-01 21:40:28.111] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.112] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!A1,
+[2026-11-01 21:40:28.177] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.178] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.196] [logger] [debug] [Events.h:175] Firing event Watch_C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\ C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\, controller.jsonl, modify,
+[2026-11-01 21:40:28.209] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.211] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.260] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.262] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.325] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.327] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!A1,
+[2026-11-01 21:40:28.332] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.334] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.452] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.453] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!A1,
+[2026-11-01 21:40:28.453] [logger] [debug] [Events.h:175] Firing event Watch_C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\ C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\, x4-startup-ready, modify,
+[2026-11-01 21:40:28.472] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.474] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.516] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.517] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.534] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.535] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.565] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.567] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.592] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.594] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.606] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 21:40:28.607] [logger] [debug] [Events.h:175] Firing event SheetChange X0, [Book1]X0!B3,
+[2026-11-01 21:40:28.901] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloBlock
+[2026-11-01 21:40:28.902] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloConcat
+[2026-11-01 21:40:28.902] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloFill
+[2026-11-01 21:40:28.902] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloFillNA
+[2026-11-01 21:40:28.902] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloIndex
+[2026-11-01 21:40:28.902] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloPad
+[2026-11-01 21:40:28.902] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloRegex
+[2026-11-01 21:40:28.902] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSearch
+[2026-11-01 21:40:28.902] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSort
+[2026-11-01 21:40:28.903] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSplit
+[2026-11-01 21:40:28.903] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSql
+[2026-11-01 21:40:28.903] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlDB
+[2026-11-01 21:40:28.903] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlQuery
+[2026-11-01 21:40:28.903] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlTable
+[2026-11-01 21:40:28.903] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlTables
+[2026-11-01 21:40:28.903] [logger] [info] [PyEvents.cpp:134] Event SheetChange removed handler 0x2216a0c11c0
+[2026-11-01 21:40:28.903] [logger] [debug] [PyEvents.cpp:138] No more python handlers for event SheetChange
+[2026-11-01 21:40:28.903] [logger] [info] [PyEvents.cpp:134] Event AfterCalculate removed handler 0x2216a06e3e0
+[2026-11-01 21:40:28.903] [logger] [debug] [PyEvents.cpp:138] No more python handlers for event AfterCalculate
+[2026-11-01 21:40:28.903] [logger] [debug] [PyFunctionRegister.cpp:433] Python module unload succeeded for 'xlOil.py'
+[2026-11-01 21:40:28.903] [logger] [debug] [Interface.cpp:236] Deregistering functions in source 'C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\xlOil.py'
+[2026-11-01 21:40:28.903] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X3.PyAdd
+[2026-11-01 21:40:28.904] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X3.PyArray
+[2026-11-01 21:40:28.904] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X3.PyHello
+[2026-11-01 21:40:28.904] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X4.PyBounds
+[2026-11-01 21:40:28.904] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X4.PyCall
+[2026-11-01 21:40:28.904] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X4.PyCom
+[2026-11-01 21:40:28.904] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X4.PyEvents
+[2026-11-01 21:40:28.904] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X4.PyQueued
+[2026-11-01 21:40:28.904] [logger] [debug] [FuncRegistry.cpp:299] Deregistering X4.PyRelease
+[2026-11-01 21:40:28.904] [logger] [debug] [PyFunctionRegister.cpp:433] Python module unload succeeded for 'excelfuncs.py'
+[2026-11-01 21:40:28.905] [logger] [debug] [Interface.cpp:236] Deregistering functions in source 'C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\excelfuncs.py'
+[2026-11-01 21:40:28.905] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloAttr
+[2026-11-01 21:40:28.905] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloAttrObj
+[2026-11-01 21:40:28.905] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloImport
+[2026-11-01 21:40:28.905] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloPyDebug
+[2026-11-01 21:40:28.905] [logger] [debug] [Events.h:175] Firing event AutoClose
+[2026-11-01 21:40:28.907] [logger] [debug] [PluginLoader.cpp:193] Unloading plugin xlOil_Python
+[2026-11-01 21:40:28.907] [logger] [debug] [Events.h:175] Firing event Event_PyBye
+[2026-11-01 21:40:28.907] [logger] [debug] [Events.cpp:66] Ended directory watch 'Watch_C:\Users\GovertvanDrimmelen\AppData\Local\Programs\Python\Python312'
+[2026-11-01 21:40:28.907] [logger] [debug] [Events.cpp:66] Ended directory watch 'Watch_C:\Work\DnaCalc\codex-runs\x5-runs\release\x4\excel-control\'
+[2026-11-01 21:40:28.907] [logger] [debug] [Events.cpp:66] Ended directory watch 'Watch_C:\Work\DnaCalc\codex-runs\x3-upstream\xloil-wheel312\xloil\'
+[2026-11-01 21:40:28.957] [logger] [debug] [PluginLoader.cpp:193] Unloading plugin xlOil_SQL
+[2026-11-01 21:40:28.957] [logger] [debug] [PluginLoader.cpp:193] Unloading plugin xlOil_Utils

@@ -1,0 +1,1233 @@
+{
+  "status": "failed verification",
+  "error": "Ordered SheetChange calls/addresses differ",
+  "error_type": "AssertionError",
+  "formula_cases_checked": 12,
+  "native_invocations_checked": {
+    "X3.PyAdd": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "X3.PyArray": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "X4.PyBounds": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "X4.PyCall": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": false,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        [
+          [
+            4,
+            [
+              {
+                "type": 2048,
+                "value": 19
+              },
+              {
+                "type": 2048,
+                "value": 23
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 42
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      ]
+    },
+    "X4.PyCom": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 2,
+      "same_ordered_callbacks": [
+        [],
+        []
+      ]
+    },
+    "X4.PyEvents": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 4,
+      "same_ordered_callbacks": [
+        [],
+        [],
+        [],
+        []
+      ]
+    },
+    "X4.PyQueued": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": false,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        [
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 42
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      ]
+    },
+    "X4.PyRelease": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "xloRunInXLLContext": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        [
+          [
+            4,
+            [
+              {
+                "type": 2048,
+                "value": 20
+              },
+              {
+                "type": 2048,
+                "value": 22
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ]
+        ]
+      ]
+    }
+  },
+  "sheet_changes_excel_and_host": [
+    [
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [
+          {
+            "vt": 8,
+            "value": "[<workbook>]X0!A1"
+          },
+          {
+            "vt": 8,
+            "value": "A1"
+          }
+        ],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.application.EnableEvents.get",
+            "hresult": 0,
+            "value": true
+          },
+          {
+            "entry": "COM!early.application.Run",
+            "hresult": 0,
+            "arguments": [
+              {
+                "vt": 8,
+                "value": "xloRunInXLLContext"
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              }
+            ],
+            "result": {
+              "vt": 3,
+              "value": 1
+            }
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": []
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [
+          {
+            "vt": 8,
+            "value": "[<workbook>]X0!B3"
+          },
+          {
+            "vt": 8,
+            "value": "B3"
+          }
+        ],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [
+          {
+            "vt": 8,
+            "value": "[<workbook>]X0!A1"
+          },
+          {
+            "vt": 8,
+            "value": "A1"
+          }
+        ],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [
+          {
+            "vt": 8,
+            "value": "[<workbook>]X0!A1"
+          },
+          {
+            "vt": 8,
+            "value": "A1"
+          }
+        ],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.application.EnableEvents.get",
+            "hresult": 0,
+            "value": true
+          },
+          {
+            "entry": "COM!early.application.Run",
+            "hresult": 0,
+            "arguments": [
+              {
+                "vt": 8,
+                "value": "xloRunInXLLContext"
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              },
+              {
+                "vt": 10,
+                "value": -2147352572
+              }
+            ],
+            "result": {
+              "vt": 3,
+              "value": 1
+            }
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": []
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": []
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      },
+      {
+        "flags": 3,
+        "named_dispids": [
+          0,
+          1
+        ],
+        "argument_types": [
+          9,
+          9
+        ],
+        "addresses": [],
+        "early_bound_calls": [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      }
+    ]
+  ],
+  "udf_early_com_excel_and_host": [
+    {
+      "xloRunInXLLContext": [
+        []
+      ],
+      "X3.PyAdd": [
+        []
+      ],
+      "X4.PyCom": [
+        [
+          {
+            "entry": "COM!early.application.ActiveWorkbook",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.application.Workbooks",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbooks.Application",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.application.ActiveWorkbook",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbook.Name",
+            "hresult": 0,
+            "value": "<workbook>"
+          },
+          {
+            "entry": "COM!early.application.ActiveSheet",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          },
+          {
+            "entry": "COM!early.application.Workbooks",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbooks.Count",
+            "hresult": 0,
+            "value": 1
+          },
+          {
+            "entry": "COM!early.application.EnableEvents.get",
+            "hresult": 0,
+            "value": true
+          }
+        ],
+        [
+          {
+            "entry": "COM!early.application.ActiveWorkbook",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.application.Workbooks",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbooks.Application",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.application.ActiveWorkbook",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbook.Name",
+            "hresult": 0,
+            "value": "<workbook>"
+          },
+          {
+            "entry": "COM!early.application.ActiveSheet",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          },
+          {
+            "entry": "COM!early.application.Workbooks",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbooks.Count",
+            "hresult": 0,
+            "value": 1
+          },
+          {
+            "entry": "COM!early.application.EnableEvents.get",
+            "hresult": 0,
+            "value": false
+          }
+        ]
+      ],
+      "X4.PyEvents": [
+        [],
+        [],
+        [],
+        []
+      ],
+      "X4.PyQueued": [
+        []
+      ],
+      "X4.PyBounds": [
+        [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      ],
+      "X4.PyCall": [
+        [
+          {
+            "entry": "COM!early.application.EnableEvents.get",
+            "hresult": 0,
+            "value": true
+          }
+        ]
+      ],
+      "X3.PyArray": [
+        []
+      ],
+      "X4.PyRelease": [
+        []
+      ]
+    },
+    {
+      "xloRunInXLLContext": [
+        []
+      ],
+      "X3.PyAdd": [
+        []
+      ],
+      "X4.PyCom": [
+        [
+          {
+            "entry": "COM!early.application.ActiveWorkbook",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.application.Workbooks",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbooks.Application",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.application.ActiveWorkbook",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbook.Name",
+            "hresult": 0,
+            "value": "<workbook>"
+          },
+          {
+            "entry": "COM!early.application.ActiveSheet",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          },
+          {
+            "entry": "COM!early.application.Workbooks",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbooks.Count",
+            "hresult": 0,
+            "value": 1
+          },
+          {
+            "entry": "COM!early.application.EnableEvents.get",
+            "hresult": 0,
+            "value": true
+          }
+        ],
+        [
+          {
+            "entry": "COM!early.application.ActiveWorkbook",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.application.Workbooks",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbooks.Application",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.application.ActiveWorkbook",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbook.Name",
+            "hresult": 0,
+            "value": "<workbook>"
+          },
+          {
+            "entry": "COM!early.application.ActiveSheet",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          },
+          {
+            "entry": "COM!early.application.Workbooks",
+            "hresult": 0,
+            "returned_object": true
+          },
+          {
+            "entry": "COM!early.workbooks.Count",
+            "hresult": 0,
+            "value": 1
+          },
+          {
+            "entry": "COM!early.application.EnableEvents.get",
+            "hresult": 0,
+            "value": false
+          }
+        ]
+      ],
+      "X4.PyEvents": [
+        [],
+        [],
+        [],
+        []
+      ],
+      "X4.PyQueued": [
+        []
+      ],
+      "X4.PyBounds": [
+        [
+          {
+            "entry": "COM!early.worksheet.Name",
+            "hresult": 0,
+            "value": "X0"
+          }
+        ]
+      ],
+      "X4.PyCall": [
+        [
+          {
+            "entry": "COM!early.application.EnableEvents.get",
+            "hresult": 0,
+            "value": true
+          }
+        ]
+      ],
+      "X3.PyArray": [
+        []
+      ],
+      "X4.PyRelease": [
+        []
+      ]
+    }
+  ],
+  "sheet_change_differences": [
+    2,
+    5,
+    6
+  ],
+  "scope": "Strict X4 comparison remains failed; matching earlier checks do not convert the differing event calls into passes."
+}

@@ -1,0 +1,9 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running `target\debug\xtask.exe check`
+CHECK passed provenance-scan: 556 tracked files under crates/calc-func and crates/calc-value against 560 ledger entries; 0 markers of 5 families in 0 of 2778 text files under crates, apps, platform, tools, deploy, allowances 0 in 0 files
+CHECK running cargo build --workspace
+CHECK passed build: log target/check/build.log
+CHECK 10 changed paths since where HEAD meets origin/master; touched packages {"calc-xll-fixture", "calc-xll-host", "dna-calc-desktop"}
+CHECK running one cargo test over 4 packages: calc-com-host, calc-xll-fixture, calc-xll-host, dna-calc-desktop
+CHECK passed tests: 24 passed, 0 failed, 0 ignored, 0 not run in 8 harnesses of 4 packages; log target/check/test.log
+CHECK RESULT passed: the provenance markers, the build and tests of 4 packages (0 min 53 s)

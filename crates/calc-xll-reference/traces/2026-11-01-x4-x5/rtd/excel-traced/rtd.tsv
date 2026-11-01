@@ -1,0 +1,17 @@
+NativeRegisterCode	40244	0
+NativeRegisterType	40244	1
+PrivateClassRegistered	40244	0
+Invoke	40244	10
+ServerStart	40244	0
+Invoke	40244	11
+ConnectData	40244	1
+xlfRtd	40244	0
+UpdateNotify	51728	42
+Invoke	40244	12
+RefreshData	40244	42
+xlfRtd	40244	0
+AutoCloseLiveServers	40244	1
+Invoke	40244	13
+DisconnectData	40244	1
+Invoke	40244	15
+ServerTerminate	40244	0

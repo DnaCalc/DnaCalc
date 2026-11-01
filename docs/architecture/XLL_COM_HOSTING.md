@@ -586,8 +586,9 @@ pool activation cancels and disconnects callback replies before releasing its
 owner. Final host drop retains a pool with outstanding work instead of joining a
 hung task. Unsupported ABI failures remain typed refusals through IFERROR.
 An overwrite case checks P07 token revocation, the delayed native return code256,
-and the replacement cell/dependent values. RTD client integration and the broader
-Excel callback permission matrix are still open under dc-snz.23.
+and the replacement cell/dependent values. The controlled RTD client and callback
+permission observations below extend this route; general coverage remains open
+under dc-snz.23.
 
 ## 15. RTD numeric inputs on P07 (dc-snz.23)
 
@@ -603,8 +604,9 @@ after the edit succeeds. RTD never completes a parked native async invocation.
 The client only reads ProgID mappings and registers no class. Its callback owns
 independent notification state, including after disconnection. Close runs before
 XLL teardown; public module removal refuses while RTD servers remain. A failed
-start/termination keeps the failure and native server/module leases until process
-exit, so repeating close cannot convert it to success.
+termination, including cleanup after a failed start, keeps the failure and native
+server/module leases until process exit, so repeating close cannot convert it to
+success. An ordinary failed start with successful cleanup releases those leases.
 
 The existing native ownership fixture has an optional controlled numeric RTD
 server and callback-permission functions. That test server creates unique private
@@ -612,10 +614,43 @@ HKCU DnaCalc.X5 classes, rolls back failed setup, and removes its own keys on cl
 It never changes Excel registrations. Numeric controls produce55 and dependent110
 from admitted values1 and42; the final certificate retains sequence2. Replacing
 the formula produces99/dependent198 and disconnects the subscription. Excel uses
-IDispatch for this server; the host uses its early-bound interface. Traced protocol
-comparison and the callback-permission matrix remain separate evidence work.
+IDispatch for this server; the host uses its early-bound interface. The traced
+comparison checks ServerStart, ConnectData, UpdateNotify, RefreshData,
+DisconnectData and ServerTerminate with their observed payloads, plus independent
+controls. Excel's native UDF returns1 then42; the host first returns temporary
+#N/A before admitting its first input, then1 and42. This difference remains in the
+evidence. These are controlled numeric inputs, not general RTD compatibility.
 
 Empty RTD values are currently refused. Original xlOil Python uses empty RTD
 signals and a separate Python result cache; a numeric coincidence of55 without a
 retained RTD read was a failed qualification. Arrays, remote servers, nontext
 topics, general signaling-cache providers and arbitrary RTD teardown are open.
+
+## 16. X4/X5 measured limits, 2026-11-01
+
+Evidence and exact source bindings are retained under
+`crates/calc-xll-reference/traces/2026-11-01-x4-x5`. The original xlOil Python
+fixture agrees on all12 formula cases and the defined operands and callbacks of
+13 measured native invocations. Raw undefined xlFree result operands still differ.
+Both hosts deliver13 SheetChange calls with the measured argument types and order,
+but nested COM property calls differ at three event positions. The strict
+X4 verifier therefore fails. Matching outputs do not establish matching event
+traffic, and dc-snz.22 remains open.
+
+The callback matrix measures13 requests under each of normal, macro-equivalent
+`#`, and thread-safe `$` registrations. Excel's registration flags, native
+arguments and main/pool thread placement are checked explicitly. The host
+calculates matching results for37 of39 requests. General EVALUATE in normal and
+macro-equivalent calls remains a typed refusal under dc-snz.2, so both requests
+fail. The measured `$` EVALUATE and MESSAGE denials return128; the host preserves
+these ordinary return codes rather than treating a handled denial as an
+unsupported ABI. This is evidence for these exact requests and contexts, not a
+general assertion about every expression or callback payload. Macro MESSAGE
+updates the owning logical message state; UI painting is unmeasured.
+
+The native barrier test establishes overlapping pool entries from two workbook
+commands. A single workbook still services its suspended cell first. Native async
+tests exercise one engine activation, dependent publication, overwrite revocation
+and a rejected late return through the application composition. Broader concurrent
+workbook scheduling, cancellation cases and provider teardown remain open under
+dc-snz.23. Safe xlOil reload remains open under dc-snz.21.
