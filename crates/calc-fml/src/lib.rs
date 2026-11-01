@@ -64,6 +64,10 @@ pub use calc_func::{HostFacts, RandomSource, SubtotalExclusions};
 mod callable;
 pub use calc_func::{
     UserFunction, UserFunctionContext, UserFunctionInvocation, UserFunctionStep,
-    UserInvocationFrame,
+    UserInvocationFrame, UserReevaluationReason,
 };
 pub use callable::{CallableBindingProof, CallableBindings, CallableHandle, CallableTable};
+
+pub use calc_func::{UserExternalInputs, UserInputKey, UserInputRead};
+
+pub use calc_func::value;

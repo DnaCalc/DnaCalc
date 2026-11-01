@@ -187,7 +187,9 @@ struct PendingCall {
 
 #[derive(Debug)]
 struct PendingUserCall {
+    callable: crate::CallableHandle,
     cached: bool,
+    reevaluation: Option<calc_func::UserReevaluationReason>,
     activation: Box<dyn calc_func::UserFunctionInvocation>,
     frame: calc_func::UserInvocationFrame,
     record: Option<usize>,
@@ -373,6 +375,7 @@ fn evaluate_slice(
         numeric: services.numeric,
         read_policy: services.request.policy,
         invocation: services.invocation.clone(),
+        external_inputs: services.external_inputs,
         reference_handles: services.reference_handles,
         observation_reader: observation_reader.as_ref(),
         reader: &reader,
@@ -430,6 +433,7 @@ fn evaluate_slice(
 }
 
 struct Run<'a, 'r> {
+    external_inputs: Option<&'a dyn calc_func::UserExternalInputs>,
     read_policy: crate::ReadPolicy,
     invocation: Option<calc_func::UserInvocationFrame>,
     reference_handles: Option<&'a dyn calc_func::ReferenceHandles>,
@@ -554,6 +558,26 @@ impl Run<'_, '_> {
                 self.stack.push(CalcValue::error(WorksheetErrorCode::Name));
                 return Ok(true);
             };
+            if self.user_function_effects.as_ref().is_some_and(|effects| {
+                effects.invocations.iter().any(|record| {
+                    !record.completed
+                        && (record.callable == handle
+                            || function.state_lane().is_some()
+                                && record.state_lane == function.state_lane())
+                })
+            }) && !function.permits_reentry()
+            {
+                return Err(not_modelled_by(
+                    "reentry into an occupied callable state lane",
+                    "dc-hsa5.4",
+                ));
+            }
+            if self.user_function_effects.as_ref().is_some_and(|effects| {
+                effects.invocations.iter().filter(|r| !r.completed).count() >= MAX_CALL_DEPTH
+            }) {
+                return Err(not_modelled_by("nested user callback depth", "dc-hsa5.4"));
+            }
+            let reevaluation = function.reevaluation_policy();
             let frame = calc_func::UserInvocationFrame::new(
                 self.invocation.as_ref().map(|frame| frame.id),
                 self.invocation
@@ -565,12 +589,20 @@ impl Run<'_, '_> {
             let record = self.user_function_effects.as_deref_mut().map(|effects| {
                 effects.calls += 1;
                 let index = effects.invocations.len();
+                let mut occurrence = effects
+                    .invocations
+                    .iter()
+                    .find(|r| Some(r.id) == frame.parent)
+                    .map(|r| r.occurrence.clone())
+                    .unwrap_or_default();
+                occurrence.push(u32::try_from(index).expect("call occurrence exhausted"));
                 effects.invocations.push(super::UserCallRecord {
                     id,
                     parent: frame.parent,
                     callable: handle,
+                    state_lane: function.state_lane(),
                     call_site: u32::try_from(site).expect("bounded instructions"),
-                    occurrence: vec![index as u32],
+                    occurrence,
                     completed: false,
                     non_preemptible: false,
                 });
@@ -579,9 +611,11 @@ impl Run<'_, '_> {
             let cached = function.cached_reads();
             let mut context = UserCallContext {
                 cached,
+                reevaluation,
                 run: self,
                 fault: None,
                 frame: Some(frame.clone()),
+                callable: handle,
                 async_result: None,
             };
             let started = function.begin_call(&arguments, frame.clone(), &mut context);
@@ -591,7 +625,9 @@ impl Run<'_, '_> {
             match started {
                 Ok(Some(activation)) => {
                     *pending = Some(Box::new(PendingUserCall {
+                        callable: handle,
                         cached,
+                        reevaluation,
                         activation,
                         frame,
                         record,
@@ -610,9 +646,11 @@ impl Run<'_, '_> {
                         Ok(None) => {
                             let mut context = UserCallContext {
                                 cached,
+                                reevaluation,
                                 run: self,
                                 fault: None,
                                 frame: Some(frame),
+                                callable: handle,
                                 async_result: None,
                             };
                             let result = function.call_with_context(&arguments, &mut context);
@@ -645,22 +683,36 @@ impl Run<'_, '_> {
             return Ok(false);
         }
         let mut context = UserCallContext {
+            callable: call.callable,
             async_result: call
                 .external
                 .take()
                 .and_then(|(request, value)| value.map(|value| (request, value))),
             cached: call.cached,
+            reevaluation: call.reevaluation,
             run: self,
             fault: None,
             frame: Some(call.frame.clone()),
         };
         let result = call.activation.resume(&mut context, quantum as u64);
+        let unconsumed = context.async_result.take();
         if let Some(fault) = context.fault {
             return Err(fault);
         }
         match result {
-            Ok(calc_func::UserFunctionStep::Suspended) => Ok(false),
+            Ok(calc_func::UserFunctionStep::Suspended) => {
+                if let Some((request, value)) = unconsumed {
+                    call.external = Some((request, Some(value)));
+                }
+                Ok(false)
+            }
             Ok(calc_func::UserFunctionStep::Awaiting { request }) => {
+                if unconsumed.is_some() {
+                    return Err(not_modelled_by(
+                        "a new async request before consuming the previous return",
+                        "dc-hsa5.4",
+                    ));
+                }
                 call.external = Some((request, None));
                 Ok(false)
             }
@@ -2967,6 +3019,8 @@ mod tests {
 }
 
 struct UserCallContext<'b, 'a, 'r> {
+    callable: crate::CallableHandle,
+    reevaluation: Option<calc_func::UserReevaluationReason>,
     async_result: Option<(u64, CalcValue)>,
     cached: bool,
     run: &'b mut Run<'a, 'r>,
@@ -2975,6 +3029,100 @@ struct UserCallContext<'b, 'a, 'r> {
 }
 
 impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
+    fn rtd_value(&mut self, subscription: u64) -> Result<Option<(u64, CalcValue)>, String> {
+        let Some(inputs) = self.run.external_inputs else {
+            return Err(self.refuse_by("RTD input without an admitted input view", "dc-hsa5.4"));
+        };
+        let key = calc_func::UserInputKey {
+            callable: self.callable,
+            subscription,
+        };
+        let value = inputs.rtd_value(key);
+        if let Some(effects) = self.run.user_function_effects.as_deref_mut() {
+            let read = calc_func::UserInputRead {
+                key,
+                sequence: value.as_ref().map_or(0, |value| value.0),
+            };
+            if !effects.external_inputs.contains(&read) {
+                effects.external_inputs.push(read);
+            }
+        }
+        Ok(value)
+    }
+
+    fn request_reevaluation(
+        &mut self,
+        reason: calc_func::UserReevaluationReason,
+    ) -> Result<(), String> {
+        if self.reevaluation != Some(reason) || self.run.user_function_effects.is_none() {
+            return Err(self.refuse_by(
+                "a reevaluation reason not authorized by this registration",
+                "dc-hsa5.4",
+            ));
+        }
+        self.run
+            .user_function_effects
+            .as_deref_mut()
+            .unwrap()
+            .reevaluation = Some(reason);
+        Ok(())
+    }
+    fn call_user_function(
+        &mut self,
+        name: &str,
+        arguments: &[CalcValue],
+    ) -> Result<CalcValue, String> {
+        if self.run.user_function_effects.is_none() {
+            return Err(
+                self.refuse_by("nested user callbacks without an effect owner", "dc-hsa5.4")
+            );
+        }
+        let binding = self
+            .run
+            .functions
+            .and_then(|functions| functions.bind(None, name));
+        if let Some(effects) = self.run.user_function_effects.as_deref_mut() {
+            let proof = crate::CallableBindingProof {
+                provider: None,
+                name: name.into(),
+                bound: binding,
+            };
+            if !effects.callable_reads.contains(&proof) {
+                effects.callable_reads.push(proof);
+            }
+        }
+        let base = self.run.stack.len();
+        self.run.stack.extend_from_slice(arguments);
+        let parent = std::mem::replace(&mut self.run.invocation, self.frame.clone());
+        let result = self.run.user_call_slice(
+            name,
+            binding,
+            arguments.len(),
+            u32::MAX as usize,
+            &mut None,
+            usize::MAX,
+        );
+        self.run.invocation = parent;
+        let result = match result {
+            Ok(true) => Ok(self
+                .run
+                .stack
+                .pop()
+                .expect("a completed callback leaves its result")),
+            Ok(false) => Err(not_modelled_by(
+                "a nested user callback requiring an owning continuation",
+                "dc-hsa5.4",
+            )),
+            Err(fault) => Err(fault),
+        };
+        self.run.stack.truncate(base);
+        result.map_err(|fault| {
+            let text = format!("{fault:?}");
+            self.fault.get_or_insert(fault);
+            text
+        })
+    }
+
     fn take_async_result(&mut self, request: u64) -> Option<CalcValue> {
         if self
             .async_result
@@ -3037,6 +3185,14 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     fn argument_values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
         match self.run.reader.values_of(reference) {
             Ok(value) => Ok(value),
+            Err(EvalFault::MissingInput { cell })
+                if self.reevaluation
+                    == Some(calc_func::UserReevaluationReason::ProvisionalArguments)
+                    && self.run.reader.pending_producer(cell) =>
+            {
+                self.request_reevaluation(calc_func::UserReevaluationReason::ProvisionalArguments)?;
+                Ok(CalcValue::empty())
+            }
             Err(fault) => {
                 let text = format!("{fault:?}");
                 self.fault.get_or_insert(fault);

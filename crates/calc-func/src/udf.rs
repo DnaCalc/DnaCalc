@@ -3,6 +3,29 @@
 use crate::value::{CalcValue, CellKey, ReferenceLike};
 use std::{any::Any, fmt, rc::Rc};
 
+/// Neutral callable identity; CalcFml alone allocates tables, slots and generations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UserCallableIdentity {
+    pub table: u64,
+    pub slot: u32,
+    pub generation: u64,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UserInputKey {
+    pub callable: UserCallableIdentity,
+    pub subscription: u64,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct UserInputRead {
+    pub key: UserInputKey,
+    pub sequence: u64,
+}
+/// One immutable external input cut, fixed at command admission. RTD never completes a call.
+pub trait UserExternalInputs: fmt::Debug + Send + Sync {
+    fn version(&self) -> u64;
+    fn rtd_value(&self, key: UserInputKey) -> Option<(u64, CalcValue)>;
+}
+
 /// Host-owned identity and immutable read-view lease; no borrowed evaluator pointers.
 #[derive(Clone)]
 pub struct UserInvocationFrame {
@@ -78,11 +101,28 @@ pub trait ReferenceHandles {
     fn resolve(&self, reference: &StoredReference) -> Result<ReferenceLike, ReferenceHandleError>;
 }
 
+/// A registration's permission to end one semantic evaluation and request a new one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UserReevaluationReason {
+    XllUncalcedUnwind,
+    ProvisionalArguments,
+}
+
 /// A user function. The default host entry reads references eagerly; adapters can instead
 /// use live reference/caller services for one invocation. An adapter
 /// returns worksheet errors as values and execution failures as diagnostics (mapped to #VALUE!).
 /// No Send/Sync promise is made: a desktop add-in may belong to its owning thread.
 pub trait UserFunction: fmt::Debug {
+    fn reevaluation_policy(&self) -> Option<UserReevaluationReason> {
+        None
+    }
+    /// Adapters sharing project state return the same lane while their leases are alive.
+    fn state_lane(&self) -> Option<u64> {
+        None
+    }
+    fn permits_reentry(&self) -> bool {
+        false
+    }
     fn cached_reads(&self) -> bool {
         false
     }
@@ -120,6 +160,24 @@ pub trait UserFunction: fmt::Debug {
 /// adapters can retain reference identities, and must read their values through this context.
 pub trait UserFunctionContext {
     fn caller(&self) -> Option<CellKey>;
+    fn rtd_value(&mut self, _subscription: u64) -> Result<Option<(u64, CalcValue)>, String> {
+        Err(self.refuse_by("RTD input without an admitted input view", "dc-hsa5.4"))
+    }
+    /// End this semantic evaluation after an unresolved read. The registration authorizes the reason.
+    fn request_reevaluation(&mut self, _reason: UserReevaluationReason) -> Result<(), String> {
+        Err(self.refuse_by("semantic reevaluation without an owner", "dc-hsa5.4"))
+    }
+    /// Invocation-aware callback; never queue it behind the caller's waiting activation.
+    fn call_user_function(
+        &mut self,
+        _name: &str,
+        _arguments: &[CalcValue],
+    ) -> Result<CalcValue, String> {
+        Err(self.refuse_by(
+            "nested user callbacks without an invocation frame",
+            "dc-hsa5.4",
+        ))
+    }
     /// Consume the return supplied to this activation. It is unavailable in another frame.
     fn take_async_result(&mut self, _request: u64) -> Option<CalcValue> {
         None

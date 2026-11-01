@@ -191,6 +191,16 @@ impl Workbook {
     pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
         self.session.set_user_functions(functions);
     }
+    pub fn update_rtd(
+        &mut self,
+        provider: calc_host::CallableHandle,
+        subscription: u64,
+        sequence: u64,
+        value: calc_host::value::CalcValue,
+    ) -> calc_host::RtdDisposition {
+        self.session
+            .update_rtd(provider, subscription, sequence, value)
+    }
     pub fn complete_async(
         &mut self,
         token: &calc_host::AsyncToken,

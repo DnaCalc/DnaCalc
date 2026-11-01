@@ -5,12 +5,7 @@ use std::{collections::BTreeMap, rc::Rc};
 
 /// Per-host registrations, matched by the shared workbook-name comparison. Built-ins and local formula names keep their
 /// existing precedence. Hosts replace this registry atomically when loading a new module.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct CallableHandle {
-    pub table: u64,
-    pub slot: u32,
-    pub generation: u64,
-}
+pub use calc_func::UserCallableIdentity as CallableHandle;
 
 /// Binding-only projection; no session or thread-bound executable owners.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

@@ -165,6 +165,12 @@ impl calc_func::UserFunctionInvocation for VbaActivation {
     }
 }
 impl UserFunction for VbaFunction {
+    fn state_lane(&self) -> Option<u64> {
+        Some(Rc::as_ptr(&self.session) as usize as u64)
+    }
+    fn reevaluation_policy(&self) -> Option<calc_func::UserReevaluationReason> {
+        Some(calc_func::UserReevaluationReason::ProvisionalArguments)
+    }
     fn cached_reads(&self) -> bool {
         true
     }

@@ -111,6 +111,7 @@ pub struct FormulaEvaluationContext<'s> {
     pub(super) catalog: Option<&'s dyn ReferenceCatalog>,
     pub(super) functions: Option<&'s crate::CallableTable>,
     pub(super) invocation: Option<calc_func::UserInvocationFrame>,
+    pub(super) external_inputs: Option<&'s dyn calc_func::UserExternalInputs>,
     pub(super) reference_handles: Option<&'s dyn calc_func::ReferenceHandles>,
     pub(super) observation_reader: Option<&'s mut dyn ReferenceReader>,
     pub(super) function_diagnostics: Option<&'s mut Vec<String>>,
@@ -139,6 +140,7 @@ impl<'s> FormulaEvaluationContext<'s> {
             catalog: None,
             functions: None,
             invocation: None,
+            external_inputs: None,
             reference_handles: None,
             observation_reader: None,
             function_diagnostics: None,
@@ -146,6 +148,10 @@ impl<'s> FormulaEvaluationContext<'s> {
         }
     }
 
+    pub fn with_external_inputs(mut self, inputs: &'s dyn calc_func::UserExternalInputs) -> Self {
+        self.external_inputs = Some(inputs);
+        self
+    }
     pub fn with_reference_handles(mut self, handles: &'s dyn calc_func::ReferenceHandles) -> Self {
         self.reference_handles = Some(handles);
         self

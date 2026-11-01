@@ -18,8 +18,9 @@ pub use calc_value as value;
 mod call;
 mod udf;
 pub use udf::{
-    ReferenceHandleError, ReferenceHandles, StoredReference, UserFunction, UserFunctionContext,
-    UserFunctionInvocation, UserFunctionStep, UserInvocationFrame,
+    ReferenceHandleError, ReferenceHandles, StoredReference, UserCallableIdentity,
+    UserExternalInputs, UserFunction, UserFunctionContext, UserFunctionInvocation,
+    UserFunctionStep, UserInputKey, UserInputRead, UserInvocationFrame, UserReevaluationReason,
 };
 mod catalogue;
 mod coerce;

@@ -225,6 +225,7 @@ pub struct BoundaryReadSpan {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ReadCertificate {
     pub observations: Vec<CachedObservation>,
+    pub external_inputs: Vec<calc_fml::UserInputRead>,
     pub callables: Vec<calc_fml::CallableBindingProof>,
     pub invocations: Vec<CallInvocation>,
     pub udf_volatile: Option<bool>,
@@ -337,6 +338,11 @@ pub enum CalcEvent {
     Rejected {
         at: CellKey,
     },
+    Reevaluated {
+        previous: InvocationId,
+        next: InvocationId,
+        invocations: Vec<CallInvocation>,
+    },
     AwaitingAsync(AsyncToken),
     AsyncReturned {
         token: u64,
@@ -360,6 +366,8 @@ pub(crate) struct ContractState {
     pub bindings: u64,
     pub coordinates: u64,
     pub facts: u64,
+    pub external_inputs: u64,
+    pub external_versions: BTreeMap<calc_fml::UserInputKey, u64>,
     generations: BTreeMap<NodeId, u64>,
     requirements: BTreeMap<NodeId, RequirementState>,
     writes: Vec<(GridArea, u64)>,
@@ -386,6 +394,8 @@ impl ContractState {
             bindings: 1,
             coordinates: 1,
             facts: 1,
+            external_inputs: 0,
+            external_versions: BTreeMap::new(),
             generations: BTreeMap::new(),
             requirements: BTreeMap::new(),
             writes: Vec::new(),
@@ -404,6 +414,8 @@ impl ContractState {
         self.coordinates = self.epoch;
         self.environment = previous.environment;
         self.facts = previous.facts;
+        self.external_inputs = previous.external_inputs;
+        self.external_versions = previous.external_versions.clone();
         self.generation = previous.generation;
         self.generations.clear();
         self.requirements.clear();
@@ -873,6 +885,15 @@ pub(crate) fn certificate_valid_at(
         || stamp.certification.required != required
         || stamp.reads.semantic_environment != state.contract.environment
         || stamp.reads.bindings != state.contract.bindings
+        || stamp.reads.external_inputs.iter().any(|read| {
+            state
+                .contract
+                .external_versions
+                .get(&read.key)
+                .copied()
+                .unwrap_or(0)
+                != read.sequence
+        })
         || !name_bindings_valid(inputs, &stamp.reads.names)
         || stamp
             .reads

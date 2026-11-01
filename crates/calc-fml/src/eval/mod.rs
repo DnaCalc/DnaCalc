@@ -216,6 +216,9 @@ pub struct UserFunctionEffects {
     pub(crate) calls: usize,
     pub(crate) volatile: bool,
     pub(crate) invocations: Vec<UserCallRecord>,
+    pub(crate) reevaluation: Option<calc_func::UserReevaluationReason>,
+    pub(crate) callable_reads: Vec<crate::CallableBindingProof>,
+    pub(crate) external_inputs: Vec<calc_func::UserInputRead>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -223,6 +226,7 @@ pub struct UserCallRecord {
     pub id: u64,
     pub parent: Option<u64>,
     pub callable: crate::CallableHandle,
+    pub state_lane: Option<u64>,
     pub call_site: u32,
     pub occurrence: Vec<u32>,
     pub completed: bool,
@@ -230,6 +234,15 @@ pub struct UserCallRecord {
 }
 
 impl UserFunctionEffects {
+    pub fn external_inputs(&self) -> &[calc_func::UserInputRead] {
+        &self.external_inputs
+    }
+    pub fn reevaluation(&self) -> Option<calc_func::UserReevaluationReason> {
+        self.reevaluation
+    }
+    pub fn callable_reads(&self) -> &[crate::CallableBindingProof] {
+        &self.callable_reads
+    }
     pub fn invocations(&self) -> &[UserCallRecord] {
         &self.invocations
     }
