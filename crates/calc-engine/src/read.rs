@@ -410,12 +410,13 @@ fn table_info(table: &calc_doc_model::Table) -> TableInfo {
     }
 }
 
-/// An admission-time cache pin. Only ordinary scalar formula records are permitted here;
-/// cached array topology remains an explicit refusal until its complete read view is modelled.
+/// An admission-time cache pin, including the ownership and values of calculated arrays.
+/// Imported images join it only when every child cache and the owning anchor are present.
 #[derive(Debug)]
 pub(crate) struct BoundarySnapshot {
     view: crate::contract::ReadViewId,
     entries: BTreeMap<CellKey, BoundaryValue>,
+    spills: SpillIndex,
 }
 #[derive(Debug)]
 struct BoundaryValue {
@@ -425,21 +426,22 @@ struct BoundaryValue {
     imported: bool,
     external: bool,
     source: Option<std::sync::Arc<calc_doc_model::SourcePart>>,
+    extent: Option<GridArea>,
 }
 impl BoundarySnapshot {
+    pub(crate) fn view(&self) -> crate::contract::ReadViewId {
+        self.view
+    }
     pub(crate) fn capture(
         state: &EngineState,
         inputs: &ModelRoot,
         scope: &crate::CalcScope,
     ) -> Self {
         let mut entries = BTreeMap::new();
+        let mut spills = SpillIndex::default();
         for node in state.nodes() {
             let at = node.anchor();
-            if scope.contains(at)
-                || !matches!(inputs.cell(at), Some(CellInput::Formula(_)))
-                || inputs.definitions().array(at).is_some()
-                || state.spills.get(at).is_some()
-            {
+            if scope.contains(at) || !matches!(inputs.cell(at), Some(CellInput::Formula(_))) {
                 continue;
             }
             let Some(result) = state.permitted_cache(at) else {
@@ -453,10 +455,24 @@ impl BoundarySnapshot {
                         .is_some_and(|stamp| stamp.reads.uses_imported_cache),
                     calculation.reads_external_links(),
                 ),
-                FormulaResult::FileCached(cache) => (cache.value().to_value(), true, false),
+                FormulaResult::FileCached(cache)
+                    if inputs.definitions().array(at).is_none()
+                        || state.cached_arrays.contains_key(&node.id()) =>
+                {
+                    (cache.value().to_value(), true, false)
+                }
+                FormulaResult::FileCached(_) => continue,
                 FormulaResult::NotModeled { .. } => continue,
             };
             let requirement = state.contract.requirement(node.id());
+            let held = state
+                .spills
+                .get(at)
+                .or_else(|| state.cached_arrays.get(&node.id()));
+            let extent = held.map(Spill::area);
+            if let Some(spill) = held {
+                spills.insert(spill.clone());
+            }
             entries.insert(
                 at,
                 BoundaryValue {
@@ -465,6 +481,7 @@ impl BoundarySnapshot {
                         _ => None,
                     },
                     node: node.id(),
+                    extent,
                     value,
                     imported,
                     external,
@@ -477,6 +494,7 @@ impl BoundarySnapshot {
         Self {
             view: state.result_view(),
             entries,
+            spills,
         }
     }
     pub(crate) fn span(&self, region: GridArea) -> Option<crate::contract::BoundaryReadSpan> {
@@ -488,16 +506,28 @@ impl BoundarySnapshot {
             imported: 0,
             imported_sources: Vec::new(),
         };
-        for (&at, value) in self.entries.range(region.first()..=region.last()) {
-            if region.contains(at) {
+        let anchors: BTreeSet<_> = self
+            .entries
+            .range(region.first()..=region.last())
+            .filter(|(at, _)| region.contains(**at))
+            .map(|(at, _)| *at)
+            .chain(self.spills.meeting(region).into_iter().map(Spill::anchor))
+            .collect();
+        for at in anchors {
+            let value = &self.entries[&at];
+            let cells = value
+                .extent
+                .and_then(|area| area.intersection(region))
+                .map_or_else(|| u64::from(region.contains(at)), |area| area.cell_count());
+            if cells != 0 {
                 if let Some(source) = &value.source {
                     if !span.imported_sources.contains(source) {
                         span.imported_sources.push(source.clone());
                     }
                 }
-                span.values += 1;
-                span.dirty += u64::from(value.dirty);
-                span.imported += u64::from(value.imported);
+                span.values += cells;
+                span.dirty += cells * u64::from(value.dirty);
+                span.imported += cells * u64::from(value.imported);
             }
         }
         (span.values != 0).then_some(span)
@@ -685,9 +715,21 @@ impl<'a> RecalcView<'a> {
         if let Some(spill) = self.spills.covering(at) {
             return Ok(Some(spill));
         }
+        if let Some(spill) = self.boundary_caches.and_then(|pin| pin.spills.covering(at)) {
+            if let Some(used) = self.boundary_used {
+                used.set(true);
+            }
+            return Ok(Some(spill));
+        }
         if let Some(spill) = self.state.spills.covering(at) {
             let anchor = spill.anchor();
             if self.scope.is_some_and(|scope| !scope.contains(anchor)) {
+                if let Some(spill) = self.boundary_caches.and_then(|pin| pin.spills.covering(at)) {
+                    if let Some(used) = self.boundary_used {
+                        used.set(true);
+                    }
+                    return Ok(Some(spill));
+                }
                 if let Some(boundary) = self.boundary {
                     boundary.set(Some(scope_denial()));
                 }
@@ -1000,6 +1042,7 @@ impl<'a> WorkbookReader<'a> {
         let definitions = inputs.definitions();
         if view.spills.is_empty()
             && view.state.spills.is_empty()
+            && view.boundary_caches.is_none_or(|pin| pin.spills.is_empty())
             && definitions.arrays_meeting(area).next().is_none()
             && definitions.unloaded_in(area).next().is_none()
             && !definitions
@@ -1032,6 +1075,11 @@ impl<'a> WorkbookReader<'a> {
         }
         for spill in view.state.spills.meeting(area) {
             add(spill.area());
+        }
+        if let Some(pin) = view.boundary_caches {
+            for spill in pin.spills.meeting(area) {
+                add(spill.area());
+            }
         }
         for array in definitions.arrays_meeting(area) {
             add(array.area());
@@ -1160,7 +1208,7 @@ impl<'a> WorkbookReader<'a> {
 
 fn scope_denial() -> calc_fml::ReadDenial {
     calc_fml::ReadDenial {
-        construct: "an out-of-scope formula without a permitted scalar cache (dc-hsa5.4)",
+        construct: "an out-of-scope formula without a complete permitted cache (dc-hsa5.4)",
         owner: "dc-hsa5.4",
     }
 }
@@ -1246,12 +1294,9 @@ impl ReferenceReader for WorkbookReader<'_> {
                         // proof remains invalid until all producers finish, and publication repairs
                         // the candidate if an actual footprint reaches it. This avoids inventing a
                         // circular dependency from a merely possible southeast footprint.
-                        let unresolved = unknown
-                            || outside
-                                && (self.view.state.pending.contains(&node) || {
-                                    let requirement = self.view.state.contract.requirement(node);
-                                    requirement.required != requirement.satisfied
-                                });
+                        // Excluded producers use the admission-time cached absence. The
+                        // certificate records that qualification and their unmet requirements.
+                        let unresolved = unknown && !outside;
                         (unresolved
                             && anchor.sheet() == area.sheet()
                             && anchor.row() <= area.last().row()
@@ -1361,6 +1406,27 @@ impl ReferenceReader for WorkbookReader<'_> {
         let Some(node) = view.state.node_at(anchor) else {
             return SpillExtent::None;
         };
+        if view.scope.is_some_and(|scope| !scope.contains(anchor)) {
+            if let Some(pin) = view.boundary_caches
+                && pin
+                    .entries
+                    .get(&anchor)
+                    .is_some_and(|value| value.node == node)
+            {
+                if let Some(used) = view.boundary_used {
+                    used.set(true);
+                }
+                return match pin.spills.get(anchor) {
+                    Some(spill) if spill.is_fixed() => SpillExtent::NotModelled,
+                    Some(spill) => SpillExtent::Area(spill.area()),
+                    None => SpillExtent::Area(GridArea::cell(anchor)),
+                };
+            }
+            if let Some(boundary) = view.boundary {
+                boundary.set(Some(scope_denial()));
+            }
+            return SpillExtent::NotModelled;
+        }
         let (result, spill) = match view.standing(node) {
             NodeStanding::Pending => {
                 self.wait(anchor, node);

@@ -126,6 +126,15 @@ pub(crate) fn spill_of(area: GridArea, array: &CalcArray) -> Spill {
     }
 }
 
+/// A complete imported array image, used only by qualified boundary-cache reads.
+pub(crate) fn cached_spill(area: GridArea, values: CalcArray, fixed: bool) -> Spill {
+    Spill {
+        area,
+        values,
+        fixed,
+    }
+}
+
 /// A legacy array formula's result fitted to its fixed `area`, as Excel fills one: a single value
 /// fills every cell, a result of one row is repeated down the rows and one of one column across
 /// the columns, and a cell past the result shows #N/A.

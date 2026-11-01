@@ -109,6 +109,10 @@ use std::sync::Arc;
 /// settled.
 const MAX_WAVES: u32 = 32;
 
+/// P04, Excel 16.0.20527: a volatile dynamic array whose size keeps changing is
+/// evaluated at most eight times. This is per anchor, separate from graph repair.
+const MAX_SIZING_EVALUATIONS: u32 = 8;
+
 /// Why [`begin_recalc`] refused to start. A refused recalculation evaluates and publishes
 /// nothing; its pending nodes stay pending.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -351,18 +355,25 @@ pub struct RecalcWork {
     /// Nodes to calculate again in the next wave.
     rewave: BTreeSet<NodeId>,
     waves: u32,
+    sizing: BTreeMap<NodeId, Sizing>,
     /// The storage one evaluation works in, kept between evaluations ([`EvalLocal`]).
     pub(crate) local: EvalLocal,
     boundary_caches: crate::read::BoundarySnapshot,
     interest: Vec<GridArea>,
     preferred: BTreeSet<NodeId>,
+    precedents: BTreeMap<NodeId, Vec<NodeId>>,
     reference_rank: BTreeMap<NodeId, usize>,
+    segments: BTreeMap<NodeId, usize>,
+    segment_scheduling: bool,
+    has_fences: bool,
     preferred_quanta: usize,
     urgent_interest: bool,
     service_clock: u64,
     last_service: BTreeMap<NodeId, u64>,
     suspended: BTreeMap<NodeId, EvalLocal>,
-    early_published: BTreeMap<NodeId, crate::contract::ResultStamp>,
+    early_published: BTreeMap<NodeId, Option<crate::contract::ResultStamp>>,
+    publication_fences: bool,
+    fence_flush: Option<usize>,
     publication_sequence: u64,
     failure: Option<RecalcFailure>,
     /// The workbook's iteration settings.
@@ -380,6 +391,14 @@ pub struct RecalcWork {
     /// With iteration off, the formulas a circular reference left uncalculated (dc-10y): those on
     /// a cycle that their evaluations met, and those whose evaluation read one of them.
     kept: BTreeSet<NodeId>,
+}
+
+#[derive(Debug, Default)]
+struct Sizing {
+    evaluations: u32,
+    changing: bool,
+    exhausted: bool,
+    previous: Option<GridArea>,
 }
 
 /// The storage one evaluation works in (dc-2m0: each thread of a parallel recalculation has its
@@ -480,6 +499,11 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
+    /// Request installation handoffs before crossing observation fences. A caller
+    /// using this route must drain `publish_ready` between `step` calls.
+    pub fn enable_publication_fences(&mut self) {
+        self.publication_fences = true;
+    }
     /// Select the measured Manual ForceAll-range profile before admission is delivered.
     pub fn with_manual_range_poststate(mut self) -> Self {
         assert!(
@@ -496,9 +520,9 @@ impl RecalcWork {
         }
         self
     }
-    /// Prioritize the existing targets and their prerequisite cone. Commands containing
-    /// callbacks, volatiles or session units retain their complete reference order: no
-    /// observation fence can be crossed by this conservative pure-command scheduler.
+    /// Prioritize existing targets and their prerequisite cone inside each pure segment.
+    /// Callback-bearing bindings and unresolved macro calls separate the segments. Pure volatile scalars
+    /// keep their command/pass draw identity when interest changes.
     pub fn set_interest(&mut self, state: &EngineState, inputs: &ModelRoot, areas: &[GridArea]) {
         if self.interest == areas {
             return;
@@ -507,15 +531,7 @@ impl RecalcWork {
             self.next != 0 || !self.ready.is_empty() || !self.suspended.is_empty();
         self.interest = areas.to_vec();
         self.preferred.clear();
-        if self.iteration.enabled()
-            || !self.cyclic.is_empty()
-            || !inputs.definitions().data_tables().is_empty()
-            || self.order.iter().any(|node| {
-                state.volatile.contains(node)
-                    || !matches!(state.bindings.get(node), Some(Binding::Placed(instance, _))
-                    if !instance.plan().has_user_calls() && !instance.plan().reads_external_links())
-            })
-        {
+        if !self.segment_scheduling || !self.cyclic.is_empty() {
             return;
         }
         let members: BTreeSet<_> = self.order.iter().copied().collect();
@@ -546,6 +562,7 @@ impl RecalcWork {
                 }
             }
         }
+        self.precedents = producers;
     }
 
     pub fn continuation_progress(&self) -> Option<calc_fml::ContinuationProgress> {
@@ -770,7 +787,7 @@ pub fn begin_recalc(
 }
 
 /// Exact SliceV1 scope. Ordinary scalar boundary caches are pinned and qualified; imported
-/// caches never acquire producing invocations or freshness. Array boundary caches remain refused.
+/// caches never acquire producing invocations or freshness. Arrays require complete cached topology.
 pub fn begin_recalc_scoped(
     state: &mut EngineState,
     inputs: &ModelRoot,
@@ -1042,16 +1059,52 @@ fn begin_with_scope(
         .enumerate()
         .map(|(rank, node)| (*node, rank))
         .collect();
+    let mut segment = 0;
+    let segments: BTreeMap<_, _> = order
+        .iter()
+        .map(|node| {
+            let fence = match state.bindings.get(node) {
+                Some(Binding::Placed(instance, _)) => instance.plan().has_user_calls(),
+                Some(Binding::Refused(NotModeled::Compile(
+                    calc_fml::CompileError::UnknownFunction { .. },
+                ))) => inputs.definitions().macro_enabled(),
+                _ => false,
+            };
+            if fence {
+                segment += 1;
+            }
+            let own = segment;
+            if fence {
+                segment += 1;
+            }
+            (*node, own)
+        })
+        .collect();
+    let segment_scheduling = !iteration.enabled()
+        && inputs.definitions().data_tables().is_empty()
+        && !order.iter().any(|node| {
+            state.volatile.contains(node)
+                && matches!(
+                    state.bindings.get(node),
+                    Some(Binding::Placed(_, ArrayRole::Spill))
+                )
+        });
     Ok(RecalcWork {
         interest: Vec::new(),
         preferred: BTreeSet::new(),
+        precedents: BTreeMap::new(),
         reference_rank,
+        segments,
+        has_fences: segment != 0,
+        segment_scheduling,
         preferred_quanta: 0,
         urgent_interest: false,
         service_clock: 0,
         last_service: BTreeMap::new(),
         suspended: BTreeMap::new(),
         early_published: BTreeMap::new(),
+        publication_fences: false,
+        fence_flush: None,
         publication_sequence: 0,
         boundary_caches,
         admission: admission.clone(),
@@ -1082,6 +1135,7 @@ fn begin_with_scope(
         dynamic,
         rewave: BTreeSet::new(),
         waves: 0,
+        sizing: BTreeMap::new(),
         local: EvalLocal::default(),
         failure: None,
         iteration,
@@ -1322,6 +1376,19 @@ pub fn step(
     }
     let mut evaluations = 0;
     while work.failure.is_none() && evaluations < budget.evaluations {
+        if work.publication_fences
+            && work.has_fences
+            && work.segment_scheduling
+            && work.waves == 0
+            && let Some(segment) = active_segment(work)
+            && work.progress.staged_results().any(|(node, result)| {
+                work.segments.get(&node).is_some_and(|own| *own < segment)
+                    && work.early_published.get(&node) != Some(&result.stamp().cloned())
+            })
+        {
+            work.fence_flush = Some(segment);
+            break;
+        }
         let Some(node) = next_node(state, inputs, work) else {
             if queue_certificate_repairs(state, inputs, work) {
                 continue;
@@ -1466,6 +1533,7 @@ mod parallel {
     ) -> bool {
         state.threads > 1
             && work.interest.is_empty()
+            && !work.has_fences
             && work.suspended.is_empty()
             && work.local.activation.is_none()
             && observer.is_silent()
@@ -1718,17 +1786,17 @@ mod parallel {
     }
 }
 
-/// Publish certified interested scalar targets while unrelated pure work remains suspended.
-/// A target must validate against the installed state, without staged operands. Consequently
-/// its prerequisite installations precede it. Spills, absence-sensitive reads, cache-qualified
-/// results, callbacks and session units remain atomic at finish.
+/// Install interested scalars, or the completed prefix before an observation fence.
+/// Prefix spills install values, ownership and removals in the same publication unit.
+/// An unprovable prefix stops the command before any later callback can enter.
 pub fn publish_ready(
     state: &mut EngineState,
     inputs: &ModelRoot,
     work: &mut RecalcWork,
 ) -> Option<ValueDelta> {
+    let flush = work.fence_flush;
     if work.failure.is_some()
-        || work.preferred.is_empty()
+        || work.preferred.is_empty() && flush.is_none()
         || work.waves != 0
         || !work.rewave.is_empty()
         || work.iterating()
@@ -1740,39 +1808,42 @@ pub fn publish_ready(
     {
         return None;
     }
-    let empty = Progress::new(0);
+    let in_prefix = |node| {
+        flush.is_some_and(|segment| work.segments.get(&node).is_some_and(|own| *own < segment))
+    };
     let mut candidates: Vec<_> = work
         .progress
         .staged_results()
-        .filter(|(node, _)| work.preferred.contains(node))
+        .filter(|(node, _)| work.preferred.contains(node) || in_prefix(*node))
         .map(|(node, _)| node)
         .collect();
     candidates.sort_by_key(|node| work.reference_rank.get(node).copied().unwrap_or(usize::MAX));
+    let empty = Progress::new(0);
     let mut changes = Vec::new();
+    let mut spill_changes = Vec::new();
+    let mut installed = Vec::new();
+    let mut blocked_prefix = None;
     for node in candidates {
+        let prefix = in_prefix(node);
         let at = live_anchor(state, node);
-        if inputs.definitions().array(at).is_some()
-            || state.spills.get(at).is_some()
-            || work.spills.get(at).is_some()
+        if !prefix
+            && (inputs.definitions().array(at).is_some()
+                || state.spills.get(at).is_some()
+                || work.spills.get(at).is_some())
         {
             continue;
         }
         let result = work
             .progress
             .staged(node)
-            .expect("candidate came from staged results");
-        let Some(stamp) = result.stamp() else {
+            .expect("candidate came from staged results")
+            .clone();
+        let stamp = result.stamp();
+        if work.early_published.get(&node) == Some(&stamp.cloned()) {
             continue;
-        };
-        if work.early_published.get(&node) == Some(stamp)
-            || stamp.reads.legacy_boundary
-            || stamp.reads.external_cache
-            || stamp.reads.uses_boundary_cache
-            || stamp.reads.uses_imported_cache
-            || !stamp.reads.absences.is_empty()
-            || !matches!(result, FormulaResult::Calculated { calculation, .. }
-                if !calculation.held_by_circular_rule())
-            || !certificate_valid_at(
+        }
+        let valid = stamp.is_some_and(|stamp| {
+            certificate_valid_at(
                 state,
                 inputs,
                 &empty,
@@ -1781,12 +1852,47 @@ pub fn publish_ready(
                 Some(&work.requirements),
                 work.volatile_input_version,
             )
-        {
+        });
+        let permitted = if prefix {
+            valid || stamp.is_none() && matches!(result, FormulaResult::NotModeled { .. })
+        } else {
+            valid
+                && stamp.is_some_and(|stamp| {
+                    !stamp.reads.legacy_boundary
+                        && !stamp.reads.external_cache
+                        && !stamp.reads.uses_boundary_cache
+                        && !stamp.reads.uses_imported_cache
+                        && stamp.reads.absences.is_empty()
+                })
+                && matches!(result, FormulaResult::Calculated { ref calculation, .. } if !calculation.held_by_circular_rule())
+        };
+        if !permitted {
+            if prefix {
+                blocked_prefix = Some(at);
+            }
             continue;
         }
-        work.early_published.insert(node, stamp.clone());
-        state.contract.satisfy(node, Some(stamp), work.pass);
-        state.results.publish(node, at, result.clone());
+        let before = state.spills.remove(at).map(|spill| spill.area());
+        let after = work.spills.get(at).cloned();
+        let after_area = after.as_ref().map(Spill::area);
+        if let Some(spill) = after {
+            state.spills.insert(spill);
+        }
+        if before != after_area {
+            spill_changes.push(SpillChange {
+                anchor: at,
+                before,
+                after: after_area,
+            });
+        }
+        state.blocked_spills.remove(&at);
+        if let Some(extent) = work.blocked_spills.get(&at) {
+            state.blocked_spills.insert(at, *extent);
+        }
+        state.contract.satisfy(node, stamp, work.pass);
+        work.early_published.insert(node, stamp.cloned());
+        state.cached_arrays.remove(&node);
+        state.results.publish(node, at, result);
         state.pending.remove(&node);
         state.entered.remove(&node);
         if work.admission.range_post_state == crate::contract::RangePostState::StillRequired {
@@ -1797,10 +1903,42 @@ pub fn publish_ready(
         if let Some(dynamic) = work.dynamic.get(node) {
             state.set_dynamic(node, dynamic.clone());
         }
+        installed.push(node);
         changes.push(ValueChange::Published { at, node });
     }
     if changes.is_empty() {
+        if let Some(at) = blocked_prefix {
+            work.failure = Some(RecalcFailure::InvalidCertificate { at });
+        }
         return None;
+    }
+    if !spill_changes.is_empty() {
+        state.spill_epoch = state
+            .spill_epoch
+            .checked_add(1)
+            .expect("occupancy version exhausted");
+        for change in &spill_changes {
+            for area in change.before.iter().chain(change.after.iter()) {
+                state.contract.record_occupancy(*area, state.spill_epoch);
+            }
+        }
+    }
+    // Published certificates describe the installed topology. Keep their staged copies
+    // identical, so finish neither installs them twice nor certifies old occupancy versions.
+    for node in installed {
+        if let Some(result) = state.results.of_mut(node) {
+            result.rebase_occupancy(|region| state.contract.occupancy(region));
+            work.early_published.insert(node, result.stamp().cloned());
+            work.progress.stage(node, result.clone());
+        }
+    }
+    if !spill_changes.is_empty() && !work.invalidated_outside.is_empty() {
+        let invalidated = std::mem::take(&mut work.invalidated_outside);
+        state.contract.invalidate(invalidated.iter().copied());
+        state.pending.extend(invalidated);
+    }
+    if blocked_prefix.is_none() {
+        work.fence_flush = None;
     }
     state.generation = state
         .generation
@@ -1819,8 +1957,10 @@ pub fn publish_ready(
     changes.sort_by_key(|change| match change {
         ValueChange::Published { at, .. } | ValueChange::Removed { at, .. } => *at,
     });
+    spill_changes.sort_by_key(|change| change.anchor);
     Some(
         ValueDelta::new(work.revision, work.calculation.tick(), changes)
+            .with_spill_changes(spill_changes)
             .with_events(vec![CalcEvent::Published(unit)]),
     )
 }
@@ -1900,10 +2040,7 @@ pub fn finish(
         published[node.slot() as usize] = true;
         let at = live_anchor(state, node);
         installed.push(node);
-        if result
-            .stamp()
-            .is_some_and(|stamp| work.early_published.get(&node) == Some(stamp))
-        {
+        if work.early_published.get(&node) == Some(&result.stamp().cloned()) {
             continue;
         }
         let before = state.spills.remove(at).map(|spill| spill.area());
@@ -1924,6 +2061,7 @@ pub fn finish(
             state.blocked_spills.insert(at, *extent);
         }
         state.contract.satisfy(node, result.stamp(), work.pass);
+        state.cached_arrays.remove(&node);
         state.results.publish(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
     }
@@ -2817,6 +2955,58 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
         if let Some(node) = interested_node(state, work) {
             return Some(node);
         }
+        if work.segment_scheduling
+            && (work.has_fences || !work.preferred.is_empty())
+            && work.waves == 0
+            && work.cyclic.is_empty()
+            && let Some(segment) = active_segment(work)
+        {
+            let blocked: Vec<_> = work
+                .waits_on
+                .iter()
+                .filter_map(|(&node, &on)| {
+                    (work.segments.get(&node) == Some(&segment)
+                        && work.segments.get(&on).is_some_and(|later| *later > segment))
+                    .then_some(node)
+                })
+                .collect();
+            if !blocked.is_empty() {
+                for node in blocked {
+                    if let Some(on) = work.waits_on.remove(&node)
+                        && let Some(waiters) = work.waiting.get_mut(&on)
+                    {
+                        waiters.retain(|n| *n != node);
+                    }
+                    let done = refused(
+                        work,
+                        NotModeled::Evaluation(EvalFault::NotModelled {
+                            construct: "a dynamic prerequisite across an observation fence",
+                            owner: "dc-hsa5.4",
+                        }),
+                    );
+                    stage(state, inputs, work, node, done);
+                }
+                continue;
+            }
+            let mut stuck: Vec<_> = work
+                .waits_on
+                .keys()
+                .copied()
+                .filter(|node| work.segments.get(node) == Some(&segment))
+                .collect();
+            if !stuck.is_empty() {
+                sort_members(state, inputs, &mut stuck);
+                for node in stuck {
+                    if let Some(on) = work.waits_on.remove(&node)
+                        && let Some(waiters) = work.waiting.get_mut(&on)
+                    {
+                        waiters.retain(|n| *n != node);
+                    }
+                    keep(state, inputs, work, node);
+                }
+                continue;
+            }
+        }
         if let Some(node) = work.ready.pop_front() {
             return Some(node);
         }
@@ -2859,9 +3049,14 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
 /// Choose one quantum without moving the command's admitted reference ranks. Off-interest
 /// work gets the eighth contested quantum, even while an interested kernel keeps yielding.
 fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId> {
-    if work.preferred.is_empty() || work.waves != 0 || !work.cyclic.is_empty() {
+    if !work.segment_scheduling
+        || (!work.has_fences && work.preferred.is_empty())
+        || work.waves != 0
+        || !work.cyclic.is_empty()
+    {
         return None;
     }
+    let segment = active_segment(work)?;
     // Spill reservation order is semantic. Interest may pass a suspended producer to run
     // scalar work, but may not admit a later producer before the first producer completes.
     let is_array = |node: NodeId| {
@@ -2885,6 +3080,14 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
         .copied()
         .chain(work.order[work.next..].iter().copied())
         .filter(|node| !work.progress.is_evaluated(*node) && !work.waits_on.contains_key(node))
+        .filter(|node| {
+            work.precedents
+                .get(node)
+                .into_iter()
+                .flatten()
+                .all(|producer| work.progress.is_evaluated(*producer))
+        })
+        .filter(|node| work.segments.get(node) == Some(&segment))
         .filter(|node| !is_array(*node) || first_array == Some(*node));
     let mut preferred = None;
     let mut other = None;
@@ -2899,7 +3102,11 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
                 preferred = Some((rank, node));
             }
         } else {
-            let age = work.last_service.get(&node).copied().unwrap_or(0);
+            let age = if work.preferred.is_empty() {
+                0
+            } else {
+                work.last_service.get(&node).copied().unwrap_or(0)
+            };
             if other.is_none_or(|held: (u64, usize, NodeId)| (age, rank, node) < held) {
                 other = Some((age, rank, node));
             }
@@ -2935,6 +3142,14 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
         work.next += 1;
     }
     Some(node)
+}
+
+fn active_segment(work: &RecalcWork) -> Option<usize> {
+    work.segments
+        .iter()
+        .filter(|(node, _)| !work.progress.is_evaluated(**node))
+        .map(|(_, segment)| *segment)
+        .min()
 }
 
 /// Ends a pass of an iterating recalculation: when it changed the value of a formula on a cycle
@@ -3176,7 +3391,13 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
 /// Stages an evaluated node's result, spill and dynamic prerequisites, releases the nodes that
 /// waited for it, and, when its filled area changed, marks for the next wave the readers of the
 /// cells it gained or lost that are already evaluated or not calculated by this recalculation.
-fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: NodeId, done: Done) {
+fn stage(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    work: &mut RecalcWork,
+    node: NodeId,
+    mut done: Done,
+) {
     let at = live_anchor(state, node);
     let before = match work.filled.get(node) {
         Some(filled) => *filled,
@@ -3197,6 +3418,57 @@ fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
                 }),
         },
     };
+    if state.volatile.contains(&node)
+        && matches!(
+            state.bindings.get(&node),
+            Some(Binding::Placed(_, ArrayRole::Spill))
+        )
+        && matches!(done.result, FormulaResult::Calculated { .. })
+        && done.blocked.is_none()
+    {
+        let sizing = work.sizing.entry(node).or_insert_with(|| Sizing {
+            previous: before.or_else(|| {
+                let error = state
+                    .permitted_cache(at)
+                    .and_then(FormulaResult::calculated)
+                    .is_some_and(|(value, _)| value.as_error().is_some());
+                (!error).then_some(GridArea::cell(at))
+            }),
+            ..Sizing::default()
+        });
+        sizing.evaluations += 1;
+        let after = done.spill.as_ref().map(Spill::area).or_else(|| {
+            done.result
+                .calculated()
+                .filter(|(value, _)| value.as_error().is_none())
+                .map(|_| GridArea::cell(at))
+        });
+        // A held footprint or two consecutive equal sizes ends sizing. A transient
+        // error after resizing began does not establish a size (P04's third-call error).
+        let changed =
+            after.is_some() && sizing.previous != after || sizing.changing && after.is_none();
+        sizing.changing |= after.is_some() && sizing.previous != after;
+        sizing.previous = after;
+        if sizing.exhausted || changed {
+            if !sizing.exhausted && sizing.evaluations < MAX_SIZING_EVALUATIONS {
+                work.rewave.insert(node);
+            } else {
+                sizing.exhausted = true;
+                if let FormulaResult::Calculated { value, .. } = &mut done.result {
+                    *value = CalcValue::error(calc_value::WorksheetErrorCode::Spill);
+                }
+                done.spill = None;
+                if let Some(mut stamp) = done.result.stamp().cloned() {
+                    stamp.completion = TargetCompletion::WorksheetError;
+                    stamp
+                        .reads
+                        .absences
+                        .retain(|proof| proof.kind != AbsenceKind::SpillReservation);
+                    done.result.set_stamp(stamp);
+                }
+            }
+        }
+    }
     let after = done.spill.as_ref().map(Spill::area);
     work.blocked_spills.remove(&at);
     if let Some(extent) = done.blocked {
@@ -3232,8 +3504,13 @@ fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
             let affected = dirty_closure(state, inputs, outside, &|node| {
                 published_areas(state, inputs, node)
             });
-            work.invalidated_outside
-                .extend(affected.members().iter().copied());
+            work.invalidated_outside.extend(
+                affected
+                    .members()
+                    .iter()
+                    .copied()
+                    .filter(|reader| !work.admission.scope.contains(live_anchor(state, *reader))),
+            );
         }
         for reader in readers {
             if !work.admission.scope.contains(live_anchor(state, reader)) {
@@ -3373,6 +3650,16 @@ impl ReferenceReader for Observed<'_, '_> {
     }
 
     fn spill_extent(&mut self, anchor: CellKey) -> calc_fml::reference::SpillExtent {
+        let region = GridArea::cell(anchor);
+        self.footprint.borrow_mut().push(region);
+        self.value_reads.borrow_mut().push((
+            calc_fml::ReadRequest {
+                purpose: calc_fml::ReadPurpose::ReferenceShape,
+                facets: calc_fml::ObservableFacets::Shape,
+                ..calc_fml::ReadRequest::DEPENDENCY
+            },
+            region,
+        ));
         self.cells.spill_extent(anchor)
     }
 
@@ -3674,8 +3961,35 @@ fn evaluate_with(
                 node,
                 Some(shared.requirements),
             ),
+            cached: None,
             blanks: vec![blank],
         });
+    }
+    for proof in &mut reads.absences {
+        proof.pending_producers = producer_pending_at(
+            state,
+            inputs,
+            shared.progress,
+            proof.region,
+            &proof.blanks,
+            node,
+            Some(shared.requirements),
+        );
+        if proof.pending_producers != 0
+            && crate::contract::producer_pending_in(
+                state,
+                inputs,
+                shared.progress,
+                proof.region,
+                &proof.blanks,
+                node,
+                Some(shared.requirements),
+                &|at| shared.scope.contains(at),
+            ) == 0
+        {
+            proof.cached = Some(shared.boundary_caches.view());
+            reads.uses_boundary_cache = true;
+        }
     }
     if let Some(region) = done.spill.as_ref().map(Spill::area).or(done.blocked) {
         reads.absences.push(AbsenceProof {
@@ -3686,6 +4000,7 @@ fn evaluate_with(
             corridor: state.contract.authored(region),
             producers: producer_version_at(state, region, node, Some(shared.requirements)),
             pending_producers: 0,
+            cached: None,
             blanks: Vec::new(),
         });
     }

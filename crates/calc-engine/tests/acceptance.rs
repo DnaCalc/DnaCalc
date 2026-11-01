@@ -6072,7 +6072,7 @@ fn contract_interest_gives_the_eighth_contested_quantum_to_older_other_work() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn contract_interest_preserves_reference_order_for_volatile_commands() {
+fn contract_interest_promotes_a_pure_volatile_scalar_with_the_same_pass() {
     let mut ids: IdAllocator<SheetId> = IdAllocator::new();
     let sheet = ids.issue().unwrap();
     let a = key(sheet, 1, 1);
@@ -6103,7 +6103,16 @@ fn contract_interest_preserves_reference_order_for_volatile_commands() {
         WorkBudget::evaluations(1),
         &mut Unobserved,
     );
-    assert!(work.continuation_progress().unwrap().completed_elements > first.completed_elements);
+    assert_eq!(
+        work.continuation_progress().unwrap().completed_elements,
+        first.completed_elements
+    );
+    let result = work.candidate(state.node_at(b).unwrap()).unwrap();
+    assert!(result.calculated().unwrap().0.as_number().is_some());
+    assert_eq!(
+        result.stamp().unwrap().certification.pass,
+        work.admission().pass
+    );
     assert!(state.result(b).is_none());
 }
 
@@ -6265,4 +6274,550 @@ fn contract_first_spill_reuse_after_prefix_publication_retains_valid_provenance(
         !book.state.stale(&book.root).unwrap().contains(&e),
         "a completed reused spill must project as calculated"
     );
+}
+
+/// P04: volatile resizing uses new evaluations, stops on the held/repeated size,
+/// and reports #SPILL! after eight unsuccessful sizes. Nonvolatile resizing runs once.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_volatile_spill_sizing_is_bounded_per_anchor() {
+    #[derive(Default)]
+    struct Sizes(Vec<usize>);
+    impl ReadObserver for Sizes {
+        fn observe(&mut self, _: CellKey, _: GridArea, _: u64, _: CellRun<'_>) -> ControlFlow<()> {
+            ControlFlow::Continue(())
+        }
+        fn evaluated(&mut self, evaluation: ObservedEvaluation<'_>) {
+            self.0.push(
+                evaluation
+                    .outcome()
+                    .unwrap()
+                    .as_array()
+                    .map_or(1, |a| a.shape().rows),
+            );
+        }
+    }
+    for budget in [1, usize::MAX] {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = ids.issue().unwrap();
+        let at = key(sheet, 1, 1);
+        for (text, volatile) in [
+            ("_xlfn.SEQUENCE(IF(NOW()>1,2,1))", true),
+            ("_xlfn.SEQUENCE(IF(Z1>1,2,1))", false),
+        ] {
+            let mut root = l3_root(
+                &[(sheet, "Sizing")],
+                vec![(at, formula(text)), (key(sheet, 1, 26), number(0.0))],
+                Definitions::new(
+                    vec![ArrayFormula::new(
+                        GridArea::cell(at),
+                        ArrayKind::Dynamic { collapsed: false },
+                    )],
+                    vec![],
+                    vec![],
+                    [],
+                ),
+            );
+            let mut state = EngineState::new(&root);
+            state.set_environment(Some(calc_fml::CalcEnvironment::dates(
+                calc_fml::DateSystem::System1900,
+            )));
+            state.set_clock(Some(0.0));
+            recalc(&mut state, &root, &mut Unobserved);
+            state.set_clock(Some(2.0));
+            root = edit(&mut state, &root, vec![set(key(sheet, 1, 26), number(2.0))]);
+            let mut work = calc_engine::begin_recalc_scoped(
+                &mut state,
+                &root,
+                NumericMode::Fast,
+                calc_engine::CalcScope::Range(vec![GridArea::cell(at)]),
+                calc_engine::EvalSelection::ForceAll,
+            )
+            .unwrap();
+            let mut sizes = Sizes::default();
+            while matches!(
+                step(
+                    &state,
+                    &root,
+                    &mut work,
+                    WorkBudget::evaluations(budget),
+                    &mut sizes
+                ),
+                RecalcProgress::Pending { .. }
+            ) {}
+            finish(&mut state, &root, work).unwrap();
+            assert_eq!(sizes.0, if volatile { vec![2, 2] } else { vec![2] });
+            assert_eq!(state.spill(at).unwrap().area().row_count(), 2);
+            let mut sizes = Sizes::default();
+            recalc(&mut state, &root, &mut sizes);
+            assert_eq!(sizes.0, if volatile { vec![2] } else { vec![] });
+        }
+        let root = l3_root(
+            &[(sheet, "ErrorElement")],
+            vec![(at, formula("IF(RAND()>-1,{#N/A;2},{#N/A;3})"))],
+            Definitions::new(
+                vec![ArrayFormula::new(
+                    GridArea::cell(at),
+                    ArrayKind::Dynamic { collapsed: false },
+                )],
+                vec![],
+                vec![],
+                [],
+            ),
+        );
+        let mut state = EngineState::new(&root);
+        let mut sizes = Sizes::default();
+        recalc(&mut state, &root, &mut sizes);
+        assert_eq!(sizes.0, vec![2, 2]);
+        assert_eq!(
+            l1_value(&state, at),
+            l2_error(calc_value::WorksheetErrorCode::NA)
+        );
+        assert_eq!(state.spill(at).unwrap().area().row_count(), 2);
+        let root = l3_root(
+            &[(sheet, "Changing")],
+            vec![(at, formula("_xlfn.SEQUENCE(RANDBETWEEN(2,1000))"))],
+            Definitions::new(
+                vec![ArrayFormula::new(
+                    GridArea::cell(at),
+                    ArrayKind::Dynamic { collapsed: false },
+                )],
+                vec![],
+                vec![],
+                [],
+            ),
+        );
+        let mut state = EngineState::new(&root);
+        state.set_random_seed(7);
+        let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+        let mut sizes = Sizes::default();
+        while matches!(
+            step(
+                &state,
+                &root,
+                &mut work,
+                WorkBudget::evaluations(budget),
+                &mut sizes
+            ),
+            RecalcProgress::Pending { .. }
+        ) {}
+        finish(&mut state, &root, work).unwrap();
+        assert_eq!(
+            sizes.0.len(),
+            8,
+            "deterministic changing-size stream: {:?}",
+            sizes.0
+        );
+        assert!(sizes.0.windows(2).all(|pair| pair[0] != pair[1]));
+        assert_eq!(
+            l1_value(&state, at),
+            l2_error(calc_value::WorksheetErrorCode::Spill)
+        );
+        assert!(state.spill(at).is_none());
+        assert_eq!(
+            state.result(at).unwrap().stamp().unwrap().completion,
+            calc_engine::contract::TargetCompletion::WorksheetError
+        );
+    }
+}
+
+/// P05's child-only and reader-only commands retain the excluded producer's
+/// complete old topology, and never enlarge their command to calculate its anchor.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_scoped_array_caches_retain_children_extent_and_cached_absence() {
+    let mut book = SevenCellSlice::new();
+    book.baseline();
+    let e = book.c(1, 5);
+    let child = book.c(10, 5);
+    let g = book.c(10, 7);
+    let run = |book: &mut SevenCellSlice, areas| {
+        let work = calc_engine::begin_recalc_scoped(
+            &mut book.state,
+            &book.root,
+            NumericMode::Fast,
+            calc_engine::CalcScope::Range(areas),
+            calc_engine::EvalSelection::ForceAll,
+        )
+        .unwrap();
+        book.complete(work)
+    };
+    book.change(None, Some(10.0));
+    let anchor_before = book.state.result(e).unwrap().clone();
+    let delta = run(&mut book, vec![GridArea::cell(g)]);
+    assert_eq!(l1_value(&book.state, g), CalcValue::number(1.0));
+    assert_eq!(book.state.result(e), Some(&anchor_before));
+    assert_eq!(delta.completion().unwrap().coverage.boundary_cached, 1);
+    let stamp = book.state.result(g).unwrap().stamp().unwrap();
+    assert!(
+        stamp
+            .reads
+            .absences
+            .iter()
+            .any(|p| p.cached.is_some() && p.pending_producers == 1)
+    );
+    assert!(book.state.validated_result(&book.root, g).is_none());
+    run(&mut book, vec![GridArea::cell(e), GridArea::cell(g)]);
+    assert_eq!(l1_value(&book.state, g), CalcValue::number(11.0));
+    assert_eq!(book.state.spill(e).unwrap().area().row_count(), 10);
+    book.change(None, Some(1.0));
+    let anchor_before = book.state.result(e).unwrap().clone();
+    let delta = run(&mut book, vec![GridArea::cell(child)]);
+    assert_eq!(delta.completion().unwrap().coverage.required, 0);
+    assert_eq!(book.state.result(e), Some(&anchor_before));
+    assert_eq!(
+        book.state.spill_covering(child).unwrap().value_at(child),
+        &CalcValue::number(10.0)
+    );
+    let delta = run(&mut book, vec![GridArea::cell(g)]);
+    assert_eq!(l1_value(&book.state, g), CalcValue::number(11.0));
+    assert_eq!(delta.completion().unwrap().coverage.boundary_cached, 1);
+    assert_eq!(book.state.result(e), Some(&anchor_before));
+    let stamp = book.state.result(g).unwrap().stamp().unwrap();
+    assert!(
+        stamp
+            .reads
+            .boundary_caches
+            .iter()
+            .any(|span| span.region == GridArea::cell(child) && span.dirty == 1)
+    );
+    let extent_reader = book.c(1, 8);
+    book.root = edit(
+        &mut book.state,
+        &book.root,
+        vec![set(extent_reader, formula("SUM(E1#)"))],
+    );
+    let delta = run(&mut book, vec![GridArea::cell(extent_reader)]);
+    assert_eq!(
+        l1_value(&book.state, extent_reader),
+        CalcValue::number(55.0)
+    );
+    assert_eq!(delta.completion().unwrap().coverage.boundary_cached, 1);
+    let shape_reader = book.c(1, 9);
+    book.root = edit(
+        &mut book.state,
+        &book.root,
+        vec![set(shape_reader, formula("ROWS(E1#)"))],
+    );
+    let delta = run(&mut book, vec![GridArea::cell(shape_reader)]);
+    assert_eq!(l1_value(&book.state, shape_reader), CalcValue::number(10.0));
+    assert_eq!(delta.completion().unwrap().coverage.boundary_cached, 1);
+    let stamp = book.state.result(shape_reader).unwrap().stamp().unwrap();
+    assert!(
+        stamp
+            .reads
+            .dependencies
+            .iter()
+            .any(|read| read.request.facets == calc_fml::ObservableFacets::Shape)
+    );
+    assert!(
+        book.state
+            .validated_result(&book.root, shape_reader)
+            .is_none()
+    );
+    run(&mut book, vec![GridArea::cell(e), GridArea::cell(g)]);
+    assert!(book.state.spill_covering(child).is_none());
+    assert_eq!(l1_value(&book.state, g), CalcValue::number(1.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_interest_reorders_pure_segments_but_never_crosses_their_fence() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |column| key(s, 1, column);
+    let root = l3_root(
+        &[(s, "Segments")],
+        vec![
+            (c(1), formula("SUM(_xlfn.SEQUENCE(8192))")),
+            (c(2), formula("3")),
+            (c(3), formula("PeekB1()")),
+            (c(4), formula("SUM(_xlfn.SEQUENCE(16384))")),
+            (c(5), formula("5")),
+        ],
+        Definitions::default().with_macro_enabled(true),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    work.enable_publication_fences();
+    work.set_interest(&state, &root, &[GridArea::cell(c(2)), GridArea::cell(c(5))]);
+    work.take_events();
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    let delta = calc_engine::publish_ready(&mut state, &root, &mut work).unwrap();
+    assert!(delta.completion().is_none());
+    assert_eq!(l1_value(&state, c(2)), CalcValue::number(3.0));
+    for _ in 0..64 {
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut Unobserved,
+        );
+        if work.candidate(state.node_at(c(1)).unwrap()).is_some() {
+            break;
+        }
+        assert!(work.candidate(state.node_at(c(3)).unwrap()).is_none());
+        assert!(work.candidate(state.node_at(c(5)).unwrap()).is_none());
+    }
+    assert!(work.candidate(state.node_at(c(1)).unwrap()).is_some());
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    assert!(work.candidate(state.node_at(c(3)).unwrap()).is_none());
+    let prefix = calc_engine::publish_ready(&mut state, &root, &mut work).unwrap();
+    assert!(prefix.completion().is_none());
+    assert_eq!(l1_value(&state, c(1)), CalcValue::number(33_558_528.0));
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    assert!(work.candidate(state.node_at(c(3)).unwrap()).is_some());
+    assert!(work.candidate(state.node_at(c(5)).unwrap()).is_none());
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    let fence = calc_engine::publish_ready(&mut state, &root, &mut work).unwrap();
+    assert!(fence.completion().is_none());
+    assert!(matches!(
+        state.result(c(3)),
+        Some(FormulaResult::NotModeled { .. })
+    ));
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    let delta = calc_engine::publish_ready(&mut state, &root, &mut work).unwrap();
+    assert!(delta.completion().is_none());
+    assert_eq!(l1_value(&state, c(5)), CalcValue::number(5.0));
+    assert!(work.candidate(state.node_at(c(4)).unwrap()).is_none());
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, &root, work).unwrap();
+    assert_eq!(l1_value(&state, c(1)), CalcValue::number(33_558_528.0));
+    assert_eq!(l1_value(&state, c(4)), CalcValue::number(134_225_920.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_off_interest_dependents_wait_for_their_suspended_producer() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |col| key(s, 1, col);
+    let root = l3_root(
+        &[(s, "Ready")],
+        vec![
+            (c(1), formula("SUM(_xlfn.SEQUENCE(8192))")),
+            (c(2), formula("A1+1")),
+            (c(3), formula("3")),
+        ],
+        Definitions::default(),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    work.set_interest(&state, &root, &[GridArea::cell(c(3))]);
+    for _ in 0..64 {
+        let progress = step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut Unobserved,
+        );
+        assert_ne!(progress, RecalcProgress::Failed);
+        if work.candidate(state.node_at(c(1)).unwrap()).is_none() {
+            assert!(work.candidate(state.node_at(c(2)).unwrap()).is_none());
+        }
+        if progress == RecalcProgress::Complete {
+            break;
+        }
+    }
+    finish(&mut state, &root, work).unwrap();
+    assert_eq!(l1_value(&state, c(1)), CalcValue::number(33_558_528.0));
+    assert_eq!(l1_value(&state, c(2)), CalcValue::number(33_558_529.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_fence_prefix_installs_spill_values_and_topology_atomically() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let a = key(s, 1, 1);
+    let fence = key(s, 1, 5);
+    let after = key(s, 1, 6);
+    let root = l3_root(
+        &[(s, "Topology")],
+        vec![
+            (a, formula("_xlfn.SEQUENCE(3)")),
+            (fence, formula("PeekB1()")),
+            (after, formula("SUM(A1#)")),
+        ],
+        Definitions::new(vec![l2_dynamic(a)], vec![], vec![], []).with_macro_enabled(true),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    work.enable_publication_fences();
+    work.take_events();
+    assert!(matches!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Pending { .. }
+    ));
+    assert!(work.candidate(state.node_at(fence).unwrap()).is_none());
+    assert!(state.spill(a).is_none());
+    let prefix = calc_engine::publish_ready(&mut state, &root, &mut work).unwrap();
+    assert!(prefix.completion().is_none());
+    assert_eq!(prefix.spill_changes().len(), 1);
+    let spill = state.spill(a).unwrap();
+    assert_eq!(spill.area().row_count(), 3);
+    for row in 1..=3 {
+        assert_eq!(
+            spill.value_at(key(s, row, 1)),
+            &CalcValue::number(f64::from(row))
+        );
+    }
+    for _ in 0..8 {
+        if step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved,
+        ) == RecalcProgress::Complete
+        {
+            break;
+        }
+        calc_engine::publish_ready(&mut state, &root, &mut work);
+    }
+    let final_delta = finish(&mut state, &root, work).unwrap();
+    assert_eq!(final_delta.completion().unwrap().coverage.refused, 1);
+    assert_eq!(l1_value(&state, after), CalcValue::number(6.0));
+    assert!(
+        final_delta.spill_changes().is_empty(),
+        "the prefix spill is installed only once"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_imported_arrays_require_a_complete_image_and_keep_file_lineage() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |row, col| key(s, row, col);
+    let root = l3_root(
+        &[(s, "Imported")],
+        vec![
+            (c(1, 1), formula("_xlfn.SEQUENCE(3)")),
+            (c(1, 2), formula("SUM(A1#)")),
+            (c(1, 3), formula("ROWS(A1#)")),
+            (c(1, 4), formula("A3+1")),
+        ],
+        Definitions::new(
+            vec![ArrayFormula::new(
+                GridArea::new(c(1, 1), c(3, 1)).unwrap(),
+                ArrayKind::Dynamic { collapsed: false },
+            )],
+            vec![],
+            vec![],
+            [],
+        ),
+    );
+    let source = Arc::new(SourcePart::new("xl/worksheets/sheet1.xml".into(), 123, 456));
+    for complete in [false, true] {
+        let caches = (1..=if complete { 3 } else { 2 }).map(|row| {
+            (
+                c(row, 1),
+                FileCached::new(
+                    CachedValue::Number(FiniteNumber::new(f64::from(row + 6)).unwrap()),
+                    source.clone(),
+                ),
+            )
+        });
+        let mut state = EngineState::with_file_caches(&root, caches).unwrap();
+        let mut work = calc_engine::begin_recalc_scoped(
+            &mut state,
+            &root,
+            NumericMode::Fast,
+            calc_engine::CalcScope::Range(vec![GridArea::new(c(1, 2), c(1, 4)).unwrap()]),
+            calc_engine::EvalSelection::ForceAll,
+        )
+        .unwrap();
+        assert_eq!(
+            step(
+                &state,
+                &root,
+                &mut work,
+                WorkBudget::UNLIMITED,
+                &mut Unobserved
+            ),
+            RecalcProgress::Complete
+        );
+        let delta = finish(&mut state, &root, work).unwrap();
+        assert!(matches!(
+            state.result(c(1, 1)),
+            Some(FormulaResult::FileCached(_))
+        ));
+        assert!(state.result(c(1, 1)).unwrap().stamp().is_none());
+        assert!(
+            state.spill(c(1, 1)).is_none(),
+            "imported topology is never a calculated spill"
+        );
+        if complete {
+            assert_eq!(delta.completion().unwrap().coverage.imported_cached, 3);
+            for (col, expected) in [(2, 24.0), (3, 3.0), (4, 10.0)] {
+                assert_eq!(l1_value(&state, c(1, col)), CalcValue::number(expected));
+                let stamp = state.result(c(1, col)).unwrap().stamp().unwrap();
+                assert!(stamp.reads.uses_boundary_cache && stamp.reads.uses_imported_cache);
+                assert!(
+                    stamp
+                        .reads
+                        .boundary_caches
+                        .iter()
+                        .any(|span| span.imported_sources.contains(&source))
+                );
+                assert!(state.validated_result(&root, c(1, col)).is_none());
+            }
+        } else {
+            assert_eq!(delta.completion().unwrap().coverage.refused, 3);
+            for col in 2..=4 {
+                assert!(matches!(
+                    state.result(c(1, col)),
+                    Some(FormulaResult::NotModeled { .. })
+                ));
+            }
+        }
+    }
 }

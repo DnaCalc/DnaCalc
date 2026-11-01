@@ -44,8 +44,6 @@ use std::sync::Arc;
 /// Why a copy made no edit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CopyRefusal {
-    /// A cut cannot retarget an active scoped command until its transform is implemented.
-    ScopeTransformNotModeled,
     /// The source and the target are on sheets the workbook does not hold.
     UnknownSheet,
     /// The target is not a whole multiple of the source's shape (Excel: "the copy area and the
@@ -83,9 +81,6 @@ pub enum CopyRefusal {
 impl fmt::Display for CopyRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ScopeTransformNotModeled => {
-                f.write_str("finish or cancel the scoped calculation before moving cells (dc-hsa5)")
-            }
             Self::LegacyFill => f.write_str(
                 "fill from a legacy array is not modelled; copy its whole extent instead",
             ),
@@ -235,9 +230,6 @@ impl CopySnapshot {
         cut: bool,
         series: Option<bool>,
     ) -> Result<Vec<CellEdit>, CopyRefusal> {
-        if cut && host.scoped_calculation_active() {
-            return Err(CopyRefusal::ScopeTransformNotModeled);
-        }
         if cut
             && (host.revision() != self.model.revision()
                 || self.styles.iter().any(|(&at, &style)| {
@@ -387,8 +379,27 @@ fn value_input(value: &CalcValue) -> Option<CellInput> {
     })
 }
 
-/// The edits a copy (or, with `cut`, a move) of `from` into `to` makes over the current revision
-/// of `host`.
+/// The address map used by both product cut routes and their history.
+pub(crate) fn move_coordinates(
+    host: &HostState,
+    from: GridArea,
+    to: CellKey,
+) -> calc_fml::reference::StructuralEdit {
+    let name = |sheet| {
+        host.model()
+            .sheet_by_id(sheet)
+            .map(|s| s.name().text().to_string_lossy())
+            .unwrap_or_default()
+    };
+    calc_fml::reference::StructuralEdit::MoveCells {
+        area: from,
+        to,
+        source_name: name(from.sheet()),
+        target_name: name(to.sheet()),
+    }
+}
+
+/// The edits a copy (or cut) makes over the current revision of `host`.
 pub(crate) fn copy_edits(
     host: &HostState,
     from: GridArea,

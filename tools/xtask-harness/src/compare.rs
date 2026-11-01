@@ -342,13 +342,14 @@ impl Recorder for Instrument<'_> {
 }
 
 /// Recalculates `host` to the end with an unlimited budget, showing `recorder` every evaluation.
-/// When the recalculation is refused or fails, `recorder` drops everything it recorded, since no
-/// evaluation it saw was published, and the failure is the run's: every cell is classed `engine`
-/// under its variant.
+/// Prefix publications do not complete the command. On refusal or failure, conservatively
+/// discard the run's evaluation records and count every formula under that engine failure;
+/// certified prefix values may remain installed in the host, but never score as a successful run.
 fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<WorkbookFailure> {
     let progress = loop {
         match step(host, WorkBudget::UNLIMITED, recorder) {
             HostProgress::Calculating { .. } => {}
+            HostProgress::Published(delta) if delta.completion().is_none() => {}
             done => break done,
         }
     };
@@ -358,7 +359,7 @@ fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<Wor
             Some(WorkbookFailure {
                 class: Class::Engine,
                 key: step_key(&failure),
-                message: format!("the recalculation published nothing: {failure}"),
+                message: format!("the recalculation did not complete: {failure}"),
             })
         }
         HostProgress::Current
@@ -1218,7 +1219,7 @@ mod tests {
         assert!(
             failure
                 .message
-                .starts_with("the recalculation published nothing: the recalculation failed"),
+                .starts_with("the recalculation did not complete: the recalculation failed"),
             "{}",
             failure.message
         );

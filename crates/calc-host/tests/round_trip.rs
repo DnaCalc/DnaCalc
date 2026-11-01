@@ -19,18 +19,21 @@ mod seven_cell;
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn contract_scoped_cut_and_cell_shifts_return_a_bounded_refusal() {
-    let mut book = session(&fixture());
-    let calc = sheet(book.host(), "Calc");
-    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
-    for (address, text) in [("Z1", "=1+1"), ("Z2", "=2+2"), ("Z3", "=3+3")] {
-        assert!(
-            book.dispatch(SkinIntent::EnterCell {
-                at: at(calc, address),
-                text: text.into()
-            })
+fn contract_scoped_cut_and_cell_shifts_follow_survivors_through_undo_redo() {
+    use calc_engine::contract::{CalcEvent, CalcScope};
+    let mut book = session(&calc_host::blank_package());
+    let calc = book.host().sheets()[0].id();
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
             .accepted()
-        );
+    );
+    for (address, text) in [
+        ("Z1", "=1+1"),
+        ("Z2", "=2+2"),
+        ("Z3", "=3+3"),
+        ("AB1", "=99"),
+    ] {
+        assert!(enter(&mut book, at(calc, address), text).accepted());
     }
     let source = GridArea::new(at(calc, "Z1"), at(calc, "Z3")).unwrap();
     book.set_calculation_budget(WorkBudget::evaluations(1));
@@ -41,35 +44,27 @@ fn contract_scoped_cut_and_cell_shifts_return_a_bounded_refusal() {
         .accepted()
     );
     assert!(book.has_pending_calculation());
-    let revision = book.host().revision();
-    let depth = book.history_depth();
-    let edit = AxisEdit::new(calc, Axis::Rows, AxisChange::Insert, 1, 1).unwrap();
-    assert!(matches!(
+    book.take_calculation_events();
+    assert!(
         book.dispatch(SkinIntent::Copy {
             from: source,
             to: GridArea::cell(at(calc, "AA1")),
             cut: true
         })
-        .error,
-        Some(IntentError::Copy(
-            calc_host::CopyRefusal::ScopeTransformNotModeled
-        ))
-    ));
-    assert!(matches!(
+        .accepted()
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(
         book.dispatch(SkinIntent::Command(
             calc_host::WorkbookCommand::ShiftCells {
-                area: source,
+                area: GridArea::cell(at(calc, "AA2")),
                 down: true,
                 insert: true
             }
         ))
-        .error,
-        Some(IntentError::Command(
-            calc_host::CommandError::ScopeTransformNotModeled
-        ))
-    ));
-    assert_eq!(book.host().revision(), revision);
-    assert_eq!(book.history_depth(), depth);
+        .accepted()
+    );
     for _ in 0..16 {
         if !book.has_pending_calculation() {
             break;
@@ -77,16 +72,28 @@ fn contract_scoped_cut_and_cell_shifts_return_a_bounded_refusal() {
         book.advance_calculation();
     }
     assert!(!book.has_pending_calculation());
-    for (address, value) in [("Z1", 2.0), ("Z2", 4.0), ("Z3", 6.0)] {
+    let expected = CalcScope::Range(vec![
+        GridArea::new(at(calc, "AA1"), at(calc, "AA4")).unwrap(),
+    ]);
+    let events = book.take_calculation_events();
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, CalcEvent::Admitted(a) if a.scope == expected))
+    );
+    assert!(events.iter().any(|event| matches!(event, CalcEvent::Completed(c) if c.scope == expected && c.coverage.required == 3 && c.coverage.calculated == 3)));
+    for (address, value) in [("AA1", 2.0), ("AA3", 4.0), ("AA4", 6.0)] {
         assert_eq!(
             calculated(book.host(), at(calc, address)),
             Some(CalcValue::number(value))
         );
     }
-    assert!(
-        book.dispatch(SkinIntent::EditAxis(edit)).accepted(),
-        "the bound ends with the scoped calculation"
-    );
+    for address in ["Z1", "Z2", "Z3", "AA2", "AB1"] {
+        assert!(
+            calculated(book.host(), at(calc, address)).is_none(),
+            "scope did not widen to {address}"
+        );
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -4478,4 +4485,149 @@ fn contract_p02_manual_range_followup_demand_survives_the_p06_save_metadata() {
         0
     );
     assert!(part_text(&after_f9, "xl/workbook.xml").contains("calcCompleted=\"1\""));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_deleted_cell_shift_scope_does_not_revive_on_undo() {
+    use calc_engine::contract::{CalcEvent, CalcScope};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    for address in ["A1", "A2", "A3"] {
+        assert!(enter(&mut book, at(s, address), "=2").accepted());
+    }
+    book.set_calculation_budget(WorkBudget::evaluations(1));
+    let area = GridArea::new(at(s, "A1"), at(s, "A3")).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange { areas: vec![area] })
+            .accepted()
+    );
+    book.take_calculation_events();
+    assert!(
+        book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::ShiftCells {
+                area,
+                down: true,
+                insert: false
+            }
+        ))
+        .accepted()
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    book.advance_calculation();
+    let events = book.take_calculation_events();
+    assert!(events.iter().any(|event| matches!(event, CalcEvent::Completed(c) if c.scope == CalcScope::Range(vec![]) && c.coverage.required == 0)));
+    for address in ["A1", "A2", "A3"] {
+        assert!(calculated(book.host(), at(s, address)).is_none());
+    }
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange { areas: vec![area] })
+            .accepted()
+    );
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    for address in ["A1", "A2", "A3"] {
+        assert_eq!(
+            calculated(book.host(), at(s, address)),
+            Some(CalcValue::number(2.0))
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_product_range_reads_imported_array_children_without_calculating_the_anchor() {
+    let mut book = session(&fixture());
+    let s = sheet(book.host(), "Calc");
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    assert!(enter(&mut book, at(s, "Z1"), "=B2+1").accepted());
+    assert!(enter(&mut book, at(s, "Z2"), "=ROWS(A1#)").accepted());
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::new(at(s, "Z1"), at(s, "Z2")).unwrap()]
+        })
+        .accepted()
+    );
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    for (address, expected) in [("Z1", 5.0), ("Z2", 3.0)] {
+        let ProjectedValue::Stale(held) = value(book.host(), at(s, address)) else {
+            panic!("imported inputs cannot establish workbook freshness");
+        };
+        assert_eq!(held.last_value(), Some(&CalcValue::number(expected)));
+        let stamp = held.last_calculation().unwrap().stamp().unwrap();
+        assert!(stamp.reads.uses_imported_cache && stamp.reads.uses_boundary_cache);
+    }
+    let ProjectedValue::Stale(held) = value(book.host(), at(s, "A1")) else {
+        panic!("the excluded anchor keeps its unverified file cache");
+    };
+    assert!(held.file_cache().is_some());
+    assert!(held.last_calculation().is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_paste_cut_drops_overwritten_scope_locations_before_undo() {
+    use calc_engine::contract::{CalcEvent, CalcScope};
+    use calc_host::{CopySnapshot, PasteMode, PasteSource, WorkbookCommand, prepare_paste};
+    for overlapping in [false, true] {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        for (address, text) in [
+            ("A1", "=1"),
+            ("B1", "=2"),
+            ("C1", "=3"),
+            ("D1", "=4"),
+            ("E1", "=5"),
+        ] {
+            assert!(enter(&mut book, at(s, address), text).accepted());
+        }
+        let source = GridArea::new(at(s, "A1"), at(s, "B1")).unwrap();
+        let destination = at(s, if overlapping { "B1" } else { "D1" });
+        let overwritten = at(s, if overlapping { "C1" } else { "D1" });
+        let scope = vec![GridArea::cell(overwritten), GridArea::cell(at(s, "E1"))];
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange { areas: scope })
+                .accepted()
+        );
+        assert!(book.has_pending_calculation());
+        book.take_calculation_events();
+        let snapshot = CopySnapshot::capture(book.host(), source).unwrap();
+        let plan = prepare_paste(
+            book.host(),
+            PasteSource::Snapshot {
+                snapshot: &snapshot,
+                cut: true,
+            },
+            GridArea::cell(destination),
+            PasteMode::All,
+        )
+        .unwrap();
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::Paste(plan)))
+                .accepted()
+        );
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        let expected = if overlapping {
+            CalcScope::Range(vec![GridArea::cell(at(s, "E1"))])
+        } else {
+            CalcScope::Range(vec![])
+        };
+        assert!(
+            book.take_calculation_events()
+                .iter()
+                .any(|e| matches!(e,CalcEvent::Completed(c) if c.scope == expected))
+        );
+        for address in ["A1", "B1", "C1"] {
+            assert!(calculated(book.host(), at(s, address)).is_none());
+        }
+    }
 }

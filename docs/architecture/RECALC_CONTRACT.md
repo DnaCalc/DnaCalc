@@ -387,22 +387,34 @@ promotes its prerequisite cone, never extra scope. Exact kernels yield only at b
 state. The browser driver returns to a real worker task between slices (a resolved-promise chain does not).
 
 Implementation update (dc-hsa5.4, 2026-11-01): root instructions and SEQUENCE kernels retain
-continuations across worker tasks. Pure commands can promote subscribed targets and their prerequisite cone in the first scheduling wave,
-with an eighth-quantum escape for other work. Commands containing user calls, volatiles or session units keep
-their whole reference order; reordering within individual mixed-command fence segments remains open.
-Competing spill producers keep their reference order. Interested scalar candidates publish early only when
-their certificates validate against installed operands and contain no absence, imported-cache or boundary-cache
-qualifications. Complete spills and the remaining results still install at finish. This is narrower than the
-full eight demonstrations below; callable/async and VM3/JIT suspension remain open.
-Live scopes follow axis and sheet edits, including sheet-set Undo without reviving deleted command locations.
-Owned save plans can pin already installed scalar units while another cell remains suspended. The application
-records the excluded D1 callback as a dynamic-array producer: its unresolved corridor can conservatively keep
-E/G and other dependents stale for the workbook, despite actual scoped calculation and reuse. P05 boundary
-absence qualifications remain open; a completed scoped command does not claim workbook-wide freshness.
-The ordinary Manual XML Save(false) default preserves permitted scalar caches with ca=1 and
-calcCompleted=0/calcOnSave=0. Re-entry never inherits an orphaned cache; dirty array topology stays excluded.
-CurrentCalculatedOnly remains an explicit save policy. This does not implement Save(true), BeforeSave handlers,
-CalculationDomain peer-workbook effects, disabled-sheet/TABLE profiles or pending async saves.
+continuations across worker tasks. First-wave interest promotes ready prerequisite cones inside fixed
+callback fence segments, with an eighth-quantum age escape. Pure volatile scalars
+retain their pass and draws when reordered. Volatile arrays, iteration/table sessions and later repair
+waves retain reference order. Competing spills retain semantic reservation order.
+The host requests installation handoffs before a later fence can enter: completed prefix values,
+spill ownership and removals publish together. An unprovable prefix stops before the callback.
+Headless callers enabling those handoffs must drain `publish_ready` between `step` calls.
+Actual callback admission, read-view leases, async completion and VM3/JIT suspension still require
+the callable runtime; these scheduling and publication tests do not demonstrate VBA effects.
+Live range scopes follow cut/paste and cell shifts through the product command and Undo/Redo paths,
+as well as axis/sheet edits. Overwritten cut destinations and deleted locations leave the command;
+Undo never revives them. Disjoint surviving pieces stay disjoint, including cross-sheet moves.
+P05 boundary reads pin a calculated spill or a complete imported array image, including child values
+and `#` shape-only reads. Incomplete imported arrays are refused. Imported values retain SourcePart
+lineage, never a producing invocation. Blank reads with unresolved producers only outside the
+command retain cached-absence qualifications; strict in-scope producers still require resolution.
+Scoped completion does not establish workbook freshness. The application's excluded D1 callback
+can therefore still keep E/G conservatively stale for the workbook.
+P04 volatile dynamic resizing compares the held or preceding valid footprint and starts a new sizing
+pass when it changes, with fresh draws and at most eight sizing evaluations per anchor. A repeated
+size settles earlier; an unstable size publishes #SPILL! without a footprint. Error elements do not
+invalidate an array's shape. Nonvolatile resizing runs once; the separate graph-repair bound stays 32.
+Deterministic tests exercise finite and unlimited budgets; scripted VBA witnesses await the runtime.
+Owned save plans pin installed prefix values while another cell remains suspended. Ordinary Manual
+XML Save(false) preserves permitted scalar caches with ca=1 and calcCompleted=0/calcOnSave=0.
+Re-entry never inherits an orphaned cache; dirty array topology remains excluded from this save policy.
+CurrentCalculatedOnly stays an explicit option. Save(true), BeforeSave handlers, domain-peer live
+updates, disabled-sheet/TABLE profiles and pending async saves remain open.
 
 ## 10. First slice: the eight demonstrations and their oracles
 

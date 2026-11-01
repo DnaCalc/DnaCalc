@@ -159,12 +159,21 @@ impl HostState {
         let loaded = calc_doc::load(&document, &mut sheet_ids).map_err(OpenFailure::Workbook)?;
         let model = Arc::clone(loaded.model());
         let caches = loaded.sheets().iter().flat_map(|sheet| {
-            sheet.formulas().filter_map(move |(row, column, record)| {
-                let cache = record.cache()?;
-                let at = CellKey::new(sheet.id(), row, column)
-                    .expect("calc-doc loads only cells inside the grid");
-                Some((at, cache.clone()))
-            })
+            sheet
+                .formulas()
+                .filter_map(move |(row, column, record)| {
+                    let cache = record.cache()?;
+                    let at = CellKey::new(sheet.id(), row, column)
+                        .expect("calc-doc loads only cells inside the grid");
+                    Some((at, cache.clone()))
+                })
+                .chain(sheet.value_caches().filter_map(|(row, column, cache)| {
+                    let at = CellKey::new(sheet.id(), row, column)
+                        .expect("a loaded cell is on the grid");
+                    (model.definitions().array_containing(at).is_some()
+                        && model.definitions().unloaded(at).is_none())
+                    .then(|| (at, cache.clone()))
+                }))
         });
         let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
         let sheet_identities = model.sheets().iter().map(|s| (s.key(), s.id())).collect();
