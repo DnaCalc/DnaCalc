@@ -252,6 +252,13 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   dirties callers (CallableLease generation, contract 5). DNA-only half (Excel cannot suspend a UDF): suspend a CalcVBA
   invocation, replace `F(Double)` by `F(String)`, resume, then call the retained handle; check code and state lease.
 
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: nine conditions x ten plus property controls. Stored Range
+  follows insert/delete-above/cut and union areas, but deletion/close leaves an unusable Range wrapper (error424),
+  not Nothing; same-name reopen does not repair it. Module replacement resets state to Nothing/zero, dirties
+  callers and uses the new String signature. F9 can leave ReadHeld at #REF! until forced after Hold runs.
+  Native pending replacement stalled in the shared P07 control; the DNA suspension half requires CalcVBA.
+  [Evidence and runnable requirements](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P10/README.md).
+
 ### P11 Formula transformations and binding after structural edits (E29; SYNTHESIS C0 edit algebra)
 Relative/absolute/mixed references, ranges, local/global names, structured references, `@`, `#`, legacy arrays,
 external references; copy, cut/move, partial and whole insert/delete, sheet copy/move, UI Undo; edits across a spill

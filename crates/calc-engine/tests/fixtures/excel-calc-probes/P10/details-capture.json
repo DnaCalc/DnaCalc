@@ -1,0 +1,27 @@
+{
+  "run_id": "P10-properties-safe",
+  "supervisor_compile": "ok",
+  "supervisor_run": "ok",
+  "supervisor_cleanup": "owned-process-zero",
+  "supervisor_passed": false,
+  "supervisor_transport_error": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+  "explanation": "Descriptor expected_value is OBSERVATION_ONLY, so passed=false is expected; compile/run/cleanup and fault records must be inspected separately.",
+  "raw_sha256": "cf7534df7d44c25addc8acd0f8f8d21f7b026c70c3c787e580b376d45fd9732a",
+  "raw_lines": 948,
+  "artifacts": 528,
+  "faults": [],
+  "unrunnable": [],
+  "external_controller_events": {},
+  "external_controller_failures": [],
+  "rows_by_case": {
+    "insert-above/1": 109,
+    "delete-above/1": 109,
+    "cut-move/1": 109,
+    "delete-held/1": 107,
+    "multi-area-insert/1": 109,
+    "switch-active/1": 107,
+    "close-owner/1": 107,
+    "close-reopen-owner/1": 109,
+    "module-reload/1": 82
+  }
+}

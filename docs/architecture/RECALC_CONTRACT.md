@@ -284,6 +284,16 @@ one unit including removals. Today everything publishes at `finish` (`recalc.rs:
 - **Today**: a VBA read of a not-yet-calculated formula is discarded and re-run after it (`recalc.rs:611-614`), i.e.
   calculate-before-read, and saved Range handles read through the next call's reader (`VBA_UDFS.md:33-35`).
 
+P10 (O, 20527 safe mode) refines retained-reference authority: a Range tracks insert/delete-above/cut and union
+areas, but deleting its cell or closing the owner makes its properties fail with error424 even though TypeName
+still says Range and the variable is not Nothing. Reopen with the same name does not revive it; a new Hold call
+must supply a new argument. Resolve tracked references through the invocation's qualified view/structural history,
+and check workbook incarnation/continued membership rather than trusting the wrapper's type or old coordinates.
+Module replacement resets globals and Static state and new calls use the changed signature. F9 can invoke a
+zero-argument reader before Hold repopulates state, leaving a cached #REF! until a distinct forced evaluation.
+That trace does not create a hidden dependency. The old suspended-frame lease policy and true native DLL
+replacement remain DNA choices/unmeasured conditions, not conclusions from replacing an inactive VBA module.
+
 ## 6. Transactions, supersession, undo
 
 P09 (O, 20527 safe mode) requires every ingress to retain formula form independently of the Formula getter's
@@ -466,5 +476,5 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 | Stale async returns Excel accepts; overlap of calls from one cell | P07 confirms no repeated prefix and no late installation after UI cancel/overwrite+Undo; Undo is confounded by cancellation. COM overlap and real provider replacement remain open; keep conservative revocation | P07 (O, 20527 safe mode) |
 | Whether Excel's observable intermediate caches depend on chain history or position | P08 Full/Rebuild reads were new in all 200 cases, but observer order varied in multiworker trials; off/one-worker order was stable. Keep explicit observation order and serial fences; seeded history does not establish general commutation | P08 (O, 20527 safe mode) |
 | Formula vs Formula2 through every ingress | P09 confirms form in semantic identity across ten setter/copy/fill/CSE paths and 200 reopens; preserve fixed extent, @, dynamic/rich metadata and tri-state SavedAsArray. Other clipboard/import transports remain open | P09 (O, 20527 safe mode) |
-| Module/provider reload and stored Range across edits | old authority revoked; revision-qualified handles | P10 |
+| Module/provider reload and stored Range across edits | P10 confirms tracked structural references, invalidity after deletion/close without same-name revival, and fresh module state/signature after replacement. Keep incarnation/code/state qualification; native pending replacement and DNA suspended-frame behavior remain open | P10 (O, 20527 safe mode) |
 | Iteration remainder, data tables, entry-time evaluation, names, events | named unsupported or explicit setup | P12-P15, P22 |
