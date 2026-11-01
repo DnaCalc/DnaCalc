@@ -98,7 +98,11 @@ Private Sub ProbeCase(ByVal ident As String, ByVal output As String)
     Case "range": ws.UsedRange.Calculate
     Case "full": Application.CalculateFull
     Case "rebuild": Application.CalculateFullRebuild
-    Case "entry": ws.Range("A1").ClearContents: ws.Range("A1").Formula2 = "=SEQUENCE(SizeUdf())"
+    Case "entry"
+        If Left$(p, 5) <> "draws" Then
+            ws.Range("A1").ClearContents
+            ws.Range("A1").Formula2 = "=SEQUENCE(SizeUdf())"
+        End If
     End Select
     Stage "after"
     If Left$(p, 5) = "draws" Then

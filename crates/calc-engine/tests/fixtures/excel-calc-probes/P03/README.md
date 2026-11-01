@@ -1,8 +1,8 @@
 # P03 result
 
 Excel 16.0.20527.20088 x64, CalculationVersion 191029, Windows/AMD Ryzen 7 4800H, safe mode.
-Eleven conditions x ten fresh workbooks, plus six VBA conditions x ten with an object-aware logger.
-170 workbooks, zero probe faults, compiled/run successfully, owned-process-zero cleanup.
+Eleven conditions x ten fresh workbooks, six VBA conditions x ten with an object-aware logger,
+and ten corrected unused-argument trials: 180 workbooks, zero probe faults, owned-process-zero cleanup.
 
 Native ordinary `BU` and thread-safe `BU$` callbacks received status 64 (`xlretUncalced`),
 logged the unwind, and entered again with a successful coercion to 11. In all ten reversed-area
@@ -24,7 +24,11 @@ rewrites caused fresh entries; clean F9 did not invoke the nonvolatile VBA contr
 `raw-native-and-vba.tsv` retains the original complete run. Its generic VarType logger could query
 a Range's default value; `raw-results.tsv` repeats the six VBA conditions with explicit object
 typing (vt=9/TypeName=Range) and exactly one explicit Value2 read in LateRange/LateVariant.
-The unused-argument function logs type only, without reading its default value.
+The unused-argument line in those earlier runs still called VarType directly, which queried the
+Range's default value. `unused-raw-results.tsv` repeats ten cases after guarding IsObject and
+logging vbObject directly. These corrected trials log vt=9/Range and enter once per tested stage,
+including dirty reversed scope, with no warm-F9 call. The earlier unused-argument re-entry must
+not be used as evidence for a function that never reads its reference. All old records are retained.
 Native records are independent of that VBA logger. Kind 99 marks the stage numbers listed by
 `native-summary.json`; 1=entry, 2=coerce status/value, 3=unwind, 4=exit, 6=volatility request, 7=Evaluate.
 The value/bits fields are meaningful only for numeric/Boolean/error operand types.

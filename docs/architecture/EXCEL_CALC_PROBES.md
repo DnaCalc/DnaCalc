@@ -103,7 +103,8 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   macro-equivalent registration to `CachedMacroObservation`; ordinary gets uncalced. A single call in one arrangement
   proves nothing about other arrangements.
 
-- **Measured 2026-11-01 (O).** Build 20527 safe mode: 110 primary workbooks plus 60 object-type controls.
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 110 primary workbooks, 60 object-type controls and ten
+  corrected unused-argument trials (one entry per tested stage; no default-value read).
   Ordinary and `$` registrations unwind on status 64 and re-enter (all ten reversed-area trials; `$` also on first
   calculation). `#` coerces successfully there; `xlfVolatile(false)` suppresses clean F9 calls. VBA Range values
   can be Empty then 11; Double can be 0 then 11; expression arguments may wait. No Null was observed.
@@ -123,7 +124,9 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   `SpillShape` pass (contract 3.3); the prefix of SizeUdf calls gives the pass count and stabilization rule that
   replaces `MAX_WAVES = 32`. A single zero difference is inconclusive.
 
-- **Measured 2026-11-01 (O).** Build 20527 safe mode: 550 workbooks. LET and a bound LAMBDA argument reused the
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 560 workbooks, including ten corrected entry controls.
+  The original entry lane's valid entry snapshots precede an accidental A1 replacement, documented in the fixture.
+  LET and a bound LAMBDA argument reused the
   draw; distinct RAND occurrences, name references and LAMBDA calls did not. A seed-1 volatile SizeUdf alternating
   2/3 was called eight times before #SPILL! for range/Full/Rebuild in all ten trials each. 2,3,3 stopped at three
   calls/size 3; 2,2,3 stopped at two/size 2. Seed-2 controls often needed only one call. Set an eight-evaluation
@@ -142,12 +145,15 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   stale child after a command that covered it: removal must invalidate readers. Winner depends on order/history:
   reservation order is semantic input; both fail: no first-finisher winner. Child-only expands scope: command rule.
 
-- **Measured 2026-11-01 (O).** Build 20527 safe mode: 220 primary workbooks and 22 HasSpill controls.
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 220 primary workbooks, 22 HasSpill controls and 30 child-scope
+  controls. Existing A10-only calculation kept the ten-cell footprint during pending growth/shrink until F9.
+  Reader-first C10,E10,A1 scope ended at 11, but E10 was called with 1 then 11 in every trial: provisional
+  evaluation is observable, so waiting before every in-scope callback is a stricter DNA policy.
   Reader-only returned cached absence (C10=1); anchor+readers returned 11; shrink removed old children (all ten
   per condition). The blank A10-only command did not expand the anchor. MTC-off conflict winners followed the
   tested entry histories; MTC-on trials could have either winner even for one nominal condition. Keep the
   conflict order as an explicit profile policy, not a fixed coordinate winner. Literals, empty-text formulas,
-  tables and edges blocked; formatted blank did not. Existing-child scope remains open; merged obstruction
+  tables and edges blocked; formatted blank did not. Merged obstruction was
   omitted under the supplied no-merged-cells instruction. [Evidence](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P05/README.md).
 
 ### P06 ★ Save truth table and open-time caches (E09; A7 save scope, SYNTHESIS CalculateBeforeSave)

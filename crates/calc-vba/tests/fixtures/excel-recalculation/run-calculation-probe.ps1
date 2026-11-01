@@ -7,21 +7,28 @@ param(
     [string]$ArtifactPrefix = '',
     [string]$NativePath = '',
     [switch]$ExternalController,
+    [string]$SourceFile = '',
     [string]$RunId = ('calc-probe-' + [Guid]::NewGuid().ToString('N')),
     [switch]$SafeMode
 )
 $ErrorActionPreference = 'Stop'
 $probe = (Resolve-Path -LiteralPath $ProbeDirectory).Path
 $common = Join-Path $PSScriptRoot 'calculation-common.bas'
-$sourceFile = if($Reopen){Join-Path $PSScriptRoot 'reopen-calculation-probe.bas'}else{Join-Path $probe 'probe.bas'}
-$probeSource = Get-Content -LiteralPath $sourceFile -Raw
+$selectedSource = if($Reopen){Join-Path $PSScriptRoot 'reopen-calculation-probe.bas'}elseif($SourceFile){$SourceFile}else{Join-Path $probe 'probe.bas'}
+if($Reopen -and -not $Cases){throw '-Reopen requires explicit mode~filename cases'}
+$probeSource = Get-Content -LiteralPath $selectedSource -Raw
 $firstProcedure = [regex]::Match($probeSource, '(?m)^(?:Private|Public)\s+(?:Sub|Function)\b')
 if (-not $firstProcedure.Success) {throw 'Probe has no procedures'}
 $declarations = $probeSource.Substring(0,$firstProcedure.Index)
 $procedures = $probeSource.Substring($firstProcedure.Index)
 $source = (Get-Content -LiteralPath $common -Raw).Replace('Public Sub Note(', $declarations + "`nPublic Sub Note(") + "`n" + $procedures
 $source = $source.Replace('__OUTPUT__', $probe.Replace('"','""')).Replace('__REPETITIONS__', [string]$Repetitions)
-$source = $source.Replace('__CASES__', $Cases.Replace('"','""'))
+$caseStatements='SelectedCaseIds = ""'
+for($offset=0;$offset -lt $Cases.Length;$offset+=300){
+    $chunk=$Cases.Substring($offset,[Math]::Min(300,$Cases.Length-$offset)).Replace('"','""')
+    $caseStatements += "`r`n    SelectedCaseIds = SelectedCaseIds & " + '"' + $chunk + '"'
+}
+$source = $source.Replace('SelectedCaseIds = "__CASES__"', $caseStatements)
 $source = $source.Replace('__ARTIFACT_PREFIX__', $ArtifactPrefix.Replace('"','""'))
 $source = $source.Replace('__RUN_ID__', $RunId.Replace('"','""'))
 $native = if($NativePath){(Resolve-Path -LiteralPath $NativePath).Path}else{Join-Path (Split-Path $probe -Parent) 'P03/native-probe.xll'}

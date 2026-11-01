@@ -1,12 +1,32 @@
 Private Function CaseIds() As String
-    CaseIds = "growth-reader|growth-anchor|growth-both|growth-sheet|growth-full|growth-child|conflict-ab-cold|conflict-ba-cold|conflict-ab-warm|conflict-ba-warm|conflict-ab-rebuild|conflict-ba-rebuild|conflict-ab-single-a|conflict-ab-single-b|conflict-ab-mtc-off|conflict-ba-mtc-off|conflict-ab-dirty-reverse|literal|empty-formula|formatted-blank|table|grid-edge"
+    CaseIds = "growth-reader|growth-anchor|growth-both|growth-sheet|growth-full|growth-child|conflict-ab-cold|conflict-ba-cold|conflict-ab-warm|conflict-ba-warm|conflict-ab-rebuild|conflict-ba-rebuild|conflict-ab-single-a|conflict-ab-single-b|conflict-ab-mtc-off|conflict-ba-mtc-off|conflict-ab-dirty-reverse|literal|empty-formula|formatted-blank|table|grid-edge|existing-child-growth|existing-child-shrink|growth-reader-first"
 End Function
 Private Sub ProbeCase(ByVal ident As String, ByVal output As String)
     Dim ws As Worksheet, p As String, anchor As Range, lo As ListObject, op As String
     Set ws = observedSheet
     p = Split(ident, "/")(0)
     Stage "setup"
-    If Left$(p, 6) = "growth" Then
+    If Left$(p, 14) = "existing-child" Then
+        ws.Range("Z1").Value2 = 10
+        ws.Range("A1").Formula2 = "=SEQUENCE(Z1)"
+        ws.Range("C10").Formula2 = "=A10+1"
+        Application.CalculateFull
+        Stage "accepted-seed"
+        Snap ws, "A1:A14,C10"
+        SpillInfo ws, "A1"
+        If ws.Range("A10").Value2 <> 10 Then Err.Raise 5, , "Invalid child seed"
+        Stage "dirty"
+        If p = "existing-child-growth" Then ws.Range("Z1").Value2 = 12 Else ws.Range("Z1").Value2 = 1
+        Stage "tested-existing-child-only"
+        ws.Range("A10").Calculate
+        Stage "after-child-only"
+        Snap ws, "A1:A14,C10"
+        SpillInfo ws, "A1"
+        Stage "followup-f9"
+        Application.Calculate
+        Snap ws, "A1:A14,C10"
+        SpillInfo ws, "A1"
+    ElseIf Left$(p, 6) = "growth" Then
         ws.Range("Z1").Value2 = 1
         ws.Range("A1").Formula2 = "=SEQUENCE(Z1)"
         ws.Range("C10").Formula2 = "=A10+1"
@@ -27,6 +47,7 @@ Private Sub ProbeCase(ByVal ident As String, ByVal output As String)
         Case "sheet": ws.Calculate
         Case "full": Application.CalculateFull
         Case "child": ws.Range("A10").Calculate
+        Case "first": ws.Range("C10,E10,A1").Calculate
         End Select
         Stage "after-growth"
         Snap ws, "A1:A12,C10,E10"

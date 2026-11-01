@@ -9,6 +9,9 @@
   "raw_lines": 9686,
   "artifacts": 460,
   "faults": [],
+  "unrunnable": [],
+  "external_controller_events": {},
+  "external_controller_failures": [],
   "rows_by_case": {
     "manual-c1/1": 120,
     "manual-range/1": 122,

@@ -1,0 +1,24 @@
+{
+  "run_id": "P03-unused-corrected-safe",
+  "supervisor_compile": "ok",
+  "supervisor_run": "ok",
+  "supervisor_cleanup": "owned-process-zero",
+  "supervisor_passed": false,
+  "explanation": "Descriptor expected_value is OBSERVATION_ONLY, so passed=false is expected; compile/run/cleanup and fault records must be inspected separately.",
+  "raw_sha256": "1b8c470474587be7824e4046d59887db45e378ca1d658854d3f8738a4f8a1988",
+  "raw_lines": 1050,
+  "artifacts": 180,
+  "faults": [],
+  "rows_by_case": {
+    "unused-direct/1": 105,
+    "unused-direct/2": 105,
+    "unused-direct/3": 105,
+    "unused-direct/4": 105,
+    "unused-direct/5": 105,
+    "unused-direct/6": 105,
+    "unused-direct/7": 105,
+    "unused-direct/8": 105,
+    "unused-direct/9": 105,
+    "unused-direct/10": 105
+  }
+}

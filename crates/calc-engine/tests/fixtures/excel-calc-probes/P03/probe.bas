@@ -34,8 +34,10 @@ Public Function LateDouble(ByVal x As Double) As Double
     Note "exit", "LateDouble"
 End Function
 Public Function UnusedArg(x As Variant) As Long
+    Dim argumentType As Long
     calls(44) = calls(44) + 1
-    Note "entry", "UnusedArg;n=" & CStr(calls(44)) & ";argument-vt=" & CStr(VarType(x)) & ";argument-type=" & TypeName(x)
+    If IsObject(x) Then argumentType = vbObject Else argumentType = VarType(x)
+    Note "entry", "UnusedArg;n=" & CStr(calls(44)) & ";argument-vt=" & CStr(argumentType) & ";argument-type=" & TypeName(x)
     UnusedArg = 44
     Note "exit", "UnusedArg"
 End Function

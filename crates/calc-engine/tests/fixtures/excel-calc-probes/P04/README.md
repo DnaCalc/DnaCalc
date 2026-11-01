@@ -1,10 +1,11 @@
 # P04 result
 
 Excel 16.0.20527.20088 x64, CalculationVersion 191029, Windows/AMD Ryzen 7 4800H, safe mode.
-49 conditions x ten fresh workbooks plus six changed-seed conditions x ten: 550 saved workbooks,
+49 conditions x ten workbooks, six changed-seed conditions x ten, and ten corrected entry controls:
+560 saved workbooks,
 zero probe faults, owned-process-zero cleanup. Full arrays, binary64 bits and saved XML are retained.
 
-Across the 50 draw trials, RAND()-RAND(), each DrawName-DrawName, and two calls to a zero-argument
+Across the draw trials, RAND()-RAND(), each DrawName-DrawName, and two calls to a zero-argument
 LAMBDA containing RAND were nonzero. LET(draw,RAND(),draw-draw) and LAMBDA(x,x-x)(RAND()) were zero.
 MAP drew per element; capturing draw in LET repeated the same bits across the four MAP elements.
 Decision: distinguish occurrence/name/LAMBDA-call/MAP-element paths; reuse an already bound LET value
@@ -33,3 +34,8 @@ is retained with its full array. Do not claim that every volatile-size calculati
 `raw-main.tsv` is the 490-workbook run; `raw-results.tsv` is the 60-workbook changed-seed run.
 `supervisor-raw.zip` includes every run and exact injected sources. Initial seed 1 is an explicit
 additional factor, needed to expose resizing; it does not replace or conceal the seed-2 trials.
+
+The original draws-entry operation accidentally replaced A1 with the SizeUdf witness after its
+valid after-entry snapshot. Its later A1 value and saved A1 formula are not RAND measurements.
+The other entry snapshots remain valid. `entry-raw-results.tsv` and entry-corrected-*.xlsm retain
+ten corrected controls: A1 remains RAND()-RAND(), and entry/after values agree in every clone.
