@@ -1,0 +1,18 @@
+{
+  "source": "Cargo cached Git checkout; not the working OxVba clone",
+  "revision": "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1",
+  "reason": "cargo vendor omits these outside-package include_str assets",
+  "build_layout": "/home/govert/x2-cdoc-offline/{vendor,docs/spec}",
+  "files": [
+    {
+      "path": "docs/spec/HAL_CONTRACT_CLAUSE_CATALOG_V1.csv",
+      "sha256": "c1f0c49646a36625f8bc12dd7c45970ba5c22c1079d0cf2218c6586fbb2c2a3d",
+      "bytes": 6398
+    },
+    {
+      "path": "docs/spec/HAL_CONTRACT_CLAUSE_CATALOG_V1.md",
+      "sha256": "743c131158809e70f46f12f9b09902ce638dd787ddc46f0911399a8b54367f73",
+      "bytes": 25532
+    }
+  ]
+}

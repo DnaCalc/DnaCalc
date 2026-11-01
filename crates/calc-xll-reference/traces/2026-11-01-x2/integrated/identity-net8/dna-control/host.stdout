@@ -1,0 +1,2 @@
+{"closed_name":"X2.Identity","closed_registration":"#NAME?","commands":[],"duplicate_use_count":null,"host":"DNA Calc / OneCalc controller","live_callback_allocations":0,"numbered_exports":[0,2],"registrations":5,"reload_results":[{"formula":"=SayHello(\"x\")","value":"Hello, x"},{"formula":"=X2.Identity()","value":"dna-calc-desktop|16|1|True|16.0|71567438|False|14324|14324"}],"results":[{"formula":"=SayHello(\"x\")","value":"Hello, x"},{"formula":"=X2.Identity()","value":"dna-calc-desktop|16|1|True|16.0|71567438|False|14324|14324"}]}
+

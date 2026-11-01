@@ -1,0 +1,59 @@
+{
+  "source_revision": "053481adc2f42d2d6937236d5e127c0b7c00b579",
+  "host_binary_sha256": "1708E50493D40E0A93D6BE32DAF36D10A5267639D053A8A828A4AE920B532149",
+  "status": "all integrated runtime profile verifiers pass",
+  "net48_cases": 7,
+  "net8_cases": 7,
+  "aot_hello_cases": 1,
+  "original_pia_controls": 2,
+  "export_pool": {
+    "registered": 10000,
+    "tested_delegates": [
+      "f0",
+      "f9999"
+    ]
+  },
+  "aot_repeat_initialization": "three typed refusals; not compatibility passes",
+  "windows_check": {
+    "passed": 1529,
+    "failed": 0,
+    "ignored": 5,
+    "not_run": 1,
+    "harnesses": 91,
+    "packages": 26
+  },
+  "corpus_status": "unchanged",
+  "corpus_counts": {
+    "awaiting_capture": 0,
+    "circular_rule": 14,
+    "external_links": 73,
+    "fail": 1131,
+    "failed_or_missing": 1,
+    "failed_or_missing_by_verdict": {
+      "not_run": 1
+    },
+    "formula_cells": 20030,
+    "mismatched": 1124,
+    "pass": 18812,
+    "pass_rate": 0.9391912131802297,
+    "refused": 6
+  },
+  "changed_cell_records": 0,
+  "scope": "Defined-value cases and measured callbacks only; raw async differences retained. Distinct dependency/cached native service forwarding is source-reviewed; no dedicated distinct-reader native regression. Cross-mode nested registered calls are typed refusals.",
+  "platform_evidence": {
+    "linux": "linux-summary.json",
+    "sweep": "platform-summary.json"
+  },
+  "read_only_review": "Independently reproduced all six runtime/control summaries and285 source bindings, all three AOT refusals, and all20030 corpus records.",
+  "publication_check": {
+    "base_revision": "11243c4b6acda65206a619c52ced59b80ba03747",
+    "passed": 376,
+    "failed": 0,
+    "ignored": 0,
+    "not_run": 0,
+    "harnesses": 31,
+    "packages": 13,
+    "workspace_build": "passed",
+    "log": "check-publication.log"
+  }
+}

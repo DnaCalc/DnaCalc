@@ -1,0 +1,9 @@
+net48 verified X2 measured cases 7
+net8 verified X2 measured cases 7
+aot verified X2 measured cases 1
+identity-net48 verified process identity and original PIA calls
+identity-net8 verified process identity and original PIA calls
+pool verified original 10000-export pool
+aot-same-host typed refusal verified
+aot-new-host typed refusal verified
+aot-alias typed refusal verified

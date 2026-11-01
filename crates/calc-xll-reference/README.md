@@ -252,3 +252,13 @@ The structural sweep passes layering, OS imports, native wasm refusals,
 provenance and dependency ceilings. Its token scan flags four uses of the
 external VBA HAL type name; dc-hsa5.4.1 records that failure. Browser, application
 smoke and the long acceptance suite were skipped in that structural run.
+
+The [final integration captures](traces/2026-11-01-x2/integrated/summary.json)
+repeat every runtime, PIA, pool and AOT-refusal control after merging the VBA
+reference-lifetime work at `053481ad`. The immutable host is identified by its
+SHA-256 in each environment. Windows checks pass 1,529 tests with zero failures;
+all 20,030 corpus records remain unchanged. Scalar argument reads use the
+dependency reader, including worker requests; macro-equivalent callbacks use
+the cached-read policy. Nested registered calls that change that policy return
+a typed refusal. A dedicated native test with distinct live/cached readers has
+not been run; that forwarding was reviewed in source.

@@ -1,0 +1,68 @@
+{
+  "source_revision": "053481adc2f42d2d6937236d5e127c0b7c00b579",
+  "sweep_result": "failed",
+  "skipped": [
+    "slow acceptance suite"
+  ],
+  "browser_test_results": {
+    "chromium": {
+      "packages": 16,
+      "tests_run": 1106,
+      "passed": 1106,
+      "failed": 0,
+      "ignored": 1,
+      "not_run": 0
+    },
+    "firefox": {
+      "packages": 16,
+      "tests_run": 1106,
+      "passed": 1106,
+      "failed": 0,
+      "ignored": 1,
+      "not_run": 0
+    }
+  },
+  "browser_job_result": "failed: ten missing acceptance inventories; the standard empty inventories were subsequently added; full job not rerun",
+  "dna_calc_smoke": {
+    "per_browser": {
+      "passed": 473,
+      "failed": 0
+    },
+    "browsers": [
+      "chromium",
+      "firefox"
+    ]
+  },
+  "onecalc_smoke": {
+    "per_browser": {
+      "passed": 51,
+      "failed": 1
+    },
+    "browsers": [
+      "chromium",
+      "firefox"
+    ],
+    "failure": "Expected SPIN: execution budget; actual spin: execution budget exhausted. Calculation/budget enforcement passed.",
+    "upstream_fix": "18df5c80, merged into current master via11243c4b; full smoke not rerun on that source."
+  },
+  "architecture": "Four external HalProfileId tokens; fixed upstream by11243c4b after this run, with tests preserving the legacy-language scan.",
+  "passed_structural": [
+    "dependencies",
+    "os-imports",
+    "wasm-refusal",
+    "provenance",
+    "ceiling"
+  ],
+  "inventories_added": [
+    "crates/calc-xll-abi",
+    "crates/calc-xll-host",
+    "crates/calc-com-host",
+    "crates/calc-xll-fixture",
+    "apps/dna-calc-model",
+    "apps/dna-calc-protocol",
+    "apps/dna-calc-worker",
+    "apps/dna-calc-desktop",
+    "platform/calc-xll-shim",
+    "tools/xtask-harness"
+  ]
+}

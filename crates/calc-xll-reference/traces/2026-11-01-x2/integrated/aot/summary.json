@@ -1,0 +1,121 @@
+{
+  "status": "verified X2 measured cases",
+  "fixture": "X2Aot",
+  "formula_cases": 1,
+  "matched_each_capture": 1,
+  "controls_match": true,
+  "source_revisions": [
+    "4fe12374ef28ff0da2646d6b3de27ac1a6bcd545",
+    "a84d1ce9eadecda43688571c069adf88f9562c49"
+  ],
+  "source_publication_revisions": [
+    "169986d41383e82e9e0da9aa2755bce63f78ea1a",
+    "1457bdac2a67f86e1b177cefb7e534f23ee849c2",
+    "27a8716a7b2e62fe330ec03eb5fee5d4c957549a",
+    "053481adc2f42d2d6937236d5e127c0b7c00b579"
+  ],
+  "same_fixture_files": {
+    "X2Aot-AddIn64.xll": "476FFAD36360D8FE2A4301CF116E4DBD511E8207BC3F2209A9BA4A497DD0A0E6",
+    "X2Aot.dll": "FBC05C4430D30DEE94A37529868B25A6981DAC02FAB22CDD10A4BB1606D7AF54"
+  },
+  "registration_forms": {
+    "RegistrationInfo_<guid>": {
+      "procedure": "RegistrationInfo",
+      "type": "QQ",
+      "macro_type": 0
+    },
+    "SyncMacro_<guid>": {
+      "procedure": "SyncMacro",
+      "type": ">B",
+      "macro_type": 2
+    },
+    "SayHello": {
+      "procedure": "f0",
+      "type": "QD%",
+      "macro_type": 1
+    }
+  },
+  "native_invocations": {
+    "SayHello": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "same_ordered_callbacks": []
+    }
+  },
+  "excel_and_host": [
+    {
+      "records": 48,
+      "paired_calls": 17,
+      "c_api_calls": 12,
+      "trace_sha256": "DA5A935C5AD79BA107AEFF8407E852DD64498C8477C53A42DCDB9C2D4AFE4397"
+    },
+    {
+      "records": 89,
+      "paired_calls": 38,
+      "c_api_calls": 32,
+      "trace_sha256": "6AB23BFCDC23F4664800722716DCA68E2F286319C741029D40F6AACBEEB93665"
+    }
+  ],
+  "x0_callback_code_pairs_observed": 0,
+  "callback_counts_excel_and_host": [
+    [
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 6
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 32890,
+        "return_code": 0,
+        "count": 2
+      }
+    ],
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 5
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 5
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 16
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 32890,
+        "return_code": 0,
+        "count": 2
+      }
+    ]
+  ],
+  "reload_checked": false,
+  "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
+  "scope": "Hello only; no COM, worker, async or reload claim.",
+  "known_difference": null,
+  "timing": "Debugger timing is not uninstrumented performance evidence."
+}

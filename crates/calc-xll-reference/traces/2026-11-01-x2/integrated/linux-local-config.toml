@@ -1,0 +1,18 @@
+# `cargo xtask <command>` runs the repository tooling in tools/xtask. This file sets no
+# build.target-dir: every clone keeps its own target/, and cargo started by xtask uses
+# target/xtask-accept.
+[alias]
+xtask = "run --package xtask --locked --"
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "/home/govert/x2-cdoc-offline/vendor"
+
+[source."git+https://github.com/DnaCalc/OxVba.git?rev=325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1"]
+git = "https://github.com/DnaCalc/OxVba.git"
+rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1"
+replace-with = "vendored-sources"
+
+[net]
+offline = true

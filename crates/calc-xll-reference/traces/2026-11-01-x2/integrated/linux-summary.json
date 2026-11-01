@@ -1,0 +1,16 @@
+{
+  "source_revision": "053481adc2f42d2d6937236d5e127c0b7c00b579",
+  "command": "cargo test --workspace --jobs 2 --locked --offline -- --show-output",
+  "exit_code": 0,
+  "counts": {
+    "passed": 1476,
+    "failed": 0,
+    "ignored": 5,
+    "harnesses": 91
+  },
+  "not_run": "not inventoried by cargo test; zero-test harnesses are retained in the log",
+  "source_changes": "Only .cargo/config.toml has local offline source overrides; Rust source is the pushed commit.",
+  "vendor": "Private complete vendor copy with original pinned outside-package assets; see linux-vendor-assets.json.",
+  "log_sha256": "5d24481a7fae3e8864ef3d080c3089a5b8e833ba441139bd28de5cf291cf0b29",
+  "config_sha256": "dce595221332ead0728f53cf50b3ff773d3f5daa2246710356af6d9ae75e7729"
+}

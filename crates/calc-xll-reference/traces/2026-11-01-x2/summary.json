@@ -87,5 +87,6 @@
       "acceptance"
     ],
     "log": "sweep-structural.log"
-  }
+  },
+  "final_integration": "integrated/summary.json"
 }

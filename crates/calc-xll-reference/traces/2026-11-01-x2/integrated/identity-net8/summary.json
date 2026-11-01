@@ -1,0 +1,36 @@
+{
+  "status": "verified process identity and original PIA calls",
+  "excel_and_host": [
+    {
+      "process": "EXCEL",
+      "file_major": "16",
+      "assume_excel_process": "",
+      "default_appdomain": "True",
+      "com_version": "16.0",
+      "com_hwnd": 50334984,
+      "pia_run_result": "False",
+      "command_and_function_thread": 18404
+    },
+    {
+      "process": "dna-calc-desktop",
+      "file_major": "16",
+      "assume_excel_process": "1",
+      "default_appdomain": "True",
+      "com_version": "16.0",
+      "com_hwnd": 71567438,
+      "pia_run_result": "False",
+      "command_and_function_thread": 14324
+    }
+  ],
+  "same_fixture_files": {
+    "X2Identity-AddIn64.deps.json": "1CA1A1E2CCB1AA78B00028901B86CB3CFB671F014D78301C6930FB4A85D7F513",
+    "X2Identity-AddIn64.dna": "3E7BDEC66D0C3259A7D66FD8F5F8E350135973A259B627E924ACE7001482EB51",
+    "X2Identity-AddIn64.xll": "660AC0435897BDF8DFDEC9925B415F09CE7D00F7C63A9276B89D4D311947BD6B",
+    "X2Identity.deps.json": "1CA1A1E2CCB1AA78B00028901B86CB3CFB671F014D78301C6930FB4A85D7F513",
+    "X2Identity.dll": "C2AC10E133BE3E07DDE5844AB71FCD6B850B0E53FEBFD58EC2CB6DD6D21DAE3E",
+    "X2Identity.runtimeconfig.json": "CCF34FE185A1C9A0114DAE9B55958A70B3CCDE47C8A236D361932C5B1EFC5914"
+  },
+  "reload_checked": true,
+  "host_executable_sha256": "1708E50493D40E0A93D6BE32DAF36D10A5267639D053A8A828A4AE920B532149",
+  "scope": "Control without debugger; Version, Hwnd and Run through ExcelDna.Interop 15.0.1; process identities intentionally differ."
+}

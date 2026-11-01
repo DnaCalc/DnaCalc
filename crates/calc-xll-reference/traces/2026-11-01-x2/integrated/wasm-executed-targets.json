@@ -1,0 +1,3350 @@
+{
+  "accept": [],
+  "browser_user_agents": {
+    "chromium": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "firefox": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0"
+  },
+  "cargo_target_dir": "target/xtask-accept",
+  "command": [
+    "cargo",
+    "xtask",
+    "ci",
+    "wasm"
+  ],
+  "duration_s": 1948.192,
+  "exit_code": 1,
+  "fixtures": [
+    {
+      "browser": "chromium",
+      "executed_in": "Chrome",
+      "failed": 0,
+      "fixture": "route-probe",
+      "log": "target/ci/wasm/fixture@chromium.log",
+      "not_run": 0,
+      "outcome": "passed",
+      "passed": 1,
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.01s",
+      "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:59888/`",
+      "test": "route_probe",
+      "test_target": "probe",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+    },
+    {
+      "browser": "firefox",
+      "executed_in": "Firefox",
+      "failed": 0,
+      "fixture": "route-probe",
+      "log": "target/ci/wasm/fixture@firefox.log",
+      "not_run": 0,
+      "outcome": "passed",
+      "passed": 1,
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.00s",
+      "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:57048/`",
+      "test": "route_probe",
+      "test_target": "probe",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0"
+    }
+  ],
+  "format": "dnacalc-executed-targets/1",
+  "host": {
+    "arch": "x86_64",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "ci_commit": null,
+    "ci_environment": {},
+    "git": {
+      "branch": "master",
+      "dirty": true,
+      "dirty_entries": 63,
+      "dirty_paths": [
+        {
+          "path": ".beads/issues.jsonl",
+          "status": "M"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/aot/summary.json",
+          "status": "M"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/net48/summary.json",
+          "status": "M"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/net8/summary.json",
+          "status": "M"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/source-publication.json",
+          "status": "M"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/summary.json",
+          "status": "M"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/alias/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/alias/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/alias/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/alias/refusal.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/new-host/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/new-host/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/new-host/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/new-host/refusal.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/same-host/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/same-host/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/same-host/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot-refusals/same-host/refusal.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot/dna-control/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot/dna-control/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot/dna-control/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot/dna-traced/boundary.jsonl",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot/dna-traced/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot/dna-traced/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot/dna-traced/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/aot/summary.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/check-windows.log",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/corpus-after.md",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/corpus-comparison.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/identity-net48/dna-control/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/identity-net48/dna-control/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/identity-net48/dna-control/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/identity-net48/summary.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/identity-net8/dna-control/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/identity-net8/dna-control/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/identity-net8/dna-control/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/identity-net8/summary.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-control/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-control/fixture.tsv",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-control/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-control/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-traced/boundary.jsonl",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-traced/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-traced/fixture.tsv",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-traced/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/dna-traced/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net48/summary.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-control/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-control/fixture.tsv",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-control/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-control/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-traced/boundary.jsonl",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-traced/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-traced/fixture.tsv",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-traced/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/dna-traced/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/net8/summary.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/pool/dna-control/environment.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/pool/dna-control/host.stderr",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/pool/dna-control/host.stdout",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/pool/summary.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/summary.json",
+          "status": "??"
+        },
+        {
+          "path": "crates/calc-xll-reference/traces/2026-11-01-x2/integrated/verification.log",
+          "status": "??"
+        }
+      ],
+      "head": "053481adc2f42d2d6937236d5e127c0b7c00b579"
+    },
+    "os": "windows",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "rustc_host": "x86_64-pc-windows-msvc",
+    "toolchain_pin": {
+      "channel": "1.94.1",
+      "file": "rust-toolchain.toml",
+      "rustc_matches": true
+    }
+  },
+  "inject_browser_failure": false,
+  "job": "wasm",
+  "packages": [
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 30,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_value-f69a9de28c712a23.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 30,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 30 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.04s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:56861/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_value"
+            }
+          ],
+          "tests_run": 30
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 30,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_value-f69a9de28c712a23.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 30,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 30 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.02s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55818/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_value"
+            }
+          ],
+          "tests_run": 30
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 30,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 30,
+          "Firefox": 30
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 30, Firefox ran 30 of 30 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-value",
+      "portability": "portable",
+      "role": "library",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 1,
+          "not_run": 0,
+          "passed": 510,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "f2_text-b7ce2516ff127126.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 9,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.03s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:59388/`",
+              "runner_reported_no_tests": false,
+              "target": "f2_text"
+            },
+            {
+              "executable": "witnesses-0dee8949e2911fae.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 1,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 1.91s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:50467/`",
+              "runner_reported_no_tests": false,
+              "target": "witnesses"
+            },
+            {
+              "executable": "f3_arrays-47a76edaa51a486f.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.02s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:58416/`",
+              "runner_reported_no_tests": false,
+              "target": "f3_arrays"
+            },
+            {
+              "executable": "f2_dates-2342e612d5ce7f31.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 9,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.32s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:54272/`",
+              "runner_reported_no_tests": false,
+              "target": "f2_dates"
+            },
+            {
+              "executable": "f1_math-76e24bd58f32e5b2.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 13,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 13 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.03s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:57434/`",
+              "runner_reported_no_tests": false,
+              "target": "f1_math"
+            },
+            {
+              "executable": "f1_engineering-dc844f57bd42709b.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 5,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.02s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:59032/`",
+              "runner_reported_no_tests": false,
+              "target": "f1_engineering"
+            },
+            {
+              "executable": "f1_stats-20687dfb6d9e8462.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 34,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 34 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.05s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:65493/`",
+              "runner_reported_no_tests": false,
+              "target": "f1_stats"
+            },
+            {
+              "executable": "f3_financial-72717ac817b87e7b.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 14,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 14 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.05s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:59381/`",
+              "runner_reported_no_tests": false,
+              "target": "f3_financial"
+            },
+            {
+              "executable": "calc_func-de7d54c6f6e0c796.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 1,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 423,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 423 passed; 0 failed; 1 ignored; 0 filtered out; finished in 0.62s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:59727/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_func"
+            }
+          ],
+          "tests_run": 510
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 1,
+          "not_run": 0,
+          "passed": 510,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "f2_dates-2342e612d5ce7f31.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 9,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.33s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:61169/`",
+              "runner_reported_no_tests": false,
+              "target": "f2_dates"
+            },
+            {
+              "executable": "calc_func-de7d54c6f6e0c796.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 1,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 423,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 423 passed; 0 failed; 1 ignored; 0 filtered out; finished in 0.66s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:49644/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_func"
+            },
+            {
+              "executable": "f3_financial-72717ac817b87e7b.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 14,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 14 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.02s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:61230/`",
+              "runner_reported_no_tests": false,
+              "target": "f3_financial"
+            },
+            {
+              "executable": "f3_arrays-47a76edaa51a486f.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.00s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:61209/`",
+              "runner_reported_no_tests": false,
+              "target": "f3_arrays"
+            },
+            {
+              "executable": "witnesses-0dee8949e2911fae.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 1,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 3.28s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:61249/`",
+              "runner_reported_no_tests": false,
+              "target": "witnesses"
+            },
+            {
+              "executable": "f1_math-76e24bd58f32e5b2.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 13,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 13 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.01s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:49691/`",
+              "runner_reported_no_tests": false,
+              "target": "f1_math"
+            },
+            {
+              "executable": "f2_text-b7ce2516ff127126.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 9,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.02s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:61189/`",
+              "runner_reported_no_tests": false,
+              "target": "f2_text"
+            },
+            {
+              "executable": "f1_engineering-dc844f57bd42709b.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 5,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.00s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:49672/`",
+              "runner_reported_no_tests": false,
+              "target": "f1_engineering"
+            },
+            {
+              "executable": "f1_stats-20687dfb6d9e8462.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 34,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 34 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.03s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:49714/`",
+              "runner_reported_no_tests": false,
+              "target": "f1_stats"
+            }
+          ],
+          "tests_run": 510
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 511,
+        "native_only": 14,
+        "native_only_reasons": [
+          {
+            "count": 3,
+            "reason": "compares with the x87 hardware, which only x86_64 has.",
+            "tests": [
+              "crates/calc-func/src/ported/excel_numeric/soft87.rs:1192 ported::excel_numeric::soft87::hardware::constants_equal_the_rom",
+              "crates/calc-func/src/ported/excel_numeric/soft87.rs:1225 ported::excel_numeric::soft87::hardware::exact_operations_equal_the_hardware",
+              "crates/calc-func/src/ported/excel_numeric/soft87.rs:1292 ported::excel_numeric::soft87::hardware::transcendental_operations_against_the_hardware"
+            ]
+          },
+          {
+            "count": 4,
+            "reason": "it runs the x87 hardware, which only x86_64 has.",
+            "tests": [
+              "crates/calc-func/src/ported/excel_numeric/gammaln.rs:257 ported::excel_numeric::gammaln::tests::extended_bands_equal_on_the_software_x87",
+              "crates/calc-func/src/ported/excel_numeric/mod.rs:916 ported::excel_numeric::tests::software_x87_arithmetic_matches_the_x87_hardware",
+              "crates/calc-func/src/ported/excel_numeric/mod.rs:948 ported::excel_numeric::tests::chains_on_the_hardware_backend_equal_the_x87_assembly",
+              "crates/calc-func/src/ported/excel_numeric/mod.rs:968 ported::excel_numeric::tests::software_chains_against_the_hardware"
+            ]
+          },
+          {
+            "count": 1,
+            "reason": "the reference is the MSVC runtime's `pow`, which only Windows has.",
+            "tests": [
+              "crates/calc-func/src/ported/excel_numeric/crt_pow.rs:664 ported::excel_numeric::crt_pow::tests::crt_pow_equals_the_windows_runtime"
+            ]
+          },
+          {
+            "count": 4,
+            "reason": "the reference is the MSVC runtime's libm, which only Windows has.",
+            "tests": [
+              "crates/calc-func/src/ported/excel_numeric/crt_libm.rs:1438 ported::excel_numeric::crt_libm::tests::log_log10_and_exp_equal_the_windows_runtime",
+              "crates/calc-func/src/ported/excel_numeric/crt_libm.rs:1466 ported::excel_numeric::crt_libm::tests::sin_and_cos_equal_the_windows_runtime",
+              "crates/calc-func/src/ported/excel_numeric/crt_libm.rs:1488 ported::excel_numeric::crt_libm::tests::sinh_and_cosh_equal_the_windows_runtime",
+              "crates/calc-func/src/ported/excel_numeric/crt_libm.rs:1509 ported::excel_numeric::crt_libm::tests::atan2_and_hypot_equal_the_windows_runtime"
+            ]
+          },
+          {
+            "count": 2,
+            "reason": "the x87 assembly these tests run compiles only on x86_64.",
+            "tests": [
+              "crates/calc-func/src/ported/excel_numeric/x87.rs:659 ported::excel_numeric::x87::tests::double_rounded_mul_and_recip",
+              "crates/calc-func/src/ported/excel_numeric/x87.rs:674 ported::excel_numeric::x87::tests::control_word_is_restored"
+            ]
+          }
+        ],
+        "ran": {
+          "Chrome": 511,
+          "Firefox": 511
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 511, Firefox ran 511 of 511 tests marked for the browsers; 14 native-only (3 compares with the x87 hardware, which only x86_64 has.; 4 it runs the x87 hardware, which only x86_64 has.; 1 the reference is the MSVC runtime's `pow`, which only Windows has.; 4 the reference is the MSVC runtime's libm, which only Windows has.; 2 the x87 assembly these tests run compiles only on x86_64.); 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [
+        {
+          "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs leave those targets to the per-bead runner",
+          "target": "acceptance"
+        }
+      ],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-func",
+      "portability": "portable",
+      "role": "library",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 57,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_verdict-966291324c05f541.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 57,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 57 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.17s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:51156/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_verdict"
+            }
+          ],
+          "tests_run": 57
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 57,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_verdict-966291324c05f541.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 57,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 57 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.18s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55859/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_verdict"
+            }
+          ],
+          "tests_run": 57
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 57,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 57,
+          "Firefox": 57
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 57, Firefox ran 57 of 57 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [
+        {
+          "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs leave those targets to the per-bead runner",
+          "target": "acceptance"
+        }
+      ],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-verdict",
+      "portability": "portable",
+      "role": "tooling",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 81,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_fml-91d8474b6b9dee28.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 81,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 81 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.28s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53670/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_fml"
+            }
+          ],
+          "tests_run": 81
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 81,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_fml-91d8474b6b9dee28.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 81,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 81 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.24s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:49621/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_fml"
+            }
+          ],
+          "tests_run": 81
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 81,
+        "native_only": 1,
+        "native_only_reasons": [
+          {
+            "count": 1,
+            "reason": "exercises distinct OS thread identity namespaces.",
+            "tests": [
+              "crates/calc-fml/src/callable.rs:338 callable::tests::callable_ids_cannot_cross_thread_owners"
+            ]
+          }
+        ],
+        "ran": {
+          "Chrome": 81,
+          "Firefox": 81
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 81, Firefox ran 81 of 81 tests marked for the browsers; 1 native-only (1 exercises distinct OS thread identity namespaces.); 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [
+        {
+          "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs leave those targets to the per-bead runner",
+          "target": "acceptance"
+        }
+      ],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-fml",
+      "portability": "portable",
+      "role": "library",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 7,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_vba-55d58578c3f044dc.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 7,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.19s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:52452/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_vba"
+            }
+          ],
+          "tests_run": 7
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 7,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_vba-55d58578c3f044dc.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 7,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.13s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55839/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_vba"
+            }
+          ],
+          "tests_run": 7
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 7,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 7,
+          "Firefox": 7
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 7, Firefox ran 7 of 7 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-vba",
+      "portability": "portable",
+      "role": "library",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 12,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_doc_model-6872909d30b21884.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 12,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 12 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.23s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:49597/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_doc_model"
+            }
+          ],
+          "tests_run": 12
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 12,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_doc_model-6872909d30b21884.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 12,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 12 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.23s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:60374/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_doc_model"
+            }
+          ],
+          "tests_run": 12
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 12,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 12,
+          "Firefox": 12
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 12, Firefox ran 12 of 12 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-doc-model",
+      "portability": "portable",
+      "role": "library",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 56,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "d1_file_form-833b9463737669c2.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 5,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.27s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:64002/`",
+              "runner_reported_no_tests": false,
+              "target": "d1_file_form"
+            },
+            {
+              "executable": "dc_xuw_macro_sheet-bc065b4e255f6a0d.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 3,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.21s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:50463/`",
+              "runner_reported_no_tests": false,
+              "target": "dc_xuw_macro_sheet"
+            },
+            {
+              "executable": "d1_authoring-076739059531d762.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 4,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 4 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.25s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:63313/`",
+              "runner_reported_no_tests": false,
+              "target": "d1_authoring"
+            },
+            {
+              "executable": "dc_5sr_xlsb-2c28938c3f312b19.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 3,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.29s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:55449/`",
+              "runner_reported_no_tests": false,
+              "target": "dc_5sr_xlsb"
+            },
+            {
+              "executable": "d1_oxdoc-022dde15aa9b5733.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 4,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 4 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.19s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53111/`",
+              "runner_reported_no_tests": false,
+              "target": "d1_oxdoc"
+            },
+            {
+              "executable": "d1_arrays-de4a52bb452915c6.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 6,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 6 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.47s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:60073/`",
+              "runner_reported_no_tests": false,
+              "target": "d1_arrays"
+            },
+            {
+              "executable": "vba_udf_names-5ff7c00c885068ad.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 12,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 12 passed; 0 failed; 0 ignored; 0 filtered out; finished in 1.04s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:55402/`",
+              "runner_reported_no_tests": false,
+              "target": "vba_udf_names"
+            },
+            {
+              "executable": "calc_doc-367df9a51af82c57.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 19,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 19 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.20s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:57304/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_doc"
+            }
+          ],
+          "tests_run": 56
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 56,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dc_5sr_xlsb-2c28938c3f312b19.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 3,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.37s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:60310/`",
+              "runner_reported_no_tests": false,
+              "target": "dc_5sr_xlsb"
+            },
+            {
+              "executable": "d1_arrays-de4a52bb452915c6.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 6,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 6 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.47s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:58471/`",
+              "runner_reported_no_tests": false,
+              "target": "d1_arrays"
+            },
+            {
+              "executable": "vba_udf_names-5ff7c00c885068ad.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 12,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 12 passed; 0 failed; 0 ignored; 0 filtered out; finished in 1.27s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:60354/`",
+              "runner_reported_no_tests": false,
+              "target": "vba_udf_names"
+            },
+            {
+              "executable": "d1_file_form-833b9463737669c2.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 5,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.23s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:58514/`",
+              "runner_reported_no_tests": false,
+              "target": "d1_file_form"
+            },
+            {
+              "executable": "d1_oxdoc-022dde15aa9b5733.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 4,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 4 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.13s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:58534/`",
+              "runner_reported_no_tests": false,
+              "target": "d1_oxdoc"
+            },
+            {
+              "executable": "d1_authoring-076739059531d762.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 4,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 4 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.22s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:58494/`",
+              "runner_reported_no_tests": false,
+              "target": "d1_authoring"
+            },
+            {
+              "executable": "calc_doc-367df9a51af82c57.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 19,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 19 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.15s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59050/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_doc"
+            },
+            {
+              "executable": "dc_xuw_macro_sheet-bc065b4e255f6a0d.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 3,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.22s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:60332/`",
+              "runner_reported_no_tests": false,
+              "target": "dc_xuw_macro_sheet"
+            }
+          ],
+          "tests_run": 56
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 56,
+        "native_only": 1,
+        "native_only_reasons": [
+          {
+            "count": 1,
+            "reason": "it lists the fixture directories on disk, which a browser cannot read.",
+            "tests": [
+              "crates/calc-doc/tests/d1_oxdoc.rs:272 d1_oxdoc__every_fixture_part_is_embedded"
+            ]
+          }
+        ],
+        "ran": {
+          "Chrome": 56,
+          "Firefox": 56
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 56, Firefox ran 56 of 56 tests marked for the browsers; 1 native-only (1 it lists the fixture directories on disk, which a browser cannot read.); 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [
+        {
+          "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs leave those targets to the per-bead runner",
+          "target": "acceptance"
+        }
+      ],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-doc",
+      "portability": "portable",
+      "role": "library",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 7,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_engine-3f8cd6819c306052.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 7,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.05s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:52133/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_engine"
+            }
+          ],
+          "tests_run": 7
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 7,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "calc_engine-3f8cd6819c306052.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 7,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.03s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:49598/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_engine"
+            }
+          ],
+          "tests_run": 7
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 7,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 7,
+          "Firefox": 7
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 7, Firefox ran 7 of 7 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [
+        {
+          "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs leave those targets to the per-bead runner",
+          "target": "acceptance"
+        }
+      ],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-engine",
+      "portability": "portable",
+      "role": "library",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 104,
+          "runner_reported_no_tests_for": [
+            "threads"
+          ],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "charts-532afa0bbf0f5296.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.23s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:51249/`",
+              "runner_reported_no_tests": false,
+              "target": "charts"
+            },
+            {
+              "executable": "conditional-e4bfba4db55fa58b.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.19s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:65253/`",
+              "runner_reported_no_tests": false,
+              "target": "conditional"
+            },
+            {
+              "executable": "circular-ac8a8e493a365871.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.33s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53418/`",
+              "runner_reported_no_tests": false,
+              "target": "circular"
+            },
+            {
+              "executable": "reference_arrays-58eccb1073917dac.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 1,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.24s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:58327/`",
+              "runner_reported_no_tests": false,
+              "target": "reference_arrays"
+            },
+            {
+              "executable": "threads-f5860a0d55e2e615.wasm",
+              "executed_in": null,
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "zero_tests",
+              "passed": 0,
+              "ran": true,
+              "reason": "wasm-bindgen-test-runner reported `no tests to run!`: the module holds no wasm-bindgen tests, so no browser started",
+              "result_line": null,
+              "run": "tests@chromium",
+              "runner_banner": null,
+              "runner_reported_no_tests": true,
+              "target": "threads"
+            },
+            {
+              "executable": "held_arrays-82bcaa61397797f0.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 1,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.33s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:60760/`",
+              "runner_reported_no_tests": false,
+              "target": "held_arrays"
+            },
+            {
+              "executable": "validation-0d56b11ecec985be.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.12s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:63295/`",
+              "runner_reported_no_tests": false,
+              "target": "validation"
+            },
+            {
+              "executable": "external_links-091c71a48d0a30d1.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 5,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.49s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:60473/`",
+              "runner_reported_no_tests": false,
+              "target": "external_links"
+            },
+            {
+              "executable": "calc_host-c52f4ebf74bf148b.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 8,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 8 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.02s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:55203/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_host"
+            },
+            {
+              "executable": "names-fbea53097f70a9bc.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 6,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 6 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.33s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:61401/`",
+              "runner_reported_no_tests": false,
+              "target": "names"
+            },
+            {
+              "executable": "incremental-8e4b54383fff7ff8.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 3,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 filtered out; finished in 39.78s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:64541/`",
+              "runner_reported_no_tests": false,
+              "target": "incremental"
+            },
+            {
+              "executable": "round_trip-83e1ce3c0d8ae4dc.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 72,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 72 passed; 0 failed; 0 ignored; 0 filtered out; finished in 22.87s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:60344/`",
+              "runner_reported_no_tests": false,
+              "target": "round_trip"
+            }
+          ],
+          "tests_run": 104
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 104,
+          "runner_reported_no_tests_for": [
+            "threads"
+          ],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "external_links-091c71a48d0a30d1.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 5,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.42s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:53812/`",
+              "runner_reported_no_tests": false,
+              "target": "external_links"
+            },
+            {
+              "executable": "names-fbea53097f70a9bc.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 6,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 6 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.28s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:53812/`",
+              "runner_reported_no_tests": false,
+              "target": "names"
+            },
+            {
+              "executable": "incremental-8e4b54383fff7ff8.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 3,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 filtered out; finished in 32.48s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:50464/`",
+              "runner_reported_no_tests": false,
+              "target": "incremental"
+            },
+            {
+              "executable": "reference_arrays-58eccb1073917dac.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 1,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.31s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:53852/`",
+              "runner_reported_no_tests": false,
+              "target": "reference_arrays"
+            },
+            {
+              "executable": "conditional-e4bfba4db55fa58b.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.25s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:64635/`",
+              "runner_reported_no_tests": false,
+              "target": "conditional"
+            },
+            {
+              "executable": "held_arrays-82bcaa61397797f0.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 1,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.33s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:53841/`",
+              "runner_reported_no_tests": false,
+              "target": "held_arrays"
+            },
+            {
+              "executable": "validation-0d56b11ecec985be.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.07s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55799/`",
+              "runner_reported_no_tests": false,
+              "target": "validation"
+            },
+            {
+              "executable": "round_trip-83e1ce3c0d8ae4dc.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 72,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 72 passed; 0 failed; 0 ignored; 0 filtered out; finished in 34.19s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:53884/`",
+              "runner_reported_no_tests": false,
+              "target": "round_trip"
+            },
+            {
+              "executable": "circular-ac8a8e493a365871.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.59s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:64611/`",
+              "runner_reported_no_tests": false,
+              "target": "circular"
+            },
+            {
+              "executable": "threads-f5860a0d55e2e615.wasm",
+              "executed_in": null,
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "zero_tests",
+              "passed": 0,
+              "ran": true,
+              "reason": "wasm-bindgen-test-runner reported `no tests to run!`: the module holds no wasm-bindgen tests, so no browser started",
+              "result_line": null,
+              "run": "tests@firefox",
+              "runner_banner": null,
+              "runner_reported_no_tests": true,
+              "target": "threads"
+            },
+            {
+              "executable": "charts-532afa0bbf0f5296.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 2,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.17s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:56903/`",
+              "runner_reported_no_tests": false,
+              "target": "charts"
+            },
+            {
+              "executable": "calc_host-c52f4ebf74bf148b.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 8,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 8 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.00s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:54365/`",
+              "runner_reported_no_tests": false,
+              "target": "calc_host"
+            }
+          ],
+          "tests_run": 104
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 104,
+        "native_only": 4,
+        "native_only_reasons": [
+          {
+            "count": 1,
+            "reason": "it reads and writes the workbook files an environment variable names.",
+            "tests": [
+              "crates/calc-host/tests/round_trip.rs:1329 d1_round_trip__external_workbook"
+            ]
+          },
+          {
+            "count": 2,
+            "reason": "it reads the repository's oracle workbooks from disk (wasm32 runs on one thread).",
+            "tests": [
+              "crates/calc-host/tests/threads.rs:96 dc_2m0__oracle_workbooks_recalculate_alike_on_one_thread_and_several",
+              "crates/calc-host/tests/threads.rs:142 dc_dxm__competing_spills_recalculate_alike_on_one_thread_and_four"
+            ]
+          },
+          {
+            "count": 1,
+            "reason": "product dispatch and history wall-clock cost, calculation outside the timer.",
+            "tests": [
+              "crates/calc-host/tests/names.rs:288 names_product_edit_cost_measurement"
+            ]
+          }
+        ],
+        "ran": {
+          "Chrome": 104,
+          "Firefox": 104
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 104, Firefox ran 104 of 104 tests marked for the browsers; 4 native-only (1 it reads and writes the workbook files an environment variable names.; 2 it reads the repository's oracle workbooks from disk (wasm32 runs on one thread).; 1 product dispatch and history wall-clock cost, calculation outside the timer.); 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [
+        {
+          "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs leave those targets to the per-bead runner",
+          "target": "acceptance"
+        }
+      ],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "calc-host",
+      "portability": "portable",
+      "role": "library",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 16,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_formula_ui-6b6ae9fd213279b9.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 16,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 16 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.05s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:63589/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_formula_ui"
+            }
+          ],
+          "tests_run": 16
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 16,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_formula_ui-6b6ae9fd213279b9.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 16,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 16 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.03s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:54221/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_formula_ui"
+            }
+          ],
+          "tests_run": 16
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 16,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 16,
+          "Firefox": 16
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 16, Firefox ran 16 of 16 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "dna-formula-ui",
+      "portability": "portable",
+      "role": "app-core",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 82,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_calc_model-ed8f85708c2ca95e.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 82,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 82 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.13s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:64219/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_calc_model"
+            }
+          ],
+          "tests_run": 82
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 82,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_calc_model-ed8f85708c2ca95e.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 82,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 82 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.06s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:54346/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_calc_model"
+            }
+          ],
+          "tests_run": 82
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 82,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 82,
+          "Firefox": 82
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 82, Firefox ran 82 of 82 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "dna-calc-model",
+      "portability": "portable",
+      "role": "app-core",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 24,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_strand-fb6f781d6da4d6b2.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 24,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 24 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.04s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:58148/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_strand"
+            }
+          ],
+          "tests_run": 24
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 24,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_strand-fb6f781d6da4d6b2.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 24,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 24 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.01s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:52695/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_strand"
+            }
+          ],
+          "tests_run": 24
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 24,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 24,
+          "Firefox": 24
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 24, Firefox ran 24 of 24 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "dna-strand",
+      "portability": "portable",
+      "role": "app-core",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 13,
+          "runner_reported_no_tests_for": [
+            "dna-onecalc-web"
+          ],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_onecalc-658df373d00a7698.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 6,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 6 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.07s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:58208/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_onecalc"
+            },
+            {
+              "executable": "dna_onecalc_web-0cd1dac9637611e2.wasm",
+              "executed_in": null,
+              "failed": 0,
+              "ignored": 0,
+              "kind": "bin",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "zero_tests",
+              "passed": 0,
+              "ran": true,
+              "reason": "wasm-bindgen-test-runner reported `no tests to run!`: the module holds no wasm-bindgen tests, so no browser started",
+              "result_line": null,
+              "run": "tests@chromium",
+              "runner_banner": null,
+              "runner_reported_no_tests": true,
+              "target": "dna-onecalc-web"
+            },
+            {
+              "executable": "vba-b7b20d5842d1870f.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 7,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.31s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:60491/`",
+              "runner_reported_no_tests": false,
+              "target": "vba"
+            }
+          ],
+          "tests_run": 13
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 13,
+          "runner_reported_no_tests_for": [
+            "dna-onecalc-web"
+          ],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_onecalc-658df373d00a7698.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 6,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 6 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.03s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:51445/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_onecalc"
+            },
+            {
+              "executable": "vba-b7b20d5842d1870f.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 7,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.21s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:52676/`",
+              "runner_reported_no_tests": false,
+              "target": "vba"
+            },
+            {
+              "executable": "dna_onecalc_web-0cd1dac9637611e2.wasm",
+              "executed_in": null,
+              "failed": 0,
+              "ignored": 0,
+              "kind": "bin",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "zero_tests",
+              "passed": 0,
+              "ran": true,
+              "reason": "wasm-bindgen-test-runner reported `no tests to run!`: the module holds no wasm-bindgen tests, so no browser started",
+              "result_line": null,
+              "run": "tests@firefox",
+              "runner_banner": null,
+              "runner_reported_no_tests": true,
+              "target": "dna-onecalc-web"
+            }
+          ],
+          "tests_run": 13
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 13,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 13,
+          "Firefox": 13
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 13, Firefox ran 13 of 13 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [
+        {
+          "reason": "an acceptance target holds the beads' named cases, which `cargo xtask accept --id <bead>` runs per bead and platform (DNACALC_CI_ACCEPT in CI): under a plain cargo test a case that prints ACCEPT-NOT-RUN (no Excel, no legacy checkout, no browser) reports passed, and only the runner records it not_run, so package test runs leave those targets to the per-bead runner",
+          "target": "acceptance"
+        }
+      ],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "dna-onecalc",
+      "portability": "portable",
+      "role": "app-core",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 79,
+          "runner_reported_no_tests_for": [
+            "dna-calc-web"
+          ],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_calc-7fe7ec131f26c8a7.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 51,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 51 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.36s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:52820/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_calc"
+            },
+            {
+              "executable": "dna_calc_web-761209bb54e87b88.wasm",
+              "executed_in": null,
+              "failed": 0,
+              "ignored": 0,
+              "kind": "bin",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "zero_tests",
+              "passed": 0,
+              "ran": true,
+              "reason": "wasm-bindgen-test-runner reported `no tests to run!`: the module holds no wasm-bindgen tests, so no browser started",
+              "result_line": null,
+              "run": "tests@chromium",
+              "runner_banner": null,
+              "runner_reported_no_tests": true,
+              "target": "dna-calc-web"
+            },
+            {
+              "executable": "workbook-51bcb12d828eb9b5.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 28,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 28 passed; 0 failed; 0 ignored; 0 filtered out; finished in 2.49s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:55880/`",
+              "runner_reported_no_tests": false,
+              "target": "workbook"
+            }
+          ],
+          "tests_run": 79
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 79,
+          "runner_reported_no_tests_for": [
+            "dna-calc-web"
+          ],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_calc-7fe7ec131f26c8a7.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 51,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 51 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.20s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:65255/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_calc"
+            },
+            {
+              "executable": "dna_calc_web-761209bb54e87b88.wasm",
+              "executed_in": null,
+              "failed": 0,
+              "ignored": 0,
+              "kind": "bin",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "zero_tests",
+              "passed": 0,
+              "ran": true,
+              "reason": "wasm-bindgen-test-runner reported `no tests to run!`: the module holds no wasm-bindgen tests, so no browser started",
+              "result_line": null,
+              "run": "tests@firefox",
+              "runner_banner": null,
+              "runner_reported_no_tests": true,
+              "target": "dna-calc-web"
+            },
+            {
+              "executable": "workbook-51bcb12d828eb9b5.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "test",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 28,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 28 passed; 0 failed; 0 ignored; 0 filtered out; finished in 2.29s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:54323/`",
+              "runner_reported_no_tests": false,
+              "target": "workbook"
+            }
+          ],
+          "tests_run": 79
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 79,
+        "native_only": 3,
+        "native_only_reasons": [
+          {
+            "count": 1,
+            "reason": "it reads the workbook the environment variable `DNACALC_OPEN_TIMING` names from",
+            "tests": [
+              "apps/dna-calc/tests/workbook.rs:935 dc_09v__open_timing"
+            ]
+          },
+          {
+            "count": 1,
+            "reason": "it writes the saved workbook to the folder `DNACALC_RIF_SAVE_DIR` names, for Excel",
+            "tests": [
+              "apps/dna-calc/tests/workbook.rs:796 dc_rif__a_new_workbook_saves_for_excel"
+            ]
+          },
+          {
+            "count": 1,
+            "reason": "it writes the saved workbooks to the folder `DNACALC_RIF_SAVE_DIR` names, for",
+            "tests": [
+              "apps/dna-calc/tests/workbook.rs:826 dc_09v__edited_workbooks_save_for_excel"
+            ]
+          }
+        ],
+        "ran": {
+          "Chrome": 79,
+          "Firefox": 79
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 79, Firefox ran 79 of 79 tests marked for the browsers; 3 native-only (1 it reads the workbook the environment variable `DNACALC_OPEN_TIMING` names from; 1 it writes the saved workbook to the folder `DNACALC_RIF_SAVE_DIR` names, for Excel; 1 it writes the saved workbooks to the folder `DNACALC_RIF_SAVE_DIR` names, for); 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "dna-calc",
+      "portability": "portable",
+      "role": "app-core",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 7,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_calc_protocol-b5508c75f6c254ce.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 7,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.11s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:57962/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_calc_protocol"
+            }
+          ],
+          "tests_run": 7
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 7,
+          "runner_reported_no_tests_for": [],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_calc_protocol-b5508c75f6c254ce.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 7,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.05s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:54363/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_calc_protocol"
+            }
+          ],
+          "tests_run": 7
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 7,
+        "native_only": 0,
+        "native_only_reasons": [],
+        "ran": {
+          "Chrome": 7,
+          "Firefox": 7
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 7, Firefox ran 7 of 7 tests marked for the browsers; 0 native-only; 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "dna-calc-protocol",
+      "portability": "portable",
+      "role": "app-core",
+      "status": "passed"
+    },
+    {
+      "browsers": [
+        {
+          "browser": "chromium",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 21,
+          "runner_reported_no_tests_for": [
+            "dna-calc-worker-web"
+          ],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_calc_worker_web-7c3171b4748dfd8b.wasm",
+              "executed_in": null,
+              "failed": 0,
+              "ignored": 0,
+              "kind": "bin",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "zero_tests",
+              "passed": 0,
+              "ran": true,
+              "reason": "wasm-bindgen-test-runner reported `no tests to run!`: the module holds no wasm-bindgen tests, so no browser started",
+              "result_line": null,
+              "run": "tests@chromium",
+              "runner_banner": null,
+              "runner_reported_no_tests": true,
+              "target": "dna-calc-worker-web"
+            },
+            {
+              "executable": "dna_calc_worker-efb83cfc7be88ff1.wasm",
+              "executed_in": "Chrome",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@chromium.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 21,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 21 passed; 0 failed; 0 ignored; 0 filtered out; finished in 2.05s",
+              "run": "tests@chromium",
+              "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:50481/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_calc_worker"
+            }
+          ],
+          "tests_run": 21
+        },
+        {
+          "browser": "firefox",
+          "browser_started": true,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "ignored": 0,
+          "not_run": 0,
+          "passed": 21,
+          "runner_reported_no_tests_for": [
+            "dna-calc-worker-web"
+          ],
+          "status": "passed",
+          "targets": [
+            {
+              "executable": "dna_calc_worker-efb83cfc7be88ff1.wasm",
+              "executed_in": "Firefox",
+              "failed": 0,
+              "ignored": 0,
+              "kind": "lib",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "passed",
+              "passed": 21,
+              "ran": true,
+              "reason": null,
+              "result_line": "test result: ok. 21 passed; 0 failed; 0 ignored; 0 filtered out; finished in 1.95s",
+              "run": "tests@firefox",
+              "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:60509/`",
+              "runner_reported_no_tests": false,
+              "target": "dna_calc_worker"
+            },
+            {
+              "executable": "dna_calc_worker_web-7c3171b4748dfd8b.wasm",
+              "executed_in": null,
+              "failed": 0,
+              "ignored": 0,
+              "kind": "bin",
+              "log": "target/ci/wasm/cargo-test@firefox.log",
+              "not_run": 0,
+              "outcome": "zero_tests",
+              "passed": 0,
+              "ran": true,
+              "reason": "wasm-bindgen-test-runner reported `no tests to run!`: the module holds no wasm-bindgen tests, so no browser started",
+              "result_line": null,
+              "run": "tests@firefox",
+              "runner_banner": null,
+              "runner_reported_no_tests": true,
+              "target": "dna-calc-worker-web"
+            }
+          ],
+          "tests_run": 21
+        }
+      ],
+      "built": true,
+      "coverage": {
+        "marked_for_browsers": 21,
+        "native_only": 1,
+        "native_only_reasons": [
+          {
+            "count": 1,
+            "reason": "the axis arithmetic and escaping, without a page.",
+            "tests": [
+              "apps/dna-calc-worker/src/chart.rs:606 chart::tests::axes_round_out_and_text_is_escaped"
+            ]
+          }
+        ],
+        "ran": {
+          "Chrome": 21,
+          "Firefox": 21
+        },
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "summary": "Chrome ran 21, Firefox ran 21 of 21 tests marked for the browsers; 1 native-only (1 the axis arithmetic and escaping, without a page.); 0 unmarked",
+        "unmarked": []
+      },
+      "excluded_targets": [],
+      "harness_ran": true,
+      "not_run_on_wasm": [
+        "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence"
+      ],
+      "package": "dna-calc-worker",
+      "portability": "portable",
+      "role": "app-core",
+      "status": "passed"
+    }
+  ],
+  "problems": [
+    "manifest: calc-xll-abi has no readable crates/calc-xll-abi/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: calc-xll-host has no readable crates/calc-xll-host/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: calc-com-host has no readable crates/calc-com-host/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: calc-xll-fixture has no readable crates/calc-xll-fixture/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: dna-calc-model has no readable apps/dna-calc-model/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: dna-calc-protocol has no readable apps/dna-calc-protocol/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: dna-calc-worker has no readable apps/dna-calc-worker/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: dna-calc-desktop has no readable apps/dna-calc-desktop/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: calc-xll-shim has no readable platform/calc-xll-shim/acceptance.json: The system cannot find the file specified. (os error 2)",
+    "manifest: xtask-harness has no readable tools/xtask-harness/acceptance.json: The system cannot find the file specified. (os error 2)"
+  ],
+  "result": "failed",
+  "runs": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--no-fail-fast",
+        "--message-format=json-render-diagnostics",
+        "--target-dir",
+        "target/xtask-accept",
+        "--workspace",
+        "--exclude",
+        "calc-xll-abi",
+        "--exclude",
+        "calc-xll-host",
+        "--exclude",
+        "calc-com-host",
+        "--exclude",
+        "calc-xll-fixture",
+        "--exclude",
+        "dna-calc-desktop",
+        "--exclude",
+        "calc-xll-shim",
+        "--exclude",
+        "calc-platform-desktop",
+        "--exclude",
+        "calc-oracle-excel",
+        "--exclude",
+        "xtask",
+        "--exclude",
+        "xtask-harness",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--lib",
+        "--bins",
+        "--test",
+        "charts",
+        "--test",
+        "circular",
+        "--test",
+        "conditional",
+        "--test",
+        "d1_arrays",
+        "--test",
+        "d1_authoring",
+        "--test",
+        "d1_file_form",
+        "--test",
+        "d1_oxdoc",
+        "--test",
+        "dc_5sr_xlsb",
+        "--test",
+        "dc_xuw_macro_sheet",
+        "--test",
+        "external_links",
+        "--test",
+        "f1_engineering",
+        "--test",
+        "f1_math",
+        "--test",
+        "f1_stats",
+        "--test",
+        "f2_dates",
+        "--test",
+        "f2_text",
+        "--test",
+        "f3_arrays",
+        "--test",
+        "f3_financial",
+        "--test",
+        "held_arrays",
+        "--test",
+        "incremental",
+        "--test",
+        "names",
+        "--test",
+        "reference_arrays",
+        "--test",
+        "round_trip",
+        "--test",
+        "threads",
+        "--test",
+        "validation",
+        "--test",
+        "vba",
+        "--test",
+        "vba_udf_names",
+        "--test",
+        "witnesses",
+        "--test",
+        "workbook",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 938.491,
+      "exit_code": 0,
+      "label": "tests@chromium",
+      "log": "target/ci/wasm/cargo-test@chromium.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--no-fail-fast",
+        "--message-format=json-render-diagnostics",
+        "--target-dir",
+        "target/xtask-accept",
+        "--manifest-path",
+        "tools/xtask/ci-browser-fixture/Cargo.toml",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--test",
+        "probe",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 40.056,
+      "exit_code": 0,
+      "label": "fixture@chromium",
+      "log": "target/ci/wasm/fixture@chromium.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--no-fail-fast",
+        "--message-format=json-render-diagnostics",
+        "--target-dir",
+        "target/xtask-accept",
+        "--workspace",
+        "--exclude",
+        "calc-xll-abi",
+        "--exclude",
+        "calc-xll-host",
+        "--exclude",
+        "calc-com-host",
+        "--exclude",
+        "calc-xll-fixture",
+        "--exclude",
+        "dna-calc-desktop",
+        "--exclude",
+        "calc-xll-shim",
+        "--exclude",
+        "calc-platform-desktop",
+        "--exclude",
+        "calc-oracle-excel",
+        "--exclude",
+        "xtask",
+        "--exclude",
+        "xtask-harness",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--lib",
+        "--bins",
+        "--test",
+        "charts",
+        "--test",
+        "circular",
+        "--test",
+        "conditional",
+        "--test",
+        "d1_arrays",
+        "--test",
+        "d1_authoring",
+        "--test",
+        "d1_file_form",
+        "--test",
+        "d1_oxdoc",
+        "--test",
+        "dc_5sr_xlsb",
+        "--test",
+        "dc_xuw_macro_sheet",
+        "--test",
+        "external_links",
+        "--test",
+        "f1_engineering",
+        "--test",
+        "f1_math",
+        "--test",
+        "f1_stats",
+        "--test",
+        "f2_dates",
+        "--test",
+        "f2_text",
+        "--test",
+        "f3_arrays",
+        "--test",
+        "f3_financial",
+        "--test",
+        "held_arrays",
+        "--test",
+        "incremental",
+        "--test",
+        "names",
+        "--test",
+        "reference_arrays",
+        "--test",
+        "round_trip",
+        "--test",
+        "threads",
+        "--test",
+        "validation",
+        "--test",
+        "vba",
+        "--test",
+        "vba_udf_names",
+        "--test",
+        "witnesses",
+        "--test",
+        "workbook",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 944.879,
+      "exit_code": 0,
+      "label": "tests@firefox",
+      "log": "target/ci/wasm/cargo-test@firefox.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--no-fail-fast",
+        "--message-format=json-render-diagnostics",
+        "--target-dir",
+        "target/xtask-accept",
+        "--manifest-path",
+        "tools/xtask/ci-browser-fixture/Cargo.toml",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--test",
+        "probe",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 8.473,
+      "exit_code": 0,
+      "label": "fixture@firefox",
+      "log": "target/ci/wasm/fixture@firefox.log"
+    }
+  ],
+  "started_utc": "2026-11-01T09:39:30Z",
+  "status_rule": "a package is passed when every target cargo built for it ran and its harness ran at least one test with none failing; zero_tests when every target ran and none ran a test (never counted as passed; on wasm this includes a module without wasm-bindgen tests, for which the runner reports `no tests to run!` and starts no browser, as runner_reported_no_tests_for and browser_started record); failed when it was not built, a target did not run, a test failed, or (on wasm) a target passed tests without the runner's banner naming the browser of its run. The job is passed only when no package failed and nothing else it ran failed.",
+  "target": "wasm",
+  "tools": {
+    "chrome": "not on PATH (google-chrome, google-chrome-stable, chromium, chromium-browser); see browser_user_agents",
+    "chromedriver": "ChromeDriver 155.0.8059.39 (3ff7ac5a9224be9156d7f8703a06e22890aafd34-refs/branch-heads/8059@{#935})",
+    "firefox": "not on PATH (firefox); see browser_user_agents",
+    "geckodriver": "geckodriver 0.37.0 (253b85235865 2026-06-02 09:23 +0000)",
+    "wasm-bindgen-test-runner": "wasm-bindgen-test-runner 0.2.117"
+  },
+  "triple": "wasm32-unknown-unknown"
+}

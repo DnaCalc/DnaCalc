@@ -491,3 +491,12 @@ run passes layering, OS imports, native wasm refusals, provenance and dependency
 ceilings; its token scan flags the merged VBA adapter's external HAL type name
 (dc-hsa5.4.1). This is a partial sweep: browser, app-smoke and acceptance were
 skipped, and the failed scan is retained.
+
+Final integration `053481ad` retains the heap fix while adopting the shared
+reference-lifetime API. XLL scalar argument reads remain dependencies, and `#`
+callback reads select the cached policy; worker requests preserve that service
+distinction. Nested registered calls that switch policies are typed refusals.
+All original runtime/control comparisons were repeated on the combined source;
+Windows checks pass 1,529 tests and every corpus cell record remains unchanged.
+Distinct live/cached native forwarding is source-reviewed without a dedicated
+two-reader regression. The final evidence is under the X2 `integrated` folder.
