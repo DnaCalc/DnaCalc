@@ -4202,7 +4202,7 @@ fn contract_worker_sized_first_spill_reuse_retains_its_scope_origin_and_stale_qu
             GridArea::cell(at(s, "G10")),
         ]),
     );
-    book.set_calculation_budget(WorkBudget::evaluations(256));
+    book.set_calculation_budget(WorkBudget::evaluations(64));
     let mut scope: Vec<_> = seven_cell::PURE_SCOPE
         .iter()
         .map(|&(row, col)| GridArea::cell(CellKey::new(s, row, col).unwrap()))
