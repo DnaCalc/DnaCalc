@@ -13,7 +13,7 @@
 //! of an evaluation is written into the plan, so any number of instances and frames share it.
 //!
 //! Every built-in operator and function runs through `calc_func::invoke`. User functions run
-//! through `calc_func::UserFunctions`, which the host supplies independently of any VBA engine. Every value a formula reads
+//! through `crate::CallableTable`, which the host supplies independently of any VBA engine. Every value a formula reads
 //! comes from the caller's [`ReferenceReader`], which is also the `calc_func::CellReader` the
 //! kernels read reference arguments through (see the `cells` module). A function whose catalogue
 //! entry is lazy (IF, IFERROR, IFNA) asks for its arguments itself, and only the arguments it asks
@@ -45,8 +45,8 @@ mod run;
 /// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.
 pub(crate) use compile::file_unprefixed;
 pub use compile::{
-    CompileError, compile, compile_loaded, compile_loaded_with, compile_loaded_with_functions,
-    compile_with, compile_with_functions,
+    CompileError, compile, compile_loaded, compile_loaded_with, compile_loaded_with_bindings,
+    compile_loaded_with_functions, compile_with, compile_with_functions,
 };
 pub use run::{
     ContinuationProgress, EvalContinuation, EvalFault, EvalStep, MAX_CALL_DEPTH, evaluate,
@@ -207,13 +207,28 @@ pub struct UserFunctionSource {
 
 /// Effects observed while evaluating one formula, separate from its immutable plan and result.
 /// Each evaluation starts nonvolatile; the last executed host request sets the final value.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct UserFunctionEffects {
     pub(crate) calls: usize,
     pub(crate) volatile: bool,
+    pub(crate) invocations: Vec<UserCallRecord>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UserCallRecord {
+    pub id: u64,
+    pub parent: Option<u64>,
+    pub callable: crate::CallableHandle,
+    pub call_site: u32,
+    pub occurrence: Vec<u32>,
+    pub completed: bool,
+    pub non_preemptible: bool,
 }
 
 impl UserFunctionEffects {
+    pub fn invocations(&self) -> &[UserCallRecord] {
+        &self.invocations
+    }
     pub fn calls(&self) -> usize {
         self.calls
     }
@@ -266,9 +281,10 @@ enum Admission {
 /// One step of a plan.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum Instruction {
-    /// An engine-neutral eager user function, resolved against the current host registry.
+    /// An engine-neutral user function, bound once to a checked callable slot.
     UserCall {
         name: String,
+        binding: Option<crate::CallableHandle>,
         source: Option<UserFunctionSource>,
         argc: usize,
     },

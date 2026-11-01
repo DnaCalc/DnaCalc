@@ -1759,28 +1759,33 @@ mod parallel {
         let cursor = AtomicUsize::new(0);
         let attempts: Vec<OnceLock<Result<Attempt, RecalcFailure>>> =
             positions.iter().map(|_| OnceLock::new()).collect();
-        std::thread::scope(|scope| {
-            let worker = |local: &mut EvalLocal| {
-                let mut silent = Unobserved;
-                loop {
-                    let from = cursor.fetch_add(CHUNK, Ordering::Relaxed);
-                    if from >= positions.len() {
-                        break;
-                    }
-                    for index in from..(from + CHUNK).min(positions.len()) {
-                        let node = order[positions[index]];
-                        let attempt =
-                            evaluate_with(state, inputs, &shared, local, node, &mut silent);
-                        if attempts[index].set(attempt).is_err() {
-                            unreachable!("each formula of a level is taken once");
-                        }
+        let worker = |local: &mut EvalLocal| {
+            let mut silent = Unobserved;
+            loop {
+                let from = cursor.fetch_add(CHUNK, Ordering::Relaxed);
+                if from >= positions.len() {
+                    break;
+                }
+                for index in from..(from + CHUNK).min(positions.len()) {
+                    let node = order[positions[index]];
+                    let attempt = evaluate_with(state, inputs, &shared, local, node, &mut silent);
+                    if attempts[index].set(attempt).is_err() {
+                        unreachable!("each formula of a level is taken once");
                     }
                 }
-            };
-            let (own, others) = locals.split_first_mut().expect("at least one thread");
-            for local in others {
-                scope.spawn(move || worker(local));
             }
+        };
+        std::thread::scope(|scope| {
+            // Thread-bound callable activations stay on their owner. Pure workers create
+            // their own scratch on entry; no activation is transferred across threads.
+            for _ in 1..locals.len() {
+                let worker = &worker;
+                scope.spawn(move || {
+                    let mut local = EvalLocal::default();
+                    worker(&mut local);
+                });
+            }
+            let own = locals.first_mut().expect("at least one thread");
             worker(own);
         });
         attempts

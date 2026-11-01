@@ -172,7 +172,7 @@ pub fn compile_with(
 }
 
 /// Compiles with caller-owned user functions, without depending on their execution engines.
-/// Plans hold names only; evaluation must receive the current registry through its services.
+/// Plans hold checked slots and generations; evaluation receives the callable table through its services.
 #[allow(clippy::too_many_arguments)]
 pub fn compile_with_functions(
     tree: &SyntaxTree,
@@ -181,7 +181,7 @@ pub fn compile_with_functions(
     catalog: &dyn ReferenceCatalog,
     cache: &mut PlanCache,
     form: FormulaForm,
-    functions: &calc_func::UserFunctions,
+    functions: &crate::CallableTable,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
     compile_as(
         tree,
@@ -191,7 +191,7 @@ pub fn compile_with_functions(
         anchor,
         catalog,
         cache,
-        Some(functions),
+        Some(&functions.bindings()),
     )
 }
 
@@ -204,7 +204,30 @@ pub fn compile_loaded_with_functions(
     catalog: &dyn ReferenceCatalog,
     cache: &mut PlanCache,
     form: FormulaForm,
-    functions: &calc_func::UserFunctions,
+    functions: &crate::CallableTable,
+) -> Result<Arc<CompiledPlan>, CompileError> {
+    compile_as(
+        tree,
+        true,
+        form,
+        notation,
+        anchor,
+        catalog,
+        cache,
+        Some(&functions.bindings()),
+    )
+}
+
+/// Compile against the executable-free projection of the current callable table.
+#[allow(clippy::too_many_arguments)]
+pub fn compile_loaded_with_bindings(
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+    form: FormulaForm,
+    functions: &crate::CallableBindings,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
     compile_as(
         tree,
@@ -227,7 +250,7 @@ fn compile_as(
     anchor: FormulaAnchor,
     catalog: &dyn ReferenceCatalog,
     cache: &mut PlanCache,
-    functions: Option<&calc_func::UserFunctions>,
+    functions: Option<&crate::CallableBindings>,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
     if let Some(first) = tree.diagnostics().first() {
         return Err(CompileError::Syntax { span: first.span });
@@ -298,7 +321,7 @@ struct Lowering<'c> {
     form: FormulaForm,
     anchor: FormulaAnchor,
     catalog: &'c dyn ReferenceCatalog,
-    functions: Option<&'c calc_func::UserFunctions>,
+    functions: Option<&'c crate::CallableBindings>,
     /// The binder's sites of the tree being lowered, by span; each is taken once, by the node it
     /// spans.
     sites: Sites,
@@ -1107,6 +1130,9 @@ impl<'c> Lowering<'c> {
         tasks.push(Task::Emit {
             block,
             instruction: Instruction::UserCall {
+                binding: self.functions.and_then(|functions| {
+                    functions.bind(source.as_ref().and_then(|s| s.target.as_deref()), name)
+                }),
                 name: calc_func::value::fold_workbook_name(name),
                 source,
                 argc: arguments.len(),

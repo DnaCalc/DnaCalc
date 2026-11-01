@@ -1,11 +1,13 @@
 //! VBA adapter outside calc-func and calc-fml. A loaded module retains one project session.
 //! Native builds prefer JIT; wasm and explicitly declined native modules use the interpreter.
 
+use calc_fml::CallableTable as UserFunctions;
 use calc_func::value::{ArrayShape, CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
 use calc_func::value::{CellKey, GridArea, ReferenceLike, SheetId};
-use calc_func::{UserFunction, UserFunctionContext, UserFunctions};
+use calc_func::{UserFunction, UserFunctionContext};
 pub use oxvba_embed::Backend;
-use oxvba_embed::{CodeCache, Module, OwnedSession, Range, SpreadsheetContext, Value};
+mod runtime;
+use runtime::{CodeCache, Module, OwnedSession, Range, SpreadsheetContext, Value};
 use std::{cell::RefCell, fmt, rc::Rc};
 
 thread_local! {
@@ -20,12 +22,12 @@ pub fn code_cache_stats() -> oxvba_embed::CacheStats {
 pub fn clear_code_cache() {
     CODE_CACHE.with(|cache| cache.borrow_mut().clear());
 }
-fn prepare_module(module: Module, backend: Backend) -> Result<OwnedSession, oxvba_embed::Error> {
+fn prepare_module(module: Module, backend: Backend) -> Result<OwnedSession, runtime::Error> {
     CODE_CACHE.with(|cache| {
         cache
             .try_borrow_mut()
             .map_err(|_| {
-                oxvba_embed::Error::Backend("code cache is already preparing a module".into())
+                runtime::Error::Backend("code cache is already preparing a module".into())
             })?
             .prepare(module, backend)
     })
@@ -70,10 +72,9 @@ fn load_module_selected(
             // afresh for the interpreter; runtime errors and exhausted budgets never retry.
             match prepare_module(module.clone(), Backend::Jit) {
                 Ok(session) => session,
-                Err(
-                    oxvba_embed::Error::UnsupportedBackend(_)
-                    | oxvba_embed::Error::BackendUnavailable,
-                ) => prepare_module(module, Backend::Interpreter).map_err(|e| e.to_string())?,
+                Err(runtime::Error::UnsupportedBackend(_) | runtime::Error::BackendUnavailable) => {
+                    prepare_module(module, Backend::Interpreter).map_err(|e| e.to_string())?
+                }
                 Err(error) => return Err(error.to_string()),
             }
         }
@@ -85,11 +86,12 @@ fn load_module_selected(
     let session = Rc::new(session);
     let sheets = Rc::new(RefCell::new(Sheets::default()));
     let mut functions = UserFunctions::new();
-    for metadata in metadata {
+    for (index, metadata) in metadata.into_iter().enumerate() {
         let function = Rc::new(VbaFunction {
             session: session.clone(),
             sheets: sheets.clone(),
             name: metadata.qualified_name.clone(),
+            index,
             max_steps,
         });
         functions.register(&metadata.name, function.clone())?;
@@ -102,6 +104,7 @@ struct VbaFunction {
     session: Rc<OwnedSession>,
     sheets: Rc<RefCell<Sheets>>,
     name: String,
+    index: usize,
     max_steps: u64,
 }
 
@@ -115,7 +118,85 @@ impl fmt::Debug for VbaFunction {
     }
 }
 
+struct VbaActivation {
+    activation: Box<dyn calcvba_host_api::Invocation>,
+    session: Rc<OwnedSession>,
+    sheets: Rc<RefCell<Sheets>>,
+}
+impl fmt::Debug for VbaActivation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VbaActivation")
+            .field("id", &self.activation.frame().id)
+            .finish_non_exhaustive()
+    }
+}
+impl calc_func::UserFunctionInvocation for VbaActivation {
+    fn resume(
+        &mut self,
+        context: &mut dyn UserFunctionContext,
+        quantum: u64,
+    ) -> Result<calc_func::UserFunctionStep, String> {
+        let bridge = ContextBridge {
+            context: RefCell::new(context),
+            sheets: self.sheets.clone(),
+        };
+        self.session
+            .in_context(&bridge, || {
+                self.activation
+                    .resume(quantum)
+                    .map_err(|e| runtime::Error::Backend(e.to_string()))
+            })
+            .map_err(|e| e.to_string())
+            .and_then(|progress| match progress {
+                calcvba_host_api::InvocationProgress::Suspended => {
+                    Ok(calc_func::UserFunctionStep::Suspended)
+                }
+                calcvba_host_api::InvocationProgress::Returned(value) => {
+                    let value = match value {
+                        calcvba_host_api::OwnedValue::Long(n) => CalcValue::number(f64::from(n)),
+                        calcvba_host_api::OwnedValue::Double(n) if n.is_finite() => {
+                            CalcValue::number(n)
+                        }
+                        _ => return Err("unsupported typed VBA result".into()),
+                    };
+                    Ok(calc_func::UserFunctionStep::Complete(value))
+                }
+            })
+    }
+}
 impl UserFunction for VbaFunction {
+    fn begin_call(
+        &self,
+        arguments: &[CalcValue],
+        frame: calc_func::UserInvocationFrame,
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<Option<Box<dyn calc_func::UserFunctionInvocation>>, String> {
+        let bridge = ContextBridge {
+            context: RefCell::new(context),
+            sheets: self.sheets.clone(),
+        };
+        let arguments = arguments
+            .iter()
+            .map(|value| bridge.argument(value))
+            .collect::<Result<Vec<_>, _>>()?;
+        let frame = calcvba_host_api::InvocationFrame::new(frame.id, frame.parent, frame.read_view);
+        self.session
+            .in_context(&bridge, || {
+                self.session
+                    .begin_typed(self.index, &arguments, frame, self.max_steps)
+            })
+            .map_err(|e| e.to_string())
+            .map(|activation| {
+                activation.map(|activation| {
+                    Box::new(VbaActivation {
+                        activation,
+                        session: self.session.clone(),
+                        sheets: self.sheets.clone(),
+                    }) as Box<dyn calc_func::UserFunctionInvocation>
+                })
+            })
+    }
+
     fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
         let args = arguments
             .iter()
@@ -123,7 +204,7 @@ impl UserFunction for VbaFunction {
             .collect::<Result<Vec<_>, _>>()?;
         from_vba(
             self.session
-                .call(&self.name, &args, self.max_steps)
+                .call(self.index, &args, self.max_steps)
                 .map_err(|e| e.to_string())?,
         )
     }
@@ -142,7 +223,7 @@ impl UserFunction for VbaFunction {
             .collect::<Result<Vec<_>, _>>()?;
         from_vba(
             self.session
-                .call_with_context(&self.name, &arguments, self.max_steps, &mut bridge)
+                .call_with_context(self.index, &arguments, self.max_steps, &mut bridge)
                 .map_err(|e| e.to_string())?,
         )
     }
@@ -257,6 +338,123 @@ fn error_number(error: WorksheetErrorCode) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn typed_activations_resume_once_and_keep_old_code_and_state_across_replacement() {
+        struct Context;
+        impl UserFunctionContext for Context {
+            fn caller(&self) -> Option<CellKey> {
+                None
+            }
+            fn refuse(&mut self, reason: &'static str) -> String {
+                reason.into()
+            }
+            fn values_of(&mut self, _: &ReferenceLike) -> Result<CalcValue, String> {
+                Err("unexpected read".into())
+            }
+            fn worksheet_function(
+                &mut self,
+                _: &str,
+                _: &[CalcValue],
+            ) -> Result<CalcValue, String> {
+                Err("unexpected callback".into())
+            }
+        }
+        let source = "Private entries As Long\nPublic Function Counted(ByVal count As Long) As Double\n Dim total As Double\n entries=entries+1\n Do While count > 0\n total=total+1#\n count=count-1\n Loop\n Counted=total+entries\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n";
+        let mut backends = vec![Backend::Interpreter];
+        #[cfg(not(target_arch = "wasm32"))]
+        backends.push(Backend::Jit);
+        for backend in backends {
+            let many_globals = (0..130)
+                .map(|n| format!("Private unused{n} As Long\n"))
+                .collect::<String>()
+                + "Public Function Scalar() As Double\n Scalar=42#\nEnd Function\n";
+            let fallback = load_module_with_backend("Wide", &many_globals, 1000, backend).unwrap();
+            let function = fallback
+                .resolve(fallback.bind(None, "Scalar").unwrap())
+                .unwrap();
+            assert!(
+                function
+                    .begin_call(
+                        &[],
+                        calc_func::UserInvocationFrame::new(None, Rc::new(())),
+                        &mut Context
+                    )
+                    .unwrap()
+                    .is_none(),
+                "pure layout is insufficient for an owning activation"
+            );
+            assert_eq!(
+                function.call_with_context(&[], &mut Context).unwrap(),
+                CalcValue::number(42.0)
+            );
+            let mut table = load_module_with_backend("Resume", source, 10_000, backend).unwrap();
+            let handle = table.bind(None, "Counted").unwrap();
+            let old_count = table
+                .resolve(table.bind(None, "EntryCount").unwrap())
+                .unwrap()
+                .clone();
+            let function = table.resolve(handle).unwrap().clone();
+            let frame = calc_func::UserInvocationFrame {
+                id: 17,
+                parent: Some(9),
+                read_view: Rc::new(40u64),
+            };
+            let weak = Rc::downgrade(&frame.read_view);
+            let mut activation = function
+                .begin_call(&[CalcValue::number(20.0)], frame, &mut Context)
+                .unwrap()
+                .expect("typed signature");
+            assert!(matches!(
+                activation.resume(&mut Context, 0).unwrap(),
+                calc_func::UserFunctionStep::Suspended
+            ));
+            for _ in 0..5 {
+                assert!(matches!(
+                    activation.resume(&mut Context, 1).unwrap(),
+                    calc_func::UserFunctionStep::Suspended
+                ));
+            }
+            let replacement=load_module_with_backend("Resume","Public Function Counted(ByVal text As String) As String\n Counted=text\nEnd Function\n",10_000,backend).unwrap();
+            table.replace(replacement);
+            assert!(table.resolve(handle).is_none());
+            assert_eq!(
+                table.bind(None, "Counted").unwrap().generation,
+                handle.generation + 1
+            );
+            let mut yields = 0;
+            let value = loop {
+                match activation.resume(&mut Context, 1).unwrap() {
+                    calc_func::UserFunctionStep::Suspended => {
+                        yields += 1;
+                        assert!(yields < 10_000);
+                    }
+                    calc_func::UserFunctionStep::Complete(value) => break value,
+                }
+            };
+            assert_eq!(value, CalcValue::number(21.0));
+            assert!(yields > 20);
+            assert_eq!(old_count.call(&[]).unwrap(), CalcValue::number(1.0));
+            assert!(activation.resume(&mut Context, 1).is_err());
+            assert!(weak.upgrade().is_some());
+            drop(activation);
+            assert!(weak.upgrade().is_none());
+            assert_eq!(
+                table
+                    .call(
+                        "Counted",
+                        &[CalcValue::text(ExcelText::from_utf16_code_units(
+                            "new".encode_utf16().collect()
+                        ))]
+                    )
+                    .unwrap(),
+                CalcValue::text(ExcelText::from_utf16_code_units(
+                    "new".encode_utf16().collect()
+                ))
+            );
+        }
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

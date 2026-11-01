@@ -2,7 +2,7 @@
 
 `dc-snz.3` value calls are closed; `dc-snz.5` remains in progress (2026-10-31).
 Only `calc-vba` depends on the OxVba embedding API, pinned to
-`c7ce134918f21038ec1f5f586ebfcac2d1851588`. Native builds prefer JIT;
+`325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1`. Native builds prefer JIT;
 browser builds omit JIT and use the interpreter. A native admission decline can select
 the interpreter before any code runs. Runtime errors and exhausted budgets never retry.
 The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine/calc-doc/calc-host.
@@ -14,10 +14,12 @@ Nothing is persisted to a workbook. Public Functions register bare and qualified
 with the shared workbook-name comparison (dc-snz.11; measured Café/Ångström case pairs);
 Private functions and Subs stay private, and Main never runs.
 
-The caller-owned calc-func registry and calc-fml resolver still own function registration
-and invocation. Built-ins, locals and known defined names keep precedence. Plans retain
-names rather than engine objects; callers recompile when adding a previously unknown
-name. The default UserFunction entry still eagerly reads references for existing adapters;
+CalcFml owns the callable table and resolver; CalcFunc owns the neutral callable traits.
+Built-ins, locals and known defined names keep precedence. Plans retain table, slot and
+generation, plus spelling for diagnostics; invocation uses the checked slot directly.
+Replacement preserves surviving slots and advances generations. Retained activations own
+their previous code and project state; they cannot call an incompatible replacement.
+Callers recompile when adding a previously unknown name. The default UserFunction entry still eagerly reads references for existing adapters;
 the reference-aware entry borrows the evaluator's caller, reader and CalcFunc services.
 
 One loaded VBA module retains globals, Static and Err across calls. Separate modules,
@@ -26,7 +28,19 @@ defaults, typed zero values or Variant Missing; explicit omitted positions diffe
 blank cells. ParamArray packs a fresh zero-based array, including empty bounds 0..-1.
 ByRef inputs remain private copies. Shared immutable code never shares mutable VBA state.
 
-A single rectangular reference now becomes a live read-only Range object. Supported:
+The Range, Application and WorksheetFunction implementation now belongs to DNA Calc in
+calc-vba's runtime composition, extracted from OxVba 325257ea's frozen spreadsheet adapter.
+There is no spreadsheet-compat dependency. The neutral host API carries bound procedure
+handles, typed slots and owning activations. Admission prepares Long/Double shims where
+the actual body supports typed execution. Other signatures retain the explicit Variant
+adapter; their synchronous interval is recorded. Errors never select a second entry.
+CalcFml retains an admitted typed activation at an instruction boundary and resumes it,
+with the same invocation identity and read-view lease, without re-entering the procedure.
+The one-operation replacement test exercises both interpreter and native JIT. General
+Variant object calls do not yet promise an internal safepoint. Workbook cached observation
+views and stored-Range structural tracking still need engine/host integration.
+
+A single rectangular reference becomes a live read-only Range object. Supported:
 Value2, Count, Row, Column, Address, Cells/Item, and Rows/Columns Count. Variant reference
 arguments have TypeName Range; a numeric literal is Double. Application.Caller identifies
 the formula cell. VarType reflects the live Range default value (Number5, Empty0, text8, Variant array8204),

@@ -109,7 +109,9 @@ pub struct FormulaEvaluationContext<'s> {
     pub(super) request: ReadRequest,
     pub(super) observer: Option<&'s mut dyn EvaluationObserver>,
     pub(super) catalog: Option<&'s dyn ReferenceCatalog>,
-    pub(super) functions: Option<&'s calc_func::UserFunctions>,
+    pub(super) functions: Option<&'s crate::CallableTable>,
+    pub(super) invocation: Option<calc_func::UserInvocationFrame>,
+    pub(super) observation_reader: Option<&'s mut dyn ReferenceReader>,
     pub(super) function_diagnostics: Option<&'s mut Vec<String>>,
     pub(super) user_function_effects: Option<&'s mut UserFunctionEffects>,
 }
@@ -135,12 +137,22 @@ impl<'s> FormulaEvaluationContext<'s> {
             observer: None,
             catalog: None,
             functions: None,
+            invocation: None,
+            observation_reader: None,
             function_diagnostics: None,
             user_function_effects: None,
         }
     }
 
-    pub fn with_functions(mut self, functions: &'s calc_func::UserFunctions) -> Self {
+    pub fn with_invocation(mut self, invocation: calc_func::UserInvocationFrame) -> Self {
+        self.invocation = Some(invocation);
+        self
+    }
+    pub fn with_observation_reader(mut self, reader: &'s mut dyn ReferenceReader) -> Self {
+        self.observation_reader = Some(reader);
+        self
+    }
+    pub fn with_functions(mut self, functions: &'s crate::CallableTable) -> Self {
         self.functions = Some(functions);
         self
     }

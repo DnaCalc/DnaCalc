@@ -1,4 +1,5 @@
-use calc_func::{UserFunction, UserFunctionContext, UserFunctions};
+use calc_fml::CallableTable as UserFunctions;
+use calc_func::{UserFunction, UserFunctionContext};
 use calc_value::{CalcValue, SheetId};
 use calc_xll_abi::*;
 use std::{
