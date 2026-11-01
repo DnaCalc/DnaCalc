@@ -297,6 +297,12 @@ values, ownership, removals, obstruction and reader invalidations as one unit. C
 semantic reservation order, never completion time or interest (today first-established, `calc-engine/src/spill.rs:7-10`;
 Excel's winner is P05).
 
+P05 (O, 20527 safe mode) confirms reader-only cached absence during growth, fresh values when the
+anchor/readers are included, and cleared children on shrink in the measured range. A blank future
+child-only target did not expand the anchor; existing-child scope is not established by that result.
+Conflict winners varied with entry history/MTC and sometimes between nominally identical MTC-on
+trials. First-by-semantic-reservation stays a DNA policy, not a measured universal Excel winner.
+
 ## 8. Save
 
 `SaveRequest { id, workbook, model: ModelPin, base_results, inputs, cache_policy, format }` ->
@@ -412,7 +418,7 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 | Out-of-range precedents in Range/Sheet calculation; post-command dirtiness; mode dependence | P02 confirms boundary caches and Manual `StillRequired`; row-major separate; automatic edits calculate before explicit commands. UI sheet grouping remains open | P02 (O, 20527 safe mode) |
 | Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | P03 confirms status-64 unwind/re-entry for ordinary/$, successful # coercion, and provisional VBA values; preserve typed reasons and registration capabilities. Null not observed | P03 (O, 20527 safe mode) |
 | Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | P04 confirms reuse/occurrence boundaries and eight calls before #SPILL! for the measured volatile SEQUENCE sizing path; held footprint and repeated size determine earlier completion. Global graph-wave count remains open | P04 (O, 20527 safe mode) |
-| Spill conflict winner, stale-footprint clearing, child-only calculation | first by reservation order | P05 |
+| Spill conflict winner, stale-footprint clearing, child-only calculation | P05 confirms cached absence and shrink clearing; conflict winners depend on entry/MTC context and can vary. Existing-child scope remains open; semantic reservation remains DNA policy | P05 (O, 20527 safe mode) |
 | Save scope, stale `<v>` with Save(false), open-time recalculation | pinned dirty/volatile save scope; drop-stale default | P06 |
 | Stale async returns Excel accepts; overlap of calls from one cell | revoke on any live edit | P07 |
 | Whether Excel's observable intermediate caches depend on chain history or position | serial fences | P08 |

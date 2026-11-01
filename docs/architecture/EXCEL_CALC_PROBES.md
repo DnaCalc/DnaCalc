@@ -142,6 +142,14 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   stale child after a command that covered it: removal must invalidate readers. Winner depends on order/history:
   reservation order is semantic input; both fail: no first-finisher winner. Child-only expands scope: command rule.
 
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 220 primary workbooks and 22 HasSpill controls.
+  Reader-only returned cached absence (C10=1); anchor+readers returned 11; shrink removed old children (all ten
+  per condition). The blank A10-only command did not expand the anchor. MTC-off conflict winners followed the
+  tested entry histories; MTC-on trials could have either winner even for one nominal condition. Keep the
+  conflict order as an explicit profile policy, not a fixed coordinate winner. Literals, empty-text formulas,
+  tables and edges blocked; formatted blank did not. Existing-child scope remains open; merged obstruction
+  omitted under the supplied no-merged-cells instruction. [Evidence](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P05/README.md).
+
 ### P06 ★ Save truth table and open-time caches (E09; A7 save scope, SYNTHESIS CalculateBeforeSave)
 - **Setup.** P02's chain calculated, then Manual A1:=5 with old B1/C1 caches. Variants with a volatile formula, a
   stale data table (Automatic Except Tables), a disabled sheet, a pending async call (P07's XLL), a dirty spill.
