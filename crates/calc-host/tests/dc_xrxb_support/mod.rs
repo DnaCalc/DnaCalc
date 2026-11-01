@@ -92,6 +92,10 @@ struct DataReader {
 }
 
 impl ReferenceReader for DataReader {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        None
+    }
+
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
     fn spill_extent(&mut self, _: calc_host::value::CellKey) -> calc_fml::reference::SpillExtent {
@@ -107,7 +111,7 @@ impl ReferenceReader for DataReader {
 
     fn read_area(
         &mut self,
-        request: calc_fml::ReadRequest,
+        _request: calc_fml::ReadRequest,
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {
@@ -271,7 +275,10 @@ pub fn unprefixed_file_spelling_gives_name() -> Vec<String> {
     loop {
         match step(&mut host, WorkBudget::UNLIMITED, &mut evaluations) {
             HostProgress::Calculating { .. } => {}
-            HostProgress::Published(_) | HostProgress::Current | HostProgress::Manual => break,
+            HostProgress::Published(_)
+            | HostProgress::Current
+            | HostProgress::Manual
+            | HostProgress::Cancelled => break,
             HostProgress::Failed(failure) => panic!("the recalculation failed: {failure}"),
         }
     }

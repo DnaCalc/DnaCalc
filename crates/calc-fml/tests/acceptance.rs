@@ -1585,6 +1585,10 @@ impl LoggingReader {
 }
 
 impl ReferenceReader for LoggingReader {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        None
+    }
+
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
     fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
@@ -1600,7 +1604,7 @@ impl ReferenceReader for LoggingReader {
 
     fn read_area(
         &mut self,
-        request: calc_fml::ReadRequest,
+        _request: calc_fml::ReadRequest,
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {
@@ -1655,6 +1659,10 @@ struct BlockReader {
 }
 
 impl ReferenceReader for BlockReader {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        None
+    }
+
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
     fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
@@ -1670,7 +1678,7 @@ impl ReferenceReader for BlockReader {
 
     fn read_area(
         &mut self,
-        request: calc_fml::ReadRequest,
+        _request: calc_fml::ReadRequest,
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {
@@ -2187,6 +2195,10 @@ impl RunReader {
 }
 
 impl ReferenceReader for RunReader {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        None
+    }
+
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
     fn subtotal_exclusions(
@@ -2208,7 +2220,7 @@ impl ReferenceReader for RunReader {
 
     fn read_area(
         &mut self,
-        request: calc_fml::ReadRequest,
+        _request: calc_fml::ReadRequest,
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {

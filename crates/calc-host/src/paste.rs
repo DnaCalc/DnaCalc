@@ -18,6 +18,7 @@ pub enum PasteSource<'a> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PastePlan {
+    moves_cells: bool,
     scope: Option<u64>,
     revision: u64,
     target: GridArea,
@@ -32,6 +33,11 @@ impl PastePlan {
         self.replaces
     }
     pub(crate) fn into_edits(self, host: &HostState) -> Result<Vec<CellEdit>, String> {
+        if self.moves_cells && host.scoped_calculation_active() {
+            return Err(
+                "Finish or cancel the scoped calculation before moving cells (dc-hsa5)".into(),
+            );
+        }
         if self.scope != Some(host.command_scope) || self.revision != host.revision().get() {
             return Err("The workbook changed after the preview; paste again".into());
         }
@@ -52,6 +58,7 @@ pub fn prepare_paste(
     to: GridArea,
     mode: PasteMode,
 ) -> Result<PastePlan, String> {
+    let moves_cells = matches!(&source, PasteSource::Snapshot { cut: true, .. });
     let (edits, target) = match source {
         PasteSource::Snapshot { snapshot, cut } => {
             if cut && mode != PasteMode::All {
@@ -140,6 +147,7 @@ pub fn prepare_paste(
         host.model().cells(target).into_iter().flatten().count() as u64
     };
     Ok(PastePlan {
+        moves_cells,
         scope: Some(host.command_scope),
         revision: host.revision().get(),
         target,

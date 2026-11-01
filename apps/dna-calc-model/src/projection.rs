@@ -334,6 +334,13 @@ pub enum Intent {
     Undo,
     Redo,
     Recalculate,
+    CalculateRange {
+        areas: Vec<Area>,
+    },
+    Calculate {
+        scope: CalculationScope,
+        selection: CalculationSelection,
+    },
     SetCalcMode {
         manual: bool,
     },
@@ -914,6 +921,8 @@ impl Cell {
 /// these are all of its cells.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cells {
+    #[serde(default)]
+    pub publication: Option<Publication>,
     pub id: u64,
     pub seq: u64,
     pub reset: bool,
@@ -926,6 +935,11 @@ pub struct Cells {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Event {
     Cells(Cells),
+    Calculation {
+        workbook: u64,
+        receipt: CalculationEvent,
+        summary: Option<Summary>,
+    },
 }
 
 /// The server to the page. A message lives only until it is encoded or applied, so its
@@ -1031,3 +1045,76 @@ pub struct SheetTab {
 
 /// Initial notebook projection page size.
 pub const NOTEBOOK_PAGE: usize = 40;
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Publication {
+    pub domain: u64,
+    pub command: u64,
+    pub sequence: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CalculationScope {
+    Workbook,
+    Sheet(Sheet),
+    Range(Vec<Area>),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CalculationSelection {
+    DirtyAndVolatile,
+    ForceAll,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CalculationOutcome {
+    Complete,
+    Incomplete,
+    Superseded,
+    Cancelled,
+    Failed,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CalculationEvent {
+    Committed {
+        revision: u64,
+    },
+    Admitted {
+        domain: u64,
+        command: u64,
+        pass: u32,
+        revision: u64,
+        scope: CalculationScope,
+        selection: CalculationSelection,
+        predecessor: Option<u64>,
+    },
+    Yielded {
+        domain: u64,
+        command: u64,
+        pass: u32,
+        remaining: usize,
+    },
+    Superseded {
+        domain: u64,
+        command: u64,
+        by: u64,
+        revision: u64,
+    },
+    Reused {
+        at: Key,
+        computed_by: u64,
+        certified_for: u64,
+    },
+    Rejected {
+        at: Key,
+    },
+    Published(Publication),
+    Completed {
+        domain: u64,
+        command: u64,
+        revision: u64,
+        outcome: CalculationOutcome,
+        required: usize,
+        calculated: usize,
+        refused: usize,
+        held: usize,
+        uncertified: usize,
+    },
+}

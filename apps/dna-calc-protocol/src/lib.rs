@@ -58,6 +58,7 @@ mod tests {
                 message: "no".to_owned(),
             },
             FromServer::Event(Event::Cells(Cells {
+                publication: None,
                 id: 1,
                 seq: 2,
                 reset: false,

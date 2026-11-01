@@ -189,3 +189,9 @@ pub struct FactRead {
     pub subject: FactSubject,
     pub invalidation: FactInvalidation,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReadDenial {
+    pub construct: &'static str,
+    pub owner: &'static str,
+}

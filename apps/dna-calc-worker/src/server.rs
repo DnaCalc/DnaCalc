@@ -29,6 +29,7 @@ pub struct Answer {
 }
 
 pub struct Server {
+    calculation_budget: calc_host::WorkBudget,
     workbook: u64,
     commands: calc_host::CommandJournal<(Result<Reply, String>, Option<Vec<u8>>)>,
     validation_pending: Option<(u64, u64, Selection, SkinIntent)>,
@@ -53,6 +54,7 @@ impl Server {
     pub fn new() -> Server {
         let book = Workbook::new_blank();
         Server {
+            calculation_budget: calc_host::WorkBudget::UNLIMITED,
             workbook: 0,
             commands: calc_host::CommandJournal::new(128, 16 * 1024 * 1024),
             validation_pending: None,
@@ -64,6 +66,19 @@ impl Server {
             clipboard_session: crate::services::session_nonce(),
             paste_plan: None,
         }
+    }
+
+    pub fn set_calculation_budget(&mut self, budget: calc_host::WorkBudget) {
+        self.calculation_budget = budget;
+        self.book.set_calculation_budget(budget);
+    }
+    pub fn has_pending_calculation(&self) -> bool {
+        self.book.has_pending_calculation()
+    }
+    pub fn advance_calculation(&mut self) -> calc_host::HostProgress {
+        let progress = self.book.advance_calculation();
+        self.collect();
+        progress
     }
 
     /// The open workbook (the in-process transport lets the skins not yet moved to the messages
@@ -249,7 +264,7 @@ impl Server {
                     let started = crate::services::now_ms();
                     let bytes = bytes.unwrap_or_default();
                     crate::workbook::reserve_for_open(bytes.len());
-                    match Workbook::open(&name, bytes) {
+                    match Workbook::open_with_budget(&name, bytes, self.calculation_budget) {
                         Ok(book) => {
                             let elapsed = crate::services::now_ms() - started;
                             let calculated = book.calculated_on_open();
@@ -497,7 +512,13 @@ impl Server {
     }
 
     /// A new workbook in place of the open one: the page's subscriptions end with it.
-    fn install(&mut self, book: Workbook) {
+    fn install(&mut self, mut book: Workbook) {
+        let interrupted = self.book.has_pending_calculation();
+        if interrupted {
+            self.book.cancel_calculation();
+        }
+        self.collect();
+        book.set_calculation_budget(self.calculation_budget);
         self.validation_pending = None;
         self.workbook = self
             .workbook
@@ -505,7 +526,8 @@ impl Server {
             .expect("workbook incarnations exhausted");
         self.book = book;
         self.subscriptions.clear();
-        self.events.clear();
+        self.events
+            .retain(|event| matches!(event, Event::Calculation { .. }));
         self.snapshots.clear();
         self.paste_plan = None;
     }
@@ -1001,6 +1023,30 @@ impl Server {
             Intent::Undo => SkinIntent::Undo,
             Intent::Redo => SkinIntent::Redo,
             Intent::Recalculate => SkinIntent::Recalculate,
+            Intent::Calculate { scope, selection } => SkinIntent::Calculate {
+                scope: match scope {
+                    wire::CalculationScope::Workbook => calc_host::CalcScope::Workbook,
+                    wire::CalculationScope::Sheet(sheet) => calc_host::CalcScope::Sheet(sheet.id()),
+                    wire::CalculationScope::Range(areas) => calc_host::CalcScope::Range(
+                        areas
+                            .into_iter()
+                            .map(|area| area.area().ok_or("The calculation range is invalid"))
+                            .collect::<Result<Vec<_>, _>>()?,
+                    ),
+                },
+                selection: match selection {
+                    wire::CalculationSelection::DirtyAndVolatile => {
+                        calc_host::EvalSelection::DirtyAndVolatile
+                    }
+                    wire::CalculationSelection::ForceAll => calc_host::EvalSelection::ForceAll,
+                },
+            },
+            Intent::CalculateRange { areas } => SkinIntent::CalculateRange {
+                areas: areas
+                    .into_iter()
+                    .map(|area| area.area().ok_or("The calculation range is invalid"))
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
             Intent::SetCalcMode { manual } => SkinIntent::SetCalcMode(if manual {
                 CalcMode::Manual
             } else {
@@ -1185,12 +1231,110 @@ impl Server {
         })
     }
 
+    fn push_calculation_event(&mut self, event: calc_host::CalcEvent, terminal: bool) {
+        use calc_host::CalcEvent as E;
+        let scope = |scope: calc_host::CalcScope| match scope {
+            calc_host::CalcScope::Workbook => wire::CalculationScope::Workbook,
+            calc_host::CalcScope::Sheet(sheet) => wire::CalculationScope::Sheet(Sheet::of(sheet)),
+            calc_host::CalcScope::Range(areas) => {
+                wire::CalculationScope::Range(areas.into_iter().map(Area::of).collect())
+            }
+        };
+        let receipt = match event {
+            E::Committed { revision } => wire::CalculationEvent::Committed {
+                revision: revision.get(),
+            },
+            E::Admitted(r) => wire::CalculationEvent::Admitted {
+                domain: r.command.domain_incarnation,
+                command: r.command.sequence,
+                pass: r.pass.ordinal,
+                revision: r.admitted.model.get(),
+                scope: scope(r.scope),
+                selection: match r.selection {
+                    calc_host::EvalSelection::DirtyAndVolatile => {
+                        wire::CalculationSelection::DirtyAndVolatile
+                    }
+                    calc_host::EvalSelection::ForceAll => wire::CalculationSelection::ForceAll,
+                },
+                predecessor: r.predecessor.map(|id| id.sequence),
+            },
+            E::Yielded { pass, remaining } => wire::CalculationEvent::Yielded {
+                domain: pass.command.domain_incarnation,
+                command: pass.command.sequence,
+                pass: pass.ordinal,
+                remaining,
+            },
+            E::Superseded(r) => {
+                let by = match r.outcome {
+                    calc_host::CompletionOutcome::Superseded { by } => by.sequence,
+                    _ => unreachable!("a supersession receipt names its successor"),
+                };
+                wire::CalculationEvent::Superseded {
+                    domain: r.command.domain_incarnation,
+                    command: r.command.sequence,
+                    by,
+                    revision: r.admitted.model.get(),
+                }
+            }
+            E::Reused {
+                at,
+                computed_by,
+                certified_for,
+            } => wire::CalculationEvent::Reused {
+                at: Key::of(at),
+                computed_by: computed_by.sequence,
+                certified_for: certified_for.sequence,
+            },
+            E::Rejected { at } => wire::CalculationEvent::Rejected { at: Key::of(at) },
+            E::Published(unit) => wire::CalculationEvent::Published(wire::Publication {
+                domain: unit.command.domain_incarnation,
+                command: unit.command.sequence,
+                sequence: unit.sequence,
+            }),
+            E::Completed(r) => wire::CalculationEvent::Completed {
+                domain: r.command.domain_incarnation,
+                command: r.command.sequence,
+                revision: r.admitted.model.get(),
+                outcome: match r.outcome {
+                    calc_host::CompletionOutcome::Complete => wire::CalculationOutcome::Complete,
+                    calc_host::CompletionOutcome::Incomplete => {
+                        wire::CalculationOutcome::Incomplete
+                    }
+                    calc_host::CompletionOutcome::Cancelled => wire::CalculationOutcome::Cancelled,
+                    calc_host::CompletionOutcome::Failed => wire::CalculationOutcome::Failed,
+                    calc_host::CompletionOutcome::Superseded { .. } => {
+                        wire::CalculationOutcome::Superseded
+                    }
+                },
+                required: r.coverage.required,
+                calculated: r.coverage.calculated,
+                refused: r.coverage.refused,
+                held: r.coverage.held,
+                uncertified: r.coverage.uncertified,
+            },
+        };
+        self.events.push(Event::Calculation {
+            workbook: self.workbook,
+            receipt,
+            summary: terminal.then(|| self.summary()),
+        });
+    }
+
     /// calc-host's deltas since the last call, as the page's subscriptions' cells.
     fn collect(&mut self) {
-        let deltas = self.book.take_deltas();
-        if deltas.is_empty() {
-            return;
+        let calculation_events = self.book.take_calculation_events();
+        let mut terminal = Vec::new();
+        for event in calculation_events {
+            if matches!(
+                event,
+                calc_host::CalcEvent::Published(_) | calc_host::CalcEvent::Completed(_)
+            ) {
+                terminal.push(event);
+            } else {
+                self.push_calculation_event(event, false);
+            }
         }
+        let deltas = self.book.take_deltas();
         let ids: BTreeMap<SubscriptionId, u64> = self
             .subscriptions
             .iter()
@@ -1218,13 +1362,27 @@ impl Server {
                     projected,
                 ));
             }
+            let publication = match &delta.cause {
+                calc_host::DeltaCause::Recalculated { publication, .. } => {
+                    Some(wire::Publication {
+                        domain: publication.command.domain_incarnation,
+                        command: publication.command.sequence,
+                        sequence: publication.sequence,
+                    })
+                }
+                _ => None,
+            };
             self.events.push(Event::Cells(Cells {
+                publication,
                 id,
                 seq: delta.seq,
                 reset: delta.reset,
                 cells,
                 emptied,
             }));
+        }
+        for event in terminal {
+            self.push_calculation_event(event, true);
         }
     }
 

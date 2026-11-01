@@ -1308,7 +1308,9 @@ mod rule_review {
         let events = server.take_events();
         assert!(
             events.iter().any(|event| {
-                let wire::Event::Cells(cells) = event;
+                let wire::Event::Cells(cells) = event else {
+                    return false;
+                };
                 cells.reset
                     && cells
                         .cells

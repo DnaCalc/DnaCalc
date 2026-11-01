@@ -44,6 +44,8 @@ use std::sync::Arc;
 /// Why a copy made no edit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CopyRefusal {
+    /// A cut cannot retarget an active scoped command until its transform is implemented.
+    ScopeTransformNotModeled,
     /// The source and the target are on sheets the workbook does not hold.
     UnknownSheet,
     /// The target is not a whole multiple of the source's shape (Excel: "the copy area and the
@@ -81,6 +83,9 @@ pub enum CopyRefusal {
 impl fmt::Display for CopyRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ScopeTransformNotModeled => {
+                f.write_str("finish or cancel the scoped calculation before moving cells (dc-hsa5)")
+            }
             Self::LegacyFill => f.write_str(
                 "fill from a legacy array is not modelled; copy its whole extent instead",
             ),
@@ -230,6 +235,9 @@ impl CopySnapshot {
         cut: bool,
         series: Option<bool>,
     ) -> Result<Vec<CellEdit>, CopyRefusal> {
+        if cut && host.scoped_calculation_active() {
+            return Err(CopyRefusal::ScopeTransformNotModeled);
+        }
         if cut
             && (host.revision() != self.model.revision()
                 || self.styles.iter().any(|(&at, &style)| {

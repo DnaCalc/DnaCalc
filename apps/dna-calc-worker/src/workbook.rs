@@ -112,9 +112,18 @@ impl Workbook {
     /// then recalculated, so every formula shows what the engine calculates for it (or its
     /// refusal) rather than the value the file stored.
     pub fn open(name: &str, bytes: Vec<u8>) -> Result<Workbook, OpenRefused> {
+        Self::open_with_budget(name, bytes, calc_host::WorkBudget::UNLIMITED)
+    }
+
+    pub fn open_with_budget(
+        name: &str,
+        bytes: Vec<u8>,
+        budget: calc_host::WorkBudget,
+    ) -> Result<Workbook, OpenRefused> {
         let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
-        let session = HostSession::open(source, &OpenPolicy::default(), host_options())
+        let mut session = HostSession::open(source, &OpenPolicy::default(), host_options())
             .map_err(|failure| OpenRefused(failure.to_string()))?;
+        session.set_calculation_budget(budget);
         let mut workbook = Workbook {
             session,
             name: name.to_owned(),
@@ -134,7 +143,9 @@ impl Workbook {
         if workbook.session.calc_mode() != CalcMode::Manual {
             let started = crate::services::now_ms();
             workbook.session.dispatch(SkinIntent::Recalculate);
-            workbook.calculated_on_open = Some(crate::services::now_ms() - started);
+            if !workbook.session.has_pending_calculation() {
+                workbook.calculated_on_open = Some(crate::services::now_ms() - started);
+            }
         }
         Ok(workbook)
     }
@@ -174,6 +185,27 @@ impl Workbook {
 
     pub fn session(&self) -> &HostSession {
         &self.session
+    }
+
+    pub fn set_calculation_budget(&mut self, budget: calc_host::WorkBudget) {
+        self.session.set_calculation_budget(budget);
+    }
+    pub fn has_pending_calculation(&self) -> bool {
+        self.session.has_pending_calculation()
+    }
+    pub fn take_calculation_events(&mut self) -> Vec<calc_host::CalcEvent> {
+        self.session.take_calculation_events()
+    }
+    pub fn cancel_calculation(&mut self) {
+        self.session.cancel_calculation();
+    }
+    pub fn advance_calculation(&mut self) -> HostProgress {
+        let progress = self.session.advance_calculation();
+        if matches!(progress, HostProgress::Published(_)) {
+            self.conditional.borrow_mut().clear();
+            self.display_metrics.borrow_mut().clear();
+        }
+        progress
     }
 
     pub fn profile(&self) -> Option<&FormatProfile> {
@@ -508,6 +540,7 @@ impl Workbook {
     pub fn recalc_text(progress: &HostProgress) -> String {
         match progress {
             HostProgress::Current => "nothing to recalculate".to_owned(),
+            HostProgress::Cancelled => "calculation cancelled".to_owned(),
             HostProgress::Manual => "manual calculation: press Calculate".to_owned(),
             HostProgress::Calculating { .. } => "calculating".to_owned(),
             HostProgress::Published(_) => "recalculated".to_owned(),

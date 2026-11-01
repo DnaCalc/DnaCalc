@@ -565,6 +565,32 @@ impl Controller {
                     });
                 }
             }
+            Event::Calculation {
+                workbook,
+                receipt,
+                summary,
+            } => {
+                if self.summary.with_untracked(|current| current.workbook) != workbook {
+                    return;
+                }
+                if let Some(summary) = summary {
+                    self.summary.set(summary.into());
+                }
+                match receipt {
+                    crate::wire::CalculationEvent::Yielded { remaining, .. } => {
+                        self.say(format!("Calculating {remaining} formulas"), false)
+                    }
+                    crate::wire::CalculationEvent::Completed {
+                        outcome: crate::wire::CalculationOutcome::Complete,
+                        ..
+                    } => self.say("Recalculated", false),
+                    crate::wire::CalculationEvent::Completed {
+                        outcome: crate::wire::CalculationOutcome::Incomplete,
+                        ..
+                    } => self.say("Calculation finished with unresolved results", true),
+                    _ => {}
+                }
+            }
         }
     }
 
@@ -2939,6 +2965,7 @@ mod projection_lifetime_tests {
             assert!(mirror.try_get_untracked().is_none());
             assert!(mirror.try_update(|_| ()).is_none());
             controller.receive(Event::Cells(wire::Cells {
+                publication: None,
                 id,
                 seq: 1,
                 reset: true,

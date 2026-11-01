@@ -59,9 +59,15 @@ fn package() -> Vec<u8> {
         ("xl/_rels/workbook.xml.rels", workbook_rels.as_bytes()),
         ("xl/worksheets/sheet1.xml", SHEET.as_bytes()),
         ("xl/externalLinks/externalLink1.xml", LINK1.as_bytes()),
-        ("xl/externalLinks/_rels/externalLink1.xml.rels", link1_rels.as_bytes()),
+        (
+            "xl/externalLinks/_rels/externalLink1.xml.rels",
+            link1_rels.as_bytes(),
+        ),
         ("xl/externalLinks/externalLink2.xml", LINK2.as_bytes()),
-        ("xl/externalLinks/_rels/externalLink2.xml.rels", link2_rels.as_bytes()),
+        (
+            "xl/externalLinks/_rels/externalLink2.xml.rels",
+            link2_rels.as_bytes(),
+        ),
     ])
 }
 
@@ -81,6 +87,13 @@ fn dc_ylr__external_references_read_the_links_cached_values() {
     loop {
         match step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved) {
             HostProgress::Calculating { .. } => {}
+            HostProgress::Published(delta) => {
+                let receipt = delta.completion().unwrap();
+                assert_eq!(receipt.coverage.calculated, 6);
+                assert_eq!(receipt.coverage.uncertified, 6);
+                assert_eq!(receipt.outcome, calc_host::CompletionOutcome::Incomplete);
+                break;
+            }
             _ => break,
         }
     }
@@ -94,6 +107,10 @@ fn dc_ylr__external_references_read_the_links_cached_values() {
         .iter()
         .map(|cell| match cell.value() {
             ProjectedValue::Calculated { value, calculation } => {
+                assert!(
+                    calculation.stamp().unwrap().reads.external_cache,
+                    "direct and transitive cached external reads must retain their qualification"
+                );
                 let mark = if calculation.reads_external_links() {
                     " (external link)"
                 } else {
@@ -101,7 +118,9 @@ fn dc_ylr__external_references_read_the_links_cached_values() {
                 };
                 match value.core_ref() {
                     CoreRef::Number(n) => format!("{n}{mark}"),
-                    CoreRef::Text(t) => format!("{:?}{mark}", String::from_utf16_lossy(t.utf16_code_units())),
+                    CoreRef::Text(t) => {
+                        format!("{:?}{mark}", String::from_utf16_lossy(t.utf16_code_units()))
+                    }
                     CoreRef::Error(code) => format!("{code:?}{mark}"),
                     other => format!("{other:?}{mark}"),
                 }
@@ -182,7 +201,9 @@ fn dc_ylr__the_excel_oracle_and_its_binary_twin_read_the_link_as_references() {
     let main = |host: &HostState| {
         host.sheets()
             .iter()
-            .find(|sheet| String::from_utf16_lossy(sheet.name().text().utf16_code_units()) == "Main")
+            .find(|sheet| {
+                String::from_utf16_lossy(sheet.name().text().utf16_code_units()) == "Main"
+            })
             .expect("sheet Main")
             .id()
     };
@@ -249,7 +270,11 @@ fn dc_ylr__a_typed_formula_names_the_book_by_its_file_name() {
         .expect("sheet Main")
         .id();
     let entries = [
-        ("=[ylr-source.xlsx]Sheet1!A2", "2 (external link)", "[1]Sheet1!A2"),
+        (
+            "=[ylr-source.xlsx]Sheet1!A2",
+            "2 (external link)",
+            "[1]Sheet1!A2",
+        ),
         (
             "=SUM([YLR-SOURCE.XLSX]Sheet1!A1:A3)",
             "6 (external link)",
@@ -265,7 +290,11 @@ fn dc_ylr__a_typed_formula_names_the_book_by_its_file_name() {
             "10 (external link)",
             "'[1]My Sheet'!A1",
         ),
-        ("=[other.xlsx]Sheet1!A1", "not modelled", "[other.xlsx]Sheet1!A1"),
+        (
+            "=[other.xlsx]Sheet1!A1",
+            "not modelled",
+            "[other.xlsx]Sheet1!A1",
+        ),
     ];
     for (row, (text, _, _)) in entries.iter().enumerate() {
         let at = CellKey::new(sheet, row as u32 + 1, 2).expect("a cell");

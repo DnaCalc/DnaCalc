@@ -89,6 +89,7 @@ pub enum DeltaCause {
     Committed { revision: AuthoredRevision },
     /// A recalculation of this revision published a generation.
     Recalculated {
+        publication: calc_engine::contract::PublicationUnitId,
         revision: AuthoredRevision,
         tick: CalcTick,
     },
@@ -147,6 +148,15 @@ pub enum SkinIntent {
     /// Recalculates the workbook now, whatever the calculation mode ([`crate::calculate`]: what
     /// Excel's Calculate Now does).
     Recalculate,
+    /// Explicit exact-area calculation. Formula caches outside the areas are a bounded P02
+    /// refusal until boundary-cache qualifications are implemented.
+    CalculateRange { areas: Vec<GridArea> },
+    /// Explicit SliceV1 scope and selection. Manual range calculation normalizes to ForceAll
+    /// through `CalculateRange`; this request preserves the supplied selection.
+    Calculate {
+        scope: calc_engine::CalcScope,
+        selection: calc_engine::EvalSelection,
+    },
     /// Sets the host's calculation mode; leaving manual mode recalculates.
     SetCalcMode(CalcMode),
     /// Moves the selection. A selection interest follows it.
@@ -295,6 +305,7 @@ struct Subscription {
 /// One open workbook as skins see it: the host, its undo history, the selection, the
 /// subscriptions and the intent log.
 pub struct HostSession {
+    recalc_budget: WorkBudget,
     host: HostState,
     sheet_keys: BTreeSet<crate::SheetKey>,
     history: History,
@@ -322,6 +333,7 @@ impl HostSession {
     /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
         HostSession {
+            recalc_budget: WorkBudget::UNLIMITED,
             sheet_keys: host.sheets().iter().map(|s| s.key()).collect(),
             host,
             history: History::new(UNDO_LIMIT),
@@ -340,6 +352,55 @@ impl HostSession {
         options: HostOptions,
     ) -> Result<HostSession, OpenFailure> {
         HostState::open(source, policy, options).map(HostSession::new)
+    }
+
+    /// Each dispatch and continuation performs at most one step under this budget. Zero is
+    /// normalized to one evaluation so a worker never schedules an empty busy loop.
+    pub fn set_calculation_budget(&mut self, budget: WorkBudget) {
+        self.recalc_budget = if budget == WorkBudget::evaluations(0) {
+            WorkBudget::evaluations(1)
+        } else {
+            budget
+        };
+    }
+    pub fn has_pending_calculation(&self) -> bool {
+        self.host.has_pending_calculation()
+    }
+    pub fn take_calculation_events(&mut self) -> Vec<calc_engine::CalcEvent> {
+        self.host.take_calculation_events()
+    }
+
+    pub fn cancel_calculation(&mut self) {
+        if let Some(mut work) = self.host.work.take() {
+            self.host.calc_events.extend(work.take_events());
+            self.host
+                .calc_events
+                .push(calc_engine::CalcEvent::Completed(work.completion(
+                    calc_engine::contract::CompletionOutcome::Cancelled,
+                    self.host.engine.result_view(),
+                    None,
+                )));
+        }
+        self.host.calculate_requested = false;
+        self.host.full_calculate_requested = false;
+        self.host.requested_calculation = None;
+        self.host.calculation_source = None;
+        self.host.calculation_cancelled = true;
+    }
+
+    /// Continues an already authorized calculation. It creates no authored command or history
+    /// entry and never widens its scope.
+    pub fn advance_calculation(&mut self) -> HostProgress {
+        let mut receipt = IntentReceipt {
+            seq: self.next_seq,
+            error: None,
+            committed: None,
+            recalc: None,
+            revision: self.host.revision(),
+            deltas: 0,
+        };
+        self.recalculate(&mut receipt);
+        receipt.recalc.expect("one step always reports progress")
     }
 
     /// The host, to read: its sheets, revision and projections ([`crate::project`]).
@@ -412,7 +473,10 @@ impl HostSession {
     /// Carries out `intent` and logs it.
     pub fn dispatch(&mut self, intent: SkinIntent) -> IntentReceipt {
         let seq = self.next_seq;
-        self.next_seq += 1;
+        self.next_seq = self
+            .next_seq
+            .checked_add(1)
+            .expect("host command identity exhausted");
         let mut receipt = IntentReceipt {
             seq,
             error: None,
@@ -421,7 +485,22 @@ impl HostSession {
             revision: self.host.revision(),
             deltas: 0,
         };
+        let previous_source = self.host.calculation_source;
+        if !matches!(
+            intent,
+            SkinIntent::Select(_) | SkinIntent::SetInterest { .. }
+        ) {
+            self.host.calculation_source = Some(calc_engine::contract::CommandId {
+                client_session: self.host.command_scope,
+                sequence: seq,
+            });
+        }
         let outcome = match intent.clone() {
+            SkinIntent::Command(crate::WorkbookCommand::ShiftCells { .. })
+                if self.host.scoped_calculation_active() =>
+            {
+                Err(IntentError::Command(CommandError::ScopeTransformNotModeled))
+            }
             SkinIntent::Command(command) => {
                 crate::actions::prepare(&self.host, &mut self.sheet_keys, command)
                     .map_err(IntentError::Workbook)
@@ -469,6 +548,14 @@ impl HostSession {
                 self.recalculate(&mut receipt);
                 Ok(())
             }
+            SkinIntent::CalculateRange { areas } => self.request_calculation(
+                calc_engine::CalcScope::Range(areas),
+                calc_engine::EvalSelection::ForceAll,
+                &mut receipt,
+            ),
+            SkinIntent::Calculate { scope, selection } => {
+                self.request_calculation(scope, selection, &mut receipt)
+            }
             SkinIntent::SetCalcMode(mode) => {
                 self.host.options.calc_mode = Some(mode);
                 if mode != CalcMode::Manual {
@@ -483,6 +570,9 @@ impl HostSession {
             } => self.set_interest(subscription, interest, &mut receipt),
         };
         receipt.error = outcome.err();
+        if receipt.error.is_some() {
+            self.host.calculation_source = previous_source;
+        }
         receipt.revision = self.host.revision();
         self.log.push(IntentRecord {
             scope: self.host.command_scope,
@@ -495,6 +585,39 @@ impl HostSession {
             self.log.drain(..INTENT_LOG_LIMIT);
         }
         receipt
+    }
+
+    fn request_calculation(
+        &mut self,
+        scope: calc_engine::CalcScope,
+        selection: calc_engine::EvalSelection,
+        receipt: &mut IntentReceipt,
+    ) -> Result<(), IntentError> {
+        if self.host.work.is_some() {
+            return Err(IntentError::Workbook(
+                "Finish or cancel the active calculation before starting a scoped calculation"
+                    .into(),
+            ));
+        }
+        let valid = match &scope {
+            calc_engine::CalcScope::Workbook => true,
+            calc_engine::CalcScope::Sheet(sheet) => self.host.model.sheet_by_id(*sheet).is_some(),
+            calc_engine::CalcScope::Range(areas) => {
+                !areas.is_empty()
+                    && areas
+                        .iter()
+                        .all(|area| self.host.model.sheet_by_id(area.sheet()).is_some())
+            }
+        };
+        if !valid {
+            return Err(IntentError::Workbook(
+                "The calculation scope must name existing worksheet cells".into(),
+            ));
+        }
+        self.host.requested_calculation = Some((scope, selection));
+        calculate(&mut self.host);
+        self.recalculate(receipt);
+        Ok(())
     }
 
     fn prepare_entries(
@@ -702,18 +825,17 @@ impl HostSession {
         Ok(())
     }
 
-    /// Runs the recalculation to the end and delivers what it changed.
+    /// Runs one authorized step and delivers any publication it completed.
     fn recalculate(&mut self, receipt: &mut IntentReceipt) {
-        let progress = loop {
-            match step(&mut self.host, WorkBudget::UNLIMITED, &mut Unobserved) {
-                HostProgress::Calculating { .. } => continue,
-                progress => break progress,
-            }
-        };
+        let progress = step(&mut self.host, self.recalc_budget, &mut Unobserved);
         let cause = match &progress {
-            HostProgress::Current | HostProgress::Manual => None,
-            HostProgress::Calculating { .. } => unreachable!("the loop runs to the end"),
+            HostProgress::Current | HostProgress::Manual | HostProgress::Cancelled => None,
+            HostProgress::Calculating { .. } => None,
             HostProgress::Published(delta) => Some(DeltaCause::Recalculated {
+                publication: delta
+                    .completion()
+                    .and_then(|receipt| receipt.after_publication)
+                    .expect("a published unit has a completion barrier"),
                 revision: delta.revision(),
                 tick: delta.tick(),
             }),

@@ -324,6 +324,10 @@ impl calc_fml::ReferenceCatalog for LinkedCatalog<'_> {
 
 struct NoReads;
 impl calc_fml::reference::ReferenceReader for NoReads {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        None
+    }
+
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
     fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
@@ -339,7 +343,7 @@ impl calc_fml::reference::ReferenceReader for NoReads {
 
     fn read_area(
         &mut self,
-        request: calc_fml::ReadRequest,
+        _request: calc_fml::ReadRequest,
         _: calc_func::value::GridArea,
         _: &mut dyn FnMut(calc_fml::reference::CellRun<'_>) -> std::ops::ControlFlow<()>,
     ) {
@@ -379,6 +383,10 @@ fn evaluate_with_reader(
 
 struct WorkbookLiteral<'a>(&'a calc_doc::model::ModelRoot);
 impl calc_fml::reference::ReferenceReader for WorkbookLiteral<'_> {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        None
+    }
+
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
     fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
@@ -394,7 +402,7 @@ impl calc_fml::reference::ReferenceReader for WorkbookLiteral<'_> {
 
     fn read_area(
         &mut self,
-        request: calc_fml::ReadRequest,
+        _request: calc_fml::ReadRequest,
         area: calc_func::value::GridArea,
         sink: &mut dyn FnMut(calc_fml::reference::CellRun<'_>) -> std::ops::ControlFlow<()>,
     ) {

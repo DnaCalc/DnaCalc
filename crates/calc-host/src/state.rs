@@ -110,6 +110,11 @@ pub struct HostState {
     pub(crate) options: HostOptions,
     /// The recalculation in progress, between two [`crate::step`] calls.
     pub(crate) work: Option<RecalcWork>,
+    pub(crate) full_calculate_requested: bool,
+    pub(crate) requested_calculation: Option<(calc_engine::CalcScope, calc_engine::EvalSelection)>,
+    pub(crate) calculation_source: Option<calc_engine::contract::CommandId>,
+    pub(crate) calculation_cancelled: bool,
+    pub(crate) calc_events: Vec<calc_engine::CalcEvent>,
     /// The revision the last published generation calculated; `None` before the first.
     pub(crate) published: Option<AuthoredRevision>,
     /// Why the last recalculation published nothing, with the revision it was of, until one
@@ -164,7 +169,12 @@ impl HostState {
         let mut host = HostState {
             command_scope: {
                 static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                NEXT.fetch_update(
+                    std::sync::atomic::Ordering::Relaxed,
+                    std::sync::atomic::Ordering::Relaxed,
+                    |current| current.checked_add(1),
+                )
+                .expect("host session identity exhausted")
             },
             sheet_ids,
             sheet_identities,
@@ -173,6 +183,11 @@ impl HostState {
             engine,
             options,
             work: None,
+            full_calculate_requested: false,
+            requested_calculation: None,
+            calculation_source: None,
+            calculation_cancelled: false,
+            calc_events: Vec::new(),
             published: None,
             last_failure: None,
             inputs_changed_since_open: false,
@@ -241,6 +256,25 @@ impl HostState {
         self.clock = now;
         let environment = self.entry_environment();
         self.engine.set_environment(Some(environment));
+    }
+
+    /// Whether a worker should schedule another finite task. A fault waits for an explicit
+    /// request or edit; it is never retried in a busy loop.
+    pub fn has_pending_calculation(&self) -> bool {
+        self.work.is_some()
+            || self.calculate_requested
+            || !self.calculation_cancelled
+                && self.calc_mode() != CalcMode::Manual
+                && self.last_failure.is_none()
+                && self.engine.needs_recalc(&self.model)
+    }
+    pub fn take_calculation_events(&mut self) -> Vec<calc_engine::CalcEvent> {
+        std::mem::take(&mut self.calc_events)
+    }
+    pub(crate) fn scoped_calculation_active(&self) -> bool {
+        self.work
+            .as_ref()
+            .is_some_and(|work| !matches!(work.admission().scope, calc_engine::CalcScope::Workbook))
     }
 
     pub fn options(&self) -> &HostOptions {

@@ -173,6 +173,10 @@ enum Stored<'a> {
 }
 
 impl ReferenceReader for TracingReader<'_> {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        None
+    }
+
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
     fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {

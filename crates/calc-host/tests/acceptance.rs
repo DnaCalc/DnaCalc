@@ -36,8 +36,8 @@ use calc_host::{
     CommandReceipt, EditError, FileCached, FiniteNumber, FormulaText, HostCommand, HostOptions,
     HostProgress, HostState, LoadError, MemorySource, NotModeled, OpenFailure, OpenPolicy,
     PackageRead, ProjectedValue, ProjectionPage, ProjectionRequest, ReadObserver, RecalcContext,
-    RecalcFailed, RecalcFailure, StaleCause, Unobserved, ValueChange, WorkBudget,
-    dispatch, project, step,
+    RecalcFailed, RecalcFailure, StaleCause, Unobserved, ValueChange, WorkBudget, dispatch,
+    project, step,
 };
 use calc_verdict::CalculationContext;
 use chost_m1_1_support::{CALC_PART, CALC_SHEET, INPUTS_SHEET, crc32, package, package_of};
@@ -466,10 +466,7 @@ fn chost_m1_1__atomic_prepare_failure() {
         d(book.inputs("A2"), "literal 3"),
         d(book.inputs("A3"), "literal \"rate\""),
         d(book.calc("A1"), "calculated 5 r0 t1 fast"),
-        d(
-            book.calc("B1"),
-            "calculated Name r0 t1 fast",
-        ),
+        d(book.calc("B1"), "calculated Name r0 t1 fast"),
         d(book.calc("C1"), "calculated \"big\" r0 t1 fast"),
         d(book.calc("A2"), "calculated 50 r0 t1 fast"),
         d(book.calc("B2"), "calculated 2 r0 t1 fast"),
@@ -569,7 +566,7 @@ fn chost_m1_1__atomic_prepare_failure() {
         ])
         .as_slice()
     );
-    assert_eq!(receipt.cancelled_recalc(), None);
+    assert_eq!(receipt.superseded_recalc(), None);
     let committed = book.expected(&[
         d(book.inputs("A1"), "literal 7"),
         d(book.inputs("B1"), "literal 0.5"),
@@ -694,10 +691,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.inputs("A2"), "literal 3"),
         d(book.inputs("A3"), "literal \"rate\""),
         d(book.calc("A1"), "calculated 5 r0 t1 fast"),
-        d(
-            book.calc("B1"),
-            "calculated Name r0 t1 fast",
-        ),
+        d(book.calc("B1"), "calculated Name r0 t1 fast"),
         d(book.calc("C1"), "calculated \"big\" r0 t1 fast"),
         d(book.calc("A2"), "calculated 50 r0 t1 fast"),
         d(book.calc("B2"), "calculated 2 r0 t1 fast"),
@@ -744,10 +738,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.inputs("A2"), "literal 3"),
         d(book.inputs("A3"), "literal \"rate\""),
         d(book.calc("A1"), "stale last 5 r0 t1 awaiting-recalc"),
-        d(
-            book.calc("B1"),
-            "calculated Name r0 t1 fast",
-        ),
+        d(book.calc("B1"), "calculated Name r0 t1 fast"),
         d(book.calc("C1"), "stale last \"big\" r0 t1 awaiting-recalc"),
         d(book.calc("A2"), "stale last 50 r0 t1 awaiting-recalc"),
         d(book.calc("B2"), "calculated 2 r0 t1 fast"),
@@ -777,10 +768,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.inputs("A2"), "literal 3"),
         d(book.inputs("A3"), "literal \"rate\""),
         d(book.calc("A1"), "stale last 5 r0 t1 recalc-failed"),
-        d(
-            book.calc("B1"),
-            "calculated Name r0 t1 fast",
-        ),
+        d(book.calc("B1"), "calculated Name r0 t1 fast"),
         d(book.calc("C1"), "stale last \"big\" r0 t1 recalc-failed"),
         d(book.calc("A2"), "stale last 50 r0 t1 recalc-failed"),
         d(book.calc("B2"), "calculated 2 r0 t1 fast"),
@@ -830,10 +818,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.inputs("A2"), "stale last none none awaiting-recalc"),
         d(book.inputs("A3"), "literal \"rate\""),
         d(book.calc("A1"), "stale last 5 r0 t1 awaiting-recalc"),
-        d(
-            book.calc("B1"),
-            "calculated Name r0 t1 fast",
-        ),
+        d(book.calc("B1"), "calculated Name r0 t1 fast"),
         d(book.calc("C1"), "stale last \"big\" r0 t1 awaiting-recalc"),
         d(book.calc("A2"), "stale last 50 r0 t1 awaiting-recalc"),
         d(book.calc("B2"), "calculated 2 r0 t1 fast"),
@@ -913,10 +898,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
             d(book.inputs("A2"), "literal 3"),
             d(book.inputs("A3"), "literal \"rate\""),
             d(book.calc("A1"), "calculated 13 r3 t4 fast"),
-            d(
-                book.calc("B1"),
-                "calculated Name r0 t1 fast"
-            ),
+            d(book.calc("B1"), "calculated Name r0 t1 fast"),
             d(book.calc("C1"), "calculated \"big\" r2 t3 fast"),
             d(book.calc("A2"), "calculated 130 r3 t4 fast"),
             d(book.calc("B2"), "calculated 2 r0 t1 fast"),
@@ -925,8 +907,8 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
     );
     assert!(book.page().recalc_failure().is_none());
 
-    // A recalculation in progress is cancelled by an edit that commits during it, and nothing it
-    // staged is published: Inputs!B1 = 1 leaves Calc!B2 and Calc!A3 pending; a step of one
+    // A committed edit supersedes the active calculation. Independent B2 work is retained after
+    // its read proof is checked against the successor: Inputs!B1 = 1 leaves Calc!B2 and Calc!A3 pending; a step of one
     // evaluation (tick 5) evaluates Calc!B2 first; then Inputs!A1 = 20 commits.
     book.run(3, vec![set(book.inputs("B1"), number(1.0))])
         .expect("the edit commits");
@@ -938,7 +920,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         .run(4, vec![set(book.inputs("A1"), number(20.0))])
         .expect("the edit commits");
     assert_eq!(receipt.revision(), AuthoredRevision::new(5));
-    assert_eq!(receipt.cancelled_recalc().map(|tick| tick.get()), Some(5));
+    assert_eq!(receipt.superseded_recalc().map(|tick| tick.get()), Some(5));
     assert_eq!(
         receipt.pending(),
         sorted(vec![
@@ -960,10 +942,30 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         "stale last 2 r0 t1 awaiting-recalc",
         "the value tick 5 staged for Calc!B2 was never published"
     );
-    // Calc!A1 = 20+3, Calc!A2 = 23*10, Calc!A3 = (20+3)*1, Calc!B2 = 1*4, at tick 6.
+    // Calc!A1 = 20+3, Calc!A2 = 23*10 and Calc!A3 = (20+3)*1 come from tick 6.
+    // Calc!B2 = 1*4 retains its actual tick-5 calculation, certified for the successor.
     let published = step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved);
     let (revision, tick, _) = delta_cells(&published);
     assert_eq!((revision, tick), (5, 6));
+    let page = book.page();
+    let ProjectedValue::Calculated { calculation, .. } = page
+        .cells()
+        .iter()
+        .find(|cell| cell.at() == book.calc("B2"))
+        .unwrap()
+        .value()
+    else {
+        panic!("B2 must be calculated")
+    };
+    let stamp = calculation
+        .stamp()
+        .expect("the reused pure result is certified");
+    assert_eq!(stamp.certification.command.sequence, 6);
+    assert_eq!(stamp.certification.frontier.model, AuthoredRevision::new(5));
+    assert!(
+        matches!(&stamp.computed_by,calc_engine::contract::ComputationOrigin::Evaluated {root}
+        if root.pass.command.sequence==5)
+    );
     assert_eq!(
         book.described(),
         book.expected(&[
@@ -972,13 +974,10 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
             d(book.inputs("A2"), "literal 3"),
             d(book.inputs("A3"), "literal \"rate\""),
             d(book.calc("A1"), "calculated 23 r5 t6 fast"),
-            d(
-                book.calc("B1"),
-                "calculated Name r0 t1 fast"
-            ),
+            d(book.calc("B1"), "calculated Name r0 t1 fast"),
             d(book.calc("C1"), "calculated \"big\" r5 t6 fast"),
             d(book.calc("A2"), "calculated 230 r5 t6 fast"),
-            d(book.calc("B2"), "calculated 4 r5 t6 fast"),
+            d(book.calc("B2"), "calculated 4 r4 t5 fast"),
             d(book.calc("A3"), "calculated 23 r5 t6 fast"),
         ])
     );
@@ -1213,10 +1212,7 @@ fn edits_before_the_first_recalculation(case: &str) {
         d(book.inputs("A2"), "literal 3"),
         d(book.inputs("A3"), "literal \"rate\""),
         d(book.calc("A1"), "calculated 50 r3 t2 fast"),
-        d(
-            book.calc("B1"),
-            "calculated Name r3 t2 fast",
-        ),
+        d(book.calc("B1"), "calculated Name r3 t2 fast"),
         d(book.calc("C1"), "calculated 30 r3 t2 fast"),
         d(book.calc("A2"), "calculated 500 r3 t2 fast"),
         d(book.calc("B2"), "calculated 2 r3 t2 fast"),
@@ -1259,10 +1255,7 @@ fn edits_before_the_first_recalculation(case: &str) {
             d(book.inputs("A2"), "literal 3"),
             d(book.inputs("A3"), "literal \"rate\""),
             d(book.calc("A1"), "calculated 50 r3 t2 fast"),
-            d(
-                book.calc("B1"),
-                "calculated Name r3 t2 fast",
-            ),
+            d(book.calc("B1"), "calculated Name r3 t2 fast",),
             d(book.calc("C1"), "stale last 30 r3 t2 awaiting-recalc"),
             d(book.calc("A2"), "calculated 500 r3 t2 fast"),
             d(book.calc("B2"), "calculated 2 r3 t2 fast"),
@@ -1290,10 +1283,7 @@ fn edits_before_the_first_recalculation(case: &str) {
             d(book.inputs("A2"), "literal 3"),
             d(book.inputs("A3"), "literal \"rate\""),
             d(book.calc("A1"), "calculated 50 r3 t2 fast"),
-            d(
-                book.calc("B1"),
-                "calculated Name r3 t2 fast",
-            ),
+            d(book.calc("B1"), "calculated Name r3 t2 fast",),
             d(book.calc("C1"), "calculated 60 r4 t3 fast"),
             d(book.calc("A2"), "calculated 500 r3 t2 fast"),
             d(book.calc("B2"), "calculated 2 r3 t2 fast"),
@@ -1463,7 +1453,11 @@ fn dc_hqcv__applied_context_reported() {
     assert_eq!((revision, tick), (0, 1));
     assert_eq!(
         sorted(published.iter().map(|(at, _)| *at).collect()),
-        sorted(vec![cell(sheet, "B1"), cell(sheet, "A2"), cell(sheet, "A3")])
+        sorted(vec![
+            cell(sheet, "B1"),
+            cell(sheet, "A2"),
+            cell(sheet, "A3")
+        ])
     );
     assert_eq!(host.recalc_context(), applied);
     let iterated: Vec<(String, String)> = [

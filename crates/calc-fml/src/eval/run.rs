@@ -1514,6 +1514,10 @@ mod tests {
     struct Everywhere(CalcValue, usize);
 
     impl ReferenceReader for Everywhere {
+        fn read_denial(&self) -> Option<crate::ReadDenial> {
+            None
+        }
+
         fn read_fact(&mut self, _fact: crate::FactRead) {}
 
         fn spill_extent(&mut self, _: calc_func::value::CellKey) -> crate::reference::SpillExtent {
@@ -1529,7 +1533,7 @@ mod tests {
 
         fn read_area(
             &mut self,
-            request: crate::ReadRequest,
+            _request: crate::ReadRequest,
             area: GridArea,
             sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
         ) {

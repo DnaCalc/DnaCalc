@@ -363,6 +363,7 @@ fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<Wor
         }
         HostProgress::Current
         | HostProgress::Manual
+        | HostProgress::Cancelled
         | HostProgress::Published(_)
         | HostProgress::Calculating { .. } => None,
     }
@@ -512,7 +513,11 @@ pub(crate) fn capture_clock(capture: &CaptureRecord) -> Option<f64> {
             .map(|(_, value)| value.as_str())
     };
     let now = f64::from_bits(u64::from_str_radix(setting("calculation_clock")?, 16).ok()?);
-    let now = if setting("date1904") == Some("true") { now - 1462.0 } else { now };
+    let now = if setting("date1904") == Some("true") {
+        now - 1462.0
+    } else {
+        now
+    };
     now.is_finite().then_some(now)
 }
 
@@ -544,7 +549,11 @@ pub(crate) fn capture_file(capture: &CaptureRecord) -> Option<calc_fml::Workbook
 pub(crate) fn capture_application(capture: &CaptureRecord) -> Option<calc_fml::ApplicationFacts> {
     let release = capture_setting(capture, "excel_version")?.to_owned();
     let os = capture_setting(capture, "operating_system")?.to_owned();
-    let system = if os.starts_with("Windows") { "pcdos" } else { "mac" };
+    let system = if os.starts_with("Windows") {
+        "pcdos"
+    } else {
+        "mac"
+    };
     Some(calc_fml::ApplicationFacts {
         release: Some(release),
         os_version: Some(os),

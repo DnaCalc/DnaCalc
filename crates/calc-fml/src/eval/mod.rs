@@ -50,17 +50,13 @@ pub use compile::{
 };
 pub use run::{EvalFault, MAX_CALL_DEPTH, evaluate};
 
-use crate::reference::{
-    ExternalOperand, FormulaAnchor, PlacementError, ReferenceCatalog, ReferenceOperand,
-    ReferenceReader,
-};
+use crate::reference::{ExternalOperand, FormulaAnchor, PlacementError, ReferenceOperand};
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, ExcelText, GridArea, NumericMode, ReferenceLike,
     WorksheetErrorCode,
 };
-use calc_func::{FunctionCallScratch, FunctionCallTarget, RandomSource};
+use calc_func::{FunctionCallScratch, FunctionCallTarget};
 use std::collections::HashSet;
-use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -113,6 +109,16 @@ pub enum FormulaForm {
 }
 
 impl CompiledPlan {
+    /// Conservative effect boundary for pure-result reuse. A user function in any branch
+    /// keeps the whole formula out of that path until callable capabilities are modeled.
+    pub fn has_user_calls(&self) -> bool {
+        self.blocks.iter().any(|block| {
+            block
+                .iter()
+                .any(|instruction| matches!(instruction, Instruction::UserCall { .. }))
+        })
+    }
+
     /// The plan's references in the order compile met them, those in arguments a lazy function
     /// may never ask for included.
     pub fn references(&self) -> &[ReferenceOperand] {
@@ -502,7 +508,7 @@ pub fn instantiate(plan: &Arc<CompiledPlan>, anchor: FormulaAnchor) -> FormulaIn
 mod context;
 pub use context::{
     FactInvalidation, FactRead, FactSubject, FormulaEvaluationContext, ObservableFacets,
-    PassServices, ReadPolicy, ReadPurpose, ReadRequest, SemanticEnvironment,
+    PassServices, ReadDenial, ReadPolicy, ReadPurpose, ReadRequest, SemanticEnvironment,
 };
 
 /// Observes one evaluation from inside the evaluator (plan sections 6.5 and 10.1). [`evaluate`]

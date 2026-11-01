@@ -9,6 +9,7 @@ use std::ops::ControlFlow;
 
 /// Supplies the cells of grid areas.
 pub trait ReferenceReader {
+    fn read_denial(&self) -> Option<crate::ReadDenial>;
     /// Records a host question without demanding the cell's value. Metadata reads retain their
     /// own facets and invalidation policy through a value overlay.
     fn read_fact(&mut self, fact: crate::FactRead);
@@ -196,6 +197,10 @@ mod tests {
     struct Replay(Vec<CellRun<'static>>);
 
     impl ReferenceReader for Replay {
+        fn read_denial(&self) -> Option<crate::ReadDenial> {
+            None
+        }
+
         fn read_fact(&mut self, _fact: crate::FactRead) {}
 
         fn spill_extent(&mut self, _: calc_func::value::CellKey) -> crate::reference::SpillExtent {
@@ -211,7 +216,7 @@ mod tests {
 
         fn read_area(
             &mut self,
-            request: crate::ReadRequest,
+            _request: crate::ReadRequest,
             _: GridArea,
             sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
         ) {
