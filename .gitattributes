@@ -3,4 +3,4 @@
 deploy/host/** text eol=lf
 deploy/caddy/** text eol=lf
 # Keep the captured boundary bytes and their SHA-256 records exact across platforms.
-crates/calc-xll-reference/traces/2026-11-01-x3/** -text
+crates/calc-xll-reference/traces/** -text
