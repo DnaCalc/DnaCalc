@@ -36,9 +36,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("cell-editor", ENTER),
         ],
         checks: &[
-            Check::Text(cell!("A1"), "2"),
-            Check::Text(cell!("A2"), "3"),
-            Check::Attr(cell!("A1"), "data-provenance", "literal"),
+            Check::PlanCell("A1", "text", "2"),
+            Check::PlanCell("A2", "text", "3"),
+            Check::PlanCell("A1", "provenance", "literal"),
             Check::Value("name-box", "A3"),
         ],
     },
@@ -50,9 +50,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("cell-editor", ENTER),
         ],
         checks: &[
-            Check::Text(cell!("A3"), "7"),
-            Check::Attr(cell!("A3"), "data-provenance", "calculated"),
-            Check::Attr(cell!("A3"), "data-formula", "true"),
+            Check::PlanCell("A3", "text", "7"),
+            Check::PlanCell("A3", "provenance", "calculated"),
+            Check::PlanCell("A3", "formula", "true"),
         ],
     },
     Case {
@@ -76,21 +76,24 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("cell-editor", ENTER),
         ],
         checks: &[
-            Check::Text(cell!("A1"), "5"),
-            Check::Text(cell!("A3"), "16"),
+            Check::PlanCell("A1", "text", "5"),
+            Check::PlanCell("A3", "text", "16"),
         ],
     },
     Case {
         name: "Undo takes the edit back and Redo makes it again",
         actions: &[Action::Click("undo")],
-        checks: &[Check::Text(cell!("A1"), "2"), Check::Text(cell!("A3"), "7")],
+        checks: &[
+            Check::PlanCell("A1", "text", "2"),
+            Check::PlanCell("A3", "text", "7"),
+        ],
     },
     Case {
         name: "Redo",
         actions: &[Action::Click("redo")],
         checks: &[
-            Check::Text(cell!("A1"), "5"),
-            Check::Text(cell!("A3"), "16"),
+            Check::PlanCell("A1", "text", "5"),
+            Check::PlanCell("A3", "text", "16"),
         ],
     },
     Case {
@@ -103,8 +106,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("name-box", "B1\u{E007}"),
         ],
         checks: &[
-            Check::Text(cell!("B1"), "refused"),
-            Check::Attr(cell!("B1"), "data-provenance", "refused"),
+            Check::PlanCell("B1", "text", "refused"),
+            Check::PlanCell("B1", "provenance", "refused"),
             Check::Starts("cell-provenance", "Sheet1!B1: refused: "),
         ],
     },
@@ -117,9 +120,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("cell-editor", ENTER),
         ],
         checks: &[
-            Check::Text(cell!("C1"), "1"),
-            Check::Text(cell!("C3"), "3"),
-            Check::Attr(cell!("C3"), "data-provenance", "calculated"),
+            Check::PlanCell("C1", "text", "1"),
+            Check::PlanCell("C3", "text", "3"),
+            Check::PlanCell("C3", "provenance", "calculated"),
         ],
     },
     Case {
@@ -138,7 +141,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "the formula bar's entry is calculated: =SUM(A1:A3) is 24",
         actions: &[Action::Keys(BAR, "A1:A3)"), Action::Keys(BAR, ENTER)],
         checks: &[
-            Check::Text(cell!("D1"), "24"),
+            Check::PlanCell("D1", "text", "24"),
             Check::Value("name-box", "D2"),
             Check::Value(BAR, ""),
             Check::Focused("grid"),
@@ -154,9 +157,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("cell-editor", ENTER),
         ],
         checks: &[
-            Check::Text(cell!("A2"), "10"),
-            Check::Attr(cell!("A3"), "data-provenance", "stale"),
-            Check::Text(cell!("A3"), "16"),
+            Check::PlanCell("A2", "text", "10"),
+            Check::PlanCell("A3", "provenance", "stale"),
+            Check::PlanCell("A3", "text", "16"),
         ],
     },
     Case {
@@ -166,8 +169,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Choose("calc-mode", "automatic"),
         ],
         checks: &[
-            Check::Text(cell!("A3"), "51"),
-            Check::Attr(cell!("A3"), "data-provenance", "calculated"),
+            Check::PlanCell("A3", "text", "51"),
+            Check::PlanCell("A3", "provenance", "calculated"),
         ],
     },
     Case {
@@ -176,7 +179,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("name-box", "D1\u{E007}"),
             Action::Keys("grid", DELETE),
         ],
-        checks: &[Check::Absent(cell!("D1"))],
+        checks: &[Check::PlanAbsent("D1")],
     },
     Case {
         name: "Save writes the workbook's package",
@@ -272,7 +275,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Text(cell!("U3"), "21"),
-            Check::Attr(cell!("U3"), "data-provenance", "calculated"),
+            Check::PlanCell("U3", "provenance", "calculated"),
             Check::Value(BAR, "=U2*3"),
         ],
     },
@@ -281,7 +284,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         actions: &[Action::Into("name-box", "A1\u{E007}")],
         checks: &[
             Check::Text(cell!("B2"), "4"),
-            Check::Attr(cell!("B2"), "data-provenance", "calculated"),
+            Check::PlanCell("B2", "provenance", "calculated"),
         ],
     },
     Case {
@@ -522,7 +525,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Text("document", "formats.xlsx"),
             Check::Text(cell!("A1"), "1,234.50"),
-            Check::Attr(cell!("A1"), "data-format", "applied"),
+            Check::PlanCell("A1", "format", "applied"),
             Check::Text(cell!("A2"), "25%"),
             Check::Text(cell!("A3"), "2024-01-31"),
             Check::Text(cell!("A4"), "(5.00)"),
@@ -937,7 +940,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Style(cell!("P1"), "background-color:#ffeb9c"),
             Check::Text(cell!("P1"), ""),
-            Check::Attr(cell!("P1"), "data-provenance", "empty"),
+            Check::PlanCell("P1", "provenance", "empty"),
         ],
     },
     Case {
@@ -2875,7 +2878,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Text(cell!("A1"), "7"),
             Check::Text(cell!("B1"), "14"),
-            Check::Attr(cell!("B1"), "data-formula", "true"),
+            Check::PlanCell("B1", "formula", "true"),
         ],
     },
     Case {
@@ -2892,7 +2895,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Value(BAR, "=$A2+B$1+$A$1"),
-            Check::Attr(cell!("D2"), "data-formula", "true"),
+            Check::PlanCell("D2", "formula", "true"),
             Check::Text(cell!("C1"), "999"),
         ],
     },
@@ -2911,7 +2914,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Text(cell!("F1"), "14"),
-            Check::Attr(cell!("F1"), "data-formula", "false"),
+            Check::PlanCell("F1", "formula", "false"),
             Check::Text(cell!("B1"), "20"),
         ],
     },
@@ -3170,8 +3173,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Text(cell!("G3"), "########"),
             Check::Value(BAR, "45323"),
-            Check::Attr(cell!("G3"), "data-format", "applied"),
-            Check::Attr(cell!("G3"), "data-formula", "false"),
+            Check::PlanCell("G3", "format", "applied"),
+            Check::PlanCell("G3", "formula", "false"),
         ],
     },
     Case {
@@ -3180,7 +3183,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Text(cell!("G3"), "45323"),
             Check::Value(BAR, "45323"),
-            Check::Attr(cell!("G3"), "data-format", "general"),
+            Check::PlanCell("G3", "format", "general"),
         ],
     },
     Case {
@@ -3202,8 +3205,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Click("paste-confirm"),
         ],
         checks: &[
-            Check::Attr(cell!("G3"), "data-format", "applied"),
-            Check::Attr(cell!("G3"), "data-formula", "true"),
+            Check::PlanCell("G3", "format", "applied"),
+            Check::PlanCell("G3", "formula", "true"),
         ],
     },
     Case {
@@ -3230,8 +3233,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Text(cell!("A5"), "2024-02-02"),
-            Check::Attr(cell!("G3"), "data-format", "applied"),
-            Check::Attr(cell!("G3"), "data-formula", "true"),
+            Check::PlanCell("G3", "format", "applied"),
+            Check::PlanCell("G3", "formula", "true"),
         ],
     },
     Case {
@@ -3256,7 +3259,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::TextContains("status", "no current calculated value"),
             Check::Text(cell!("D1"), "99"),
-            Check::Attr(cell!("B2"), "data-provenance", "stale"),
+            Check::PlanCell("B2", "provenance", "stale"),
             Check::Absent("[data-dnacalc=clipboard-dialog][open]"),
         ],
     },
@@ -3788,13 +3791,13 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::UploadDownload("manual-cache.xlsx"),
             Action::DiscardReplacement,
             Action::Wait(Check::Text("document", "manual-cache.xlsx")),
-            Action::Wait(Check::Attr(cell!("C3"), "data-provenance", "file-cache")),
+            Action::Wait(Check::PlanCell("C3", "provenance", "file-cache")),
             Action::Into("name-box", "B1\u{E007}"),
             Action::Into("column-size", "20\u{E007}"),
         ],
         checks: &[
-            Check::Attr(cell!("C3"), "data-provenance", "stale"),
-            Check::Attr(cell!("C1"), "data-provenance", "stale"),
+            Check::PlanCell("C3", "provenance", "stale"),
+            Check::PlanCell("C1", "provenance", "stale"),
             Check::Value("calc-mode", "manual"),
         ],
     },
@@ -3805,14 +3808,14 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Wait(Check::Text(cell!("C3"), "20")),
             Action::Into("name-box", "A2\u{E007}"),
             Action::Click("hide-rows"),
-            Action::Wait(Check::Attr(cell!("C1"), "data-provenance", "stale")),
+            Action::Wait(Check::PlanCell("C1", "provenance", "stale")),
             Action::Click("calculate"),
         ],
         checks: &[
             Check::Text(cell!("C1"), "1"),
             Check::Text(cell!("C3"), "20"),
-            Check::Attr(cell!("C1"), "data-provenance", "calculated"),
-            Check::Attr(cell!("C3"), "data-provenance", "calculated"),
+            Check::PlanCell("C1", "provenance", "calculated"),
+            Check::PlanCell("C3", "provenance", "calculated"),
         ],
     },
     Case {
@@ -4089,7 +4092,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Text(cell!("A2"), "3"),
             Check::Text(cell!("C2"), "#REF!"),
-            Check::Attr(cell!("C2"), "data-provenance", "calculated"),
+            Check::PlanCell("C2", "provenance", "calculated"),
         ],
     },
     Case {
@@ -5954,7 +5957,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::AlignmentFixture,
             Action::UploadDownload("alignment.xlsx"),
             Action::DiscardReplacement,
-            Action::Wait(Check::Attr(cell!("H1"), "data-provenance", "calculated")),
+            Action::Wait(Check::PlanCell("H1", "provenance", "calculated")),
         ],
         checks: &[
             Check::Aligned(cell!("B4"), "left", "bottom"),
@@ -6300,6 +6303,39 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "recalculation contract: a real worker services Ping between finite calculation slices",
         actions: &[Action::WorkerCalculation],
         checks: &[],
+    },
+    Case {
+        name: "presentation: the live RenderPlan contains a calculated volatile formula",
+        actions: &[
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "RAND()"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[
+            Check::PlanCell("A1", "kind", "number"),
+            Check::PlanCell("A1", "provenance", "calculated"),
+            Check::PlanCell("A1", "formula", "true"),
+            Check::PlanReady,
+        ],
+    },
+    Case {
+        name: "presentation: resizing rebuilds the plan without a calculation command",
+        actions: &[Action::RememberPresentation, Action::Window(900, 700)],
+        checks: &[Check::PresentationChanged("resize")],
+    },
+    Case {
+        name: "presentation: zoom and a font completion rebuild only presentation",
+        actions: &[
+            Action::RememberPresentation,
+            Action::Click("zoom-in"),
+            Action::Wait(Check::PresentationChanged("zoom")),
+            Action::RememberPresentation,
+            Action::FontLoaded,
+        ],
+        checks: &[
+            Check::PresentationChanged("font"),
+            Check::PlanCell("A1", "provenance", "calculated"),
+        ],
     },
 ];
 
@@ -6946,6 +6982,13 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         start: 444,
         end: 445,
         core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "presentation",
+        start: 445,
+        end: 448,
+        core: 3,
         setup: &[],
     },
 ];

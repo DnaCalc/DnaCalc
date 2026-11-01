@@ -33,6 +33,7 @@ enum Transport {
 struct Port {
     transport: Option<Transport>,
     next_id: u64,
+    commands: u64,
     /// The callbacks waiting for the worker's replies, by request id.
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     answers: BTreeMap<u64, Answer>,
@@ -45,6 +46,7 @@ thread_local! {
     static PORT: RefCell<Port> = RefCell::new(Port {
         transport: None,
         next_id: 1,
+        commands: 0,
         answers: BTreeMap::new(),
         events: None,
         health: Health::default(),
@@ -199,6 +201,12 @@ pub fn call(
                 None,
                 answer,
             ));
+        }
+        if matches!(&request, Request::Command(_)) || request.is_command() {
+            port.commands = port
+                .commands
+                .checked_add(1)
+                .expect("Transport command count exhausted");
         }
         let id = port.next_id;
         port.next_id = port
@@ -417,4 +425,10 @@ impl dna_calc_model::WorkbookTransport for BrowserTransport {
     ) {
         call(request, bytes, answer);
     }
+}
+
+/// Commands actually submitted through this page's transport, for read-only diagnostics.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn command_count() -> u64 {
+    PORT.with(|port| port.borrow().commands)
 }

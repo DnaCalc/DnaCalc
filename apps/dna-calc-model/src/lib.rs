@@ -6,7 +6,9 @@ pub use editor::{EditorState, PointEdit, PointSyntax, TextHistory, replace_text}
 pub mod command;
 pub mod geometry;
 mod outbox;
+pub mod presentation;
 pub mod projection;
+pub mod render_plan;
 mod tile_mirror;
 pub mod tiles;
 pub use tile_mirror::{TileApply, TileMirrorError, ViewMirror};

@@ -20,18 +20,31 @@ impl<M: Send + Sync + 'static, T: Clone + PartialEq + Send + Sync + 'static> Fie
         get: impl for<'a> Fn(&'a M) -> &'a T + Send + Sync + 'static,
         get_mut: impl for<'a> Fn(&'a mut M) -> &'a mut T + Send + Sync + 'static,
     ) -> Self {
+        let initial = source.with_untracked(|model| get(model).clone());
         let get: StoredValue<Box<dyn for<'a> Fn(&'a M) -> &'a T + Send + Sync>> =
             StoredValue::new(Box::new(get));
         let get_mut: StoredValue<Box<dyn for<'a> Fn(&'a mut M) -> &'a mut T + Send + Sync>> =
             StoredValue::new(Box::new(get_mut));
-        let read =
-            Memo::new(move |_| source.with(|model| get.with_value(|get| get(model).clone())));
+        let read = Memo::new(move |previous: Option<&T>| {
+            // A dependent can retain this memo briefly while its view is being torn down.
+            // Its getter belongs to that view; do not read a disposed getter or model.
+            get.try_with_value(|get| source.try_with(|model| get(model).clone()))
+                .flatten()
+                .or_else(|| previous.cloned())
+                .unwrap_or_else(|| initial.clone())
+        });
         Self {
             source,
             read,
             get,
             get_mut,
         }
+    }
+    /// Retire accessors before removing the model entry they address. Retained reactive
+    /// dependencies can finish with their previous snapshot while cleanup removes that entry.
+    pub(crate) fn retire(&self) {
+        self.get.dispose();
+        self.get_mut.dispose();
     }
     pub fn get_value(&self) -> T {
         self.get_untracked()
@@ -111,6 +124,54 @@ pub type ModelField<T> = Field<dna_calc_model::Model, T>;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_retained_dependency_never_reopens_a_retired_field_getter() {
+        let root = Owner::new();
+        root.with(|| {
+            let model = RwSignal::new(dna_calc_model::Model::default());
+            let view = Owner::new();
+            let field = view
+                .with(|| Field::new(model, |m| &m.selection.active, |m| &mut m.selection.active));
+            let retained: ArcMemo<(u32, u32)> = field.read.into();
+            assert_eq!(retained.get_untracked(), (1, 1));
+            view.cleanup();
+            model.update(|m| {
+                m.selection.active = (8, 9);
+                m.runtime.font_revision += 1;
+            });
+            assert_eq!(retained.get_untracked(), (1, 1));
+            assert_eq!(field.try_get_untracked(), None);
+            assert_eq!(field.try_set((7, 7)), Some((7, 7)));
+            assert_eq!(model.with_untracked(|m| m.selection.active), (8, 9));
+        });
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn lazy_retained_dependency_survives_entry_removal_during_cleanup() {
+        let root = Owner::new();
+        root.with(|| {
+            let source = RwSignal::new(Some(String::from("original")));
+            let view = Owner::new();
+            let field =
+                view.with(|| Field::new(source, |m| m.as_ref().unwrap(), |m| m.as_mut().unwrap()));
+            let retained: ArcMemo<String> = field.read.into();
+            // No initial read: ArcMemo is lazy, including during view teardown.
+            field.retire();
+            source.set(None);
+            assert_eq!(retained.get_untracked(), "original");
+            view.cleanup();
+            assert_eq!(retained.get_untracked(), "original");
+            assert_eq!(field.try_get_untracked(), None);
+            assert_eq!(
+                field.try_set(String::from("late")),
+                Some(String::from("late"))
+            );
+            assert_eq!(source.get_untracked(), None);
+        });
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

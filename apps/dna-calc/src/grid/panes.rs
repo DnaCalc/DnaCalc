@@ -179,6 +179,12 @@ impl Panes {
         cols: u32,
     ) -> RenderPlan {
         let mut out = RenderPlan {
+            viewport: *v,
+            scale: m.header_h / 22.,
+            publication: None,
+            presentation: Default::default(),
+            semantic_rows: Vec::new(),
+            interrupted: false,
             cells: Vec::new(),
             col_headers: Vec::new(),
             row_headers: Vec::new(),

@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (33 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (38 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1022,6 +1022,10 @@ pub enum Action {
     AlignmentFixture,
     /// Observe delayed external events in fault cases.
     PauseMillis(u64),
+    /// Read-only snapshot of the actual plan before a presentation event.
+    RememberPresentation,
+    /// Synthetic FontFaceSet completion exercises the browser adapter, without fetching a font.
+    FontLoaded,
     /// A real pointer drag between two rendered elements.
     Drag(&'static str, &'static str),
     DragToCell(&'static str, u32, &'static str),
@@ -1040,6 +1044,12 @@ pub enum Action {
 
 /// What a case expects the page to show. A name is a role or a selector ([`select`]).
 pub enum Check {
+    /// Exact semantic field from the renderer's live RenderPlan.
+    PlanCell(&'static str, &'static str, &'static str),
+    PlanAbsent(&'static str),
+    PlanReady,
+    /// A named layout input changed, values and command count stayed fixed, and the plan rebuilt.
+    PresentationChanged(&'static str),
     PinnedCell,
     /// Actual text bounds relative to its physical column, row and stored padding.
     Aligned(&'static str, &'static str, &'static str),
@@ -1121,6 +1131,8 @@ use calc_cases::{CALC_CASES, CALC_GROUPS, CALC_LATENCY_CASES, CALC_WORKER_FAULT_
 use onecalc_cases::{ONECALC_CASES, ONECALC_GROUPS};
 const BAR: &str = "[data-onecalc=\"formula\"]";
 
+const READ_PLANS: &str = r#"var plans=Object.values(window.__dnacalcRenderPlans||{}).map(f=>{try{return JSON.parse(f());}catch(e){return null;}}).filter(s=>s&&s.active&&s.plan&&s.plan.publication);"#;
+
 fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String> {
     let q = |name: &str| {
         format!(
@@ -1143,6 +1155,23 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         );
     }
     let script = match check {
+        Check::PlanCell(address, field, _) => {
+            let address=serde_json::to_string(address).unwrap(); let field=serde_json::to_string(field).unwrap();
+            format!("{READ_PLANS}var c=plans.flatMap(s=>s.plan.cells).find(c=>c.address==={address});if(!c)return null;var v=c.shown[{field}];return typeof v==='boolean'?String(v):v;")
+        }
+        Check::PlanAbsent(address) => {
+            let address=serde_json::to_string(address).unwrap();
+            format!("{READ_PLANS}return plans.length>0&&plans.every(s=>!s.plan.cells.some(c=>c.address==={address}));")
+        }
+        Check::PlanReady => format!("{READ_PLANS}return plans.length===1&&plans[0].pending===0&&!plans[0].plan.interrupted;"),
+        Check::PresentationChanged(cause) => {
+            let cause=serde_json::to_string(cause).unwrap();
+            format!(r#"{READ_PLANS}var a=window.__dcPresentation,b=plans[0];if(!a||!b||b.pending)return {{ok:false,held:a,seen:b}};
+            var x=a.plan,y=b.plan,cause={cause};var values=p=>p.cells.map(c=>[c.address,c.shown.text,c.shown.kind,c.shown.provenance,c.shown.formula,c.shown.format]);
+            var input=cause==='resize'?(x.viewport.width!==y.viewport.width||x.viewport.height!==y.viewport.height):cause==='zoom'?x.scale!==y.scale:y.presentation.fonts>x.presentation.fonts;
+            var same=a.commands===b.commands&&x.publication.workbook===y.publication.workbook&&x.publication.revision===y.publication.revision&&JSON.stringify(values(x))===JSON.stringify(values(y));
+            return {{ok:input&&same&&y.presentation.epoch>x.presentation.epoch,cause,input,same,held:a,seen:b}};"#)
+        }
         Check::Spill(name, first, last) => {
             let first = serde_json::to_string(first).unwrap();
             let last = serde_json::to_string(last).unwrap();
@@ -1239,7 +1268,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
 
 fn satisfied(check: &Check, seen: &Value) -> bool {
     match check {
-        Check::PinnedCell | Check::ViewRetained => {
+        Check::PinnedCell | Check::ViewRetained | Check::PresentationChanged(_) => {
             seen.get("ok").and_then(Value::as_bool) == Some(true)
         }
         Check::FitsText(_) => seen.as_array().is_some_and(|v| {
@@ -1248,6 +1277,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .is_some_and(|(need, have)| need <= have + 1.0)
         }),
         Check::Text(_, expected)
+        | Check::PlanCell(_, _, expected)
         | Check::Value(_, expected)
         | Check::Attr(_, _, expected)
         | Check::Role(_, expected)
@@ -1288,6 +1318,8 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
         }),
         Check::Aligned(..)
+        | Check::PlanAbsent(_)
+        | Check::PlanReady
         | Check::Spill(..)
         | Check::TextBounds(_)
         | Check::Before(_, _)
@@ -1324,6 +1356,16 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
 
 fn describe(check: &Check) -> String {
     match check {
+        Check::PlanCell(address, field, expected) => {
+            format!("RenderPlan {address}.{field} is {expected:?}")
+        }
+        Check::PlanAbsent(address) => format!("RenderPlan has no painted {address}"),
+        Check::PlanReady => {
+            "the committed RenderPlan is ready and the transport has no pending requests".into()
+        }
+        Check::PresentationChanged(cause) => format!(
+            "{cause} rebuilds the RenderPlan without changing values, model revision or submitting a workbook command"
+        ),
         Check::Aligned(name, h, v) => {
             format!("{name} text aligns {h}/{v} in its physical source cell")
         }
@@ -1820,6 +1862,20 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::CompositionEnd(name) => {
             let selector = serde_json::to_string(&select(app, name)).unwrap();
             session.script(&format!("document.querySelector({selector}).dispatchEvent(new CompositionEvent('compositionend', {{bubbles:true}})); return null;"))?;
+            Ok(())
+        }
+        Action::RememberPresentation => {
+            if let Some(reason) = wait_for(app, session, &Check::PlanReady, SETTLE) {
+                return Err(reason);
+            }
+            session.script(&format!(
+                "{READ_PLANS}window.__dcPresentation=plans[0];return null;"
+            ))?;
+            Ok(())
+        }
+        Action::FontLoaded => {
+            session
+                .script("document.fonts.dispatchEvent(new Event('loadingdone'));return null;")?;
             Ok(())
         }
         Action::Wait(check) => wait_for(app, session, check, SETTLE).map_or(Ok(()), Err),
@@ -2584,7 +2640,7 @@ mod tests {
             .iter()
             .map(|app| SmokeSelection::default().count(app))
             .sum();
-        assert!((28..=36).contains(&total), "core has {total} cases");
+        assert_eq!(total, 38, "the two applications have 38 core cases");
     }
 
     #[test]

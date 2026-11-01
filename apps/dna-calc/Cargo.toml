@@ -65,6 +65,8 @@ web-sys = { version = "=0.3.94", features = [
     "WheelEvent",
     "Performance",
     "ResizeObserver",
+    "FontFaceSet",
+    "EventTarget",
     "Url",
     "Window",
 ] }

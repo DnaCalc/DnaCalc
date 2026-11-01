@@ -27,6 +27,7 @@ pub mod autofit;
 pub mod axis;
 pub mod geometry;
 pub mod icons;
+mod inspect;
 pub mod panes;
 pub mod render_plan;
 pub mod selection;
@@ -343,9 +344,39 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         }
         split_window.set(g.split_window);
     });
-    let sheet_metrics = Memo::new(move |_| geometry.with(|g| sheet_metrics(g.as_ref())));
-    let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
     let mirror = controller.new_mirror();
+    // A value/style publication carries its own geometry. The query snapshot is only the
+    // initial layout while this subscription has no committed publication for the sheet.
+    let published_geometry = Memo::new(move |_| {
+        let sheet = controller.sheet.get();
+        mirror.with(|mirror| sheet.and_then(|sheet| mirror.geometry(sheet).cloned()))
+    });
+    let fallback_panes = panes;
+    let panes = Memo::new(move |_| {
+        published_geometry
+            .get()
+            .as_ref()
+            .map(Panes::from_geometry)
+            .unwrap_or_else(|| fallback_panes.get())
+    });
+    let sheet_metrics = Memo::new(move |_| {
+        if let Some(g) = published_geometry.get() {
+            sheet_metrics(Some(&g))
+        } else {
+            geometry.with(|g| sheet_metrics(g.as_ref()))
+        }
+    });
+    let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
+    let presentation = Memo::new(
+        move |previous: Option<&dna_calc_model::presentation::Presentation>| {
+            dna_calc_model::presentation::Presentation::update(
+                previous,
+                metrics.get(),
+                viewport.get(),
+                controller.font_revision.get(),
+            )
+        },
+    );
     let subscription: StoredValue<Option<(u64, u64)>> = StoredValue::new(None);
     let scroller: NodeRef<leptos::html::Div> = NodeRef::new();
     let layer: NodeRef<leptos::html::Div> = NodeRef::new();
@@ -436,14 +467,33 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 .collect()
         });
         let extent = grid_extent.get();
-        panes.get().plan(
+        let presentation = presentation.get();
+        let published_panes = published_geometry
+            .get()
+            .as_ref()
+            .map(Panes::from_geometry)
+            .unwrap_or_else(|| panes.get());
+        let mut plan = published_panes.plan(
             &shown,
-            &metrics.get(),
-            &viewport.get(),
+            &presentation.metrics,
+            &presentation.viewport,
             extent.rows,
             extent.cols,
-        )
+        );
+        plan.presentation = presentation.stamp;
+        if let Some(sheet) = sheet {
+            mirror.with(|mirror| {
+                plan.attach_semantics(
+                    mirror,
+                    sheet,
+                    &controller.areas.get(),
+                    controller.active.get(),
+                )
+            });
+        }
+        plan
     });
+    inspect::register(plan, ctx, controller);
 
     let scales = move || {
         let m = metrics.get_untracked();
@@ -627,7 +677,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         viewed_sheet.set_value(Some((generation, sheet)));
         let cached_geometry = controller.grid_geometry(sheet);
         geometry.set(cached_geometry.as_ref().map(wire::Geometry::geometry));
-        panes.set(
+        fallback_panes.set(
             cached_geometry
                 .as_ref()
                 .map_or(Panes::default(), Panes::from_geometry),
@@ -1377,8 +1427,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         (false, false) => {}
                     }
                     let italic=matches!(cell.shown.provenance,cells::Provenance::FileCache|cells::Provenance::Refused);
-                    style.push(';');style.push_str(&autofit::font_css(&cell.shown.style,Some(&conditional),italic,zoom.get()));
-                    let layout = alignment::layout(cell, &conditional, italic, zoom.get());
+                    style.push(';');style.push_str(&autofit::font_css(&cell.shown.style,Some(&conditional),italic,plan.scale));
+                    let layout = alignment::layout(cell, &conditional, italic, plan.scale);
                     style.push_str(&layout.container);
                     let shown = cell.shown.clone();
                     let icon = conditional
@@ -1415,30 +1465,18 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 .collect_view()
         })
     };
-    // A bounded semantic window over the same render plan, including empty cells. Visual
-    // geometry stays out of the accessibility tree; no second workbook projection is made.
+    // The semantic rows are already part of the plan. Empty identities, selection and
+    // refusal text follow its committed publication rather than painted DOM attributes.
     let semantic_cells = move || {
-        let selected_areas = controller.areas.get();
-        let sheet = controller.sheet.get();
         plan.with(|plan| {
-            let values: std::collections::BTreeMap<_, _> = plan
-                .cells
-                .iter()
-                .map(|cell| ((cell.row, cell.col), &cell.shown))
-                .collect();
-            plan.row_headers
+            plan.semantic_rows
                 .iter()
                 .map(|row| {
-                    let cells = plan.col_headers.iter().map(|col| {
-                    let at = (row.row, col.col);
-                    let address = cells::address(at.0, at.1);
-                    let label = values.get(&at).map_or_else(|| format!("{address}, empty"), |cell|
-                        format!("{address}, {}, {}", cell.text, cell.provenance.name()));
-                    let selected = sheet.and_then(|sheet| CellKey::new(sheet,at.0,at.1).ok()).is_some_and(|key| selected_areas.iter().any(|area| area.contains(key)));
-                    view! { <span role="gridcell" id=format!("dc-grid-cell-{}-{}-{}",ctx.index, at.0, at.1)
-                        aria-colindex=at.1.to_string() aria-selected=selected.to_string()
-                        aria-label=label>{address}</span> }
-                }).collect_view();
+                    let cells=row.cells.iter().map(|cell| view! {
+            <span role="gridcell" id=format!("dc-grid-cell-{}-{}-{}",ctx.index,cell.row,cell.col)
+                aria-colindex=cell.col.to_string() aria-selected=cell.selected.to_string()
+                aria-label=cell.label.clone()>{cell.address.clone()}</span>
+        }).collect_view();
                     view! { <div role="row" aria-rowindex=row.row.to_string()>{cells}</div> }
                 })
                 .collect_view()

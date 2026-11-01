@@ -266,7 +266,7 @@ impl GridMetrics {
 /// by the RenderPlan to decide which cells and headers are on screen (they do
 /// not affect [`hit_test`]'s classification — a caller only ever hands it a
 /// point already inside the viewport).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct Viewport {
     /// Horizontal scroll: content pixels hidden to the left of the viewport.
     pub scroll_x: f64,
@@ -292,7 +292,7 @@ impl Default for Viewport {
 /// A viewport-local pixel rectangle: `(x, y)` is the top-left corner and `w`/`h`
 /// the size, all in the viewport's own coordinate space (so `(0, 0)` is the
 /// viewport's top-left, and a cell scrolled off the top has a negative `y`).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct CellRect {
     pub x: f64,
     pub y: f64,
