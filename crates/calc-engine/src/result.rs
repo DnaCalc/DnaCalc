@@ -285,6 +285,13 @@ impl ValueDelta {
         self.completion = Some(completion);
         self
     }
+    /// The unit installed by this delta, including a nonterminal scalar publication.
+    pub fn publication(&self) -> Option<crate::contract::PublicationUnitId> {
+        self.events.iter().find_map(|event| match event {
+            crate::contract::CalcEvent::Published(unit) => Some(*unit),
+            _ => None,
+        })
+    }
     pub fn completion(&self) -> Option<&crate::contract::CompletionReceipt> {
         self.completion.as_ref()
     }

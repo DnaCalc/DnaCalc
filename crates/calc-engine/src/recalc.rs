@@ -1,8 +1,8 @@
 //! Recalculation (plan 6): [`begin_recalc`] binds each unbound node's formula through CalcFml and
 //! orders the dirty closure, [`step`] evaluates the ordered nodes through CalcFml a budget at a
-//! time, and [`finish`] publishes the staged results as one generation. Nothing is published
-//! before `finish` succeeds; a recalculation that fails or is refused leaves the published
-//! generation as it was, and its pending nodes pending.
+//! time. [`publish_ready`] can install certified interested scalar units during pure work;
+//! [`finish`] installs the remaining results and each complete spill. Cancellation or failure
+//! leaves already installed units in place and unfinished targets pending.
 //!
 //! Work package L2 (dc-0k9) adds what the order of the graph's edges alone cannot decide:
 //!
@@ -354,6 +354,16 @@ pub struct RecalcWork {
     /// The storage one evaluation works in, kept between evaluations ([`EvalLocal`]).
     pub(crate) local: EvalLocal,
     boundary_caches: crate::read::BoundarySnapshot,
+    interest: Vec<GridArea>,
+    preferred: BTreeSet<NodeId>,
+    reference_rank: BTreeMap<NodeId, usize>,
+    preferred_quanta: usize,
+    urgent_interest: bool,
+    service_clock: u64,
+    last_service: BTreeMap<NodeId, u64>,
+    suspended: BTreeMap<NodeId, EvalLocal>,
+    early_published: BTreeMap<NodeId, crate::contract::ResultStamp>,
+    publication_sequence: u64,
     failure: Option<RecalcFailure>,
     /// The workbook's iteration settings.
     iteration: IterationSettings,
@@ -486,11 +496,71 @@ impl RecalcWork {
         }
         self
     }
+    /// Prioritize the existing targets and their prerequisite cone. Commands containing
+    /// callbacks, volatiles or session units retain their complete reference order: no
+    /// observation fence can be crossed by this conservative pure-command scheduler.
+    pub fn set_interest(&mut self, state: &EngineState, inputs: &ModelRoot, areas: &[GridArea]) {
+        if self.interest == areas {
+            return;
+        }
+        self.urgent_interest =
+            self.next != 0 || !self.ready.is_empty() || !self.suspended.is_empty();
+        self.interest = areas.to_vec();
+        self.preferred.clear();
+        if self.iteration.enabled()
+            || !self.cyclic.is_empty()
+            || !inputs.definitions().data_tables().is_empty()
+            || self.order.iter().any(|node| {
+                state.volatile.contains(node)
+                    || !matches!(state.bindings.get(node), Some(Binding::Placed(instance, _))
+                    if !instance.plan().has_user_calls() && !instance.plan().reads_external_links())
+            })
+        {
+            return;
+        }
+        let members: BTreeSet<_> = self.order.iter().copied().collect();
+        let mut producers: BTreeMap<NodeId, Vec<NodeId>> = BTreeMap::new();
+        let mut readers = Vec::new();
+        for &node in &self.order {
+            let footprint = published_areas(state, inputs, node);
+            if areas.iter().any(|area| {
+                area.contains(live_anchor(state, node))
+                    || footprint
+                        .iter()
+                        .any(|filled| crate::contract::meets(*area, *filled))
+            }) {
+                self.preferred.insert(node);
+            }
+            readers_into(state, inputs, node, &footprint, &mut readers);
+            for &reader in &readers {
+                if members.contains(&reader) {
+                    producers.entry(reader).or_default().push(node);
+                }
+            }
+        }
+        let mut stack: Vec<_> = self.preferred.iter().copied().collect();
+        while let Some(reader) = stack.pop() {
+            for &producer in producers.get(&reader).into_iter().flatten() {
+                if self.preferred.insert(producer) {
+                    stack.push(producer);
+                }
+            }
+        }
+    }
+
     pub fn continuation_progress(&self) -> Option<calc_fml::ContinuationProgress> {
         self.local
             .activation
             .as_ref()
             .map(calc_fml::EvalContinuation::progress)
+            .or_else(|| {
+                self.suspended.values().find_map(|local| {
+                    local
+                        .activation
+                        .as_ref()
+                        .map(calc_fml::EvalContinuation::progress)
+                })
+            })
     }
 
     pub fn admission_pending(&self) -> bool {
@@ -582,7 +652,12 @@ impl RecalcWork {
             outcome,
             coverage: self.coverage(),
             results,
-            after_publication,
+            after_publication: after_publication.or_else(|| {
+                (self.publication_sequence != 0).then_some(PublicationUnitId {
+                    command: self.admission.command,
+                    sequence: self.publication_sequence,
+                })
+            }),
         }
     }
 
@@ -962,7 +1037,22 @@ fn begin_with_scope(
         predecessor: None,
     };
     let boundary_caches = crate::read::BoundarySnapshot::capture(state, inputs, &admission.scope);
+    let reference_rank = order
+        .iter()
+        .enumerate()
+        .map(|(rank, node)| (*node, rank))
+        .collect();
     Ok(RecalcWork {
+        interest: Vec::new(),
+        preferred: BTreeSet::new(),
+        reference_rank,
+        preferred_quanta: 0,
+        urgent_interest: false,
+        service_clock: 0,
+        last_service: BTreeMap::new(),
+        suspended: BTreeMap::new(),
+        early_published: BTreeMap::new(),
+        publication_sequence: 0,
         boundary_caches,
         admission: admission.clone(),
         pass,
@@ -1240,6 +1330,19 @@ pub fn step(
         };
         evaluations += 1;
         process(state, inputs, work, node, &mut *observer);
+        // A newly promoted scalar gets a publication opportunity before another off-interest
+        // continuation resumes, even when the caller supplied a larger finite budget.
+        if budget != WorkBudget::UNLIMITED
+            && work.urgent_interest
+            && work.preferred.contains(&node)
+            && work.progress.is_evaluated(node)
+            && matches!(
+                state.bindings.get(&node),
+                Some(Binding::Placed(_, ArrayRole::Cell))
+            )
+        {
+            break;
+        }
     }
     if work.failure.is_none() && work.remaining() == 0 {
         queue_certificate_repairs(state, inputs, work);
@@ -1263,6 +1366,25 @@ fn process(
     node: NodeId,
     observer: &mut dyn ReadObserver,
 ) {
+    work.service_clock = work
+        .service_clock
+        .checked_add(1)
+        .expect("service age exhausted");
+    work.last_service.insert(node, work.service_clock);
+    let quantum = work.local.quantum;
+    if work.local.activation.is_some() && work.local.current_node.get() != Some(node) {
+        let previous = work
+            .local
+            .current_node
+            .get()
+            .expect("a suspended activation has a target");
+        work.suspended
+            .insert(previous, std::mem::take(&mut work.local));
+    }
+    if let Some(local) = work.suspended.remove(&node) {
+        work.local = local;
+    }
+    work.local.quantum = quantum;
     let attempt = evaluate_node(state, inputs, work, node, &mut *observer);
     apply(state, inputs, work, node, attempt, observer);
 }
@@ -1343,6 +1465,9 @@ mod parallel {
         observer: &dyn ReadObserver,
     ) -> bool {
         state.threads > 1
+            && work.interest.is_empty()
+            && work.suspended.is_empty()
+            && work.local.activation.is_none()
             && observer.is_silent()
             && work.failure.is_none()
             && work.next == 0
@@ -1593,11 +1718,118 @@ mod parallel {
     }
 }
 
+/// Publish certified interested scalar targets while unrelated pure work remains suspended.
+/// A target must validate against the installed state, without staged operands. Consequently
+/// its prerequisite installations precede it. Spills, absence-sensitive reads, cache-qualified
+/// results, callbacks and session units remain atomic at finish.
+pub fn publish_ready(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    work: &mut RecalcWork,
+) -> Option<ValueDelta> {
+    if work.failure.is_some()
+        || work.preferred.is_empty()
+        || work.waves != 0
+        || !work.rewave.is_empty()
+        || work.iterating()
+        || !work.cyclic.is_empty()
+        || state.revision() != work.revision
+        || inputs.revision() != work.revision
+        || state.generation != work.generation
+        || state.environment != work.environment.map(Into::into)
+    {
+        return None;
+    }
+    let empty = Progress::new(0);
+    let mut candidates: Vec<_> = work
+        .progress
+        .staged_results()
+        .filter(|(node, _)| work.preferred.contains(node))
+        .map(|(node, _)| node)
+        .collect();
+    candidates.sort_by_key(|node| work.reference_rank.get(node).copied().unwrap_or(usize::MAX));
+    let mut changes = Vec::new();
+    for node in candidates {
+        let at = live_anchor(state, node);
+        if inputs.definitions().array(at).is_some()
+            || state.spills.get(at).is_some()
+            || work.spills.get(at).is_some()
+        {
+            continue;
+        }
+        let result = work
+            .progress
+            .staged(node)
+            .expect("candidate came from staged results");
+        let Some(stamp) = result.stamp() else {
+            continue;
+        };
+        if work.early_published.get(&node) == Some(stamp)
+            || stamp.reads.legacy_boundary
+            || stamp.reads.external_cache
+            || stamp.reads.uses_boundary_cache
+            || stamp.reads.uses_imported_cache
+            || !stamp.reads.absences.is_empty()
+            || !matches!(result, FormulaResult::Calculated { calculation, .. }
+                if !calculation.held_by_circular_rule())
+            || !certificate_valid_at(
+                state,
+                inputs,
+                &empty,
+                stamp,
+                work.facts_version,
+                Some(&work.requirements),
+                work.volatile_input_version,
+            )
+        {
+            continue;
+        }
+        work.early_published.insert(node, stamp.clone());
+        state.contract.satisfy(node, Some(stamp), work.pass);
+        state.results.publish(node, at, result.clone());
+        state.pending.remove(&node);
+        state.entered.remove(&node);
+        if work.admission.range_post_state == crate::contract::RangePostState::StillRequired {
+            state.range_redemand.insert(node);
+        } else {
+            state.range_redemand.remove(&node);
+        }
+        if let Some(dynamic) = work.dynamic.get(node) {
+            state.set_dynamic(node, dynamic.clone());
+        }
+        changes.push(ValueChange::Published { at, node });
+    }
+    if changes.is_empty() {
+        return None;
+    }
+    state.generation = state
+        .generation
+        .checked_add(1)
+        .expect("result view identity exhausted");
+    work.generation = state.generation;
+    state.published_mode = Some(work.calculation.mode().clone());
+    work.publication_sequence = work
+        .publication_sequence
+        .checked_add(1)
+        .expect("publication identity exhausted");
+    let unit = PublicationUnitId {
+        command: work.admission.command,
+        sequence: work.publication_sequence,
+    };
+    changes.sort_by_key(|change| match change {
+        ValueChange::Published { at, .. } | ValueChange::Removed { at, .. } => *at,
+    });
+    Some(
+        ValueDelta::new(work.revision, work.calculation.tick(), changes)
+            .with_events(vec![CalcEvent::Published(unit)]),
+    )
+}
+
 /// Publishes a completed recalculation: each evaluated node's staged result replaces its published
 /// one, with its spill and its dynamic prerequisites; the results and spills of formulas removed
 /// since the last publication are removed, the evaluated nodes are no longer pending, and the
 /// published generation's numeric mode is the recalculation's. Returns what changed. A
-/// recalculation that failed, is incomplete, or was superseded publishes nothing.
+/// failed, incomplete or superseded work installs no further unit; earlier units stay installed.
 pub fn finish(
     state: &mut EngineState,
     inputs: &ModelRoot,
@@ -1639,7 +1871,10 @@ pub fn finish(
     let coverage = work.coverage();
     let unit = PublicationUnitId {
         command: work.admission.command,
-        sequence: 1,
+        sequence: work
+            .publication_sequence
+            .checked_add(1)
+            .expect("publication identity exhausted"),
     };
     let completion = work.completion(
         if coverage.refused == 0 && coverage.held == 0 && coverage.uncertified == 0 {
@@ -1664,6 +1899,13 @@ pub fn finish(
     for (node, result) in std::mem::take(&mut work.progress).into_staged() {
         published[node.slot() as usize] = true;
         let at = live_anchor(state, node);
+        installed.push(node);
+        if result
+            .stamp()
+            .is_some_and(|stamp| work.early_published.get(&node) == Some(stamp))
+        {
+            continue;
+        }
         let before = state.spills.remove(at).map(|spill| spill.area());
         let after = work.spills.get(at).cloned();
         let after_area = after.as_ref().map(Spill::area);
@@ -1681,7 +1923,6 @@ pub fn finish(
         if let Some(extent) = work.blocked_spills.get(&at) {
             state.blocked_spills.insert(at, *extent);
         }
-        installed.push(node);
         state.contract.satisfy(node, result.stamp(), work.pass);
         state.results.publish(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
@@ -2573,6 +2814,9 @@ fn order_map(
 /// formulas must be calculated again because a spill's area changed, the next wave begins.
 fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> Option<NodeId> {
     loop {
+        if let Some(node) = interested_node(state, work) {
+            return Some(node);
+        }
         if let Some(node) = work.ready.pop_front() {
             return Some(node);
         }
@@ -2610,6 +2854,87 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
         }
         return None;
     }
+}
+
+/// Choose one quantum without moving the command's admitted reference ranks. Off-interest
+/// work gets the eighth contested quantum, even while an interested kernel keeps yielding.
+fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId> {
+    if work.preferred.is_empty() || work.waves != 0 || !work.cyclic.is_empty() {
+        return None;
+    }
+    // Spill reservation order is semantic. Interest may pass a suspended producer to run
+    // scalar work, but may not admit a later producer before the first producer completes.
+    let is_array = |node: NodeId| {
+        matches!(
+            state.bindings.get(&node),
+            Some(Binding::Placed(
+                _,
+                ArrayRole::LegacyFill(_) | ArrayRole::Spill
+            ))
+        )
+    };
+    let first_array = work
+        .order
+        .iter()
+        .copied()
+        .filter(|node| is_array(*node) && !work.progress.is_evaluated(*node))
+        .min_by_key(|node| work.reference_rank.get(node).copied().unwrap_or(usize::MAX));
+    let candidates = work
+        .ready
+        .iter()
+        .copied()
+        .chain(work.order[work.next..].iter().copied())
+        .filter(|node| !work.progress.is_evaluated(*node) && !work.waits_on.contains_key(node))
+        .filter(|node| !is_array(*node) || first_array == Some(*node));
+    let mut preferred = None;
+    let mut other = None;
+    for node in candidates {
+        let rank = work
+            .reference_rank
+            .get(&node)
+            .copied()
+            .unwrap_or(usize::MAX);
+        if work.preferred.contains(&node) {
+            if preferred.is_none_or(|held: (usize, NodeId)| (rank, node) < held) {
+                preferred = Some((rank, node));
+            }
+        } else {
+            let age = work.last_service.get(&node).copied().unwrap_or(0);
+            if other.is_none_or(|held: (u64, usize, NodeId)| (age, rank, node) < held) {
+                other = Some((age, rank, node));
+            }
+        }
+    }
+    let node = match (preferred, other) {
+        (Some(_), Some((_, _, node))) if work.preferred_quanta >= 7 => {
+            work.preferred_quanta = 0;
+            node
+        }
+        (Some((_, node)), Some(_)) => {
+            work.preferred_quanta += 1;
+            node
+        }
+        (Some((_, node)), None) => {
+            work.preferred_quanta = 0;
+            node
+        }
+        (None, Some((_, _, node))) => {
+            work.preferred_quanta = 0;
+            node
+        }
+        (None, None) => return None,
+    };
+    if let Some(position) = work.ready.iter().position(|held| *held == node) {
+        work.ready.remove(position);
+    } else {
+        let position = work.order[work.next..]
+            .iter()
+            .position(|held| *held == node)?
+            + work.next;
+        work.order.swap(work.next, position);
+        work.next += 1;
+    }
+    Some(node)
 }
 
 /// Ends a pass of an iterating recalculation: when it changed the value of a formula on a cycle
@@ -2840,6 +3165,9 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
             Some(next) => cursor = *next,
             None => break,
         }
+    }
+    if work.preferred.contains(&node) && work.progress.is_scheduled(on) {
+        work.preferred.insert(on);
     }
     work.waits_on.insert(node, on);
     work.waiting.entry(on).or_default().push(node);

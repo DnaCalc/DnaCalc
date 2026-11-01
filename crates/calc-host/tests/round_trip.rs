@@ -3827,3 +3827,156 @@ fn contract_manual_range_keeps_only_its_targets_required_for_the_next_f9() {
         |event| matches!(event,CalcEvent::Completed(receipt) if receipt.coverage.calculated==0)
     ));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_interest_publishes_the_short_cone_before_resuming_the_long_cell() {
+    use calc_engine::contract::CalcEvent;
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    for (address, text) in [
+        ("A1", "=SUM(SEQUENCE(8192))"),
+        ("B1", "=3"),
+        ("C1", "=B1*2"),
+    ] {
+        assert!(enter(&mut book, at(s, address), text).accepted());
+    }
+    let (subscription, received) =
+        subscribe(&mut book, Interest::Area(GridArea::cell(at(s, "A1"))));
+    book.set_calculation_budget(WorkBudget::evaluations(1));
+    let scope = GridArea::new(at(s, "A1"), at(s, "C1")).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange { areas: vec![scope] })
+            .accepted()
+    );
+    assert!(book.has_pending_calculation());
+    book.take_calculation_events();
+    assert!(
+        book.dispatch(SkinIntent::SetInterest {
+            subscription,
+            interest: Interest::Area(GridArea::cell(at(s, "C1")))
+        })
+        .accepted()
+    );
+    let depth = book.history_depth();
+    let first = book.advance_calculation();
+    assert!(
+        matches!(&first, HostProgress::Published(delta) if delta.completion().is_none() && delta.publication().unwrap().sequence == 1)
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "B1")),
+        Some(CalcValue::number(3.0))
+    );
+    assert!(calculated(book.host(), at(s, "C1")).is_none());
+    let second = book.advance_calculation();
+    assert!(
+        matches!(&second, HostProgress::Published(delta) if delta.completion().is_none() && delta.publication().unwrap().sequence == 2)
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "C1")),
+        Some(CalcValue::number(6.0))
+    );
+    assert!(calculated(book.host(), at(s, "A1")).is_none());
+    assert!(book.has_pending_calculation());
+    assert!(
+        !book
+            .take_calculation_events()
+            .iter()
+            .any(|event| matches!(event, CalcEvent::Completed(_)))
+    );
+    assert!(received.borrow().iter().any(|delta| matches!(delta.cause, calc_host::DeltaCause::Recalculated { publication, .. } if publication.sequence == 2)
+        && delta.cells.iter().any(|cell| cell.at() == at(s, "C1"))));
+    for _ in 0..32 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
+    assert!(!book.has_pending_calculation());
+    assert_eq!(book.history_depth(), depth);
+    assert_eq!(
+        calculated(book.host(), at(s, "A1")),
+        Some(CalcValue::number(33_558_528.0))
+    );
+    let events = book.take_calculation_events();
+    assert!(events.iter().any(|event| matches!(event, CalcEvent::Completed(receipt) if receipt.coverage.calculated == 3
+        && receipt.after_publication.unwrap().sequence == 3 && receipt.scope == calc_engine::CalcScope::Range(vec![scope]))));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_prefix_units_survive_cancel_and_remain_the_terminal_barrier() {
+    use calc_engine::contract::{CalcEvent, CompletionOutcome};
+    for cancel in [true, false] {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        for (address, text) in [
+            ("A1", "=SUM(SEQUENCE(8192))"),
+            ("B1", "=3"),
+            ("C1", "=B1*2"),
+        ] {
+            assert!(enter(&mut book, at(s, address), text).accepted());
+        }
+        let (subscription, _) = subscribe(&mut book, Interest::Area(GridArea::cell(at(s, "A1"))));
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::new(at(s, "A1"), at(s, "C1")).unwrap()]
+            })
+            .accepted()
+        );
+        assert!(
+            book.dispatch(SkinIntent::SetInterest {
+                subscription,
+                interest: Interest::Area(GridArea::cell(at(s, "C1")))
+            })
+            .accepted()
+        );
+        book.advance_calculation();
+        book.advance_calculation();
+        assert_eq!(
+            calculated(book.host(), at(s, "C1")),
+            Some(CalcValue::number(6.0))
+        );
+        book.take_calculation_events();
+        if cancel {
+            book.cancel_calculation();
+        } else {
+            assert!(enter(&mut book, at(s, "B1"), "4").accepted());
+            book.advance_calculation();
+        }
+        let events = book.take_calculation_events();
+        assert!(events.iter().any(|event| matches!(event, CalcEvent::Completed(receipt) | CalcEvent::Superseded(receipt)
+            if (if cancel { receipt.outcome == CompletionOutcome::Cancelled } else { matches!(receipt.outcome, CompletionOutcome::Superseded { .. }) })
+                && receipt.after_publication.is_some_and(|unit| unit.sequence == 2))));
+        if cancel {
+            assert!(!book.has_pending_calculation());
+            assert_eq!(
+                calculated(book.host(), at(s, "B1")),
+                Some(CalcValue::number(3.0))
+            );
+            assert_eq!(
+                calculated(book.host(), at(s, "C1")),
+                Some(CalcValue::number(6.0))
+            );
+            assert!(calculated(book.host(), at(s, "A1")).is_none());
+        } else {
+            for _ in 0..32 {
+                if !book.has_pending_calculation() {
+                    break;
+                }
+                book.advance_calculation();
+            }
+            assert!(!book.has_pending_calculation());
+            assert_eq!(
+                calculated(book.host(), at(s, "C1")),
+                Some(CalcValue::number(8.0))
+            );
+        }
+    }
+}

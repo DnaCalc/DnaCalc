@@ -7,7 +7,7 @@ return (async function () {
   const worker = new Worker(new URL("worker.js", window.__dnacalcAssets), { type: "module" });
   const pending = new Map(), trace = [], cells = new Map();
   let requestId = 0, commandId = 0, summary, selection = null, measuring = false;
-  let started, completed, rejected, readyRejected, staged;
+  let started, completed, rejected, readyRejected, staged, watchPublication;
   const ready = new Promise((resolve, reject) => { started = resolve; readyRejected = reject; });
   const done = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
   done.catch(() => {});
@@ -15,6 +15,7 @@ return (async function () {
   function abort(error) {
     for (const waiting of pending.values()) waiting.reject(error);
     pending.clear(); readyRejected(error); rejected(error);
+    if (watchPublication) watchPublication(error);
   }
   function stageTile(batch) {
     require(staged && JSON.stringify(staged.stamp) === JSON.stringify(batch.stamp), "tile fragment changed transaction identity");
@@ -50,6 +51,7 @@ return (async function () {
           for (const key of delta.emptied) cells.delete(JSON.stringify(key));
           for (const cell of delta.cells) cells.set(JSON.stringify(cell.at), cell);
           trace.push({ Cells: delta }); staged = null;
+          if (watchPublication) watchPublication();
           send({ TileAck: barrier }).catch(abort);
         } else if (control.ProjectionFailed) {
           throw new Error(control.ProjectionFailed.reason);
@@ -135,7 +137,11 @@ return (async function () {
       "the changed B1 candidate was not rejected");
     require(!trace.some((event) => event.Completed?.command === predecessor), "the superseded command completed");
     const publications = trace.filter((event) => event.Cells && event.Cells.publication);
-    require(publications.length === 1, "the spill must install with one atomic publication");
+    const spillPublications = publications.filter((event) => event.Cells.cells.some((cell) =>
+      cell.at[3] === 5 && cell.at[2] >= 1 && cell.at[2] <= 10));
+    require(spillPublications.length === 1, "the spill must install with one atomic publication");
+    require(spillPublications[0].Cells.cells.filter((cell) => cell.at[3] === 5
+      && cell.at[2] >= 1 && cell.at[2] <= 10).length === 10, "a spill publication omitted part of its extent");
     const output = (row, col) => cells.get(JSON.stringify(key(row, col)));
     for (const [row, col, text] of [[1, 2, "21"], [1, 3, "42"], [10, 7, "11"]]) {
       require(output(row, col)?.text === text, "a pure seven-cell result differs from the hand-derived value");
@@ -209,7 +215,40 @@ return (async function () {
     require(longReceipt.calculated === 1 && longReceipt.refused === 0 && longReceipt.outcome === "Complete",
       "the long-cell command must have exactly one admitted calculated target");
     require(output(1, 10)?.text === "34359869441", "the resumed long-cell result differs from n*(n+1)/2+1");
+    // A viewport promotion must publish the short prerequisite cone before the unrelated
+    // long cell finishes, through the same binary projection and acknowledgement route.
+    for (const [col, text] of [[13, "=SUM(SEQUENCE(1048576))"], [14, "=3"], [15, "=N1*2"]]) {
+      await intent({ EnterCell: { at: key(1, col), text } });
+    }
+    await send({ SetInterest: { id: 1, interest: { Areas: [area(1, 13)] } } });
+    const priorityStart = trace.length;
+    const priorityDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+    priorityDone.catch(() => {});
+    const shortPublished = new Promise((resolve, reject) => {
+      watchPublication = (error) => {
+        if (error) { watchPublication = null; reject(error); return; }
+        if (output(1, 15)?.text !== "6" || output(1, 15)?.provenance !== "Calculated") return;
+        const current = trace.slice(priorityStart);
+        require(!current.some((event) => event.Completed), "the short cone appeared only at whole-command completion");
+        const unit = current.filter((event) => event.Cells?.publication).at(-1)?.Cells.publication;
+        require(unit && unit.sequence === 2, "the short cone did not install after its prerequisite's unit");
+        watchPublication = null;
+        resolve({ sequence: unit.sequence, text: output(1, 15)?.text, before_completion: true });
+      };
+    });
+    shortPublished.catch(() => {});
+    const priorityCalculation = intent({ Calculate: { scope: { Range: [area(1, 13, 1, 15)] }, selection: "ForceAll" } });
+    const priorityPing = send("Ping");
+    const promotion = send({ SetInterest: { id: 1, interest: { Areas: [area(1, 15)] } } });
+    await priorityCalculation;
+    require((await priorityPing).Pong, "the priority command did not yield to Ping");
+    await promotion;
+    const priorityPublication = await shortPublished;
+    const priorityReceipt = await priorityDone;
+    require(priorityReceipt.calculated === 3 && priorityReceipt.refused === 0 && priorityReceipt.outcome === "Complete",
+      "interest changed the priority command's exact three-target coverage");
     return { yielded, pong, complete, calculated: receipt.calculated, publications: publications.length,
+      spill_publications: spillPublications.length, interest_publication: priorityPublication,
       reused_spill: { from: predecessor, to: successor }, spill_companions: ["shrink", "authored-blocker"],
       equal_value_status: { command: replayCommand, text: equalText },
       narrow_cache_replay: { targets: narrowReceipt.calculated, boundary_cached: narrowReceipt.boundary_cached,

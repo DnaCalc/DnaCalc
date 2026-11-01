@@ -5915,3 +5915,315 @@ fn contract_reentered_formula_cannot_read_its_orphaned_predecessor_as_a_boundary
         })
     ));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_interest_promotes_prerequisites_without_replaying_a_suspended_cell() {
+    #[derive(Default)]
+    struct Seen {
+        evaluated: Vec<CellKey>,
+        rows: usize,
+    }
+    impl ReadObserver for Seen {
+        fn observe(
+            &mut self,
+            _: CellKey,
+            _: GridArea,
+            _: u64,
+            _: calc_fml::reference::CellRun<'_>,
+        ) -> ControlFlow<()> {
+            ControlFlow::Continue(())
+        }
+        fn called(&mut self, _: CellKey, call: ExecutedCall) {
+            self.rows += usize::from(call.target().spelling() == "ROW");
+        }
+        fn evaluated(&mut self, evaluation: ObservedEvaluation<'_>) {
+            self.evaluated.push(evaluation.formula());
+        }
+    }
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = ids.issue().unwrap();
+    let a = key(sheet, 1, 1);
+    let b = key(sheet, 1, 2);
+    let c = key(sheet, 1, 3);
+    let root = l3_root(
+        &[(sheet, "Priority")],
+        vec![
+            (a, formula("LET(n,ROW(),SUM(_xlfn.SEQUENCE(8192))+n)")),
+            (b, formula("2+1")),
+            (c, formula("B1*2")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    let admission = work.admission().clone();
+    let mut seen = Seen::default();
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut seen,
+    );
+    let before = work.continuation_progress().unwrap();
+    assert!(seen.evaluated.is_empty());
+    work.set_interest(&state, &root, &[GridArea::cell(c)]);
+    for _ in 0..2 {
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut seen,
+        );
+    }
+    assert_eq!(
+        seen.evaluated,
+        vec![b, c],
+        "the interested prerequisite cone runs before resuming A1"
+    );
+    assert_eq!(work.continuation_progress().unwrap(), before);
+    assert_eq!(
+        work.admission(),
+        &admission,
+        "interest does not authorize another target or command"
+    );
+    assert_eq!(
+        step(&state, &root, &mut work, WorkBudget::UNLIMITED, &mut seen),
+        RecalcProgress::Complete
+    );
+    assert_eq!(seen.rows, 1, "A1's started prefix must not run again");
+    finish(&mut state, &root, work).unwrap();
+    assert_eq!(l1_value(&state, a), CalcValue::number(33_558_529.0));
+    assert_eq!(l1_value(&state, c), CalcValue::number(6.0));
+    assert!(state.validated_result(&root, c).is_some());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_interest_gives_the_eighth_contested_quantum_to_older_other_work() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = ids.issue().unwrap();
+    let a = key(sheet, 1, 1);
+    let b = key(sheet, 1, 2);
+    let root = l3_root(
+        &[(sheet, "Fairness")],
+        vec![
+            (a, formula("SUM(_xlfn.SEQUENCE(8192))")),
+            (b, formula("SUM(_xlfn.SEQUENCE(65536))")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    let older = work.continuation_progress().unwrap();
+    work.set_interest(&state, &root, &[GridArea::cell(b)]);
+    for quantum in 0..7 {
+        let mut areas = vec![GridArea::cell(b)];
+        if quantum % 2 == 0 {
+            areas.push(GridArea::cell(key(sheet, 99, 99)));
+        }
+        work.set_interest(&state, &root, &areas);
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut Unobserved,
+        );
+    }
+    let preferred = work.continuation_progress().unwrap();
+    assert!(preferred.completed_elements > older.completed_elements * 6);
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    let escaped = work.continuation_progress().unwrap();
+    assert!(
+        older.completed_elements < escaped.completed_elements
+            && escaped.completed_elements < preferred.completed_elements,
+        "the eighth contested decision resumes A1, rather than starving it behind B1"
+    );
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, &root, work).unwrap();
+    assert_eq!(l1_value(&state, a), CalcValue::number(33_558_528.0));
+    assert_eq!(l1_value(&state, b), CalcValue::number(2_147_516_416.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_interest_preserves_reference_order_for_volatile_commands() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = ids.issue().unwrap();
+    let a = key(sheet, 1, 1);
+    let b = key(sheet, 1, 2);
+    let root = l3_root(
+        &[(sheet, "Fence")],
+        vec![
+            (a, formula("SUM(_xlfn.SEQUENCE(8192))")),
+            (b, formula("RAND()")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    let first = work.continuation_progress().unwrap();
+    work.set_interest(&state, &root, &[GridArea::cell(b)]);
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    assert!(work.continuation_progress().unwrap().completed_elements > first.completed_elements);
+    assert!(state.result(b).is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_interest_does_not_change_competing_spill_reservation_order() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = ids.issue().unwrap();
+    let first = key(sheet, 1, 3);
+    let second = key(sheet, 2, 1);
+    let root = l3_root(
+        &[(sheet, "Reservations")],
+        vec![
+            (first, formula("_xlfn.SEQUENCE(3)")),
+            (second, formula("_xlfn.SEQUENCE(1,4)")),
+        ],
+        Definitions::new(
+            vec![
+                ArrayFormula::new(
+                    GridArea::cell(first),
+                    ArrayKind::Dynamic { collapsed: false },
+                ),
+                ArrayFormula::new(
+                    GridArea::cell(second),
+                    ArrayKind::Dynamic { collapsed: false },
+                ),
+            ],
+            vec![],
+            vec![],
+            [],
+        ),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    work.set_interest(&state, &root, &[GridArea::cell(second)]);
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, &root, work).unwrap();
+    assert_eq!(l1_value(&state, first), CalcValue::number(1.0));
+    assert_eq!(
+        l1_value(&state, second),
+        l2_error(calc_doc_model::value::WorksheetErrorCode::Spill)
+    );
+    assert!(state.spill(first).is_some());
+    assert!(state.spill(second).is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_interest_age_escape_rotates_between_suspended_other_cells() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = ids.issue().unwrap();
+    let a = key(sheet, 1, 1);
+    let b = key(sheet, 1, 2);
+    let c = key(sheet, 1, 3);
+    let root = l3_root(
+        &[(sheet, "ServiceAge")],
+        vec![
+            (a, formula("SUM(_xlfn.SEQUENCE(32768))")),
+            (b, formula("SUM(_xlfn.SEQUENCE(32768))")),
+            (c, formula("SUM(_xlfn.SEQUENCE(65536))")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    step(
+        &state,
+        &root,
+        &mut work,
+        WorkBudget::evaluations(1),
+        &mut Unobserved,
+    );
+    let initial = work.continuation_progress().unwrap();
+    work.set_interest(&state, &root, &[GridArea::cell(c)]);
+    for _ in 0..16 {
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut Unobserved,
+        );
+    }
+    let a_second = work.continuation_progress().unwrap();
+    assert!(a_second.completed_elements > initial.completed_elements);
+    for _ in 0..8 {
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut Unobserved,
+        );
+    }
+    assert_eq!(
+        work.continuation_progress().unwrap(),
+        a_second,
+        "the next escape resumes B1 for its second quantum, rather than giving A1 a third"
+    );
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, &root, work).unwrap();
+    for at in [a, b] {
+        assert_eq!(l1_value(&state, at), CalcValue::number(536_887_296.0));
+    }
+}

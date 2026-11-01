@@ -833,15 +833,19 @@ impl HostSession {
 
     /// Runs one authorized step and delivers any publication it completed.
     fn recalculate(&mut self, receipt: &mut IntentReceipt) {
+        self.host.calculation_interest = self
+            .subscriptions
+            .values()
+            .flat_map(|subscription| self.areas(&subscription.interest))
+            .collect();
         let progress = step(&mut self.host, self.recalc_budget, &mut Unobserved);
         let cause = match &progress {
             HostProgress::Current | HostProgress::Manual | HostProgress::Cancelled => None,
             HostProgress::Calculating { .. } => None,
             HostProgress::Published(delta) => Some(DeltaCause::Recalculated {
                 publication: delta
-                    .completion()
-                    .and_then(|receipt| receipt.after_publication)
-                    .expect("a published unit has a completion barrier"),
+                    .publication()
+                    .expect("a published delta names its installed unit"),
                 revision: delta.revision(),
                 tick: delta.tick(),
             }),

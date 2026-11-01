@@ -110,6 +110,7 @@ pub struct HostState {
     pub(crate) options: HostOptions,
     /// The recalculation in progress, between two [`crate::step`] calls.
     pub(crate) work: Option<RecalcWork>,
+    pub(crate) calculation_interest: Vec<calc_doc_model::value::GridArea>,
     pub(crate) full_calculate_requested: bool,
     pub(crate) transformed_calculation_scope: Option<calc_engine::CalcScope>,
     pub(crate) requested_calculation: Option<(calc_engine::CalcScope, calc_engine::EvalSelection)>,
@@ -184,6 +185,7 @@ impl HostState {
             engine,
             options,
             work: None,
+            calculation_interest: Vec::new(),
             full_calculate_requested: false,
             transformed_calculation_scope: None,
             requested_calculation: None,
