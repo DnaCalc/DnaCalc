@@ -1,0 +1,19 @@
+{
+  "run_id": "P06-first-auto-10-safe",
+  "supervisor_compile": "ok",
+  "supervisor_run": "ok",
+  "supervisor_cleanup": "owned-process-zero",
+  "supervisor_passed": false,
+  "supervisor_transport_error": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+  "explanation": "Descriptor expected_value is OBSERVATION_ONLY, so passed=false is expected; compile/run/cleanup and fault records must be inspected separately.",
+  "raw_sha256": "8e3b44d5dd390e134441f3e1cbd93940a3f6799cd8805fc379fc704d69e43916",
+  "raw_lines": 27,
+  "artifacts": 1551,
+  "faults": [],
+  "unrunnable": [],
+  "external_controller_events": {},
+  "external_controller_failures": [],
+  "rows_by_case": {
+    "first-open-controller/1": 27
+  }
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "file": "synthetic-first-open-auto.xlsm",
+    "sha256": "6b767da5824859ee1851b2347344c2d5db6a3690eecc96512d93817a36e09868",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {
+      "calcMode": "auto"
+    },
+    "label": "synthetic flags; current-version cache"
+  }
+]

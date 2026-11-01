@@ -166,6 +166,11 @@ SEQUENCE alternating 2/3, under range/Full/Rebuild, ten trials each. A 2,3,3 scr
 calls; 2,2,3 after two. The held footprint matters: seed 2 could settle after the first returned 2.
 Use the eight-evaluation bound for this measured sizing path; do not replace every graph-repair wave
 limit with eight or infer that every SizeUdf call equals a whole-workbook pass.
+The 70-workbook nonvolatile changed-seed control made zero calls under clean F9 and one under range/Full/Rebuild.
+The forced commands installed two rows; clean F9 kept one. Later scripted sizes and the third-call error were not
+requested. Volatility/reevaluation
+policy is therefore part of the measured sizing behavior; the bound is not an instruction to call every size
+expression eight times.
 
 ### 3.3 Invocation
 
@@ -280,6 +285,13 @@ one unit including removals. Today everything publishes at `finish` (`recalc.rs:
   calculate-before-read, and saved Range handles read through the next call's reader (`VBA_UDFS.md:33-35`).
 
 ## 6. Transactions, supersession, undo
+
+P09 (O, 20527 safe mode) requires every ingress to retain formula form independently of the Formula getter's
+text: the same SQRT range text gives scalar 2 through Formula and a dynamic four-cell result through Formula2.
+Fixed CSE extent is separate from a dynamic spill; Copy Destination and FillDown retain their source form.
+SavedAsArray is tri-state (the mixed modern-copy range returned Null before Full). All 200 Manual/Auto reopens
+preserved the measured forms/flags/values. A saved modern spill error can use #VALUE! plus cm/vm rich-error
+metadata while Value2 returns Error2045; file load must retain that metadata, not infer the class from one token.
 
 - **Commit** (owner, one visibility transition): dedup and base check; apply membership, inputs, formulas and dialect,
   references, names, styles, merges, rules, geometry; fresh target generations for replaced, moved, deleted or restored
@@ -448,11 +460,11 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 | What a VBA read of a dirty formula returns, per command kind; self/caller reads | P01: observer-only reads old 2; reversed areas can return Empty then re-enter with 11; self 0/Empty. Retain cached observation, distinguish new evaluation; other contexts remain open | P01 (O, 20527 safe mode) |
 | Out-of-range precedents in Range/Sheet calculation; post-command dirtiness; mode dependence | P02 confirms boundary caches and Manual `StillRequired`; row-major separate; automatic edits calculate before explicit commands. UI sheet grouping remains open | P02 (O, 20527 safe mode) |
 | Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | P03 confirms status-64 unwind/re-entry for ordinary/$, successful # coercion, and provisional VBA values; preserve typed reasons and registration capabilities. Null not observed | P03 (O, 20527 safe mode) |
-| Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | P04 confirms reuse/occurrence boundaries and eight calls before #SPILL! for the measured volatile SEQUENCE sizing path; held footprint and repeated size determine earlier completion. Global graph-wave count remains open | P04 (O, 20527 safe mode) |
+| Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | P04 confirms reuse/occurrence boundaries and eight calls before #SPILL! for the volatile sizing path; nonvolatile forced controls use one call and clean F9 none. Held footprint/repeated size determine earlier completion. Global graph-wave count remains open | P04 (O, 20527 safe mode) |
 | Spill conflict winner, stale-footprint clearing, child-only calculation | P05 confirms cached absence, shrink clearing and no scope expansion from an existing child; reader-first callbacks see 1 then 11. Conflict winners vary; strict wait/semantic reservation remain DNA policies | P05 (O, 20527 safe mode) |
-| Save scope, stale `<v>` with Save(false), open-time recalculation | P06 selects Manual preserve, domain-wide live updates for ordinary true, handler-before-pin order, active-disabled and TABLE exceptions. P07 UI false cancels pending work and saves held numeric caches despite a live error; first-workbook, true with async, and concurrent pinning remain open | P06/P07 (O, 20527 safe mode) |
+| Save scope, stale `<v>` with Save(false), open-time recalculation | P06 selects Manual preserve, domain-wide live updates for ordinary true, handler-before-pin order, disabled/TABLE exceptions; first-source Manual retains 2/3 and synthetic Auto refreshes 10/11 in ten fresh processes each. P07 UI false cancels and saves held caches despite a live error; true with async and concurrent pinning remain open | P06/P07 (O, 20527 safe mode) |
 | Stale async returns Excel accepts; overlap of calls from one cell | P07 confirms no repeated prefix and no late installation after UI cancel/overwrite+Undo; Undo is confounded by cancellation. COM overlap and real provider replacement remain open; keep conservative revocation | P07 (O, 20527 safe mode) |
 | Whether Excel's observable intermediate caches depend on chain history or position | P08 Full/Rebuild reads were new in all 200 cases, but observer order varied in multiworker trials; off/one-worker order was stable. Keep explicit observation order and serial fences; seeded history does not establish general commutation | P08 (O, 20527 safe mode) |
-| Formula vs Formula2 through every ingress | dialect in the semantic key | P09 |
+| Formula vs Formula2 through every ingress | P09 confirms form in semantic identity across ten setter/copy/fill/CSE paths and 200 reopens; preserve fixed extent, @, dynamic/rich metadata and tri-state SavedAsArray. Other clipboard/import transports remain open | P09 (O, 20527 safe mode) |
 | Module/provider reload and stored Range across edits | old authority revoked; revision-qualified handles | P10 |
 | Iteration remainder, data tables, entry-time evaluation, names, events | named unsupported or explicit setup | P12-P15, P22 |
