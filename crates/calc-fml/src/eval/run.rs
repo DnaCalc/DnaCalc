@@ -2740,6 +2740,13 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         text
     }
 
+    fn refuse_by(&mut self, reason: &'static str, owner: &'static str) -> String {
+        let fault = not_modelled_by(reason, owner);
+        let text = format!("{fault:?}");
+        self.fault.get_or_insert(fault);
+        text
+    }
+
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
         match self.run.reader.values_of(reference) {
             Ok(value) => Ok(value),
@@ -2756,9 +2763,18 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         name: &str,
         arguments: &[CalcValue],
     ) -> Result<CalcValue, String> {
+        self.worksheet_function_for(name, arguments, "dc-snz.5")
+    }
+
+    fn worksheet_function_for(
+        &mut self,
+        name: &str,
+        arguments: &[CalcValue],
+        owner: &'static str,
+    ) -> Result<CalcValue, String> {
         let target = calc_func::catalogue()
             .resolve_surface(calc_func::Notation::Call, &name.to_ascii_uppercase())
-            .map_err(|_| self.refuse("an unknown worksheet callback"))?;
+            .map_err(|_| self.refuse_by("an unknown worksheet callback", owner))?;
         // A VBA method call has no enclosing formula's implicit intersection or lifting.
         // Scalar positions accept a scalar or one cell; broader array behavior needs its own
         // measured host contract rather than silently borrowing the formula's rules.
@@ -2769,8 +2785,9 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
                 .map(|(index, value)| {
                     if target.parameter_class(index) == Some(ParameterClass::Value) {
                         if value.as_array().is_some() {
-                            return Err(not_modelled(
+                            return Err(not_modelled_by(
                                 "an array in a scalar worksheet callback position",
+                                owner,
                             ));
                         }
                         self.run.admit_value(value.clone(), Admission::Refuse)

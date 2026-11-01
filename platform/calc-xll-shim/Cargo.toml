@@ -1,0 +1,20 @@
+[package]
+name = "calc-xll-shim"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "XLCALL32.DLL companion to the DNA Calc native executable."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+[lib]
+name = "xlcall32"
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+calc-xll-abi = { path = "../../crates/calc-xll-abi" }
+
+[build-dependencies]
+cc = "=1.8.0"

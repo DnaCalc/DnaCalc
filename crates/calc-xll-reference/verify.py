@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 import zipfile
 import xml.etree.ElementTree as ET
 
@@ -19,6 +20,25 @@ def jsonl(path):
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest().upper()
+
+
+def source_matches(expected, source, revision):
+    root = Path(__file__).resolve().parents[2]
+    if source.exists() and digest(source) == expected:
+        return True
+    # A later extension of the tracer must not invalidate an older immutable capture.
+    # Its exact original source must still exist at the recorded repository revision.
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        return False
+    relative = source.relative_to(root).as_posix()
+    old = subprocess.run(["git", "-C", str(root), "show", f"{revision}:{relative}"],
+                         capture_output=True, check=False)
+    if old.returncode != 0:
+        return False
+    # Git stores LF, while these Windows source hashes can record the checked-out CRLF.
+    lf = old.stdout.replace(b"\r\n", b"\n")
+    return any(hashlib.sha256(content).hexdigest().upper() == expected
+               for content in (old.stdout, lf, lf.replace(b"\n", b"\r\n")))
 
 
 def require(condition, description):
@@ -68,8 +88,8 @@ def persistence(directory):
     return result
 
 
-def verify(traced, control):
-    events = jsonl(traced / "boundary.jsonl")
+def boundary(directory):
+    events = jsonl(directory / "boundary.jsonl")
     require([x["seq"] for x in events] == list(range(1, len(events)+1)), "Noncontiguous trace sequence")
     require(events[-1]["event"] == "detach" and events[-1]["healthy"], "Tracer did not detach cleanly")
     require(events[-1]["restore_failed"] == events[-1]["outstanding_calls"] == 0, "Incomplete breakpoint cleanup or calls")
@@ -84,13 +104,22 @@ def verify(traced, control):
         inspect_values(entry)
         inspect_values(result)
 
+    return events, enters, leaves
+
+
+def verify(traced, control):
+    events, enters, leaves = boundary(traced)
+
     env = json.loads((traced / "environment.json").read_text(encoding="utf-8-sig"))
     control_env = json.loads((control / "environment.json").read_text(encoding="utf-8-sig"))
     for key in ("excel_file_version", "xll_sha256", "fixture_dll_sha256", "fixture_source_sha256", "fixture_project_sha256", "native_source_sha256", "native_xll_sha256"):
         require(env[key] == control_env[key], "Control differs: " + key)
     source_root = Path(__file__).resolve().parent
+    source_publication = traced.parent / "source-publication.json"
+    revision = (json.loads(source_publication.read_text(encoding="utf-8"))["source_revision"]
+                if source_publication.exists() else env["repository_commit"])
     for field, source in (("fixture_source_sha256", "fixture/Probe.cs"), ("fixture_project_sha256", "fixture/X0.csproj"), ("tracer_source_sha256", "native/trace.cpp"), ("native_source_sha256", "native/owned.cpp")):
-        require(env[field] == digest(source_root / source), "Capture differs from checked-in source: " + source)
+        require(source_matches(env[field], source_root / source, revision), "Capture source is not retained: " + source)
     require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "PID ownership not established")
 
     actual = controller(traced)
@@ -177,13 +206,98 @@ def verify(traced, control):
     }
 
 
+def verify_x1(excel, excel_control, host, host_control):
+    cases_path = Path(__file__).resolve().parent / "fixture/x1-cases.json"
+    cases = json.loads(cases_path.read_text(encoding="utf-8"))
+    expected = {case["formula"]: case["value"] for case in cases}
+    require(len(expected) == 21, "X1 case denominator changed")
+    environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig"))
+                    for p in (excel, excel_control, host, host_control)]
+    for env in environments:
+        require(env["native_xll_sha256"] == environments[0]["native_xll_sha256"], "Different fixture binaries")
+        require(env["cases_sha256"] == digest(cases_path), "Case file differs from capture")
+        root = Path(__file__).resolve().parents[2]
+        for source, sha in env["source_files"].items():
+            require(source_matches(sha, root / source, env["repository_commit"]), "Source not retained: " + source)
+    require(environments[0]["excel_file_version"] == environments[1]["excel_file_version"], "Different Excel builds")
+    require(environments[2]["executable_sha256"] == environments[3]["executable_sha256"], "Different host binaries")
+    require(environments[2]["executable_version"].startswith("16."), "Missing host version resource")
+    for directory, env in zip((excel, excel_control), environments):
+        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
+        observations = controller(directory)
+        require(observations["AutomationSecurity unchanged"] is True, "Security setting changed")
+        actual = {k: v for k, v in observations.items() if k.startswith("=")}
+        require(actual == expected, "Excel formula outcomes differ from the X1 cases")
+        require(observations["raw =MyEcho(#N/A)"] == -2146826246, "Missing raw Excel #N/A error")
+        for name in ("MyNonfiniteValue", "MyNonfinitePointer", "MyNonfiniteOper"):
+            require(observations[f"raw ={name}()"] == -2146826252, "Missing raw Excel #NUM error")
+    for directory in (host, host_control):
+        output = json.loads((directory / "host.stdout").read_text(encoding="utf-8-sig"))
+        require({r["formula"]: r["value"] for r in output["results"]} == expected, "DNA Calc formula outcomes differ")
+        require(output["registrations"] == 18 and output["duplicate_use_count"] == 2, "Registration use count differs")
+        require(output["live_callback_allocations"] == 0, "Host callback storage leaked")
+        require(output["closed_registration"] == "#NAME?", "Old registry still callable after close")
+        require(not (directory / "host.stderr").read_text(encoding="utf-8-sig").strip(), "Host reported diagnostics")
+
+    excel_events, excel_enters, excel_leaves = boundary(excel)
+    host_events, host_enters, host_leaves = boundary(host)
+    counts = []
+    ownership = []
+    signatures = []
+    for events, enters, leaves in ((excel_events, excel_enters, excel_leaves), (host_events, host_enters, host_leaves)):
+        callback_counts = Counter((x["function"], x["return_code"]) for x in leaves.values() if "return_code" in x)
+        counts.append(callback_counts)
+        for function in (16393, 16385, 89, 16384):
+            require(callback_counts[function, 32] == 1, f"Missing outside-context failure for {function}")
+        registrations = [x for x in events if x["event"] == "registered_entry"]
+        signatures.append(Counter((r["entry"].split(":", 1)[1], r["signature"]) for r in registrations))
+        require(len(registrations) == 19, "Registration callback count differs")
+        for entry in enters.values():
+            if entry["entry"].endswith("!XLCallVer"):
+                require(int(leaves[entry["call"]]["rax"], 16) & 0xffffffff == 3072, "XLCallVer differs")
+            if entry["entry"].endswith("!LPenHelper"):
+                returned = leaves[entry["call"]]
+                require(entry["function"] == 16398 and returned["output_first_long"] == 0, "LPenHelper edit mode differs")
+                require(int(returned["rax"], 16) & 0xffffffff == 0, "LPenHelper return differs")
+        require(any(e["entry"].endswith("!XLCallVer") for e in enters.values()), "XLCallVer not exercised")
+        require(any(e["entry"].endswith("!LPenHelper") for e in enters.values()), "LPenHelper not exercised")
+        owned = [x for x in leaves.values() if x["entry"].endswith(":MyOwned")]
+        frees = [x for x in enters.values() if x["entry"].endswith("!xlAutoFree12")]
+        require(len(owned) == len(frees) == 1, "DLLFree ownership was not exercised exactly once")
+        require(owned[0]["result"]["type"] == 0x4002, "Owned string lost DLLFree flag")
+        require(owned[0]["rax"] == frees[0]["oper_address"] and owned[0]["thread"] == frees[0]["thread"], "xlAutoFree12 pointer/thread differs")
+        ownership.append({"returns": len(owned), "frees": len(frees), "same_pointer_and_thread": True})
+        dynamic = {x["entry"].rsplit(":", 1)[-1]: x["result"] for x in leaves.values() if ":MyDynamic" in x["entry"]}
+        require(dynamic == {"MyDynamicA": 41, "MyDynamicB": 42}, "Registration address was not frozen")
+    require(counts[0] == counts[1], "C API function/return-code counts differ between Excel and DNA Calc")
+    require(signatures[0] == signatures[1], "Registration signatures differ")
+    return {
+        "status": "verified X1 fixture boundary", "formula_cases": len(expected), "formula_matches_each_host": len(expected),
+        "excel_file_version": environments[0]["excel_file_version"], "host_file_version": environments[2]["executable_version"],
+        "same_fixture_sha256": environments[0]["native_xll_sha256"],
+        "excel_trace_records": len(excel_events), "host_trace_records": len(host_events),
+        "c_api_calls_each_host": sum(counts[0].values()), "callback_return_codes": [
+            {"function": fn, "return_code": rc, "calls_each_host": n} for (fn, rc), n in sorted(counts[0].items())],
+        "ownership_excel_and_host": ownership, "registration_time_address_lookup": True,
+        "controls_match": True, "timing": "debugger timing; no uninstrumented scheduling or latency claim",
+        "scope": "OneCalc controller in a minimal native executable; no Excel-DNA, COM object model or worker scheduling claim",
+        "async_result_operand": "Excel direct callback leaves type zero; DNA Calc supplies the documented Boolean. Callback codes and published values match; this raw output difference remains recorded.",
+    }
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("traced", type=Path)
     parser.add_argument("control", type=Path)
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--host", type=Path)
+    parser.add_argument("--host-control", type=Path)
     args = parser.parse_args()
-    result = verify(args.traced, args.control)
+    if args.host:
+        parser.error("--host requires --host-control") if args.host_control is None else None
+        result = verify_x1(args.traced, args.control, args.host, args.host_control)
+    else:
+        result = verify(args.traced, args.control)
     rendered = json.dumps(result, indent=2) + "\n"
     if args.out:
         args.out.write_text(rendered, encoding="utf-8")

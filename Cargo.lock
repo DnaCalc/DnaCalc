@@ -314,6 +314,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-xll-abi"
+version = "0.1.0"
+dependencies = [
+ "calc-value",
+]
+
+[[package]]
+name = "calc-xll-fixture"
+version = "0.1.0"
+dependencies = [
+ "calc-xll-abi",
+]
+
+[[package]]
+name = "calc-xll-host"
+version = "0.1.0"
+dependencies = [
+ "calc-fml",
+ "calc-func",
+ "calc-value",
+ "calc-xll-abi",
+ "libffi",
+]
+
+[[package]]
+name = "calc-xll-shim"
+version = "0.1.0"
+dependencies = [
+ "calc-xll-abi",
+ "cc",
+]
+
+[[package]]
 name = "camino"
 version = "1.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -747,6 +780,20 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "dna-calc-desktop"
+version = "0.1.0"
+dependencies = [
+ "calc-value",
+ "calc-xll-abi",
+ "calc-xll-fixture",
+ "calc-xll-host",
+ "calc-xll-shim",
+ "dna-onecalc",
+ "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

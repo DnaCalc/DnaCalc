@@ -114,3 +114,65 @@ vendored here. ABI facts were checked against Excel-DNA's permissively licensed
 Recorded Excel outputs are black-box observations. Workbook calculation corpus
 scores continue to use the existing `cargo xtask corpus` verdict path; these
 boundary traces are not counted as DNA Calc formula passes.
+
+## X1: DNA Calc's first native host
+
+`calc-xll-abi` owns the wire layouts, registration parser and per-call value arena.
+`calc-xll-host` loads native modules and adapts them to the existing caller-owned
+`calc_func::UserFunctions` registry. `dna-calc-desktop` creates an STA and hidden
+XLMAIN/XLDESK/EXCEL7 windows, exports MdCallBack12 and calculates through OneCalc's
+ordinary controller. The companion `calc-xll-shim` builds `xlcall32.dll` beside it.
+This is a minimal executable; the browser applications acquire no native dependency.
+
+```powershell
+cargo build -p calc-xll-fixture -p calc-xll-shim -p dna-calc-desktop
+target/debug/dna-calc-desktop.exe --xll target/debug/calc_xll_fixture.dll --formula '=MyAdd(1,2)'
+cargo test -p calc-xll-abi -p calc-xll-shim -p dna-calc-desktop
+```
+
+The original Rust fixture is loaded unchanged in Excel and DNA Calc. Its single
+case list is `fixture/x1-cases.json`. The native tests invoke the actual executable,
+including 10,000 extra callable names and a swallowed callback refusal under IFERROR.
+Two registrations rewrite the fixture's own PE export metadata, then restore it;
+their different results check registration-time address retention as xlOil needs.
+This tests registry capacity, not an Excel-DNA 10,000-export binary in this host.
+
+Use the existing runner and tracer for four separate fresh directories:
+
+```powershell
+./build.ps1 -NativeOnly
+pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -RunDirectory runs/x1-excel-traced
+pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -RunDirectory runs/x1-excel-control -NoTrace
+pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -HostExecutable ../../target/debug/dna-calc-desktop.exe -RunDirectory runs/x1-host-traced
+pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -HostExecutable ../../target/debug/dna-calc-desktop.exe -RunDirectory runs/x1-host-control -NoTrace
+python verify.py runs/x1-excel-traced runs/x1-excel-control --host runs/x1-host-traced --host-control runs/x1-host-control --out runs/x1-summary.json
+```
+
+The optional tracer image argument requires the exact explicitly named executable;
+its default still accepts only Excel and excludes PID 3144. The runner waits for
+detach before releasing its owned host. Existing X0 captures keep their original
+environment records; `source-publication.json` identifies the commit that first
+published the exact source hashes captured before that commit existed.
+
+X1 checks are bounded to the following requirements, not the whole Excel C API:
+
+| Requirement | Evidence |
+|---|---|
+| Wire offsets and deep value copies | ABI native tests, independent X0 C++ decoder |
+| Registration types and incompatible flags | Table-driven parser tests, 19 observed registrations |
+| Formula execution through CalcFml | 21 fixture formulas through the OneCalc controller and Excel |
+| Current XLL, caller and reference reads | xlGetName, xlfCaller, xlCoerce boundary calls |
+| Outside-context codes | Four callback probes returning 32 in each host |
+| Companion exports and executable identity | XLCallVer, LPenHelper traces; version resource 16.x |
+| DLLFree pointer and owner | Exact-pointer, same-thread xlAutoFree12 check |
+| Callback storage release | xlFree calls and zero retained callback allocations |
+| Address retention and registry size | Rewritten export fixture and 10,000-name process test |
+| Refusals survive handlers | Native swallowing plus formula IFERROR test |
+
+Known limits and the async callback result-operand difference are in
+[DISCREPANCIES.md](DISCREPANCIES.md). Excel-DNA loading, COM objects, UI integration,
+worker scheduling and complete async lifetime behavior remain later milestones.
+The source follows the documented
+[registration ABI](https://learn.microsoft.com/en-us/office/client-developer/excel/xlfregister-form-1),
+[memory ownership](https://learn.microsoft.com/en-us/office/client-developer/excel/memory-management-in-excel),
+and [async return contract](https://learn.microsoft.com/en-us/office/client-developer/excel/xlasyncreturn).

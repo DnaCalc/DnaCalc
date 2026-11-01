@@ -1,10 +1,10 @@
 //! The worksheet functions of an Excel binary workbook by function number (MS-XLSB 2.5.98.10,
 //! Ftab): each name and, for a function called with a fixed number of arguments (PtgFunc), that
-//! number; generated from tests/fixtures/dc_5sr/functions.json (the Ftab names and parameter
+//! number; generated from calc-doc/tests/fixtures/dc_5sr/functions.json (the Ftab names and parameter
 //! grammar, with the fixed arities Excel 16.0.20430 stores, excel-function-ids.json).
 
 /// (function number, name, fixed argument count or -1 for a variable one), by function number.
-pub(crate) const FUNCTIONS: &[(u16, &str, i8)] = &[
+pub const EXCEL_FUNCTION_IDS: &[(u16, &str, i8)] = &[
     (0, "COUNT", -1),
     (1, "IF", -1),
     (2, "ISNA", 1),

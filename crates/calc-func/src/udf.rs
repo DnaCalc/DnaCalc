@@ -37,6 +37,11 @@ pub trait UserFunctionContext {
     fn set_volatile(&mut self, _volatile: bool) {}
     /// Record a host capability refusal. It must survive VBA error handlers and formula IFERROR.
     fn refuse(&mut self, reason: &'static str) -> String;
+    /// Record the adapter that owns an absent capability. Older adapters keep their default
+    /// owner through `refuse`; native adapters can identify their own work package.
+    fn refuse_by(&mut self, reason: &'static str, _owner: &'static str) -> String {
+        self.refuse(reason)
+    }
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String>;
     /// Invoke the ordinary CalcFunc catalogue through the evaluator's existing call route.
     fn worksheet_function(
@@ -44,6 +49,15 @@ pub trait UserFunctionContext {
         name: &str,
         arguments: &[CalcValue],
     ) -> Result<CalcValue, String>;
+    /// The same worksheet callback, retaining the native adapter that owns an absent service.
+    fn worksheet_function_for(
+        &mut self,
+        name: &str,
+        arguments: &[CalcValue],
+        _owner: &'static str,
+    ) -> Result<CalcValue, String> {
+        self.worksheet_function(name, arguments)
+    }
 }
 
 /// Per-host registrations, matched by the shared workbook-name comparison. Built-ins and local formula names keep their

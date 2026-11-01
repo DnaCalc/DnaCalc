@@ -1,0 +1,13 @@
+[package]
+name = "calc-xll-abi"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Native Excel C API wire types, registration signatures and value arenas."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+[dependencies]
+calc-value = { path = "../calc-value" }

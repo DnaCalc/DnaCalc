@@ -35,6 +35,8 @@ pub mod assist;
 pub mod eval;
 pub mod reference;
 pub mod syntax;
+mod file_function_ids;
+pub use file_function_ids::EXCEL_FUNCTION_IDS;
 
 pub use eval::{
     CompileError, CompiledPlan, ContinuationProgress, EvalContinuation, EvalFault, EvalFrame,

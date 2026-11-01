@@ -1,0 +1,4 @@
+{
+  "source_revision": "8e00362a23827effb713d2a3e96bbff53c44c368",
+  "reason": "The X0 capture recorded the pre-publication HEAD 9aa6cbb9 while measuring working-tree source. Its exact source hashes were subsequently published in 8e00362a. verify.py checks those original hashes against that revision; no capture value or original environment field changes."
+}

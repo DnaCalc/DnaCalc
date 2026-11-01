@@ -1,0 +1,180 @@
+//! Excel 12 ABI facts, written independently from documented layouts. No SDK source.
+//! All pointer traversal is unsafe: an in-process XLL is trusted native code.
+#[cfg(target_arch = "wasm32")]
+compile_error!("calc-xll-abi is native-only");
+
+mod signature;
+mod value;
+pub use signature::{XllSignature, XllType};
+pub use value::{Arena, SheetMap, from_oper};
+
+pub const XL_NUM: u32 = 1;
+pub const XL_STR: u32 = 2;
+pub const XL_BOOL: u32 = 4;
+pub const XL_REF: u32 = 8;
+pub const XL_ERR: u32 = 16;
+pub const XL_MULTI: u32 = 64;
+pub const XL_MISSING: u32 = 128;
+pub const XL_NIL: u32 = 256;
+pub const XL_SREF: u32 = 1024;
+pub const XL_INT: u32 = 2048;
+pub const XL_BIG_DATA: u32 = XL_STR | XL_INT;
+pub const XL_FREE: u32 = 0x1000;
+pub const DLL_FREE: u32 = 0x4000;
+pub const TYPE_MASK: u32 = 0x0fff;
+
+pub const SUCCESS: i32 = 0;
+pub const INVALID_FUNCTION: i32 = 2;
+pub const INVALID_COUNT: i32 = 4;
+pub const INVALID_OPER: i32 = 8;
+pub const FAILED: i32 = 32;
+pub const NOT_THREAD_SAFE: i32 = 128;
+pub const INVALID_ASYNC: i32 = 256;
+
+pub const XLF_REGISTER: i32 = 149;
+pub const XLF_UNREGISTER: i32 = 201;
+pub const XLF_SET_NAME: i32 = 88;
+pub const XLF_CALLER: i32 = 89;
+pub const XLF_EVALUATE: i32 = 257;
+pub const XL_UDF: i32 = 255;
+pub const XL_FREE_FN: i32 = 16384;
+pub const XL_STACK: i32 = 16385;
+pub const XL_COERCE: i32 = 16386;
+pub const XL_ABORT: i32 = 16390;
+pub const XL_GET_NAME: i32 = 16393;
+pub const XL_ASYNC_RETURN: i32 = 16400;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct XlRef12 {
+    pub row_first: i32,
+    pub row_last: i32,
+    pub col_first: i32,
+    pub col_last: i32,
+}
+
+/// Flexible array: the allocation holds `count` rectangles, starting at offset four.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct XlMRef12 {
+    pub count: u16,
+    pub rectangles: [XlRef12; 1],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct XlSRef12 {
+    pub count: u16,
+    pub rectangle: XlRef12,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct XlReference12 {
+    pub table: *mut XlMRef12,
+    pub sheet: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct XlArray12 {
+    pub values: *mut XlOper12,
+    pub rows: i32,
+    pub columns: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct XlBigData {
+    pub data: *mut u8,
+    pub byte_count: i64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union XlValue12 {
+    pub number: f64,
+    pub string: *mut u16,
+    pub integer: i32,
+    pub array: XlArray12,
+    pub reference: XlReference12,
+    pub single_reference: XlSRef12,
+    pub big_data: XlBigData,
+    pub storage: [u8; 24],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct XlOper12 {
+    pub value: XlValue12,
+    pub xltype: u32,
+}
+
+impl Default for XlOper12 {
+    fn default() -> Self {
+        Self {
+            value: XlValue12 { storage: [0; 24] },
+            xltype: XL_NIL,
+        }
+    }
+}
+impl XlOper12 {
+    pub fn number(number: f64) -> Self {
+        Self {
+            value: XlValue12 { number },
+            xltype: XL_NUM,
+        }
+    }
+    pub fn integer(integer: i32) -> Self {
+        Self {
+            value: XlValue12 { integer },
+            xltype: XL_INT,
+        }
+    }
+    pub fn error(code: i32) -> Self {
+        Self {
+            value: XlValue12 { integer: code },
+            xltype: XL_ERR,
+        }
+    }
+    pub fn boolean(value: bool) -> Self {
+        Self {
+            value: XlValue12 {
+                integer: i32::from(value),
+            },
+            xltype: XL_BOOL,
+        }
+    }
+}
+
+/// Flexible array: `rows * columns` doubles follow the two dimensions.
+#[repr(C)]
+pub struct Fp12 {
+    pub rows: i32,
+    pub columns: i32,
+    pub values: [f64; 1],
+}
+
+pub type Callback12 =
+    unsafe extern "system" fn(i32, i32, *const *mut XlOper12, *mut XlOper12) -> i32;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// Native-only: checks the native C ABI, which is deliberately absent from wasm.
+    #[test]
+    fn documented_offsets_and_sizes() {
+        assert_eq!(std::mem::size_of::<XlOper12>(), 32);
+        assert_eq!(std::mem::align_of::<XlOper12>(), 8);
+        assert_eq!(std::mem::offset_of!(XlOper12, xltype), 24);
+        assert_eq!(std::mem::offset_of!(XlMRef12, rectangles), 4);
+        assert_eq!(std::mem::offset_of!(XlSRef12, rectangle), 4);
+        assert_eq!(std::mem::size_of::<XlRef12>(), 16);
+        assert_eq!(std::mem::offset_of!(Fp12, values), 8);
+        #[cfg(target_pointer_width = "64")]
+        {
+            assert_eq!(std::mem::size_of::<XlReference12>(), 16);
+            assert_eq!(std::mem::offset_of!(XlArray12, rows), 8);
+        }
+    }
+}

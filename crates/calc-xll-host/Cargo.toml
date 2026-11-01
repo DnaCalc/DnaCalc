@@ -1,0 +1,17 @@
+[package]
+name = "calc-xll-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Windows XLL loading and C API callbacks through the shared user-function registry."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+[target.'cfg(windows)'.dependencies]
+calc-value = { path = "../calc-value" }
+calc-func = { path = "../calc-func" }
+calc-fml = { path = "../calc-fml" }
+calc-xll-abi = { path = "../calc-xll-abi" }
+libffi = "=5.2.0"

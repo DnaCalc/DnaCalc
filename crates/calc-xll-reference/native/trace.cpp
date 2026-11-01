@@ -285,8 +285,11 @@ static void registerEntry(const Call& c) {
     auto slash=module.find_last_of("\\/"); if(slash!=std::string::npos) module=module.substr(slash+1);
     for (auto& [base,m]:modules) {
         if (_stricmp(basename(m.path).c_str(),module.c_str()) != 0) continue;
-        auto found=m.exports.find(procedure);
-        if(found==m.exports.end()) { emit("\"event\":\"unresolved_registration\",\"procedure\":"+quote(procedure)); healthy=false; return; }
+        // xlOil changes its PE export entry between registrations. Read the current table,
+        // and leave the previously armed address intact for its earlier registration.
+        auto current=inspectModule(base,m.path);
+        auto found=current.exports.find(procedure);
+        if(found==current.exports.end()) { emit("\"event\":\"unresolved_registration\",\"procedure\":"+quote(procedure)); healthy=false; return; }
         Entry e{module+"!"+procedure+":"+name,signature}; arm(found->second,&e);
         emit("\"event\":\"registered_entry\",\"call\":"+std::to_string(c.id)+",\"entry\":"+quote(e.name)+",\"signature\":"+quote(signature));
         return;
@@ -314,6 +317,13 @@ static std::string typed(const std::string& t, Address v) {
     if(t=="Q"||t=="U"||t=="X") return oper(v);
     if(t=="E") return number(read<double>(v));
     if(t=="D%") return quote(utf8(wide(v+2,read<uint16_t>(v))));
+    if(t=="K%") {
+        int32_t rows=read<int32_t>(v),cols=read<int32_t>(v+4);
+        int64_t count=int64_t(rows)*cols,limit=std::min<int64_t>(4096,std::max<int64_t>(0,count));
+        std::string s="{\"rows\":"+std::to_string(rows)+",\"columns\":"+std::to_string(cols)+",\"items\":[";
+        for(int64_t i=0;i<limit;++i){if(i)s+=",";s+=number(read<double>(v+8+i*8));}
+        return s+"],\"omitted\":"+std::to_string(count-limit)+"}";
+    }
     if(t=="C%") return quote(utf8(wideZ(v)));
     if(t=="J")return std::to_string((int32_t)v);
     if(t=="A"||t=="I")return std::to_string((int16_t)v);
@@ -536,14 +546,18 @@ static void cleanup() {
     emit("\"event\":\"detach\",\"restored\":"+std::to_string(restored)+",\"restore_failed\":"+std::to_string(failed)+",\"outstanding_calls\":"+std::to_string(outstanding)+",\"healthy\":"+(healthy?"true":"false"));
 }
 int wmain(int argc,wchar_t** argv) {
-    if(argc!=4){ fwprintf(stderr,L"Usage: trace.exe OWNED_EXCEL_PID output.jsonl stop-file\n"); return 2; }
+    if(argc!=4&&argc!=5){ fwprintf(stderr,L"Usage: trace.exe OWNED_PID output.jsonl stop-file [exact-owned-host-image]\n"); return 2; }
     processId=wcstoul(argv[1],nullptr,10);
     if(processId==3144){fputs("PID 3144 is excluded\n",stderr);return 2;}
     process=OpenProcess(PROCESS_ALL_ACCESS,FALSE,processId);
     if(!process){fprintf(stderr,"OpenProcess: %lu\n",GetLastError());return 3;}
     wchar_t image[32768]; DWORD size=32768;
-    if(!QueryFullProcessImageNameW(process,0,image,&size)||_stricmp(basename(image).c_str(),"EXCEL.EXE")) {
-        fputs("Target must be Excel\n",stderr);CloseHandle(process);return 3;
+    wchar_t expected[32768];DWORD expectedSize=argc==5?GetFullPathNameW(argv[4],32768,expected,nullptr):0;
+    bool readImage=QueryFullProcessImageNameW(process,0,image,&size)!=FALSE;
+    bool correctImage=readImage && (argc==5 ? expectedSize>0&&expectedSize<32768&&_wcsicmp(image,expected)==0
+        : _stricmp(basename(image).c_str(),"EXCEL.EXE")==0);
+    if(!readImage||!correctImage) {
+        fputs("Target must be Excel or the explicitly named owned host image\n",stderr);CloseHandle(process);return 3;
     }
     output.open(argv[2],std::ios::binary); if(!output){CloseHandle(process);return 3;}
     ntSuspendThread=(NtSuspendThreadFn)GetProcAddress(GetModuleHandleW(L"ntdll.dll"),"NtSuspendThread");

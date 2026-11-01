@@ -22,7 +22,6 @@
 
 mod commands;
 mod formula;
-mod functions;
 mod parts;
 mod records;
 mod sheet;

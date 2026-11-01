@@ -1,0 +1,16 @@
+[package]
+name = "calc-xll-fixture"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Original small Rust XLL used unchanged in Excel and the DNA Calc host."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(windows)'.dependencies]
+calc-xll-abi = { path = "../calc-xll-abi" }
