@@ -1,0 +1,211 @@
+{
+  "status": "verified X3 measured cases",
+  "fixture": "xlwTypes.xll",
+  "formula_cases": 5,
+  "matched_each_capture": 5,
+  "controls_match": true,
+  "source_revisions": [
+    "02ba537291f65e286198fd87d695a17a730cd1ab",
+    "ed8383790618a0a5359b70116128c502800f3b00"
+  ],
+  "source_publication_revisions": [
+    "02ba537291f65e286198fd87d695a17a730cd1ab",
+    "97464996d932dc03b4efb85470a548f7effcb1c1",
+    "656691738186b5103cbe2f2ca95cc7d6e51f8fcd",
+    "ed8383790618a0a5359b70116128c502800f3b00"
+  ],
+  "same_fixture_files": {
+    "xlwTypes.xll": "1272ECB3864A135E6D48D5D67924F8752FAF2155015CEB668DEC133BFA57398D"
+  },
+  "registration_forms": {
+    "X3XlwAdd": {
+      "procedure": "xlX3XlwAdd",
+      "type": "QBB$",
+      "macro_type": 1
+    },
+    "X3XlwMatrix": {
+      "procedure": "xlX3XlwMatrix",
+      "type": "QK%$",
+      "macro_type": 1
+    },
+    "X3XlwReference": {
+      "procedure": "xlX3XlwReference",
+      "type": "QU#",
+      "macro_type": 1
+    }
+  },
+  "native_invocations": {
+    "X3XlwAdd": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 2,
+      "same_ordered_callbacks": [
+        [],
+        []
+      ]
+    },
+    "X3XlwMatrix": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 2,
+      "same_ordered_callbacks": [
+        [],
+        []
+      ]
+    },
+    "X3XlwReference": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        [
+          [
+            16386,
+            [
+              {
+                "type": 1024,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": 2048,
+                "value": 1
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 7
+            }
+          ]
+        ]
+      ]
+    }
+  },
+  "excel_and_host": [
+    {
+      "records": 55,
+      "paired_calls": 21,
+      "c_api_calls": 14,
+      "trace_sha256": "7615A9D5917973BDA882931ADD4506A46104FF48A9E0A8D53F1EA03359F9BBFA"
+    },
+    {
+      "records": 67,
+      "paired_calls": 28,
+      "c_api_calls": 20,
+      "trace_sha256": "DACE2A0C45B04DA24ECBB2228B377CACD43B7576ACECE8C53AFD6B60DF962E89"
+    }
+  ],
+  "x0_callback_code_pairs_observed": 0,
+  "callback_counts_excel_and_host": [
+    [
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 16386,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16393,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 32890,
+        "return_code": 0,
+        "count": 3
+      }
+    ],
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 16386,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16393,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 32890,
+        "return_code": 0,
+        "count": 3
+      }
+    ]
+  ],
+  "reload_checked": false,
+  "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
+  "scope": "All observed native UDF invocations, including repetitions; no full COM, event delivery, RTD or reload claim.",
+  "known_difference": null,
+  "pre_close_callbacks_each_host": 14,
+  "same_ordered_callback_numbers_and_codes": true,
+  "callbacks_equal_after_identity_normalization": 14,
+  "raw_callback_differences": [],
+  "ownership_excel_and_host": [
+    {
+      "owned_returns": 0,
+      "free_calls": 0,
+      "same_pointer_thread_and_module": true,
+      "by_module": {}
+    },
+    {
+      "owned_returns": 0,
+      "free_calls": 0,
+      "same_pointer_thread_and_module": true,
+      "by_module": {}
+    }
+  ],
+  "rewritten_export_registrations_each_host": [
+    0,
+    0
+  ],
+  "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted.",
+  "timing": "Debugger timing is not uninstrumented performance evidence."
+}

@@ -1,0 +1,2 @@
+{"closed_name":"X3XlwAdd","closed_registration":"#NAME?","commands":[],"duplicate_use_count":null,"host":"DNA Calc / OneCalc controller","live_callback_allocations":0,"numbered_exports":null,"registrations":3,"reload_results":[],"results":[{"formula":"=X3XlwAdd(1.25,2.5)","value":3.75},{"formula":"=X3XlwAdd(-8,3)","value":-5.0},{"formula":"=SUM(X3XlwMatrix({1,2;3,4}))","value":20.0},{"formula":"=INDEX(X3XlwMatrix({1,2;3,4}),2,1)","value":6.0},{"formula":"=X3XlwReference(A1)","value":7.0}]}
+

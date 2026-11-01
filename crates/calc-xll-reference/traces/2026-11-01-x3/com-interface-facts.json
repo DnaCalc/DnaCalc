@@ -1,0 +1,437 @@
+{
+  "measured_utc": "2026-11-01T12:06:54.0502439Z",
+  "excel_file_version": "16.0.20527.20088",
+  "excel_sha256": "63C67292DDAB6EBE0571181EBE77FEE37D42639F7FABB327021DEE03BAA9BC20",
+  "pointer_bytes": 8,
+  "interfaces": [
+    {
+      "name": "_Application",
+      "iid": "000208d5-0000-0000-c000-000000000046",
+      "kind": "TKIND_INTERFACE",
+      "dual": true,
+      "vtable_bytes": 3792,
+      "members": [
+        {
+          "name": "Application",
+          "dispid": 148,
+          "descriptor_slot": 7,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Parent",
+          "dispid": 150,
+          "descriptor_slot": 9,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Run",
+          "dispid": 259,
+          "descriptor_slot": 42,
+          "invoke_kind": "INVOKE_FUNC",
+          "parameters": [
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FOPT"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Workbooks",
+          "dispid": 572,
+          "descriptor_slot": 52,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Name",
+          "dispid": 110,
+          "descriptor_slot": 197,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Path",
+          "dispid": 291,
+          "descriptor_slot": 223,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 3,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FLCID"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Version",
+          "dispid": 392,
+          "descriptor_slot": 281,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 3,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FLCID"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "EnableEvents",
+          "dispid": 1212,
+          "descriptor_slot": 300,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "EnableEvents",
+          "dispid": 1212,
+          "descriptor_slot": 301,
+          "invoke_kind": "INVOKE_PROPERTYPUT",
+          "parameters": [
+            {
+              "variant_type": 11,
+              "flags": "PARAMFLAG_FIN"
+            }
+          ]
+        },
+        {
+          "name": "Hwnd",
+          "dispid": 1950,
+          "descriptor_slot": 351,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "_Workbook",
+      "iid": "000208da-0000-0000-c000-000000000046",
+      "kind": "TKIND_INTERFACE",
+      "dual": true,
+      "vtable_bytes": 2312,
+      "members": [
+        {
+          "name": "Application",
+          "dispid": 148,
+          "descriptor_slot": 7,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Parent",
+          "dispid": 150,
+          "descriptor_slot": 9,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "FullName",
+          "dispid": 289,
+          "descriptor_slot": 50,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 3,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FLCID"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Name",
+          "dispid": 110,
+          "descriptor_slot": 66,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Path",
+          "dispid": 291,
+          "descriptor_slot": 76,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 3,
+              "flags": "PARAMFLAG_FIN, PARAMFLAG_FLCID"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Workbooks",
+      "iid": "000208db-0000-0000-c000-000000000046",
+      "kind": "TKIND_INTERFACE",
+      "dual": true,
+      "vtable_bytes": 208,
+      "members": [
+        {
+          "name": "Application",
+          "dispid": 148,
+          "descriptor_slot": 7,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Parent",
+          "dispid": 150,
+          "descriptor_slot": 9,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Count",
+          "dispid": 118,
+          "descriptor_slot": 12,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        },
+        {
+          "name": "Item",
+          "dispid": 170,
+          "descriptor_slot": 13,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": [
+            {
+              "variant_type": 12,
+              "flags": "PARAMFLAG_FIN"
+            },
+            {
+              "variant_type": 26,
+              "flags": "PARAMFLAG_FOUT, PARAMFLAG_FRETVAL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Window",
+      "iid": "00020893-0000-0000-c000-000000000046",
+      "kind": "TKIND_DISPATCH",
+      "dual": false,
+      "vtable_bytes": 56,
+      "members": [
+        {
+          "name": "Application",
+          "dispid": 148,
+          "descriptor_slot": 7,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": []
+        },
+        {
+          "name": "Parent",
+          "dispid": 150,
+          "descriptor_slot": 9,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": []
+        },
+        {
+          "name": "Hwnd",
+          "dispid": 1950,
+          "descriptor_slot": 111,
+          "invoke_kind": "INVOKE_PROPERTYGET",
+          "parameters": []
+        }
+      ]
+    }
+  ]
+}

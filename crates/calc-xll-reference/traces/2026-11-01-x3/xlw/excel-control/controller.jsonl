@@ -1,0 +1,9 @@
+{"utc":"2026-11-01T12:18:47.2738605Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-01T12:18:48.0775616Z","operation":"=EchoShort(7)","value":7.0}
+{"utc":"2026-11-01T12:18:48.0969912Z","operation":"=EchoShort(-2)","value":-2.0}
+{"utc":"2026-11-01T12:18:48.1121089Z","operation":"=EchoShort(1.6)","value":1.0}
+{"utc":"2026-11-01T12:18:48.1299475Z","operation":"=EchoShort(\"12\")","value":12.0}
+{"utc":"2026-11-01T12:18:48.1475466Z","operation":"=EchoShort(TRUE)","value":1.0}
+{"utc":"2026-11-01T12:18:48.3236216Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-01T12:18:48.4079093Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-01T12:18:49.3083659Z","operation":"cleanup","value":"Stopped owned Excel PID 25912"}

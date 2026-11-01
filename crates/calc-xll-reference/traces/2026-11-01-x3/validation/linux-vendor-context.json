@@ -1,0 +1,15 @@
+{
+  "source_commit": "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1",
+  "source": "Cargo immutable git cache; working OxVba clone untouched",
+  "files": [
+    {
+      "path": "docs/spec/HAL_CONTRACT_CLAUSE_CATALOG_V1.csv",
+      "sha256": "c1f0c49646a36625f8bc12dd7c45970ba5c22c1079d0cf2218c6586fbb2c2a3d"
+    },
+    {
+      "path": "docs/spec/HAL_CONTRACT_CLAUSE_CATALOG_V1.md",
+      "sha256": "743c131158809e70f46f12f9b09902ce638dd787ddc46f0911399a8b54367f73"
+    }
+  ],
+  "reason": "oxvba-hal include_str uses workspace-level docs omitted by cargo vendor; restored original files outside packages in isolated dependency context"
+}

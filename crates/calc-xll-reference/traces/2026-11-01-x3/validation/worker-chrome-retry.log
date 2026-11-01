@@ -1,0 +1,56 @@
+Running headless tests in Chrome on `http://127.0.0.1:62941/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 23 tests
+Invoking test: server::outline_tests::outline_search_reveal_and_spill_windows_use_the_application_server
+test server::outline_tests::outline_search_reveal_and_spill_windows_use_the_application_server ... ok
+Invoking test: autofit::tests::imported_style_projection_is_the_same_source_for_rendering_and_fitting
+test autofit::tests::imported_style_projection_is_the_same_source_for_rendering_and_fitting ... ok
+Invoking test: server::async_contract_tests::contract_p07_worker_wait_return_and_completion_use_the_existing_server
+test server::async_contract_tests::contract_p07_worker_wait_return_and_completion_use_the_existing_server ... ok
+Invoking test: server::fit_tests::fitting_refuses_a_large_spill_before_expanding_or_projecting_its_cells
+test server::fit_tests::fitting_refuses_a_large_spill_before_expanding_or_projecting_its_cells ... ok
+Invoking test: server::fit_tests::fitted_contents_come_from_projection_and_a_stale_measurement_cannot_edit
+test server::fit_tests::fitted_contents_come_from_projection_and_a_stale_measurement_cannot_edit ... ok
+Invoking test: server::notebook_tests::newly_linked_duplicate_is_revealed_by_placement_after_the_first_page
+test server::notebook_tests::newly_linked_duplicate_is_revealed_by_placement_after_the_first_page ... ok
+Invoking test: server::notebook_tests::links_prose_order_structural_moves_and_orphans_round_trip_without_moving_sources
+test server::notebook_tests::links_prose_order_structural_moves_and_orphans_round_trip_without_moving_sources ... ok
+Invoking test: server::notebook_tests::bounded_pages_and_current_array_details_do_not_turn_caches_into_calculated_values
+test server::notebook_tests::bounded_pages_and_current_array_details_do_not_turn_caches_into_calculated_values ... ok
+Invoking test: server::tile_tests::subscription_budget_is_enforced_and_unsubscribe_releases_it
+test server::tile_tests::subscription_budget_is_enforced_and_unsubscribe_releases_it ... ok
+Invoking test: server::tile_tests::retiring_subscriptions_discards_undelivered_frames
+test server::tile_tests::retiring_subscriptions_discards_undelivered_frames ... ok
+Invoking test: server::tile_tests::removal_pressure_coalesces_to_the_complete_root_and_never_admits_an_oversized_delta
+test server::tile_tests::removal_pressure_coalesces_to_the_complete_root_and_never_admits_an_oversized_delta ... ok
+Invoking test: server::tile_tests::recalculation_versions_presentation_roots_without_an_authored_revision
+test server::tile_tests::recalculation_versions_presentation_roots_without_an_authored_revision ... ok
+Invoking test: server::tile_tests::lost_fragments_recover_by_explicit_reset_and_old_workbook_acks_cannot_release_new_flights
+test server::tile_tests::lost_fragments_recover_by_explicit_reset_and_old_workbook_acks_cannot_release_new_flights ... ok
+Invoking test: server::tile_tests::fragmented_spills_shrink_atomically_through_the_application_codec
+test server::tile_tests::fragmented_spills_shrink_atomically_through_the_application_codec ... ok
+Invoking test: server::tile_tests::delayed_controls_keep_current_mode_and_saved_status_at_the_same_revision
+test server::tile_tests::delayed_controls_keep_current_mode_and_saved_status_at_the_same_revision ... ok
+Invoking test: server::tile_tests::delayed_controls_cannot_reach_a_replacement_or_reuse_a_retired_identity
+test server::tile_tests::delayed_controls_cannot_reach_a_replacement_or_reuse_a_retired_identity ... ok
+Invoking test: server::tile_tests::calculation_completion_waits_for_its_projection_under_backpressure
+test server::tile_tests::calculation_completion_waits_for_its_projection_under_backpressure ... ok
+Invoking test: server::tile_tests::an_oversized_calculation_reports_projection_failure_without_a_tile_barrier
+test server::tile_tests::an_oversized_calculation_reports_projection_failure_without_a_tile_barrier ... ok
+Invoking test: server::tile_tests::a_subscription_to_a_covered_merge_cell_observes_its_source_anchor_and_edits
+test server::tile_tests::a_subscription_to_a_covered_merge_cell_observes_its_source_anchor_and_edits ... ok
+Invoking test: server::tile_tests::a_slow_subscriber_keeps_one_flight_and_coalesces_missed_revisions_into_a_reset
+test server::tile_tests::a_slow_subscriber_keeps_one_flight_and_coalesces_missed_revisions_into_a_reset ... ok
+Invoking test: server::tile_tests::a_delayed_manual_completion_retains_its_original_revision_after_an_edit
+test server::tile_tests::a_delayed_manual_completion_retains_its_original_revision_after_an_edit ... ok
+Invoking test: cells::tests::the_formula_bar_shows_an_input_as_it_would_be_typed
+test cells::tests::the_formula_bar_shows_an_input_as_it_would_be_typed ... ok
+Invoking test: cells::tests::addresses_round_trip
+test cells::tests::addresses_round_trip ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 filtered out; finished in 2.22s
+

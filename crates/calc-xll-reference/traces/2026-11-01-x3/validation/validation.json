@@ -1,0 +1,77 @@
+{
+  "final_xll_source_commit": "ed8383790618a0a5359b70116128c502800f3b00",
+  "native_tests": {
+    "source_commit": "ed8383790618a0a5359b70116128c502800f3b00",
+    "passed": 21,
+    "failed": 0,
+    "packages": [
+      "calc-xll-abi",
+      "calc-xll-host",
+      "calc-com-host",
+      "dna-calc-desktop"
+    ]
+  },
+  "linux_full_check": {
+    "source_commit": "656691738186b5103cbe2f2ca95cc7d6e51f8fcd",
+    "passed": 1506,
+    "failed": 0,
+    "ignored": 5,
+    "not_run": 3,
+    "harnesses": 93,
+    "packages": 27,
+    "scope": "Offline vendor context restored exact original pinned dependency docs; local build config restored after check."
+  },
+  "structural_sweep": {
+    "source_commit": "656691738186b5103cbe2f2ca95cc7d6e51f8fcd",
+    "status": "passed",
+    "steps": 3,
+    "skipped": [
+      "wasm",
+      "app-smoke",
+      "acceptance"
+    ]
+  },
+  "full_sweep": {
+    "source_commit": "97464996d932dc03b4efb85470a548f7effcb1c1",
+    "status": "failed",
+    "failures": [
+      "Initial startup could not replace locked xtask-harness.exe; separate retry performed",
+      "Chrome worker native runner allocation failure before browser startup",
+      "DNA Calc E3 width, B3 overflow and E9 overflow after neighbor edit/reopen: three failures in each browser"
+    ],
+    "onecalc": {
+      "chromium_passed": 52,
+      "firefox_passed": 52,
+      "failed": 0
+    },
+    "dnacalc": {
+      "cases_each_browser": 477,
+      "passed_each_browser": 474,
+      "failed_each_browser": 3
+    },
+    "skipped": [
+      "acceptance"
+    ]
+  },
+  "worker_chrome_focused_retry": {
+    "passed": 23,
+    "failed": 0,
+    "unchanged_wasm_sha256": "fb0ffb2c2a7606524461a51277d3c45c9602643b733f277fa11fc38bb5f447cb",
+    "scope": "Supplemental exact-module retry; initial CI record remains failed."
+  },
+  "raw_logs": {
+    "C:\\Work\\DnaCalc\\codex-runs\\x3-sweep.log": "363abdf0ce372dbd6826559c2d26d7164e185d76e654727d23ba220c9e78b8fa",
+    "C:\\Work\\DnaCalc\\codex-runs\\x3-sweep-retry.log": "90e9dcce2c0da3fcd202c5c2231880ecae448cca105b5c286f80e1c681e86420",
+    "C:\\Work\\DnaCalc\\codex-runs\\x3-linux-check-persistent.log": "37b6029cce692a0c8a83a52691123e445c8a293bd6d680207ac021fd032157ff",
+    "C:\\Work\\DnaCalc\\codex-runs\\x3-linux-latest.log": "37311e33bd7ed132f597c7b7d502862d8edb588dfdf73146ed16951b0d392ed7",
+    "C:\\Work\\DnaCalc\\codex-runs\\x3-final-native-build.log": "1798c3de682b579ff05f649d22d5f98f2a6827db55a379fddb10cc8d2a891d78",
+    "C:\\Work\\DnaCalc\\codex-runs\\x3-final-native-test.log": "ff961e022f0c1ab1af53532338a1ae95aa1f3623b52ff6fe9c569d1a035aa5b2",
+    "C:\\Work\\DnaCalc\\codex-runs\\x3-worker-chrome-retry.log": "d236c252b4dd961eb072cfa6cbd4123174c3bc99e36808d0144a20bc1ffc415e"
+  },
+  "remaining": [
+    "dc-snz.21 safe xlOil reload",
+    "dc-snz.19 Native AOT reinitialization",
+    "dc-971p.6 measured Windows UI smoke failures",
+    "dc-h8h0 shared br upgrade/merge repair awaits approval"
+  ]
+}

@@ -1,0 +1,50 @@
+[2026-11-01 17:21:52.113] [logger] [info] [AddinLoader.cpp:65] Found settings file 'C:\Work\DnaCalc\codex-runs\x3-runs\refusals\final-new-host\xlOil.ini' for 'C:\Work\DnaCalc\codex-runs\x3-runs\refusals\final-new-host\xlOil.dll'
+[2026-11-01 17:21:52.113] [logger] [debug] [AddinLoader.cpp:112] Creating addin context for 'C:\Work\DnaCalc\codex-runs\x3-runs\refusals\final-new-host\xlOil.xll'
+[2026-11-01 17:21:52.113] [logger] [debug] [CoreEntryPoint.cpp:71] Loaded xlOil core from: C:\Work\DnaCalc\codex-runs\x3-runs\refusals\final-new-host\xlOil.dll
+[2026-11-01 17:21:52.113] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRunInXLLContext" at entry point xloRunInXLLContext with 0 args
+[2026-11-01 17:21:52.113] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloVersion" at entry point xloVersion with 0 args
+[2026-11-01 17:21:52.114] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloLog" at entry point xloLog with 1 args
+[2026-11-01 17:21:52.114] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloHelp" at entry point xloHelp with 1 args
+[2026-11-01 17:21:52.114] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRef" at entry point xloRef with 1 args
+[2026-11-01 17:21:52.114] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloVal" at entry point xloVal with 1 args
+[2026-11-01 17:21:52.114] [logger] [debug] [FuncRegistry.cpp:229] Registering "RegistrationInfo_2b789f4d58bc5a32800e5aa5373ff8d7" at entry point IntellisenseRegistrationInfo with 1 args
+[2026-11-01 17:21:52.114] [logger] [info] [PluginLoader.cpp:62] Loading plugins from settings file C:\Work\DnaCalc\codex-runs\x3-runs\refusals\final-new-host\xlOil.ini
+[2026-11-01 17:21:52.115] [logger] [info] [PluginLoader.cpp:79] Loading plugin xlOil_SQL
+[2026-11-01 17:21:52.122] [logger] [info] [FuncRegistry.cpp:222] Excel does not support help strings longer than 255 chars. Truncating for function 'xloSql'
+[2026-11-01 17:21:52.122] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSql" at entry point xloSql with 12 args
+[2026-11-01 17:21:52.122] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlDB" at entry point xloSqlDB with 0 args
+[2026-11-01 17:21:52.122] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlQuery" at entry point xloSqlQuery with 2 args
+[2026-11-01 17:21:52.122] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlTable" at entry point xloSqlTable with 5 args
+[2026-11-01 17:21:52.123] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlTables" at entry point xloSqlTables with 1 args
+[2026-11-01 17:21:52.123] [logger] [debug] [PluginLoader.cpp:137] Finished loading plugin xlOil_SQL
+[2026-11-01 17:21:52.123] [logger] [info] [PluginLoader.cpp:62] Loading plugins from settings file C:\Work\DnaCalc\codex-runs\x3-runs\refusals\final-new-host\xlOil.ini
+[2026-11-01 17:21:52.123] [logger] [info] [PluginLoader.cpp:79] Loading plugin xlOil_Utils
+[2026-11-01 17:21:52.146] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloBlock" at entry point xloBlock with 31 args
+[2026-11-01 17:21:52.146] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloConcat" at entry point xloConcat with 11 args
+[2026-11-01 17:21:52.146] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloFill" at entry point xloFill with 3 args
+[2026-11-01 17:21:52.146] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloFillNA" at entry point xloFillNA with 3 args
+[2026-11-01 17:21:52.147] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloIndex" at entry point xloIndex with 5 args
+[2026-11-01 17:21:52.147] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloPad" at entry point xloPad with 1 args
+[2026-11-01 17:21:52.147] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRegex" at entry point xloRegex with 6 args
+[2026-11-01 17:21:52.147] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSearch" at entry point xloSearch with 5 args
+[2026-11-01 17:21:52.147] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSort" at entry point xloSort with 10 args
+[2026-11-01 17:21:52.148] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSplit" at entry point xloSplit with 3 args
+[2026-11-01 17:21:52.148] [logger] [debug] [PluginLoader.cpp:137] Finished loading plugin xlOil_Utils
+[2026-11-01 17:21:52.156] [logger] [debug] [Connect.cpp:93] Made COM connection to Excel at 'C:\Work\DnaCalc\codex-runs\x3-runs\refusals\final-new-host' with hwnd=4391760
+[2026-11-01 17:21:52.520] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloBlock
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloConcat
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloFill
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloFillNA
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloIndex
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloPad
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloRegex
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSearch
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSort
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSplit
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSql
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlDB
+[2026-11-01 17:21:52.521] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlQuery
+[2026-11-01 17:21:52.522] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlTable
+[2026-11-01 17:21:52.522] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlTables
+[2026-11-01 17:21:52.522] [logger] [debug] [PluginLoader.cpp:193] Unloading plugin xlOil_SQL
+[2026-11-01 17:21:52.522] [logger] [debug] [PluginLoader.cpp:193] Unloading plugin xlOil_Utils
