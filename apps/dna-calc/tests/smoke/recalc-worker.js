@@ -1,5 +1,5 @@
-// Run against the bundled product worker. This proves cell-boundary handoff; an in-cell
-// SEQUENCE checkpoint is deliberately not claimed. The seven-cell inputs have one source.
+// Run against the bundled product worker: the shared seven-cell trace and one long-cell
+// continuation both hand off to a real worker task. The seven-cell inputs have one source.
 return (async function () {
   const fixture = $FIXTURE;
   const pureScope = $PURE_SCOPE;
@@ -170,9 +170,32 @@ return (async function () {
       && replay[replayCompletion].Completed.calculated === 4
       && replay[replayCompletion].Completed.outcome === "Complete" && output(1, 3)?.text === "42",
       "an equal-value replay must certify the same C1 value for a new command");
+    const equalText = output(1, 3)?.text;
+    // One admitted formula must yield inside its SEQUENCE kernel; there are no background
+    // targets in this command from which an inter-cell handoff could be inferred.
+    await intent({ EnterCell: { at: key(1, 10), text: "=SUM(SEQUENCE(262144))+1" } });
+    await send({ SetInterest: { id: 1, interest: { Areas: [area(1, 10)] } } });
+    const longStart = trace.length;
+    const longDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+    longDone.catch(() => {});
+    const longCalculation = intent({ Calculate: { scope: { Range: [area(1, 10)] }, selection: "ForceAll" } });
+    const longPing = send("Ping");
+    await longCalculation;
+    require((await longPing).Pong, "the worker did not answer Ping during one long formula");
+    const longReceipt = await longDone;
+    const longTrace = trace.slice(longStart);
+    const longYield = longTrace.findIndex((event) => event.Yielded);
+    const longPong = longTrace.findIndex((event) => event.Pong);
+    const longComplete = longTrace.findIndex((event) => event.Completed);
+    require(longYield >= 0 && longYield < longPong && longPong < longComplete,
+      "the single formula did not hand off before completion");
+    require(longReceipt.calculated === 1 && longReceipt.refused === 0 && longReceipt.outcome === "Complete",
+      "the long-cell command must have exactly one admitted calculated target");
+    require(output(1, 10)?.text === "34359869441", "the resumed long-cell result differs from n*(n+1)/2+1");
     return { yielded, pong, complete, calculated: receipt.calculated, publications: publications.length,
       reused_spill: { from: predecessor, to: successor }, spill_companions: ["shrink", "authored-blocker"],
-      equal_value_status: { command: replayCommand, text: output(1, 3)?.text } };
+      equal_value_status: { command: replayCommand, text: equalText },
+      in_cell: { targets: longReceipt.calculated, yielded: longYield, pong: longPong, completed: longComplete, text: output(1, 10)?.text } };
   } finally {
     worker.terminate();
   }

@@ -36,7 +36,7 @@ pub use call::{
     ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
     ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts,
     PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference, Unreadable,
-    WorkbookFacts, WorkbookFile, invoke,
+    WorkbookFacts, WorkbookFile, invoke, invoke_slice,
 };
 pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,

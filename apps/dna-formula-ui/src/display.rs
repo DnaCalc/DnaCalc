@@ -196,6 +196,10 @@ fn function_label(id: FunctionId) -> String {
 
 fn function_fault(fault: &FunctionFault) -> String {
     match fault {
+        FunctionFault::ContinuationTarget { expected, received } => format!(
+            "function fault: a pending {} call cannot continue as {}",
+            function_label(*expected), function_label(*received)
+        ),
         FunctionFault::ArityMismatch { id, supplied } => format!(
             "function fault in {}: {supplied} arguments, which it does not admit",
             function_label(*id)
