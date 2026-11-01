@@ -41,7 +41,7 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    ruling, 2026-10-23).
 3. **Commit in working chunks.** Each commit:
    - starts with `git pull --no-rebase`;
-   - passes `cargo xtask check` on Windows;
+   - passes `cargo xtask check` on the machine you work on (Windows or Linux);
    - is then pushed.
 
    The message starts with the bead ID and names the legacy repository, commit and paths it
@@ -144,7 +144,8 @@ what, or "production ready": say concretely what is done, what blocks what, and 
 
 ## Platforms
 
-- **Per commit:** `cargo xtask check` on Windows.
+- **Per commit:** `cargo xtask check` on the machine you work on, Windows or Linux. Windows-only
+  behaviour (Excel, COM, x87 on this CPU) is exercised by the Windows sessions and the sweep.
 - **Per milestone:** `cargo xtask sweep` on Windows (it includes wasm in headless Chrome and
   Firefox), and the tests on Linux (a WSL clone of the pushed commit; WSL is offline and builds
   from `~/cargo-vendor`).
