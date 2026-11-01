@@ -250,6 +250,8 @@ impl std::error::Error for RecalcFailure {}
 pub enum RecalcProgress {
     /// `remaining` nodes are still to be evaluated.
     Pending { remaining: usize },
+    /// No runnable work remains before an observation fence awaiting provider input.
+    Waiting { remaining: usize },
     /// Every node is evaluated; [`finish`] publishes.
     Complete,
     /// The recalculation failed; [`finish`] returns why and publishes nothing.
@@ -324,6 +326,8 @@ impl<T> BySlot<T> {
 /// moved on since [`begin_recalc`].
 #[derive(Debug)]
 pub struct RecalcWork {
+    async_waits: BTreeMap<NodeId, AsyncToken>,
+    async_resumed: BTreeSet<NodeId>,
     functions: Option<calc_fml::CallableTable>,
     references: Option<std::rc::Rc<calc_fml::reference::ReferenceTracker>>,
     callable_bindings: calc_fml::CallableBindings,
@@ -735,12 +739,20 @@ impl RecalcWork {
     }
 
     fn remaining(&self) -> usize {
-        (self.order.len() - self.next) + self.ready.len() + self.waits_on.len() + self.rewave.len()
+        (self.order.len() - self.next)
+            + self.ready.len()
+            + self.waits_on.len()
+            + self.rewave.len()
+            + self.async_waits.len()
     }
 
     fn progress(&self) -> RecalcProgress {
         if self.failure.is_some() {
             RecalcProgress::Failed
+        } else if self.is_waiting_external() {
+            RecalcProgress::Waiting {
+                remaining: self.remaining(),
+            }
         } else if self.remaining() > 0 {
             RecalcProgress::Pending {
                 remaining: self.remaining(),
@@ -1142,6 +1154,8 @@ fn begin_with_scope(
         urgent_interest: false,
         service_clock: 0,
         last_service: BTreeMap::new(),
+        async_waits: BTreeMap::new(),
+        async_resumed: BTreeSet::new(),
         suspended: BTreeMap::new(),
         early_published: BTreeMap::new(),
         publication_fences: false,
@@ -1513,7 +1527,55 @@ fn apply(
 ) {
     match attempt {
         Ok(Attempt::Suspended) => work.ready.push_front(node),
-        Ok(Attempt::Done(done)) => stage(state, inputs, work, node, done),
+        Ok(Attempt::AwaitExternal) => {
+            let local = std::mem::take(&mut work.local);
+            let (runtime, request) = local
+                .activation
+                .as_ref()
+                .and_then(calc_fml::EvalContinuation::pending_external)
+                .expect("external wait owns a callable frame");
+            let record = local
+                .effects
+                .invocations()
+                .iter()
+                .find(|r| r.id == runtime)
+                .expect("admitted callable");
+            let mut invocation = root_invocation(state, &shared_of!(work), node);
+            invocation.call_site = record.call_site;
+            invocation.occurrence = record.occurrence.clone();
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+            let id = NEXT
+                .fetch_update(
+                    std::sync::atomic::Ordering::Relaxed,
+                    std::sync::atomic::Ordering::Relaxed,
+                    |n| n.checked_add(1),
+                )
+                .expect("async token identity exhausted");
+            let token = AsyncToken {
+                id,
+                invocation,
+                runtime,
+                request,
+                provider: record.callable,
+                target: EvaluationTarget {
+                    workbook: state.contract.workbook,
+                    origin_revision: work.revision,
+                    formula_generation: state.contract.generation(node),
+                    node,
+                    locus: live_anchor(state, node),
+                },
+                required: work.requirements.get(&node).map_or(1, |r| r.required),
+            };
+            work.events.push(CalcEvent::AwaitingAsync(token.clone()));
+            work.async_waits.insert(node, token);
+            work.suspended.insert(node, local);
+        }
+        Ok(Attempt::Done(done)) => {
+            stage(state, inputs, work, node, done);
+            if work.async_resumed.remove(&node) {
+                work.open_pass(PassReason::AsyncDependents);
+            }
+        }
         Ok(Attempt::Kept) => keep(state, inputs, work, node),
         Ok(Attempt::Waits { on, cell }) => {
             observer.deferred(live_anchor(state, node), cell);
@@ -3062,6 +3124,9 @@ fn order_map(
 /// formulas must be calculated again because a spill's area changed, the next wave begins.
 fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> Option<NodeId> {
     loop {
+        if work.is_waiting_external() {
+            return None;
+        }
         if let Some(node) = interested_node(state, work) {
             return Some(node);
         }
@@ -3828,11 +3893,15 @@ impl EvaluationObserver for Instrument<'_, '_> {
 enum Attempt {
     /// The same semantic activation retains its stack, instruction pointer and kernel buffer.
     Suspended,
+    AwaitExternal,
     /// The result to stage.
     Done(Done),
     /// The evaluation read `cell`, which `on` calculates and this recalculation has yet to
     /// evaluate: it is discarded, and the node waits for `on`.
-    Waits { on: NodeId, cell: CellKey },
+    Waits {
+        on: NodeId,
+        cell: CellKey,
+    },
     /// With iteration off, the evaluation read a formula a circular reference left uncalculated:
     /// it is discarded, and the node is left uncalculated too (dc-10y).
     Kept,
@@ -4531,7 +4600,17 @@ fn evaluate_unstamped(
             local.footprint = footprint.into_inner();
             local.activation = Some(activation);
             local.random = Some(random);
-            return Ok(Attempt::Suspended);
+            return Ok(
+                if local
+                    .activation
+                    .as_ref()
+                    .is_some_and(|a| a.pending_external().is_some())
+                {
+                    Attempt::AwaitExternal
+                } else {
+                    Attempt::Suspended
+                },
+            );
         }
         calc_fml::EvalStep::Complete(outcome) => {
             local.scratch = activation.into_scratch();
@@ -4814,4 +4893,103 @@ fn collision(view: RecalcView<'_>, node: NodeId, anchor: CellKey, extent: GridAr
         }
     }
     Collision::Free
+}
+
+impl RecalcWork {
+    pub fn pending_async(&self) -> impl Iterator<Item = &AsyncToken> {
+        self.async_waits.values()
+    }
+    pub fn is_waiting_external(&self) -> bool {
+        if self.async_waits.is_empty() {
+            return false;
+        }
+        // Every user call is an observation fence. Its state lane remains held while parked.
+        // No later segment may enter or publish through this fence.
+        let segment = active_segment(self);
+        self.async_waits
+            .keys()
+            .any(|node| self.segments.get(node).copied() == segment)
+            || self.next == self.order.len() && self.ready.is_empty()
+    }
+    /// Validate the admitted target and every argument read before delivering to its existing
+    /// activation. This executes no provider code and never starts a replacement evaluation.
+    pub fn accept_async(
+        &mut self,
+        state: &EngineState,
+        inputs: &ModelRoot,
+        token: &AsyncToken,
+        value: CalcValue,
+    ) -> Result<(), AsyncRejection> {
+        let node = token.target.node;
+        let held = self
+            .async_waits
+            .get(&node)
+            .ok_or(AsyncRejection::UnknownToken)?;
+        if held != token {
+            return Err(AsyncRejection::IdentityMismatch);
+        }
+        if self.failure.is_some()
+            || self.revision != inputs.revision()
+            || self.revision != state.revision()
+            || token.invocation.pass.command != self.admission.command
+        {
+            return Err(AsyncRejection::Revoked);
+        }
+        if token.target.workbook != state.contract.workbook
+            || token.target.formula_generation != state.contract.generation(node)
+            || state
+                .node(node)
+                .is_none_or(|n| n.anchor() != token.target.locus)
+        {
+            return Err(AsyncRejection::TargetChanged);
+        }
+        if !self.callables_current(state)
+            || self
+                .functions
+                .as_ref()
+                .and_then(|f| f.resolve(token.provider))
+                .is_none()
+        {
+            return Err(AsyncRejection::ProviderChanged);
+        }
+        if state.contract.requirement(node).required != token.required
+            || self
+                .requirements
+                .get(&node)
+                .is_none_or(|r| r.required != token.required)
+        {
+            return Err(AsyncRejection::RequirementsChanged);
+        }
+        let local = self
+            .suspended
+            .get_mut(&node)
+            .ok_or(AsyncRejection::ContinuationUnavailable)?;
+        if state.environment != self.environment.map(Into::into)
+            || local.read_stamps.iter().any(|read| {
+                span_versions_at(state, &self.progress, read.region, Some(&self.requirements))
+                    != read.versions
+            })
+            || local.fact_reads.iter().any(|read| {
+                fact_version(state, *read, self.facts_version)
+                    != fact_version(state, *read, state.contract.facts)
+            })
+            || !crate::contract::name_bindings_valid(inputs, &local.name_reads)
+        {
+            return Err(AsyncRejection::ArgumentsChanged);
+        }
+        if value.is_missing() {
+            return Err(AsyncRejection::InvalidValue);
+        }
+        if !local
+            .activation
+            .as_mut()
+            .is_some_and(|a| a.accept_external(token.runtime, token.request, value))
+        {
+            return Err(AsyncRejection::ContinuationUnavailable);
+        }
+        self.async_waits.remove(&node);
+        self.async_resumed.insert(node);
+        self.ready.push_front(node);
+        Ok(())
+    }
 }

@@ -187,6 +187,18 @@ impl Workbook {
         &self.session
     }
 
+    /// Native composition installs XLL/VBA/WIT adapters through one callable table.
+    pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
+        self.session.set_user_functions(functions);
+    }
+    pub fn complete_async(
+        &mut self,
+        token: &calc_host::AsyncToken,
+        value: calc_host::value::CalcValue,
+    ) -> calc_host::AsyncDisposition {
+        self.session.complete_async(token, value)
+    }
+
     pub fn load_vba_module(
         &mut self,
         name: &str,
@@ -556,6 +568,7 @@ impl Workbook {
             HostProgress::Cancelled => "calculation cancelled".to_owned(),
             HostProgress::Manual => "manual calculation: press Calculate".to_owned(),
             HostProgress::Calculating { .. } => "calculating".to_owned(),
+            HostProgress::Waiting { .. } => "waiting for a provider".to_owned(),
             HostProgress::Published(delta) if delta.completion().is_none() => {
                 "calculating".to_owned()
             }

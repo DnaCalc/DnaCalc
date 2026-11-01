@@ -50,6 +50,8 @@ pub enum HostProgress {
     /// A recalculation of the current revision is in progress with `remaining` formulas to
     /// evaluate; the next step continues it.
     Calculating { remaining: usize },
+    /// Provider input is required; schedule no continuation task until a return or edit.
+    Waiting { remaining: usize },
     /// A recalculation installed a publication unit: what changed. More work may remain.
     Published(ValueDelta),
     /// A recalculation failed. Another request or authored change permits a new attempt.
@@ -190,7 +192,7 @@ pub fn step(
     }
     work.enable_publication_fences();
     work.set_interest(&host.engine, &host.model, &host.calculation_interest);
-    host.calc_events.extend(work.take_events());
+    host.record_calc_events(work.take_events());
     // Interest can promote candidates already computed by age escapes. Publish those before
     // spending another quantum on an unrelated suspended activation.
     if let Some(delta) = calc_engine::publish_ready(&mut host.engine, &host.model, &mut work) {
@@ -199,13 +201,16 @@ pub fn step(
         return HostProgress::Published(delta);
     }
     match calc_engine::step(&host.engine, &host.model, &mut work, budget, observer) {
-        RecalcProgress::Pending { remaining } => {
-            host.calc_events.extend(work.take_events());
+        RecalcProgress::Pending { remaining } | RecalcProgress::Waiting { remaining } => {
+            let waiting = work.is_waiting_external();
+            host.record_calc_events(work.take_events());
             let published = calc_engine::publish_ready(&mut host.engine, &host.model, &mut work);
             host.work = Some(work);
             if let Some(delta) = published {
                 host.calc_events.extend(delta.events().iter().cloned());
                 HostProgress::Published(delta)
+            } else if waiting {
+                HostProgress::Waiting { remaining }
             } else {
                 HostProgress::Calculating { remaining }
             }
@@ -258,4 +263,82 @@ fn failed(host: &mut HostState, failure: RecalcFailed) -> HostProgress {
     // A failed command keeps its terminal receipt. New work requires an edit or a request.
     host.last_failure = Some((host.model.revision(), failure.clone()));
     HostProgress::Failed(failure)
+}
+
+/// Tombstones outlive commands, edits and cancellation. Reopening creates a new host/namespace.
+#[derive(Debug)]
+pub(crate) struct AsyncRecord {
+    token: calc_engine::contract::AsyncToken,
+    returned: Option<calc_doc_model::value::CalcValue>,
+    revoked: bool,
+}
+impl HostState {
+    pub(crate) fn record_calc_events(&mut self, events: Vec<calc_engine::CalcEvent>) {
+        for event in &events {
+            if let calc_engine::CalcEvent::AwaitingAsync(token) = event {
+                self.async_records
+                    .entry(token.id)
+                    .or_insert_with(|| AsyncRecord {
+                        token: token.clone(),
+                        returned: None,
+                        revoked: false,
+                    });
+            }
+        }
+        self.calc_events.extend(events);
+    }
+    pub fn pending_async(&self) -> Vec<calc_engine::contract::AsyncToken> {
+        self.work
+            .as_ref()
+            .map(|work| work.pending_async().cloned().collect())
+            .unwrap_or_default()
+    }
+    /// The provider's adapter resolves its opaque handle to the complete stored token.
+    /// A rejected return changes no model, cache or activation, and admits no calculation.
+    pub fn complete_async(
+        &mut self,
+        token: &calc_engine::contract::AsyncToken,
+        value: calc_doc_model::value::CalcValue,
+    ) -> calc_engine::contract::AsyncDisposition {
+        use calc_engine::contract::{AsyncDisposition as D, AsyncRejection as R};
+        let disposition = match self.async_records.get_mut(&token.id) {
+            None => D::Rejected(R::UnknownToken),
+            Some(record) if record.token != *token => D::Rejected(R::IdentityMismatch),
+            Some(record) if record.returned.is_some() => {
+                if record.returned.as_ref() == Some(&value) {
+                    D::Duplicate
+                } else {
+                    D::Rejected(R::ConflictingDuplicate)
+                }
+            }
+            Some(record) if record.revoked => D::Rejected(R::Revoked),
+            Some(record) => {
+                if let Some(work) = self
+                    .work
+                    .as_mut()
+                    .filter(|w| w.admission().command == token.invocation.pass.command)
+                {
+                    match work.accept_async(&self.engine, &self.model, token, value.clone()) {
+                        Ok(()) => {
+                            record.returned = Some(value);
+                            D::Accepted
+                        }
+                        Err(reason) => {
+                            record.revoked = true;
+                            D::Rejected(reason)
+                        }
+                    }
+                } else {
+                    record.revoked = true;
+                    D::Rejected(R::Revoked)
+                }
+            }
+        };
+        self.calc_events
+            .push(calc_engine::CalcEvent::AsyncReturned {
+                token: token.id,
+                disposition,
+            });
+        disposition
+    }
 }

@@ -354,6 +354,10 @@ fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<Wor
         }
     };
     match progress {
+        HostProgress::Waiting { .. } => {
+            recorder.drop_all();
+            Some(WorkbookFailure { class: Class::Engine, key: "waiting_external".into(), message: "the comparison has no provider return to complete its admitted command".into() })
+        }
         HostProgress::Failed(failure) => {
             recorder.drop_all();
             Some(WorkbookFailure {

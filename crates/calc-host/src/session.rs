@@ -387,9 +387,19 @@ impl HostSession {
         self.host.take_calculation_events()
     }
 
+    /// Deliver through the same owner as ordinary application commands; resume is budgeted
+    /// by advance_calculation, never performed inside the provider return.
+    pub fn complete_async(
+        &mut self,
+        token: &calc_engine::contract::AsyncToken,
+        value: calc_doc_model::value::CalcValue,
+    ) -> calc_engine::contract::AsyncDisposition {
+        self.host.complete_async(token, value)
+    }
+
     pub fn cancel_calculation(&mut self) {
         if let Some(mut work) = self.host.work.take() {
-            self.host.calc_events.extend(work.take_events());
+            self.host.record_calc_events(work.take_events());
             self.host
                 .calc_events
                 .push(calc_engine::CalcEvent::Completed(work.completion(
@@ -990,7 +1000,7 @@ impl HostSession {
         let progress = step(&mut self.host, self.recalc_budget, &mut Unobserved);
         let cause = match &progress {
             HostProgress::Current | HostProgress::Manual | HostProgress::Cancelled => None,
-            HostProgress::Calculating { .. } => None,
+            HostProgress::Calculating { .. } | HostProgress::Waiting { .. } => None,
             HostProgress::Published(delta) => Some(DeltaCause::Recalculated {
                 publication: delta
                     .publication()

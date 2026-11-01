@@ -121,7 +121,7 @@ pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,
     RecalcFailure, StartError, Unobserved, ValueChange, ValueDelta, WorkBudget,
 };
-pub use calc_fml::FormatProfile;
+pub use calc_fml::{CallableTable, FormatProfile};
 pub use calc_fml::reference::CellRun;
 
 /// The existing reference-text binder's typed result, exposed to host consumers.
@@ -137,3 +137,5 @@ pub use presentation_commands::{
 };
 
 pub use calc_engine::contract::{CompletionOutcome, RangePostState};
+
+pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken};

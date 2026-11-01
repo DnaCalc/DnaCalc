@@ -228,6 +228,19 @@ must be measured separately. COM mutation entry time alone does not prove an edi
 The registration-replacement attempt stalled; retain conservative identity checks for unresolved conditions.
 See `calc-engine/tests/fixtures/excel-calc-probes/P07/README.md`.
 
+Implementation update (dc-hsa5.4, 2026-11-01): the existing CalcFml continuation parks a
+`UserFunctionStep::Awaiting { request }` without polling the provider. `HostState::pending_async`
+returns the owner-issued token; an adapter retains it behind its opaque native handle and posts
+`complete_async` to the owner. Delivery validates the whole token, live command, workbook, target,
+callable generation, requirement and argument reads, then supplies the value without entering user
+code. A later budgeted task resumes the same callable/frame and formula suffix. Dependents receive
+an `AsyncDependents` pass. Tombstones distinguish identical and conflicting duplicate returns.
+Every live edit conservatively revokes authority, including moves, overwrite/Undo and reload;
+reopen has a fresh host namespace. Native and browser fixtures exercise the shared host route.
+The worker projects waiting/return events and schedules no task while parked. Native XLL handle
+integration, async pinned-save calculations and nested async blocks remain open; the synchronous
+entry returns a named refusal when it has no owner able to retain a wait.
+
 ## 4. Reads and freshness
 
 `RequirementState { value_version, required, satisfied }`: locally clean iff `satisfied == required`; every
@@ -404,7 +417,7 @@ counted native tests demonstrate suspension and reload without repeating the pre
 retain an explicit synchronous interval, and nested CalcFml blocks are not yet sliced internally.
 Reload revokes command publication authority and rebinds compiled consumers whose callable watches
 changed. Unresolved compilation refusals are retried conservatively when registrations change.
-General P03 semantic reevaluation and P07 async completion remain unimplemented.
+General P03 semantic reevaluation remains open; the P07 owner boundary is described in 3.4.
 Live range scopes follow cut/paste and cell shifts through the product command and Undo/Redo paths,
 as well as axis/sheet edits. Overwritten cut destinations and deleted locations leave the command;
 Undo never revives them. Disjoint surviving pieces stay disjoint, including cross-sheet moves.

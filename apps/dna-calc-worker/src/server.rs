@@ -92,6 +92,17 @@ impl Server {
         progress
     }
 
+    /// A provider posts its return to this owner. User code resumes in a later budgeted task.
+    pub fn complete_async(
+        &mut self,
+        token: &calc_host::AsyncToken,
+        value: calc_host::value::CalcValue,
+    ) -> calc_host::AsyncDisposition {
+        let disposition = self.book.complete_async(token, value);
+        self.collect();
+        disposition
+    }
+
     /// Changes whenever this server installs a replacement workbook.
     pub fn workbook_id(&self) -> u64 {
         self.workbook
@@ -1492,6 +1503,26 @@ impl Server {
             }
         };
         let receipt = match event {
+            E::AwaitingAsync(token) => wire::CalculationEvent::AwaitingAsync {
+                domain: token.invocation.pass.command.domain_incarnation,
+                command: token.invocation.pass.command.sequence,
+                pass: token.invocation.pass.ordinal,
+                token: token.id,
+                at: Key::of(token.target.locus),
+                request: token.request,
+            },
+            E::AsyncReturned { token, disposition } => wire::CalculationEvent::AsyncReturned {
+                token,
+                disposition: match disposition {
+                    calc_host::AsyncDisposition::Accepted => wire::AsyncReturnDisposition::Accepted,
+                    calc_host::AsyncDisposition::Duplicate => {
+                        wire::AsyncReturnDisposition::Duplicate
+                    }
+                    calc_host::AsyncDisposition::Rejected(reason) => {
+                        wire::AsyncReturnDisposition::Rejected(format!("{reason:?}"))
+                    }
+                },
+            },
             E::Committed { revision } => wire::CalculationEvent::Committed {
                 revision: revision.get(),
             },

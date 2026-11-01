@@ -274,6 +274,7 @@ pub fn unprefixed_file_spelling_gives_name() -> Vec<String> {
     let mut evaluations = Evaluations::default();
     loop {
         match step(&mut host, WorkBudget::UNLIMITED, &mut evaluations) {
+            HostProgress::Waiting { .. } => panic!("this corpus fixture has no external provider"),
             HostProgress::Calculating { .. } => {}
             HostProgress::Published(_)
             | HostProgress::Current

@@ -1110,6 +1110,18 @@ pub enum CalculationRangePostState {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CalculationEvent {
+    AwaitingAsync {
+        domain: u64,
+        command: u64,
+        pass: u32,
+        token: u64,
+        at: Key,
+        request: u64,
+    },
+    AsyncReturned {
+        token: u64,
+        disposition: AsyncReturnDisposition,
+    },
     Committed {
         revision: u64,
     },
@@ -1160,4 +1172,12 @@ pub enum CalculationEvent {
         #[serde(default)]
         imported_cached: usize,
     },
+}
+
+/// Transport projection of a checked provider return, without exposing publication authority.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum AsyncReturnDisposition {
+    Accepted,
+    Duplicate,
+    Rejected(String),
 }

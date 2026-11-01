@@ -5717,3 +5717,309 @@ fn names_saved_equal_duplicate_formulas_keep_their_source_attributes() {
         }
     }
 }
+
+mod async_contract {
+    use super::*;
+    use calc_fml::{
+        UserFunction, UserFunctionContext, UserFunctionInvocation, UserFunctionStep,
+        UserInvocationFrame,
+    };
+    use calc_host::{AsyncDisposition as D, AsyncRejection as R, AsyncToken};
+
+    #[derive(Debug, Default)]
+    struct Counts {
+        prefix: usize,
+        suffix: usize,
+        resumes: usize,
+    }
+    #[derive(Debug)]
+    struct Echo(Rc<RefCell<Counts>>);
+    #[derive(Debug)]
+    struct EchoCall {
+        counts: Rc<RefCell<Counts>>,
+        entered: bool,
+    }
+    impl UserFunction for Echo {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("the cooperative entry owns this call")
+        }
+        fn begin_call(
+            &self,
+            arguments: &[CalcValue],
+            _: UserInvocationFrame,
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<Option<Box<dyn UserFunctionInvocation>>, String> {
+            // Deep-copy explicit inputs before entering the provider.
+            for argument in arguments {
+                if let Some(reference) = argument.as_reference() {
+                    context.argument_values_of(reference)?;
+                }
+            }
+            Ok(Some(Box::new(EchoCall {
+                counts: self.0.clone(),
+                entered: false,
+            })))
+        }
+    }
+    impl UserFunctionInvocation for EchoCall {
+        fn resume(
+            &mut self,
+            context: &mut dyn UserFunctionContext,
+            _: u64,
+        ) -> Result<UserFunctionStep, String> {
+            self.counts.borrow_mut().resumes += 1;
+            if !self.entered {
+                self.entered = true;
+                self.counts.borrow_mut().prefix += 1;
+                return Ok(UserFunctionStep::Awaiting { request: 7 });
+            }
+            let value = context
+                .take_async_result(7)
+                .expect("only a delivered return resumes the suffix");
+            assert!(context.take_async_result(7).is_none());
+            self.counts.borrow_mut().suffix += 1;
+            Ok(UserFunctionStep::Complete(value))
+        }
+    }
+    fn setup(formula: &str) -> (HostSession, SheetId, Rc<RefCell<Counts>>) {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let counts = Rc::new(RefCell::new(Counts::default()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("AsyncEcho", Rc::new(Echo(counts.clone())))
+            .unwrap();
+        book.set_user_functions(functions);
+        enter(&mut book, at(s, "A1"), "1");
+        enter(&mut book, at(s, "B1"), formula);
+        enter(&mut book, at(s, "C1"), "=B1*2");
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.dispatch(SkinIntent::Recalculate);
+        for _ in 0..100 {
+            if !book.host().pending_async().is_empty() {
+                break;
+            }
+            assert!(book.has_pending_calculation());
+            book.advance_calculation();
+        }
+        assert_eq!(book.host().pending_async().len(), 1);
+        (book, s, counts)
+    }
+    fn token(book: &HostSession) -> AsyncToken {
+        book.host().pending_async()[0].clone()
+    }
+    fn drain(book: &mut HostSession) {
+        for _ in 0..100 {
+            if !book.has_pending_calculation() {
+                return;
+            }
+            assert!(!matches!(
+                book.advance_calculation(),
+                HostProgress::Failed(_)
+            ));
+        }
+        panic!("finite continuation did not finish")
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_async_suffix_resumes_once_and_dependents_get_a_later_pass() {
+        let (mut book, s, counts) = setup("=10+AsyncEcho(A1)+3");
+        let first = token(&book);
+        assert_eq!(counts.borrow().prefix, 1);
+        assert_eq!(counts.borrow().suffix, 0);
+        assert!(
+            !book.has_pending_calculation(),
+            "an external wait schedules no busy task"
+        );
+        for _ in 0..3 {
+            assert!(matches!(
+                book.advance_calculation(),
+                HostProgress::Waiting { .. }
+            ));
+        }
+        assert_eq!(
+            counts.borrow().resumes,
+            1,
+            "polling never re-enters a parked provider"
+        );
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(29.0)),
+            D::Accepted
+        );
+        assert!(book.has_pending_calculation());
+        assert_eq!(
+            counts.borrow().suffix,
+            0,
+            "delivery itself runs no provider code"
+        );
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(29.0)),
+            D::Duplicate
+        );
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(999.0)),
+            D::Rejected(R::ConflictingDuplicate)
+        );
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(42.0))
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "C1")),
+            Some(CalcValue::number(84.0))
+        );
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+        let b = value(book.host(), at(s, "B1"));
+        let c = value(book.host(), at(s, "C1"));
+        let (
+            ProjectedValue::Calculated { calculation: b, .. },
+            ProjectedValue::Calculated { calculation: c, .. },
+        ) = (b, c)
+        else {
+            panic!("calculated values")
+        };
+        assert_eq!(
+            b.stamp().unwrap().reads.invocations[0].runtime,
+            first.runtime
+        );
+        assert_eq!(b.stamp().unwrap().certification.pass, first.invocation.pass);
+        assert_eq!(
+            c.stamp().unwrap().certification.pass.reason,
+            calc_engine::contract::PassReason::AsyncDependents
+        );
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(29.0)),
+            D::Duplicate
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_two_sites_keep_distinct_tokens_and_one_root_activation() {
+        let (mut book, s, counts) = setup("=AsyncEcho(A1)+AsyncEcho(A1)+2");
+        let first = token(&book);
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(20.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        let second = token(&book);
+        assert_ne!(first.id, second.id);
+        assert_ne!(first.runtime, second.runtime);
+        assert_eq!(first.invocation.pass, second.invocation.pass);
+        assert_ne!(first.invocation.call_site, second.invocation.call_site);
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(20.0)),
+            D::Duplicate
+        );
+        assert_eq!(
+            book.complete_async(&second, CalcValue::number(20.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(42.0))
+        );
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (2, 2));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_edits_moves_undo_reload_cancel_and_reopen_reject_late_results() {
+        for change in 0..7 {
+            let (mut book, s, counts) = setup("=AsyncEcho(A1)+1");
+            let old = token(&book);
+            match change {
+                0 => {
+                    enter(&mut book, at(s, "B1"), "99");
+                }
+                1 => {
+                    enter(&mut book, at(s, "B1"), "99");
+                    book.dispatch(SkinIntent::Undo);
+                }
+                2 => {
+                    enter(&mut book, at(s, "A1"), "2");
+                }
+                3 => {
+                    book.dispatch(SkinIntent::Copy {
+                        from: GridArea::cell(at(s, "B1")),
+                        to: GridArea::cell(at(s, "D1")),
+                        cut: true,
+                    });
+                }
+                4 => {
+                    let mut table = calc_fml::CallableTable::new();
+                    table
+                        .register("AsyncEcho", Rc::new(Echo(counts.clone())))
+                        .unwrap();
+                    book.set_user_functions(table);
+                }
+                5 => {
+                    book.cancel_calculation();
+                }
+                6 => {
+                    book = session(&calc_host::blank_package());
+                }
+                _ => unreachable!(),
+            }
+            let before = book.host().revision();
+            assert!(
+                matches!(
+                    book.complete_async(&old, CalcValue::number(500.0)),
+                    D::Rejected(_)
+                ),
+                "change {change}"
+            );
+            assert_eq!(book.host().revision(), before);
+            assert_eq!(
+                counts.borrow().suffix,
+                0,
+                "change {change} resumed stale code"
+            );
+            for address in ["B1", "C1", "D1"] {
+                assert_ne!(
+                    calculated(book.host(), at(s, address)),
+                    Some(CalcValue::number(501.0))
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_tampering_cannot_consume_or_redirect_the_real_token() {
+        let (mut book, s, counts) = setup("=AsyncEcho(A1)");
+        let real = token(&book);
+        for field in 0..7 {
+            let mut fake = real.clone();
+            match field {
+                0 => fake.target.locus = at(s, "D1"),
+                1 => fake.provider.generation += 1,
+                2 => fake.runtime += 1,
+                3 => fake.request += 1,
+                4 => fake.target.formula_generation += 1,
+                5 => fake.required += 1,
+                6 => fake.invocation.evaluation += 1,
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                book.complete_async(&fake, CalcValue::number(999.0)),
+                D::Rejected(R::IdentityMismatch)
+            );
+        }
+        assert_eq!(counts.borrow().suffix, 0);
+        assert_eq!(
+            book.complete_async(&real, CalcValue::number(42.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(42.0))
+        );
+    }
+}

@@ -191,6 +191,7 @@ struct PendingUserCall {
     activation: Box<dyn calc_func::UserFunctionInvocation>,
     frame: calc_func::UserInvocationFrame,
     record: Option<usize>,
+    external: Option<(u64, Option<CalcValue>)>,
 }
 
 /// One owned activation. Nested lazy calls, names, LAMBDAs and kernels without resumable
@@ -213,6 +214,28 @@ impl EvalContinuation {
             cursor: BlockCursor::default(),
             finished: false,
         }
+    }
+    /// The pending provider request; the callable frame stays owned by this continuation.
+    pub fn pending_external(&self) -> Option<(u64, u64)> {
+        let call = self.cursor.pending_user.as_ref()?;
+        let (request, value) = call.external.as_ref()?;
+        value.is_none().then_some((call.frame.id, *request))
+    }
+    /// Owner identity/certificate checks precede this operation. Delivery never runs user code.
+    pub fn accept_external(&mut self, invocation: u64, request: u64, value: CalcValue) -> bool {
+        let Some(call) = self.cursor.pending_user.as_mut() else {
+            return false;
+        };
+        if call.frame.id != invocation
+            || call
+                .external
+                .as_ref()
+                .is_none_or(|(r, value)| *r != request || value.is_some())
+        {
+            return false;
+        }
+        call.external = Some((request, Some(value)));
+        true
     }
     pub fn progress(&self) -> ContinuationProgress {
         ContinuationProgress {
@@ -271,7 +294,10 @@ pub fn evaluate(
 ) -> Result<CalcValue, EvalFault> {
     match evaluate_slice(frame, services, &mut BlockCursor::default(), usize::MAX) {
         EvalStep::Complete(outcome) => outcome,
-        EvalStep::Suspended(_) => unreachable!("an unlimited activation completes"),
+        EvalStep::Suspended(_) => Err(not_modelled_by(
+            "an external wait without a continuation owner",
+            "dc-hsa5.4",
+        )),
     }
 }
 
@@ -556,6 +582,7 @@ impl Run<'_, '_> {
                 run: self,
                 fault: None,
                 frame: Some(frame.clone()),
+                async_result: None,
             };
             let started = function.begin_call(&arguments, frame.clone(), &mut context);
             if let Some(fault) = context.fault {
@@ -568,6 +595,7 @@ impl Run<'_, '_> {
                         activation,
                         frame,
                         record,
+                        external: None,
                     }));
                 }
                 other => {
@@ -585,6 +613,7 @@ impl Run<'_, '_> {
                                 run: self,
                                 fault: None,
                                 frame: Some(frame),
+                                async_result: None,
                             };
                             let result = function.call_with_context(&arguments, &mut context);
                             if let Some(fault) = context.fault {
@@ -608,7 +637,18 @@ impl Run<'_, '_> {
             }
         }
         let call = pending.as_mut().expect("prepared activation");
+        if call
+            .external
+            .as_ref()
+            .is_some_and(|(_, value)| value.is_none())
+        {
+            return Ok(false);
+        }
         let mut context = UserCallContext {
+            async_result: call
+                .external
+                .take()
+                .and_then(|(request, value)| value.map(|value| (request, value))),
             cached: call.cached,
             run: self,
             fault: None,
@@ -620,6 +660,10 @@ impl Run<'_, '_> {
         }
         match result {
             Ok(calc_func::UserFunctionStep::Suspended) => Ok(false),
+            Ok(calc_func::UserFunctionStep::Awaiting { request }) => {
+                call.external = Some((request, None));
+                Ok(false)
+            }
             result => {
                 let record = call.record;
                 if let Some(index) = record {
@@ -647,7 +691,10 @@ impl Run<'_, '_> {
         let mut cursor = Box::<BlockCursor>::default();
         match self.block_slice(index, &mut cursor, usize::MAX)? {
             Some(value) => Ok(value),
-            None => unreachable!("nested blocks are non-preemptible"),
+            None => Err(not_modelled_by(
+                "a nested external wait without a retained block continuation",
+                "dc-hsa5.4",
+            )),
         }
     }
 
@@ -2920,6 +2967,7 @@ mod tests {
 }
 
 struct UserCallContext<'b, 'a, 'r> {
+    async_result: Option<(u64, CalcValue)>,
     cached: bool,
     run: &'b mut Run<'a, 'r>,
     fault: Option<EvalFault>,
@@ -2927,6 +2975,17 @@ struct UserCallContext<'b, 'a, 'r> {
 }
 
 impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
+    fn take_async_result(&mut self, request: u64) -> Option<CalcValue> {
+        if self
+            .async_result
+            .as_ref()
+            .is_some_and(|(r, _)| *r == request)
+        {
+            self.async_result.take().map(|(_, value)| value)
+        } else {
+            None
+        }
+    }
     fn invocation(&self) -> Option<&calc_func::UserInvocationFrame> {
         self.frame.as_ref()
     }

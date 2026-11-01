@@ -429,6 +429,9 @@ mod tests {
             let mut yields = 0;
             let value = loop {
                 match activation.resume(&mut Context, 1).unwrap() {
+                    calc_func::UserFunctionStep::Awaiting { .. } => {
+                        panic!("VBA fixture has no external provider")
+                    }
                     calc_func::UserFunctionStep::Suspended => {
                         yields += 1;
                         assert!(yields < 10_000);

@@ -648,6 +648,9 @@ impl Controller {
                 }
                 wire::CalculationEvent::Yielded {
                     domain, command, ..
+                }
+                | wire::CalculationEvent::AwaitingAsync {
+                    domain, command, ..
                 } => {
                     if self.model.with_untracked(|m| m.runtime.active_calculation)
                         != Some((*domain, *command))
@@ -669,6 +672,9 @@ impl Controller {
                 self.summary.set(summary.into());
             }
             match receipt {
+                wire::CalculationEvent::AwaitingAsync { .. } => {
+                    self.say("Waiting for a provider", false)
+                }
                 wire::CalculationEvent::Yielded { remaining, .. } => {
                     self.say(format!("Calculating {remaining} formulas"), false)
                 }

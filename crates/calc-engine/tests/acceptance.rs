@@ -1744,6 +1744,7 @@ fn ceng_m1_2__chain_recalculates() {
                 assert_eq!(calculated(&state, w(1, 1)), (CalcValue::number(60.0), 1, 1));
             }
             RecalcProgress::Complete => break,
+            RecalcProgress::Waiting { .. } => panic!("this fixture has no external provider"),
             RecalcProgress::Failed => panic!("the recalculation failed"),
         }
     }
@@ -5081,6 +5082,7 @@ impl SevenCellSlice {
                 RecalcProgress::Complete => {
                     return finish(&mut self.state, &self.root, work).unwrap();
                 }
+                RecalcProgress::Waiting { .. } => panic!("this fixture has no external provider"),
                 RecalcProgress::Failed => {
                     panic!("{}", finish(&mut self.state, &self.root, work).unwrap_err())
                 }
@@ -5575,6 +5577,9 @@ fn contract_bounded_integer_reference_model_matches_every_step_budget() {
                         completed = true;
                         break;
                     }
+                    RecalcProgress::Waiting { .. } => {
+                        panic!("this fixture has no external provider")
+                    }
                     RecalcProgress::Failed => {
                         panic!("the bounded integer model failed at operation {operation}")
                     }
@@ -5685,6 +5690,7 @@ fn contract_one_long_cell_retains_its_instruction_and_kernel_buffer() {
                 completed = true;
                 break;
             }
+            RecalcProgress::Waiting { .. } => panic!("this fixture has no external provider"),
             RecalcProgress::Failed => panic!("long-cell activation failed"),
         }
     }

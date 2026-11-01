@@ -18,6 +18,7 @@ pub struct CalcCommandId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PassReason {
     Initial,
+    AsyncDependents,
     DependencyRepair,
     SpillShape,
     IterationSweep(u32),
@@ -95,6 +96,38 @@ pub enum ReevaluationReason {
     SpillShapePass,
     IterationSweep,
     TableScenario,
+}
+
+/// An opaque adapter handle resolves to this exact owner-issued token. Addresses alone
+/// cannot authorize a return, including after Undo restores identical formula text.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AsyncToken {
+    pub id: u64,
+    pub invocation: InvocationId,
+    pub runtime: u64,
+    pub target: EvaluationTarget,
+    pub provider: calc_fml::CallableHandle,
+    pub request: u64,
+    pub required: u64,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AsyncRejection {
+    UnknownToken,
+    IdentityMismatch,
+    Revoked,
+    TargetChanged,
+    ProviderChanged,
+    RequirementsChanged,
+    ArgumentsChanged,
+    ContinuationUnavailable,
+    ConflictingDuplicate,
+    InvalidValue,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AsyncDisposition {
+    Accepted,
+    Duplicate,
+    Rejected(AsyncRejection),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -303,6 +336,11 @@ pub enum CalcEvent {
     },
     Rejected {
         at: CellKey,
+    },
+    AwaitingAsync(AsyncToken),
+    AsyncReturned {
+        token: u64,
+        disposition: AsyncDisposition,
     },
     Published(PublicationUnitId),
     Completed(CompletionReceipt),

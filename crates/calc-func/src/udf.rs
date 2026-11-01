@@ -39,6 +39,10 @@ impl fmt::Debug for UserInvocationFrame {
 #[derive(Debug)]
 pub enum UserFunctionStep {
     Suspended,
+    /// Park this activation until the owner delivers this request through its checked token.
+    Awaiting {
+        request: u64,
+    },
     Complete(CalcValue),
 }
 /// Owning activation. Resume never re-enters the procedure or repeats a completed effect.
@@ -116,6 +120,10 @@ pub trait UserFunction: fmt::Debug {
 /// adapters can retain reference identities, and must read their values through this context.
 pub trait UserFunctionContext {
     fn caller(&self) -> Option<CellKey>;
+    /// Consume the return supplied to this activation. It is unavailable in another frame.
+    fn take_async_result(&mut self, _request: u64) -> Option<CalcValue> {
+        None
+    }
     fn retain_reference(
         &mut self,
         reference: &ReferenceLike,

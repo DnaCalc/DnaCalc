@@ -110,6 +110,7 @@ pub struct HostState {
     pub(crate) options: HostOptions,
     /// The recalculation in progress, between two [`crate::step`] calls.
     pub(crate) work: Option<RecalcWork>,
+    pub(crate) async_records: std::collections::BTreeMap<u64, crate::recalc::AsyncRecord>,
     pub(crate) functions: calc_fml::CallableTable,
     pub(crate) references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
     pub(crate) calculation_interest: Vec<calc_doc_model::value::GridArea>,
@@ -204,6 +205,7 @@ impl HostState {
             engine,
             options,
             work: None,
+            async_records: Default::default(),
             functions: calc_fml::CallableTable::new(),
             references: calc_fml::reference::ReferenceTracker::new(),
             calculation_interest: Vec::new(),
@@ -286,8 +288,12 @@ impl HostState {
     /// Whether a worker should schedule another finite task. A fault waits for an explicit
     /// request or edit; it is never retried in a busy loop.
     pub fn has_pending_calculation(&self) -> bool {
-        self.work.is_some()
-            || self.calculate_requested
+        if let Some(work) = &self.work {
+            return work.revision() != self.model.revision()
+                || !work.callables_current(&self.engine)
+                || !work.is_waiting_external();
+        }
+        self.calculate_requested
             || !self.calculation_cancelled
                 && self.calc_mode() != CalcMode::Manual
                 && self.last_failure.is_none()
