@@ -329,6 +329,7 @@ impl Resolved {
     /// Target-specific reverse normal edges. Cargo metadata can unify features from an
     /// inactive target-specific dependency before filtering its edges. Ask cargo tree for
     /// the selected target before treating such an optional native crate as a wasm import.
+    /// Proc-macro trees execute on the host and are excluded from this target closure.
     /// Command semantics: https://doc.rust-lang.org/cargo/commands/cargo-tree.html#feature-unification
     pub fn normal_dependents(
         &self,
@@ -356,7 +357,7 @@ impl Resolved {
                     "--target",
                     target,
                     "--edges",
-                    "normal",
+                    "normal,no-proc-macro",
                     "--invert",
                     id,
                     "--prefix",
@@ -476,7 +477,7 @@ mod target_dependency_tests {
         };
         write(
             "Cargo.toml",
-            "[workspace]\nresolver = \"2\"\nmembers = [\"adapter\"]\nexclude = [\"engine\", \"os\"]\n",
+            "[workspace]\nresolver = \"2\"\nmembers = [\"adapter\"]\nexclude = [\"engine\", \"os\", \"macros\"]\n",
         );
         write(
             "engine/Cargo.toml",
@@ -489,7 +490,19 @@ mod target_dependency_tests {
         for name in ["adapter", "engine", "os"] {
             write(&format!("{name}/src/lib.rs"), "");
         }
-        for normal_native in [false, true] {
+        write(
+            "macros/Cargo.toml",
+            "[package]\nname = \"fixture-macros\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[lib]\nproc-macro = true\n[dependencies]\nfixture-engine = { path = \"../engine\", features = [\"native\"] }\n",
+        );
+        write("macros/src/lib.rs", "extern crate proc_macro;\n");
+        for (normal_native, macro_native) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            let macro_dependency = if macro_native {
+                "fixture-macros = { path = \"../macros\" }"
+            } else {
+                ""
+            };
             let features = if normal_native {
                 ", features = [\"native\"]"
             } else {
@@ -498,7 +511,7 @@ mod target_dependency_tests {
             write(
                 "adapter/Cargo.toml",
                 &format!(
-                    "[package]\nname = \"adapter\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nfixture-engine = {{ path = \"../engine\", default-features = false{features} }}\n[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\nfixture-engine = {{ path = \"../engine\", default-features = false, features = [\"native\"] }}\n"
+                    "[package]\nname = \"adapter\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nfixture-engine = {{ path = \"../engine\", default-features = false{features} }}\n{macro_dependency}\n[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\nfixture-engine = {{ path = \"../engine\", default-features = false, features = [\"native\"] }}\n"
                 ),
             );
             let out = Command::new(cargo_program())
@@ -510,7 +523,8 @@ mod target_dependency_tests {
             let ws = Workspace::load(&root).unwrap();
             let graph = Resolved::load(&ws, WASM_TARGET).unwrap();
             // Metadata exposes the native optional package in both cases. The actual target
-            // tree must distinguish an inactive target-only feature from an active one.
+            // tree must distinguish inactive target-only features and host macro trees
+            // from a real normal dependency in the target, even when both paths coexist.
             let adapter = ws.member("adapter").unwrap();
             assert!(
                 graph

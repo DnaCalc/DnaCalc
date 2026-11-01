@@ -516,7 +516,7 @@ fn idents_anywhere(stream: TokenStream) -> Vec<(String, usize)> {
 }
 
 /// What `os-imports` covers, recorded in every receipt.
-const OS_IMPORTS_SCOPE: &str = "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed";
+const OS_IMPORTS_SCOPE: &str = "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies excluding host proc-macro trees, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed";
 
 fn os_imports(
     ws: &Workspace,
@@ -609,7 +609,7 @@ fn os_imports(
         findings,
         json!({
             "scope": OS_IMPORTS_SCOPE,
-            "wasm_normal_dependency_source": "cargo tree --locked --workspace --all-features --target wasm32-unknown-unknown --edges normal --invert <resolved-package-id> --prefix none --format {p}",
+            "wasm_normal_dependency_source": "cargo tree --locked --workspace --all-features --target wasm32-unknown-unknown --edges normal,no-proc-macro --invert <resolved-package-id> --prefix none --format {p}",
             "files_scanned": files_scanned,
             "build_script_files_scanned": build_files,
             "targets": resolved.iter().map(|(target, _)| target.as_str()).collect::<Vec<_>>(),
