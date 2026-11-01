@@ -8,6 +8,8 @@ param(
     [string]$NativePath = '',
     [switch]$ExternalController,
     [string]$SourceFile = '',
+    [switch]$ExternalDirect,
+    [switch]$UIPause,
     [string]$RunId = ('calc-probe-' + [Guid]::NewGuid().ToString('N')),
     [switch]$SafeMode
 )
@@ -31,6 +33,8 @@ for($offset=0;$offset -lt $Cases.Length;$offset+=300){
 $source = $source.Replace('SelectedCaseIds = "__CASES__"', $caseStatements)
 $source = $source.Replace('__ARTIFACT_PREFIX__', $ArtifactPrefix.Replace('"','""'))
 $source = $source.Replace('__RUN_ID__', $RunId.Replace('"','""'))
+$source = $source.Replace('__EXTERNAL_DIRECT__', $(if($ExternalDirect){'1'}else{'0'}))
+if($ExternalDirect -and (-not $ExternalController -or -not $Cases)){throw '-ExternalDirect requires -ExternalController and explicit -Cases'}
 $native = if($NativePath){(Resolve-Path -LiteralPath $NativePath).Path}else{Join-Path (Split-Path $probe -Parent) 'P03/native-probe.xll'}
 $source = $source.Replace('__NATIVE__', $native.Replace('"','""'))
 $module = Join-Path $probe 'injected.bas'
@@ -73,6 +77,7 @@ $supervisor = $supervisor.Insert($at, $extension)
 $workerSource = Get-Content -Raw -LiteralPath (Join-Path $OxVbaRoot 'scripts/excel-vba-oracle-worker.ps1')
 $workerSource = $workerSource.Replace('$PSScriptRoot', "'" + (Join-Path $OxVbaRoot 'scripts') + "'")
 $workerSource = $workerSource.Replace('[ValidateRange(5, 600)][int]$CaseTimeoutSeconds', '[ValidateRange(5, 1500)][int]$CaseTimeoutSeconds')
+$workerSource = $workerSource.Replace('        $errorMessage = $_.Exception.Message', '        $errorMessage = $_.Exception.Message' + "`n" + '        ($_.Exception.ToString() + "`n" + $_.ScriptStackTrace) | Set-Content -LiteralPath (Join-Path $caseDirectory "measurement-error.txt") -Encoding utf8NoBOM')
 $startupAnchor = '            $blocked = @($blockingWindows'
 $startupAt = $workerSource.IndexOf($startupAnchor)
 if ($startupAt -lt 0) { throw 'Owned startup observation insertion point absent' }
@@ -93,6 +98,73 @@ $startupExtension = @'
             }
 '@
 $workerSource = $workerSource.Insert($startupAt, $startupExtension + "`n")
+if($ExternalDirect){
+$directHook=@'
+        $attachControl='__PROBE__\external-control-__RUN__-attach.txt'
+        [IO.File]::WriteAllText($attachControl,([string]$excelPid+"`t"+$workbook.Name+"`tattach-only`t0`t0`t`t"+$workbook.Name))
+        $attachDeadline=[DateTime]::UtcNow.AddSeconds(45)
+        while(-not(Test-Path -LiteralPath '__PROBE__\external-__RUN__.attached') -and [DateTime]::UtcNow -lt $attachDeadline){Start-Sleep -Milliseconds 20}
+        if(-not(Test-Path -LiteralPath '__PROBE__\external-__RUN__.attached')){throw 'External controller did not attach before direct calculation'}
+        for($rep=1;$rep -le __REPS__;$rep++){
+            foreach($condition in '__CASES_DIRECT__'.Split('|')){
+                $caseId=$condition+'/'+$rep
+                $artifact='__PROBE__\__PREFIX__'+$condition+'-'+$rep.ToString('00')+'.xlsm'
+                $created=[string]$excel.Run("'"+$workbook.Name+"'!OracleProbe.CreateOneCase",$caseId,$artifact)
+                $createdParts=$created.Split("`n",2)
+                $cloneName=$createdParts[0]
+                if($createdParts.Count -gt 1){$runValue += "`n"+$createdParts[1]}
+                $controlPath=[string]$excel.Run("'"+$cloneName+"'!OracleProbe.DirectControlPath")
+                $preflightDeadline=[DateTime]::UtcNow.AddSeconds(30)
+                while(-not(Test-Path -LiteralPath ($controlPath+'.ready')) -and [DateTime]::UtcNow -lt $preflightDeadline){Start-Sleep -Milliseconds 20}
+                if(-not(Test-Path -LiteralPath ($controlPath+'.ready'))){throw 'External control preflight did not finish before calculation'}
+                [void]$excel.Run("'"+$cloneName+"'!OracleProbe.BeginDirectCase")
+                $started=[Environment]::TickCount64
+                try{
+                    $excel.Calculate()
+                    $runValue += "`n"+$caseId+"`tdirect-com`tmethod-return`tduration-ms="+([Environment]::TickCount64-$started)
+                }catch{
+                    $runValue += "`n"+$caseId+"`tdirect-com`tmethod-error`t"+$_.Exception.Message
+                }
+                $runValue += "`n"+[string]$excel.Run("'"+$cloneName+"'!OracleProbe.CompleteDirectCase")
+                $excel.Workbooks.Item($cloneName).Close($false)
+            }
+        }
+
+'@
+$directHook=$directHook.Replace('__PROBE__',$probe.Replace("'","''")).Replace('__RUN__',$RunId.Replace("'","''")).Replace('__REPS__',[string]$Repetitions).Replace('__CASES_DIRECT__',$Cases.Replace("'","''")).Replace('__PREFIX__',$ArtifactPrefix.Replace("'","''"))
+$hookAt=$workerSource.IndexOf('        $guardianHealthy = $guardian -and -not $guardian.HasExited')
+if($hookAt -lt 0){throw 'Direct command insertion point absent'}
+$workerSource=$workerSource.Insert($hookAt,$directHook)
+}
+if($UIPause){
+$uiHook=@'
+        $uiRoot='__PROBE__'
+        $uiRun='__RUN__'
+        $uiOwner=$excel.Workbooks.Item('P07-ui-owned.xlsm')
+        @{pid=$excelPid;hwnd=[string]$excel.Hwnd;workbook=$uiOwner.Name}|ConvertTo-Json|Set-Content (Join-Path $uiRoot ('ui-ready-'+$uiRun+'.json'))
+        $uiLast=0
+        $uiDeadline=[DateTime]::UtcNow.AddSeconds(1500)
+        while(-not(Test-Path (Join-Path $uiRoot ('ui-stop-'+$uiRun))) -and [DateTime]::UtcNow -lt $uiDeadline){
+            $commandPath=Join-Path $uiRoot ('ui-command-'+$uiRun+'.json')
+            if(Test-Path $commandPath){
+                try {$command=Get-Content $commandPath -Raw|ConvertFrom-Json} catch [System.IO.IOException] {continue}
+                if([int]$command.seq -gt $uiLast){
+                    $uiLast=[int]$command.seq
+                    if($command.operation -eq 'arm'){$reply=[string]$excel.Run("'"+$uiOwner.Name+"'!OracleProbe.ArmUI",[string]$command.id,[double]$command.value,[int]$command.delay)}
+                    elseif($command.operation -eq 'collect'){$reply=[string]$excel.Run("'"+$uiOwner.Name+"'!OracleProbe.CollectUI",[string]$command.id);$runValue += "`n"+$reply}
+                    else {throw 'Unrecognized UI probe command'}
+                    @{seq=$uiLast;command=$command;reply=$reply;tick=[Environment]::TickCount64;utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Depth 5 -Compress|Add-Content (Join-Path $uiRoot ('ui-journal-'+$uiRun+'.jsonl'))
+                }
+            }
+            Start-Sleep -Milliseconds 50
+        }
+
+'@
+$uiHook=$uiHook.Replace('__PROBE__',$probe.Replace("'","''")).Replace('__RUN__',$RunId.Replace("'","''"))
+$hookAt=$workerSource.IndexOf('        $guardianHealthy = $guardian -and -not $guardian.HasExited')
+if($hookAt -lt 0){throw 'UI observation insertion point absent'}
+$workerSource=$workerSource.Insert($hookAt,$uiHook)
+}
 $guardianSource = Get-Content -Raw -LiteralPath (Join-Path $OxVbaRoot 'scripts/excel-vba-oracle-guardian.ps1')
 $guardianSource = $guardianSource.Replace('$PSScriptRoot', "'" + (Join-Path $OxVbaRoot 'scripts') + "'")
 $guardianAnchor = '            $observedProcessId = [int]$window.Current.ProcessId'
@@ -128,6 +200,11 @@ try {
     & (Join-Path $PSHOME 'pwsh.exe') @arguments
     $supervisorExit = $LASTEXITCODE
 }finally{
+    $evidenceSource=Join-Path $probe ('raw/'+$RunId+'/driver-source')
+    New-Item -ItemType Directory -Path $evidenceSource -Force|Out-Null
+    foreach($sourcePath in @($PSCommandPath,$common,$selectedSource,$module,$workerPath,$guardianPath,$scriptPath,(Join-Path $probe 'machine.json'),$native,(Join-Path $probe 'external-controller.ps1'))){
+        if(Test-Path -LiteralPath $sourcePath){Copy-Item -LiteralPath $sourcePath -Destination $evidenceSource -Force}
+    }
     if($helper){
         [IO.File]::WriteAllText((Join-Path $probe ("external-"+$RunId+'.stop')),'stop')
         if(-not $helper.WaitForExit(5000)){$helper.Kill();$helper.WaitForExit()}

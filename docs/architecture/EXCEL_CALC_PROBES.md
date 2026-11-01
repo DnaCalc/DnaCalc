@@ -179,7 +179,8 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   Active disabled sheet suppressed save calculation; activating S let S calculate while Disabled stayed stale.
   Stale disabled caches can lack ca/calcCompleted. Semiautomatic Save recalculated stale TABLE output even with
   false. Manual reopen kept ordinary caches; Automatic refreshed them, but could retain the unmarked disabled
-  cache. First-workbook open remains unmeasured. [Evidence and exact limits](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P06/README.md).
+  cache. P07's UI pending-async Save(false) supplement canceled work and saved held numeric caches despite a live
+  error. First-workbook open remains unmeasured. [Evidence and exact limits](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P06/README.md).
 
 ### P07 ★ Async identity, continuation and stale returns (E10; contract async sentinel)
 - **Setup.** Test XLL `AsyncEcho(input, latch)`: deep-copies arguments, keeps its handle, waits on a latch the
@@ -193,6 +194,14 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
 - **Outcome -> design.** Prefix not repeated: continuation is observable. A full new evaluation after an edit: new
   identity, not a retry. Old handle accepted in some state: relax SliceV1's revoke-on-any-edit for that state only.
   COM and UI lifecycle events differ: the supervisor never waits for an event the route does not raise.
+
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: normal COM/UI async returns do not repeat the prefix and
+  run the suffix after return. Ten UI Esc and ten overwrite+Undo trials cancel, then ignore the late value;
+  Undo restores formula text but does not isolate target generation from cancellation. Live Error2051 differs from
+  saved held numeric caches. Ten UI Save(false) trials also cancel and serialize new inputs plus held caches.
+  Native ended/canceled events distinguish UI from COM. In-flight registration replacement stalled; other COM
+  mutations must be read against native ticks, not assumed to happen at call entry.
+  [Evidence and limits](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P07/README.md).
 
 ### P08 ★ Observation order vs scheduling (E03; SYNTHESIS decision 13)
 - **Setup.** A long pure chain ending at B1; `PeekB1()` with no edge to B1; a second observer reading several

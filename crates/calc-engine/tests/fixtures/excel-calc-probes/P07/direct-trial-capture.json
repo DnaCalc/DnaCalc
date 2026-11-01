@@ -1,0 +1,30 @@
+{
+  "run_id": "P07-direct-trial-safe",
+  "supervisor_compile": "ok",
+  "supervisor_run": "ok",
+  "supervisor_cleanup": "owned-process-zero",
+  "supervisor_passed": false,
+  "explanation": "Descriptor expected_value is OBSERVATION_ONLY, so passed=false is expected; compile/run/cleanup and fault records must be inspected separately.",
+  "raw_sha256": "b4844ae99265eef07b232d5ae3ed3a63ddbdc2f971e5282a3023ec9c5cad2c2b",
+  "raw_lines": 172,
+  "artifacts": 15,
+  "faults": [],
+  "unrunnable": [],
+  "external_controller_events": {
+    "started": 1,
+    "attached": 1,
+    "native-entry-observed": 3,
+    "operation-started": 3,
+    "operation-returned": 3,
+    "latch-release": 3,
+    "stopped": 1
+  },
+  "external_controller_failures": [],
+  "rows_by_case": {
+    "normal/1": 1,
+    "": 18,
+    "reopened": 150,
+    "nested/1": 1,
+    "overwrite/1": 1
+  }
+}

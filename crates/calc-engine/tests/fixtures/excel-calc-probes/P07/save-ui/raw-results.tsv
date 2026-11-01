@@ -1,0 +1,891 @@
+ui/1	profile	stage	profile
+ui/1	profile	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui/1	profile	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui/1	profile	force-full-setting	False
+ui/1	profile	addin	ANALYS32.XLL;installed=False
+ui/1	profile	addin	ATPVBAEN.XLAM;installed=False
+ui/1	profile	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui/1	profile	addin	EUROTOOL.XLAM;installed=False
+ui/1	profile	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui/1	profile	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui/1	profile	addin	ExcelDna64.xll;installed=False
+ui/1	profile	addin	GENERIC.xll;installed=False
+ui/1	profile	addin	McpExcel-AddIn64.xll;installed=True
+ui/1	profile	addin	RibbonTest-AddIn64.xll;installed=False
+ui/1	profile	addin	SOLVER.XLAM;installed=False
+ui/1	profile	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui/1	profile	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui/1	profile	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui/1	profile	addin	TestDoc170-AddIn64.xll;installed=False
+ui/1	profile	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui/1	profile	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui/1	profile	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui/1	profile	event	BeforeSave;saveAsUI=False
+ui/1	profile	event	AfterSave;success=True
+ui/1	profile	event	AfterCalculate
+ui/1	profile	ui-setup	seed=vt=5;type=Double;value=41;bits=4044800000000000
+ui/1	artifact-save	stage	artifact-save
+ui/1	artifact-save	event	BeforeSave;saveAsUI=False
+ui/1	artifact-save	event	AfterSave;success=True
+ui/1	artifact-save	artifact	C:\Work\DnaCalc\DnaCalc-cfml\crates\calc-engine\tests\fixtures\excel-calc-probes\P07\save-ui\setup-ui-01.xlsm
+
+ui-save-01	ui-arm	stage	ui-arm
+ui-save-01	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-01	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-01	ui-arm	force-full-setting	False
+ui-save-01	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-01	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-01	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-01	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-01	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-01	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-01	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-01	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-01	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-01	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-01	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-01	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-01	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-01	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-01	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-01	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-01	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-01	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-01	ui-arm	cell	S!A1;vt=5;type=Double;value=201;bits=4069200000000000
+ui-save-01	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-01	ui-arm	cell	S!C1;vt=5;type=Double;value=41;bits=4044800000000000
+ui-save-01	ui-arm	cell	S!D1;vt=5;type=Double;value=42;bits=4045000000000000
+ui-save-01	ui-arm	pending-before-ui	0
+ui-save-01	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-01	ui-arm	event	AfterSave;success=True
+ui-save-01	ui-collect	stage	ui-collect
+ui-save-01	ui-collect	pending-after-ui	0
+ui-save-01	ui-collect	cell	S!A1;vt=5;type=Double;value=201;bits=4069200000000000
+ui-save-01	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-01	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-01	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-01	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=201;bits=4069200000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-02	ui-arm	stage	ui-arm
+ui-save-02	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-02	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-02	ui-arm	force-full-setting	False
+ui-save-02	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-02	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-02	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-02	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-02	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-02	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-02	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-02	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-02	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-02	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-02	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-02	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-02	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-02	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-02	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-02	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-02	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-02	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-02	ui-arm	cell	S!A1;vt=5;type=Double;value=202;bits=4069400000000000
+ui-save-02	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-02	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-02	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-02	ui-arm	pending-before-ui	0
+ui-save-02	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-02	ui-arm	event	AfterSave;success=True
+ui-save-02	ui-collect	stage	ui-collect
+ui-save-02	ui-collect	pending-after-ui	0
+ui-save-02	ui-collect	cell	S!A1;vt=5;type=Double;value=202;bits=4069400000000000
+ui-save-02	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-02	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-02	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-02	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=202;bits=4069400000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-03	ui-arm	stage	ui-arm
+ui-save-03	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-03	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-03	ui-arm	force-full-setting	False
+ui-save-03	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-03	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-03	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-03	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-03	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-03	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-03	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-03	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-03	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-03	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-03	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-03	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-03	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-03	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-03	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-03	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-03	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-03	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-03	ui-arm	cell	S!A1;vt=5;type=Double;value=203;bits=4069600000000000
+ui-save-03	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-03	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-03	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-03	ui-arm	pending-before-ui	0
+ui-save-03	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-03	ui-arm	event	AfterSave;success=True
+ui-save-03	ui-collect	stage	ui-collect
+ui-save-03	ui-collect	pending-after-ui	0
+ui-save-03	ui-collect	cell	S!A1;vt=5;type=Double;value=203;bits=4069600000000000
+ui-save-03	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-03	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-03	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-03	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=203;bits=4069600000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-04	ui-arm	stage	ui-arm
+ui-save-04	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-04	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-04	ui-arm	force-full-setting	False
+ui-save-04	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-04	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-04	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-04	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-04	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-04	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-04	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-04	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-04	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-04	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-04	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-04	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-04	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-04	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-04	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-04	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-04	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-04	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-04	ui-arm	cell	S!A1;vt=5;type=Double;value=204;bits=4069800000000000
+ui-save-04	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-04	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-04	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-04	ui-arm	pending-before-ui	0
+ui-save-04	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-04	ui-arm	event	AfterSave;success=True
+ui-save-04	ui-collect	stage	ui-collect
+ui-save-04	ui-collect	pending-after-ui	0
+ui-save-04	ui-collect	cell	S!A1;vt=5;type=Double;value=204;bits=4069800000000000
+ui-save-04	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-04	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-04	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-04	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=204;bits=4069800000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-05	ui-arm	stage	ui-arm
+ui-save-05	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-05	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-05	ui-arm	force-full-setting	False
+ui-save-05	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-05	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-05	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-05	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-05	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-05	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-05	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-05	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-05	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-05	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-05	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-05	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-05	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-05	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-05	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-05	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-05	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-05	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-05	ui-arm	cell	S!A1;vt=5;type=Double;value=205;bits=4069A00000000000
+ui-save-05	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-05	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-05	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-05	ui-arm	pending-before-ui	0
+ui-save-05	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-05	ui-arm	event	AfterSave;success=True
+ui-save-05	ui-collect	stage	ui-collect
+ui-save-05	ui-collect	pending-after-ui	0
+ui-save-05	ui-collect	cell	S!A1;vt=5;type=Double;value=205;bits=4069A00000000000
+ui-save-05	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-05	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-05	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-05	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=205;bits=4069A00000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-06	ui-arm	stage	ui-arm
+ui-save-06	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-06	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-06	ui-arm	force-full-setting	False
+ui-save-06	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-06	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-06	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-06	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-06	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-06	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-06	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-06	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-06	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-06	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-06	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-06	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-06	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-06	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-06	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-06	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-06	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-06	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-06	ui-arm	cell	S!A1;vt=5;type=Double;value=206;bits=4069C00000000000
+ui-save-06	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-06	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-06	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-06	ui-arm	pending-before-ui	0
+ui-save-06	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-06	ui-arm	event	AfterSave;success=True
+ui-save-06	ui-collect	stage	ui-collect
+ui-save-06	ui-collect	pending-after-ui	0
+ui-save-06	ui-collect	cell	S!A1;vt=5;type=Double;value=206;bits=4069C00000000000
+ui-save-06	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-06	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-06	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-06	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=206;bits=4069C00000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-07	ui-arm	stage	ui-arm
+ui-save-07	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-07	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-07	ui-arm	force-full-setting	False
+ui-save-07	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-07	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-07	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-07	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-07	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-07	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-07	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-07	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-07	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-07	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-07	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-07	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-07	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-07	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-07	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-07	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-07	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-07	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-07	ui-arm	cell	S!A1;vt=5;type=Double;value=207;bits=4069E00000000000
+ui-save-07	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-07	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-07	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-07	ui-arm	pending-before-ui	0
+ui-save-07	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-07	ui-arm	event	AfterSave;success=True
+ui-save-07	ui-collect	stage	ui-collect
+ui-save-07	ui-collect	pending-after-ui	0
+ui-save-07	ui-collect	cell	S!A1;vt=5;type=Double;value=207;bits=4069E00000000000
+ui-save-07	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-07	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-07	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-07	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=207;bits=4069E00000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-08	ui-arm	stage	ui-arm
+ui-save-08	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-08	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-08	ui-arm	force-full-setting	False
+ui-save-08	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-08	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-08	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-08	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-08	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-08	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-08	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-08	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-08	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-08	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-08	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-08	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-08	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-08	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-08	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-08	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-08	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-08	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-08	ui-arm	cell	S!A1;vt=5;type=Double;value=208;bits=406A000000000000
+ui-save-08	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-08	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-08	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-08	ui-arm	pending-before-ui	0
+ui-save-08	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-08	ui-arm	event	AfterSave;success=True
+ui-save-08	ui-collect	stage	ui-collect
+ui-save-08	ui-collect	pending-after-ui	0
+ui-save-08	ui-collect	cell	S!A1;vt=5;type=Double;value=208;bits=406A000000000000
+ui-save-08	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-08	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-08	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-08	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=208;bits=406A000000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-09	ui-arm	stage	ui-arm
+ui-save-09	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-09	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-09	ui-arm	force-full-setting	False
+ui-save-09	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-09	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-09	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-09	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-09	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-09	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-09	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-09	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-09	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-09	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-09	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-09	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-09	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-09	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-09	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-09	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-09	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-09	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-09	ui-arm	cell	S!A1;vt=5;type=Double;value=209;bits=406A200000000000
+ui-save-09	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-09	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-09	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-09	ui-arm	pending-before-ui	0
+ui-save-09	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-09	ui-arm	event	AfterSave;success=True
+ui-save-09	ui-collect	stage	ui-collect
+ui-save-09	ui-collect	pending-after-ui	0
+ui-save-09	ui-collect	cell	S!A1;vt=5;type=Double;value=209;bits=406A200000000000
+ui-save-09	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-09	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-09	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-09	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=209;bits=406A200000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-10	ui-arm	stage	ui-arm
+ui-save-10	ui-arm	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+ui-save-10	ui-arm	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+ui-save-10	ui-arm	force-full-setting	False
+ui-save-10	ui-arm	addin	ANALYS32.XLL;installed=False
+ui-save-10	ui-arm	addin	ATPVBAEN.XLAM;installed=False
+ui-save-10	ui-arm	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+ui-save-10	ui-arm	addin	EUROTOOL.XLAM;installed=False
+ui-save-10	ui-arm	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+ui-save-10	ui-arm	addin	ExcelDna.IntelliSense64.xll;installed=False
+ui-save-10	ui-arm	addin	ExcelDna64.xll;installed=False
+ui-save-10	ui-arm	addin	GENERIC.xll;installed=False
+ui-save-10	ui-arm	addin	McpExcel-AddIn64.xll;installed=True
+ui-save-10	ui-arm	addin	RibbonTest-AddIn64.xll;installed=False
+ui-save-10	ui-arm	addin	SOLVER.XLAM;installed=False
+ui-save-10	ui-arm	addin	Test160rc1Local-AddIn64.xll;installed=False
+ui-save-10	ui-arm	addin	TestCrashGuard-AddIn64.xll;installed=True
+ui-save-10	ui-arm	addin	TestCs170rc2-AddIn64.xll;installed=False
+ui-save-10	ui-arm	addin	TestDoc170-AddIn64.xll;installed=False
+ui-save-10	ui-arm	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+ui-save-10	ui-arm	addin	TestOpen16-AddIn64-packed.xll;installed=False
+ui-save-10	ui-arm	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+ui-save-10	ui-arm	cell	S!A1;vt=5;type=Double;value=210;bits=406A400000000000
+ui-save-10	ui-arm	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-10	ui-arm	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-10	ui-arm	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-10	ui-arm	pending-before-ui	0
+ui-save-10	ui-arm	event	BeforeSave;saveAsUI=False
+ui-save-10	ui-arm	event	AfterSave;success=True
+ui-save-10	ui-collect	stage	ui-collect
+ui-save-10	ui-collect	pending-after-ui	0
+ui-save-10	ui-collect	cell	S!A1;vt=5;type=Double;value=210;bits=406A400000000000
+ui-save-10	ui-collect	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+ui-save-10	ui-collect	cell	S!C1;vt=10;type=Error;value=Error 2051
+ui-save-10	ui-collect	cell	S!D1;vt=10;type=Error;value=Error 2051
+ui-save-10	ui-collect	native-records	8
+reopened	after-open	stage	after-open
+reopened	after-open	cell	S!A1;vt=5;type=Double;value=210;bits=406A400000000000
+reopened	after-open	cell	S!B1;vt=5;type=Double;value=12000;bits=40C7700000000000
+reopened	after-open	cell	S!C1;vt=10;type=Error;value=Error 2051
+reopened	after-open	cell	S!A2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!A5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!B5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!C5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E4;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E5;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E6;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E7;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!E8;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H1;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H2;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!G3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	cell	S!H3;vt=0;type=Empty;value=<Empty>
+reopened	after-open	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+reopened	after-open	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+reopened	after-open	force-full-setting	False
+reopened	after-open	addin	ANALYS32.XLL;installed=False
+reopened	after-open	addin	ATPVBAEN.XLAM;installed=False
+reopened	after-open	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+reopened	after-open	addin	EUROTOOL.XLAM;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+reopened	after-open	addin	ExcelDna.IntelliSense64.xll;installed=False
+reopened	after-open	addin	ExcelDna64.xll;installed=False
+reopened	after-open	addin	GENERIC.xll;installed=False
+reopened	after-open	addin	McpExcel-AddIn64.xll;installed=True
+reopened	after-open	addin	RibbonTest-AddIn64.xll;installed=False
+reopened	after-open	addin	SOLVER.XLAM;installed=False
+reopened	after-open	addin	Test160rc1Local-AddIn64.xll;installed=False
+reopened	after-open	addin	TestCrashGuard-AddIn64.xll;installed=True
+reopened	after-open	addin	TestCs170rc2-AddIn64.xll;installed=False
+reopened	after-open	addin	TestDoc170-AddIn64.xll;installed=False
+reopened	after-open	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+reopened	after-open	addin	TestOpen16-AddIn64-packed.xll;installed=False
+reopened	after-open	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed

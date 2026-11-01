@@ -186,6 +186,10 @@ Public Function ReadAfterOpen() As String
 End Function
 Public Function RunProbe() As String
     On Error GoTo Failed
+    If "__EXTERNAL_DIRECT__" = "1" Then
+        RunProbe = "direct-command supervisor ready"
+        Exit Function
+    End If
     Dim i As Long, ident As Variant, wb As Workbook, component As Object, src As String, result As String, all As String, output As String, n As Long
     Application.Calculation = xlCalculationManual
     Application.CalculateBeforeSave = False
@@ -212,6 +216,20 @@ Public Function RunProbe() As String
     Exit Function
 Failed:
     RunProbe = all & vbLf & "driver-fault:" & CStr(Err.Number) & ":" & Err.Description
+End Function
+Public Function CreateOneCase(ByVal ident As String, ByVal output As String) As String
+    Dim wb As Workbook, component As Object, src As String, ignored As String
+    src = ThisWorkbook.VBProject.VBComponents("OracleProbe").CodeModule.Lines(1, ThisWorkbook.VBProject.VBComponents("OracleProbe").CodeModule.CountOfLines)
+    Set wb = Application.Workbooks.Add(xlWBATWorksheet)
+    wb.VBProject.VBComponents("ThisWorkbook").CodeModule.AddFromString EventSource()
+    Set component = wb.VBProject.VBComponents.Add(2)
+    component.Name = "ProbeEvents"
+    component.CodeModule.AddFromString "Public WithEvents XL As Application" & vbCrLf & "Private Sub XL_AfterCalculate()" & vbCrLf & "OracleProbe.Note ""event"", ""AfterCalculate""" & vbCrLf & "End Sub"
+    Set component = wb.VBProject.VBComponents.Add(1)
+    component.Name = "OracleProbe"
+    component.CodeModule.AddFromString Replace(src, "'__START_EVENT_SINK__", "Set eventSink = New ProbeEvents")
+    ignored = Application.Run("'" & wb.Name & "'!OracleProbe.RunCase", ident, output)
+    CreateOneCase = wb.Name & vbLf & ignored
 End Function
 Private Function SelectedCaseIds() As String
     SelectedCaseIds = "__CASES__"

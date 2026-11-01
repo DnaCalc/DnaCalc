@@ -1,0 +1,179 @@
+[
+  {
+    "case_id": "normal/1",
+    "fixture_hash": "sha256:4cd74ebbaedb60cc59d7e871a1c6549fd8ccc75adb9a6766351f3654acd05f2d",
+    "fixture_reference": "supervisor-raw.zip: raw/P07-trial-1-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        1,
+        23,
+        25,
+        31,
+        34,
+        46
+      ]
+    },
+    "accepted_initial_observations": [],
+    "tested_operation": [
+      {
+        "line": 32,
+        "stage": "tested-calculation"
+      }
+    ],
+    "live_observations": [
+      27,
+      28,
+      29,
+      30,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      26,
+      47,
+      48
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "normal-01-after.xlsx",
+        "sha256": "b5a66c0864b7f8d17ab9c1561d1073cedd2dc7c61415a6fa2ef908ac364fc299"
+      },
+      {
+        "file": "normal-01-target.xlsx",
+        "sha256": "94a9a76d6d2aa75f6433bf1e13849c013afc290186bef8e385fb43cf5ffbad0e"
+      },
+      {
+        "file": "normal-01.xlsm",
+        "sha256": "29c06ed91b746ac26e15c8dc0b0146088e51d7a038884e4d93d83ed7489aebfc"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "nested/1",
+    "fixture_hash": "sha256:4cd74ebbaedb60cc59d7e871a1c6549fd8ccc75adb9a6766351f3654acd05f2d",
+    "fixture_reference": "supervisor-raw.zip: raw/P07-trial-1-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        50,
+        72,
+        74,
+        80,
+        83,
+        95
+      ]
+    },
+    "accepted_initial_observations": [],
+    "tested_operation": [
+      {
+        "line": 81,
+        "stage": "tested-calculation"
+      }
+    ],
+    "live_observations": [
+      76,
+      77,
+      78,
+      79,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      75,
+      96,
+      97
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "nested-01-after.xlsx",
+        "sha256": "88259c4be9e1032736091765c58233eb95d3f97bba2946b4dabb2f2a700fe159"
+      },
+      {
+        "file": "nested-01-target.xlsx",
+        "sha256": "c79629441f19565581cd155b2567a48b8fad82f02ffe5564a3be402c175c0fd7"
+      },
+      {
+        "file": "nested-01.xlsm",
+        "sha256": "c5c2302e6db7471b23f0292364707d4fd7288ce0304e5556026f1b6bc31b5f50"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "overwrite/1",
+    "fixture_hash": "sha256:4cd74ebbaedb60cc59d7e871a1c6549fd8ccc75adb9a6766351f3654acd05f2d",
+    "fixture_reference": "supervisor-raw.zip: raw/P07-trial-1-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        99,
+        121,
+        123,
+        129,
+        132,
+        144
+      ]
+    },
+    "accepted_initial_observations": [],
+    "tested_operation": [
+      {
+        "line": 130,
+        "stage": "tested-calculation"
+      }
+    ],
+    "live_observations": [
+      125,
+      126,
+      127,
+      128,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      124,
+      145,
+      146
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "overwrite-01-after.xlsx",
+        "sha256": "d3ede262fe3bc0b4e1b3e655f350723f4038eff05319163b32234d70a379bd43"
+      },
+      {
+        "file": "overwrite-01-target.xlsx",
+        "sha256": "aa865a4fa86c5c87849dc989ebe66a1cf23acc798199c66842a551add822dd2a"
+      },
+      {
+        "file": "overwrite-01.xlsm",
+        "sha256": "6da68621e4cc4424b59e64ff65e27cf85925bc191ed43ec299e9fe5dcf685beb"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  }
+]

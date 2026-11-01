@@ -1,0 +1,962 @@
+[
+  {
+    "file": "ui-save-01-native.tsv",
+    "sha256": "ffedb9d4e30cc9bf3387e3c4a4ba14d0ae5e7b4318d10e4cbbfe4e6b1071c5ff",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "41796",
+      "47324"
+    ],
+    "handles": [
+      "0000000000000003"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1291995937",
+        "status": "0",
+        "type": "1",
+        "value": "201"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "3",
+        "tick": "1291995937",
+        "status": "1000000003",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "3",
+        "tick": "1291995937",
+        "status": "0",
+        "type": "1",
+        "value": "201"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "3",
+        "tick": "1291995937",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1291999281",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1291999296",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "3",
+        "tick": "1292007937",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "3",
+        "tick": "1292007937",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-02-native.tsv",
+    "sha256": "0f1f28dfa270a0544cfd36e3f4c93306c88318a293d43e678a2616cd165dd3b4",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "44832",
+      "47324"
+    ],
+    "handles": [
+      "0000000000000004"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292037109",
+        "status": "0",
+        "type": "1",
+        "value": "202"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "4",
+        "tick": "1292037109",
+        "status": "1000000004",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "4",
+        "tick": "1292037109",
+        "status": "0",
+        "type": "1",
+        "value": "202"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "4",
+        "tick": "1292037109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292040406",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292040421",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "4",
+        "tick": "1292049125",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "4",
+        "tick": "1292049125",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-03-native.tsv",
+    "sha256": "4ff1b8324d7d09e51db9eb6e28526931c3fc188e8f4357eebc4390f53093330b",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "26796",
+      "47324"
+    ],
+    "handles": [
+      "0000000000000005"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292053453",
+        "status": "0",
+        "type": "1",
+        "value": "203"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "5",
+        "tick": "1292053453",
+        "status": "1000000005",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "5",
+        "tick": "1292053453",
+        "status": "0",
+        "type": "1",
+        "value": "203"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "5",
+        "tick": "1292053453",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292056796",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292056812",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "5",
+        "tick": "1292065468",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "5",
+        "tick": "1292065468",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-04-native.tsv",
+    "sha256": "476b807c6bffff7feca77c8322eab432e2fc6cf2c1317c027a240cc003e239a5",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "40848",
+      "47324"
+    ],
+    "handles": [
+      "0000000000000006"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292069640",
+        "status": "0",
+        "type": "1",
+        "value": "204"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "6",
+        "tick": "1292069640",
+        "status": "1000000006",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "6",
+        "tick": "1292069640",
+        "status": "0",
+        "type": "1",
+        "value": "204"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "6",
+        "tick": "1292069640",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292072953",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292072968",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "6",
+        "tick": "1292081656",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "6",
+        "tick": "1292081656",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-05-native.tsv",
+    "sha256": "04cb6e3d4d3395de45d2bf51e14a4d20f3674c2d2b6e2065d31d20b104051ecc",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "47324",
+      "52232"
+    ],
+    "handles": [
+      "0000000000000007"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292103984",
+        "status": "0",
+        "type": "1",
+        "value": "205"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "7",
+        "tick": "1292103984",
+        "status": "1000000007",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "7",
+        "tick": "1292103984",
+        "status": "0",
+        "type": "1",
+        "value": "205"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "7",
+        "tick": "1292103984",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292107421",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292107437",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "7",
+        "tick": "1292116000",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "7",
+        "tick": "1292116000",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-06-native.tsv",
+    "sha256": "9f1c2ea8755da7a1956c2a734cc8b71487c3464eadd10cb515aa4a5a1ec1778f",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "42452",
+      "47324"
+    ],
+    "handles": [
+      "0000000000000008"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292120421",
+        "status": "0",
+        "type": "1",
+        "value": "206"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "8",
+        "tick": "1292120421",
+        "status": "1000000008",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "8",
+        "tick": "1292120421",
+        "status": "0",
+        "type": "1",
+        "value": "206"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "8",
+        "tick": "1292120421",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292123734",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292123765",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "8",
+        "tick": "1292132437",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "8",
+        "tick": "1292132437",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-07-native.tsv",
+    "sha256": "f365c8a0d83a2d820631a01b0dd189f81bde6cf6038eee6420be955cebbd4131",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "34544",
+      "47324"
+    ],
+    "handles": [
+      "0000000000000009"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292136890",
+        "status": "0",
+        "type": "1",
+        "value": "207"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "9",
+        "tick": "1292136890",
+        "status": "1000000009",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "9",
+        "tick": "1292136890",
+        "status": "0",
+        "type": "1",
+        "value": "207"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "9",
+        "tick": "1292136890",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292140218",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292140234",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "9",
+        "tick": "1292148906",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "9",
+        "tick": "1292148906",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-08-native.tsv",
+    "sha256": "d2de508f79502454db2c424bf42073b9df4c59a91b115822a7ddb6a04cec0f8e",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "47324",
+      "57288"
+    ],
+    "handles": [
+      "000000000000000A"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292159718",
+        "status": "0",
+        "type": "1",
+        "value": "208"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "10",
+        "tick": "1292159718",
+        "status": "1000000010",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "10",
+        "tick": "1292159718",
+        "status": "0",
+        "type": "1",
+        "value": "208"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "10",
+        "tick": "1292159718",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292163140",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292163156",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "10",
+        "tick": "1292171718",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "10",
+        "tick": "1292171718",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-09-native.tsv",
+    "sha256": "6bf8308404b6ac5f10b9c5ed0c47d2002a079ead5a0c09fc5d0c81ddd7b77073",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "14152",
+      "47324"
+    ],
+    "handles": [
+      "000000000000000B"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292176078",
+        "status": "0",
+        "type": "1",
+        "value": "209"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "11",
+        "tick": "1292176078",
+        "status": "1000000011",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "11",
+        "tick": "1292176078",
+        "status": "0",
+        "type": "1",
+        "value": "209"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "11",
+        "tick": "1292176078",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292179296",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292179312",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "11",
+        "tick": "1292188093",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "11",
+        "tick": "1292188093",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "ui-save-10-native.tsv",
+    "sha256": "ffb92cd7a0bdacdda60f390db9acbcc9b1c368cd3089643fb828a27ccc376359",
+    "records": 8,
+    "kinds": {
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "51": 1,
+      "50": 1,
+      "22": 1,
+      "23": 1
+    },
+    "threads": [
+      "47324",
+      "51560"
+    ],
+    "handles": [
+      "000000000000000C"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292192078",
+        "status": "0",
+        "type": "1",
+        "value": "210"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "12",
+        "tick": "1292192078",
+        "status": "1000000012",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "12",
+        "tick": "1292192078",
+        "status": "0",
+        "type": "1",
+        "value": "210"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "12",
+        "tick": "1292192078",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "51",
+        "site": "0",
+        "tick": "1292195421",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "50",
+        "site": "0",
+        "tick": "1292195437",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "22",
+        "site": "12",
+        "tick": "1292204093",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "23",
+        "site": "12",
+        "tick": "1292204093",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  }
+]

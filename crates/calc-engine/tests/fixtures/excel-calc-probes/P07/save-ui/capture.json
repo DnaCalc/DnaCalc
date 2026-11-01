@@ -1,0 +1,30 @@
+{
+  "run_id": "P07-save-ui-safe",
+  "supervisor_compile": "ok",
+  "supervisor_run": "ok",
+  "supervisor_cleanup": "owned-process-zero",
+  "supervisor_passed": false,
+  "supervisor_transport_error": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+  "explanation": "Descriptor expected_value is OBSERVATION_ONLY, so passed=false is expected; compile/run/cleanup and fault records must be inspected separately.",
+  "raw_sha256": "1a39fef9cdfd37b3c2629123892345af64af4120191fa4ff80f2da668e249f5a",
+  "raw_lines": 891,
+  "artifacts": 22,
+  "faults": [],
+  "unrunnable": [],
+  "external_controller_events": {},
+  "external_controller_failures": [],
+  "rows_by_case": {
+    "ui/1": 30,
+    "ui-save-01": 36,
+    "reopened": 500,
+    "ui-save-02": 36,
+    "ui-save-03": 36,
+    "ui-save-04": 36,
+    "ui-save-05": 36,
+    "ui-save-06": 36,
+    "ui-save-07": 36,
+    "ui-save-08": 36,
+    "ui-save-09": 36,
+    "ui-save-10": 36
+  }
+}

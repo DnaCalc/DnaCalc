@@ -1,0 +1,5 @@
+{"event":"started","utc":"2026-11-01T00:42:51.9356017Z","helper_pid":51072}
+{"event":"attached","excel_pid":45768,"tick":1289809937}
+{"event":"preflight","excel_pid":45768,"tick":1289813343,"operation":"normal","values":[42.0,9783112.0,44.0]}
+{"event":"controller-fault","message":"Expected native async entry was not observed","file":"external-control-P07-direct-trial2-safe-45768-9783112.txt","tick":1289821375}
+{"event":"stopped","utc":"2026-11-01T00:43:12.8680475Z","helper_pid":51072}

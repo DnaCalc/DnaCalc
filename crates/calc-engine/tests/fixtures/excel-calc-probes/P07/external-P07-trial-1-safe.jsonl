@@ -1,0 +1,5 @@
+{"helper_pid":52800,"event":"started","utc":"2026-11-01T00:28:01.8523742Z"}
+{"message":"Owned process start differs","event":"controller-fault","tick":1288921859,"file":"external-control-P07-trial-1-safe-36680-8892182.txt"}
+{"message":"Owned process start differs","event":"controller-fault","tick":1288929734,"file":"external-control-P07-trial-1-safe-36680-8900175.txt"}
+{"message":"Owned process start differs","event":"controller-fault","tick":1288937562,"file":"external-control-P07-trial-1-safe-36680-8908023.txt"}
+{"helper_pid":52800,"event":"stopped","utc":"2026-11-01T00:28:38.6150558Z"}

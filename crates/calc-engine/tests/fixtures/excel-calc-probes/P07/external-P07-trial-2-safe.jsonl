@@ -1,0 +1,9 @@
+{"event":"started","helper_pid":16772,"utc":"2026-11-01T00:29:54.4158621Z"}
+{"event":"operation-unavailable","partial_step_completed":false,"attempts":1,"operation":"normal","may_have_mutated":true,"tick":1289064265,"failure":"Invalid index. (0x8002000B (DISP_E_BADINDEX))"}
+{"event":"latch-release","detail":"Local\\DnaCalcProbe-19164-9004745;opened=True;tick=1289064296;utc=2026-11-01T00:30:35.7673160Z","operation":"normal"}
+{"event":"operation-unavailable","partial_step_completed":false,"attempts":1,"operation":"normal","may_have_mutated":true,"tick":1289073812,"failure":"You cannot call a method on a null-valued expression."}
+{"event":"latch-release","detail":"Local\\DnaCalcProbe-19164-9024629;opened=True;tick=1289065531;utc=2026-11-01T00:30:36.9970752Z","operation":"normal"}
+{"event":"operation-started","excel_pid":19164,"calculation_state_before":2,"operation":"overwrite","tick":1289080500,"attempt":1}
+{"event":"operation-unavailable","partial_step_completed":false,"attempts":1,"operation":"overwrite","may_have_mutated":true,"tick":1289092031,"failure":"0x800A01A8"}
+{"event":"latch-release","detail":"Local\\DnaCalcProbe-19164-9044454;opened=True;tick=1289080156;utc=2026-11-01T00:30:51.6244353Z","operation":"overwrite"}
+{"event":"stopped","helper_pid":16772,"utc":"2026-11-01T00:31:07.9959598Z"}

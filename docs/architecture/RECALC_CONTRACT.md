@@ -213,6 +213,16 @@ conflicting ones are protocol violations. SliceV1 revokes live tokens on any liv
 undo, close/reopen, provider reload, cancel or supersession (conservative; P07 may relax it). A `PinnedSave` token
 survives unrelated live edits. RTD updates and link refreshes are input events for later demand, never returns.
 
+**P07 measured (O, 20527 safe mode).** Normal COM/UI completion has one prefix entry and a suffix after the
+native return; this supports the observable no-prefix-repeat requirement, not a claim about Excel's internal
+frame representation. Native ended/canceled events occur on the UI route, not the tested COM route. Ten UI Esc
+and ten overwrite+Undo trials canceled before the provider returned: no suffix or value installation followed.
+Undo restored identical formula text but editing also canceled calculation, so generation and cancellation are
+not isolated. A zero native return status supplied no Boolean acknowledgement (output type zero); installation
+must be measured separately. COM mutation entry time alone does not prove an edit happened before completion.
+The registration-replacement attempt stalled; retain conservative identity checks for unresolved conditions.
+See `calc-engine/tests/fixtures/excel-calc-probes/P07/README.md`.
+
 ## 4. Reads and freshness
 
 `RequirementState { value_version, required, satisfied }`: locally clean iff `satisfied == required`; every
@@ -337,6 +347,11 @@ ordering. A matching profile needs a typed provisional evaluation rather than me
   PinnedSave-only isolation/destination rule above remains a DNA strategy; it does not by itself describe Excel's
   observed live cache updates. A public Excel command profile must account for those updates without duplicating
   effectful evaluations. Pending-async waiting and concurrent-edit pinning remain separate measurements.
+- P07 adds a measured UI Manual Save(false) case: Ctrl+S canceled the pending async calculation in ten trials.
+  Live C1/D1 became Error2051, but both the immediate saved file and a later SaveCopyAs kept the last successful
+  numeric caches 41/42 with the edited input 201..210, ca=1 and calcCompleted=0. A permitted persistent cache
+  can therefore differ from the live error display; retain its historical origin and unmet requirement. This
+  does not establish non-canceling save of a pending continuation, Save(true) waiting, or concurrent-edit pinning.
 - Reopen imports `<v>` as `UnverifiedFromFile` with a new incarnation; no command, certificate or effect resumes.
 
 ## 9. Scheduling and finite work
@@ -435,8 +450,8 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 | Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | P03 confirms status-64 unwind/re-entry for ordinary/$, successful # coercion, and provisional VBA values; preserve typed reasons and registration capabilities. Null not observed | P03 (O, 20527 safe mode) |
 | Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | P04 confirms reuse/occurrence boundaries and eight calls before #SPILL! for the measured volatile SEQUENCE sizing path; held footprint and repeated size determine earlier completion. Global graph-wave count remains open | P04 (O, 20527 safe mode) |
 | Spill conflict winner, stale-footprint clearing, child-only calculation | P05 confirms cached absence, shrink clearing and no scope expansion from an existing child; reader-first callbacks see 1 then 11. Conflict winners vary; strict wait/semantic reservation remain DNA policies | P05 (O, 20527 safe mode) |
-| Save scope, stale `<v>` with Save(false), open-time recalculation | P06 selects Manual preserve, domain-wide live updates for ordinary true, handler-before-pin order, active-disabled and TABLE exceptions; first-workbook and concurrent/async pinning remain open | P06 (O, 20527 safe mode) |
-| Stale async returns Excel accepts; overlap of calls from one cell | revoke on any live edit | P07 |
+| Save scope, stale `<v>` with Save(false), open-time recalculation | P06 selects Manual preserve, domain-wide live updates for ordinary true, handler-before-pin order, active-disabled and TABLE exceptions. P07 UI false cancels pending work and saves held numeric caches despite a live error; first-workbook, true with async, and concurrent pinning remain open | P06/P07 (O, 20527 safe mode) |
+| Stale async returns Excel accepts; overlap of calls from one cell | P07 confirms no repeated prefix and no late installation after UI cancel/overwrite+Undo; Undo is confounded by cancellation. COM overlap and real provider replacement remain open; keep conservative revocation | P07 (O, 20527 safe mode) |
 | Whether Excel's observable intermediate caches depend on chain history or position | serial fences | P08 |
 | Formula vs Formula2 through every ingress | dialect in the semantic key | P09 |
 | Module/provider reload and stored Range across edits | old authority revoked; revision-qualified handles | P10 |
