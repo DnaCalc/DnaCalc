@@ -1,0 +1,836 @@
+[
+  {
+    "case_id": "insert-above/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        1,
+        23,
+        26,
+        64,
+        84,
+        106
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 27,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 28,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 29,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 30,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 45,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      27,
+      28,
+      29,
+      30,
+      61,
+      62,
+      63,
+      81,
+      82,
+      83,
+      103,
+      104,
+      105
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      24,
+      25,
+      65,
+      107,
+      108
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-insert-above-01-owner-after.xlsx",
+        "sha256": "d0cd97183b5294253c909479e9f4fcae0d2726da7ecb9480cbab1801c7f3264a"
+      },
+      {
+        "file": "details-insert-above-01-owner.xlsx",
+        "sha256": "24ff5e9f06f42c518f1012ed2ce78e5ed6cc62643581d616efdbcffcc72074a1"
+      },
+      {
+        "file": "details-insert-above-01-provider-after.xlam",
+        "sha256": "9d5cb36bae76a32bb0e22b4dab5fbb0bba52548368ccadf355fa8f215a806cd4"
+      },
+      {
+        "file": "details-insert-above-01-provider.xlam",
+        "sha256": "95af4c8f40a06fdb5acd90b544d7aeea202a4f796ebad897cf7de7c6b8854ee7"
+      },
+      {
+        "file": "details-insert-above-01.xlsm",
+        "sha256": "e3aa9ecdc8fc1d4907adae2746b77af391e458b34fe36b276f1bff90e6e8145f"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "delete-above/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        110,
+        132,
+        135,
+        173,
+        193,
+        215
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 136,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 137,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 138,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 139,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 154,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      136,
+      137,
+      138,
+      139,
+      170,
+      171,
+      172,
+      190,
+      191,
+      192,
+      212,
+      213,
+      214
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      133,
+      134,
+      174,
+      216,
+      217
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-delete-above-01-owner-after.xlsx",
+        "sha256": "0c86aef96d6a3d6b2dcaac1787a94a11261b3fe013cb5eae213201c1f70f72f7"
+      },
+      {
+        "file": "details-delete-above-01-owner.xlsx",
+        "sha256": "7063c8b07fa393eec7bc2ab6dab255293ba2449a653cf9a5d3ae5277b9b7b9a1"
+      },
+      {
+        "file": "details-delete-above-01-provider-after.xlam",
+        "sha256": "2dbe9dcedbc7a7a7c8d05b26ca7f3f9ab403cee398e4401cad443aaf7584e033"
+      },
+      {
+        "file": "details-delete-above-01-provider.xlam",
+        "sha256": "b0c48c27da079275d0e28562ae80d07b23863a8b6a71dc89d9977d39d6f60de0"
+      },
+      {
+        "file": "details-delete-above-01.xlsm",
+        "sha256": "5949183e38de6f960e616b3d9b4f1c1167a3454290555671408a46caa2043361"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "cut-move/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        219,
+        241,
+        244,
+        282,
+        302,
+        324
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 245,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 246,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 247,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 248,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 263,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      245,
+      246,
+      247,
+      248,
+      279,
+      280,
+      281,
+      299,
+      300,
+      301,
+      321,
+      322,
+      323
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      242,
+      243,
+      283,
+      325,
+      326
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-cut-move-01-owner-after.xlsx",
+        "sha256": "e7f33a97dc7af5c2852641664e6987623e30c6dc0e79ee7a8fe4311b2ede26f3"
+      },
+      {
+        "file": "details-cut-move-01-owner.xlsx",
+        "sha256": "c5224a8cb43a0969066886515945dc0ea8628a9af6f0ed96cc4b424742d0c660"
+      },
+      {
+        "file": "details-cut-move-01-provider-after.xlam",
+        "sha256": "0893e468c67e189418648e9cad60c1e8ea75972985b082343144651d6b358393"
+      },
+      {
+        "file": "details-cut-move-01-provider.xlam",
+        "sha256": "7c7878c9ca33a99d31c2ab4b982d11431458bf66877b5ca7a6ecb87afe3d68d9"
+      },
+      {
+        "file": "details-cut-move-01.xlsm",
+        "sha256": "583b55297ff1d2c4c5851943289cfd93fd7a9e664d3b54cde6d25f76528dddbf"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "delete-held/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        328,
+        350,
+        353,
+        391,
+        410,
+        431
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 354,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 355,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 356,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 357,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 372,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      354,
+      355,
+      356,
+      357,
+      388,
+      389,
+      390,
+      407,
+      408,
+      409,
+      428,
+      429,
+      430
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      351,
+      352,
+      392,
+      432,
+      433
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-delete-held-01-owner-after.xlsx",
+        "sha256": "4580d21b8b7f5c1c9082818f09f7e5736f7d37ef1ef51e2c310475c4b58c5e2d"
+      },
+      {
+        "file": "details-delete-held-01-owner.xlsx",
+        "sha256": "db6e281a70b50929a46dda4f8c6dfdf298b350290d91321d143c6dc2c93da3a1"
+      },
+      {
+        "file": "details-delete-held-01-provider-after.xlam",
+        "sha256": "48de4d63238b186a1ce6f384f03d21600031696986936dc5c5d969154647d9fb"
+      },
+      {
+        "file": "details-delete-held-01-provider.xlam",
+        "sha256": "f6928441506a4984ee7cb577a13047abd9ad878ef0ba48f2474d8e09c1926091"
+      },
+      {
+        "file": "details-delete-held-01.xlsm",
+        "sha256": "b11873f9b9f3cf955e1df58794a5e5f311f7761fd54fb2f45f8b465c6c263409"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "multi-area-insert/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        435,
+        457,
+        460,
+        498,
+        518,
+        540
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 461,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 462,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 463,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 464,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 479,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      461,
+      462,
+      463,
+      464,
+      495,
+      496,
+      497,
+      515,
+      516,
+      517,
+      537,
+      538,
+      539
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      458,
+      459,
+      499,
+      541,
+      542
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-multi-area-insert-01-owner-after.xlsx",
+        "sha256": "4416b1a39774f926de8e33621cf055831f2b9450b7a3fc0046f271d7383cdf49"
+      },
+      {
+        "file": "details-multi-area-insert-01-owner.xlsx",
+        "sha256": "662648e1e101886faf00d2846992477c9b7bf7acbc53e86a3e84f5e299de4e5e"
+      },
+      {
+        "file": "details-multi-area-insert-01-provider-after.xlam",
+        "sha256": "f1035206a7cf6710786b74a359ce059dc66f4d03100c169082a083bc452a13ca"
+      },
+      {
+        "file": "details-multi-area-insert-01-provider.xlam",
+        "sha256": "c7b661e7f6da16475b799c1b7b437cbfff16faf8ef3e34bb382b89760cb566ca"
+      },
+      {
+        "file": "details-multi-area-insert-01.xlsm",
+        "sha256": "cfb5d8f2dc4ada00136c43bd05fc49ddc999529f80c466bef7de31ecc86a97fa"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "switch-active/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        544,
+        566,
+        569,
+        607,
+        626,
+        647
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 570,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 571,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 572,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 573,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 588,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      570,
+      571,
+      572,
+      573,
+      604,
+      605,
+      606,
+      623,
+      624,
+      625,
+      644,
+      645,
+      646
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      567,
+      568,
+      608,
+      648,
+      649
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-switch-active-01-owner-after.xlsx",
+        "sha256": "7883cd840533fe9060ee8391cb3279036beb342c10c5ebf15ff802b55e01ef7c"
+      },
+      {
+        "file": "details-switch-active-01-owner.xlsx",
+        "sha256": "2237f85c7b87ae57f018dc8e84c8951bc5dc976f528c5392d09bb54a3bd9a0cb"
+      },
+      {
+        "file": "details-switch-active-01-provider-after.xlam",
+        "sha256": "46e788ee4e1584d117a6a759e8e753ba33743bd93f0a4c41424160b02ab890cf"
+      },
+      {
+        "file": "details-switch-active-01-provider.xlam",
+        "sha256": "7849957b7b863c4e1aa74e3acce79a30ec871537f705cb0f261f561b06712ce9"
+      },
+      {
+        "file": "details-switch-active-01.xlsm",
+        "sha256": "2ed370e32a58b0dd14bf9d6c5dd519763b04b2713db9352ffc44a243243318d5"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "close-owner/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        651,
+        673,
+        676,
+        714,
+        733,
+        754
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 677,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 678,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 679,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 680,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 695,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      677,
+      678,
+      679,
+      680,
+      711,
+      712,
+      713,
+      730,
+      731,
+      732,
+      751,
+      752,
+      753
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      674,
+      675,
+      715,
+      755,
+      756
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-close-owner-01-owner.xlsx",
+        "sha256": "8061fe1351bb03898bcbcd68ff3af79c6a815094adb01aa8a2676a2904083094"
+      },
+      {
+        "file": "details-close-owner-01-provider-after.xlam",
+        "sha256": "00720a21a641de9eeab6e0a3091c174e54a7508f66e63a31a14647b047a41aaa"
+      },
+      {
+        "file": "details-close-owner-01-provider.xlam",
+        "sha256": "858d26e226dc5a0fb0ffc2e0bc07245a7cdb05d6bb3bc73c1523572a1fcd2588"
+      },
+      {
+        "file": "details-close-owner-01.xlsm",
+        "sha256": "c926396eafe02b2a8a7b2b985a30807f40d35698620d85e142f7673d8d289ed8"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "close-reopen-owner/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        758,
+        780,
+        783,
+        821,
+        841,
+        863
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 784,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 785,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 786,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 787,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 802,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      784,
+      785,
+      786,
+      787,
+      818,
+      819,
+      820,
+      838,
+      839,
+      840,
+      860,
+      861,
+      862
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      781,
+      782,
+      822,
+      864,
+      865
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-close-reopen-owner-01-owner-after.xlsx",
+        "sha256": "91c305f0d24edc787f61fbd57507e1f89b17c9de00d4b416cf757ffa00c12604"
+      },
+      {
+        "file": "details-close-reopen-owner-01-owner.xlsx",
+        "sha256": "09a3f74529734a12b6caa753f81e5bdb062992d1c2cfe6bb4573dd27abb1355d"
+      },
+      {
+        "file": "details-close-reopen-owner-01-provider-after.xlam",
+        "sha256": "92b7fba1ef8da4db4b4a00de54973c611d0ad0b18852dd5a36d38606c1a918a6"
+      },
+      {
+        "file": "details-close-reopen-owner-01-provider.xlam",
+        "sha256": "01831ccf549bd57557ed9daf86a391a1cdc4944b505ba20e959be57c144056a5"
+      },
+      {
+        "file": "details-close-reopen-owner-01.xlsm",
+        "sha256": "d0981f6e34c211b2e45732074a189e1484c65369d5b02fefc2b8f80b32c8210c"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  },
+  {
+    "case_id": "module-reload/1",
+    "fixture_hash": "sha256:38be855ac2aacde0c17c6d2b5c82763a1894fd0db8b71fccfbf055b728f262db",
+    "fixture_reference": "supervisor-raw.zip: raw/P10-properties-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        867,
+        889,
+        892,
+        920,
+        932,
+        945
+      ]
+    },
+    "accepted_initial_observations": [
+      {
+        "line": 893,
+        "stage": "accepted-seed",
+        "value": "S!A1;vt=5;type=Double;value=5;bits=4014000000000000"
+      },
+      {
+        "line": 894,
+        "stage": "accepted-seed",
+        "value": "S!C1;vt=5;type=Double;value=42;bits=4045000000000000"
+      },
+      {
+        "line": 895,
+        "stage": "accepted-seed",
+        "value": "S!F1;vt=5;type=Double;value=10;bits=4024000000000000"
+      },
+      {
+        "line": 896,
+        "stage": "accepted-seed",
+        "value": "S!G1;vt=5;type=Double;value=3;bits=4008000000000000"
+      }
+    ],
+    "tested_operation": [
+      {
+        "line": 911,
+        "stage": "tested-operation"
+      }
+    ],
+    "live_observations": [
+      893,
+      894,
+      895,
+      896,
+      917,
+      918,
+      919,
+      929,
+      930,
+      931,
+      942,
+      943,
+      944
+    ],
+    "callback_trace": [],
+    "event_trace": [
+      890,
+      891,
+      921,
+      922,
+      946,
+      947
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "details-module-reload-01-owner-after.xlsx",
+        "sha256": "987bce5753c39b5ac71437e78f4b99674695b1501ebce02d31aa11bd70a81062"
+      },
+      {
+        "file": "details-module-reload-01-owner.xlsx",
+        "sha256": "5b58258b04bf2dbfdf6ff0a8c94e7947e567dec302719f3c512577db9f8783f0"
+      },
+      {
+        "file": "details-module-reload-01-provider-after.xlam",
+        "sha256": "ea977342f96d0ddf441f96e1e82c109f4eda165dbe46afad17599de3ad54de4a"
+      },
+      {
+        "file": "details-module-reload-01-provider.xlam",
+        "sha256": "04452a70733e5a156a91ec03f8965a843a090dadced1679a63d84e44d7ee597a"
+      },
+      {
+        "file": "details-module-reload-01.xlsm",
+        "sha256": "d1ad5da5146b52adc1d05558e5d1bd5c0289517142d0ef70d106d5dd48f222f9"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  }
+]
