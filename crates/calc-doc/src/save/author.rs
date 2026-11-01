@@ -327,7 +327,7 @@ pub(super) fn relative_target(from: &str, to: &str) -> String {
 }
 
 /// The changes an authored save makes to the package for `edit`; none when the edited model's
-/// cells and skin layout are the loaded ones.
+/// cells and skin layout are the loaded ones and no cache-state write was requested.
 pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefusal> {
     let Edited {
         workbook_part,
@@ -337,6 +337,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         values,
         spills,
         structural,
+        cache_state,
         ..
     } = edit;
     if !model.same_lineage(base) {
@@ -393,7 +394,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 .collect()
         })
         .collect();
-    let cells_changed = !changes.iter().all(SheetChanges::is_empty)
+    let cells_changed = cache_state.is_some()
+        || !changes.iter().all(SheetChanges::is_empty)
         || moved.is_some()
         || formats.iter().any(|formats| !formats.is_empty());
     let mut layout = layout_changes(package, edit)?;
@@ -627,6 +629,17 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             strings.removed += moved.strings_removed;
         }
         let no_groups = BTreeSet::new();
+        let dirty_caches: Vec<BTreeSet<(u32, u32)>> = sheets
+            .iter()
+            .map(|sheet| {
+                cache_state
+                    .iter()
+                    .flat_map(|state| state.dirty.iter())
+                    .filter(|at| at.sheet() == sheet.id())
+                    .map(|at| (at.row(), at.column()))
+                    .collect()
+            })
+            .collect();
         for (index, ((((((sheet, changes), rewrite), cleared), forms), sheet_values), spills)) in
             sheets
                 .iter()
@@ -655,6 +668,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 forms,
                 dynamic_cm,
                 values: sheet_values.as_ref(),
+                dirty_caches: &dirty_caches[index],
+                cache_state: cache_state.is_some(),
                 spills,
                 error_vm: &metadata.vm,
                 loaded: sheet,
@@ -762,7 +777,12 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             out.rewritten.insert(part, content);
         }
     }
-    if full_calc || iteration.is_some() || !names.is_empty() || sheets_changed {
+    if full_calc
+        || cache_state.is_some()
+        || iteration.is_some()
+        || !names.is_empty()
+        || sheets_changed
+    {
         let original = read_part(package, workbook_part)?;
         let workbook = if sheets_changed {
             original.with_bytes(super::sheets::workbook(&original, base, model, sheets)?)
@@ -771,7 +791,13 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         };
         out.rewritten.insert(
             workbook_part.clone(),
-            parts::workbook(&workbook, full_calc, iteration, &names)?,
+            parts::workbook(
+                &workbook,
+                full_calc,
+                iteration,
+                &names,
+                cache_state.as_ref(),
+            )?,
         );
     }
 

@@ -1,10 +1,69 @@
 # Search for Excel's calculation programs
 
-Owner direction, 2026-10-31; dc-j9k and dc-ymjf.4. This is a plan, not a search result.
+Owner direction, 2026-10-31; dc-j9k and dc-ymjf.4. The method below is a plan;
+the dated round sections record measured results with their separate bounds.
 The target is Excel's program: its operations, constants, branches and stores.
 A better match count does not identify it. No fitted coefficients, residual cutoffs,
 answer tables or switches chosen by disagreement belong in the implementation.
 Published methods remain generic fallbacks until Excel's actual program is identified.
+
+## Round 11: corpus causes and cumulative principal, 2026-11-01
+
+The 21 committed oracle workbooks reproduce the stated baseline: 18,752 matches
+among 20,030 formula cells; 1,191 failures comprise 1,184 mismatches, six refusals
+and one missing result. This run has no additional external workbook folder.
+The census at `/home/ubuntu/codex-runs/corpus-mismatch-r11.md` binds every mismatch
+to its workbook formula, XML, source hash and verdict. Its baseline cause counts
+are 83 structural, ten text/formatting, 1,088 numerical and three capture failures.
+The numerical groups separate approximation, ill conditioning and solver residuals
+from last-bit differences. The complex-number text discrepancy has an unresolved
+arithmetic-versus-conversion cause.
+
+Original product fixes restore legacy N's range-expression intersection while
+retaining array-context reference lifting, intersect FILTERXML's result outside
+array places, and remove exactly proportional nonzero regression predictors.
+Exact binary-input cross products decide proportionality, without a rank tolerance.
+Three route tests fail before these fixes. The reviewed changes give 18,811 matches,
+59 gains and zero losses; 1,132 failures remain (1,125 mismatches, six refusals,
+one missing). All 3,874,816 decoded bank outputs remain byte-identical; 116 unread
+rows still fail. The remaining mismatches include 22 structural, ten text/formatting,
+1,090 numerical and three capture failures. Nearly dependent full-rank regressions,
+two Bessel admission boundaries and number-to-text ties remain open.
+
+Evidence `51bed087` answered the frozen Round-10 packet. Original packet hashes
+were checked before scoring. All 32 numeric PMT rechecks reproduce their historical
+answers, including all 24 certified gaps; the application matches eight controls.
+All eight logical-timing variants reproduce their paired numeric answers. Three
+of eight text-rate predictions agree; their text coercion remains a separate
+obligation. Fourteen of 16 literal echoes changed input, so these are failed
+transport obligations, never same-input semantic contradictions. Raw coincidences
+are separate. All eight normal-CDF anchors reproduce. Two conditional reconstruction
+relations pass all 12 pairs; the strict and PC53 relations fail three lattice pairs.
+These are necessary relations, not complete CDF programs. Blind scores preceded
+the separate elimination record; initial literal counters are explicitly superseded
+by the reviewed v2 scores.
+
+CUMPRINC is the largest named function in this census, at 157 mismatches. Its 540
+bank rows comprise 60 loans with nine intervals each; all have recorded same-build
+PMT companions. All 30 first beginning-timing principal publications equal their
+PMT companions. The concrete integer-growth/payment/recurrence grammar has 90,000
+logical assignments, zero survivors: every assignment fails the first singleton,
+before accumulation order can distinguish them. The 18,000 instantiated graphs
+have identical native/software traces; an independent rational checker verifies
+1,509,000 node values. A separate 50-profile singleton projection excludes an
+arbitrary common first principal, and another excludes an arbitrary internal payment
+constrained by its recorded PMT publication, under their stated growth/consumer
+assumptions. Neither identifies a helper or a complete CUMPRINC program.
+
+The frozen 64-call coupled audit is in `DnaCalc-Research/packets/round11/` and
+`/home/ubuntu/codex-runs/fresh-questions-r11/`: CUMPRINC 32, PMT four, PPMT 16,
+CUMIPMT 12. Application predictions and conditional diagnostic relations are
+separate from requests. It audits assumptions after the exclusions; it validates
+no surviving complete program. An external exposure erratum records repeated PMT
+companions omitted from the packet's partial selection metadata. The claim and
+receipts are indexed by `DnaCalc-Research/cumulative-r11-claim.json` and
+`round11-result.json`. The numerical search changes no annuity or approximation
+body, pin or Excel answer; the separate structural fixes above change the product.
 
 ## Method and claim record
 

@@ -196,6 +196,7 @@ return (async function () {
       && narrowReceipt.boundary_cached === 1 && narrowReceipt.imported_cached === 0,
       "C1-only replay did not retain its scalar boundary-cache qualification");
     require(output(1, 3)?.text === "42" && output(1, 2)?.text === "21", "C1-only replay changed the boundary result");
+    const narrowText = output(1, 3)?.text;
     // One admitted formula must yield inside its SEQUENCE kernel; there are no background
     // targets in this command from which an inter-cell handoff could be inferred.
     await intent({ EnterCell: { at: key(1, 10), text: "=SUM(SEQUENCE(262144))+1" } });
@@ -217,6 +218,7 @@ return (async function () {
     require(longReceipt.calculated === 1 && longReceipt.refused === 0 && longReceipt.outcome === "Complete",
       "the long-cell command must have exactly one admitted calculated target");
     require(output(1, 10)?.text === "34359869441", "the resumed long-cell result differs from n*(n+1)/2+1");
+    const longText = output(1, 10)?.text;
     // A viewport promotion must publish the short prerequisite cone before the unrelated
     // long cell finishes, through the same binary projection and acknowledgement route.
     for (const [col, text] of [[13, "=SUM(SEQUENCE(1048576))"], [14, "=3"], [15, "=N1*2"]]) {
@@ -260,8 +262,8 @@ return (async function () {
       reused_spill: { from: predecessor, to: successor }, spill_companions: ["shrink", "authored-blocker"],
       equal_value_status: { command: replayCommand, text: equalText },
       narrow_cache_replay: { targets: narrowReceipt.calculated, boundary_cached: narrowReceipt.boundary_cached,
-        post_state: narrowAdmitted.range_post_state, text: output(1, 3)?.text },
-      in_cell: { targets: longReceipt.calculated, yielded: longYield, pong: longPong, completed: longComplete, text: output(1, 10)?.text } };
+        post_state: narrowAdmitted.range_post_state, text: narrowText },
+      in_cell: { targets: longReceipt.calculated, yielded: longYield, pong: longPong, completed: longComplete, text: longText } };
   } finally {
     worker.terminate();
   }

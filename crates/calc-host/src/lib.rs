@@ -87,7 +87,10 @@ pub use project::{
     StaleValue, project,
 };
 pub use recalc::{HostProgress, RecalcFailed, calculate, calculate_full, step};
-pub use save::{PreparedSave, SaveFailed, SavePin, prepare_save, save};
+pub use save::{
+    PreparedSave, SaveCachePolicy, SaveFailed, SavePin, prepare_save,
+    prepare_save_with_cache_policy, save,
+};
 pub use session::{
     DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, INTENT_LOG_LIMIT,
     IntentError, IntentReceipt, IntentRecord, Interest, ReplayOutcome, SkinIntent, SubscriptionId,

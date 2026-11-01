@@ -349,7 +349,7 @@ ordering. A matching profile needs a typed provisional evaluation rather than me
 `SaveImage { model, results: ResultViewPin, cache_manifest }`; the serializer never walks a mutable result map.
 `CachePolicy::{PreservePermittedCaches, RequireCalculatedScope(scope), DropStaleCaches}`.
 
-- `DropStaleCaches` is **today's** behaviour: a formula not in the stale set is written with its calculated value,
+- `DropStaleCaches` remains the explicit current-only policy: a formula not in the stale set is written with its calculated value,
   every other formula without `<v>` (`calc-host/src/save.rs:46-103`), plus `fullCalcOnLoad` when an array lacks one
   (`calc-doc/src/save/author.rs:712-723`). Excel recalculates those on open (1). Honest, but it makes Excel call a UDF
   on open that Excel itself might not have called.
@@ -399,6 +399,10 @@ Owned save plans can pin already installed scalar units while another cell remai
 records the excluded D1 callback as a dynamic-array producer: its unresolved corridor can conservatively keep
 E/G and other dependents stale for the workbook, despite actual scoped calculation and reuse. P05 boundary
 absence qualifications remain open; a completed scoped command does not claim workbook-wide freshness.
+The ordinary Manual XML Save(false) default preserves permitted scalar caches with ca=1 and
+calcCompleted=0/calcOnSave=0. Re-entry never inherits an orphaned cache; dirty array topology stays excluded.
+CurrentCalculatedOnly remains an explicit save policy. This does not implement Save(true), BeforeSave handlers,
+CalculationDomain peer-workbook effects, disabled-sheet/TABLE profiles or pending async saves.
 
 ## 10. First slice: the eight demonstrations and their oracles
 

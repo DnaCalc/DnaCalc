@@ -1840,7 +1840,15 @@ fn differential_run(
         // 4. A save's caches.
         if step % 10 == 9 {
             let mut saved = Vec::new();
-            if let Err(error) = session.save(&SavePolicy::default(), &mut saved) {
+            // This invariant covers the strict current-value policy. Manual's default held
+            // cache profile has separate P06 value/metadata/re-entry checks below.
+            if let Err(error) = calc_host::prepare_save_with_cache_policy(
+                session.host(),
+                &SavePolicy::default(),
+                calc_host::SaveCachePolicy::CurrentCalculatedOnly,
+            )
+            .and_then(|plan| plan.write(&mut saved))
+            {
                 panic!("the save failed: {error}");
             }
             if *structural > structural_before {
@@ -4303,4 +4311,171 @@ fn contract_interest_publishes_already_computed_cones_before_another_kernel_quan
             .any(|event| matches!(event, CalcEvent::Yielded { .. })),
         "promotion publishes the ready cone without another evaluation slice"
     );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p06_manual_save_preserves_permitted_scalar_caches_with_dirty_metadata() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [("A1", "1"), ("B1", "=A1*2"), ("C1", "=B1+1")] {
+        assert!(enter(&mut book, at(s, address), text).accepted());
+    }
+    assert_eq!(
+        calculated(book.host(), at(s, "C1")),
+        Some(CalcValue::number(3.0))
+    );
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    assert!(enter(&mut book, at(s, "A1"), "5").accepted());
+    book.take_calculation_events();
+    let saved = book.prepare_save(&SavePolicy::default()).unwrap();
+    assert_eq!(
+        saved.pin().cache_policy,
+        calc_host::SaveCachePolicy::PreservePermittedCaches
+    );
+    assert!(book.take_calculation_events().is_empty());
+    let mut strict = Vec::new();
+    calc_host::prepare_save_with_cache_policy(
+        book.host(),
+        &SavePolicy::default(),
+        calc_host::SaveCachePolicy::CurrentCalculatedOnly,
+    )
+    .unwrap()
+    .write(&mut strict)
+    .unwrap();
+    assert!(!matches!(
+        value(&open(&strict), at(s, "B1")),
+        ProjectedValue::FileCached(_)
+    ));
+    assert!(enter(&mut book, at(s, "A1"), "7").accepted());
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic));
+    assert_eq!(
+        calculated(book.host(), at(s, "C1")),
+        Some(CalcValue::number(15.0))
+    );
+    drop(book);
+    let mut bytes = Vec::new();
+    saved.write(&mut bytes).unwrap();
+    let reopened = open(&bytes);
+    let s = reopened.sheets()[0].id();
+    assert_eq!(reopened.calc_mode(), CalcMode::Manual);
+    assert_eq!(reopened.model().cell(at(s, "A1")), Some(&number(5.0)));
+    for (address, expected) in [("B1", 2.0), ("C1", 3.0)] {
+        let ProjectedValue::FileCached(cache) = value(&reopened, at(s, address)) else {
+            panic!("retained caches must reopen as unverified file values");
+        };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(expected)));
+    }
+    let workbook = part_text(&bytes, "xl/workbook.xml");
+    assert!(
+        workbook.contains("calcCompleted=\"0\"")
+            && workbook.contains("calcOnSave=\"0\"")
+            && workbook.contains("calcMode=\"manual\"")
+    );
+    let sheet_xml = part_text(&bytes, "xl/worksheets/sheet1.xml");
+    assert_eq!(sheet_xml.matches("ca=\"1\"").count(), 2);
+    let mut normalized = session(&bytes);
+    assert!(normalized.dispatch(SkinIntent::Recalculate).accepted());
+    let mut current = Vec::new();
+    normalized
+        .save(&SavePolicy::default(), &mut current)
+        .unwrap();
+    assert_eq!(
+        part_text(&current, "xl/worksheets/sheet1.xml")
+            .matches("ca=\"1\"")
+            .count(),
+        0,
+        "calculating imported held caches clears their old dirty markers"
+    );
+    assert!(part_text(&current, "xl/workbook.xml").contains("calcCompleted=\"1\""));
+    let mut imported = HostSession::new(reopened);
+    let s = imported.host().sheets()[0].id();
+    assert!(enter(&mut imported, at(s, "A1"), "9").accepted());
+    let mut again = Vec::new();
+    imported.save(&SavePolicy::default(), &mut again).unwrap();
+    let again = open(&again);
+    let s = again.sheets()[0].id();
+    let ProjectedValue::FileCached(cache) = value(&again, at(s, "B1")) else {
+        panic!("the imported held cache should survive without evaluation");
+    };
+    assert_eq!(cache.value(), &cached_of(&CalcValue::number(2.0)));
+    // Re-entry, even with identical spelling, cannot attach an orphaned old cache to a new node.
+    assert!(enter(&mut imported, at(s, "B1"), "=A1*2").accepted());
+    let mut reentered = Vec::new();
+    imported
+        .save(&SavePolicy::default(), &mut reentered)
+        .unwrap();
+    let reentered = open(&reentered);
+    let s = reentered.sheets()[0].id();
+    assert!(!matches!(
+        value(&reentered, at(s, "B1")),
+        ProjectedValue::FileCached(_) | ProjectedValue::Calculated { .. }
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p06_excel_saved_manual_cache_image_keeps_its_values_without_vba_entry() {
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P06/manual-false-save-off-01-tested.xlsm"
+    );
+    let mut book = session(bytes);
+    let s = sheet(book.host(), "S");
+    assert_eq!(book.host().calc_mode(), CalcMode::Manual);
+    assert_eq!(book.host().model().cell(at(s, "A1")), Some(&number(5.0)));
+    assert!(enter(&mut book, at(s, "A1"), "9").accepted());
+    book.take_calculation_events();
+    let pin = book.prepare_save(&SavePolicy::default()).unwrap();
+    assert!(book.take_calculation_events().is_empty());
+    let mut saved = Vec::new();
+    pin.write(&mut saved).unwrap();
+    let reopened = open(&saved);
+    let s = sheet(&reopened, "S");
+    for (address, expected) in [("B1", 2.0), ("C1", 3.0)] {
+        let ProjectedValue::FileCached(cache) = value(&reopened, at(s, address)) else {
+            panic!("an Excel saved held cache remains unverified");
+        };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(expected)));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p02_manual_range_followup_demand_survives_the_p06_save_metadata() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [("A1", "1"), ("B1", "=A1*2"), ("C1", "=B1+1")] {
+        assert!(enter(&mut book, at(s, address), text).accepted());
+    }
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "C1"))]
+        })
+        .accepted()
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "C1")),
+        Some(CalcValue::number(3.0))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(
+        part_text(&saved, "xl/worksheets/sheet1.xml")
+            .matches("ca=\"1\"")
+            .count(),
+        1,
+        "the current C1 value still carries its next-F9 obligation"
+    );
+    assert!(part_text(&saved, "xl/workbook.xml").contains("calcCompleted=\"0\""));
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let mut after_f9 = Vec::new();
+    book.save(&SavePolicy::default(), &mut after_f9).unwrap();
+    assert_eq!(
+        part_text(&after_f9, "xl/worksheets/sheet1.xml")
+            .matches("ca=\"1\"")
+            .count(),
+        0
+    );
+    assert!(part_text(&after_f9, "xl/workbook.xml").contains("calcCompleted=\"1\""));
 }

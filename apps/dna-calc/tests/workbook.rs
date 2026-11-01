@@ -593,14 +593,23 @@ fn dc_rif__a_new_workbook_is_edited_through_the_session_and_its_subscription() {
     assert_eq!(census.sheets[0].used.as_deref(), Some("Sheet1!A1:C3"));
     assert_eq!(census.refusals.values().sum::<usize>(), 1);
 
-    // Saved and reopened, the formulas calculate again.
+    // Manual mode persists. Reopen keeps unverified caches; F9 performs a new calculation.
     let (bytes, _) = book.save().expect("saved");
     assert!(!book.changed());
-    let reopened = Workbook::open("Book1.xlsx", bytes).expect("reopens");
+    let mut reopened = Workbook::open("Book1.xlsx", bytes).expect("reopens");
     let sheet1 = sheet(&reopened, "Sheet1");
     let a3 = shown(&reopened, at(sheet1, "A3"));
     assert_eq!(
         (a3.text.as_str(), a3.provenance),
+        ("51", Provenance::FileCache)
+    );
+    assert_eq!(reopened.host().calc_mode(), calc_host::CalcMode::Manual);
+    reopened.dispatch(SkinIntent::Recalculate);
+    assert_eq!(
+        (
+            shown(&reopened, at(sheet1, "A3")).text.as_str(),
+            shown(&reopened, at(sheet1, "A3")).provenance
+        ),
         ("51", Provenance::Calculated)
     );
     assert_eq!(

@@ -121,6 +121,7 @@ pub(super) fn workbook(
     full_calc: bool,
     iteration: Option<calc_doc_model::IterationSettings>,
     names: &NameChanges,
+    cache_state: Option<&super::CalculationCacheState>,
 ) -> Result<Vec<u8>, SaveRefusal> {
     let source = xml.bytes();
     let mut reader = Reader::new(xml);
@@ -299,6 +300,19 @@ pub(super) fn workbook(
         }
     }
     let mut calc_attributes: Vec<(&str, Option<String>)> = Vec::new();
+    if let Some(state) = cache_state {
+        let mode = match state.mode {
+            crate::CalcMode::Manual => "manual",
+            crate::CalcMode::Automatic => "auto",
+            crate::CalcMode::AutomaticExceptTables => "autoNoTable",
+        };
+        calc_attributes.push(("calcMode", Some(mode.to_owned())));
+        calc_attributes.push((
+            "calcCompleted",
+            Some(if state.completed { "1" } else { "0" }.to_owned()),
+        ));
+        calc_attributes.push(("calcOnSave", Some("0".to_owned())));
+    }
     if full_calc {
         calc_attributes.push(("fullCalcOnLoad", Some("1".to_owned())));
     }

@@ -71,6 +71,8 @@ pub(super) struct Job<'a> {
     /// The caller's values for the sheet's formula cells, which are written as their cached
     /// values; `None` for a save without values, which leaves every cached value out.
     pub(super) values: Option<&'a BTreeMap<(u32, u32), CachedValue>>,
+    pub(super) dirty_caches: &'a BTreeSet<(u32, u32)>,
+    pub(super) cache_state: bool,
     /// The area each array formula's result fills, by anchor, as (top, left, bottom, right): its
     /// `ref`, and the cells beside the anchor whose values are written.
     pub(super) spills: &'a BTreeMap<(u32, u32), (u32, u32, u32, u32)>,
@@ -610,6 +612,10 @@ impl<'j> Rewrite<'_, 'j> {
                 out.push(b'<');
                 out.extend_from_slice(prefix);
                 out.extend_from_slice(format!("f t=\"array\" ref=\"{reference}\">").as_bytes());
+            } else if self.job.dirty_caches.contains(&(row, column)) {
+                out.push(b'<');
+                out.extend_from_slice(prefix);
+                out.extend_from_slice(b"f ca=\"1\">");
             } else {
                 start_tag(prefix, b"f", out);
             }
@@ -968,6 +974,18 @@ impl<'j> Rewrite<'_, 'j> {
                         formula_raw.rebuilt(&[("ref", Some(&reference))], formula_raw.is_empty()),
                     ));
                 }
+                let dirty = self.job.dirty_caches.contains(&(row, column));
+                let unshared = group.is_some_and(|group| self.unshared.contains(&group));
+                let tracked = self.job.cache_state
+                    && cache.is_some()
+                    && formula_read.attribute("t") != Some("array");
+                if tracked && !unshared {
+                    edits.push((
+                        formula_tag,
+                        formula_raw
+                            .rebuilt(&[("ca", dirty.then_some("1"))], formula_raw.is_empty()),
+                    ));
+                }
                 if let Some(group) = group
                     && self.unshared.contains(&group)
                 {
@@ -979,8 +997,11 @@ impl<'j> Rewrite<'_, 'j> {
                         ));
                     };
                     let prefix = formula_raw.prefix();
-                    let mut bytes =
-                        formula_raw.rebuilt(&[("t", None), ("ref", None), ("si", None)], false);
+                    let mut attributes = vec![("t", None), ("ref", None), ("si", None)];
+                    if tracked {
+                        attributes.push(("ca", dirty.then_some("1")));
+                    }
+                    let mut bytes = formula_raw.rebuilt(&attributes, false);
                     xstring(text.text().utf16_code_units(), &mut bytes);
                     end_tag(prefix, b"f", &mut bytes);
                     edits.push((formula_element, bytes));

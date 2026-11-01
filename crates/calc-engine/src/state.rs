@@ -780,6 +780,17 @@ impl EngineState {
         }
     }
 
+    /// A local obligation, including Manual range demand retained for the next command.
+    /// Transitive stale readers are additionally reported by `stale`.
+    pub fn calculation_required_at(&self, at: CellKey) -> bool {
+        self.node_at(at).is_some_and(|node| {
+            let requirement = self.contract.requirement(node);
+            self.pending.contains(&node)
+                || self.range_redemand.contains(&node)
+                || requirement.required != requirement.satisfied
+        })
+    }
+
     pub fn result_view(&self) -> crate::contract::ReadViewId {
         crate::contract::ReadViewId(self.generation)
     }

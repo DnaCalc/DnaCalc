@@ -53,6 +53,14 @@ pub struct DocumentSnapshot {
     edit: Option<Edited>,
 }
 
+/// Cache metadata for a noncalculating save. Imported caches stay unverified on reopen.
+#[derive(Clone)]
+pub(crate) struct CalculationCacheState {
+    pub(crate) dirty: BTreeSet<CellKey>,
+    pub(crate) completed: bool,
+    pub(crate) mode: crate::CalcMode,
+}
+
 /// A revision of a loaded workbook's model and what the save rewrites it against.
 #[derive(Clone)]
 pub(crate) struct Edited {
@@ -64,8 +72,8 @@ pub(crate) struct Edited {
     base: Arc<ModelRoot>,
     /// The revision to save.
     model: Arc<ModelRoot>,
-    /// The values a caller calculated for the revision's formula cells, which the save writes as
-    /// their cached values; `None` to save without them.
+    /// Supplied cached values selected by the caller's policy; these grant no calculation or
+    /// freshness proof. `None` saves without them.
     values: Option<Arc<BTreeMap<CellKey, CachedValue>>>,
     /// The area each array formula's result fills, by anchor
     /// ([`crate::LoadedWorkbook::snapshot_with_results`]).
@@ -73,6 +81,7 @@ pub(crate) struct Edited {
     /// The rows and columns inserted and deleted since the load, which the save moves the
     /// package's rows, columns and what lies on them by ([`DocumentSnapshot::with_structural_edits`]).
     structural: Option<StructuralEdits>,
+    cache_state: Option<CalculationCacheState>,
 }
 
 impl DocumentSnapshot {
@@ -104,6 +113,7 @@ impl DocumentSnapshot {
                 values,
                 spills,
                 structural: None,
+                cache_state: None,
             }),
         }
     }
@@ -122,6 +132,24 @@ impl DocumentSnapshot {
             && !edits.edits().is_empty()
         {
             edit.structural = Some(edits);
+        }
+        self
+    }
+
+    /// Marks retained scalar caches and the calculation settings of a Save(false) profile.
+    /// This does not calculate values or assert that imported values are current.
+    pub fn with_calculation_cache_state(
+        mut self,
+        dirty: BTreeSet<CellKey>,
+        completed: bool,
+        mode: crate::CalcMode,
+    ) -> Self {
+        if let Some(edit) = self.edit.as_mut() {
+            edit.cache_state = Some(CalculationCacheState {
+                dirty,
+                completed,
+                mode,
+            });
         }
         self
     }
@@ -629,7 +657,7 @@ pub struct SaveReceipt {
     /// The worksheet parts rewritten that hold no changed cell, only to leave out or replace
     /// their formulas' cached results.
     pub sheets_rewritten_for_caches: usize,
-    /// The formula cells written with a value the caller calculated as their cached result
+    /// The formula cells written with a supplied cached value; this count grants no freshness
     /// ([`crate::LoadedWorkbook::snapshot_with_values`]).
     pub values_written: usize,
     /// The formula cells of a save with values written without a cached value, for Excel to
