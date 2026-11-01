@@ -178,6 +178,24 @@ impl Panes {
         rows: u32,
         cols: u32,
     ) -> RenderPlan {
+        self.plan_with(
+            cells,
+            m,
+            v,
+            rows,
+            cols,
+            &render_plan::PlanOptions::default(),
+        )
+    }
+    pub fn plan_with(
+        self,
+        cells: &[CellShown],
+        m: &GridMetrics,
+        v: &Viewport,
+        rows: u32,
+        cols: u32,
+        options: &render_plan::PlanOptions<'_>,
+    ) -> RenderPlan {
         let mut out = RenderPlan {
             viewport: *v,
             scale: m.header_h / 22.,
@@ -193,12 +211,42 @@ impl Panes {
         };
         let (mut col_headers, mut row_headers) = (BTreeMap::new(), BTreeMap::new());
         for (r, c) in self.categories() {
-            let plan = render_plan::build_render_plan(cells, m, &self.view(m, v, r, c), rows, cols);
-            out.cells.extend(plan.cells.into_iter().filter(|cell| {
-                (cell.row <= self.rows) == r
-                    && (cell.col <= self.columns) == c
-                    && intersection(cell.rect, self.bounds(m, v, cell.row, cell.col)).is_some()
-            }));
+            let plan = render_plan::build_render_plan_with(
+                cells,
+                m,
+                &self.view(m, v, r, c),
+                rows,
+                cols,
+                options,
+            );
+            let (x, right) = self.x_bounds(m, v, c);
+            let (y, bottom) = self.y_bounds(m, v, r);
+            let clip = CellRect {
+                x,
+                y,
+                w: (right - x).max(0.0),
+                h: (bottom - y).max(0.0),
+            };
+            out.cells
+                .extend(plan.cells.into_iter().filter_map(|mut cell| {
+                    let last_row = cell.row.saturating_add(cell.row_span - 1);
+                    let last_col = cell.col.saturating_add(cell.col_span - 1);
+                    let in_rows = if r {
+                        cell.row <= self.rows && last_row > self.origin_row
+                    } else {
+                        last_row > self.rows
+                    };
+                    let in_cols = if c {
+                        cell.col <= self.columns && last_col > self.origin_column
+                    } else {
+                        last_col > self.columns
+                    };
+                    if !in_rows || !in_cols {
+                        return None;
+                    }
+                    cell.clip = Some(intersection(cell.rect, clip)?);
+                    Some(cell)
+                }));
             for header in plan
                 .col_headers
                 .into_iter()
@@ -224,6 +272,26 @@ impl Panes {
         out.col_headers = col_headers.into_values().collect();
         out.row_headers = row_headers.into_values().collect();
         out
+    }
+    /// A merged cell crossing a frozen boundary has a separate clipped paint fragment.
+    pub fn cell_clip_style(
+        self,
+        cell: &render_plan::PlannedCell,
+        m: &GridMetrics,
+        v: &Viewport,
+    ) -> String {
+        if let Some(clip) = cell.clip {
+            let rect = cell.rect;
+            format!(
+                ";clip-path:inset({}px {}px {}px {}px)",
+                (clip.y - rect.y).max(0.0),
+                (rect.x + rect.w - clip.x - clip.w).max(0.0),
+                (rect.y + rect.h - clip.y - clip.h).max(0.0),
+                (clip.x - rect.x).max(0.0)
+            )
+        } else {
+            self.clip_style(cell.rect, m, v, Some(cell.row), Some(cell.col))
+        }
     }
     pub fn area_rects(self, area: GridArea, m: &GridMetrics, v: &Viewport) -> Vec<CellRect> {
         self.categories()
@@ -282,6 +350,62 @@ pub fn intersection(a: CellRect, b: CellRect) -> Option<CellRect> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_merge_crossing_both_frozen_boundaries_has_four_nonoverlapping_fragments() {
+        let g = crate::wire::Geometry {
+            merges: vec![crate::wire::Area(
+                crate::wire::Key(0, 0, 1, 1),
+                crate::wire::Key(0, 0, 3, 3),
+            )],
+            ..Default::default()
+        };
+        let m = GridMetrics {
+            col_width: 64.,
+            row_height: 20.,
+            ..Default::default()
+        };
+        let p = Panes {
+            rows: 1,
+            columns: 1,
+            ..Default::default()
+        };
+        let view = Viewport {
+            width: 400.,
+            height: 200.,
+            scroll_x: 40.,
+            scroll_y: 10.,
+        };
+        let plan = p.plan_with(
+            &[],
+            &m,
+            &view,
+            100,
+            20,
+            &render_plan::PlanOptions {
+                geometry: Some(&g),
+                ..Default::default()
+            },
+        );
+        assert_eq!(plan.cells.len(), 4);
+        let clips: Vec<_> = plan
+            .cells
+            .iter()
+            .map(|cell| {
+                assert_eq!(
+                    (cell.address.as_str(), cell.row_span, cell.col_span),
+                    ("A1", 3, 3)
+                );
+                cell.clip.unwrap()
+            })
+            .collect();
+        for (i, clip) in clips.iter().enumerate() {
+            for other in &clips[i + 1..] {
+                assert!(intersection(*clip, *other).is_none());
+            }
+        }
+        assert_eq!(clips.iter().map(|c| c.w * c.h).sum::<f64>(), 7600.);
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn frozen_and_scrolling_cells_share_the_inverse_at_every_zoom() {

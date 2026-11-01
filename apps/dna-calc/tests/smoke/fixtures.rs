@@ -26,17 +26,31 @@ pub(crate) fn alignment(bytes: &[u8]) -> Result<Vec<u8>, String> {
         .parse::<usize>()
         .map_err(|e| e.to_string())?;
     let extra = include_str!("alignment/styles.xml");
+    let font_count = styles
+        .split("<fonts count=\"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .ok_or("fonts")?
+        .parse::<usize>()
+        .map_err(|e| e.to_string())?;
     let styles = styles
+        .replacen(&format!("<fonts count=\"{font_count}\""), &format!("<fonts count=\"{}\"",font_count+1),1)
+        .replacen("</fonts>","<font><sz val=\"11\"/><name val=\"DnacalcReflow\"/></font></fonts>",1)
         .replacen(
             &format!("<cellXfs count=\"{count}\""),
-            &format!("<cellXfs count=\"{}\"", count + 14),
+            &format!("<cellXfs count=\"{}\"", count + 15),
             1,
         )
-        .replacen("</cellXfs>", &format!("{extra}</cellXfs>"), 1);
+        .replacen("</cellXfs>", &format!("{extra}<xf numFmtId=\"0\" fontId=\"{font_count}\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/></cellXfs>"), 1);
     let mut sheet = include_str!("alignment/sheet.xml").to_owned();
     for i in (0..14).rev() {
         sheet = sheet.replace(&format!("${i}"), &(count + i).to_string());
     }
+    // Extend the same retained alignment fixture with a real applied-font reflow witness and
+    // a two-dimensional merge. These are authored inputs, not oracle results.
+    sheet = sheet.replace("A1:J9","A1:N10")
+        .replacen("</row>", "<c r=\"L1\" t=\"inlineStr\"><is><t>merged</t></is></c></row>",1)
+        .replacen("</sheetData>",&format!("<row r=\"10\" ht=\"30\" customHeight=\"1\"><c r=\"B10\" s=\"{}\" t=\"inlineStr\"><is><t>iiiiiiiiiiiiiiiiiiiiiiii</t></is></c></row></sheetData><mergeCells count=\"1\"><mergeCell ref=\"L1:N2\"/></mergeCells>",count+14),1);
     crate::oracle_cases::replace_package_parts(
         bytes,
         &std::collections::BTreeMap::from([

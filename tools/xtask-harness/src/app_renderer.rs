@@ -59,6 +59,23 @@ pub(super) fn finish(
         )?
         .trim()
     );
+    let diff = cargo::git(
+        &std::env::current_dir().map_err(|e| e.to_string())?,
+        &[
+            "diff",
+            "HEAD",
+            "--",
+            "apps/dna-calc",
+            "apps/dna-calc-model",
+            "apps/dna-calc-protocol",
+            "apps/dna-calc-worker",
+            "apps/dna-formula-ui",
+            "crates/calc-host",
+            "tools/xtask-harness",
+        ],
+    )?;
+    value["source_dirty"] = json!(!diff.is_empty());
+    value["source_diff_sha256"] = json!(calc_verdict::sha256_hex(diff.as_bytes()));
     let painter = value
         .pointer("/after_scroll/painter")
         .and_then(Value::as_str)

@@ -3,7 +3,7 @@ use crate::wire;
 use std::collections::BTreeMap;
 
 /// Aggregate measured display pixels into physical point/character inputs. Blank bands retain
-/// their existing size. A number also needs the retained numeric-fit renderer's width estimate.
+/// their existing size.
 pub fn fit_sizes(rows: bool, samples: impl IntoIterator<Item = (u32, f64)>) -> Vec<(u32, u64)> {
     let mut sizes = BTreeMap::<u32, f64>::new();
     for (index, pixels) in samples {
@@ -73,6 +73,101 @@ pub fn font_css(
             "normal"
         }
     )
+}
+/// Canvas text and the plan's width provider use the same font as the DOM painter.
+pub(super) fn canvas_font(
+    style: &TextStyle,
+    conditional: Option<&crate::cells::ConditionalShown>,
+    italic: bool,
+    zoom: f64,
+) -> String {
+    format!(
+        "{} {} {}px {}",
+        if style.italic || italic || conditional.is_some_and(|c| c.italic) {
+            "italic"
+        } else {
+            "normal"
+        },
+        if style.bold || conditional.is_some_and(|c| c.bold) {
+            700
+        } else {
+            400
+        },
+        style.pixels * zoom,
+        family_css(style.family.as_deref())
+    )
+}
+#[derive(Default)]
+struct FontMeasures {
+    revision: Option<u64>,
+    context: Option<web_sys::CanvasRenderingContext2d>,
+    widths: BTreeMap<(String, String), f64>,
+    bytes: usize,
+}
+thread_local! {
+    static FONT_MEASURES: std::cell::RefCell<FontMeasures> = Default::default();
+}
+/// Bounded browser advance cache. A real FontFaceSet completion invalidates fallback widths.
+/// Failure leaves the plan's explicit estimate, rather than claiming a measurement.
+pub(super) fn plan_advance(
+    shown: &crate::cells::CellShown,
+    text: &str,
+    zoom: f64,
+    revision: u64,
+) -> Option<f64> {
+    use leptos::prelude::*;
+    use wasm_bindgen::JsCast;
+    let font = canvas_font(
+        &shown.style,
+        shown.conditional.as_ref(),
+        matches!(
+            shown.provenance,
+            crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused
+        ),
+        zoom,
+    );
+    FONT_MEASURES.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.revision != Some(revision) {
+            cache.revision = Some(revision);
+            cache.widths.clear();
+            cache.bytes = 0;
+        }
+        let key = (font.clone(), text.to_owned());
+        if let Some(width) = cache.widths.get(&key) {
+            return Some(*width);
+        }
+        if cache.context.is_none() {
+            let canvas = document()
+                .create_element("canvas")
+                .ok()?
+                .dyn_into::<web_sys::HtmlCanvasElement>()
+                .ok()?;
+            canvas.set_width(0);
+            canvas.set_height(0);
+            cache.context = canvas.get_context("2d").ok()??.dyn_into().ok();
+        }
+        let context = cache.context.as_ref()?;
+        context.set_font(&font);
+        let mut width: f64 = 0.0;
+        for line in text.split('\n') {
+            width = width.max(context.measure_text(line).ok()?.width());
+        }
+        if !width.is_finite() {
+            return None;
+        }
+        let bytes = key.0.len().saturating_add(key.1.len()).saturating_add(128);
+        const MAX_BYTES: usize = 2 * 1024 * 1024;
+        if cache.widths.len() >= 8192 || cache.bytes.saturating_add(bytes) > MAX_BYTES {
+            cache.widths.clear();
+            cache.bytes = 0;
+        }
+        if bytes <= MAX_BYTES {
+            cache.bytes += bytes;
+            cache.widths.insert(key, width);
+        }
+        Some(width)
+    })
 }
 /// A shared DOM font probe. Its inline declarations are assigned through CSSOM under the CSP.
 pub(super) fn probe(font: &str, text: &str) -> Result<(f64, f64), String> {
@@ -209,16 +304,7 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         probe.set_text_content(Some(text));
         let r = probe.get_bounding_client_rect();
         let (w, h) = rotated_size(r.width(), r.height(), cell.style.rotation);
-        let pixels = if rows {
-            h + 4.
-        } else {
-            let visible = w + 8. + indent + icon;
-            if cell.kind == "number" {
-                visible.max(text.chars().count() as f64 * 7. + 5.)
-            } else {
-                visible
-            }
-        };
+        let pixels = if rows { h + 4. } else { w + 8. + indent + icon };
         samples.push((if rows { cell.at.2 } else { cell.at.3 }, pixels));
     }
     probe.remove();

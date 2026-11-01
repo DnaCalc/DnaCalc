@@ -94,6 +94,8 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn numbers_cross_exactly() {
         let geometry = Geometry {
+            merges: vec![Area(Key(0, 0, 1, 1), Key(0, 0, 3, 4))],
+            edit_refusal: Some("read only: escaped \"reason\"".into()),
             frozen_rows: 1,
             frozen_columns: 2,
             split_window: false,

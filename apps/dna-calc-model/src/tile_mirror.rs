@@ -297,9 +297,20 @@ mod tests {
         let mut first = batch(2, false, vec![cell(1, "10")], vec![Key(0, 0, 2, 1)]);
         first.final_fragment = false;
         first.geometry[0].1.default_row_height = Some(30.);
+        first.geometry[0].1.merges =
+            vec![crate::projection::Area(Key(0, 0, 1, 1), Key(0, 0, 2, 2))];
+        first.geometry[0].1.edit_refusal = Some("published preflight refusal".into());
         mirror.admit(first.stamp).unwrap();
         mirror.stage(&first).unwrap();
         assert_eq!(texts(&mirror), ["1", "2"]);
+        assert!(mirror.geometry(Sheet(0, 0).id()).unwrap().merges.is_empty());
+        assert!(
+            mirror
+                .geometry(Sheet(0, 0).id())
+                .unwrap()
+                .edit_refusal
+                .is_none()
+        );
         assert_eq!(
             mirror
                 .geometry(Sheet(0, 0).id())
@@ -325,6 +336,53 @@ mod tests {
             Some(30.)
         );
         assert_eq!(mirror.stamp(), Some(last.stamp));
+        assert_eq!(
+            mirror.geometry(Sheet(0, 0).id()).unwrap().merges,
+            first.geometry[0].1.merges
+        );
+        assert_eq!(
+            mirror.geometry(Sheet(0, 0).id()).unwrap().edit_refusal,
+            first.geometry[0].1.edit_refusal
+        );
+        let sheet = Sheet(0, 0).id();
+        let shown: Vec<_> = mirror.cells().filter_map(|(_, c)| c.shown()).collect();
+        let mut plan = crate::render_plan::build_render_plan_with(
+            &shown,
+            &crate::geometry::GridMetrics::default(),
+            &crate::geometry::Viewport {
+                width: 400.,
+                height: 200.,
+                ..Default::default()
+            },
+            100,
+            20,
+            &crate::render_plan::PlanOptions {
+                geometry: mirror.geometry(sheet),
+                ..Default::default()
+            },
+        );
+        plan.attach_semantics(
+            &mirror,
+            sheet,
+            &[calc_value::GridArea::cell(
+                calc_value::CellKey::new(sheet, 2, 2).unwrap(),
+            )],
+            (2, 2),
+        );
+        let semantic: Vec<_> = plan.semantic_rows.iter().flat_map(|r| &r.cells).collect();
+        let active: Vec<_> = semantic.iter().filter(|c| c.active).collect();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].address, "A1");
+        assert_eq!((active[0].row_span, active[0].col_span), (2, 2));
+        assert!(
+            active[0].selected && active[0].editability.checked && !active[0].editability.can_begin
+        );
+        assert!(
+            !semantic
+                .iter()
+                .any(|c| matches!(c.address.as_str(), "B1" | "A2" | "B2"))
+        );
+        assert_eq!(plan.publication, mirror.stamp());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

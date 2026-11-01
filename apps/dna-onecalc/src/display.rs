@@ -57,7 +57,7 @@ fn offset_cell(area: GridArea, start: CellKey, offset: u64) -> CellKey {
 /// an area or a function.
 pub fn diagnostic(session: &Session, diagnostic: &Diagnostic) -> String {
     match diagnostic {
-        Diagnostic::UserFunction(message) => message.clone(),
+        Diagnostic::UserFunction(message) => user_function_diagnostic(message),
         Diagnostic::Syntax(syntax) => {
             format!("syntax at {}: {}", span(syntax.span), syntax.message)
         }

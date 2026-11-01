@@ -82,7 +82,7 @@ pub struct Workbook {
     /// redefines none.
     palette: Option<Vec<Option<String>>>,
     /// How long opening recalculated the workbook, in milliseconds of the browser's clock;
-    /// `None` when it did not (the file calculates manually).
+    /// `None` for manual mode or when the admitted calculation is still pending.
     calculated_on_open: Option<f64>,
     /// Each sheet's conditional formats, prepared for the values as they stand; emptied when an
     /// intent commits an edit or recalculates (dc-6yw).

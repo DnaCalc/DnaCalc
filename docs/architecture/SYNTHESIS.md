@@ -396,7 +396,8 @@ Converged after round 2 (appendix C): block grain, publication staging, ordering
 home, object-library crate, reload by generation. The red-team agrees with each, with the conditions folded into
 1.2-1.6. Still open:
 - **G renderer**: recycled DOM first (Fable, GPT) vs Canvas2D with an accessibility overlay (Gemini); RT: decide
-  only after RenderPlan, tile mirror and a screen-reader check. Open until U3.
+  only after RenderPlan, tile mirror and a screen-reader check. Both painters now consume the same plan;
+  [measured comparison](RENDERER_COMPARISON.md) retains DOM as default. Provisional pending a real screen-reader check.
 - **H formatting**: crate (Opus, page bundle) vs calc-fml module (others). Decide in U1 by measuring the bundle.
 - **I layering check**: sweep plus a check when a manifest changes (Opus, Fable, GPT) vs every `xtask check`
   (Gemini). Recommend the former (owner 4.6).

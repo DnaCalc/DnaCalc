@@ -43,17 +43,7 @@ fn font(cell: &PlannedCell, scale: f64) -> String {
             cell.shown.provenance,
             Provenance::FileCache | Provenance::Refused
         );
-    format!(
-        "{} {} {}px {}",
-        if italic { "italic" } else { "normal" },
-        if style.bold || conditional.is_some_and(|c| c.bold) {
-            700
-        } else {
-            400
-        },
-        style.pixels * scale,
-        autofit::family_css(style.family.as_deref())
-    )
+    autofit::canvas_font(style, conditional, italic, scale)
 }
 fn rect(ctx: &Context, r: super::geometry::CellRect) {
     ctx.rect(r.x, r.y, r.w, r.h);
@@ -109,10 +99,12 @@ pub(super) fn paint(
         ctx.fill_rect(0., row.rect.y + row.rect.h - 1., plan.viewport.width, 1.)
     }
     for cell in &plan.cells {
-        let Some(clip) = panes::intersection(
-            cell.rect,
-            panes.bounds(metrics, &plan.viewport, cell.row, cell.col),
-        ) else {
+        let Some(clip) = cell.clip.or_else(|| {
+            panes::intersection(
+                cell.rect,
+                panes.bounds(metrics, &plan.viewport, cell.row, cell.col),
+            )
+        }) else {
             continue;
         };
         ctx.save();
@@ -124,12 +116,28 @@ pub(super) fn paint(
             match cell.shown.provenance {
                 Provenance::Stale => Some(token(&style, "--dna-amber-soft")),
                 Provenance::Refused => Some(token(&style, "--dna-paper")),
+                _ if cell.row_span > 1 || cell.col_span > 1 => Some(paper.clone()),
                 _ => None,
             }
         });
         if let Some(fill) = background {
             ctx.set_fill_style_str(&fill);
             ctx.fill_rect(cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h)
+        }
+        if cell.row_span > 1 || cell.col_span > 1 {
+            ctx.set_fill_style_str(&token(&style, "--dna-line-soft"));
+            ctx.fill_rect(
+                cell.rect.x + cell.rect.w - 1.0,
+                cell.rect.y,
+                1.0,
+                cell.rect.h,
+            );
+            ctx.fill_rect(
+                cell.rect.x,
+                cell.rect.y + cell.rect.h - 1.0,
+                cell.rect.w,
+                1.0,
+            );
         }
         if cell.shown.provenance == Provenance::Refused {
             ctx.set_stroke_style_str(&token(&style, "--dna-red-soft"));
