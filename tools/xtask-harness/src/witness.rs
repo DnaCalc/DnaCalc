@@ -246,6 +246,26 @@ fn record_unread_rows(
     Ok(())
 }
 
+/// Transport experiments have their own observable contract. They never become
+/// typed-argument semantic witnesses when their labels would be discarded.
+fn record_transport_audits(doc: &Value, source: &str, banks: &mut Banks) -> Result<(), String> {
+    if let Some(recorded) = doc.get("transport_audit_readings") {
+        let rows = recorded.as_array().ok_or_else(|| format!("{source}: transport_audit_readings must be an array"))?;
+        for row in rows {
+            if row["input_transport"] != "formula_literals_with_cell_echo"
+                || row["semantic_witness"] != false || !row["id"].is_string()
+                || !row["args"].is_array() || !row["observed_raw"].is_object()
+                || row.get("reading_failure").is_none_or(|v| !v.is_null() && !v.is_string())
+            {
+                return Err(format!("{source}: malformed transport audit observation"));
+            }
+        }
+        let failures = rows.iter().filter(|r| !r["reading_failure"].is_null()).count();
+        banks.import_notes.push(format!("{source}: {} transport audit observations, {failures} failed audit obligations; retained separately from typed-argument semantic witnesses", rows.len()));
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------------------------
 // Reading the evidence repository's gzip blobs
 
@@ -723,6 +743,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         });
         let source = banks.sources.len() - 1;
         record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
+        record_transport_audits(&doc, &rel, &mut banks)?;
         for (i, row) in rows.iter().enumerate() {
             let (Some(args), Some(expected)) = (row["args"].as_array(), row["expected_bits"].as_str()) else {
                 unread.push(format!("{rel}: row {i} has no args or expected_bits"));
@@ -1966,7 +1987,19 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
         let mut differ = Vec::new();
         let mut unread = Vec::new();
         let mut witnesses = Vec::new();
-        for (reading, row) in outcome.readings.iter().zip(&rows) {
+        let mut transport_audits = Vec::new();
+        for ((reading, row), call) in outcome.readings.iter().zip(&rows).zip(&calls) {
+            if call.formula_literals {
+                transport_audits.push(serde_json::json!({
+                    "id": row.id, "args": row.args, "result_index": row.result_index,
+                    "input_transport": "formula_literals_with_cell_echo",
+                    "input_audit": reading.input_audit, "observed_raw": reading.observed_raw,
+                    "reading_failure": reading.value.as_ref().err(),
+                    "typed_argument_prediction": row.expected,
+                    "semantic_witness": false
+                }));
+                continue;
+            }
             let value = match &reading.value {
                 Ok(v) => match encode_result(v) {
                     Some(text) => text,
@@ -2014,8 +2047,10 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
             "function": function,
             "witnesses": witnesses,
             "unread": unread,
+            "transport_audit_readings": transport_audits,
             "input_audits": outcome.readings.iter().map(|r| serde_json::json!({
                 "id": r.id, "audit": r.input_audit,
+                "observed_raw": r.observed_raw,
                 "reading_failure": r.value.as_ref().err()
             })).collect::<Vec<_>>(),
             "capture_provenance": {
@@ -2036,9 +2071,7 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
                     "platform": env.platform,
                     "excel_operating_system": env.os_version,
                     "cpu_id": env.cpu,
-                    "excel_input_plumbing": if calls.iter().any(|c| c.formula_literals) {
-                        "per-row transport in input_audits"
-                    } else { "cell_value2_bulk" },
+                    "excel_input_plumbing": "cell_value2_bulk",
                 }
             }
         });
@@ -2053,9 +2086,10 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
         let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())? + "\n";
         fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
         let comparison = if request.inputs.is_some() { "frozen model prediction" } else { "banked reading" };
-        failed |= !unread.is_empty() || skipped > 0;
+        let audit_failures = transport_audits.iter().filter(|r| !r["reading_failure"].is_null()).count();
+        failed |= !unread.is_empty() || skipped > 0 || audit_failures > 0;
         println!(
-            "xtask witness: {function}: read {} rows on Excel {} build {build} ({}, {}, {}): {agree} equal the {comparison}, {} differ, {} unread, {skipped} not asked (array arguments); wrote {}",
+            "xtask witness: {function}: read {} rows on Excel {} build {build} ({}, {}, {}): {agree} equal the {comparison}, {} differ, {} unread; {} transport audit observations ({audit_failures} failed audit obligations); {skipped} not asked (array arguments); wrote {}",
             outcome.readings.len(),
             env.excel_version,
             env.bitness,
@@ -2063,6 +2097,7 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
             env.cpu.as_deref().unwrap_or("CPU unknown"),
             differ.len(),
             unread.len(),
+            transport_audits.len(),
             path.display()
         );
         for d in &differ {
@@ -2360,6 +2395,12 @@ mod tests {
             "unread": [
                 {"id": "changed-input", "reason": "Excel changed an input through Value2"},
                 "no result: worker did not return a value"
+            ],
+            "transport_audit_readings": [
+                {"id":"literal", "args":["0x3ff0000000000000"], "observed_raw":{"number":"3ff0000000000000"},
+                 "input_transport":"formula_literals_with_cell_echo", "semantic_witness":false,"reading_failure":null},
+                {"id":"changed-literal", "args":["0x3ff0000000000000"], "observed_raw":{"number":"3ff0000000000001"},
+                 "input_transport":"formula_literals_with_cell_echo", "semantic_witness":false,"reading_failure":"changed input"}
             ]
         });
         fs::write(&path, serde_json::to_vec(&doc).unwrap()).unwrap();
@@ -2370,12 +2411,18 @@ mod tests {
         assert_eq!(banks.readings.len() + banks.unread_rows.values().sum::<usize>(), 3);
         assert_eq!(unread.len(), 2);
         assert!(unread[0].contains("changed-input"));
+        assert!(banks.import_notes.iter().any(|n| n.contains("2 transport audit observations, 1 failed audit obligations")));
+        assert!(!banks.readings.iter().any(|r| r.id == "literal" || r.id == "changed-literal"));
         let (other, _) = load_full(&root, Some("GAMMA")).unwrap();
         assert!(other.readings.is_empty() && other.unread_rows.is_empty());
         doc["unread"] = json!("unrecognized capture summary");
         fs::write(&path, serde_json::to_vec(&doc).unwrap()).unwrap();
         let Err(error) = load_full(&root, Some("POISSON.DIST")) else { panic!("malformed unread count accepted") };
         assert!(error.contains("unread must be an array"));
+        doc["unread"] = json!([]);
+        doc["transport_audit_readings"][0]["semantic_witness"] = json!(true);
+        fs::write(&path, serde_json::to_vec(&doc).unwrap()).unwrap();
+        assert!(load_full(&root, Some("POISSON.DIST")).err().unwrap().contains("malformed transport audit"));
         fs::remove_dir_all(root).unwrap();
     }
 

@@ -67,6 +67,9 @@ pub struct WitnessReading {
     pub value: Result<CalcValue, String>,
     /// Requested/submitted/read-back arguments and formula, retained even on refusal.
     pub input_audit: Value,
+    /// The worker's raw outcome, including an outcome of changed inputs that is
+    /// deliberately refused as a semantic reading of the requested arguments.
+    pub observed_raw: Value,
 }
 
 /// Where the readings were taken.
@@ -354,6 +357,7 @@ fn convert_result(
                 id,
                 value,
                 input_audit: row["input_audit"].clone(),
+                observed_raw: row["value"].clone(),
             }
         })
         .collect();
@@ -450,6 +454,7 @@ mod tests {
         );
         assert!(readings[2].value.is_err());
         assert_eq!(readings[2].input_audit, result["rows"][2]["input_audit"]);
+        assert_eq!(readings[2].observed_raw, result["rows"][2]["value"]);
         assert!(convert_result(&result, 2).is_err());
         assert_eq!(
             (
