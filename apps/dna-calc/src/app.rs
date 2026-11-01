@@ -114,6 +114,11 @@ pub fn app_with_transport(
     let registry = registry();
     controller.register_skins(registry.clone());
     let active_skin = controller.active_skin;
+    let grid_speech = {
+        let registry = registry.clone();
+        Memo::new(move |_| matches!(resolve_active_skin(&registry, active_skin.get().as_deref()),
+            SkinResolution::Mount(skin) if skin.id() == dna_calc_model::SkinId::Grid))
+    };
     let assist = controller.assist;
     let file_input = NodeRef::<leptos::html::Input>::new();
     let replace_dialog = NodeRef::<leptos::html::Dialog>::new();
@@ -682,7 +687,7 @@ pub fn app_with_transport(
                     })}
                 </div>
             </details>
-            <span class="dc-sr-only" role="status" aria-live="polite" aria-atomic="true" data-dnacalc="result-announcement">{move || format!("{}. {}. {}", controller.active_key().map(|at| controller.cell_label(at)).unwrap_or_default(), controller.value_state().label(), controller.active_cell().map(|cell| format!("{} {}", cell.text, cell.why)).unwrap_or_default())}</span>
+            <span class="dc-sr-only" role="status" aria-live=move ||if grid_speech.get(){"off"}else{"polite"} aria-atomic="true" data-dnacalc="result-announcement">{move || format!("{}. {}. {}", controller.active_key().map(|at| controller.cell_label(at)).unwrap_or_default(), controller.value_state().label(), controller.active_cell().map(|cell| format!("{} {}", cell.text, cell.why)).unwrap_or_default())}</span>
             {move || controller.editing.get().map(|_| view! {
                 <div class="dc-edit-tools" data-dnacalc="edit-session">
                     <span>{move || format!("Editing {}", controller.edit_label())}</span>

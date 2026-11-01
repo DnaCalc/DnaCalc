@@ -123,6 +123,7 @@ impl TileBatch {
 }
 pub fn geometry_bytes(g: &Geometry) -> usize {
     1024usize
+        .saturating_add(g.coverage.len().saturating_mul(64))
         .saturating_add(
             g.rows
                 .len()
