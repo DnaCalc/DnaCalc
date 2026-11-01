@@ -3,7 +3,7 @@
 return (async function () {
   const fixture = $FIXTURE;
   const pureScope = $PURE_SCOPE;
-  const { decode_tile_event } = await import(new URL("dna-calc-web.js", window.__dnacalcAssets));
+  const decode_tile_event = window.__dnacalcDecodeTile;
   const worker = new Worker(new URL("worker.js", window.__dnacalcAssets), { type: "module" });
   const pending = new Map(), trace = [], cells = new Map();
   let requestId = 0, commandId = 0, summary, selection = null, measuring = false;
