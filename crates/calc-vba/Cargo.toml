@@ -10,12 +10,23 @@ description = "Portable VBA value-function adapter for CalcFunc hosts"
 portability = "portable"
 
 [dependencies]
+scoped-tls-hkt = "0.1.5"
+thiserror = "2"
+oxvba-oxir = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+oxvba-eval = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+oxvba-bundle = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+oxvba-symbol = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+oxvba-hal = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+oxvba-com = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+oxvba-runtime = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+calcvba-host-api = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+calc-fml = { path = "../calc-fml" }
 calc-func = { path = "../calc-func" }
 # Reviewed embedding contract UDF_EMBEDDING_V1. Native selects JIT at admission.
-oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "c7ce134918f21038ec1f5f586ebfcac2d1851588", default-features = false }
+oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "c7ce134918f21038ec1f5f586ebfcac2d1851588", default-features = false, features = ["jit"] }
+oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1", default-features = false, features = ["jit"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"

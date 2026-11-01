@@ -1,13 +1,16 @@
-use calc_func::{UserFunction, UserFunctionContext, UserFunctions};
+use calc_fml::CallableTable as UserFunctions;
+use calc_func::{UserFunction, UserFunctionContext};
 use calc_value::{CalcValue, SheetId};
 use calc_xll_abi::*;
+use sha2::{Digest, Sha256};
 use std::{
     cell::{Cell, RefCell},
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     ffi::{CString, c_void},
     fmt,
     path::{Path, PathBuf},
     rc::Rc,
+    sync::{Mutex, OnceLock},
 };
 
 #[link(name = "kernel32")]
@@ -17,6 +20,10 @@ unsafe extern "system" {
     fn GetModuleFileNameW(module: *mut c_void, path: *mut u16, length: u32) -> u32;
     fn GetProcAddress(module: *mut c_void, name: *const u8) -> *mut c_void;
     fn FreeLibrary(module: *mut c_void) -> i32;
+    fn FindResourceW(module: *mut c_void, name: *const u16, kind: *const u16) -> *mut c_void;
+    fn SizeofResource(module: *mut c_void, resource: *mut c_void) -> u32;
+    fn LoadResource(module: *mut c_void, resource: *mut c_void) -> *mut c_void;
+    fn LockResource(resource: *mut c_void) -> *const u8;
     pub(crate) fn GetCurrentThreadId() -> u32;
     pub(crate) fn GetCurrentThreadStackLimits(low: *mut usize, high: *mut usize);
 }
@@ -36,6 +43,65 @@ impl fmt::Debug for Module {
     }
 }
 impl Module {
+    fn resource(&self, name: &str, kind: &str) -> Option<&[u8]> {
+        unsafe {
+            let resource = FindResourceW(
+                self.handle,
+                wide(std::ffi::OsStr::new(name)).as_ptr(),
+                wide(std::ffi::OsStr::new(kind)).as_ptr(),
+            );
+            if resource.is_null() {
+                return None;
+            }
+            let size = SizeofResource(self.handle, resource) as usize;
+            let loaded = LoadResource(self.handle, resource);
+            if loaded.is_null() {
+                return None;
+            }
+            let bytes = LockResource(loaded);
+            if bytes.is_null() {
+                return None;
+            }
+            Some(std::slice::from_raw_parts(bytes, size))
+        }
+    }
+    fn reserve_native_aot(&self) -> Result<(), String> {
+        let Some(payload) = self.resource("__MAIN__", "NATIVE_ASSEMBLY") else {
+            return Ok(());
+        };
+        let digest: [u8; 32] = Sha256::digest(payload).into();
+        let runtime = self
+            .resource("__MAIN___ORIGINAL_DLL_FILE_NAME", "PROPERTY")
+            .map(|bytes| {
+                let units = bytes
+                    .chunks_exact(2)
+                    .map(|b| u16::from_le_bytes([b[0], b[1]]))
+                    .take_while(|u| *u != 0)
+                    .collect::<Vec<_>>();
+                let path = self
+                    .path
+                    .parent()
+                    .unwrap()
+                    .join(String::from_utf16_lossy(&units));
+                std::fs::canonicalize(&path).unwrap_or(path)
+            });
+        // Runtime initialization belongs to the process, not an XllHost instance.
+        // Retain identities before entry, including a failed partial initialization.
+        // A payload hash also catches renamed XLL copies and extracted runtimes.
+        static ATTEMPTED: OnceLock<Mutex<(BTreeSet<[u8; 32]>, BTreeSet<PathBuf>)>> =
+            OnceLock::new();
+        let mut attempted = ATTEMPTED.get_or_init(Default::default).lock().unwrap();
+        if attempted.0.contains(&digest)
+            || runtime.as_ref().is_some_and(|p| attempted.1.contains(p))
+        {
+            return Err("dc-snz.18: reinitializing a packed Native AOT runtime already attempted in this process is not modelled; restart the host".into());
+        }
+        attempted.0.insert(digest);
+        if let Some(path) = runtime {
+            attempted.1.insert(path);
+        }
+        Ok(())
+    }
     fn load(path: &Path) -> Result<Rc<Self>, String> {
         let path = std::fs::canonicalize(path).map_err(|e| format!("{}: {e}", path.display()))?;
         // Framework add-ins use System.IO.Path, which rejects the extended Win32 prefix.
@@ -206,6 +272,7 @@ impl XllHost {
             return Err("XLL already loaded by this host".into());
         }
         let open = module.address("xlAutoOpen")?;
+        module.reserve_native_aot()?;
         // xlAutoOpen runs at an execution boundary. A failed load must restore names and
         // use counts it changed in previously loaded add-ins, as well as remove its own entries.
         let (previous_registrations, previous_names, previous_uses) = {
@@ -425,6 +492,8 @@ impl UserFunction for XllFunction {
         if let Err(why) = &result {
             if why.starts_with("dc-snz.2:") {
                 context.refuse_by("an XLL invocation ABI is not modelled", "dc-snz.2");
+            } else if why.starts_with("dc-snz.18:") {
+                context.refuse_by("an XLL worker capability is not modelled", "dc-snz.18");
             }
         }
         result

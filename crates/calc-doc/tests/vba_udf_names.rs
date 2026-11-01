@@ -354,7 +354,7 @@ impl calc_fml::reference::ReferenceReader for NoReads {
 fn evaluate(
     plan: &std::sync::Arc<calc_fml::CompiledPlan>,
     at: CellKey,
-    functions: &calc_func::UserFunctions,
+    functions: &calc_fml::CallableTable,
 ) -> calc_func::value::CalcValue {
     evaluate_with_reader(plan, at, functions, &mut NoReads)
 }
@@ -362,7 +362,7 @@ fn evaluate(
 fn evaluate_with_reader(
     plan: &std::sync::Arc<calc_fml::CompiledPlan>,
     at: CellKey,
-    functions: &calc_func::UserFunctions,
+    functions: &calc_fml::CallableTable,
     reader: &mut dyn calc_fml::reference::ReferenceReader,
 ) -> calc_func::value::CalcValue {
     let instance = calc_fml::instantiate(plan, calc_fml::reference::FormulaAnchor::new(at));
@@ -425,7 +425,7 @@ fn dc_snz_9__qualified_arguments_read_the_consumer_workbook() {
     let catalog = LinkedCatalog(loaded.model().definitions());
     let book = calc_fml::reference::ExternalBookRef::Number(1);
     let provider = catalog.external_function_target(&book).unwrap();
-    let mut functions = calc_func::UserFunctions::new();
+    let mut functions = calc_fml::CallableTable::new();
     for name in ["OtherFunc", "Module1.OtherFunc"] {
         functions
             .register_for(Some(&provider), name, std::rc::Rc::new(Identity))
@@ -472,7 +472,7 @@ impl calc_func::UserFunction for Identity {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_snz_11__registered_unicode_names_match_measured_entry_and_file_cases() {
-    let mut functions = calc_func::UserFunctions::new();
+    let mut functions = calc_fml::CallableTable::new();
     for declared in ["Café", "Ångström"] {
         functions
             .register(declared, std::rc::Rc::new(Identity))
@@ -563,7 +563,7 @@ fn dc_snz_9__own_workbook_calls_bind_the_registered_procedure() {
     ] {
         let loaded = load(bytes);
         let sheet = loaded.model().sheets()[0].id();
-        let mut functions = calc_func::UserFunctions::new();
+        let mut functions = calc_fml::CallableTable::new();
         functions
             .register("MyFunc", std::rc::Rc::new(Identity))
             .unwrap();
@@ -625,7 +625,7 @@ fn dc_snz_9__external_calls_keep_link_and_provider_identity() {
                 provider.starts_with("file:///C:"),
                 "the measured absolute target: {provider}"
             );
-            let mut functions = calc_func::UserFunctions::new();
+            let mut functions = calc_fml::CallableTable::new();
             functions
                 .register_for(Some(&provider), name, std::rc::Rc::new(Identity))
                 .unwrap();
@@ -641,7 +641,7 @@ fn dc_snz_9__external_calls_keep_link_and_provider_identity() {
                     .as_ref()
                     .unwrap()
             );
-            let mut wrong_functions = calc_func::UserFunctions::new();
+            let mut wrong_functions = calc_fml::CallableTable::new();
             wrong_functions
                 .register(name, std::rc::Rc::new(Identity))
                 .unwrap();

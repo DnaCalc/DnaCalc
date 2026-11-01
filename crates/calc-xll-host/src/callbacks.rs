@@ -161,7 +161,14 @@ pub unsafe fn dispatch(
 
 fn refuse(frame: &mut Frame<'_>, why: &str) {
     if let Some(context) = &mut frame.context {
-        context.refuse_by("an XLL callback is not modelled", "dc-snz.2");
+        context.refuse_by(
+            "an XLL callback is not modelled",
+            if why.starts_with("dc-snz.18:") {
+                "dc-snz.18"
+            } else {
+                "dc-snz.2"
+            },
+        );
     }
     frame.state.borrow_mut().refusal(why);
 }
@@ -359,6 +366,26 @@ fn run(
             free(&frame.state, unsafe { &**pointer });
         }
         return Ok(None);
+    }
+    if frame.signature.is_some() && function & 0x8000 != 0 {
+        return Err((
+            INVALID_FUNCTION,
+            "dc-snz.18: worksheet functions cannot call commands".into(),
+        ));
+    }
+    if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == 16401 {
+        return Err((
+            NOT_THREAD_SAFE,
+            "dc-snz.18: event registration from calculation workers is not modelled".into(),
+        ));
+    }
+    if frame.signature.as_ref().is_some_and(|s| s.thread_safe)
+        && matches!(function, XL_UDF | XLF_EVALUATE)
+    {
+        return Err((
+            NOT_THREAD_SAFE,
+            "dc-snz.18: nested registered calls from calculation workers are not modelled".into(),
+        ));
     }
     if frame.signature.as_ref().is_some_and(|s| s.thread_safe)
         && matches!(function, XLF_REGISTER | XLF_UNREGISTER | XLF_SET_NAME | 186)
@@ -655,9 +682,10 @@ fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i
     let name = text(&values[3])?;
     let macro_type = values.get(5).and_then(CalcValue::as_number).unwrap_or(1.) as i32;
     // Excel-DNA registers its zero-argument commands with an empty type string.
-    // This form is only valid for commands; the native procedure returns void.
+    // This form is only valid for commands. Excel reads its native Boolean return,
+    // including a zero value from the .NET 8 wrappers; it is not unconditional success.
     let signature = XllSignature::parse(if type_text.is_empty() && macro_type == 2 {
-        ">"
+        "A"
     } else {
         &type_text
     })

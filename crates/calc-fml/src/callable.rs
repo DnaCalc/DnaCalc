@@ -1,0 +1,387 @@
+//! The host callable table: names bind once to checked slots; execution retains leases.
+use calc_func::value::{CalcValue, WorksheetErrorCode};
+use calc_func::{UserFunction, UserFunctionContext};
+use std::{collections::BTreeMap, rc::Rc};
+
+/// Per-host registrations, matched by the shared workbook-name comparison. Built-ins and local formula names keep their
+/// existing precedence. Hosts replace this registry atomically when loading a new module.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CallableHandle {
+    pub table: u64,
+    pub slot: u32,
+    pub generation: u64,
+}
+
+/// Binding-only projection; no session or thread-bound executable owners.
+#[derive(Clone, Debug, Default)]
+pub struct CallableBindings {
+    entries: BTreeMap<(Option<String>, String), CallableHandle>,
+}
+impl CallableBindings {
+    pub fn bind(&self, provider: Option<&str>, name: &str) -> Option<CallableHandle> {
+        self.entries
+            .get(&CallableTable::key(provider, name))
+            .copied()
+    }
+    pub fn contains_for(&self, provider: Option<&str>, name: &str) -> bool {
+        self.bind(provider, name).is_some()
+    }
+    pub fn contains(&self, name: &str) -> bool {
+        self.contains_for(None, name)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CallableTable {
+    identity: u64,
+    entries: BTreeMap<(Option<String>, String), Registration>,
+    slots: Vec<Option<Rc<dyn UserFunction>>>,
+    generations: Vec<u64>,
+    lineage: Rc<std::cell::RefCell<Vec<u64>>>,
+}
+impl Default for CallableTable {
+    fn default() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let identity = NEXT
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |n| n.checked_add(1),
+            )
+            .expect("callable identity exhausted");
+        Self {
+            identity,
+            entries: BTreeMap::new(),
+            slots: Vec::new(),
+            generations: Vec::new(),
+            lineage: Rc::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Registration {
+    /// Retain the inventory spelling separately from its shared comparison key.
+    name: String,
+    handle: CallableHandle,
+}
+
+impl CallableTable {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn bindings(&self) -> CallableBindings {
+        CallableBindings {
+            entries: self
+                .entries
+                .iter()
+                .map(|(key, r)| (key.clone(), r.handle))
+                .collect(),
+        }
+    }
+    pub fn bind(&self, provider: Option<&str>, name: &str) -> Option<CallableHandle> {
+        self.entries
+            .get(&Self::key(provider, name))
+            .map(|r| r.handle)
+    }
+    pub fn resolve(&self, handle: CallableHandle) -> Option<&Rc<dyn UserFunction>> {
+        (handle.table == self.identity
+            && self.generations.get(handle.slot as usize) == Some(&handle.generation))
+        .then(|| self.slots.get(handle.slot as usize)?.as_ref())
+        .flatten()
+    }
+    /// Publish replacement adapters at a boundary. Retained activations own their previous leases;
+    /// a retained binding cannot call either old code or an incompatible new signature.
+    pub fn replace(&mut self, replacement: Self) {
+        let mut entries = BTreeMap::new();
+        for (key, registration) in replacement.entries {
+            let function = replacement.slots[registration.handle.slot as usize]
+                .clone()
+                .expect("live replacement");
+            let slot = self
+                .entries
+                .get(&key)
+                .map(|r| r.handle.slot as usize)
+                .unwrap_or_else(|| {
+                    self.slots.push(None);
+                    self.generations.push(0);
+                    self.slots.len() - 1
+                });
+            self.generations[slot] = self.next_generation(slot);
+            self.slots[slot] = Some(function);
+            entries.insert(
+                key,
+                Registration {
+                    name: registration.name,
+                    handle: CallableHandle {
+                        table: self.identity,
+                        slot: slot as u32,
+                        generation: self.generations[slot],
+                    },
+                },
+            );
+        }
+        for (key, old) in &self.entries {
+            if !entries.contains_key(key) {
+                self.slots[old.handle.slot as usize] = None;
+            }
+        }
+        self.entries = entries;
+    }
+
+    fn next_generation(&self, slot: usize) -> u64 {
+        let mut lineage = self.lineage.borrow_mut();
+        if lineage.len() <= slot {
+            lineage.resize(slot + 1, 0);
+        }
+        lineage[slot] = lineage[slot]
+            .checked_add(1)
+            .expect("callable generation exhausted");
+        lineage[slot]
+    }
+
+    /// Reject duplicates; callers can build a replacement registry before publishing it.
+    pub fn register(&mut self, name: &str, function: Rc<dyn UserFunction>) -> Result<(), String> {
+        self.register_for(None, name, function)
+    }
+
+    /// Register a procedure at its exact provider target, as retained by the source link.
+    /// `None` is this workbook. Module qualification stays in `name`; provider paths are
+    /// never reduced to a file name or searched for on disk.
+    pub fn register_for(
+        &mut self,
+        provider: Option<&str>,
+        name: &str,
+        function: Rc<dyn UserFunction>,
+    ) -> Result<(), String> {
+        let key = Self::key(provider, name);
+        if key.1.is_empty() || provider == Some("") || self.entries.contains_key(&key) {
+            return Err(format!("duplicate or empty user function: {name}"));
+        }
+        let handle = CallableHandle {
+            table: self.identity,
+            slot: u32::try_from(self.slots.len()).map_err(|_| "callable slots exhausted")?,
+            generation: self.next_generation(self.slots.len()),
+        };
+        self.slots.push(Some(function));
+        self.generations.push(handle.generation);
+        self.entries.insert(
+            key,
+            Registration {
+                name: name.to_ascii_uppercase(),
+                handle,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.contains_for(None, name)
+    }
+
+    pub fn contains_for(&self, provider: Option<&str>, name: &str) -> bool {
+        self.entries.contains_key(&Self::key(provider, name))
+    }
+
+    fn key(provider: Option<&str>, name: &str) -> (Option<String>, String) {
+        (
+            provider.map(str::to_owned),
+            calc_func::value::fold_workbook_name(name),
+        )
+    }
+
+    /// Names registered in this workbook, including explicit module qualifications.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.entries
+            .iter()
+            .filter_map(|((provider, _), entry)| provider.is_none().then_some(entry.name.as_str()))
+    }
+
+    /// All registrations, retaining external provider identity for host inventories.
+    pub fn registrations(&self) -> impl Iterator<Item = (Option<&str>, &str)> {
+        self.entries
+            .iter()
+            .map(|((provider, _), entry)| (provider.as_deref(), entry.name.as_str()))
+    }
+
+    /// Invoke with live reference/caller services. A missing function remains #NAME?.
+    pub fn call_with_context(
+        &self,
+        name: &str,
+        arguments: &[CalcValue],
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        self.call_for_with_context(None, name, arguments, context)
+    }
+
+    /// Invoke through the same adapter route, retaining the provider selected at binding.
+    pub fn call_for_with_context(
+        &self,
+        provider: Option<&str>,
+        name: &str,
+        arguments: &[CalcValue],
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        let value = match self.entries.get(&Self::key(provider, name)) {
+            Some(entry) => self
+                .resolve(entry.handle)
+                .expect("live registration")
+                .call_with_context(arguments, context)?,
+            None => CalcValue::error(WorksheetErrorCode::Name),
+        };
+        if value.is_missing() {
+            Err("a user function returned a missing argument".into())
+        } else {
+            Ok(value)
+        }
+    }
+
+    /// Missing registrations yield #NAME?, including a plan retained after module removal.
+    pub fn call(&self, name: &str, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+        match self.entries.get(&Self::key(None, name)) {
+            Some(entry) => {
+                let value = self
+                    .resolve(entry.handle)
+                    .expect("live registration")
+                    .call(arguments)?;
+                if value.is_missing() {
+                    Err("a user function returned a missing argument".to_owned())
+                } else {
+                    Ok(value)
+                }
+            }
+            None => Ok(CalcValue::error(WorksheetErrorCode::Name)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug)]
+    struct Twice;
+    impl UserFunction for Twice {
+        fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+            match arguments {
+                [a] => a
+                    .as_number()
+                    .map(|n| CalcValue::number(n * 2.0))
+                    .ok_or("number required".into()),
+                _ => Err("one argument required".into()),
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn reload_preserves_slots_and_revokes_old_handles_without_retargeting_leases() {
+        let mut table = CallableTable::new();
+        table.register("Twice", Rc::new(Twice)).unwrap();
+        let first = table.bind(None, "Twice").unwrap();
+        let lease = table.resolve(first).unwrap().clone();
+        let mut next = CallableTable::new();
+        next.register("Twice", Rc::new(ReturnsMissing)).unwrap();
+        table.replace(next);
+        let second = table.bind(None, "Twice").unwrap();
+        assert_eq!(first.slot, second.slot);
+        assert_eq!(second.generation, first.generation + 1);
+        assert!(table.resolve(first).is_none());
+        assert!(table.resolve(second).is_some());
+        assert_eq!(
+            lease.call(&[CalcValue::number(21.0)]).unwrap(),
+            CalcValue::number(42.0)
+        );
+        let mut foreign = CallableTable::new();
+        foreign.register("Twice", Rc::new(Twice)).unwrap();
+        assert!(foreign.resolve(second).is_none());
+        table.replace(CallableTable::new());
+        assert!(table.resolve(second).is_none());
+        let mut restored = CallableTable::new();
+        restored.register("Twice", Rc::new(Twice)).unwrap();
+        table.replace(restored);
+        assert_ne!(table.bind(None, "Twice").unwrap(), second);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn divergent_table_clones_cannot_authorize_each_others_replacements_or_new_slots() {
+        let mut first = CallableTable::new();
+        first.register("Twice", Rc::new(Twice)).unwrap();
+        let mut second = first.clone();
+        first.register("New", Rc::new(Twice)).unwrap();
+        second.register("Other", Rc::new(ReturnsMissing)).unwrap();
+        assert!(second.resolve(first.bind(None, "New").unwrap()).is_none());
+        let mut next = CallableTable::new();
+        next.register("Twice", Rc::new(ReturnsMissing)).unwrap();
+        first.replace(next);
+        let mut next = CallableTable::new();
+        next.register("Twice", Rc::new(Twice)).unwrap();
+        second.replace(next);
+        assert!(second.resolve(first.bind(None, "Twice").unwrap()).is_none());
+    }
+
+    /// Native-only: exercises distinct OS thread identity namespaces.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn callable_ids_cannot_cross_thread_owners() {
+        let first = std::thread::spawn(|| {
+            let mut table = CallableTable::new();
+            table.register("Twice", Rc::new(Twice)).unwrap();
+            table.bind(None, "Twice").unwrap()
+        })
+        .join()
+        .unwrap();
+        assert!(
+            std::thread::spawn(move || {
+                let mut table = CallableTable::new();
+                table.register("Twice", Rc::new(ReturnsMissing)).unwrap();
+                table.resolve(first).is_none()
+            })
+            .join()
+            .unwrap()
+        );
+    }
+
+    #[derive(Debug)]
+    struct ReturnsMissing;
+    impl UserFunction for ReturnsMissing {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::missing())
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_generic_adapter_cannot_publish_missing_as_a_value() {
+        let mut functions = CallableTable::new();
+        functions
+            .register("MissingResult", Rc::new(ReturnsMissing))
+            .unwrap();
+        assert!(
+            functions
+                .call("MissingResult", &[])
+                .unwrap_err()
+                .contains("missing argument")
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn registration_is_local_case_insensitive_and_rejects_duplicates() {
+        let mut functions = CallableTable::new();
+        functions.register("Twice", Rc::new(Twice)).unwrap();
+        assert!(functions.register("tWICE", Rc::new(Twice)).is_err());
+        assert!(functions.register("", Rc::new(Twice)).is_err());
+        assert_eq!(
+            functions.call("twice", &[CalcValue::number(21.0)]).unwrap(),
+            CalcValue::number(42.0)
+        );
+        assert!(functions.call("TWICE", &[]).is_err());
+        assert_eq!(
+            CallableTable::new().call("Twice", &[]).unwrap(),
+            CalcValue::error(WorksheetErrorCode::Name)
+        );
+    }
+}

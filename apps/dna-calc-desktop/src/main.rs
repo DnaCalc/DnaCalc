@@ -24,6 +24,7 @@ fn run() -> Result<(), String> {
     let mut commands = Vec::new();
     let mut early_commands = Vec::new();
     let mut reload = false;
+    let mut reload_new_host = false;
     let mut sheet_name = "X1".to_owned();
     let mut wait = None;
     let mut ready = None;
@@ -44,6 +45,10 @@ fn run() -> Result<(), String> {
                 early_commands.push(args.next().ok_or("--early-command needs a name")?)
             }
             "--reload" => reload = true,
+            "--reload-new-host" => {
+                reload = true;
+                reload_new_host = true;
+            }
             "--ready" => ready = Some(PathBuf::from(args.next().ok_or("--ready needs a path")?)),
             "--wait" => wait = Some(PathBuf::from(args.next().ok_or("--wait needs a path")?)),
             "--finished" => {
@@ -53,7 +58,9 @@ fn run() -> Result<(), String> {
                 release = Some(PathBuf::from(args.next().ok_or("--release needs a path")?))
             }
             "--help" => {
-                println!("dna-calc-desktop --xll PATH [--formula '=MyAdd(1,2)'] [--self-test]");
+                println!(
+                    "dna-calc-desktop --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH | --self-test] [--sheet NAME] [--command NAME] [--early-command NAME] [--reload]"
+                );
                 return Ok(());
             }
             _ => return Err(format!("unknown argument: {arg}")),
@@ -69,7 +76,7 @@ fn run() -> Result<(), String> {
     if let Some(path) = wait {
         shell.wait_for(&path)?;
     }
-    let host = std::rc::Rc::new(calc_xll_host::XllHost::new(shell.hwnd()));
+    let mut host = std::rc::Rc::new(calc_xll_host::XllHost::new(shell.hwnd()));
     let mut session = dna_onecalc::Session::new(&sheet_name).map_err(|e| format!("{e:?}"))?;
     for (name, id) in session.sheets() {
         host.set_sheet(id, format!("[Book1]{name}"), true);
@@ -176,6 +183,13 @@ fn run() -> Result<(), String> {
         }
         session.set_user_functions(host.functions()?);
         drop(retained);
+        if reload_new_host {
+            host = std::rc::Rc::new(calc_xll_host::XllHost::new(shell.hwnd()));
+            for (name, id) in session.sheets() {
+                host.set_sheet(id, format!("[Book1]{name}"), true);
+            }
+            shell.attach_host(host.clone())?;
+        }
         for xll in &xlls {
             host.load(xll)?;
         }

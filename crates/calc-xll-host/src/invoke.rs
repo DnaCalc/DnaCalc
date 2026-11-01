@@ -218,11 +218,7 @@ impl XllFunction {
             XllType::Int => CalcValue::number(f64::from(result.word as i32)),
             XllType::Void => {
                 if r.info.macro_type == 2 {
-                    if r.info.type_text.is_empty() {
-                        CalcValue::logical(true)
-                    } else {
-                        CalcValue::number(0.)
-                    }
+                    CalcValue::number(0.)
                 } else if r
                     .info
                     .signature

@@ -138,7 +138,7 @@ pub struct Calculation {
 #[derive(Debug)]
 pub struct Session {
     fixture: Fixture,
-    functions: calc_func::UserFunctions,
+    functions: calc_fml::CallableTable,
     formula: String,
     formula_cell: CellKey,
     plans: PlanCache,
@@ -172,7 +172,7 @@ impl Session {
         let sheet = fixture.add_sheet(first_sheet);
         Ok(Session {
             fixture,
-            functions: calc_func::UserFunctions::new(),
+            functions: calc_fml::CallableTable::new(),
             formula: String::new(),
             formula_cell: CellKey::new(sheet, 1, 1).expect("A1 is on the grid"),
             plans: PlanCache::new(),
@@ -330,8 +330,8 @@ impl Session {
     }
 
     /// Publish a complete replacement. Plans retain no engine objects or old registrations.
-    pub fn set_user_functions(&mut self, functions: calc_func::UserFunctions) {
-        self.functions = functions;
+    pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
+        self.functions.replace(functions);
     }
 
     /// Load a VBA standard module. Failed compilation preserves the previous registrations.
@@ -348,7 +348,7 @@ impl Session {
     }
 
     pub fn clear_user_functions(&mut self) {
-        self.set_user_functions(calc_func::UserFunctions::new());
+        self.set_user_functions(calc_fml::CallableTable::new());
     }
 
     /// Calculates the formula: parse, compile (the session's plan cache shares one plan per

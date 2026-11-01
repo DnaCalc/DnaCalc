@@ -265,3 +265,24 @@ fn worker_refusals_survive_native_swallowing_and_formula_handlers() {
         "{error}"
     );
 }
+
+/// Native-only: valid worker event/status requests must not succeed against a discarded snapshot.
+#[test]
+fn worker_state_mutations_remain_typed_refusals() {
+    for callback in ["16401", "32890"] {
+        let fixture = Fixture::new();
+        let output = fixture
+            .command()
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .env("DNA_XLL_NEGATIVE_CALLBACK", callback)
+            .args(["--formula", "=IFERROR(MyWorkerUnsupported(),123)"])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains("NotModelled") && error.contains("dc-snz.18"),
+            "{callback}: {error}"
+        );
+    }
+}

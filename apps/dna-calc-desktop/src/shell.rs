@@ -61,7 +61,7 @@ impl Shell {
                 CreateWindowExW(
                     0,
                     class.as_ptr(),
-                    wide("DNA Calc X1").as_ptr(),
+                    wide("DNA Calc").as_ptr(),
                     if parent.is_null() {
                         WS_OVERLAPPEDWINDOW
                     } else {
@@ -103,6 +103,9 @@ impl Shell {
         })
     }
     pub fn attach_host(&mut self, host: std::rc::Rc<calc_xll_host::XllHost>) -> Result<(), String> {
+        if let Some(old) = &self.projection {
+            old.close_addins()?;
+        }
         let projection = Box::new(calc_com_host::Projection::new(self.hwnd(), host)?);
         projection.verify_layout()?;
         unsafe {
@@ -162,9 +165,18 @@ impl Shell {
 }
 impl Drop for Shell {
     fn drop(&mut self) {
-        self.projection.take();
+        if let Some(projection) = &self.projection {
+            if let Err(why) = projection.close_addins() {
+                eprintln!("desktop shutdown: {why}");
+            }
+        }
+        // Detach the callback pointer before freeing it. A later WM_GETOBJECT must
+        // never find the old Box, including while COM releases pump sent messages.
         unsafe {
             SetWindowLongPtrW(self.workbook, GWLP_USERDATA, 0);
+        }
+        self.projection.take();
+        unsafe {
             DestroyWindow(self.root);
             CoUninitialize();
         }

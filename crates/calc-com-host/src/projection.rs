@@ -79,11 +79,15 @@ impl Projection {
             _ => Err("unsupported COM Run return".into()),
         }
     }
+    /// Close add-ins while the workbook window can still answer Application lookup.
+    pub fn close_addins(&self) -> Result<(), String> {
+        self._host.close()
+    }
 }
 impl Drop for Projection {
     fn drop(&mut self) {
         // Give add-ins their final main-lane callbacks while Application is still connected.
-        if let Err(why) = self._host.close() {
+        if let Err(why) = self.close_addins() {
             eprintln!("COM projection shutdown: {why}");
         }
         unsafe {

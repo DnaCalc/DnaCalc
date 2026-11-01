@@ -1,7 +1,10 @@
 param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))), [switch]$NoTrace, [string]$X1Xll, [string]$HostExecutable,
-    [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload)
+    [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
+    [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal)
 $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Run with pwsh -Sta -File run.ps1.' }
+if ($ReloadNewHost) { $Reload=$true }
+if ($ExpectAotReloadRefusal -and ((-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectAotReloadRefusal requires a reload/alias attempt and -HostExecutable.' }
 $run = [IO.Path]::GetFullPath($RunDirectory)
 if (Test-Path -LiteralPath $run) { throw 'Use a new run directory; earlier evidence is never overwritten.' }
 New-Item -ItemType Directory -Path $run -Force | Out-Null
@@ -23,16 +26,22 @@ if ($ExcelDnaDirectory) {
 }
 if ($X1Xll -or $ExcelDnaDirectory) {
     $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-    foreach ($directory in 'crates/calc-xll-abi','crates/calc-xll-host','crates/calc-xll-fixture','crates/calc-com-host','platform/calc-xll-shim','apps/dna-calc-desktop') {
+    foreach ($directory in 'crates/calc-xll-abi','crates/calc-xll-host','crates/calc-xll-fixture','crates/calc-com-host','platform/calc-xll-shim','apps/dna-calc-desktop','crates/calc-fml','crates/calc-func','crates/calc-value','apps/dna-onecalc') {
         Get-ChildItem -LiteralPath (Join-Path $repositoryRoot $directory) -Recurse -File | Where-Object Extension -in '.rs','.toml','.c','.cpp','.rc' | ForEach-Object {
             $sourceFiles[[IO.Path]::GetRelativePath($repositoryRoot, $_.FullName).Replace('\','/')] = (Get-FileHash -LiteralPath $_.FullName).Hash
         }
     }
+    foreach ($file in 'Cargo.toml','Cargo.lock') { $sourceFiles[$file]=(Get-FileHash -LiteralPath (Join-Path $repositoryRoot $file)).Hash }
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'fixture') -File | ForEach-Object { $sourceFiles[[IO.Path]::GetRelativePath($repositoryRoot, $_.FullName).Replace('\','/')] = (Get-FileHash -LiteralPath $_.FullName).Hash }
 }
 if ($HostExecutable) {
     if (-not $X1Xll -and -not $ExcelDnaDirectory) { throw '-HostExecutable requires an XLL fixture.' }
-    $exe = (Resolve-Path -LiteralPath $HostExecutable).Path
+    $builtExe = (Resolve-Path -LiteralPath $HostExecutable).Path
+    # A capture owns its executable copy; a later build cannot replace its code,
+    # and the capture cannot hold the build output open while Cargo links it.
+    $exe = Join-Path $run ([IO.Path]::GetFileName($builtExe))
+    Copy-Item -LiteralPath $builtExe -Destination $exe
+    Copy-Item -LiteralPath (Join-Path (Split-Path $builtExe) 'xlcall32.dll') -Destination (Join-Path $run 'xlcall32.dll')
     if ($ExcelDnaDirectory) { $nativeXll = $managedXll } else {
         $nativeXll = Join-Path $run 'X1.xll'
         Copy-Item -LiteralPath (Resolve-Path -LiteralPath $X1Xll).Path -Destination $nativeXll
@@ -54,6 +63,12 @@ if ($HostExecutable) {
                 $arguments += @('--xll',$ownerXll,'--command','X0.Queue','--command','X0.Context','--early-command','X0.Queue')
             }
             if ($Reload) { $arguments += '--reload' }
+            if ($ReloadNewHost) { $arguments += '--reload-new-host' }
+            if ($AotAliasLoad) {
+                $alias=Join-Path $run 'Alias-AddIn64.xll'
+                Copy-Item -LiteralPath $nativeXll -Destination $alias
+                $arguments += @('--xll',$alias)
+            }
         } else { $arguments += '--self-test' }
         foreach ($argument in $arguments) { [void]$launch.ArgumentList.Add($argument) }
         $hostProcess = [Diagnostics.Process]::Start($launch)
@@ -75,11 +90,13 @@ if ($HostExecutable) {
             tracer_sha256=if($NoTrace){$null}else{(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'build/trace.exe')).Hash}
             tracer_source_sha256=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'native/trace.cpp')).Hash
             repository_commit=(& git -C $PSScriptRoot rev-parse HEAD)
+            repository_dirty=[bool](& git -C $PSScriptRoot status --porcelain)
             mode=if($NoTrace){'DNA Calc control without debugger'}else{'DNA Calc debugger boundary trace'}
             source_files=$sourceFiles
         }
         if ($ExcelDnaDirectory) {
             $metadata.fixture_files=$managedFiles; $metadata.fixture_name=$AddInName
+            $metadata.fixture_framework=$ExcelDnaDirectory
             $metadata.cases_sha256=(Get-FileHash -LiteralPath $Cases).Hash
             $metadata.reload=[bool]$Reload
             $metadata.assume_excel_process='1 (set by the host before creating threads)'
@@ -102,6 +119,7 @@ if ($HostExecutable) {
         Set-Content -LiteralPath $go -Value 'go'
         $deadline = [DateTime]::UtcNow.AddSeconds(600)
         while (-not (Test-Path -LiteralPath $done)) {
+            if ($ExpectAotReloadRefusal -and $hostProcess.HasExited) { break }
             if ($hostProcess.HasExited -or [DateTime]::UtcNow -gt $deadline) { throw 'Native host did not finish; inspect host.stderr.' }
             Start-Sleep -Milliseconds 100
         }
@@ -122,7 +140,11 @@ if ($HostExecutable) {
         }
     }
     if (-not $detached) { throw 'Tracer did not detach; owned host left running for inspection.' }
-    if ($hostProcess.ExitCode -ne 0) { throw 'Native host returned failure; inspect host.stderr.' }
+    if ($ExpectAotReloadRefusal) {
+        $message=Get-Content -LiteralPath (Join-Path $run 'host.stderr') -Raw
+        if ($hostProcess.ExitCode -ne 1 -or $message -notmatch 'dc-snz.18: reinitializing a packed Native AOT runtime already attempted' -or $message -match 'Unhandled exception') { throw 'Expected a typed AOT reload refusal; inspect host.stderr.' }
+        [ordered]@{status='typed refusal, not a compatibility pass';exit_code=$hostProcess.ExitCode;message=$message.Trim()} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'refusal.json') -Encoding utf8NoBOM
+    } elseif ($hostProcess.ExitCode -ne 0) { throw 'Native host returned failure; inspect host.stderr.' }
     if ($debugger -and $debugger.ExitCode -ne 0) { throw 'Native host tracer reported an incomplete capture.' }
     Write-Output $run
     return
@@ -186,6 +208,7 @@ try {
         native_source_sha256=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'native/owned.cpp')).Hash
         native_xll_sha256=(Get-FileHash -LiteralPath $nativeXll).Hash
         repository_commit=(& git -C $PSScriptRoot rev-parse HEAD); culture=(Get-Culture).Name
+        repository_dirty=[bool](& git -C $PSScriptRoot status --porcelain)
         multi_threaded_enabled=[bool]$excel.MultiThreadedCalculation.Enabled
         multi_thread_count=[int]$excel.MultiThreadedCalculation.ThreadCount
         mode=if($NoTrace){'control without debugger'}else{'debugger boundary trace'}

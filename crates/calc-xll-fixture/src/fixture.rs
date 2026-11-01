@@ -346,7 +346,19 @@ pub unsafe extern "system" fn MyUnsupported() -> *mut XlOper12 {
         .and_then(|s| s.parse().ok())
         .unwrap_or(12345);
     let mut arena = Arena::new();
-    if let Ok(text) = std::env::var("DNA_XLL_EVALUATE_TEXT") {
+    if function == 32890 {
+        let mut show = XlOper12::boolean(true);
+        let mut text = arena.text("worker status").unwrap();
+        unsafe {
+            call(function, &[&mut show, &mut text], &mut result);
+        }
+    } else if function == 16401 {
+        let mut procedure = arena.text("MyThreadId").unwrap();
+        let mut event = XlOper12::number(1.);
+        unsafe {
+            call(function, &[&mut procedure, &mut event], &mut result);
+        }
+    } else if let Ok(text) = std::env::var("DNA_XLL_EVALUATE_TEXT") {
         let mut text = arena.text(&text).unwrap();
         unsafe {
             call(function, &[&mut text], &mut result);

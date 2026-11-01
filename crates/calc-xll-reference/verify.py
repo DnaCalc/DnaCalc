@@ -295,6 +295,235 @@ def verify_x1(excel, excel_control, host, host_control):
     }
 
 
+def normalize_x2(value):
+    """Normalize only process identities: sheet IDs, handles, GUID names and XLL paths.
+
+    Return-code/type/ownership bits, rectangles, array shapes and values remain exact.
+    """
+    if isinstance(value, dict):
+        return {key: ("<sheet>" if key == "sheet" else "<handle>" if key == "opaque_handle"
+                      else normalize_x2(child)) for key, child in value.items()}
+    if isinstance(value, list):
+        return [normalize_x2(child) for child in value]
+    if isinstance(value, str):
+        value = re.sub(r"sheet=-?\d+", "sheet=<sheet>", value)
+        value = re.sub(r"(SyncMacro|RegistrationInfo)_[a-f0-9]{32}", r"\1_<guid>", value)
+        if "\\" in value and value.lower().endswith(".xll"):
+            value = value.replace("\\", "/").rsplit("/", 1)[-1]
+        return value
+    return value
+
+
+def x2_invocation(trace, name):
+    events, enters, leaves = trace
+    entry = next((x for x in enters.values() if x["entry"].endswith(":" + name)), None)
+    require(entry is not None, "No native invocation for " + name)
+    returned = leaves[entry["call"]]
+    callbacks = [[x["function"], normalize_x2(x["args"]), leaves[x["call"]]["return_code"],
+                  normalize_x2(leaves[x["call"]].get("result"))]
+                 for x in enters.values() if x["entry"].endswith("!MdCallBack12")
+                 and x["thread"] == entry["thread"] and entry["seq"] < x["seq"]
+                 and leaves[x["call"]]["seq"] < returned["seq"]]
+    return {"arguments": normalize_x2(entry.get("args")),
+            "result": normalize_x2(returned.get("result")), "callbacks": callbacks}
+
+
+def verify_x2(excel, excel_control, host, host_control, cases_path, publication_path=None):
+    directories = (excel, excel_control, host, host_control)
+    environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    expected = {c["formula"]: c["value"] for c in cases}
+    root = Path(__file__).resolve().parents[2]
+    if publication_path is None:
+        candidate = excel.parent.parent / "source-publication.json"
+        publication_path = candidate if candidate.exists() else None
+    publications = json.loads(publication_path.read_text(encoding="utf-8-sig"))["publications"] if publication_path else []
+    def retained(sha, source, env):
+        if source_matches(sha, root / source, env["repository_commit"]):
+            return True
+        # Publication after a dirty-tree capture is explicit, and every binding is
+        # checked against its actual Git object. The capture metadata stays untouched.
+        return any(p["source_files"].get(source) == sha and source_matches(sha, root / source, p["revision"])
+                   for p in publications)
+    for env in environments:
+        require(env["fixture_files"] == environments[0]["fixture_files"], "Different managed fixture files")
+        require(env["cases_sha256"] == digest(cases_path), "Case file differs from capture")
+        require(source_matches(env["tracer_source_sha256"], Path(__file__).resolve().parent / "native/trace.cpp", env["repository_commit"]), "Tracer source not retained")
+        for source, sha in env["source_files"].items():
+            require(retained(sha, source, env), "Source not retained: " + source)
+    require(environments[0]["excel_file_version"] == environments[1]["excel_file_version"], "Different Excel builds")
+    require(environments[2]["executable_sha256"] == environments[3]["executable_sha256"], "Different host binaries")
+    require(environments[2]["shim_sha256"] == environments[3]["shim_sha256"], "Different companion binaries")
+    require(environments[0]["tracer_sha256"] == environments[2]["tracer_sha256"], "Different tracer binaries")
+    require(environments[2]["executable_version"].startswith("16."), "Missing host version resource")
+    outcomes = []
+    host_outputs = []
+    for directory, env in zip(directories[:2], environments[:2]):
+        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
+        observations = controller(directory)
+        require(observations["AutomationSecurity unchanged"] is True, "Security setting changed")
+        outcomes.append({k: normalize_x2(v) for k, v in observations.items() if k.startswith("=")})
+    for directory in directories[2:]:
+        output = json.loads((directory / "host.stdout").read_text(encoding="utf-8-sig"))
+        require(not (directory / "host.stderr").read_text(encoding="utf-8-sig").strip(), "Host reported diagnostics")
+        require(output["live_callback_allocations"] == 0, "Host callback storage leaked")
+        require(output["closed_registration"] == "#NAME?" and output["closed_name"], "Old registration was not checked after close")
+        require(not output["reload_results"] or output["reload_results"] == output["results"], "Reload changed formula outcomes")
+        host_outputs.append(output)
+        outcomes.append({r["formula"]: normalize_x2(r["value"]) for r in output["results"]})
+    require(all(set(actual) == set(expected) for actual in outcomes), "Missing formula cases")
+    if environments[0]["fixture_name"] == "X0":
+        command_values = {name: controller(excel)["Application.Run " + name] for name in ("X0.Queue", "X0.Context")}
+        for output in host_outputs:
+            for command in output["commands"]:
+                require(command["value"] == command_values[command["command"]], "Native command return differs: " + command["command"])
+    for formula, value in expected.items():
+        actual = [o[formula] for o in outcomes]
+        require(all(v == actual[0] for v in actual), "Formula differs between captures: " + formula)
+        if value is not None:
+            require(actual[0] == value, "Formula differs from expected value: " + formula)
+        else:
+            require(formula == "=X0.Caller()" and actual[0] == "ExcelReference sheet=<sheet> rows=2:2 cols=1:1", "Unchecked expected value")
+
+    traces = [boundary(p) for p in (excel, host)]
+    fixture_name = environments[0]["fixture_name"]
+    measured_names = (["X0.Hello", "X0.Reference", "X0.Caller", "X0.Async", "X0.Big", "X0.ThreadSafe", "X0.NativeOwned"]
+                      if fixture_name == "X0" else ["SayHello"])
+    call_comparisons = {}
+    opaque_storage = []
+    for name in measured_names:
+        records = [x2_invocation(trace, name) for trace in traces]
+        raw_equal = records[0] == records[1]
+        if name == "X0.Async":
+            # Excel-DNA's ObjectParam reads hData only for XlTypeBigData
+            # (XlMarshalContext.cs:597-600). Keep cbData differences explicit;
+            # they are not evidence that every raw argument byte agrees.
+            for record in records:
+                handle = record["arguments"][1]
+                require(handle["code"] == "X" and handle["value"]["type"] == 2050, "Async handle type differs")
+                opaque_storage.append(handle["value"]["value"].pop("byte_count"))
+        require(records[0] == records[1], "Defined native arguments/result/nested callbacks differ for " + name)
+        call_comparisons[name] = {"same_defined_arguments_and_result": True, "same_raw_record_after_identity_normalization": raw_equal,
+                                  "same_ordered_callbacks": records[0]["callbacks"]}
+        if name == "X0.Async":
+            call_comparisons[name]["opaque_handle_cbData_excel_and_host"] = opaque_storage
+
+    signatures = []
+    callback_counts = []
+    boundary_summary = []
+    for directory, trace in zip((excel, host), traces):
+        events, enters, leaves = trace
+        first = next(x for x in enters.values() if x["entry"].endswith(":" + measured_names[0]))["seq"]
+        registrations = {}
+        for x in enters.values():
+            if x["entry"].endswith("!MdCallBack12") and x["function"] == 149 and x["seq"] < first:
+                require(leaves[x["call"]]["return_code"] == 0, "Registration failed")
+                args = x["args"]
+                registrations[normalize_x2(args[3]["value"])] = {"procedure": args[1]["value"], "type": args[2]["value"], "macro_type": args[5]["value"] if len(args) > 5 else 1}
+        signatures.append(registrations)
+        exports = [e for e in events if e["event"] == "xll_exports" and e["module"] == fixture_name + "-AddIn64.xll"]
+        require(exports and exports[0]["numbered_stub_count"] == 10000, "Original Excel-DNA export pool not observed")
+        versions = [x for x in enters.values() if x["entry"].endswith("!XLCallVer")]
+        require((versions or fixture_name == "X2Aot") and all(int(leaves[x["call"]]["rax"], 16) & 0xffffffff == 3072 for x in versions), "XLCallVer differs")
+        codes = Counter((x["function"], x["return_code"]) for x in leaves.values() if "return_code" in x)
+        callback_counts.append(codes)
+        if fixture_name == "X0":
+            for fn in (16393, 16385, 89, 16384):
+                require(codes[fn, 32] >= 1, "Missing outside-context failure: " + str(fn))
+            rows = fixture(directory)
+            main = int(next(x[1] for x in rows if x[2] == "AutoOpen"))
+            require(all(int(x[1]) == main for x in rows if x[2] in ("Hello", "Reference argument", "Caller", "Queue executed", "QueueAsMacro enter")), "Main-lane case used another thread")
+            workers = [x for x in rows if x[2] == "ThreadSafe"]
+            require(workers and all(int(x[1]) != main for x in workers), "Thread-safe case did not use a worker")
+            require(any(x[2] == "Async SetResult" and x[3] == "True" and int(x[1]) != main for x in rows), "Async completion missing")
+            require(any(x[2] == "Queue executed" and x[3].endswith("X0-AddIn64.xll") for x in rows), "Queued macro lost originating XLL")
+            pen = [x for x in enters.values() if x["entry"].endswith("!LPenHelper")]
+            require(pen and all(leaves[x["call"]]["output_first_long"] == 0 and int(leaves[x["call"]]["rax"], 16) & 0xffffffff == 0 for x in pen), "Ready-mode check failed")
+            run = [x for x in enters.values() if x["entry"] == "COM!Invoke" and x.get("dispid") == 259 and any("SyncMacro_" in str(a.get("value", "")) for a in x["rgvarg"])]
+            require(run and all(leaves[x["call"]]["result"] == {"vt": 5, "value": 0} for x in run), "SyncMacro COM return differs")
+            require(any(x["entry"].endswith("!AccessibleObjectFromWindow") for x in enters.values()), "Application lookup not observed")
+            owned = [x for x in leaves.values() if x["entry"].endswith(":X0.NativeOwned")]
+            frees = [x for x in enters.values() if x["entry"] == "NativeOwner64.xll!xlAutoFree12"]
+            require(len(owned) == len(frees) > 0, "Ownership case missing")
+            for returned in owned:
+                matches = [x for x in frees if returned["seq"] < x["seq"] and returned["rax"] == x["oper_address"] and returned["thread"] == x["thread"]]
+                require(matches and returned["result"]["type"] == 0x4002, "DLLFree pointer/thread mismatch")
+            require(any(x["result"]["type"] == 64 for x in leaves.values() if x["entry"].endswith(":X0.Big")), "Original mixed array not observed")
+        boundary_summary.append({"records": len(events), "paired_calls": len(enters), "c_api_calls": sum(codes.values()), "trace_sha256": digest(directory / "boundary.jsonl")})
+    require(signatures[0] == signatures[1], "Startup registration forms differ")
+    if fixture_name == "X0":
+        for output in host_outputs:
+            require(output["reload_results"], "Managed runtime reload was not exercised")
+            require(any(c.get("early_bound") and c["value"] == command_values["X0.Queue"] for c in output["commands"]), "Early-bound Run was not exercised")
+        # The same original net48 X0 capture remains the callback-number/code reference.
+        old = boundary(Path(__file__).resolve().parent / "traces/2026-11-01-net48/traced")
+        old_codes = {(x["function"], x["return_code"]) for x in old[2].values() if "return_code" in x}
+        current_codes = set(callback_counts[1])
+        require(old_codes <= current_codes, "An X0 callback/code pair is absent from the host")
+    else:
+        old_codes = set()
+    return {"status": "verified X2 measured cases", "fixture": fixture_name,
+            "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
+            "source_revisions": sorted({e["repository_commit"] for e in environments}),
+            "source_publication_revisions": [p["revision"] for p in publications],
+            "same_fixture_files": environments[0]["fixture_files"], "registration_forms": signatures[0],
+            "native_invocations": call_comparisons, "excel_and_host": boundary_summary,
+            "x0_callback_code_pairs_observed": len(old_codes),
+            "callback_counts_excel_and_host": [[{"function": fn, "return_code": rc, "count": count} for (fn, rc), count in sorted(c.items())] for c in callback_counts],
+            "reload_checked": bool(host_outputs[0]["reload_results"]),
+            "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
+            "scope": ("Single-invocation worker dispatch; no simultaneous workbook calculation, RTD, cancellation, delivered host AppEvents or full COM model claim."
+                      if fixture_name == "X0" else "Hello only; no COM, worker, async or reload claim."),
+            "known_difference": ("xlAsyncReturn raw result operand: Excel type zero, host documented Boolean. Raw opaque handle cbData is retained separately; Excel-DNA reads only hData on entry. Codes and published values agree."
+                                 if fixture_name == "X0" else None),
+            "timing": "Debugger timing is not uninstrumented performance evidence."}
+
+
+def verify_x2_controls(excel, host, identity=False):
+    """Additional controls, kept separate from traced UDF and corpus match counts."""
+    envs = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in (excel, host)]
+    require(envs[0]["fixture_files"] == envs[1]["fixture_files"], "Different control fixture binaries")
+    require(envs[0]["cases_sha256"] == envs[1]["cases_sha256"], "Different control cases")
+    require(envs[0]["pid"] != 3144 and envs[0]["pid"] not in envs[0]["preexisting_excel_pids"], "Unowned Excel PID")
+    observed = controller(excel)
+    output = json.loads((host / "host.stdout").read_text(encoding="utf-8-sig"))
+    require(observed["AutomationSecurity unchanged"] is True, "Security setting changed")
+    require(not (host / "host.stderr").read_text(encoding="utf-8-sig").strip(), "Host reported diagnostics")
+    require(output["live_callback_allocations"] == 0 and output["closed_registration"] == "#NAME?", "Control did not release its host registrations/storage")
+    actual = {r["formula"]: r["value"] for r in output["results"]}
+    if identity:
+        require(observed['=SayHello("x")'] == actual['=SayHello("x")'] == "Hello, x", "Hello control differs")
+        values = [observed["=X2.Identity()"], actual["=X2.Identity()"]]
+        parsed = []
+        for index, value in enumerate(values):
+            fields = value.split("|")
+            require(len(fields) == 9, "Incomplete identity probe")
+            process, major, assume, default_domain, version, hwnd, result, command_thread, function_thread = fields
+            require(process.lower() == ("excel" if index == 0 else "dna-calc-desktop"), "Process was renamed")
+            require(major == "16" and version == "16.0" and int(hwnd) != 0, "Process or COM identity differs")
+            require(result in ("True", "False") and command_thread == function_thread and int(command_thread) != 0, "PIA Run did not execute on the main lane")
+            if index == 1:
+                require(assume == "1", "Host environment opt-in missing")
+                if "net48" in envs[0]["fixture_framework"]:
+                    require(default_domain == "False", "New loader did not isolate the Framework add-in")
+            parsed.append({"process": process, "file_major": major, "assume_excel_process": assume,
+                           "default_appdomain": default_domain, "com_version": version,
+                           "com_hwnd": int(hwnd), "pia_run_result": result, "command_and_function_thread": int(command_thread)})
+        require(output["reload_results"] == output["results"], "PIA/identity behavior changed on reload")
+        require(parsed[0]["pia_run_result"] == parsed[1]["pia_run_result"], "PIA native command return differs")
+        return {"status": "verified process identity and original PIA calls", "excel_and_host": parsed,
+                "same_fixture_files": envs[0]["fixture_files"], "reload_checked": True,
+                "host_executable_sha256": envs[1]["executable_sha256"],
+                "scope": "Control without debugger; Version, Hwnd and Run through ExcelDna.Interop 15.0.1; process identities intentionally differ."}
+    expected = {"=X2.Pool0(3)": 3, "=X2.Pool9999(3)": 10002}
+    require(actual == expected and {k: v for k, v in observed.items() if k.startswith("=")} == expected, "Export pool endpoint values differ")
+    require(output["registrations"] == 10002 and output["numbered_exports"] == [0, 9999], "Full original numbered export pool was not registered")
+    return {"status": "verified original 10000-export pool", "registered_numbered_exports": 10000,
+            "total_registrations": output["registrations"], "tested_endpoints": expected,
+            "same_fixture_files": envs[0]["fixture_files"], "host_executable_sha256": envs[1]["executable_sha256"],
+            "scope": "No-debugger controls; every registration resolved an original export; values checked at f0 and f9999, not all 10000 delegates."}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("traced", type=Path)
@@ -302,10 +531,17 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path)
     parser.add_argument("--host", type=Path)
     parser.add_argument("--host-control", type=Path)
+    parser.add_argument("--x2-cases", type=Path)
+    parser.add_argument("--source-publication", type=Path)
+    parser.add_argument("--identity", action="store_true")
+    parser.add_argument("--pool", action="store_true")
     args = parser.parse_args()
-    if args.host:
+    if args.identity or args.pool:
+        result = verify_x2_controls(args.traced, args.control, args.identity)
+    elif args.host:
         parser.error("--host requires --host-control") if args.host_control is None else None
-        result = verify_x1(args.traced, args.control, args.host, args.host_control)
+        result = (verify_x2(args.traced, args.control, args.host, args.host_control, args.x2_cases, args.source_publication)
+                  if args.x2_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
     else:
         result = verify(args.traced, args.control)
     rendered = json.dumps(result, indent=2) + "\n"

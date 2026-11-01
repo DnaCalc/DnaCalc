@@ -170,6 +170,9 @@ struct BlockCursor {
     at: usize,
     base: Option<usize>,
     pending: Option<PendingCall>,
+    // Nested lazy/name blocks also carry a cursor. Keep cooperative UDF state off
+    // those recursive frames; ordinary formulas do not allocate it.
+    pending_user: Option<Box<PendingUserCall>>,
 }
 
 #[derive(Debug)]
@@ -180,6 +183,13 @@ struct PendingCall {
     synthetic: bool,
     retain: bool,
     start: usize,
+}
+
+#[derive(Debug)]
+struct PendingUserCall {
+    activation: Box<dyn calc_func::UserFunctionInvocation>,
+    frame: calc_func::UserInvocationFrame,
+    record: Option<usize>,
 }
 
 /// One owned activation. Nested lazy calls, names, LAMBDAs and kernels without resumable
@@ -311,6 +321,18 @@ fn evaluate_slice(
         }),
         None => None,
     };
+    let observation_reader = services.observation_reader.as_mut().map(|reader| {
+        SharedReader::new(
+            &mut **reader,
+            None,
+            instance.anchor.cell(),
+            environment,
+            crate::ReadRequest {
+                policy: crate::ReadPolicy::CachedMacroObservation,
+                ..crate::ReadRequest::DEPENDENCY
+            },
+        )
+    });
     let mut run = Run {
         random: random.as_ref(),
         instance,
@@ -323,6 +345,8 @@ fn evaluate_slice(
         arguments: &mut scratch.arguments,
         numeric: services.numeric,
         read_policy: services.request.policy,
+        invocation: services.invocation.clone(),
+        observation_reader: observation_reader.as_ref(),
         reader: &reader,
         catalog: services.catalog,
         functions: services.functions,
@@ -379,6 +403,8 @@ fn evaluate_slice(
 
 struct Run<'a, 'r> {
     read_policy: crate::ReadPolicy,
+    invocation: Option<calc_func::UserInvocationFrame>,
+    observation_reader: Option<&'a SharedReader<'r>>,
     instance: &'a FormulaInstance,
     stack: &'a mut Vec<CalcValue>,
     /// Call scratch not in use; a lazy call's arguments take their own while it holds one.
@@ -398,7 +424,7 @@ struct Run<'a, 'r> {
     random: Option<&'a SharedRandom<'r>>,
     /// The workbook context INDIRECT's text is bound in, when the caller gave one.
     catalog: Option<&'a dyn ReferenceCatalog>,
-    functions: Option<&'a calc_func::UserFunctions>,
+    functions: Option<&'a crate::CallableTable>,
     function_diagnostics: Option<&'a mut Vec<String>>,
     user_function_effects: Option<&'a mut super::UserFunctionEffects>,
     observer: Option<&'a mut dyn EvaluationObserver>,
@@ -413,43 +439,21 @@ fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
 }
 
 impl Run<'_, '_> {
-    fn user_call(
+    fn finish_user(
         &mut self,
         name: &str,
-        source: Option<&super::UserFunctionSource>,
-        argc: usize,
+        result: Result<CalcValue, String>,
     ) -> Result<(), EvalFault> {
-        if self.read_policy == crate::ReadPolicy::DiagnosticSnapshot {
-            return Err(EvalFault::NotModelled {
-                construct: "a diagnostic snapshot calling a user function without an effect-free capability",
-                owner: "dc-hsa5",
-            });
-        }
-        let provider = source.and_then(|source| source.target.as_deref());
-        let start = self.stack.len() - argc;
-        let arguments = self.stack.split_off(start);
-        let result = match self.functions {
-            Some(functions) => {
-                if functions.contains_for(provider, name) {
-                    if let Some(effects) = self.user_function_effects.as_deref_mut() {
-                        effects.calls += 1;
-                    }
-                }
-                let mut context = UserCallContext {
-                    run: self,
-                    fault: None,
-                };
-                let result =
-                    functions.call_for_with_context(provider, name, &arguments, &mut context);
-                if let Some(fault) = context.fault {
-                    return Err(fault);
-                }
-                result
-            }
-            None => Ok(CalcValue::error(WorksheetErrorCode::Name)),
-        };
         let value = match result {
-            Ok(value) => value,
+            Ok(value) if !value.is_missing() => value,
+            Ok(_) => {
+                if let Some(diagnostics) = &mut self.function_diagnostics {
+                    diagnostics.push(format!(
+                        "{name}: a user function returned a missing argument"
+                    ));
+                }
+                CalcValue::error(WorksheetErrorCode::Value)
+            }
             Err(message) => {
                 if let Some(diagnostics) = &mut self.function_diagnostics {
                     diagnostics.push(format!("{name}: {message}"));
@@ -495,8 +499,145 @@ impl Run<'_, '_> {
     }
 
     /// Runs block `index` and gives the one value it leaves.
+
+    fn user_call_slice(
+        &mut self,
+        name: &str,
+        binding: Option<crate::CallableHandle>,
+        argc: usize,
+        site: usize,
+        pending: &mut Option<Box<PendingUserCall>>,
+        quantum: usize,
+    ) -> Result<bool, EvalFault> {
+        if self.read_policy == crate::ReadPolicy::DiagnosticSnapshot {
+            return Err(not_modelled_by(
+                "a diagnostic snapshot calling a user function without an effect-free capability",
+                "dc-hsa5",
+            ));
+        }
+        if pending.is_none() {
+            let arguments = self.stack.split_off(self.stack.len() - argc);
+            let Some((handle, function)) = binding.and_then(|handle| {
+                self.functions?
+                    .resolve(handle)
+                    .map(|function| (handle, function.clone()))
+            }) else {
+                self.stack.push(CalcValue::error(WorksheetErrorCode::Name));
+                return Ok(true);
+            };
+            let frame = calc_func::UserInvocationFrame::new(
+                self.invocation.as_ref().map(|frame| frame.id),
+                self.invocation
+                    .as_ref()
+                    .map(|frame| frame.read_view.clone())
+                    .unwrap_or_else(|| std::rc::Rc::new(())),
+            );
+            let id = frame.id;
+            let record = self.user_function_effects.as_deref_mut().map(|effects| {
+                effects.calls += 1;
+                let index = effects.invocations.len();
+                effects.invocations.push(super::UserCallRecord {
+                    id,
+                    parent: frame.parent,
+                    callable: handle,
+                    call_site: u32::try_from(site).expect("bounded instructions"),
+                    occurrence: vec![index as u32],
+                    completed: false,
+                    non_preemptible: false,
+                });
+                index
+            });
+            let mut context = UserCallContext {
+                run: self,
+                fault: None,
+                frame: Some(frame.clone()),
+            };
+            let started = function.begin_call(&arguments, frame.clone(), &mut context);
+            if let Some(fault) = context.fault {
+                return Err(fault);
+            }
+            match started {
+                Ok(Some(activation)) => {
+                    *pending = Some(Box::new(PendingUserCall {
+                        activation,
+                        frame,
+                        record,
+                    }));
+                }
+                other => {
+                    if let Some(index) = record {
+                        self.user_function_effects
+                            .as_deref_mut()
+                            .unwrap()
+                            .invocations[index]
+                            .non_preemptible = true;
+                    }
+                    let result = match other {
+                        Ok(None) => {
+                            let mut context = UserCallContext {
+                                run: self,
+                                fault: None,
+                                frame: Some(frame),
+                            };
+                            let result = function.call_with_context(&arguments, &mut context);
+                            if let Some(fault) = context.fault {
+                                return Err(fault);
+                            }
+                            result
+                        }
+                        Err(message) => Err(message),
+                        _ => unreachable!(),
+                    };
+                    if let Some(index) = record {
+                        self.user_function_effects
+                            .as_deref_mut()
+                            .unwrap()
+                            .invocations[index]
+                            .completed = true;
+                    }
+                    self.finish_user(name, result)?;
+                    return Ok(true);
+                }
+            }
+        }
+        let call = pending.as_mut().expect("prepared activation");
+        let mut context = UserCallContext {
+            run: self,
+            fault: None,
+            frame: Some(call.frame.clone()),
+        };
+        let result = call.activation.resume(&mut context, quantum as u64);
+        if let Some(fault) = context.fault {
+            return Err(fault);
+        }
+        match result {
+            Ok(calc_func::UserFunctionStep::Suspended) => Ok(false),
+            result => {
+                let record = call.record;
+                if let Some(index) = record {
+                    self.user_function_effects
+                        .as_deref_mut()
+                        .unwrap()
+                        .invocations[index]
+                        .completed = true;
+                }
+                *pending = None;
+                self.finish_user(
+                    name,
+                    result.map(|step| match step {
+                        calc_func::UserFunctionStep::Complete(value) => value,
+                        _ => unreachable!(),
+                    }),
+                )?;
+                Ok(true)
+            }
+        }
+    }
     fn block(&mut self, index: usize) -> Result<CalcValue, EvalFault> {
-        match self.block_slice(index, &mut BlockCursor::default(), usize::MAX)? {
+        // Lazy calls and names can nest on a 1 MB native stack. Their cursors own
+        // kernel/activation storage, so retain that storage on the heap per block.
+        let mut cursor = Box::<BlockCursor>::default();
+        match self.block_slice(index, &mut cursor, usize::MAX)? {
             Some(value) => Ok(value),
             None => unreachable!("nested blocks are non-preemptible"),
         }
@@ -537,8 +678,31 @@ impl Run<'_, '_> {
                     self.stack.push(instance.reference_3d(*first, *count));
                     Ok(())
                 }
-                Instruction::UserCall { name, source, argc } => {
-                    self.user_call(name, source.as_ref(), *argc)
+                Instruction::UserCall {
+                    name,
+                    binding,
+                    source: _,
+                    argc,
+                } => {
+                    if !self.user_call_slice(
+                        name,
+                        *binding,
+                        *argc,
+                        at - 1,
+                        &mut cursor.pending_user,
+                        if quantum == usize::MAX {
+                            usize::MAX
+                        } else {
+                            quantum.saturating_sub(instructions).max(1)
+                        },
+                    )? {
+                        cursor.at = at - 1;
+                        return Ok(None);
+                    }
+                    if quantum != usize::MAX {
+                        instructions = quantum;
+                    }
+                    Ok(())
                 }
                 Instruction::Call {
                     target,
@@ -1831,7 +1995,8 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn user_volatility_is_an_executed_formula_effect() {
-        use calc_func::{UserFunction, UserFunctionContext, UserFunctions};
+        use crate::CallableTable as UserFunctions;
+        use calc_func::{UserFunction, UserFunctionContext};
         use std::rc::Rc;
 
         struct UserCatalog;
@@ -2068,7 +2233,7 @@ mod tests {
             }
         }
         let function = std::rc::Rc::new(Counting(std::cell::Cell::new(0)));
-        let mut functions = calc_func::UserFunctions::new();
+        let mut functions = crate::CallableTable::new();
         functions.register("CounterUdf", function.clone()).unwrap();
         let anchor = observed_anchor();
         let plan = crate::compile_with_functions(
@@ -2465,11 +2630,17 @@ mod tests {
     fn legacy_filterxml_intersects_its_result_outside_array_places() {
         let blank = CalcValue::empty();
         assert_eq!(
-            evaluated("=SUM(FILTERXML(\"<a><b>1</b><b>2</b><b>3</b></a>\",\"//b\"))", blank.clone()),
+            evaluated(
+                "=SUM(FILTERXML(\"<a><b>1</b><b>2</b><b>3</b></a>\",\"//b\"))",
+                blank.clone()
+            ),
             Ok(CalcValue::number(1.0))
         );
         assert_eq!(
-            evaluated("=SUMPRODUCT(FILTERXML(\"<a><b>1</b><b>2</b><b>3</b></a>\",\"//b\"))", blank),
+            evaluated(
+                "=SUMPRODUCT(FILTERXML(\"<a><b>1</b><b>2</b><b>3</b></a>\",\"//b\"))",
+                blank
+            ),
             Ok(CalcValue::number(6.0))
         );
     }
@@ -2481,20 +2652,43 @@ mod tests {
     fn regression_removes_exactly_proportional_predictors() {
         let blank = CalcValue::empty();
         for (formula, expected) in [
-            ("=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),1,2)", 0.0),
-            ("=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),4,2)", 2.0),
-            ("=INDEX(LOGEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),1,2)", 1.0),
+            (
+                "=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),1,2)",
+                0.0,
+            ),
+            (
+                "=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),4,2)",
+                2.0,
+            ),
+            (
+                "=INDEX(LOGEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),1,2)",
+                1.0,
+            ),
         ] {
-            assert_eq!(evaluated(formula, blank.clone()), Ok(CalcValue::number(expected)), "{formula}");
+            assert_eq!(
+                evaluated(formula, blank.clone()),
+                Ok(CalcValue::number(expected)),
+                "{formula}"
+            );
         }
         // A full-rank neighbouring input must retain the second predictor.
-        let neighbour = evaluated("=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8.0001},TRUE,TRUE),1,2)", blank)
-            .expect("the full-rank neighbour computes");
-        assert!(neighbour.as_number().is_some_and(|x| x.is_finite() && x != 0.0));
+        let neighbour = evaluated(
+            "=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8.0001},TRUE,TRUE),1,2)",
+            blank,
+        )
+        .expect("the full-rank neighbour computes");
+        assert!(
+            neighbour
+                .as_number()
+                .is_some_and(|x| x.is_finite() && x != 0.0)
+        );
         // Preserve the existing initial-zero-column policy: centering constant
         // predictors is different from eliminating a nonzero predictor by QR.
         assert_eq!(
-            evaluated("=INDEX(LINEST({1;2;4;7},{3,6;3,6;3,6;3,6},TRUE,TRUE),4,2)", CalcValue::empty()),
+            evaluated(
+                "=INDEX(LINEST({1;2;4;7},{3,6;3,6;3,6;3,6},TRUE,TRUE),4,2)",
+                CalcValue::empty()
+            ),
             Ok(CalcValue::number(1.0))
         );
     }
@@ -2515,7 +2709,7 @@ mod tests {
         ] {
             for quantum in [1, 7, 512] {
                 let counter = std::rc::Rc::new(Counting(std::cell::Cell::new(0)));
-                let mut functions = calc_func::UserFunctions::new();
+                let mut functions = crate::CallableTable::new();
                 functions.register("CounterUdf", counter.clone()).unwrap();
                 let anchor = observed_anchor();
                 let plan = crate::compile_with_functions(
@@ -2720,9 +2914,13 @@ mod tests {
 struct UserCallContext<'b, 'a, 'r> {
     run: &'b mut Run<'a, 'r>,
     fault: Option<EvalFault>,
+    frame: Option<calc_func::UserInvocationFrame>,
 }
 
 impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
+    fn invocation(&self) -> Option<&calc_func::UserInvocationFrame> {
+        self.frame.as_ref()
+    }
     fn caller(&self) -> Option<CellKey> {
         Some(self.run.instance.anchor.cell())
     }
@@ -2748,7 +2946,12 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     }
 
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
-        match self.run.reader.values_of(reference) {
+        match self
+            .run
+            .observation_reader
+            .unwrap_or(self.run.reader)
+            .values_of(reference)
+        {
             Ok(value) => Ok(value),
             Err(fault) => {
                 let text = format!("{fault:?}");
@@ -2778,6 +2981,8 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         // A VBA method call has no enclosing formula's implicit intersection or lifting.
         // Scalar positions accept a scalar or one cell; broader array behavior needs its own
         // measured host contract rather than silently borrowing the formula's rules.
+        let previous = self.run.reader;
+        self.run.reader = self.run.observation_reader.unwrap_or(previous);
         let result = (|| {
             let arguments = arguments
                 .iter()
@@ -2798,6 +3003,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
                 .collect::<Result<Vec<_>, _>>()?;
             self.run.eager(Target(target), &arguments, false)
         })();
+        self.run.reader = previous;
         match result {
             Ok(value) => Ok(value),
             Err(fault) => {

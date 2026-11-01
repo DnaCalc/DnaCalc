@@ -33,6 +33,8 @@ if (-not $NativeOnly) {
         if ($LASTEXITCODE -ne 0) { throw 'Hello fixture build failed.' }
         & dotnet build (Join-Path $root 'fixture/X2Pool.csproj') -c Release
         if ($LASTEXITCODE -ne 0) { throw 'Export pool fixture build failed.' }
+        & dotnet build (Join-Path $root 'fixture/X2Identity.csproj') -c Release
+        if ($LASTEXITCODE -ne 0) { throw 'Process identity fixture build failed.' }
         $savedPath = $env:PATH
         try {
             $env:PATH = "$([IO.Path]::GetDirectoryName($vswhere));$savedPath"
