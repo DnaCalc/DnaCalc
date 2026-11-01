@@ -1,0 +1,80 @@
+[
+  {
+    "file": "synthetic-control.xlsm",
+    "sha256": "1712285c735e10929936c4f18a238f50d5102a6076471e13f8934f11bf25f9e3",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {},
+    "label": "synthetic flags; current-version cache"
+  },
+  {
+    "file": "synthetic-old-calc-id.xlsm",
+    "sha256": "8f6fa16444fc4faa1450bacb2da2c0b4fdba55d066ed2cf7715d6133fffd2398",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {
+      "calcId": "124519"
+    },
+    "label": "synthetic flags; current-version cache"
+  },
+  {
+    "file": "synthetic-future-calc-id.xlsm",
+    "sha256": "f65855b427794be1d139434754d2a6947ad5ae7d0aa81ca00e935c355ad91fff",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {
+      "calcId": "999999"
+    },
+    "label": "synthetic flags; current-version cache"
+  },
+  {
+    "file": "synthetic-full-on-load.xlsm",
+    "sha256": "eb2c6bb1f65ea95ade9f0c4e98eaab1ac6b8bd18860ca1c481db864040b8ab91",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {
+      "fullCalcOnLoad": "1"
+    },
+    "label": "synthetic flags; current-version cache"
+  },
+  {
+    "file": "synthetic-completed-one.xlsm",
+    "sha256": "99eda45cf663d47babacc2d1c8c7d34add6d06ec8436c3ebfe9349fb0c8c9fe4",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {
+      "calcCompleted": "1"
+    },
+    "label": "synthetic flags; current-version cache"
+  },
+  {
+    "file": "synthetic-remove-ca.xlsm",
+    "sha256": "62f7aa12ce9000e564ae9104e9de2070424038009fc18df91d19f0a694bc358e",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {
+      "ca": null
+    },
+    "label": "synthetic flags; current-version cache"
+  },
+  {
+    "file": "synthetic-ca-zero.xlsm",
+    "sha256": "2f0b36d30ef6cedf4696b510b01e85fba1fd15456995022a0a37fa747bcd8a77",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {
+      "ca": "0"
+    },
+    "label": "synthetic flags; current-version cache"
+  },
+  {
+    "file": "synthetic-sheet-full-on-load.xlsm",
+    "sha256": "577e562a66b73a51b22e0dd52b44056ccfc924aca448a50dfe20530a38d9fb55",
+    "source": "manual-false-save-log-01-tested.xlsm",
+    "source_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead",
+    "changes": {
+      "sheetFull": "1"
+    },
+    "label": "synthetic flags; current-version cache"
+  }
+]

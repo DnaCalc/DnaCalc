@@ -24,8 +24,8 @@ not been measured on, it says so; implementing SliceV1 is not evidence of Excel 
 6. **Effects are at-most-once per InvocationId.** Execution state and result disposition are separate; cancel and
    supersede never undo or repeat an effect.
 7. **VBA cached reads read a pinned root** fixed at invocation admission; SliceV1 uses serial observation fences.
-8. **Save pins one model revision and one result view**; the cache policy is explicit. The Save(false) default stays
-   today's drop-stale policy until P06 shows what Excel writes (8).
+8. **Save pins one model revision and one result view**; the cache policy is explicit. P06 selects
+   `PreservePermittedCaches` for ordinary Manual Save(false). Save/SaveAs pins include admitted BeforeSave edits (8).
 9. **Strict blank reads need an absence proof**; a spill footprint installs as one unit.
 10. **No value-based early cutoff in SliceV1**; all admitted dirty or forced work is discharged.
 
@@ -320,14 +320,23 @@ ordering. A matching profile needs a typed provisional evaluation rather than me
   every other formula without `<v>` (`calc-host/src/save.rs:46-103`), plus `fullCalcOnLoad` when an array lacks one
   (`calc-doc/src/save/author.rs:712-723`). Excel recalculates those on open (1). Honest, but it makes Excel call a UDF
   on open that Excel itself might not have called.
-- `PreservePermittedCaches` (A7 8.1): stale caches of the same formula instance written with `ca`/`calcCompleted=false`
-  and no added `fullCalcOnLoad`. Because Excel trusts `<v>` on open (1), this is right only if Excel's own Manual
-  Save(false) writes stale `<v>` the same way: P06.
+- `PreservePermittedCaches` is selected by P06 (O, 20527 safe mode) for ordinary Manual Save(false): old
+  caches of the same formula instance survive with ca=1, calcCompleted=0 and calcOnSave=0. Do not infer freshness
+  from absent flags: disabled-sheet cases can keep stale caches without ca or calcCompleted. Flags follow the
+  measured file profile; they do not create a producing command or certificate.
 - `CalculateBeforeSave` becomes a `CalculationDomain` setting (absent today; only the xlsb converter reads `calcOnSave`,
   `calc-doc/src/xlsb/workbook.rs:562`). True: admit a `PinnedSave` calculation of the workbook's dirty/volatile demand,
   pin its final view, serialize with the original model pin; waiting on pending async; cancel or failure gives an
   explicit save outcome, never a silent downgrade. A live in-flight effectful invocation the save needs is waited for,
   not shared; if it is superseded the save is `Incomplete`.
+- P06 requires these normalization qualifications: Save/SaveAs admits BeforeSave edits before the serialization
+  model pin; SaveCopyAs skipped those handlers. Ordinary Manual true updated live caches in the saved workbook
+  and a dirty peer, so Excel's observed calculation scope exceeds one workbook. With the active sheet disabled,
+  true left both sheets stale; activating an enabled sheet let it calculate while the disabled one stayed stale.
+  In Automatic Except Tables, Save recalculated a stale TABLE even with CalculateBeforeSave=false. The existing
+  PinnedSave-only isolation/destination rule above remains a DNA strategy; it does not by itself describe Excel's
+  observed live cache updates. A public Excel command profile must account for those updates without duplicating
+  effectful evaluations. Pending-async waiting and concurrent-edit pinning remain separate measurements.
 - Reopen imports `<v>` as `UnverifiedFromFile` with a new incarnation; no command, certificate or effect resumes.
 
 ## 9. Scheduling and finite work
@@ -357,7 +366,7 @@ Install/Publish, Complete, SavePin, SaveImage, SaveWritten`) plus forbidden even
 | 5 Cached read, suspension | A: A1:=10, calc D1 alone; then B1, then D1. B: `CountAndPeekB1`, suspend after increment. C: native variant, cancel queued. D: force {D1,B1,C1}, rank D1<B1<C1, interest C1 | A: `Read(I1,B1,CachedMacroObservation,2,dirty)`, D1=2, no B1 evaluation, no D1->B1 edge; B1=11; D1=11 with a new identity. B: one EffectStart, Calls=1, `Yield(I,pc) < WorkerTask < Resume(I,pc)`, D1=2, in VM3 and JIT (a cell-boundary yield fails). C: one entry, one non-preemptible interval, never re-entered. D: `Resume(I) < Read(B1=2) < EffectComplete < Install(B1=11) < Publish(C1=22)`; reversing interest changes nothing |
 | 6 Narrow Manual | A1:=10; calc C1; calc B1; calc C1 | `Read(C1,B1,BoundaryCache,2)`, `Publish(C1=4, qualified_by=dirty B1)`, `Complete(scope={C1})`; no B1/D1/E1/G10 evaluation; then B1=11, C1=22; diagnostics cause no calculation. Under `RangePostState::StillRequired` (P02) C1 also stays required |
 | 7 Pending spill | F1:=10; calc {E1,G10}, G10 first | `CommitEdit(F1)` includes pending producer E1 and G10 invalidation; `BlockedOnOccupancy(G10,E1)` or `Wait(PotentialSpill)`; `InstallAtomic(E1:E10) < Read(G10,E10,10) < Publish(G10=11)`; never G10=1 on `ProvenAbsent`. Companions: shrink to 1 removes E2:E10 atomically then G10=1 on a new proof; G10 alone -> 1 with `CachedAbsent`; authored E10 -> `#SPILL!`, E10 untouched |
-| 8 Save(false) pin | A1:=10; save with the chosen policy; pin R1; A1:=100 at R2; finish | `SavePin(R1) < CommitEdit(R2) < SaveWritten(R1)`; zero invocations from save; file has A1=10, no candidate, no A1=100; B1/C1 per policy (preserve: 2/4 with `ca`, `calcCompleted=false`; drop: no `<v>`); D1=2 and G10=1 kept. Reopen in Manual: new incarnation, no resumed effects; B1:C1 -> 11, 22. Save(true) companion: B1=11, C1=22, D1 cached 2; cancelled save calculation writes no success |
+| 8 Save(false) pin | A1:=10; save with the chosen policy; pin R1; A1:=100 at R2; finish | `SavePin(R1) < CommitEdit(R2) < SaveWritten(R1)`; zero invocations from save; file has A1=10, no candidate, no A1=100; B1/C1 per policy (preserve: 2/4 with `ca`, `calcCompleted=false`; drop: no `<v>`); D1=2 and G10=1 kept. Reopen in Manual: new incarnation, no resumed effects; preserve keeps B1:C1 at 2,4 until an explicit calculation produces 11,22. The drop policy must measure its separate open behavior. Save(true) companion: B1=11, C1=22, D1 cached 2; cancelled save calculation writes no success |
 
 **Async sentinel** (after the eight; deterministic provider, `D1 = CountThenAsync(A1)`, counter before suspension):
 valid return accepted once (D1=41, dependent C1=D1+1=42 in the `AsyncDependents` pass, counter 1); rejected with
@@ -411,7 +420,7 @@ generations, views, draw material, effect outcomes and platform provenance; a se
 | Cached-read evidence | S/A7 cite a measured stale read | P01 (O, 20527 safe mode) confirms old dirty-formula cache for observer-only calculation; reversed-area re-entry sees Empty then the new value |
 | Range.Calculate end state | A7: target satisfied; fixture hints it stays dirty | P02 isolated Manual trials: `StillRequired`; clean unrelated counter did not run |
 | Edit during calculation | code: cancel all; A7: successor plus revalidated reuse | A7 (demo 4) |
-| Save(false) caches | code: drop stale, Excel recalcs on open; A7: preserve with `ca`/`calcCompleted=false` | both policies exist; default stays drop until P06 |
+| Save(false) caches | code: drop stale; A7: preserve with flags | P06 selects preserve for ordinary Manual false; flags are not freshness proofs, and semiautomatic TABLE save can calculate despite false |
 | Iteration order | A4: do not promote sheet-name order; code: measured on 20430/20527 | keep measured rules (O) for the measured shapes; P14 for the rest |
 | Atomic SCC/table publication | S/A7 imply session units; A4: a strategy, observable boundary unmeasured | sessions may yield internally; external atomicity from P08/P14/P15 |
 
@@ -426,7 +435,7 @@ SliceV1 fixes each provisionally; an Excel-parity claim waits for the probe and 
 | Repeated semantic evaluation: VBA provisional calls, XLL unwind, registration privileges | P03 confirms status-64 unwind/re-entry for ordinary/$, successful # coercion, and provisional VBA values; preserve typed reasons and registration capabilities. Null not observed | P03 (O, 20527 safe mode) |
 | Draw scope (RAND pair, LET, name, LAMBDA, MAP); spill-size pass count and stabilization | P04 confirms reuse/occurrence boundaries and eight calls before #SPILL! for the measured volatile SEQUENCE sizing path; held footprint and repeated size determine earlier completion. Global graph-wave count remains open | P04 (O, 20527 safe mode) |
 | Spill conflict winner, stale-footprint clearing, child-only calculation | P05 confirms cached absence, shrink clearing and no scope expansion from an existing child; reader-first callbacks see 1 then 11. Conflict winners vary; strict wait/semantic reservation remain DNA policies | P05 (O, 20527 safe mode) |
-| Save scope, stale `<v>` with Save(false), open-time recalculation | pinned dirty/volatile save scope; drop-stale default | P06 |
+| Save scope, stale `<v>` with Save(false), open-time recalculation | P06 selects Manual preserve, domain-wide live updates for ordinary true, handler-before-pin order, active-disabled and TABLE exceptions; first-workbook and concurrent/async pinning remain open | P06 (O, 20527 safe mode) |
 | Stale async returns Excel accepts; overlap of calls from one cell | revoke on any live edit | P07 |
 | Whether Excel's observable intermediate caches depend on chain history or position | serial fences | P08 |
 | Formula vs Formula2 through every ingress | dialect in the semantic key | P09 |

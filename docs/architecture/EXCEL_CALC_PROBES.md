@@ -170,7 +170,16 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   `PreservePermittedCaches` (contract 8). Excel omits stale `<v>`: today's drop policy is Excel's. Only Save(true)
   updates the chain: conditional calculation. `BeforeSave` edits reach the file: event order is part of the save
   contract. Save completes with async pending: the receipt names the serialized view.
-- **Measured.** Open behaviour for current-version caches (section 1); Excel's own Save(false) output is not.
+- **Earlier evidence.** Open behaviour for current-version caches (section 1); P06's new measurements below now
+  include Excel's own Save(false) output.
+
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: 440 save cases, 30 scope controls, 320 after-controller opens.
+  Manual false preserved stale v=2/3 with ca=1/calcCompleted=0; choose `PreservePermittedCaches`. Ordinary true
+  wrote 10/11 and updated a dirty peer workbook. BeforeSave edits reached Save/SaveAs; SaveCopyAs skipped them.
+  Active disabled sheet suppressed save calculation; activating S let S calculate while Disabled stayed stale.
+  Stale disabled caches can lack ca/calcCompleted. Semiautomatic Save recalculated stale TABLE output even with
+  false. Manual reopen kept ordinary caches; Automatic refreshed them, but could retain the unmarked disabled
+  cache. First-workbook open remains unmeasured. [Evidence and exact limits](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P06/README.md).
 
 ### P07 ★ Async identity, continuation and stale returns (E10; contract async sentinel)
 - **Setup.** Test XLL `AsyncEcho(input, latch)`: deep-copies arguments, keeps its handle, waits on a latch the
