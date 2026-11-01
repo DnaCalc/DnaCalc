@@ -11,13 +11,13 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
+#[path = "../../calc-engine/tests/fixtures/seven_cell_async.rs"]
+mod async_provider;
 mod contract_support;
 #[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
 mod existing_wire_support;
 #[path = "../../calc-engine/tests/fixtures/seven_cell.rs"]
 mod seven_cell;
-#[path = "../../calc-engine/tests/fixtures/seven_cell_async.rs"]
-mod async_provider;
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -1006,7 +1006,13 @@ fn d2_session__undo_restores_an_array_formula() {
     .unwrap();
     assert_eq!(
         page.cells()[0].input(),
-        Some(&formula("_xlfn.SEQUENCE(3,2)"))
+        Some(&CellInput::Formula(
+            FormulaText::with_form(
+                calc_value::ExcelText::from_interop_assignment("_xlfn.SEQUENCE(3,2)"),
+                calc_doc_model::FormulaForm::Dynamic
+            )
+            .unwrap()
+        ))
     );
     let mut saved = Vec::new();
     session
@@ -2113,7 +2119,17 @@ fn d2_review__typed_newer_functions_calculate_and_save_with_their_prefix() {
             },
         )
         .unwrap();
-        assert_eq!(page.cells()[0].input(), Some(&formula(stored)), "{text}");
+        let form = match text {
+            "=SEQUENCE(3)" | "=UNIQUE(Data!A1:A3)" | "=IFS(TRUE,1)" => {
+                calc_doc_model::FormulaForm::Dynamic
+            }
+            _ => calc_doc_model::FormulaForm::Legacy,
+        };
+        let authored = CellInput::Formula(
+            FormulaText::with_form(calc_value::ExcelText::from_interop_assignment(stored), form)
+                .unwrap(),
+        );
+        assert_eq!(page.cells()[0].input(), Some(&authored), "{text}");
         assert_eq!(
             session_calculated(&session, at_(calc, "AA1")),
             Some(expected),
@@ -4725,7 +4741,7 @@ fn contract_paste_cut_drops_overwritten_scope_locations_before_undo() {
     }
 }
 
-fn package_with_names(names: &str) -> Vec<u8> {
+fn package_with_part(name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
     use existing_wire_support::{RawEntry, build_zip, parse_zip};
     let blank = calc_host::blank_package();
     let archive = parse_zip(&blank);
@@ -4734,16 +4750,13 @@ fn package_with_names(names: &str) -> Vec<u8> {
         .iter()
         .map(|entry| {
             let payload = entry.payload(&blank);
-            if entry.name == "xl/workbook.xml" {
+            if entry.name == name {
                 let bytes = if entry.method == 0 {
                     payload.to_vec()
                 } else {
                     miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
                 };
-                let xml = String::from_utf8(bytes).unwrap().replace(
-                    "</sheets>",
-                    &format!("</sheets><definedNames>{names}</definedNames>"),
-                );
+                let xml = rewrite(&String::from_utf8(bytes).unwrap());
                 RawEntry::stored(&entry.name, xml.as_bytes())
             } else if entry.method == 0 {
                 RawEntry::stored(&entry.name, payload)
@@ -4753,6 +4766,15 @@ fn package_with_names(names: &str) -> Vec<u8> {
         })
         .collect();
     build_zip(&entries)
+}
+
+fn package_with_names(names: &str) -> Vec<u8> {
+    package_with_part("xl/workbook.xml", |xml| {
+        xml.replace(
+            "</sheets>",
+            &format!("</sheets><definedNames>{names}</definedNames>"),
+        )
+    })
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -6627,12 +6649,21 @@ mod async_contract {
                 }),
             )
             .unwrap();
-        functions.register("TerminalProducer",Rc::new(TerminalProducer)).unwrap();
+        functions
+            .register("TerminalProducer", Rc::new(TerminalProducer))
+            .unwrap();
         book.set_user_functions(functions);
         enter(&mut book, at(s, "D1"), "=TerminalProducer()");
         book.dispatch(SkinIntent::Recalculate);
         drain(&mut book);
-        assert!(matches!(value(book.host(),at(s,"D1")),ProjectedValue::NotModeled{..}), "terminal producer: {:?}", value(book.host(),at(s,"D1")));
+        assert!(
+            matches!(
+                value(book.host(), at(s, "D1")),
+                ProjectedValue::NotModeled { .. }
+            ),
+            "terminal producer: {:?}",
+            value(book.host(), at(s, "D1"))
+        );
         enter(&mut book, at(s, "B1"), "=YieldLate(D1)");
         book.take_calculation_events();
         book.dispatch(SkinIntent::Recalculate);
@@ -6659,8 +6690,319 @@ mod async_contract {
     #[derive(Debug)]
     struct TerminalProducer;
     impl UserFunction for TerminalProducer {
-        fn call(&self,_:&[CalcValue])->Result<CalcValue,String>{Err("fixture has no value entry".into())}
-        fn call_with_context(&self,_:&[CalcValue],context:&mut dyn UserFunctionContext)->Result<CalcValue,String>{Err(context.refuse_by("fixture absent external facility","dc-hsa5.4"))}
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Err("fixture has no value entry".into())
+        }
+        fn call_with_context(
+            &self,
+            _: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            Err(context.refuse_by("fixture absent external facility", "dc-hsa5.4"))
+        }
     }
+}
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_7__blocks_bind_without_expansion_and_edit_save_through_host() {
+    use calc_doc_model::FormulaSaveMode;
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        let data = r#"<sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>10</v></c><c r="C1"><f t="shared" si="2">ignored dependent</f><v>999</v></c></row><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>3</v></c><c r="C3"><f t="shared" ref="C1:C3" si="2">A3+$B$1</f><v>998</v></c></row></sheetData>"#;
+        xml.replace("<sheetData/>", data)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let input =
+        |book: &HostSession, address: &str| match book.host().model().cell(at(s, address)).unwrap()
+        {
+            CellInput::Formula(text) => text.clone(),
+            _ => panic!("formula"),
+        };
+    for address in ["C1", "C3"] {
+        assert!(!input(&book, address).materialized());
+    }
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    for (address, value) in [("C1", 11.0), ("C3", 13.0)] {
+        assert_eq!(
+            session_calculated(&book, at(s, address)),
+            Some(CalcValue::number(value))
+        );
+        assert!(
+            !input(&book, address).materialized(),
+            "binding and evaluation use the source"
+        );
+    }
+    let mut untouched = Vec::new();
+    book.save(&SavePolicy::default(), &mut untouched).unwrap();
+    assert_eq!(
+        part_text(&untouched, "xl/worksheets/sheet1.xml")
+            .matches("t=\"shared\"")
+            .count(),
+        2
+    );
+    let mut again = session(&untouched);
+    assert!(again.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        session_calculated(&again, at(s, "C3")),
+        Some(CalcValue::number(13.0))
+    );
+    assert!(
+        book.dispatch(SkinIntent::Copy {
+            from: GridArea::new(at(s, "C1"), at(s, "C3")).unwrap(),
+            to: GridArea::cell(at(s, "D1")),
+            cut: false
+        })
+        .accepted()
+    );
+    assert_eq!(input(&book, "D1").save_mode(), FormulaSaveMode::Individual);
+    assert_eq!(input(&book, "D1").text().to_string_lossy(), "B1+$B$1");
+    assert_eq!(
+        session_calculated(&book, at(s, "D1")),
+        Some(CalcValue::number(20.0))
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "D3")),
+        Some(CalcValue::number(10.0))
+    );
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 2, 1).unwrap()
+        ))
+        .accepted()
+    );
+    assert_eq!(input(&book, "C4").text().to_string_lossy(), "A4+$B$1");
+    assert_eq!(input(&book, "C4").save_mode(), FormulaSaveMode::Individual);
+    assert_eq!(
+        session_calculated(&book, at(s, "C4")),
+        Some(CalcValue::number(13.0))
+    );
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 2, 2).unwrap()
+        ))
+        .accepted()
+    );
+    assert_eq!(input(&book, "C2").text().to_string_lossy(), "A2+$B$1");
+    assert_eq!(
+        session_calculated(&book, at(s, "C2")),
+        Some(CalcValue::number(13.0))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(!part_text(&saved, "xl/worksheets/sheet1.xml").contains("t=\"shared\""));
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    for (address, value) in [("C1", 11.0), ("C2", 13.0), ("D1", 20.0), ("D2", 10.0)] {
+        assert_eq!(
+            session_calculated(&reopened, at(s, address)),
+            Some(CalcValue::number(value))
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_7__dialects_stay_distinct_through_wire_engine_and_save() {
+    use calc_doc_model::{FormulaForm, OpBatch, WorkbookOp, decode_batch, encode_batch};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, value) in [("A1", "-1"), ("A2", "-2"), ("A3", "-3")] {
+        enter(&mut book, at(s, address), value);
+    }
+    let legacy = FormulaText::with_form(
+        calc_value::ExcelText::from_interop_assignment("ABS(A1:A3)"),
+        FormulaForm::Legacy,
+    )
+    .unwrap();
+    let dynamic = FormulaText::with_form(legacy.text().clone(), FormulaForm::Dynamic).unwrap();
+    assert_ne!(legacy, dynamic);
+    let operations = vec![
+        WorkbookOp::SetCell {
+            at: at(s, "C1"),
+            input: CellInput::Formula(legacy.clone()),
+        },
+        WorkbookOp::SetCell {
+            at: at(s, "E1"),
+            input: CellInput::Formula(dynamic.clone()),
+        },
+    ];
+    let batch = OpBatch {
+        base: book.host().model().revision(),
+        operations,
+    };
+    let encoded = encode_batch(&batch, book.host().model()).unwrap();
+    assert_eq!(decode_batch(&encoded, book.host().model()).unwrap(), batch);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![
+                CellEdit::Set {
+                    at: at(s, "C1"),
+                    input: CellInput::Formula(legacy)
+                },
+                CellEdit::Set {
+                    at: at(s, "E1"),
+                    input: CellInput::Formula(dynamic)
+                }
+            ]
+        })
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "C1")),
+        Some(CalcValue::number(1.0))
+    );
+    assert!(book.host().model().cell(at(s, "C2")).is_none());
+    assert!(matches!(
+        session_value(&book, at(s, "C2")),
+        ProjectedValue::Empty
+    ));
+    assert!(book.host().model().cell(at(s, "C3")).is_none());
+    for (address, form) in [("C1", FormulaForm::Legacy), ("E1", FormulaForm::Dynamic)] {
+        let Some(CellInput::Formula(text)) = book.host().model().cell(at(s, address)) else {
+            panic!("formula");
+        };
+        assert_eq!(text.form(), form);
+    }
+    for (address, value) in [("E1", 1.0), ("E2", 2.0), ("E3", 3.0)] {
+        assert_eq!(
+            session_calculated(&book, at(s, address)),
+            Some(CalcValue::number(value))
+        );
+    }
+    for (from, to) in [("C1:C3", "G1"), ("E1:E3", "I1")] {
+        let (first, last) = from.split_once(':').unwrap();
+        assert!(
+            book.dispatch(SkinIntent::Copy {
+                from: GridArea::new(at(s, first), at(s, last)).unwrap(),
+                to: GridArea::cell(at(s, to)),
+                cut: false
+            })
+            .accepted()
+        );
+    }
+    for address in ["C2", "C3", "G2", "G3"] {
+        assert!(matches!(
+            session_value(&book, at(s, address)),
+            ProjectedValue::Empty
+        ));
+    }
+    for (address, form) in [("G1", FormulaForm::Legacy), ("I1", FormulaForm::Dynamic)] {
+        let Some(CellInput::Formula(text)) = book.host().model().cell(at(s, address)) else {
+            panic!("copied formula");
+        };
+        assert_eq!(text.form(), form);
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        session_calculated(&reopened, at(s, "C1")),
+        Some(CalcValue::number(1.0))
+    );
+    for (address, value) in [("E1", 1.0), ("E2", 2.0), ("E3", 3.0)] {
+        assert_eq!(
+            session_calculated(&reopened, at(s, address)),
+            Some(CalcValue::number(value))
+        );
+    }
+    for address in ["C2", "C3", "G2", "G3"] {
+        assert!(matches!(
+            session_value(&reopened, at(s, address)),
+            ProjectedValue::Empty
+        ));
+    }
+    for (address, form) in [
+        ("C1", FormulaForm::Legacy),
+        ("G1", FormulaForm::Legacy),
+        ("E1", FormulaForm::Dynamic),
+        ("I1", FormulaForm::Dynamic),
+    ] {
+        let Some(CellInput::Formula(text)) = reopened.host().model().cell(at(s, address)) else {
+            panic!("reopened formula");
+        };
+        assert_eq!(text.form(), form);
+    }
+    for (address, value) in [("I1", 1.0), ("I2", 2.0), ("I3", 3.0)] {
+        assert_eq!(
+            session_calculated(&reopened, at(s, address)),
+            Some(CalcValue::number(value))
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_7__explicit_dynamic_intersection_survives_copy_and_save() {
+    use calc_doc_model::FormulaForm;
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, value) in [
+        ("A1", "-1"),
+        ("A2", "-2"),
+        ("A3", "-3"),
+        ("C1", "7"),
+        ("C2", "8"),
+        ("C3", "9"),
+    ] {
+        enter(&mut book, at(s, address), value);
+    }
+    let text = FormulaText::with_form(
+        calc_value::ExcelText::from_interop_assignment("@A1:A3"),
+        FormulaForm::Dynamic,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::Set {
+                at: at(s, "E1"),
+                input: CellInput::Formula(text)
+            }]
+        })
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "E1")),
+        Some(CalcValue::number(-1.0))
+    );
+    assert!(
+        book.dispatch(SkinIntent::Copy {
+            from: GridArea::cell(at(s, "E1")),
+            to: GridArea::cell(at(s, "G1")),
+            cut: false
+        })
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "G1")),
+        Some(CalcValue::number(7.0))
+    );
+    for address in ["E2", "E3", "G2", "G3"] {
+        assert!(matches!(
+            session_value(&book, at(s, address)),
+            ProjectedValue::Empty
+        ));
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("_xlfn.SINGLE"));
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    for (address, value) in [("E1", -1.0), ("G1", 7.0)] {
+        assert_eq!(
+            session_calculated(&reopened, at(s, address)),
+            Some(CalcValue::number(value))
+        );
+        let Some(CellInput::Formula(text)) = reopened.host().model().cell(at(s, address)) else {
+            panic!("formula");
+        };
+        assert_eq!(text.form(), FormulaForm::Dynamic);
+    }
+    for address in ["E2", "E3", "G2", "G3"] {
+        assert!(matches!(
+            session_value(&reopened, at(s, address)),
+            ProjectedValue::Empty
+        ));
+    }
 }

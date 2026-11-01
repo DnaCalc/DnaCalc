@@ -163,3 +163,36 @@ html,body{height:100%}
 @media(max-width:440px) { .dc-format-fields { grid-template-columns:minmax(0,1fr); } }
 
 .dc-format-fields label:has([type=checkbox]) { flex-direction:row; align-items:center; }
+.dc-format-dialog{width:min(670px,calc(100vw - 24px));padding:20px}
+.dc-format-tabs{display:flex;gap:4px;overflow-x:auto;margin:12px 0}
+.dc-format-tabs [role=tab]{white-space:nowrap;padding:8px 12px;border:1px solid var(--dna-line);border-radius:5px;background:var(--dna-paper);color:var(--dna-ink)}
+.dc-format-tabs [aria-selected=true]{color:var(--dna-ink);border-color:var(--dna-ink);font-weight:600;background:var(--dna-paper-2)}
+.dc-format-fields{display:block}
+.dc-format-fields fieldset{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
+.dc-format-fields fieldset[hidden]{display:none}
+.dc-format-fields legend{padding:0 5px}
+.dc-format-fields .dc-note,.dc-format-sides{grid-column:1/-1}
+.dc-dialog-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.dc-names-dialog{box-sizing:border-box;max-width:none;width:min(920px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;padding:20px}
+.dc-name-toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:8px 0}
+.dc-name-toolbar label,.dc-name-editor label{display:flex;flex-direction:column;gap:4px;min-width:0}
+.dc-name-list{max-height:210px;overflow:auto;border:1px solid var(--dna-line);border-radius:5px}
+.dc-name-list table{border-collapse:collapse;width:100%;text-align:left}
+.dc-name-list th,.dc-name-list td{padding:7px 9px;border-bottom:1px solid var(--dna-line);vertical-align:top}
+.dc-name-list thead{position:sticky;top:0;background:var(--dna-paper)}
+.dc-name-list button[aria-pressed=true]{font-weight:700;text-decoration:underline}
+.dc-name-formula{max-width:340px;overflow-wrap:anywhere;font-family:var(--dna-font-mono,monospace)}
+.dc-names-dialog fieldset{min-width:0;border:1px solid var(--dna-line);border-radius:6px;padding:12px;margin:12px 0}
+.dc-name-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.dc-name-definition,.dc-name-editor .dc-note,.dc-name-editor .dc-dialog-actions{grid-column:1/-1}
+.dc-names-dialog output{display:block;white-space:pre-wrap;overflow-wrap:anywhere;padding:10px;background:var(--dna-paper-2);border:1px solid var(--dna-line);border-radius:4px}
+@media(max-width:520px){.dc-format-dialog,.dc-names-dialog{padding:12px}.dc-format-fields fieldset,.dc-name-editor{grid-template-columns:minmax(0,1fr)}.dc-name-list th,.dc-name-list td{padding:5px}.dc-format-tabs [role=tab]{padding:7px}.dc-name-list{max-height:170px}}
+.dc-format-dialog[open]{display:flex;flex-direction:column;overflow:hidden}
+.dc-format-dialog[open]>.dc-format-fields{min-height:0;overflow:auto;flex:1 1 auto}
+.dc-format-dialog[open]>:not(.dc-format-fields){flex-shrink:0}
+.dc-format-dialog button,.dc-names-dialog button{min-height:32px;padding:5px 10px;border:1px solid var(--dna-line);border-radius:5px;background:var(--dna-paper);color:var(--dna-ink);font:inherit;cursor:pointer}
+.dc-format-dialog button:hover:not(:disabled),.dc-names-dialog button:hover:not(:disabled){background:var(--dna-paper-2)}
+.dc-format-dialog button:disabled,.dc-names-dialog button:disabled{opacity:.5;cursor:default}
+.dc-format-dialog button:focus-visible,.dc-names-dialog button:focus-visible{outline:2px solid var(--dna-accent-ink);outline-offset:2px}
+.dc-format-tabs button[aria-selected=true]{border-color:var(--dna-ink);background:var(--dna-paper-2);font-weight:600}
+@media(max-width:520px){.dc-format-dialog button,.dc-names-dialog button,.dc-format-dialog input:not([type=checkbox]),.dc-format-dialog select,.dc-names-dialog input,.dc-names-dialog select{min-height:44px}.dc-format-fields label:has([type=checkbox]){min-height:44px}}

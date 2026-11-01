@@ -210,3 +210,61 @@ fn browser_rss(session: &Session) -> Option<u64> {
         None
     }
 }
+
+/// Core assertions use retained data and actual raster ink when cells have no DOM node.
+/// Returning None preserves the existing DOM assertion route for every other surface.
+pub(super) fn core_observation(
+    app: &App,
+    session: &Session,
+    check: &Check,
+) -> Result<Option<Value>, String> {
+    let (name, mut spec) = match check {
+        Check::HashMask(address) => ("", json!({"op":"hash","address":address})),
+        Check::Text(n, _) | Check::TextContains(n, _) | Check::Starts(n, _) => {
+            (*n, json!({"op":"text"}))
+        }
+        Check::FitsText(n) => (*n, json!({"op":"fits"})),
+        Check::Absent(n) => (*n, json!({"op":"absent"})),
+        Check::Count(n, _) => (*n, json!({"op":"count"})),
+        Check::Attr(n, field, _) => (*n, json!({"op":"attribute","field":field})),
+        Check::Spill(n, first, last) => (*n, json!({"op":"spill","first":first,"last":last})),
+        Check::Aligned(n, h, v) => (*n, json!({"op":"aligned","horizontal":h,"vertical":v})),
+        Check::Style(n, d) | Check::Computed(n, d) => (*n, json!({"op":"style","declarations":d})),
+        _ => return Ok(None),
+    };
+    if !name.is_empty() {
+        let selector = select(app, name);
+        let paint = selector
+            .chars()
+            .filter(|c| *c != char::from(34) && *c != char::from(39))
+            .collect::<String>();
+        let cell = paint.contains("[data-dnacalc=cell]");
+        let decoration = paint.contains("[data-dnacalc=cell-decoration]")
+            || paint.contains("[data-dnacalc=cell-borders]");
+        if !cell && !decoration {
+            return Ok(None);
+        }
+        if !selector.contains("data-cell=") {
+            if selector == select(app, "cell")
+                && matches!(check, Check::Count(..) | Check::Absent(..))
+            {
+                spec["op"] = json!(if matches!(check, Check::Absent(..)) {
+                    "empty"
+                } else {
+                    "count"
+                });
+            } else {
+                return Ok(None);
+            }
+        }
+        spec["selector"] = json!(selector);
+    }
+    let (_, js) = include_str!("../../../apps/dna-calc/tests/smoke/renderer.js")
+        .split_once("// Core observations, independent of measurements.")
+        .expect("core observation script");
+    let value=session.script(&format!("if(!window.__rendererCoreCheck){{(function(){{{js}}})()}} return window.__rendererCoreCheck({spec});"))?;
+    Ok(value["handled"]
+        .as_bool()
+        .unwrap_or(false)
+        .then(|| value["seen"].clone()))
+}

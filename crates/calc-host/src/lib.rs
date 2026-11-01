@@ -55,6 +55,8 @@
 
 mod actions;
 mod format;
+mod names;
+pub use names::NameEdit;
 pub use facts::alignment as style_alignment;
 pub use format::{BorderPatch, FORMAT_LIMIT, FormatPatch, format_cells, patched_style};
 pub mod chart;

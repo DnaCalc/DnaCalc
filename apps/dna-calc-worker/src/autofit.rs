@@ -32,23 +32,14 @@ pub fn text_style_for(
         .or_else(|| parent.and_then(|p| p.font_id))
         .unwrap_or(0);
     if let Some(font) = styles.fonts.get(font_id as usize) {
-        let base = styles.fonts.first();
-        out.family = font
-            .name
-            .clone()
-            .filter(|n| base.and_then(|f| f.name.as_ref()) != Some(n));
+        out.family = font.name.clone();
         let size = font
             .size
             .as_deref()
             .and_then(|n| n.parse::<f64>().ok())
             .unwrap_or(11.);
-        let base_size = base
-            .and_then(|f| f.size.as_deref())
-            .and_then(|n| n.parse::<f64>().ok())
-            .filter(|n| n.is_finite() && *n > 0.)
-            .unwrap_or(11.);
         if size.is_finite() && size > 0. && size <= 409. {
-            out.pixels = 13. * size / base_size;
+            out.pixels = size * 96. / 72.;
         } else {
             out.unsupported = Some("The font size is unavailable".into());
         }
@@ -56,6 +47,17 @@ pub fn text_style_for(
         out.italic = font.italic;
         out.underline = font.underline.as_deref().is_some_and(|v| v != "none");
         out.strike = font.strike;
+        if !font.other_children.is_empty()
+            || font
+                .underline
+                .as_deref()
+                .is_some_and(|v| !matches!(v, "none" | "single"))
+        {
+            out.unsupported = Some(
+                "Additional font effects or underline variants are preserved but not painted"
+                    .into(),
+            );
+        }
         out.font_color = font
             .color
             .as_ref()
@@ -100,6 +102,14 @@ pub fn text_style_for(
                     })
             })
         });
+        if out.borders.iter().flatten().any(|e| {
+            !matches!(
+                e.style.as_str(),
+                "thin" | "medium" | "thick" | "double" | "dotted" | "dashed" | "hair"
+            )
+        }) {
+            out.unsupported=Some("This border dash pattern is approximated by the DOM painter; its stored style is preserved".into());
+        }
         if b.diagonal_up || b.diagonal_down {
             out.unsupported = Some("Diagonal borders are preserved but not painted".into());
         }
@@ -175,8 +185,8 @@ mod tests {
             64.,
         );
         assert!(a.bold);
-        assert_eq!(a.pixels, 13.);
-        assert_eq!(a.family, None);
+        assert_eq!(a.pixels, 11. * 96. / 72.);
+        assert_eq!(a.family.as_deref(), Some("Aptos Narrow"));
         assert_eq!(a.unsupported, None);
         let b = text_style(
             &host,
@@ -187,5 +197,33 @@ mod tests {
         assert!(!b.bold);
         assert_eq!(b.unsupported, None);
         assert!(b.width > 0.);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn authored_font_points_do_not_depend_on_the_workbook_default_font() {
+        let host = calc_host::HostState::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let at = calc_host::value::CellKey::new(host.sheets()[0].id(), 1, 1).unwrap();
+        let mut table = (**host.styles()).clone();
+        let index = calc_host::patched_style(
+            &mut table,
+            0,
+            &calc_host::FormatPatch {
+                font_name: Some("monospace".into()),
+                font_size: Some("14".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        for size in ["11", "22"] {
+            table.fonts[0].size = Some(size.into());
+            let style = text_style_for(&host, at, 200., &table, index);
+            assert_eq!(style.pixels, 14. * 96. / 72.);
+            assert_eq!(style.family.as_deref(), Some("monospace"));
+        }
     }
 }

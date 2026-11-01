@@ -274,7 +274,8 @@ impl EvalContinuation {
     }
 }
 
-/// Runs `frame` to its value: the formula's result, or the fault that stopped it.
+/// Runs `frame` to its value: the requested expression result, or the fault that stopped it.
+/// `with_reference_result` retains the expression's reference or value before cell-result rules.
 ///
 /// A legacy formula's result is one value: a reference to one cell is the cell's value, a larger
 /// range gives the cell implicit intersection picks (#VALUE! when there is none), and an array its
@@ -309,6 +310,7 @@ fn evaluate_slice(
     cursor: &mut BlockCursor,
     quantum: usize,
 ) -> EvalStep {
+    let reference_result = services.reference_result;
     let EvalFrame { instance, scratch } = frame;
     if cursor.base.is_none()
         && let Some(effects) = services.user_function_effects.as_deref_mut()
@@ -405,6 +407,9 @@ fn evaluate_slice(
         }
     };
     let outcome = value.and_then(|value| {
+        if reference_result {
+            return Ok(value);
+        }
         let value = match (instance.plan.form, value.core_ref()) {
             (FormulaForm::Legacy, CoreRef::Reference(reference)) => {
                 match refops::intersect_cell(reference, at) {

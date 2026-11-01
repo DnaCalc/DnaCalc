@@ -184,9 +184,10 @@ pub fn shift_cell_edits(
             if tail.contains(at) || rewritten.is_some() {
                 let input = rewritten
                     .map(|text| {
-                        FormulaText::new(ExcelText::from_utf16_code_units(
-                            text.encode_utf16().collect(),
-                        ))
+                        FormulaText::with_form(
+                            ExcelText::from_utf16_code_units(text.encode_utf16().collect()),
+                            formula.form(),
+                        )
                         .map(CellInput::Formula)
                     })
                     .transpose()

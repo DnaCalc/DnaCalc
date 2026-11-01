@@ -40,6 +40,7 @@ pub struct FormatSelection {
 }
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FormatState {
+    pub tab: u8,
     pub open: bool,
     pub selection: Option<FormatSelection>,
     pub patch: FormatPatch,

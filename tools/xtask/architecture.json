@@ -1,6 +1,20 @@
 {
   "dependency_rules": [
     {
+      "package": "calc-syntax",
+      "scope": "closure",
+      "forbidden": [
+        "calc-fml",
+        "calc-func",
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-vba"
+      ],
+      "reason": "SYNTHESIS: neutral syntax identities cannot depend on authored workbooks or execution."
+    },
+    {
       "package": "calc-func",
       "scope": "closure",
       "forbidden": [
@@ -102,7 +116,8 @@
         "calc-platform-desktop",
         "dna-calc-model",
         "dna-calc-worker",
-        "dna-calc-protocol"
+        "dna-calc-protocol",
+        "calc-syntax"
       ],
       "reason": "dc-qeeu: the command and its checks have no product normal/build dependencies; linked commands execute the separate harness"
     },

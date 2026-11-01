@@ -6,6 +6,7 @@ use calc_value::{CellKey, GridArea, NameId, SheetId};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CommandId {
     FormatCells,
+    NameManager,
     Undo,
     Redo,
     Find,
@@ -16,8 +17,9 @@ pub enum CommandId {
     SwitchSkin,
 }
 impl CommandId {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::FormatCells,
+        Self::NameManager,
         Self::Undo,
         Self::Redo,
         Self::Find,
@@ -30,6 +32,7 @@ impl CommandId {
     pub const fn stable_id(self) -> &'static str {
         match self {
             Self::FormatCells => "format.cells",
+            Self::NameManager => "name.manager",
             Self::Undo => "edit.undo",
             Self::Redo => "edit.redo",
             Self::Find => "edit.find",
@@ -43,6 +46,7 @@ impl CommandId {
     pub const fn label(self) -> &'static str {
         match self {
             Self::FormatCells => "Format Cells",
+            Self::NameManager => "Name Manager",
             Self::Undo => "Undo",
             Self::Redo => "Redo",
             Self::Find => "Find",
@@ -70,6 +74,7 @@ pub enum RevealTarget {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     FormatCells,
+    NameManager,
     Undo,
     Redo,
     Find,
@@ -83,6 +88,7 @@ impl Command {
     pub const fn id(&self) -> CommandId {
         match self {
             Self::FormatCells => CommandId::FormatCells,
+            Self::NameManager => CommandId::NameManager,
             Self::Undo => CommandId::Undo,
             Self::Redo => CommandId::Redo,
             Self::Find => CommandId::Find,
@@ -96,6 +102,7 @@ impl Command {
     pub fn simple(id: CommandId) -> Option<Self> {
         Some(match id {
             CommandId::FormatCells => Self::FormatCells,
+            CommandId::NameManager => Self::NameManager,
             CommandId::Undo => Self::Undo,
             CommandId::Redo => Self::Redo,
             CommandId::Find => Self::Find,
@@ -144,6 +151,7 @@ pub struct CommandRequest {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
     FormatCells,
+    NameManager,
     Undo {
         editor: bool,
     },
@@ -180,6 +188,7 @@ impl Model {
             && matches!(
                 id,
                 CommandId::FormatCells
+                    | CommandId::NameManager
                     | CommandId::Find
                     | CommandId::Replace
                     | CommandId::GoTo
@@ -219,6 +228,15 @@ impl Model {
         let CommandRequest { command, focus } = request;
         self.availability(command.id(), context)?;
         Ok(match command {
+            Command::NameManager => {
+                if !self.names.open {
+                    self.names = crate::names::NameState {
+                        open: true,
+                        ..Default::default()
+                    };
+                }
+                Effect::NameManager
+            }
             Command::FormatCells => {
                 if !self.formatting.open {
                     self.formatting = crate::format::FormatState {
@@ -269,6 +287,13 @@ pub struct CommandBinding {
     pub command: CommandId,
 }
 pub const SHELL_KEYMAP: &[CommandBinding] = &[
+    CommandBinding {
+        key: "F3",
+        ctrl: true,
+        shift: false,
+        alt: false,
+        command: CommandId::NameManager,
+    },
     CommandBinding {
         key: "1",
         ctrl: true,

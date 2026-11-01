@@ -194,10 +194,10 @@ pub fn preview(book: &Workbook, at: CellKey, patch: FormatPatch) -> Result<wire:
             .map(|code| cells::CellFormat {
                 code,
                 date1904: host.declared_date1904(),
-                palette: None,
+                palette: book.cell_format(at).and_then(|f| f.palette),
             }),
     );
-    shown.conditional = original.conditional;
+    shown.conditional = None;
     shown.style = crate::autofit::text_style_for(host, at, original.style.width, &table, index);
     Ok(wire::cell_of(
         &shown,

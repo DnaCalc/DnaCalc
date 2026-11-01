@@ -1,0 +1,10 @@
+[package]
+name = "calc-syntax"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Neutral Excel formula dialect and semantic template identity."
+
+[package.metadata.dnacalc]
+portability = "portable"

@@ -263,6 +263,13 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    EditName {
+        id: Option<(u32, u32)>,
+        version: Option<u64>,
+        name: String,
+        scope: Option<Sheet>,
+        formula: Option<String>,
+    },
     FormatCells {
         areas: Vec<Area>,
         revision: u64,
@@ -461,6 +468,15 @@ pub struct ToServer {
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    Names {
+        query: String,
+        page: u64,
+    },
+    EvaluateName {
+        id: (u32, u32),
+        version: u64,
+        anchor: Key,
+    },
     FormatSelection(Vec<Area>),
     PreviewFormat {
         at: Key,
@@ -582,7 +598,8 @@ impl Request {
     pub fn is_command(&self) -> bool {
         matches!(
             self,
-            Self::New
+            Self::EvaluateName { .. }
+                | Self::New
                 | Self::Open { .. }
                 | Self::Save
                 | Self::Intent(_)
@@ -777,6 +794,8 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    Names(crate::names::NamePage),
+    NameEvaluation(crate::names::NameEvaluation),
     FormatSelection(Result<crate::format::FormatSelection, String>),
     FormatPreview(Result<Cell, String>),
     Summary(Summary),

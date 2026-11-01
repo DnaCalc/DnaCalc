@@ -154,6 +154,7 @@ impl FindMode {
 #[derive(Default)]
 pub struct Model {
     pub formatting: crate::format::FormatState,
+    pub names: crate::names::NameState,
     pub selection: SelectionState,
     pub edit: EditSession,
     pub editor: crate::EditorState,

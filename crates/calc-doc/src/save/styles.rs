@@ -101,7 +101,43 @@ impl Node {
                 self.added.remove(index);
             }
         } else if let Some(value) = value {
-            self.added.push(value);
+            // New fields precede their existing schema successors; raw siblings keep
+            // their source order and bytes. XF and border children are sequences.
+            let order: &[&str] = match self.local.as_str() {
+                "xf" => &["alignment", "protection", "extLst"],
+                "border" => &[
+                    "start",
+                    "end",
+                    "left",
+                    "right",
+                    "top",
+                    "bottom",
+                    "diagonal",
+                    "vertical",
+                    "horizontal",
+                    "extLst",
+                ],
+                _ => &[],
+            };
+            if let Some(rank) = order.iter().position(|name| *name == local) {
+                let at = self
+                    .children
+                    .iter()
+                    .find(|(_, _, node)| {
+                        node.as_ref().is_some_and(|n| {
+                            n.main
+                                && order
+                                    .iter()
+                                    .position(|name| *name == n.local)
+                                    .is_some_and(|r| r > rank)
+                        })
+                    })
+                    .map_or(self.close_start, |c| c.0);
+                self.children.push((at, at, Some(value)));
+                self.children.sort_by_key(|c| (c.0, c.1));
+            } else {
+                self.added.push(value);
+            }
         }
     }
     fn records(&self, local: &str) -> Vec<Node> {
@@ -597,5 +633,63 @@ mod tests {
         let mut invalid = after;
         invalid.fonts[0].name = Some("Replaced".into());
         assert!(rewrite(&xml, &before, &invalid).is_err());
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn derived_alignment_and_border_sides_precede_existing_schema_successors() {
+        let source = format!(
+            r#"<styleSheet xmlns="{MAIN_NAMESPACE}" xmlns:v="urn:vendor"><borders count="1"><border><diagonal style="thin"/><vertical/><horizontal/></border></borders><cellXfs count="1"><xf borderId="0"><protection locked="0" hidden="1" v:keep="yes"/><extLst><v:keep/></extLst></xf></cellXfs></styleSheet>"#
+        );
+        let before = StyleTable {
+            borders: vec![Border {
+                diagonal: Some(calc_doc_model::BorderEdge {
+                    style: Some("thin".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }],
+            cell_formats: vec![CellFormat {
+                border_id: Some(0),
+                protection: Some(calc_doc_model::Protection {
+                    locked: Some(false),
+                    hidden: Some(true),
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let mut after = before.clone();
+        let mut border = before.borders[0].clone();
+        border.left = Some(calc_doc_model::BorderEdge {
+            style: Some("double".into()),
+            ..Default::default()
+        });
+        border.top = Some(calc_doc_model::BorderEdge {
+            style: Some("thick".into()),
+            ..Default::default()
+        });
+        after.borders.push(border);
+        after.sources.borders.insert(1, 0);
+        let mut xf = before.cell_formats[0].clone();
+        xf.border_id = Some(1);
+        xf.alignment = Some(Alignment {
+            wrap_text: true,
+            ..Default::default()
+        });
+        after.cell_formats.push(xf);
+        after.sources.cell_formats.insert(1, 0);
+        let xml = XmlPart::new(
+            "xl/styles.xml".into(),
+            source.into_bytes(),
+            Default::default(),
+        );
+        let bytes = rewrite(&xml, &before, &after).unwrap();
+        let written = String::from_utf8(bytes.clone()).unwrap();
+        assert!(written.contains(r#"<border><left style="double"/><top style="thick"/><diagonal style="thin"/><vertical/><horizontal/></border>"#),"{written}");
+        assert!(written.contains(r#"<xf borderId="1"><alignment wrapText="1"/><protection locked="0" hidden="1" v:keep="yes"/><extLst><v:keep/></extLst></xf>"#),"{written}");
+        assert_eq!(written.matches("v:keep=\"yes\"").count(), 2);
+        let parsed = XmlPart::new("xl/styles.xml".into(), bytes, Default::default());
+        let mut reader = parsed.reader();
+        while reader.next_event().unwrap().is_some() {}
     }
 }

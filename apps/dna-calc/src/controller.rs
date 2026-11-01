@@ -3004,6 +3004,27 @@ where
 }
 
 impl Controller {
+    pub(crate) fn evaluate_name(
+        &self,
+        request: Request,
+        answer: impl FnOnce(Result<Reply, String>) + 'static,
+    ) {
+        self.send_command(request, None, move |reply, _| answer(reply));
+    }
+    pub(crate) fn name_field<T>(
+        &self,
+        get: fn(&dna_calc_model::names::NameState) -> &T,
+        get_mut: fn(&mut dna_calc_model::names::NameState) -> &mut T,
+    ) -> ModelField<T>
+    where
+        T: Clone + PartialEq + Send + Sync + 'static,
+    {
+        Field::new(
+            self.model,
+            move |m| get(&m.names),
+            move |m| get_mut(&mut m.names),
+        )
+    }
     pub(crate) fn format_field<T>(
         &self,
         get: fn(&dna_calc_model::format::FormatState) -> &T,
@@ -3114,7 +3135,7 @@ impl Controller {
             }
             Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
             Ok(CommandEffect::Dialog) => self.focus_command_dialog(),
-            Ok(CommandEffect::FormatCells) => {}
+            Ok(CommandEffect::FormatCells | CommandEffect::NameManager) => {}
             Ok(CommandEffect::FocusSkin { skin, ticket }) => {
                 // The model already transferred the edit; only the ticketed effect may focus it.
                 self.edit_field.set_value(self.assist);

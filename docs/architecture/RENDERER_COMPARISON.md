@@ -10,6 +10,10 @@ Canvas is aria-hidden; switching issues no workbook command or evaluation.
 
 ## Method
 
+The timing and paired-raster tables below measure round 11, source ed59f223. Round 12
+retains imported font families and absolute point sizes; that performance matrix has not
+been rerun. Its new core and visual checks are described under Smoke cost and reproduction.
+
 Linux (Haswell CPU), headless Chromium 156 and Firefox 159; 1440x1000 CSS viewport, DPR 1.
 Three fresh browser processes per painter/workbook/browser, alternating painter order.
 Same upload and keyboard-edit route: formats.xlsx, features.xlsx and generated
@@ -63,13 +67,18 @@ AX inspection is structural evidence; actual screen-reader/physical IME checks w
 
 ## Smoke cost and reproduction
 
-Default DOM: core 33 Calc + 9 OneCalc; full 477 Calc + 52 OneCalc, per browser, all pass.
+Round 11 on ed59f223: DOM core 33 Calc + 9 OneCalc; full 477 Calc + 52 OneCalc, per browser, all pass.
 Three renderer cases check identical plans/command counts, real edits, focus and raster ink;
 four U2 core cases cover merge/keyboard behavior, applied-font reflow and protection.
 Ordinary core started in Canvas on 18df5c80: Chromium 16 passed/6 failed before stopping;
 failures address missing DOM paint nodes, waiting 8 s per assertion. No whole-core or Firefox result.
-DOM geometry/value selectors need adaptation and Canvas pixel equivalents; shared input,
-worker and semantic assertions remain useful. This is additional Canvas test cost.
+That run needed paint assertions for Canvas instead of DOM geometry/value selectors.
+Round 12 now passes ordinary Canvas core: 51 Calc cases in each browser. Assertions read
+the committed RenderPlan and actual raster, requiring matching publication and presentation
+epochs; erased transparent pixels cannot satisfy the ink check. The alignment fixture opens
+at 1440 by 1200 so its asserted bottom-row glyphs are visible. DOM remains the default.
+This is plan and paint evidence, without an Excel pixel comparison. Logs:
+`~/codex-runs/ui-r12-canvas-core-second.log` and `ui-r12-canvas-probe-final.log`.
 Run `cargo xtask app smoke calc --workbook @renderer-grid --edit Data!A1=42
 --renderer-report <directory>` on one shell line; repeat with formats/features fixture paths.
 Use `--renderer canvas` for ordinary runs. Raw JSON, plans, screenshots and summaries:

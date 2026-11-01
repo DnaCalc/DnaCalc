@@ -9,6 +9,9 @@
 //! a refusal, a stale result) is refused as CalcFml refuses a missing input, so a detached value
 //! is never computed over a value nothing here calculated.
 
+#[path = "detached_name.rs"]
+mod name_inspection;
+
 use crate::read::{Progress, RecalcView, SnapshotCatalog, WorkbookReader};
 use crate::result::NotModeled;
 use crate::spill::SpillIndex;
@@ -28,6 +31,7 @@ use std::sync::Arc;
 /// placed at any cell.
 #[derive(Clone, Debug)]
 pub struct DetachedFormula {
+    reference_result: bool,
     plan: Arc<CompiledPlan>,
 }
 
@@ -66,7 +70,10 @@ impl DetachedFormula {
             form,
         )
         .map_err(NotModeled::Compile)?;
-        Ok(DetachedFormula { plan })
+        Ok(DetachedFormula {
+            plan,
+            reference_result: false,
+        })
     }
 
     /// The formula's value placed at `at` (its relative references moved by `at`'s offset from
@@ -112,6 +119,9 @@ impl DetachedFormula {
                 calc_fml::ReadRequest::DIAGNOSTIC,
             )
             .with_catalog(&catalog);
+            if self.reference_result {
+                services = services.with_reference_result();
+            }
             evaluate(EvalFrame::new(&instance, &mut scratch), &mut services)
         };
         if uncomputed.get().is_some() {

@@ -541,6 +541,44 @@ impl ModelRoot {
         // A working copy of each page the batch touches, by (sheet position, page row, page
         // column), made from this root's page the first time an operation changes the block.
         let mut touched: Touched = BTreeMap::new();
+        // First edit slice: dissolve a touched shared group as a whole. This scans occupied
+        // members, never the bounding rectangle; unedited groups keep their source and pages.
+        let mut detached = std::collections::BTreeSet::new();
+        for op in &batch.operations {
+            let area = match op {
+                WorkbookOp::SetCell { at, .. } => Some(GridArea::cell(*at)),
+                WorkbookOp::Clear { area } => Some(*area),
+                WorkbookOp::SetArray { array, .. } => Some(array.area()),
+                _ => None,
+            };
+            if let Some(area) = area {
+                for (_, input) in self.cells(area).into_iter().flatten() {
+                    if let CellInput::Formula(text) = input
+                        && let Some(block) = text.block()
+                    {
+                        detached.insert(block.id());
+                    }
+                }
+            }
+        }
+        if !detached.is_empty() {
+            for (position, sheet) in self.sheets.iter().enumerate() {
+                for (at, input) in self.sheet_cells(sheet.id).into_iter().flatten() {
+                    if let CellInput::Formula(text) = input
+                        && text
+                            .block()
+                            .is_some_and(|block| detached.contains(&block.id()))
+                    {
+                        self.set_into(
+                            &mut touched,
+                            position,
+                            at,
+                            &CellInput::Formula(text.detached()),
+                        );
+                    }
+                }
+            }
+        }
         // A working copy of the layout, made from this root's the first time an operation edits it.
         let mut layout: Option<SkinLayout> = None;
         // The areas the batch's cell operations set or cleared.
@@ -680,7 +718,7 @@ impl ModelRoot {
             let old = self.cells[sheet].page(page_row, page_column);
             let new = CellPage::build(page_row, page_column, working);
             match (old, new) {
-                (Some(old), Some(new)) if **old == new => {}
+                (Some(old), Some(new)) if old.same_storage(&new) => {}
                 (None, None) => {}
                 (_, new) => cells[sheet].set_page(page_row, page_column, new.map(Arc::new)),
             }
@@ -786,10 +824,17 @@ impl ModelRoot {
             let mut blocks: BTreeMap<(u32, u32), BTreeMap<u16, CellInput>> = BTreeMap::new();
             for (at, input) in parts.cells.get(&sheet.id).into_iter().flatten() {
                 let (page_row, page_column, place) = locate(*at);
-                blocks
-                    .entry((page_row, page_column))
-                    .or_default()
-                    .insert(place, input.clone());
+                blocks.entry((page_row, page_column)).or_default().insert(
+                    place,
+                    match input {
+                        CellInput::Formula(text)
+                            if text.member_at().is_some_and(|member| member != *at) =>
+                        {
+                            CellInput::Formula(text.detached())
+                        }
+                        _ => input.clone(),
+                    },
+                );
             }
             for ((page_row, page_column), cells) in blocks {
                 let page = CellPage::build(page_row, page_column, cells).map(Arc::new);
@@ -812,7 +857,15 @@ impl ModelRoot {
         touched
             .entry((sheet, page_row, page_column))
             .or_insert_with(|| self.working_copy(sheet, page_row, page_column))
-            .insert(place, input.clone());
+            .insert(
+                place,
+                match input {
+                    CellInput::Formula(text) if text.block().is_some() => {
+                        CellInput::Formula(text.detached())
+                    }
+                    _ => input.clone(),
+                },
+            );
     }
 
     /// Empties every cell of `area` (on the sheet at position `sheet`) in the working copies

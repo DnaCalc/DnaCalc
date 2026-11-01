@@ -101,6 +101,7 @@ pub enum FactInvalidation {
 /// boundary. `None` is an explicit absent service, never a reader fallback. The calling cell
 /// belongs to the formula instance, so a scenario cannot accidentally substitute its caller.
 pub struct FormulaEvaluationContext<'s> {
+    pub(super) reference_result: bool,
     pub(super) numeric: &'s NumericMode,
     pub(super) reader: &'s mut dyn ReferenceReader,
     pub(super) environment: Option<SemanticEnvironment>,
@@ -127,6 +128,7 @@ impl<'s> FormulaEvaluationContext<'s> {
         request: ReadRequest,
     ) -> Self {
         Self {
+            reference_result: false,
             numeric,
             reader,
             environment: environment.map(Into::into),
@@ -146,6 +148,14 @@ impl<'s> FormulaEvaluationContext<'s> {
             function_diagnostics: None,
             user_function_effects: None,
         }
+    }
+
+    /// Explicit name inspection asks for the reference or value the expression produced,
+    /// before cell-result intersection, dereferencing or blank-to-zero conversion. Reads
+    /// inside the expression still use the same reader, services and evaluator.
+    pub fn with_reference_result(mut self) -> Self {
+        self.reference_result = true;
+        self
     }
 
     pub fn with_external_inputs(mut self, inputs: &'s dyn calc_func::UserExternalInputs) -> Self {

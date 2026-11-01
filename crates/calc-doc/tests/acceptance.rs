@@ -3346,6 +3346,7 @@ fn cdoc_m0_1__no_engine_dependency() {
     assert_eq!(
         direct,
         BTreeSet::from([
+            "calc-syntax",
             "calc-value",
             "serde",
             "serde_json",
@@ -3355,7 +3356,7 @@ fn cdoc_m0_1__no_engine_dependency() {
         "calc-doc-model's direct edges in Cargo.lock"
     );
     let closure = lock_closure(&packages, "calc-doc-model");
-    for reached in ["calc-value", "serde_json"] {
+    for reached in ["calc-syntax", "calc-value", "serde_json"] {
         assert!(
             closure.contains(reached),
             "the closure follows edges to {reached}"
@@ -11106,5 +11107,76 @@ fn dc_0k9__hidden_rows_load() {
             (2, calc_doc::model::RowHidden::Manual),
             (4, calc_doc::model::RowHidden::Manual)
         ]
+    );
+}
+
+/// Run5 block ingress: actual si membership, retained source, dependent text and per-cell caches.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_hsa5_7__sparse_shared_members_retain_one_source() {
+    use calc_doc_model::{FormulaForm, FormulaMembership, FormulaSaveMode};
+    let bytes = m1_2_one_sheet(
+        r#"<row r="1"><c r="A1"><f t="shared" ref="A1:XFD1048576" si="7" ca="1">$B$2+1</f><v>31</v></c></row><row r="1048576"><c r="XFD1048576"><f t="shared" si="7">this dependent text is ignored</f><v>47</v></c></row>"#,
+    );
+    let loaded = m1_2_load(&bytes, &mut IdAllocator::new()).unwrap();
+    let root = loaded.model();
+    let sheet = root.sheets()[0].id();
+    let get = |row, column| match root.cell(cell(sheet, row, column)).unwrap() {
+        CellInput::Formula(text) => text,
+        _ => panic!("a formula member"),
+    };
+    let master = get(1, 1);
+    let member = get(1048576, 16384);
+    assert!(!master.materialized());
+    assert!(!member.materialized());
+    let block = master.block().unwrap();
+    assert!(Arc::ptr_eq(block, member.block().unwrap()));
+    assert_eq!(block.extent().cell_count(), 17_179_869_184);
+    assert_eq!(block.member_count(), 2);
+    assert!(matches!(block.membership(),FormulaMembership::Runs(runs) if runs.len() == 2));
+    assert!(!block.contains(cell(sheet, 1, 2)));
+    assert_eq!(root.sheet_cells(sheet).unwrap().count(), 2);
+    assert_eq!(root.pages(sheet).unwrap().count(), 2);
+    assert_eq!(block.form(), FormulaForm::Legacy);
+    assert_eq!(block.key().unwrap().evaluation, FormulaForm::Legacy);
+    assert_eq!(block.save_mode(), FormulaSaveMode::SharedGroup);
+    assert_eq!(member.text().to_string_lossy(), "$B$2+1");
+    assert!(!master.materialized());
+    assert_eq!(
+        loaded.sheets()[0]
+            .formula(1, 1)
+            .unwrap()
+            .cache()
+            .unwrap()
+            .value(),
+        &CachedValue::Number(FiniteNumber::new(31.0).unwrap())
+    );
+    assert_eq!(
+        loaded.sheets()[0]
+            .formula(1048576, 16384)
+            .unwrap()
+            .cache()
+            .unwrap()
+            .value(),
+        &CachedValue::Number(FiniteNumber::new(47.0).unwrap())
+    );
+    let next = root
+        .apply(&OpBatch {
+            base: root.revision(),
+            operations: vec![WorkbookOp::SetCell {
+                at: cell(sheet, 1, 1),
+                input: number(9.0),
+            }],
+        })
+        .unwrap();
+    let Some(CellInput::Formula(survivor)) = next.cell(cell(sheet, 1048576, 16384)) else {
+        panic!("survivor");
+    };
+    assert!(survivor.block().is_none());
+    assert_eq!(survivor.save_mode(), FormulaSaveMode::Individual);
+    assert_eq!(survivor.text().to_string_lossy(), "$B$2+1");
+    assert!(
+        get(1, 1).block().is_some(),
+        "the earlier revision retains its block"
     );
 }

@@ -98,4 +98,125 @@
     return m;
   };
 })();
+// Core observations, independent of measurements.
+// Read-only core assertions against the committed plan and the real Canvas2D raster.
+// Scratch canvases measure fonts and normalize colours; no product nodes or values are added.
+(() => {
+  window.__rendererCoreCheck = spec => {
+    const grid=document.querySelector('[data-dnacalc=grid][data-grid-active=true]');
+    if(grid?.dataset.painter!=='canvas')return {handled:false};
+    const plans=Object.values(window.__dnacalcRenderPlans||{}).map(f=>JSON.parse(f())).filter(p=>p.active&&p.plan?.publication&&!p.plan.interrupted);
+    const plan=plans[0]?.plan, canvas=grid.querySelector('canvas');
+    if(!plan||!canvas)return {handled:true,seen:null};
+    const address=spec.address||spec.selector?.match(/data-cell\s*=\s*["']?([A-Z]+[0-9]+)/)?.[1];
+    const cell=plan.cells.find(c=>c.address===address);
+    const target=spec.selector?.includes('cell-decoration')?!!cell&&(cell.row_span>1||cell.col_span>1||!!cell.shown.style.fill||!!cell.shown.conditional?.fill):spec.selector?.includes('cell-borders')?!!cell&&cell.shown.style.borders.some(Boolean):!!cell;
+    if(spec.op==='empty')return {handled:true,seen:plan.cells.length===0};
+    if(spec.op==='count')return {handled:true,seen:address?(target?1:0):plan.cells.length};
+    if(spec.op==='absent')return {handled:true,seen:!target};
+    if(!target)return {handled:true,seen:null};
+    if(canvas.dataset.drawRevision!==String(plan.publication.next)||canvas.dataset.drawPresentation!==String(plan.presentation.epoch))return {handled:true,seen:null};
+    const s=cell.shown.style, cf=cell.shown.conditional||{}, scale=plan.scale, rect=cell.rect, anchor=cell.anchor;
+    const css=getComputedStyle(grid), token=n=>css.getPropertyValue(n).trim();
+    const scratch=document.createElement('canvas'), context=scratch.getContext('2d');scratch.width=4;scratch.height=4;
+    const family=s.family?(/^(system-ui|sans-serif|serif|monospace)$/i.test(s.family)?s.family:JSON.stringify(s.family)+',system-ui'):'system-ui';
+    const italic=s.italic||cf.italic||['file-cache','refused'].includes(cell.shown.provenance), bold=s.bold||cf.bold;
+    const font=`${italic?'italic':'normal'} ${bold?700:400} ${s.pixels*scale}px ${family}`;
+    context.font=font;
+    const measure=t=>context.measureText(t);
+    const rgb=color=>{context.clearRect(0,0,4,4);context.fillStyle=color;context.fillRect(0,0,4,4);return [...context.getImageData(0,0,1,1).data].slice(0,3);};
+    const foreground=cf.font_color||cell.shown.color||s.font_color||token(cell.shown.provenance==='file-cache'?'--dna-ink-3':cell.shown.kind==='error'?'--dna-red-ink':'--dna-ink');
+    const background=cf.fill||s.fill||token(cell.shown.provenance==='stale'?'--dna-amber-soft':'--dna-paper');
+    const fg=rgb(foreground), bg=rgb(background), d=devicePixelRatio, surface=canvas.getContext('2d');
+    const distance=(a,b)=>a.reduce((v,n,i)=>v+Math.abs(n-b[i]),0);
+    const crop=(r,inset=0)=>{
+      const clip=cell.clip||{x:0,y:0,w:plan.viewport.width,h:plan.viewport.height};
+      const x=Math.max(0,Math.ceil(Math.max(r.x+inset,clip.x)*d)),y=Math.max(0,Math.ceil(Math.max(r.y+inset,clip.y)*d));
+      const right=Math.min(canvas.width,Math.floor(Math.min(r.x+r.w-inset,clip.x+clip.w)*d)),bottom=Math.min(canvas.height,Math.floor(Math.min(r.y+r.h-inset,clip.y+clip.h)*d));
+      if(right<=x||bottom<=y)return null;
+      return {x,y,w:right-x,h:bottom-y,pixels:surface.getImageData(x,y,right-x,bottom-y).data};
+    };
+    const raster=crop(rect,Math.min(2*scale,rect.h/8));
+    const mask=()=>{
+      if(!raster)return null;let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;const rows=[];
+      for(let y=0;y<raster.h;y++)for(let x=0;x<raster.w;x++){
+        const i=(y*raster.w+x)*4,p=[raster.pixels[i],raster.pixels[i+1],raster.pixels[i+2]];
+        if(raster.pixels[i+3]>127&&distance(p,fg)<distance(p,bg)&&distance(p,bg)>24){x0=Math.min(x0,x);x1=Math.max(x1,x+1);y0=Math.min(y0,y);y1=Math.max(y1,y+1);rows[y]=true;}
+      }
+      if(!Number.isFinite(x0))return null;
+      const bands=[];for(let y=0;y<rows.length;y++)if(rows[y]){const start=y;while(rows[y+1])y++;bands.push({top:(raster.y+start)/d,bottom:(raster.y+y+1)/d});}
+      return {left:(raster.x+x0)/d,right:(raster.x+x1)/d,top:(raster.y+y0)/d,bottom:(raster.y+y1)/d,bands};
+    };
+    const ink=mask();let painted=cell.shown.text===''||!!ink;
+    const hasColour=(colour,r)=>{const data=crop(r);if(!data)return false;const want=rgb(colour);for(let i=0;i<data.pixels.length;i+=4)if(data.pixels[i+3]>127&&distance([data.pixels[i],data.pixels[i+1],data.pixels[i+2]],want)<36)return true;return false;};
+    const horizontal=s.horizontal&&s.horizontal!=='general'?s.horizontal:cell.shown.kind==='number'?'right':cell.shown.kind==='logical'?'center':'left';
+    const vertical=s.vertical||'bottom', pad=4*scale, icon=cf.icon?20*scale:0;
+    context.font=`normal 400 ${13*scale}px system-ui`;const indent=context.measureText('   ').width*s.indent;context.font=font;
+    const left=pad+icon+(['left','distributed'].includes(horizontal)?indent:0),right=pad+(['right','distributed'].includes(horizontal)?indent:0), capacity=rect.w-left-right;
+    const unit=cell.shown.text, repeat=horizontal==='fill'&&unit?Math.max(1,Math.floor(capacity/measure(unit).width)):1, text=unit.repeat(Math.min(repeat,16384/Math.max(1,unit.length)));
+    if(horizontal==='fill'&&unit&&repeat>1)painted=painted&&!!ink&&Math.abs(ink.right-(rect.x+left+measure(text).actualBoundingBoxRight))<3;
+    if(spec.op==='text')return {handled:true,seen:painted?text:{unpainted:true,address,rect,viewport:plan.viewport,clip:cell.clip,ink,foreground,background}};
+    if(spec.op==='fits')return {handled:true,seen:painted?[measure(text).width,capacity]:null};
+    if(spec.op==='hash')return {handled:true,seen:painted&&/^#+$/.test(unit)&&measure(unit).width<=capacity+.1&&measure(unit+'#').width>capacity+.1};
+    if(spec.op==='attribute'){
+      if(spec.field==='data-icon'){
+        const value=cf.icon?.join(':');const visible=[...grid.querySelectorAll('.dc-canvas-icon svg')].some(e=>{const p=e.closest('.dc-canvas-icon'),r=p.getBoundingClientRect(),g=grid.getBoundingClientRect();return Math.abs(r.left-g.left-rect.x)<3&&Math.abs(r.top-g.top-rect.y)<3&&e.getBoundingClientRect().width>0;});
+        return {handled:true,seen:visible?value:null};
+      }
+      const values={'data-kind':cell.shown.kind,'data-provenance':cell.shown.provenance,'data-format':cell.shown.format,'data-formula':String(cell.shown.formula)};
+      return {handled:true,seen:painted?values[spec.field]:null};
+    }
+    if(spec.op==='spill'){
+      const first=plan.col_headers.find(h=>h.label===spec.first),last=plan.col_headers.find(h=>h.label===spec.last);
+      const ok=painted&&!!first&&!!last&&Math.abs(rect.x-first.rect.x)<1&&Math.abs(rect.x+rect.w-last.rect.x-last.rect.w)<1;
+      return {handled:true,seen:ok?true:{painted,address,rect,viewport:plan.viewport,clip:cell.clip,ink,first,last,foreground,background}};
+    }
+    if(spec.op==='aligned'){
+      if(!ink)return {handled:true,seen:false};
+      const h=spec.horizontal,v=spec.vertical,metrics=measure(unit),advance=metrics.width;
+      let x=h==='right'?rect.x+rect.w-right-advance:h==='center'||h.startsWith('across:')?anchor.x+anchor.w/2-advance/2:rect.x+left;
+      const clip=cell.clip||rect;
+      const expectedLeft=Math.max(x-metrics.actualBoundingBoxLeft,rect.x+2*scale,clip.x),expectedRight=Math.min(x+metrics.actualBoundingBoxRight,rect.x+rect.w-2*scale,clip.x+clip.w);
+      let ok=painted;
+      if(h==='spread')ok=ok&&Math.abs(ink.left-(rect.x+left))<4&&Math.abs(ink.right-(rect.x+rect.w-right))<4;
+      else if(h==='left')ok=ok&&Math.abs(ink.left-expectedLeft)<4;
+      else if(h==='right')ok=ok&&Math.abs(ink.right-expectedRight)<4;
+      else ok=ok&&Math.abs(ink.left-expectedLeft)<4&&Math.abs(ink.right-expectedRight)<4;
+      const box=measure('Mg'),lh=s.pixels*scale,baseline=(lh-box.fontBoundingBoxAscent-box.fontBoundingBoxDescent)/2+box.fontBoundingBoxAscent;
+      const topAt=y=>y+baseline-metrics.actualBoundingBoxAscent,bottomAt=y=>y+baseline+metrics.actualBoundingBoxDescent;
+      const visibleTop=raster.y/d,visibleBottom=(raster.y+raster.h)/d;
+      if(v==='top')ok=ok&&Math.abs(ink.top-Math.max(visibleTop,topAt(rect.y)))<3;
+      if(v==='bottom')ok=ok&&Math.abs(ink.bottom-Math.min(visibleBottom,bottomAt(rect.y+rect.h-lh)))<3;
+      if(v==='center')ok=ok&&Math.abs(ink.top-Math.max(visibleTop,topAt(rect.y+(rect.h-lh)/2)))<3&&Math.abs(ink.bottom-Math.min(visibleBottom,bottomAt(rect.y+(rect.h-lh)/2)))<3;
+      if(v==='justify'||v==='distributed'){
+        const bands=ink.bands,n=bands.length;ok=ok&&n>1;
+        if(n>1){
+          const positions=bands.map(b=>b.bottom-metrics.actualBoundingBoxDescent-baseline);
+          const first=v==='justify'?rect.y:rect.y+(rect.h-n*lh)/(2*n),last=v==='justify'?rect.y+rect.h-lh:first+(n-1)*rect.h/n;
+          ok=ok&&Math.abs(positions[0]-first)<3&&Math.abs(positions.at(-1)-last)<3;
+          const step=(positions.at(-1)-positions[0])/(n-1);ok=ok&&positions.every((y,i)=>Math.abs(y-positions[0]-step*i)<3);
+        }
+      }
+      return {handled:true,seen:spec.debug?{ok,ink,expectedLeft,expectedRight,x,rect,anchor,metrics:{width:metrics.width,actualBoundingBoxLeft:metrics.actualBoundingBoxLeft,actualBoundingBoxRight:metrics.actualBoundingBoxRight,actualBoundingBoxAscent:metrics.actualBoundingBoxAscent,actualBoundingBoxDescent:metrics.actualBoundingBoxDescent},lh,baseline}:ok};
+    }
+    if(spec.op==='style'){
+      const physical=(spec.selector.includes('cell-decoration')||spec.selector.includes('cell-borders')),r=physical?anchor:rect;
+      const line=style=>style==='medium'?[2,'solid']:['mediumDashed','mediumDashDot','mediumDashDotDot'].includes(style)?[2,'dashed']:style==='thick'?[3,'solid']:style==='double'?[3,'double']:style==='hair'?[.5,'solid']:style==='dotted'?[1,'dotted']:style==='dashed'||style?.includes('ashDot')?[1,'dashed']:[1,'solid'];
+      const values={left:r.x+'px',top:r.y+'px',width:r.w+'px',height:r.h+'px',color:foreground,'background-color':cf.fill||s.fill||'','font-family':family,'font-weight':bold?'700':'400','font-style':italic?'italic':'normal','font-size':s.pixels*scale+'px','text-align':horizontal==='justify'?'justify':horizontal==='distributed'?'justify':horizontal,'text-align-last':horizontal==='justify'?'left':horizontal==='distributed'?'justify':'auto'};
+      const norm=(k,v)=>{const e=document.createElement('span');e.style.setProperty(k,v);return e.style.getPropertyValue(k);};
+      let rasterOK=painted;
+      const pairs=spec.declarations.split(';').filter(Boolean).map(d=>{
+        const i=d.indexOf(':'),key=d.slice(0,i).trim(),expected=d.slice(i+1).trim();let actual=values[key];
+        if(key==='color')rasterOK=rasterOK&&hasColour(foreground,rect);
+        if(key==='background-color')rasterOK=rasterOK&&!!actual&&hasColour(actual,anchor);
+        const index=['border-left','border-right','border-top','border-bottom'].indexOf(key);
+        if(index>=0){const edge=s.borders[index];if(edge){const [w,kind]=line(edge.style),colour=edge.color||'#000000';actual=`${w*scale}px ${kind} ${colour}`;const band=index<2?{x:index===0?anchor.x:anchor.x+anchor.w-w*scale,y:anchor.y,w:w*scale,h:anchor.h}:{x:anchor.x,y:index===2?anchor.y:anchor.y+anchor.h-w*scale,w:anchor.w,h:w*scale};rasterOK=rasterOK&&hasColour(colour,band);}}
+        return [key,actual===undefined?'':norm(key,actual),norm(key,expected)];
+      });
+      return {handled:true,seen:rasterOK?pairs:null};
+    }
+    return {handled:false};
+  };
+})();
+
 return true;

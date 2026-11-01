@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (49 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (60 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1182,6 +1182,9 @@ const BAR: &str = "[data-onecalc=\"formula\"]";
 const READ_PLANS: &str = r#"var plans=Object.values(window.__dnacalcRenderPlans||{}).map(f=>{try{return JSON.parse(f());}catch(e){return null;}}).filter(s=>s&&s.active&&s.plan&&s.plan.publication&&!s.plan.interrupted);"#;
 
 fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String> {
+    if let Some(value) = renderer::core_observation(app, session, check)? {
+        return Ok(value);
+    }
     let q = |name: &str| {
         format!(
             "document.querySelector('{}')",
@@ -2872,8 +2875,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 49,
-            "the two applications have 49 core cases including formatting, merge, editability and applied-font reflow"
+            total, 60,
+            "the two applications have 60 core cases including formatting, merge, editability and applied-font reflow"
         );
     }
 

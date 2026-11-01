@@ -213,7 +213,7 @@ impl Server {
             }
             Ok(None) => {}
         }
-        let answer = if !envelope.request.is_command() {
+        let mut answer = if !envelope.request.is_command() {
             Answer {
                 reply: Err("A command envelope must contain one workbook command".into()),
                 bytes: None,
@@ -228,6 +228,9 @@ impl Server {
         } else {
             self.handle_admitted(*envelope.request, bytes)
         };
+        if let Ok(Reply::NameEvaluation(value)) = &mut answer.reply {
+            value.command = stamp.id;
+        }
         let reply_bytes = wire::encode(&answer.reply)
             .len()
             .saturating_add(answer.bytes.as_ref().map_or(0, Vec::len));
@@ -243,6 +246,19 @@ impl Server {
         let mut out = None;
         let reply = (|| -> Result<Reply, String> {
             match request {
+                Request::Names { query, page } => {
+                    Ok(Reply::Names(crate::names::page(&self.book, query, page)))
+                }
+                Request::EvaluateName {
+                    id,
+                    version,
+                    anchor,
+                } => Ok(Reply::NameEvaluation(crate::names::evaluate(
+                    &self.book,
+                    id,
+                    version,
+                    cell(anchor)?,
+                ))),
                 Request::FormatSelection(areas) => Ok(Reply::FormatSelection(
                     areas
                         .into_iter()
@@ -912,6 +928,21 @@ impl Server {
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
+            Intent::EditName {
+                id,
+                version,
+                name,
+                scope,
+                formula,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::Name(calc_host::NameEdit {
+                id: id.map(|(a, b)| calc_host::value::NameId::from_parts(a, b)),
+                version,
+                name,
+                scope: scope
+                    .map(|s| calc_host::NameScope::Sheet(s.id()))
+                    .unwrap_or(calc_host::NameScope::Workbook),
+                formula,
+            })),
             Intent::FormatCells {
                 areas,
                 revision,

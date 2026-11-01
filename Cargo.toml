@@ -7,6 +7,7 @@ members = [
     "crates/calc-value",
     "crates/calc-func",
     "crates/calc-fml",
+    "crates/calc-syntax",
     "crates/calc-vba",
     "crates/calc-xll-abi",
     "crates/calc-xll-host",

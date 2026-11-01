@@ -457,6 +457,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 return Err(SaveRefusal::ForeignModel);
             };
             let array = model.definitions().array(anchor).is_some()
+                || matches!(model.cell(anchor),Some(CellInput::Formula(text)) if text.form() == calc_doc_model::FormulaForm::Dynamic)
                 || forms[position]
                     .get(&(anchor.row(), anchor.column()))
                     .is_some_and(|form| form.dynamic);
@@ -526,7 +527,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 match array.map(|array| array.kind()) {
                     Some(calc_doc_model::ArrayKind::Legacy) => false,
                     Some(calc_doc_model::ArrayKind::Dynamic { .. }) => true,
-                    None => false,
+                    None => CellKey::new(sheet.id(),row,column).ok().is_some_and(|at|
+                        matches!(model.cell(at),Some(CellInput::Formula(text)) if text.form() == calc_doc_model::FormulaForm::Dynamic)),
                 }
             })
         });

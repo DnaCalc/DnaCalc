@@ -247,6 +247,10 @@ pub(super) fn paint(
         "data-draw-revision",
         &plan.publication.map_or(0, |s| s.next).to_string(),
     );
+    let _ = canvas.set_attribute(
+        "data-draw-presentation",
+        &plan.presentation.epoch.to_string(),
+    );
 }
 fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     let s = &cell.shown.style;

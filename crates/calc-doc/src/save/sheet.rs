@@ -240,7 +240,10 @@ pub(super) fn rewrite(
                 Some(moves) => moves.forward((*row, *column)),
                 None => Some((*row, *column)),
             };
-            at.is_some_and(|at| job.changes.contains_key(&at))
+            at.is_some_and(|at| job.changes.contains_key(&at)
+                || job.model.cell(CellKey::new(job.loaded.id(),at.0,at.1)
+                    .expect("mapped cell inside the grid")).is_some_and(|input|
+                    matches!(input, CellInput::Formula(text) if text.save_mode() == calc_doc_model::FormulaSaveMode::Individual)))
         })
         .filter_map(|(_, _, record)| record.shared().map(|group| group.index()))
         .chain(job.cut_groups.iter().copied())
@@ -555,7 +558,10 @@ impl<'j> Rewrite<'_, 'j> {
         // A formula is written as a dynamic array only when the model holds one there: an
         // ordinary formula is read with implicit intersection, as Excel reads an `<f>` without
         // `t="array"`, whatever its file form could be.
-        let dynamic = array.is_some_and(|array| matches!(array.kind(), ArrayKind::Dynamic { .. }));
+        let dynamic = array.is_some_and(|array| matches!(array.kind(), ArrayKind::Dynamic { .. }))
+            || (legacy.is_none()
+                && matches!(input,CellInput::Formula(text)
+                if text.form() == calc_doc_model::FormulaForm::Dynamic));
         // A dynamic-array formula's cell names its cell metadata.
         let cm = dynamic.then(|| {
             self.job

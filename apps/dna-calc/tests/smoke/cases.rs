@@ -3843,6 +3843,12 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into(BAR, "12345\u{E007}"),
             Action::Into(BAR, "=REPT(\"x\",30)\u{E007}"),
             Action::Into("name-box", "A1:B2\u{E007}"),
+            Action::Click("format-cells"),
+            Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-font"),
+            Action::Into("format-font", "monospace"),
+            Action::Click("format-apply"),
+            Action::Wait(Check::PlanCell("B2", "style.family", "monospace")),
             Action::Click("[data-dnacalc=axis-tools] summary"),
             Action::RememberView("[data-dnacalc=column-header][data-column=A]"),
             Action::Click("autofit-columns"),
@@ -3978,6 +3984,12 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "axis: AutoFit rows measures the rendered wrapped lines",
         actions: &[
             Action::Into("name-box", "B5\u{E007}"),
+            Action::Click("format-cells"),
+            Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-font"),
+            Action::Into("format-font", "monospace"),
+            Action::Click("format-apply"),
+            Action::Wait(Check::PlanCell("B5", "style.family", "monospace")),
             Action::Click("autofit-rows"),
         ],
         checks: &[
@@ -3988,9 +4000,15 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "axis: AutoFit uses the base font bold variant that the Grid renders",
+        name: "axis: AutoFit uses the stored bold font variant that the Grid renders",
         actions: &[
             Action::Into("name-box", "A1\u{E007}"),
+            Action::Click("format-cells"),
+            Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-font"),
+            Action::Into("format-font", "monospace"),
+            Action::Click("format-apply"),
+            Action::Wait(Check::PlanCell("A1", "style.family", "monospace")),
             Action::RememberView("[data-dnacalc=column-header][data-column=A]"),
             Action::Click("autofit-columns"),
         ],
@@ -5694,6 +5712,12 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "axis: indentation and rotation use the displayed font in fitting",
         actions: &[
             Action::Into("name-box", "A30:B30\u{E007}"),
+            Action::Click("format-cells"),
+            Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-font"),
+            Action::Into("format-font", "monospace"),
+            Action::Click("format-apply"),
+            Action::Wait(Check::PlanCell("B30", "style.family", "monospace")),
             Action::Click("autofit-columns"),
             Action::Wait(Check::TextContains("status", "Fitted contents")),
             Action::Click("autofit-rows"),
@@ -5966,6 +5990,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "alignment: stored defaults, top and middle apply to text and explicit numeric alignment",
         actions: &[
+            Action::Window(1440, 1200),
             Action::AlignmentFixture,
             Action::UploadDownload("alignment.xlsx"),
             Action::DiscardReplacement,
@@ -6517,16 +6542,20 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("grid", "\u{E009}1\u{E000}"),
             Action::Wait(Check::Focused("format-number")),
             Action::Choose("format-preset", "#,##0.00"),
+            Action::Click("format-tab-alignment"),
             Action::Choose("format-horizontal", "left"),
             Action::Choose("format-vertical", "top"),
             Action::Choose("format-wrap", "true"),
+            Action::Click("format-tab-font"),
             Action::Into("format-font", "monospace"),
             Action::Into("format-size", "14"),
             Action::Choose("format-bold", "true"),
             Action::Choose("format-italic", "true"),
             Action::Choose("format-underline", "true"),
             Action::Into("format-font-color", "#123456"),
+            Action::Click("format-tab-fill"),
             Action::Into("format-fill", "#ffddaa"),
+            Action::Click("format-tab-borders"),
             Action::Click("format-border-replace"),
             Action::Click("format-border-left"),
             Action::Click("format-border-right"),
@@ -6562,7 +6591,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
             ),
             Check::Style(
                 "[data-dnacalc=cell-decoration][data-cell=B2]",
-                "background-color:#ffddaa;border-left:3px double #cc0000;border-right:3px double #cc0000;border-top:3px double #cc0000;border-bottom:3px double #cc0000",
+                "background-color:#ffddaa",
+            ),
+            Check::Style(
+                "[data-dnacalc=cell-borders][data-cell=B2]",
+                "border-left:3px double #cc0000;border-right:3px double #cc0000;border-top:3px double #cc0000;border-bottom:3px double #cc0000",
             ),
         ],
     },
@@ -6612,6 +6645,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Wait(Check::Focused("format-number")),
             Action::Wait(Check::Value("format-number", "")),
             Action::Wait(Check::Value("format-font", "")),
+            Action::Click("format-tab-font"),
             Action::Choose("format-italic", "false"),
             Action::Click("format-apply"),
         ],
@@ -6630,6 +6664,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::RememberPresentation,
             Action::Click("format-cells"),
             Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-fill"),
             Action::Into("format-fill", "#ffffff"),
             Action::Click("format-cancel"),
         ],
@@ -6639,6 +6674,93 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Focused("grid"),
         ],
     },
+    Case {
+        name: "format cells: physical fill and borders remain visible across a merged cell after save and reopen",
+        actions: &[
+            Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,
+            Action::Into("name-box","L1:N2\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-fill"),Action::Into("format-fill","#ffeecc"),Action::Click("format-tab-borders"),Action::Click("format-border-replace"),
+            Action::Click("format-border-left"),Action::Click("format-border-right"),Action::Click("format-border-top"),Action::Click("format-border-bottom"),
+            Action::Choose("format-border-style","thick"),Action::Into("format-border-color","#006600"),Action::Click("format-apply"),
+            Action::Wait(Check::PlanCell("L1","style.fill","#ffeecc")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","L1\u{E007}"),
+        ],
+        checks: &[
+            Check::MergedCell("L1",2,3),Check::PlanCell("L1","text","merged"),Check::PlanCell("L1","style.fill","#ffeecc"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=L1]","background-color:#ffeecc"),
+            Check::Style("[data-dnacalc=cell-borders][data-cell=L1]","border-left:3px solid #006600;border-right:3px solid #006600;border-top:3px solid #006600;border-bottom:3px solid #006600"),
+        ],
+    },
+    Case {
+        name: "names: add a workbook definition through Name Manager without implicit evaluation",
+        actions: &[
+            Action::Click("new"), Action::DiscardReplacement,
+            Action::Click("name-manager"), Action::Click("name-new"),
+            Action::Into("name-name", "Choice"), Action::Into("name-formula", "=40+2"), Action::Click("name-save"),
+            Action::Wait(Check::Count("[data-dnacalc=name-row]",1)),
+            Action::Click("[data-name=Choice][data-name-scope=Workbook] [data-dnacalc=name-select]"),
+        ],
+        checks: &[Check::Text("name-value","Not evaluated"),Check::Value("name-formula","=40+2"),Check::TextContains("names-count","1 names")],
+    },
+    Case {
+        name: "names: explicit evaluation carries a command identity, caller and binding version",
+        actions: &[Action::Click("name-evaluate")],
+        checks: &[Check::Text("name-value","42"),Check::TextContains("name-evaluation-context","Explicit evaluation"),Check::TextContains("name-evaluation-context","definition version")],
+    },
+    Case {
+        name: "names: a worksheet definition can shadow the workbook spelling",
+        actions: &[
+            Action::Click("name-new"),Action::Into("name-name","Choice"),Action::Keys("name-scope","\u{E010}\u{E007}"),Action::Into("name-formula","=99"),Action::Click("name-save"),
+            Action::Wait(Check::Count("[data-dnacalc=name-row]",2)),Action::Click("[data-name=Choice][data-name-scope=Sheet1] [data-dnacalc=name-select]"),Action::Click("name-evaluate"),
+        ],
+        checks: &[Check::Text("name-value","99"),Check::Value("name-formula","=99")],
+    },
+    Case {
+        name: "names: selected workbook identity remains evaluable under a local shadow",
+        actions: &[Action::Click("[data-name=Choice][data-name-scope=Workbook] [data-dnacalc=name-select]"),Action::Wait(Check::Text("name-value","Not evaluated")),Action::Click("name-evaluate")],
+        checks: &[Check::Text("name-value","42")],
+    },
+    Case {
+        name: "names: editing the definition recalculates its cell users through the normal command route",
+        actions: &[
+            Action::Click("names-close"),Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"=Choice*2\u{E007}"),Action::Wait(Check::PlanCell("A1","text","198")),
+            Action::Click("name-manager"),Action::Click("[data-name=Choice][data-name-scope=Sheet1] [data-dnacalc=name-select]"),Action::Into("name-formula","=100"),Action::Click("name-save"),
+        ],
+        checks: &[Check::PlanCell("A1","text","200"),Check::PlanCell("A1","provenance","calculated"),Check::Text("name-value","Not evaluated")],
+    },
+    Case {
+        name: "names: existing name history drives Undo and Redo",
+        actions: &[Action::Click("names-undo"),Action::Wait(Check::PlanCell("A1","text","198")),Action::Click("names-redo")],
+        checks: &[Check::PlanCell("A1","text","200"),Check::TextContains("[data-name=Choice][data-name-scope=Sheet1]","=100")],
+    },
+    Case {
+        name: "names: delete exposes scoped fallback, and Undo restores the definition",
+        actions: &[
+            Action::Click("[data-name=Choice][data-name-scope=Sheet1] [data-dnacalc=name-select]"),Action::Click("name-delete"),Action::Wait(Check::PlanCell("A1","text","84")),Action::Wait(Check::Count("[data-dnacalc=name-row]",1)),Action::Click("names-undo"),
+        ],
+        checks: &[Check::PlanCell("A1","text","200"),Check::Count("[data-dnacalc=name-row]",2)],
+    },
+    Case {
+        name: "names: relative reference evaluation uses the explicit caller anchor",
+        actions: &[
+            Action::Click("name-new"),Action::Into("name-name","Relative"),Action::Into("name-formula","=B1"),Action::Click("name-save"),Action::Wait(Check::Count("[data-dnacalc=name-row]",3)),Action::Click("[data-name=Relative] [data-dnacalc=name-select]"),Action::Into("name-anchor","C3"),Action::Click("name-evaluate"),
+        ],
+        checks: &[Check::TextContains("name-value","D3"),Check::TextContains("name-evaluation-context","C3")],
+    },
+    Case {
+        name: "names: arrays are explicit evaluation results rather than shared cached name values",
+        actions: &[
+            Action::Click("name-new"),Action::Into("name-name","Pair"),Action::Into("name-formula","={1,2;3,4}"),Action::Click("name-save"),Action::Wait(Check::Count("[data-dnacalc=name-row]",4)),Action::Click("[data-name=Pair] [data-dnacalc=name-select]"),Action::Click("name-evaluate"),
+        ],
+        checks: &[Check::Text("name-value","2×2 array: 1; 2; 3; 4")],
+    },
+    Case {
+        name: "names: scoped definitions survive xlsx save and reopen without an implicit value",
+        actions: &[
+            Action::Click("names-close"),Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Click("name-manager"),Action::Wait(Check::Count("[data-dnacalc=name-row]",4)),Action::Click("[data-name=Choice][data-name-scope=Sheet1] [data-dnacalc=name-select]"),
+        ],
+        checks: &[Check::Value("name-formula","=100"),Check::Text("name-value","Not evaluated"),Check::PlanCell("A1","text","200")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -7310,8 +7432,9 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "format-cells",
         start: 456,
-        end: 463,
-        core: 7,
+        end: 464,
+        core: 8,
         setup: &[],
     },
+    CaseGroup {name:"name-manager",start:464,end:474,core:10,setup:&[]},
 ];

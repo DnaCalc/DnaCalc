@@ -464,3 +464,24 @@ home, object-library crate, reload by generation. The red-team agrees with each,
     red-team's smallest end-to-end slice, widening afterwards, pool and blocks after the contract (RT; VBA-A).
   - 6: red-team positions recorded; decisions 9 and 10 changed; 12 and 13 new; missing-decisions table added.
   - Appendix created for the round-2 detail and the new verification, probe, VBA and research material.
+
+### Run 5 implementation status (2026-11-01, dc-hsa5.7)
+
+The first formula-block slice retains an xlsx shared group's source once, with its actual members
+as dense membership or sorted runs over plain coordinates. Member spellings are validated with the
+existing codec mover, then discarded; text is materialized on request. Engine binding uses the
+master's source and origin and places the existing Fml plan at each member. Per-cell caches and
+file attributes stay in the codec records. A dependent carrying text uses its group's source.
+
+`calc-syntax` now owns the neutral dialect and template-key types; it does not yet own the parser,
+binder or edit implementation. Keys use Fml's existing conservative relative-reference normalizer;
+unsupported syntax has no key, and broader spelling normalization remains open. The engine derives
+its key from the source rather than trusting an authored block's supplied identity. Explicit legacy
+and dynamic ordinary inputs remain distinct through wire encoding, evaluation and xlsx persistence;
+loaded array definitions continue to select their evaluation and publication form.
+
+Copy and row insertion/deletion use the existing reference-occurrence transforms. This slice
+materializes affected groups and saves individual formulas; untouched eligible groups retain their
+shared file form. It does not yet regroup edited formulas, coalesce unrelated writer output, compact
+fragmentation, extract the parser/binder, or store engine results in block columns. The sparse test
+uses a full-sheet extent (17,179,869,184 coordinates), two members, two runs and two authored pages.

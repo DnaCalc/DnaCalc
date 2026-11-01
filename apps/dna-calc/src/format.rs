@@ -6,6 +6,7 @@ use crate::{
 };
 use dna_calc_model::format::{BorderPatch, FormatPatch};
 use leptos::prelude::*;
+use wasm_bindgen::JsCast;
 
 fn text(
     controller: Controller,
@@ -62,6 +63,7 @@ fn border_side(
 #[inline(never)]
 pub fn controls(controller: Controller) -> impl IntoView {
     let dialog = NodeRef::<leptos::html::Dialog>::new();
+    let tab = controller.format_field(|s| &s.tab, |s| &mut s.tab);
     let first = NodeRef::<leptos::html::Input>::new();
     let open = controller.format_field(|s| &s.open, |s| &mut s.open);
     let selection = controller.format_field(|s| &s.selection, |s| &mut s.selection);
@@ -186,21 +188,26 @@ pub fn controls(controller: Controller) -> impl IntoView {
         <dialog node_ref=dialog data-dnacalc="format-dialog" class="dc-format-dialog" aria-labelledby="dc-format-title" on:cancel=move |_:web_sys::Event|close() on:close=move |_:web_sys::Event|open.set(false)>
             <h2 id="dc-format-title">"Format Cells"</h2>
             <p class="dc-note">{move ||selection.with(|s|s.as_ref().map(|s|format!("{} · changes apply to the original selection in one Undo step",s.areas.iter().filter_map(|a|a.area()).map(|a|controller.area_label(a)).collect::<Vec<_>>().join(", "))).unwrap_or_default())}</p>
+            <div class="dc-format-tabs" role="tablist" aria-label="Formatting categories" on:keydown=move |ev:web_sys::KeyboardEvent| {
+                let n=match ev.key().as_str(){"ArrowRight"=>(tab.get_untracked()+1)%5,"ArrowLeft"=>(tab.get_untracked()+4)%5,"Home"=>0,"End"=>4,_=>return};
+                ev.prevent_default();tab.set(n);
+                if let Some(e)=web_sys::window().and_then(|w|w.document()).and_then(|d|d.get_element_by_id(&format!("dc-format-tab-{n}"))).and_then(|e|e.dyn_into::<web_sys::HtmlElement>().ok()){let _=e.focus();}
+            }>{["Number","Alignment","Font","Fill","Borders"].into_iter().enumerate().map(|(i,label)|{let n=i as u8;view!{<button type="button" role="tab" id=format!("dc-format-tab-{n}") data-dnacalc=format!("format-tab-{}",label.to_ascii_lowercase()) aria-controls=format!("dc-format-panel-{n}") aria-selected=move ||(tab.get()==n).to_string() tabindex=move ||if tab.get()==n{0}else{-1} on:click=move |_|tab.set(n)>{label}</button>}}).collect_view()}</div>
             <div class="dc-format-fields">
-                <fieldset><legend>"Number"</legend>
+                <fieldset role="tabpanel" id="dc-format-panel-0" aria-labelledby="dc-format-tab-0" hidden=move ||tab.get()!=0><legend>"Number"</legend>
                     <label>"Format code"<input node_ref=first data-dnacalc="format-number" placeholder="Mixed / unchanged" prop:value=move ||patch.with(|p|p.number_format.clone()).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.number_format.clone()))).unwrap_or_default() on:input=move |ev|patch.update(|p|p.number_format=Some(event_target_value(&ev)))/></label>
                     <label>"Category"<select data-dnacalc="format-preset" on:change=move |ev|{let code=event_target_value(&ev);if !code.is_empty(){patch.update(|p|p.number_format=Some(code));}}>
                         <option value="">"Custom / unchanged"</option><option value="General">"General"</option><option value="#,##0.00">"Number"</option><option value="0%">"Percentage"</option><option value="yyyy-mm-dd">"Date"</option><option value="h:mm:ss">"Time"</option><option value="0.00E+00">"Scientific"</option><option value="@">"Text"</option>
                     </select></label>
                 </fieldset>
-                <fieldset><legend>"Alignment"</legend>
+                <fieldset role="tabpanel" id="dc-format-panel-1" aria-labelledby="dc-format-tab-1" hidden=move ||tab.get()!=1><legend>"Alignment"</legend>
                     {choice(controller,"format-horizontal","Horizontal",|p|&p.horizontal,|p|&mut p.horizontal,&[("general","General"),("left","Left"),("center","Centre"),("right","Right"),("fill","Fill"),("justify","Justify"),("centerContinuous","Centre across selection"),("distributed","Distributed")])}
                     {choice(controller,"format-vertical","Vertical",|p|&p.vertical,|p|&mut p.vertical,&[("top","Top"),("center","Centre"),("bottom","Bottom"),("justify","Justify"),("distributed","Distributed")])}
                     {toggle(controller,"format-wrap","Wrap text",|p|p.wrap,|p|&mut p.wrap)}
                     <label>"Rotation (degrees)"<input type="number" min="-90" max="90" data-dnacalc="format-rotation" placeholder="Mixed / unchanged" prop:value=move ||patch.with(|p|p.rotation).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.rotation))).map(|n|n.to_string()).unwrap_or_default() on:input=move |ev|patch.update(|p|p.rotation=event_target_value(&ev).parse().ok())/></label>
                     <label>"Indent"<input type="number" min="0" max="250" data-dnacalc="format-indent" placeholder="Mixed / unchanged" prop:value=move ||patch.with(|p|p.indent).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.indent))).map(|n|n.to_string()).unwrap_or_default() on:input=move |ev|patch.update(|p|p.indent=event_target_value(&ev).parse().ok())/></label>
                 </fieldset>
-                <fieldset><legend>"Font"</legend>
+                <fieldset role="tabpanel" id="dc-format-panel-2" aria-labelledby="dc-format-tab-2" hidden=move ||tab.get()!=2><legend>"Font"</legend>
                     {text(controller,"format-font","Family",|p|&p.font_name,|p|&mut p.font_name)}
                     {text(controller,"format-size","Size (points)",|p|&p.font_size,|p|&mut p.font_size)}
                     {toggle(controller,"format-bold","Bold",|p|p.bold,|p|&mut p.bold)}
@@ -209,11 +216,11 @@ pub fn controls(controller: Controller) -> impl IntoView {
                     {toggle(controller,"format-strike","Strikethrough",|p|p.strike,|p|&mut p.strike)}
                     {text(controller,"format-font-color","Colour (#rrggbb; empty = automatic)",|p|&p.font_color,|p|&mut p.font_color)}
                 </fieldset>
-                <fieldset><legend>"Fill"</legend>
+                <fieldset role="tabpanel" id="dc-format-panel-3" aria-labelledby="dc-format-tab-3" hidden=move ||tab.get()!=3><legend>"Fill"</legend>
                     {text(controller,"format-fill","Solid colour (#rrggbb; empty = no fill)",|p|&p.fill,|p|&mut p.fill)}
                     <button type="button" data-dnacalc="format-no-fill" on:click=move |_|patch.update(|p|p.fill=Some(String::new()))>"No fill"</button>
                 </fieldset>
-                <fieldset><legend>"Borders"</legend>
+                <fieldset role="tabpanel" id="dc-format-panel-4" aria-labelledby="dc-format-tab-4" hidden=move ||tab.get()!=4><legend>"Borders"</legend>
                     <label><input type="checkbox" data-dnacalc="format-border-replace" prop:checked=move ||patch.with(|p|p.borders.is_some()) on:change=move |ev|{let checked=event_target_checked(&ev);let base=selection.with_untracked(|s|s.as_ref().and_then(|s|s.common.borders.clone())).unwrap_or(BorderPatch {style:"thin".into(),color:"#000000".into(),..Default::default()});patch.update(|p|p.borders=checked.then_some(base));}/>"Replace the four sides"</label>
                     <p class="dc-note">"Mixed borders stay unchanged until you select Replace."</p>
                     <div class="dc-format-sides">
@@ -228,13 +235,14 @@ pub fn controls(controller: Controller) -> impl IntoView {
                     <label>"Colour"<input data-dnacalc="format-border-color" disabled=move ||patch.with(|p|p.borders.is_none()) prop:value=move ||patch.with(|p|p.borders.as_ref().map(|b|b.color.clone())).unwrap_or("#000000".into()) on:input=move |ev|patch.update(|p|{if let Some(b)=&mut p.borders{b.color=event_target_value(&ev);}})/></label>
                 </fieldset>
             </div>
-            <div class="dc-format-preview" aria-label="Preview of first selected cell">{move ||preview.get().map(|cell|{
+            <div class="dc-format-preview" aria-label="Base format preview of first selected cell">{move ||preview.get().map(|cell|{
                 let mut style=crate::grid::autofit::font_css(&cell.style,cell.conditional.as_ref(),false,1.);
                 if let Some(color)=cell.color.as_ref().or(cell.style.font_color.as_ref()){style.push_str(&format!(";color:{color}"));}
                 if let Some(fill)=&cell.style.fill{style.push_str(&format!(";background-color:{fill}"));}
                 if cell.style.underline{style.push_str(";text-decoration:underline");}
                 view!{<output data-dnacalc="format-preview" use:css=style>{cell.text}</output><span class="dc-note">{if cell.format==crate::wire::FormatShown::NotModelled {"This format is preserved, but its display is not modelled"}else{""}}</span>}
             })}</div>
+            <p class="dc-note">"Base format sample; conditional formatting can override the grid display."</p>
             <p role="status" data-dnacalc="format-message">{move ||message.get()}</p>
             <p class="dc-note" hidden=move ||selection.with(|s|s.as_ref().is_none_or(|s|s.revision==controller.summary.get().revision))>"The workbook changed. Close and reopen Format Cells."</p>
             <div class="dc-dialog-actions"><button type="button" data-dnacalc="format-apply" disabled=move ||selection.with(|s|s.as_ref().is_none_or(|s|s.revision!=controller.summary.get().revision))||preview.get().is_none() on:click=move |_|apply()>"Apply"</button><button type="button" data-dnacalc="format-cancel" on:click=move |_|close()>"Cancel"</button></div>
@@ -244,6 +252,13 @@ pub fn controls(controller: Controller) -> impl IntoView {
 
 pub fn diagnostic(controller: Controller) -> impl IntoView {
     let note = Memo::new(move |_| {
+        if controller
+            .active_skin
+            .get()
+            .is_some_and(|skin| skin != "grid")
+        {
+            return None;
+        }
         controller.font_revision.track();
         let cell = controller.active_cell()?;
         if let Some(reason) = cell.style.unsupported {

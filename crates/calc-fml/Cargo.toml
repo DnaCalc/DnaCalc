@@ -10,6 +10,7 @@ description = "The package for CalcFml: the Excel formula language, reference bi
 portability = "portable"
 
 [dependencies]
+calc-syntax = { path = "../calc-syntax" }
 calc-func = { path = "../calc-func" }
 
 # The dc-ibp2 Excel comparison reads the capture of its oracle workbook through the one verdict
