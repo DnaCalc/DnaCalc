@@ -42,11 +42,25 @@ impl WorkbookTransport for InProcessTransport {
             (reply, bytes, server.take_events())
         };
         for event in events {
-            let encoded = wire::encode(&FromServer::Event(event));
+            let received = match event {
+                Event::Tiles(batch) => wire::encode_tiles(&batch)
+                    .and_then(|bytes| wire::decode_tiles(&bytes))
+                    .map(Event::Tiles),
+                control => wire::decode::<FromServer>(&wire::encode(&FromServer::Event(control)))
+                    .and_then(|message| match message {
+                        FromServer::Event(event) => Ok(event),
+                        _ => Err("Unexpected projection control".into()),
+                    }),
+            };
             let handler = self.events.borrow().clone();
-            if let (Some(handler), Ok(FromServer::Event(event))) = (handler, wire::decode(&encoded))
-            {
-                handler(event);
+            if let Some(handler) = handler {
+                match received {
+                    Ok(event) => handler(event),
+                    Err(reason) => {
+                        answer(Err(reason), None);
+                        return;
+                    }
+                }
             }
         }
         match wire::decode(&reply) {

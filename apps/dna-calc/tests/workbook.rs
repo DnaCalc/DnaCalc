@@ -1280,7 +1280,11 @@ mod rule_review {
                 .reply
                 .is_ok()
         );
-        server.take_events();
+        for event in server.take_events() {
+            if let wire::Event::TileCompletion(barrier) = event {
+                assert!(server.handle(Request::TileAck(barrier), None).reply.is_ok());
+            }
+        }
         let rule = review.rules.iter().find(|r| r.applies == "A1:A10").unwrap();
         assert_eq!(rule.state, "Applies appearance to this cell");
         let index = rule.index;
@@ -1308,10 +1312,10 @@ mod rule_review {
         let events = server.take_events();
         assert!(
             events.iter().any(|event| {
-                let wire::Event::Cells(cells) = event else {
+                let wire::Event::Tiles(cells) = event else {
                     return false;
                 };
-                cells.reset
+                cells.stamp.reset
                     && cells
                         .cells
                         .iter()
