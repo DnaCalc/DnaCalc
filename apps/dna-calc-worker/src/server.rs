@@ -1790,6 +1790,29 @@ impl Server {
                 (sheet, self.geometry(sheet))
             })
             .collect();
+        let geometry: BTreeMap<_, Vec<_>> = self
+            .subscription_interests
+            .iter()
+            .map(|(&id, interest)| {
+                let areas = self.book.session().interest_areas(interest);
+                (
+                    id,
+                    geometry
+                        .iter()
+                        .map(|(sheet, g)| {
+                            let mut g = g.clone();
+                            g.coverage = areas
+                                .iter()
+                                .filter(|a| a.sheet() == sheet.id())
+                                .copied()
+                                .map(wire::Area::of)
+                                .collect();
+                            (*sheet, g)
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
         let ids: BTreeMap<SubscriptionId, u64> =
             self.subscriptions.iter().map(|(&p, &h)| (h, p)).collect();
         for delta in deltas {
@@ -1862,7 +1885,7 @@ impl Server {
                     cells,
                     removed,
                     revision,
-                    geometry.clone(),
+                    geometry.get(&id).cloned().unwrap_or_default(),
                     publication,
                 ) {
                     self.events.push(Event::ProjectionFailed { id, reason });
@@ -1876,7 +1899,7 @@ impl Server {
                     Vec::new(),
                     Vec::new(),
                     revision,
-                    geometry.clone(),
+                    geometry.get(&id).cloned().unwrap_or_default(),
                     None,
                 ) {
                     self.events.push(Event::ProjectionFailed { id, reason });
@@ -2960,6 +2983,19 @@ mod tile_tests {
             .unwrap();
         let mut mirror = ViewMirror::default();
         let barrier = receive(&mut mirror, projection_events(&mut server));
+        let coverage = &mirror.geometry(sheet).unwrap().coverage;
+        assert!(
+            coverage
+                .iter()
+                .filter_map(|a| a.area())
+                .any(|a| a.contains(anchor))
+        );
+        assert!(
+            !coverage
+                .iter()
+                .filter_map(|a| a.area())
+                .any(|a| a.contains(CellKey::new(sheet, 99, 99).unwrap()))
+        );
         assert_eq!(mirror.cell(anchor).unwrap().text, "merge source");
         assert_eq!(
             mirror.cell(anchor).unwrap().provenance,

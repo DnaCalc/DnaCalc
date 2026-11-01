@@ -1061,7 +1061,7 @@ impl HostSession {
         self.host.calculation_interest = self
             .subscriptions
             .values()
-            .flat_map(|subscription| self.areas(&subscription.interest))
+            .flat_map(|subscription| self.interest_areas(&subscription.interest))
             .collect();
         let progress = step(&mut self.host, self.recalc_budget, &mut Unobserved);
         let cause = match &progress {
@@ -1139,7 +1139,7 @@ impl HostSession {
     }
 
     /// The areas an interest covers now.
-    fn areas(&self, interest: &Interest) -> Vec<GridArea> {
+    pub fn interest_areas(&self, interest: &Interest) -> Vec<GridArea> {
         let mut areas = match interest {
             Interest::Area(area) => vec![*area],
             Interest::Areas(areas) => areas.clone(),
@@ -1178,7 +1178,7 @@ impl HostSession {
     fn snapshot(&self, interest: &Interest) -> BTreeMap<CellKey, ProjectedCell> {
         let mut cells = BTreeSet::new();
         let definitions = self.host.model.definitions();
-        let areas = self.areas(interest);
+        let areas = self.interest_areas(interest);
         let bounded = areas.iter().map(|a| a.cell_count()).sum::<u64>() <= 32768;
         let rule_areas = definitions
             .all_conditional_rules()

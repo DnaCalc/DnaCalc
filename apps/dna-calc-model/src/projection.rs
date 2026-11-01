@@ -663,6 +663,9 @@ pub struct Outcome {
 /// A sheet's sizes as the file states them (calc-host's sheet geometry).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
+    /// Areas whose absent cells are known empty in this committed subscription root.
+    #[serde(default)]
+    pub coverage: Vec<Area>,
     /// Imported merges, transformed by authored structural edits, in this publication.
     #[serde(default)]
     pub merges: Vec<Area>,
