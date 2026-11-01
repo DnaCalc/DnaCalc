@@ -186,7 +186,7 @@ if ($X1Xll) {
 $trace = Join-Path $run 'boundary.jsonl'
 $stop = Join-Path $run 'detach.request'
 $baseline = @(Get-Process EXCEL -ErrorAction SilentlyContinue | ForEach-Object Id)
-$excel = $null; $ownedExcelPid = 0; $ownedStartTicks = 0; $debugger = $null; $book = $null
+$excel = $null; $ownedExcelPid = 0; $ownedStartTicks = 0; $debugger = $null; $book = $null; $bookClosed=$false
 $detachTimedOut = $false
 $observations = [Collections.Generic.List[object]]::new()
 Add-Type @'
@@ -323,6 +323,17 @@ try {
             if ((Get-Content -LiteralPath (Join-Path $run 'fixture.tsv') -Raw) -notmatch "Outside 89`t") { throw 'Outside-context probes did not finish.' }
         }
         Note 'ExecuteExcel4Macro UNREGISTER(managed)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
+        if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X5\.RtdValue') {
+            $book.Close($false); $bookClosed=$true
+            Note 'Close RTD workbook before detach' $true
+            $deadline=[DateTime]::UtcNow.AddSeconds(5)
+            do {
+                [void]$excel.Ready
+                $terminated=(Test-Path -LiteralPath (Join-Path $run 'rtd.tsv')) -and ((Get-Content -LiteralPath (Join-Path $run 'rtd.tsv') -Raw) -match '(?m)^ServerTerminate\t')
+                if (-not $terminated) { Start-Sleep -Milliseconds 50 }
+            } until ($terminated -or [DateTime]::UtcNow -gt $deadline)
+            Note 'RTD termination before detach' $terminated
+        }
         if ($Reload) {
             # Repeat the same close/open sequence as the native host. Keep the
             # first and second worksheet observations separate in the trace.
@@ -402,7 +413,7 @@ try {
         else { Note 'tracer exit' $debugger.ExitCode }
     }
     if ($ownedExcelPid -and (-not $debugger -or $debugger.HasExited)) {
-        if ($book) { try { $book.Close($false) } catch { Note 'Close exception' $_.Exception.Message } }
+        if ($book -and -not $bookClosed) { try { $book.Close($false) } catch { Note 'Close exception' $_.Exception.Message } }
         if ($excel) { try { $excel.Quit() } catch { Note 'Quit exception' $_.Exception.Message } }
         if ($sheet) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($sheet) }
         if ($book) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($book) }
