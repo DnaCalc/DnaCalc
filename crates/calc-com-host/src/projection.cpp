@@ -9,6 +9,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <algorithm>
 
 namespace {
 constexpr GUID application_iid = {0x000208d5,0,0,{0xc0,0,0,0,0,0,0,0x46}};
@@ -16,6 +17,8 @@ constexpr GUID window_iid = {0x00020893,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID workbook_iid = {0x000208da,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID workbooks_iid = {0x000208db,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID events_iid = {0x00024413,0,0,{0xc0,0,0,0,0,0,0,0x46}};
+constexpr GUID worksheet_iid = {0x000208d8,0,0,{0xc0,0,0,0,0,0,0,0x46}};
+constexpr GUID range_iid = {0x00020846,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 struct Value { unsigned kind; double number; const wchar_t* text; size_t length; };
 using Run = HRESULT (WINAPI*)(const void*,const wchar_t*,size_t,const Value*,size_t,Value*);
 struct Object;
@@ -29,6 +32,10 @@ struct State {
     Object* workbook = nullptr;
     Object* workbooks = nullptr;
     std::wstring workbook_name = L"Book1";
+    Object* worksheet = nullptr;
+    std::wstring worksheet_name;
+    DWORD next_cookie = 1;
+    std::vector<std::pair<DWORD,IUnknown*>> sinks;
 };
 struct Object {
     void** vtable;
@@ -39,6 +46,9 @@ struct Object {
     Object* parent = nullptr;
     bool is_workbook = false;
     bool is_collection = false;
+    bool is_worksheet = false;
+    bool is_range = false;
+    unsigned row = 0, column = 0;
 };
 ULONG WINAPI add_ref(Object* object) { return InterlockedIncrement(&object->references); }
 ULONG WINAPI release(Object* object) {
@@ -59,16 +69,14 @@ HRESULT valid(Object* object) {
 }
 HRESULT WINAPI query(Object*, REFIID, void**);
 
-// Connection points retain actual subscriptions. This shell does not yet issue
-// workbook edits/events; Advise is not evidence of delivered AppEvents.
+// Subscriptions belong to the source, so a second FindConnectionPoint observes
+// the same cookies. Event delivery snapshots references to allow reentrant Unadvise.
 class Point final : public IConnectionPoint {
     volatile LONG references = 1;
     Object* owner;
-    DWORD next = 1;
-    std::vector<std::pair<DWORD,IUnknown*>> sinks;
 public:
     explicit Point(Object* object) : owner(object) { add_ref(owner); }
-    ~Point() { for (auto& sink:sinks) sink.second->Release(); release(owner); }
+    ~Point() { release(owner); }
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** out) override {
         if (!out) return E_POINTER;
         *out=nullptr;
@@ -86,12 +94,16 @@ public:
         IUnknown* events=nullptr;
         hr=sink->QueryInterface(events_iid,reinterpret_cast<void**>(&events));
         if(FAILED(hr)) return CONNECT_E_CANNOTCONNECT;
-        DWORD id=next++;
-        try { sinks.emplace_back(id,events); } catch (...) { events->Release(); return E_OUTOFMEMORY; }
+        auto& state=*owner->state;
+        if (!state.next_cookie) { events->Release(); return CONNECT_E_ADVISELIMIT; }
+        DWORD id=state.next_cookie++;
+        try { state.sinks.emplace_back(id,events); } catch (...) { events->Release(); return E_OUTOFMEMORY; }
         *cookie=id; return S_OK;
     }
     HRESULT STDMETHODCALLTYPE Unadvise(DWORD cookie) override {
-        for(auto it=sinks.begin();it!=sinks.end();++it) if(it->first==cookie) { it->second->Release(); sinks.erase(it); return S_OK; }
+        HRESULT hr=valid(owner); if(FAILED(hr)) return hr;
+        auto& sinks=owner->state->sinks;
+        for(auto it=sinks.begin();it!=sinks.end();++it) if(it->first==cookie) { auto sink=it->second; sinks.erase(it); sink->Release(); return S_OK; }
         return CONNECT_E_NOCONNECTION;
     }
     HRESULT STDMETHODCALLTYPE EnumConnections(IEnumConnections** out) override { if(out) *out=nullptr; return E_NOTIMPL; }
@@ -119,7 +131,7 @@ HRESULT WINAPI query(Object* object, REFIID iid, void** out) {
     if(!out) return E_POINTER;
     *out=nullptr;
     if(iid==IID_IUnknown || iid==IID_IDispatch ||
-       iid==(object->is_application?application_iid:(object->is_workbook?workbook_iid:(object->is_collection?workbooks_iid:window_iid)))) {
+       iid==(object->is_application?application_iid:(object->is_workbook?workbook_iid:(object->is_collection?workbooks_iid:(object->is_worksheet?worksheet_iid:(object->is_range?range_iid:window_iid)))))) {
         *out=object; add_ref(object); return S_OK;
     }
     if(object->is_application && iid==IID_IConnectionPointContainer) {
@@ -144,10 +156,19 @@ HRESULT WINAPI names(Object* object,REFIID iid,LPOLESTR* names,UINT count,LCID,D
         else if((object->is_application || object->is_workbook) && !_wcsicmp(names[i],L"Path")) ids[i]=0x123;
         else if(object->is_application && !_wcsicmp(names[i],L"EnableEvents")) ids[i]=0x4bc;
         else if(object->is_application && !_wcsicmp(names[i],L"Workbooks")) ids[i]=0x23c;
-        else if(object->is_workbook && !_wcsicmp(names[i],L"Name")) ids[i]=0x6e;
+        else if((object->is_application || object->is_workbook) && !_wcsicmp(names[i],L"ActiveSheet")) ids[i]=0x133;
+        else if(object->is_application && !_wcsicmp(names[i],L"ActiveWorkbook")) ids[i]=0x134;
+        else if((object->is_workbook || object->is_worksheet) && !_wcsicmp(names[i],L"Name")) ids[i]=0x6e;
         else if(object->is_workbook && !_wcsicmp(names[i],L"FullName")) ids[i]=0x121;
         else if(object->is_collection && !_wcsicmp(names[i],L"Count")) ids[i]=0x76;
         else if(object->is_collection && !_wcsicmp(names[i],L"Item")) ids[i]=0xaa;
+        else if(object->is_range && !_wcsicmp(names[i],L"Address")) ids[i]=0xec;
+        else if(object->is_range && !_wcsicmp(names[i],L"Row")) ids[i]=0x101;
+        else if(object->is_range && !_wcsicmp(names[i],L"Column")) ids[i]=0xf0;
+        else if(object->is_range && !_wcsicmp(names[i],L"Rows")) ids[i]=0x102;
+        else if(object->is_range && !_wcsicmp(names[i],L"Columns")) ids[i]=0xf1;
+        else if(object->is_range && !_wcsicmp(names[i],L"Count")) ids[i]=0x76;
+        else if(object->is_range && !_wcsicmp(names[i],L"Worksheet")) ids[i]=0x15c;
         else result=DISP_E_UNKNOWNNAME;
     }
     return result;
@@ -211,7 +232,56 @@ HRESULT WINAPI get_item(Object* object,VARIANT index,IDispatch** out) {
 HRESULT WINAPI get_name(Object* object,BSTR* out) {
     if(!out) return E_POINTER;
     *out=nullptr; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
-    *out=SysAllocString(object->state->workbook_name.c_str()); return *out?S_OK:E_OUTOFMEMORY;
+    *out=SysAllocString((object->is_worksheet?object->state->worksheet_name:object->state->workbook_name).c_str()); return *out?S_OK:E_OUTOFMEMORY;
+}
+HRESULT WINAPI get_active_sheet(Object* object,IDispatch** out) {
+    if(!out) return E_POINTER;
+    *out=nullptr; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    auto sheet=object->state->worksheet;
+    if(!sheet) return E_NOTIMPL;
+    add_ref(sheet); *out=reinterpret_cast<IDispatch*>(sheet); return S_OK;
+}
+HRESULT WINAPI get_active_workbook(Object* object,IDispatch** out) {
+    if(!out) return E_POINTER;
+    *out=nullptr; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    auto book=object->state->workbook;
+    if(!book) return E_NOTIMPL;
+    add_ref(book); *out=reinterpret_cast<IDispatch*>(book); return S_OK;
+}
+HRESULT range_address(Object* object,DISPPARAMS* params,VARIANT* result) {
+    if(params->cNamedArgs) return DISP_E_NONAMEDARGS;
+    if(params->cArgs>5) return DISP_E_BADPARAMCOUNT;
+    bool absolute_row=true,absolute_column=true,external=false;
+    LONG style=1;
+    for(UINT i=0;i<params->cArgs;++i) {
+        auto& arg=params->rgvarg[params->cArgs-1-i];
+        if(arg.vt==VT_ERROR && arg.scode==DISP_E_PARAMNOTFOUND) continue;
+        if(i==4) return E_NOTIMPL; // RelativeTo requires a general range projection.
+        VARIANT value{};
+        HRESULT hr=VariantChangeType(&value,&arg,0,i==2?VT_I4:VT_BOOL);
+        if(FAILED(hr)) return hr;
+        if(i==0) absolute_row=value.boolVal!=VARIANT_FALSE;
+        else if(i==1) absolute_column=value.boolVal!=VARIANT_FALSE;
+        else if(i==2) style=value.lVal;
+        else external=value.boolVal!=VARIANT_FALSE;
+        VariantClear(&value);
+    }
+    std::wstring text;
+    // A workbook-qualified address needs the shared formula name printer,
+    // including apostrophe escaping. Do not emit an invalid unquoted name.
+    if(external) return E_NOTIMPL;
+    if(style==1) {
+        std::wstring column; unsigned n=object->column+1;
+        while(n) { column.insert(column.begin(),static_cast<wchar_t>(L'A'+(n-1)%26)); n=(n-1)/26; }
+        if(absolute_column) text+=L"$";
+        text+=column;
+        if(absolute_row) text+=L"$";
+        text+=std::to_wstring(object->row+1);
+    } else if(style==-4150 && absolute_row && absolute_column) {
+        text+=L"R"+std::to_wstring(object->row+1)+L"C"+std::to_wstring(object->column+1);
+    } else return E_NOTIMPL;
+    if(result) { result->vt=VT_BSTR; result->bstrVal=SysAllocString(text.c_str()); if(!result->bstrVal) return E_OUTOFMEMORY; }
+    return S_OK;
 }
 HRESULT WINAPI get_fullname(Object* object,LONG,BSTR* out) { return get_name(object,out); }
 HRESULT WINAPI get_version(Object* object,LONG,BSTR* out) {
@@ -285,6 +355,7 @@ HRESULT WINAPI invoke(Object* object,DISPID id,REFIID iid,LCID,WORD flags,DISPPA
         VariantClear(&value); return hr;
     }
     if(!(flags&DISPATCH_PROPERTYGET)) return DISP_E_MEMBERNOTFOUND;
+    if(object->is_range && id==0xec) return range_address(object,params,result);
     if(params->cArgs) return DISP_E_BADPARAMCOUNT;
     if(id==0x94 || id==0x96) {
         IDispatch* app=nullptr; hr=id==0x96?get_parent(object,&app):get_application(object,&app);
@@ -307,8 +378,18 @@ HRESULT WINAPI invoke(Object* object,DISPID id,REFIID iid,LCID,WORD flags,DISPPA
         IDispatch* books=nullptr; hr=get_workbooks(object,&books);
         if(SUCCEEDED(hr)) { if(result) { result->vt=VT_DISPATCH; result->pdispVal=books; } else books->Release(); } return hr;
     }
+    if((id==0x133 && (object->is_application || object->is_workbook)) || (id==0x134 && object->is_application) || (id==0x15c && object->is_range)) {
+        IDispatch* value=nullptr; hr=id==0x134?get_active_workbook(object,&value):get_active_sheet(object,&value);
+        if(SUCCEEDED(hr)) { if(result) { result->vt=VT_DISPATCH; result->pdispVal=value; } else value->Release(); } return hr;
+    }
+    if(object->is_range && (id==0x101 || id==0xf0 || id==0x76)) {
+        if(result) { result->vt=VT_I4; result->lVal=id==0x101?object->row+1:(id==0xf0?object->column+1:1); } return S_OK;
+    }
+    if(object->is_range && (id==0x102 || id==0xf1)) {
+        if(result) { result->vt=VT_DISPATCH; add_ref(object); result->pdispVal=reinterpret_cast<IDispatch*>(object); } return S_OK;
+    }
     if(id==0x76 && object->is_collection) { LONG count; hr=get_count(object,&count); if(SUCCEEDED(hr) && result) { result->vt=VT_I4; result->lVal=count; } return hr; }
-    if((id==0x6e || id==0x121) && object->is_workbook) {
+    if((id==0x6e && (object->is_workbook || object->is_worksheet)) || (id==0x121 && object->is_workbook)) {
         BSTR name=nullptr; hr=get_name(object,&name);
         if(SUCCEEDED(hr)) { if(result) { result->vt=VT_BSTR; result->bstrVal=name; } else SysFreeString(name); } return hr;
     }
@@ -336,6 +417,7 @@ std::array<void*,474> make_vtable() {
     v[7]=reinterpret_cast<void*>(get_application); v[9]=reinterpret_cast<void*>(get_parent);
     v[223]=reinterpret_cast<void*>(get_path); v[300]=reinterpret_cast<void*>(get_enable_events); v[301]=reinterpret_cast<void*>(put_enable_events);
     v[52]=reinterpret_cast<void*>(get_workbooks);
+    v[16]=reinterpret_cast<void*>(get_active_sheet); v[18]=reinterpret_cast<void*>(get_active_workbook);
     v[42]=reinterpret_cast<void*>(early_run); v[281]=reinterpret_cast<void*>(get_version); v[351]=reinterpret_cast<void*>(get_hwnd);
     return v;
 }
@@ -344,7 +426,7 @@ std::array<void*,7> window_vtable={application_vtable[0],application_vtable[1],a
 std::array<void*,289> make_workbook_vtable() {
     std::array<void*,289> v; v.fill(reinterpret_cast<void*>(unsupported));
     for(size_t i=0;i<10;++i) v[i]=application_vtable[i];
-    v[50]=reinterpret_cast<void*>(get_fullname); v[66]=reinterpret_cast<void*>(get_name); v[76]=reinterpret_cast<void*>(get_path); return v;
+    v[14]=reinterpret_cast<void*>(get_active_sheet); v[50]=reinterpret_cast<void*>(get_fullname); v[66]=reinterpret_cast<void*>(get_name); v[76]=reinterpret_cast<void*>(get_path); return v;
 }
 auto workbook_vtable=make_workbook_vtable();
 std::array<void*,26> make_workbooks_vtable() {
@@ -353,7 +435,38 @@ std::array<void*,26> make_workbooks_vtable() {
     v[12]=reinterpret_cast<void*>(get_count); v[13]=reinterpret_cast<void*>(get_item); return v;
 }
 auto workbooks_vtable=make_workbooks_vtable();
-struct Projection { Object* app; Object* window; Object* workbook; Object* workbooks; };
+std::array<void*,158> make_worksheet_vtable() {
+    std::array<void*,158> v; v.fill(reinterpret_cast<void*>(unsupported));
+    for(size_t i=0;i<10;++i) v[i]=application_vtable[i];
+    v[18]=reinterpret_cast<void*>(get_name); return v;
+}
+auto worksheet_vtable=make_worksheet_vtable();
+struct Projection { Object* app; Object* window; Object* workbook; Object* workbooks; Object* worksheet; };
+
+HRESULT fire(Object* object,DISPID id,VARIANT* args,UINT count) {
+    HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    if(!object->state->enable_events) return S_OK;
+    std::vector<IUnknown*> snapshot;
+    try { for(auto& item:object->state->sinks) { snapshot.push_back(item.second); item.second->AddRef(); } }
+    catch(...) { for(auto sink:snapshot) sink->Release(); return E_OUTOFMEMORY; }
+    HRESULT first=S_OK;
+    for(auto sink:snapshot) {
+        IDispatch* dispatch=nullptr;
+        hr=sink->QueryInterface(IID_IDispatch,reinterpret_cast<void**>(&dispatch));
+        if(SUCCEEDED(hr)) {
+            // Excel's AppEvents use declaration order plus named DISPIDs [0,1],
+            // measured in X0. This differs from an ordinary positional Invoke.
+            DISPID named[]={0,1}; DISPPARAMS params{args,count?named:nullptr,count,count};
+            EXCEPINFO error{}; UINT arg_error=0;
+            hr=dispatch->Invoke(id,IID_NULL,0,DISPATCH_METHOD|DISPATCH_PROPERTYGET,&params,nullptr,&error,&arg_error);
+            SysFreeString(error.bstrSource); SysFreeString(error.bstrDescription); SysFreeString(error.bstrHelpFile);
+            dispatch->Release();
+        }
+        if(FAILED(hr) && SUCCEEDED(first)) first=hr;
+        sink->Release();
+    }
+    return first;
+}
 }
 
 extern "C" void* dna_com_create(size_t hwnd,const void* context,Run run) noexcept {
@@ -364,13 +477,16 @@ extern "C" void* dna_com_create(size_t hwnd,const void* context,Run run) noexcep
         auto workbook=std::make_unique<Object>(Object{workbook_vtable.data(),1,state,app.get(),false,app.get(),true});
         auto workbooks=std::make_unique<Object>(Object{workbooks_vtable.data(),1,state,app.get(),false,app.get(),false,true});
         auto window=std::make_unique<Object>(Object{window_vtable.data(),1,state,app.get(),false,workbook.get()});
-        auto projection=std::make_unique<Projection>(Projection{app.get(),window.get(),workbook.get(),workbooks.get()});
+        auto worksheet=std::make_unique<Object>(Object{worksheet_vtable.data(),1,state,app.get(),false,workbook.get(),false,false,true});
+        auto projection=std::make_unique<Projection>(Projection{app.get(),window.get(),workbook.get(),workbooks.get(),worksheet.get()});
         state->workbook=workbook.get(); state->workbooks=workbooks.get();
+        state->worksheet=worksheet.get();
         add_ref(app.get()); // Window's Application reference.
         add_ref(app.get()); // Workbook's Application reference.
         add_ref(workbook.get()); // Window's Parent reference.
         add_ref(app.get()); // Workbooks' Application reference.
-        app.release(); workbook.release(); workbooks.release(); window.release(); return projection.release();
+        add_ref(app.get()); add_ref(workbook.get()); // Worksheet's Application and Parent.
+        app.release(); workbook.release(); workbooks.release(); window.release(); worksheet.release(); return projection.release();
     } catch (...) { return nullptr; }
 }
 extern "C" LRESULT dna_com_getobject(void* pointer,WPARAM wparam,LPARAM object_id) noexcept {
@@ -382,7 +498,116 @@ extern "C" void dna_com_destroy(void* pointer) noexcept {
     auto projection=static_cast<Projection*>(pointer);
     projection->app->state->connected=false;
     projection->app->state->context=nullptr;
-    release(projection->window); release(projection->workbook); release(projection->workbooks); release(projection->app); delete projection;
+    auto sinks=std::move(projection->app->state->sinks);
+    for(auto& sink:sinks) sink.second->Release();
+    release(projection->window); release(projection->worksheet); release(projection->workbook); release(projection->workbooks); release(projection->app); delete projection;
+}
+extern "C" HRESULT dna_com_sheet(void* pointer,const wchar_t* name,size_t length) noexcept {
+    try { auto app=static_cast<Projection*>(pointer)->app; HRESULT hr=valid(app); if(FAILED(hr)) return hr; app->state->worksheet_name.assign(name,length); return S_OK; }
+    catch(...) { return E_OUTOFMEMORY; }
+}
+extern "C" HRESULT dna_com_enable_events(void* pointer,bool enabled) noexcept {
+    return put_enable_events(static_cast<Projection*>(pointer)->app,enabled?VARIANT_TRUE:VARIANT_FALSE);
+}
+extern "C" HRESULT dna_com_sheet_change(void* pointer,unsigned row,unsigned column) noexcept {
+    auto projection=static_cast<Projection*>(pointer);
+    if(row>=1048576 || column>=16384) return E_INVALIDARG;
+    auto range=new(std::nothrow) Object{window_vtable.data(),1,projection->app->state,projection->app,false,projection->worksheet,false,false,false,true,row,column};
+    if(!range) return E_OUTOFMEMORY;
+    add_ref(projection->app); add_ref(projection->worksheet);
+    VARIANT args[2]{}; args[0].vt=VT_DISPATCH; args[0].pdispVal=reinterpret_cast<IDispatch*>(projection->worksheet);
+    args[1].vt=VT_DISPATCH; args[1].pdispVal=reinterpret_cast<IDispatch*>(range);
+    HRESULT hr=fire(projection->app,0x61c,args,2); release(range); return hr;
+}
+extern "C" HRESULT dna_com_after_calculate(void* pointer) noexcept {
+    return fire(static_cast<Projection*>(pointer)->app,0xa34,nullptr,0);
+}
+// Exercises source lifetime and reentrant subscription removal independently of
+// xlOil. The application route is separately measured with the original plugin.
+namespace {
+class EventProbe final : public IDispatch {
+    LONG references=1;
+public:
+    unsigned changes=0,calculations=0;
+    HRESULT failure=S_OK;
+    IConnectionPoint* remove_from=nullptr;
+    DWORD cookie=0;
+    IDispatch* retained=nullptr;
+    ~EventProbe() { if(retained) retained->Release(); }
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** out) override {
+        if(!out) return E_POINTER;
+        *out=nullptr;
+        if(iid!=IID_IUnknown && iid!=IID_IDispatch && iid!=events_iid) return E_NOINTERFACE;
+        *out=static_cast<IDispatch*>(this); AddRef(); return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return InterlockedIncrement(&references); }
+    ULONG STDMETHODCALLTYPE Release() override { auto n=InterlockedDecrement(&references); if(!n) delete this; return n; }
+    HRESULT STDMETHODCALLTYPE GetTypeInfoCount(UINT* count) override { if(!count) return E_POINTER; *count=0; return S_OK; }
+    HRESULT STDMETHODCALLTYPE GetTypeInfo(UINT,LCID,ITypeInfo**) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR*,UINT,LCID,DISPID*) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE Invoke(DISPID id,REFIID iid,LCID,WORD flags,DISPPARAMS* params,VARIANT*,EXCEPINFO*,UINT*) override {
+        if(iid!=IID_NULL || flags!=3 || !params) return failure=E_UNEXPECTED;
+        if(id==0xa34) { ++calculations; return params->cArgs?failure=E_UNEXPECTED:S_OK; }
+        if(id!=0x61c || params->cArgs!=2 || params->cNamedArgs!=2 || params->rgdispidNamedArgs[0]!=0 || params->rgdispidNamedArgs[1]!=1) return failure=E_UNEXPECTED;
+        if(params->rgvarg[0].vt!=VT_DISPATCH || params->rgvarg[1].vt!=VT_DISPATCH) return failure=E_UNEXPECTED;
+        auto sheet=params->rgvarg[0].pdispVal;
+        Object* typed=nullptr;
+        HRESULT hr=sheet->QueryInterface(worksheet_iid,reinterpret_cast<void**>(&typed));
+        BSTR name=nullptr;
+        if(SUCCEEDED(hr)) hr=reinterpret_cast<HRESULT(WINAPI*)(Object*,BSTR*)>(typed->vtable[18])(typed,&name);
+        if(SUCCEEDED(hr) && (!name || wcscmp(name,L"Unit"))) hr=E_UNEXPECTED;
+        SysFreeString(name); if(typed) release(typed);
+        auto range=params->rgvarg[1].pdispVal;
+        DISPPARAMS none{}; VARIANT address{};
+        if(SUCCEEDED(hr)) hr=range->Invoke(0xec,IID_NULL,0,DISPATCH_PROPERTYGET,&none,&address,nullptr,nullptr);
+        if(SUCCEEDED(hr) && (address.vt!=VT_BSTR || wcscmp(address.bstrVal,L"$D$3"))) hr=E_UNEXPECTED;
+        VariantClear(&address);
+        VARIANT qualified[4]{};
+        qualified[0].vt=VT_BOOL; qualified[0].boolVal=VARIANT_TRUE;
+        qualified[1].vt=VT_I4; qualified[1].lVal=1;
+        qualified[2].vt=qualified[3].vt=VT_BOOL; qualified[2].boolVal=qualified[3].boolVal=VARIANT_TRUE;
+        DISPPARAMS external{qualified,nullptr,4,0};
+        if(SUCCEEDED(hr) && range->Invoke(0xec,IID_NULL,0,DISPATCH_PROPERTYGET,&external,&address,nullptr,nullptr)!=E_NOTIMPL) hr=E_UNEXPECTED;
+        VariantClear(&address);
+        if(FAILED(hr)) return failure=hr;
+        if(retained) retained->Release(); retained=range; retained->AddRef(); ++changes;
+        if(remove_from) { hr=remove_from->Unadvise(cookie); remove_from=nullptr; if(FAILED(hr)) failure=hr; }
+        return failure;
+    }
+};
+}
+extern "C" HRESULT dna_com_test_events() noexcept {
+    auto projection=static_cast<Projection*>(dna_com_create(1,nullptr,nullptr));
+    if(!projection) return E_OUTOFMEMORY;
+    HRESULT hr=dna_com_sheet(projection,L"Unit",4);
+    IConnectionPointContainer* container=nullptr;
+    IConnectionPoint *first=nullptr,*second=nullptr;
+    auto a=new(std::nothrow) EventProbe; auto b=new(std::nothrow) EventProbe;
+    DWORD ca=0,cb=0;
+    if(!a || !b) hr=E_OUTOFMEMORY;
+    if(SUCCEEDED(hr)) hr=query(projection->app,IID_IConnectionPointContainer,reinterpret_cast<void**>(&container));
+    if(SUCCEEDED(hr)) hr=container->FindConnectionPoint(events_iid,&first);
+    if(SUCCEEDED(hr)) hr=container->FindConnectionPoint(events_iid,&second);
+    if(SUCCEEDED(hr)) hr=first->Advise(a,&ca);
+    if(SUCCEEDED(hr)) hr=second->Advise(b,&cb);
+    if(SUCCEEDED(hr)) { a->remove_from=second; a->cookie=ca; hr=dna_com_sheet_change(projection,2,3); }
+    if(SUCCEEDED(hr)) hr=dna_com_sheet_change(projection,2,3);
+    if(SUCCEEDED(hr)) hr=dna_com_enable_events(projection,false);
+    if(SUCCEEDED(hr)) hr=dna_com_sheet_change(projection,2,3);
+    if(SUCCEEDED(hr)) hr=dna_com_after_calculate(projection);
+    if(SUCCEEDED(hr)) hr=dna_com_enable_events(projection,true);
+    if(SUCCEEDED(hr)) hr=dna_com_after_calculate(projection);
+    if(SUCCEEDED(hr) && (a->changes!=1 || b->changes!=2 || a->calculations!=0 || b->calculations!=1)) hr=E_UNEXPECTED;
+    if(SUCCEEDED(hr)) hr=first->Unadvise(cb);
+    if(SUCCEEDED(hr) && second->Unadvise(cb)!=CONNECT_E_NOCONNECTION) hr=E_UNEXPECTED;
+    if(first) first->Release(); if(second) second->Release(); if(container) container->Release();
+    dna_com_destroy(projection);
+    if(SUCCEEDED(hr) && b->retained) {
+        DISPPARAMS params{}; VARIANT result{};
+        if(b->retained->Invoke(0xec,IID_NULL,0,DISPATCH_PROPERTYGET,&params,&result,nullptr,nullptr)!=CO_E_OBJNOTCONNECTED) hr=E_UNEXPECTED;
+        VariantClear(&result);
+    }
+    if(a) a->Release(); if(b) b->Release(); return hr;
 }
 extern "C" HRESULT dna_com_verify(void* pointer) noexcept {
     auto projection=static_cast<Projection*>(pointer);

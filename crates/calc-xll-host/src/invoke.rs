@@ -65,7 +65,18 @@ impl XllFunction {
     pub(crate) fn invoke_inline(
         &self,
         arguments: &[CalcValue],
+        context: Option<&mut dyn UserFunctionContext>,
+    ) -> Result<CalcValue, String> {
+        self.invoke_inline_as(arguments, context, false)
+    }
+    pub(crate) fn invoke_run(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+        self.invoke_inline_as(arguments, None, true)
+    }
+    fn invoke_inline_as(
+        &self,
+        arguments: &[CalcValue],
         mut context: Option<&mut dyn UserFunctionContext>,
+        as_run: bool,
     ) -> Result<CalcValue, String> {
         let r = &self.registration;
         let signature = &r.info.signature;
@@ -152,7 +163,7 @@ impl XllFunction {
             module: r.module.clone(),
             origin: r.origin.clone(),
             context,
-            signature: (r.info.macro_type != 2).then(|| signature.clone()),
+            signature: (!as_run && r.info.macro_type != 2).then(|| signature.clone()),
         };
         let guard = unsafe { callbacks::enter(&mut frame) };
         let mut returned = Returned::default();

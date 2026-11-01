@@ -94,7 +94,7 @@ if ($HostExecutable) {
             Start-Sleep -Milliseconds 100
         }
         $metadata = [ordered]@{
-            captured_utc=[DateTime]::UtcNow.ToString('O'); pid=$hostProcess.Id; process_bits=64
+            captured_utc=[DateTime]::UtcNow.ToString('O'); pid=$hostProcess.Id; process_bits=64; workbook_name='Book1'
             native_xll_sha256=(Get-FileHash -LiteralPath $nativeXll).Hash
             native_source_sha256=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../calc-xll-fixture/src/fixture.rs')).Hash
             cases_sha256=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'fixture/x1-cases.json')).Hash
@@ -214,6 +214,7 @@ try {
     $metadata = [ordered]@{
         captured_utc=[DateTime]::UtcNow.ToString('O'); pid=$ownedExcelPid; preexisting_excel_pids=$baseline
         excel_version=[string]$excel.Version; excel_build=[string]$excel.Build
+        workbook_name=[string]$book.Name
         excel_file_version=(Get-Item -LiteralPath (Get-Process -Id $ownedExcelPid).Path).VersionInfo.FileVersion
         process_bits=64; fixture_framework='ExcelDna.AddIn 1.9.0 NuGet; net48'
         xll_sha256=(Get-FileHash -LiteralPath $xll).Hash
@@ -266,7 +267,10 @@ try {
         if (-not $AddInDirectory -and $AddInName -eq 'X0') { Note 'RegisterXLL native' ([bool]$excel.RegisterXLL($nativeXll)) }
         $sheet.Range('A1').Value2 = 7
         foreach ($case in (Get-Content -LiteralPath $Cases -Raw | ConvertFrom-Json)) {
-            $sheet.Range('B3:Z10').ClearContents()
+            if ($case.PSObject.Properties['enable_events']) { $excel.EnableEvents=[bool]$case.enable_events }
+            if ($case.PSObject.Properties['edit']) { $sheet.Range([string]$case.edit.cell).Value2=[double]$case.edit.value }
+            # Assign the formula anchor directly, as the OneCalc controller does.
+            # Excel removes the previous anchor's spill when replacing its formula.
             $sheet.Range('B3').Formula2 = [string]$case.formula
             if ($case.formula -match 'X0.Async') {
                 $deadline=[DateTime]::UtcNow.AddSeconds(60)
@@ -281,6 +285,17 @@ try {
             if ((Get-Content -LiteralPath (Join-Path $run 'fixture.tsv') -Raw) -notmatch "Outside 89`t") { throw 'Outside-context probes did not finish.' }
         }
         Note 'ExecuteExcel4Macro UNREGISTER(managed)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
+        if ($Reload) {
+            # Repeat the same close/open sequence as the native host. Keep the
+            # first and second worksheet observations separate in the trace.
+            Note 'RegisterXLL reload' ([bool]$excel.RegisterXLL($xll))
+            foreach ($case in (Get-Content -LiteralPath $Cases -Raw | ConvertFrom-Json)) {
+                $sheet.Range('B3:Z10').ClearContents()
+                $sheet.Range('B3').Formula2 = [string]$case.formula
+                Note ('reload ' + [string]$case.formula) $sheet.Range('B3').Value2
+            }
+            Note 'ExecuteExcel4Macro UNREGISTER(reload)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
+        }
         if (-not $AddInDirectory -and $AddInName -eq 'X0') { Note 'ExecuteExcel4Macro UNREGISTER(native)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $nativeXll.Replace('"','""') + '")') }
         Note 'AutomationSecurity unchanged' ([int]$excel.AutomationSecurity -eq $metadata.automation_security_before)
     } elseif ($X1Xll) {
