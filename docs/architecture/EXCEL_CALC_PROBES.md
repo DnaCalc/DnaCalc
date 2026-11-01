@@ -213,6 +213,12 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   (fences stay). Observations depend on history: put history into the compatibility profile. Stable across all: the
   tested class may run ahead under a logical view; no general commutation claim.
 
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: all 200 repeated Full/Rebuild cases read new 1010/1200/1010.
+  Observer order varied within nominally identical multiworker conditions (PeekSeveral first 37/120), while
+  PeekB1 was first with MTC off (60/60) and one worker (20/20). One worker was set successfully through VBA.
+  Stable values do not imply an interchangeable effect trace; retain explicit ordering and no general commutation
+  claim. [Evidence and seeded-cold limit](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/README.md).
+
 ### P09 ★ Formula vs Formula2 through every ingress (E11; SYNTHESIS C0)
 - **Setup.** A1:A4 = 1,4,9,16. On separate sheets B2.Formula and B2.Formula2 = `=SQRT(A1:A4)`; explicit
   `=SQRT(@A1:A4)`; legacy CSE in B2:B5 (`FormulaArray`); paste, `FillDown`, R1C1 setters, file load.
