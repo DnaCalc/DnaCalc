@@ -1000,7 +1000,10 @@ impl Server {
                 {
                     return Ok(self.done(false,Some("Axis expansion for disjoint selections is not modelled; select one rectangle".to_owned()),0.0));
                 }
+                let merges = self.book.host().merged_areas(at.sheet());
+                let active_merge = merges.iter().copied().find(|a| a.contains(at));
                 if extend
+                    && active_merge.is_none()
                     && selection.areas.first().is_some_and(|area| {
                         (at.row() != area.first().row() && at.row() != area.last().row())
                             || (at.column() != area.first().column()
@@ -1073,20 +1076,6 @@ impl Server {
                 );
                 let mut selection = selection.clone();
                 let mut nav = nav;
-                let merges = host.merged_areas(at.sheet());
-                if extend
-                    && let Some(merged) = merges.iter().find(|a| a.contains(at))
-                    && selection.areas.as_slice() == [*merged]
-                    && matches!(
-                        nav,
-                        dna_calc_model::selection::Navigation::Step(
-                            dna_calc_model::selection::NavAction::Left
-                                | dna_calc_model::selection::NavAction::Up
-                        )
-                    )
-                {
-                    return Ok(self.done(false, Some("Merged selection extension across the anchor corner is not modelled (dc-971p.6); use the name box to select an explicit range".into()), 0.0));
-                }
                 if !extend && let Some(merged) = merges.iter().copied().find(|a| a.contains(at)) {
                     use dna_calc_model::selection::{NavAction, Navigation};
                     if let Navigation::Walk {
@@ -1119,15 +1108,34 @@ impl Server {
                             Some(CellKey::new(at.sheet(), row, col).expect("merge edge"));
                     }
                 }
-                let mut next = dna_calc_model::selection::navigate(
-                    &selection,
-                    nav,
-                    extend,
-                    &metrics,
-                    f64::from(page_height),
-                    &occupied,
-                    used,
-                );
+                let mut next = if extend
+                    && active_merge.is_some()
+                    && !matches!(
+                        nav,
+                        dna_calc_model::selection::Navigation::Row
+                            | dna_calc_model::selection::Navigation::Column
+                            | dna_calc_model::selection::Navigation::All
+                    ) {
+                    dna_calc_model::selection::extend_merged(
+                        &selection,
+                        active_merge.unwrap(),
+                        nav,
+                        &metrics,
+                        f64::from(page_height),
+                        &occupied,
+                        used,
+                    )
+                } else {
+                    dna_calc_model::selection::navigate(
+                        &selection,
+                        nav,
+                        extend,
+                        &metrics,
+                        f64::from(page_height),
+                        &occupied,
+                        used,
+                    )
+                };
                 // Walk visits each merged identity once within a larger selected rectangle.
                 // Jump to the covered run's edge instead of snapping back to its anchor.
                 if !extend

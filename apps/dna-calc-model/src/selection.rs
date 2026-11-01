@@ -435,6 +435,86 @@ pub fn navigate(
     }
 }
 
+/// Extend around a merged active identity. The whole footprint stays selected while
+/// the moving endpoint crosses its anchor, including when reversing either axis.
+pub fn extend_merged(
+    selection: &Selection,
+    footprint: GridArea,
+    nav: Navigation,
+    metrics: &GridMetrics,
+    page_height: f64,
+    occupied: &[GridArea],
+    used: Option<GridArea>,
+) -> Selection {
+    let Some(at) = selection.active else {
+        return selection.clone();
+    };
+    let area = selection.areas.first().copied().unwrap_or(footprint);
+    let low = footprint.first();
+    let high = footprint.last();
+    let negative_row = matches!(
+        nav,
+        Navigation::Step(NavAction::Up | NavAction::GridStart)
+            | Navigation::Edge(NavAction::Up)
+            | Navigation::Page { down: false }
+    );
+    let negative_col = matches!(
+        nav,
+        Navigation::Step(NavAction::Left | NavAction::RowStart | NavAction::GridStart)
+            | Navigation::Edge(NavAction::Left)
+    );
+    let endpoint = |first, last, low, high, negative| {
+        if first < low {
+            first
+        } else if last > high {
+            last
+        } else if negative {
+            low
+        } else {
+            high
+        }
+    };
+    let row = endpoint(
+        area.first().row(),
+        area.last().row(),
+        low.row(),
+        high.row(),
+        negative_row,
+    );
+    let col = endpoint(
+        area.first().column(),
+        area.last().column(),
+        low.column(),
+        high.column(),
+        negative_col,
+    );
+    let from = CellKey::new(at.sheet(), row, col).expect("selected endpoint");
+    let moved = navigate(
+        &Selection::cell(from),
+        nav,
+        false,
+        metrics,
+        page_height,
+        occupied,
+        used,
+    );
+    let target = moved.active.unwrap_or(from);
+    Selection {
+        active: Some(at),
+        areas: vec![rectangle(
+            at,
+            (
+                low.row().min(target.row()),
+                low.column().min(target.column()),
+            ),
+            (
+                high.row().max(target.row()),
+                high.column().max(target.column()),
+            ),
+        )],
+    }
+}
+
 /// Remove a selected rectangle using at most four rectangles per existing area.
 pub fn subtract(area: GridArea, removed: GridArea) -> Vec<GridArea> {
     area.subtract(removed)
@@ -845,6 +925,77 @@ mod tests {
             occupied,
             used,
         )
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn merged_extension_crosses_both_anchor_axes_and_reverses() {
+        let footprint = area(3, 3, 4, 5);
+        let initial = Selection {
+            active: Some(footprint.first()),
+            areas: vec![footprint],
+        };
+        let metrics = GridMetrics::default();
+        let mut selected = initial.clone();
+        for (direction, expected) in [
+            (NavAction::Left, area(3, 2, 4, 5)),
+            (NavAction::Up, area(2, 2, 4, 5)),
+            (NavAction::Right, area(2, 3, 4, 5)),
+            (NavAction::Down, footprint),
+            (NavAction::Right, area(3, 3, 4, 6)),
+            (NavAction::Down, area(3, 3, 5, 6)),
+            (NavAction::Left, area(3, 3, 5, 5)),
+            (NavAction::Up, footprint),
+        ] {
+            selected = extend_merged(
+                &selected,
+                footprint,
+                Navigation::Step(direction),
+                &metrics,
+                400.,
+                &[],
+                None,
+            );
+            assert_eq!(selected.active, initial.active);
+            assert_eq!(selected.areas, vec![expected], "{direction:?}");
+        }
+        let edge = area(1, 1, 2, 3);
+        for nav in [NavAction::Up, NavAction::Left] {
+            assert_eq!(
+                extend_merged(
+                    &Selection {
+                        active: Some(edge.first()),
+                        areas: vec![edge]
+                    },
+                    edge,
+                    Navigation::Step(nav),
+                    &metrics,
+                    400.,
+                    &[],
+                    None
+                )
+                .areas,
+                vec![edge]
+            );
+        }
+        let hidden = GridMetrics {
+            rows: crate::geometry::Sizes::new(22., [(2, 0.)]),
+            cols: crate::geometry::Sizes::new(80., [(2, 0.)]),
+            ..GridMetrics::default()
+        };
+        assert_eq!(
+            extend_merged(
+                &initial,
+                footprint,
+                Navigation::Step(NavAction::Left),
+                &hidden,
+                400.,
+                &[],
+                None
+            )
+            .areas,
+            vec![area(3, 1, 4, 5)]
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
