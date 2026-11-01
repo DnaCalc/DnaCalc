@@ -176,6 +176,8 @@ pub(crate) fn invoke(
                     closed,
                     status_message: None,
                     workers: None,
+                    pending_async: BTreeMap::new(),
+                    async_continuations: false,
                 }));
                 let cif = crate::invoke::call_interface(&info.signature);
                 let registration = Rc::new(Registration {

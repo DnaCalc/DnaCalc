@@ -150,9 +150,14 @@ static std::set<DWORD> exitedThreads;
 static std::vector<HANDLE> stoppedThreads;
 static std::map<Address,std::string> objects;
 static std::map<Address,std::string> interfaces;
+static std::map<Address,Address> objectTables;
 static std::map<std::pair<Address,int32_t>,std::string> members;
 static bool inspectedEventArguments=false;
 static void arm(Address p,const Entry* entry);
+static void forgetObject(Address p) {
+    objects.erase(p);interfaces.erase(p);objectTables.erase(p);
+    for(auto it=members.begin();it!=members.end();) {if(it->first.first==p)it=members.erase(it);else ++it;}
+}
 
 static std::string guid(Address p) {
     GUID g{}; if(!readBytes(p,&g,sizeof(g))){readError(p,sizeof(g));return "unreadable";}
@@ -161,11 +166,13 @@ static std::string guid(Address p) {
 }
 static void watchObject(Address p,const std::string& label,const std::string& kind="dispatch") {
     if(!p)return;
-    if(objects.count(p) && (interfaces[p]==kind || kind=="unknown" || (kind=="dispatch" && interfaces[p]!="unknown")))return;
     Address table=read<Address>(p);if(!table)return;
-    objects[p]=label;interfaces[p]=kind;
+    if(objects.count(p) && objectTables[p]!=table)forgetObject(p);
+    if(objects.count(p) && (interfaces[p]==kind || kind=="unknown" || (kind=="dispatch" && interfaces[p]!="unknown")))return;
+    objects[p]=label;interfaces[p]=kind;objectTables[p]=table;
     auto method=[&](int slot,const char* name){Entry e{std::string("COM!")+name,""};arm(read<Address>(table+8*slot),&e);};
     method(0,"QueryInterface");
+    method(2,"Release");
     if(kind=="container")method(4,"FindConnectionPoint");
     else if(kind=="point"){method(5,"Advise");method(6,"Unadvise");}
     else if(kind!="unknown"){method(5,"GetIDsOfNames");method(6,"Invoke");}
@@ -220,6 +227,11 @@ static void arm(Address p, const Entry* entry = nullptr) {
         unsigned char c;
         if (!readBytes(p, &c, 1) || c == 0xcc) { healthy=false; emit("\"event\":\"breakpoint_error\",\"address\":"+hex(p)); return; }
         it = breakpoints.emplace(p, Breakpoint{c}).first;
+    } else if(!it->second.enabled && it->second.entries.empty() && !it->second.returnRefs) {
+        // A fresh watch can reuse dynamic code at an old, inactive return site.
+        unsigned char c;
+        if(!readBytes(p,&c,1) || c==0xcc){healthy=false;emit("\"event\":\"breakpoint_error\",\"address\":"+hex(p));return;}
+        it->second.original=c;
     }
     if (entry) {
         auto& v=it->second.entries;
@@ -362,6 +374,7 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
     std::string fields="\"event\":\"enter\",\"call\":"+std::to_string(c.id)+",\"thread\":"+std::to_string(thread)+",\"entry\":"+quote(entry.name)+",\"from\":"+location(c.ret);
     if(entry.name.rfind("COM!",0)==0) {
         if(!objects.count(ctx.Rcx))return; // Shared vtable code: observe only discovered objects.
+        if(read<Address>(ctx.Rcx)!=objectTables[ctx.Rcx])watchObject(ctx.Rcx,"reused COM pointer","dispatch");
         if(entry.name.rfind("COM!early.",0)==0 && entry.name.rfind("COM!early."+interfaces[ctx.Rcx]+".",0)!=0)return;
         fields+=",\"object\":"+hex(ctx.Rcx)+",\"object_label\":"+quote(objects[ctx.Rcx]);
         if(entry.name.rfind("COM!early.",0)==0) {
@@ -423,8 +436,11 @@ static void leave(const Call& c,const CONTEXT& ctx) {
         fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax)+",\"object\":"+hex(read<Address>(c.raw[3]));
         if((int32_t)ctx.Rax>=0)watchObject(read<Address>(c.raw[3]),"AccessibleObjectFromWindow");
     }else if(c.entry.name.rfind("COM!",0)==0) {
-        fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);
-        if((int32_t)ctx.Rax>=0){
+        if(c.entry.name=="COM!Release") {
+            fields+=",\"references\":"+std::to_string((uint32_t)ctx.Rax);
+            if((uint32_t)ctx.Rax==0)forgetObject(c.raw[0]);
+        } else fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);
+        if(c.entry.name!="COM!Release" && (int32_t)ctx.Rax>=0){
             std::string kind=c.entry.name;
             if(kind.rfind("COM!early.",0)==0) {
                 const auto& abi=c.entry.signature;
@@ -523,7 +539,9 @@ static void finishStep(DWORD thread) {
     auto it=breakpoints.find(addr);
     if(it!=breakpoints.end()) {
         if(!it->second.entries.empty()||it->second.returnRefs)arm(addr);
-        else breakpoints.erase(it);
+        // Other threads may already have trapped on this byte before it was
+        // restored. Keep the disabled record so their queued debug events can
+        // still rewind and execute the original instruction safely.
     }
     stepping.erase(thread);resumeOthers(thread);
 }
@@ -647,9 +665,13 @@ int wmain(int argc,wchar_t** argv) {
             }else if(code==EXCEPTION_BREAKPOINT){
                 if(stopping&&breakpoints.count(addr))stopAtWatchedBreakpoint(ev.dwThreadId,addr);
                 else if(stopping){cleanup();done=true;}
-                else if(!breakpoint(ev.dwThreadId,addr)){if(initialBreak){initialBreak=false;emit("\"event\":\"ready\"");}else status=DBG_EXCEPTION_NOT_HANDLED;}
+                else if(!breakpoint(ev.dwThreadId,addr)){if(initialBreak){initialBreak=false;emit("\"event\":\"ready\"");}else {healthy=false;emit("\"event\":\"unrecognized_breakpoint\",\"address\":"+hex(addr)+",\"thread\":"+std::to_string(ev.dwThreadId)+",\"first_chance\":"+(ev.u.Exception.dwFirstChance?"true":"false"));status=DBG_EXCEPTION_NOT_HANDLED;}}
             }else {
                 status=DBG_EXCEPTION_NOT_HANDLED;
+                std::string parameters="[";
+                for(DWORD i=0;i<ev.u.Exception.ExceptionRecord.NumberParameters&&i<EXCEPTION_MAXIMUM_PARAMETERS;++i){if(i)parameters+=",";parameters+=hex(ev.u.Exception.ExceptionRecord.ExceptionInformation[i]);}
+                parameters+="]";
+                emit("\"event\":\"exception\",\"code\":"+hex(code)+",\"address\":"+hex(addr)+",\"thread\":"+std::to_string(ev.dwThreadId)+",\"first_chance\":"+(ev.u.Exception.dwFirstChance?"true":"false")+",\"parameters\":"+parameters);
                 if(!ev.u.Exception.dwFirstChance){healthy=false;emit("\"event\":\"second_chance_exception\",\"code\":"+hex(code)+",\"address\":"+hex(addr)+",\"thread\":"+std::to_string(ev.dwThreadId));}
             }
             break;

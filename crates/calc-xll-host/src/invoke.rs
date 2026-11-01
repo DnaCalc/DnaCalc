@@ -13,6 +13,10 @@ struct Returned {
     word: usize,
     number: f64,
 }
+pub(crate) enum NativeReturn {
+    Value(CalcValue, u32),
+    Pending(callbacks::Pending),
+}
 
 pub(crate) fn call_interface(signature: &XllSignature) -> Option<Cif> {
     fn native_type(kind: XllType) -> Option<Type> {
@@ -54,6 +58,11 @@ impl XllFunction {
         arguments: &[CalcValue],
         context: Option<&mut dyn UserFunctionContext>,
     ) -> Result<CalcValue, String> {
+        if self.registration.info.signature.thread_safe
+            && self.registration.info.signature.asynchronous
+        {
+            return Err("dc-snz.23: thread-safe native async entry is not modelled".into());
+        }
         if self.registration.info.signature.thread_safe {
             let pool = self.state.borrow().workers.clone();
             if let Some(pool) = pool {
@@ -69,19 +78,40 @@ impl XllFunction {
     ) -> Result<CalcValue, String> {
         self.invoke_inline_as(arguments, context, false)
     }
-    pub(crate) fn invoke_run(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
-        self.invoke_inline_as(arguments, None, true)
+    pub(crate) fn invoke_run(&self, arguments: &[CalcValue]) -> Result<(CalcValue, bool), String> {
+        match self.start_inline(arguments, None, true)? {
+            NativeReturn::Value(value, kind) => Ok((value, kind == XL_INT)),
+            NativeReturn::Pending(_) => {
+                Err("dc-snz.23: async Application.Run has no admitted continuation".into())
+            }
+        }
     }
     fn invoke_inline_as(
         &self,
         arguments: &[CalcValue],
-        mut context: Option<&mut dyn UserFunctionContext>,
+        context: Option<&mut dyn UserFunctionContext>,
         as_run: bool,
     ) -> Result<CalcValue, String> {
+        match self.start_inline(arguments, context, as_run)? {
+            NativeReturn::Value(value, _) => Ok(value),
+            NativeReturn::Pending(pending) => {
+                callbacks::wait(pending.key, &pending.completion).map(normalize_return)
+            }
+        }
+    }
+    pub(crate) fn start_inline(
+        &self,
+        arguments: &[CalcValue],
+        mut context: Option<&mut dyn UserFunctionContext>,
+        as_run: bool,
+    ) -> Result<NativeReturn, String> {
         let r = &self.registration;
         let signature = &r.info.signature;
         if r.uses.get() == 0 || self.state.borrow().closed {
-            return Ok(CalcValue::error(WorksheetErrorCode::Name));
+            return Ok(NativeReturn::Value(
+                CalcValue::error(WorksheetErrorCode::Name),
+                XL_ERR,
+            ));
         }
         if self.state.borrow().thread != unsafe { GetCurrentThreadId() } {
             return Err("dc-snz.2: XLL calls require the owning main lane in X1".into());
@@ -112,9 +142,9 @@ impl XllFunction {
         values.resize(expected, CalcValue::missing());
         let mut arena = Arena::new();
         let mut slots = Vec::with_capacity(signature.arguments.len().max(4));
-        let pending = signature
+        let mut pending = signature
             .asynchronous
-            .then(callbacks::pending)
+            .then(|| callbacks::owned_pending(&self.state, r))
             .transpose()?;
         let mut argument = 0;
         let sheet = current_sheet(&context);
@@ -174,15 +204,27 @@ impl XllFunction {
             _ => Ret::new(&mut returned.word),
         };
         unsafe {
+            if let Some(pending) = &mut pending {
+                pending.entered = true;
+            }
             cif.call_return_into(CodePtr(r.info.address as *mut _), &ffi_arguments, output);
         }
         let result = if let Some(pending) = pending {
-            callbacks::wait(pending.key, &pending.completion)
+            Ok(NativeReturn::Pending(pending))
         } else {
+            let kind = match signature.result {
+                XllType::Oper12 | XllType::Oper12Reference if returned.word != 0 => unsafe {
+                    (returned.word as *const XlOper12).read_unaligned().xltype & TYPE_MASK
+                },
+                XllType::Short | XllType::UShort | XllType::Int => XL_INT,
+                _ => XL_NUM,
+            };
             unsafe { self.convert_return(signature.result, &slots, returned, sheet) }
+                .map(normalize_return)
+                .map(|value| NativeReturn::Value(value, kind))
         };
         drop(guard);
-        result.map(normalize_return)
+        result
     }
     unsafe fn convert_return(
         &self,
@@ -464,7 +506,7 @@ pub(crate) fn worksheet_name(number: i32) -> Option<&'static str> {
         .map(|(_, name, _)| *name)
 }
 
-fn normalize_return(value: CalcValue) -> CalcValue {
+pub(crate) fn normalize_return(value: CalcValue) -> CalcValue {
     if value.as_number().is_some_and(|n| !n.is_finite()) {
         CalcValue::error(WorksheetErrorCode::Num)
     } else if value.is_missing() || value.is_empty() {

@@ -824,6 +824,7 @@ name = "dna-calc-desktop"
 version = "0.1.0"
 dependencies = [
  "calc-com-host",
+ "calc-host",
  "calc-value",
  "calc-xll-abi",
  "calc-xll-fixture",

@@ -16,9 +16,11 @@ mod native;
 #[cfg(windows)]
 mod worker;
 #[cfg(windows)]
+pub use calc_fml::reference::format_workbook_sheet_qualifier;
+#[cfg(windows)]
 pub use callbacks::dispatch;
 #[cfg(windows)]
-pub use native::{RegistrationInfo, XllHost};
+pub use native::{AsyncReturn, RegistrationInfo, XllHost};
 
 #[cfg(not(windows))]
 pub struct XllHost;

@@ -1,6 +1,8 @@
 #[cfg(target_arch = "wasm32")]
 compile_error!("dna-calc-desktop is native-only");
 #[cfg(windows)]
+mod engine;
+#[cfg(windows)]
 mod shell;
 
 #[cfg(windows)]
@@ -25,6 +27,7 @@ fn run() -> Result<(), String> {
     let mut early_commands = Vec::new();
     let mut reload = false;
     let mut reload_new_host = false;
+    let mut engine = false;
     let mut sheet_name = "X1".to_owned();
     let mut wait = None;
     let mut ready = None;
@@ -45,6 +48,7 @@ fn run() -> Result<(), String> {
                 early_commands.push(args.next().ok_or("--early-command needs a name")?)
             }
             "--reload" => reload = true,
+            "--engine" => engine = true,
             "--reload-new-host" => {
                 reload = true;
                 reload_new_host = true;
@@ -97,6 +101,18 @@ fn run() -> Result<(), String> {
         }
     }
     let registrations = host.registrations();
+    if engine {
+        let output = engine::run(&shell, &host, &sheet_name, cases_file, formula)?;
+        host.close()?;
+        println!("{output}");
+        if let Some(path) = finished {
+            std::fs::write(path, "finished").map_err(|e| e.to_string())?;
+        }
+        if let Some(path) = release {
+            shell.wait_for(&path)?;
+        }
+        return Ok(());
+    }
     let stale_name = registrations
         .iter()
         .find(|r| r.macro_type == 1)

@@ -212,6 +212,47 @@ fn application_run_can_enter_a_hidden_or_worksheet_registration() {
     assert_eq!(result["commands"][1]["early_bound"], true);
 }
 
+/// Native-only: the actual executable resumes one native async entry through CalcHost P07.
+#[test]
+fn native_async_resumes_the_existing_engine_activation_and_dependents() {
+    let fixture = Fixture::new();
+    let cases = fixture.directory.join("async-cases.json");
+    std::fs::write(
+        &cases,
+        r#"[
+        {"formula":"=10+MyAsync(28)+3","value":42,"dependent":"=B3*2","dependent_value":84},
+        {"formula":"=MyAsyncEntries()","value":1}
+    ]"#,
+    )
+    .unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_ASYNC_TESTS", "1")
+            .env("DNA_XLL_ASYNC_DELAY_MS", "30")
+            .arg("--engine")
+            .arg("--cases")
+            .arg(&cases)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["async_returns"].as_array().unwrap().len(), 1);
+    assert_eq!(result["async_returns"][0]["disposition"], "Accepted");
+    assert_eq!(result["results"][0]["value"], 42.);
+    assert_eq!(result["results"][0]["dependent"], 84.);
+    assert_eq!(result["results"][0]["provenance"]["invocations"], 1);
+    assert_eq!(
+        result["results"][0]["provenance"]["cooperative_invocations"],
+        1
+    );
+    assert_eq!(
+        result["results"][0]["provenance"]["completed_invocations"],
+        1
+    );
+    assert_eq!(result["results"][1]["value"], 1.);
+    assert_eq!(result["closed_registration"], "#NAME?");
+}
+
 /// Native-only: a failed second XLL must restore another load's use counts and hidden names.
 #[test]
 fn failed_second_load_restores_previous_names_and_use_counts() {

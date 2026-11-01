@@ -8,7 +8,7 @@ use std::{
     rc::Rc,
     sync::{
         Arc, Condvar, Mutex, OnceLock,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -48,6 +48,13 @@ pub(crate) unsafe fn enter(frame: &mut Frame<'_>) -> FrameGuard {
 pub(crate) struct Completion {
     pub result: Mutex<Option<Result<CalcValue, String>>>,
     pub ready: Condvar,
+    pub forwarded: AtomicBool,
+    pub active: AtomicBool,
+    pub physical_returned: AtomicBool,
+}
+pub(crate) struct PendingOwner {
+    pub completion: Arc<Completion>,
+    pub registration: Rc<Registration>,
 }
 static ASYNC: OnceLock<Mutex<HashMap<usize, Arc<Completion>>>> = OnceLock::new();
 static NEXT_ASYNC: AtomicUsize = AtomicUsize::new(1);
@@ -57,9 +64,25 @@ fn asynchronous() -> &'static Mutex<HashMap<usize, Arc<Completion>>> {
 pub(crate) struct Pending {
     pub key: usize,
     pub completion: Arc<Completion>,
+    state: std::rc::Weak<std::cell::RefCell<crate::native::State>>,
+    pub entered: bool,
 }
 impl Drop for Pending {
     fn drop(&mut self) {
+        if let Some(state) = self.state.upgrade() {
+            let lock = self.completion.result.lock().unwrap();
+            let outstanding =
+                self.entered && !self.completion.physical_returned.load(Ordering::Acquire);
+            self.completion.active.store(false, Ordering::Release);
+            drop(lock);
+            if outstanding {
+                // Revocation ends authorization, not execution in native code.
+                // Keep the registration/module lease and a refusing C API tombstone
+                // until that task attempts its return (or the process exits).
+                return;
+            }
+            state.borrow_mut().pending_async.remove(&self.key);
+        }
         cancel(self.key);
     }
 }
@@ -67,6 +90,9 @@ pub(crate) fn pending() -> Result<Pending, String> {
     let completion = Arc::new(Completion {
         result: Mutex::new(None),
         ready: Condvar::new(),
+        forwarded: AtomicBool::new(false),
+        active: AtomicBool::new(true),
+        physical_returned: AtomicBool::new(false),
     });
     // Never reuse an address/token: a late completion must not become a later call's result.
     let key = NEXT_ASYNC
@@ -76,7 +102,27 @@ pub(crate) fn pending() -> Result<Pending, String> {
         .lock()
         .unwrap()
         .insert(key, completion.clone());
-    Ok(Pending { key, completion })
+    Ok(Pending {
+        key,
+        completion,
+        state: std::rc::Weak::new(),
+        entered: false,
+    })
+}
+pub(crate) fn owned_pending(
+    state: &Shared,
+    registration: &Rc<Registration>,
+) -> Result<Pending, String> {
+    let mut pending = pending()?;
+    pending.state = Rc::downgrade(state);
+    state.borrow_mut().pending_async.insert(
+        pending.key,
+        PendingOwner {
+            completion: pending.completion.clone(),
+            registration: registration.clone(),
+        },
+    );
+    Ok(pending)
 }
 pub(crate) fn wait(key: usize, completion: &Completion) -> Result<CalcValue, String> {
     let lock = completion
@@ -87,14 +133,19 @@ pub(crate) fn wait(key: usize, completion: &Completion) -> Result<CalcValue, Str
         .ready
         .wait_timeout_while(lock, Duration::from_secs(10), |r| r.is_none())
         .map_err(|_| "async result lock poisoned")?;
-    asynchronous().lock().unwrap().remove(&key);
+    completion.active.store(false, Ordering::Release);
     if status.timed_out() && lock.is_none() {
         return Err("dc-snz.2: XLL async completion timed out".into());
     }
+    asynchronous().lock().unwrap().remove(&key);
     lock.take().ok_or("missing async completion")?
 }
 pub(crate) fn cancel(key: usize) {
-    asynchronous().lock().unwrap().remove(&key);
+    let held = asynchronous().lock().unwrap().remove(&key);
+    if let Some(held) = held {
+        let _lock = held.result.lock().unwrap();
+        held.active.store(false, Ordering::Release);
+    }
 }
 
 /// Main executable's MdCallBack12 export forwards here. No registry is global: the active
@@ -364,12 +415,14 @@ unsafe fn async_return(args: &[*mut XlOper12], result: *mut XlOper12) -> i32 {
     let Some(completion) = completion else {
         return INVALID_ASYNC;
     };
-    // Async completions are values, never references to another thread's sheet context.
-    let value = unsafe { from_oper(args[1], &SheetMap::default(), None) };
     let mut lock = completion.result.lock().unwrap();
-    if lock.is_some() {
+    completion.physical_returned.store(true, Ordering::Release);
+    if lock.is_some() || !completion.active.load(Ordering::Acquire) {
         return INVALID_ASYNC;
     }
+    // Async completions are values, never references to another thread's sheet context.
+    // A revoked handle never dereferences the supplied result operand.
+    let value = unsafe { from_oper(args[1], &SheetMap::default(), None) };
     *lock = Some(value);
     completion.ready.notify_one();
     // Microsoft documents a Boolean result. The X0/X1 direct-callback traces on this Excel
@@ -926,5 +979,51 @@ mod tests {
             unsafe { async_return(&[&mut h, &mut value], std::ptr::null_mut()) },
             INVALID_ASYNC
         );
+    }
+
+    /// Native-only: revoking an owned handle must retain code while its native task can still run.
+    #[test]
+    fn cancelled_native_call_keeps_its_module_lease_until_a_late_return() {
+        let host = crate::native::XllHost::new(0);
+        let module = crate::native::Module::loaded("kernel32.dll").unwrap();
+        let registration = Rc::new(Registration {
+            info: RegistrationInfo {
+                id: 1,
+                name: "lease-test".into(),
+                procedure: "unused".into(),
+                type_text: ">EX".into(),
+                signature: XllSignature::parse(">EX").unwrap(),
+                address: 0,
+                module: module.path.clone(),
+                origin: module.path.clone(),
+                use_count: 1,
+                macro_type: 1,
+            },
+            module: module.clone(),
+            origin: module,
+            uses: std::cell::Cell::new(1),
+            cif: None,
+        });
+        let lease = Rc::downgrade(&registration);
+        let mut pending = owned_pending(&host.state, &registration).unwrap();
+        pending.entered = true;
+        let key = pending.key;
+        drop(registration);
+        drop(pending);
+        assert!(lease.upgrade().is_some());
+        assert!(
+            host.close()
+                .unwrap_err()
+                .contains("outstanding native async handles")
+        );
+        let mut handle = handle(key);
+        let mut result = XlOper12::number(42.);
+        assert_eq!(
+            unsafe { async_return(&[&mut handle, &mut result], std::ptr::null_mut()) },
+            INVALID_ASYNC
+        );
+        assert!(host.take_async_returns().is_empty());
+        assert!(lease.upgrade().is_none());
+        host.close().unwrap();
     }
 }

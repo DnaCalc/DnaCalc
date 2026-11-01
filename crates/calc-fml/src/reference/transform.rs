@@ -1433,14 +1433,16 @@ fn unquoted(text: &str) -> String {
 /// A sheet name as a qualifier writes it: quoted (each quote doubled) unless it is letters,
 /// digits, `_` and `.` only, starts with a letter or `_`, and is spelled like no cell, row,
 /// column or logical.
-pub(crate) fn quoted_if_needed(name: &str) -> String {
-    let plain = name
-        .chars()
+fn plain_qualifier_identifier(name: &str) -> bool {
+    name.chars()
         .next()
         .is_some_and(|c| c.is_alphabetic() || c == '_')
         && name
             .chars()
             .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+}
+pub(crate) fn quoted_if_needed(name: &str) -> String {
+    let plain = plain_qualifier_identifier(name)
         && notation::a1(name, 1, 1).is_none()
         && notation::r1c1(name).is_none()
         && !name.eq_ignore_ascii_case("TRUE")
@@ -1452,10 +1454,49 @@ pub(crate) fn quoted_if_needed(name: &str) -> String {
     }
 }
 
+/// A workbook/sheet qualifier, without its trailing `!`, using the ordinary
+/// reference printer's quoting and apostrophe escaping rules. The workbook
+/// qualifier disambiguates cell-like and logical sheet names, as Excel Address does.
+pub fn format_workbook_sheet_qualifier(book: &str, sheet: &str) -> String {
+    let text = format!("[{book}]{sheet}");
+    if plain_qualifier_identifier(book) && plain_qualifier_identifier(sheet) {
+        text
+    } else {
+        format!("'{}'", text.replace('\'', "''"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use calc_func::value::IdAllocator;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn workbook_qualified_names_match_excel_address_observations() {
+        // Excel 16.0.20527.20088, isolated 2026-11-01 reads retained with X4.
+        for (sheet, qualifier) in [
+            ("X0", "[Book1]X0"),
+            ("Q2 Data", "'[Book1]Q2 Data'"),
+            ("O'Brien", "'[Book1]O''Brien'"),
+            ("A1", "[Book1]A1"),
+            ("TRUE", "[Book1]TRUE"),
+            ("R1C1", "[Book1]R1C1"),
+            ("Sheet1", "[Book1]Sheet1"),
+            ("Résumé", "[Book1]Résumé"),
+            ("1", "'[Book1]1'"),
+            ("3.14", "'[Book1]3.14'"),
+            ("_x", "[Book1]_x"),
+            ("a-b", "'[Book1]a-b'"),
+            ("a$b", "'[Book1]a$b'"),
+            ("A.B", "[Book1]A.B"),
+            ("!wow", "'[Book1]!wow'"),
+            ("École", "[Book1]École"),
+            ("中文", "[Book1]中文"),
+        ] {
+            assert_eq!(format_workbook_sheet_qualifier("Book1", sheet), qualifier);
+        }
+    }
 
     struct Sheets(Vec<(&'static str, SheetId)>);
 
