@@ -6337,6 +6337,14 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::PlanCell("A1", "provenance", "calculated"),
         ],
     },
+    Case {
+        name: "presentation: a real font load updates the plan without recalculating",
+        actions: &[Action::RememberPresentation, Action::LoadLocalFont],
+        checks: &[
+            Check::PresentationChanged("font"),
+            Check::PlanCell("A1", "provenance", "calculated"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -6987,7 +6995,7 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "presentation",
         start: 445,
-        end: 448,
+        end: 449,
         core: 3,
         setup: &[],
     },

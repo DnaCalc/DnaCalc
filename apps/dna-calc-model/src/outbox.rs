@@ -65,6 +65,13 @@ impl Model {
         if !request.is_command() {
             return Err("This operation is a query, not a workbook command".into());
         }
+        if self.commands.pending.len() + usize::from(self.commands.active.is_some())
+            >= crate::tiles::MAX_PENDING_REQUESTS
+        {
+            return Err(
+                "The workbook command queue is full; wait for the current operation".into(),
+            );
+        }
         let id = self.issue_command();
         self.commands.pending.push_back(Submission {
             focus,
@@ -121,6 +128,38 @@ impl Model {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_stalled_command_bounds_later_submissions_without_losing_accepted_work() {
+        let mut model = Model::default();
+        let mut accepted = Vec::new();
+        for _ in 0..crate::tiles::MAX_PENDING_REQUESTS {
+            accepted.push(
+                model
+                    .submit_command(Request::Intent(crate::projection::Intent::Undo), None)
+                    .unwrap(),
+            );
+        }
+        let first = model.take_command().unwrap();
+        assert_eq!(first.id(), accepted[0]);
+        assert!(
+            model
+                .submit_command(Request::Intent(crate::projection::Intent::Redo), None)
+                .unwrap_err()
+                .contains("queue is full")
+        );
+        model.finish_command(first.id());
+        let next = model
+            .submit_command(Request::Intent(crate::projection::Intent::Redo), None)
+            .unwrap();
+        accepted.push(next);
+        for &expected in &accepted[1..] {
+            let command = model.take_command().unwrap();
+            assert_eq!(command.id(), expected);
+            model.finish_command(command.id());
+        }
+        assert!(model.take_command().is_none());
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn queued_commands_resolve_after_prior_receipt_and_keep_their_workbook() {

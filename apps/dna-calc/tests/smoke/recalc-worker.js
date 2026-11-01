@@ -47,6 +47,10 @@ return (async function () {
             "projection completion arrived before all fragments");
           const delta = { publication: staged.stamp.calculation_through, reset: staged.stamp.reset,
             cells: staged.cells, emptied: staged.removed };
+          // A reset may replay unchanged cells beside a newer calculation frontier.
+          // Compare complete cells against the prior committed root before replacing it.
+          delta.changed = delta.cells.filter((cell) =>
+            JSON.stringify(cells.get(JSON.stringify(cell.at))) !== JSON.stringify(cell));
           if (delta.reset) cells.clear();
           for (const key of delta.emptied) cells.delete(JSON.stringify(key));
           for (const cell of delta.cells) cells.set(JSON.stringify(cell.at), cell);
@@ -99,7 +103,7 @@ return (async function () {
   try {
     await ready;
     summary = (await send("Summary")).Summary;
-    const sheet = summary.sheets[0][0];
+    let sheet = summary.sheets[0][0];
     const key = (row, col) => [sheet[0], sheet[1], row, col];
     const area = (row, col, lastRow = row, lastCol = col) => [key(row, col), key(lastRow, lastCol)];
     await intent({ SetCalcMode: { manual: true } });
@@ -111,7 +115,7 @@ return (async function () {
     const background = area(1, 9, 4096, 9);
     await intent({ Select: { active: key(1, 9), areas: [background] } });
     await intent({ EnterSelection: { text: "=ROW()" } });
-    await send({ Subscribe: { id: 1, interest: { Areas: [area(1, 2, 1, 5), area(1, 5, 10, 5), area(10, 7)] } } });
+    await send({ Subscribe: { id: 1, workbook: summary.workbook, interest: { Areas: [area(1, 2, 1, 5), area(1, 5, 10, 5), area(10, 7)] } } });
     trace.length = 0;
     measuring = true;
     const scope = pureScope.map(([row, col]) => area(row, col)).concat([background]);
@@ -145,11 +149,16 @@ return (async function () {
     const publications = trace.filter((event) => event.Cells && event.Cells.publication);
     // D1 is an excluded unresolved array producer. Keep conservative workbook-wide Stale
     // provenance while checking the one unit that installs every hand-derived numeric member.
-    const spillPublications = publications.filter((event) => event.Cells.cells.some((cell) =>
-      cell.at[3] === 5 && cell.at[2] >= 1 && cell.at[2] <= 10 && cell.text === String(cell.at[2])));
-    require(spillPublications.length === 1, "the spill must install with one atomic publication: " + JSON.stringify(publications.map((event) => ({ unit: event.Cells.publication, spill: event.Cells.cells.filter((cell) => cell.at[3] === 5).map((cell) => [cell.at[2], cell.text, cell.provenance]) }))));
+    const spillPublications = publications.filter((event) => event.Cells.changed.some((cell) =>
+      cell.at[3] === 5 && cell.at[2] >= 1 && cell.at[2] <= 10));
+    require(spillPublications.length === 1, "the spill must install with one atomic publication: "
+      + JSON.stringify(spillPublications.map(({ Cells: delta }) => ({ publication: delta.publication,
+        reset: delta.reset, spill: delta.changed.filter((cell) => cell.at[3] === 5
+          && cell.at[2] >= 1 && cell.at[2] <= 10).map((cell) => [cell.at[2], cell.text, cell.provenance]) }))));
     require(spillPublications[0].Cells.cells.filter((cell) => cell.at[3] === 5
-      && cell.at[2] >= 1 && cell.at[2] <= 10 && cell.text === String(cell.at[2])).length === 10, "a spill publication omitted part of its extent");
+      && cell.at[2] >= 1 && cell.at[2] <= 10).length === 10, "a spill publication omitted part of its extent");
+    require(spillPublications[0].Cells.changed.filter((cell) => cell.at[3] === 5
+      && cell.at[2] >= 1 && cell.at[2] <= 10).length === 10, "the spill changed only part of its extent");
     const output = (row, col) => cells.get(JSON.stringify(key(row, col)));
     for (const [row, col, text] of [[1, 2, "21"], [1, 3, "42"], [10, 7, "11"]]) {
       require(output(row, col)?.text === text, "a pure seven-cell result differs from the hand-derived value");
@@ -206,7 +215,7 @@ return (async function () {
     // One admitted formula must yield inside its SEQUENCE kernel; there are no background
     // targets in this command from which an inter-cell handoff could be inferred.
     await intent({ EnterCell: { at: key(1, 10), text: "=SUM(SEQUENCE(262144))+1" } });
-    await send({ SetInterest: { id: 1, interest: { Areas: [area(1, 10)] } } });
+    await send({ SetInterest: { id: 1, workbook: summary.workbook, interest: { Areas: [area(1, 10)] } } });
     const longStart = trace.length;
     const longDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
     longDone.catch(() => {});
@@ -227,31 +236,43 @@ return (async function () {
     const longText = output(1, 10)?.text;
     // A viewport promotion must publish the short prerequisite cone before the unrelated
     // long cell finishes, through the same binary projection and acknowledgement route.
+    // The original sheet deliberately keeps D1 unresolved. Its possible spill makes
+    // downstream cells conservatively stale; isolate this freshness proof on another sheet.
+    const fixtureSheet = sheet;
+    await intent({ EditSheet: { sheet: null, change: { Add: { name: "Priority" } } } });
+    sheet = summary.sheets.find(([, name]) => name === "Priority")[0];
     for (const [col, text] of [[13, "=SUM(SEQUENCE(1048576))"], [14, "=3"], [15, "=N1*2"]]) {
       await intent({ EnterCell: { at: key(1, col), text } });
     }
-    await send({ SetInterest: { id: 1, interest: { Areas: [area(1, 13)] } } });
+    // Give the prerequisite its own unit at the actual multi-evaluation worker budget.
+    await send({ SetInterest: { id: 1, workbook: summary.workbook, interest: { Areas: [area(1, 14)] } } });
     const priorityStart = trace.length;
     const priorityDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
     priorityDone.catch(() => {});
     const shortPublished = new Promise((resolve, reject) => {
       watchPublication = (error) => {
         if (error) { watchPublication = null; reject(error); return; }
-        if (output(1, 15)?.text !== "6" || output(1, 15)?.provenance !== "Stale") return;
+        if (output(1, 15)?.text !== "6") return;
+        require(output(1, 15)?.provenance === "Calculated",
+          "the promoted cell's installed unit was not projected as calculated: " + JSON.stringify(output(1, 15)));
         const current = trace.slice(priorityStart);
         require(!current.some((event) => event.Completed), "the short cone appeared only at whole-command completion");
         const unit = current.filter((event) => event.Cells?.publication).at(-1)?.Cells.publication;
-        require(unit && unit.sequence >= 1 && unit.command === current.find((event) => event.Admitted)?.Admitted.command,
-          "the short cone did not publish its command unit");
+        require(unit && unit.sequence === 2 && unit.command === current.find((event) => event.Admitted)?.Admitted.command,
+          "the short cone did not install after its prerequisite's unit");
         watchPublication = null;
         resolve({ command: unit.command, sequence: unit.sequence, text: output(1, 15)?.text, before_completion: true });
       };
     });
     shortPublished.catch(() => {});
-    const priorityCalculation = intent({ Calculate: { scope: { Range: [area(1, 13, 1, 15)] }, selection: "ForceAll" } });
+    // The three fresh inputs are dirty; unlike Manual ForceAll, this demand is satisfied.
+    const priorityCalculation = intent({ Calculate: { scope: { Range: [area(1, 13, 1, 15)] }, selection: "DirtyAndVolatile" } });
     const priorityPing = send("Ping");
-    const promotion = send({ SetInterest: { id: 1, interest: { Areas: [area(1, 15)] } } });
+    const promotion = send({ SetInterest: { id: 1, workbook: summary.workbook, interest: { Areas: [area(1, 15)] } } });
     await priorityCalculation;
+    const priorityAdmission = trace.slice(priorityStart).find((event) => event.Admitted)?.Admitted;
+    require(priorityAdmission?.selection === "DirtyAndVolatile" && priorityAdmission.range_post_state === "Satisfied",
+      "the priority fixture did not admit dirty targets with a satisfied post-state");
     require((await priorityPing).Pong, "the priority command did not yield to Ping");
     await promotion;
     const priorityPublication = await shortPublished;
@@ -263,6 +284,7 @@ return (async function () {
       && event.Published.sequence === priorityPublication.sequence);
     require(publishedCone >= 0 && publishedCone < priorityEvents.findIndex((event) => event.Completed),
       "the worker exposed completion before the short cone's publication barrier");
+    sheet = fixtureSheet;
     // Exercise Save/Open over transferred package bytes, through the product worker itself.
     for (const [col, text] of [[17, "1"], [18, "=Q1*2"], [19, "=R1+1"]]) {
       await intent({ EnterCell: { at: key(1, col), text } });
@@ -281,7 +303,7 @@ return (async function () {
     require(reopened.Done.opened?.[1] === null, "Manual reopen performed an unrequested calculation");
     const reopenedSheet = summary.sheets[0][0];
     const savedKey = (col) => [reopenedSheet[0], reopenedSheet[1], 1, col];
-    await send({ Subscribe: { id: 1, interest: { Areas: [[savedKey(17), savedKey(19)]] } } });
+    await send({ Subscribe: { id: 1, workbook: summary.workbook, interest: { Areas: [[savedKey(17), savedKey(19)]] } } });
     const savedCell = (col) => cells.get(JSON.stringify(savedKey(col)));
     require(savedCell(17)?.text === "5" && savedCell(17)?.provenance === "Literal",
       "the saved input was replaced by a calculation cache");

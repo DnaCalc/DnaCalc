@@ -1026,6 +1026,8 @@ pub enum Action {
     RememberPresentation,
     /// Synthetic FontFaceSet completion exercises the browser adapter, without fetching a font.
     FontLoaded,
+    /// Load an installed font through FontFaceSet and require its real browser completion event.
+    LoadLocalFont,
     /// A real pointer drag between two rendered elements.
     Drag(&'static str, &'static str),
     DragToCell(&'static str, u32, &'static str),
@@ -1131,7 +1133,7 @@ use calc_cases::{CALC_CASES, CALC_GROUPS, CALC_LATENCY_CASES, CALC_WORKER_FAULT_
 use onecalc_cases::{ONECALC_CASES, ONECALC_GROUPS};
 const BAR: &str = "[data-onecalc=\"formula\"]";
 
-const READ_PLANS: &str = r#"var plans=Object.values(window.__dnacalcRenderPlans||{}).map(f=>{try{return JSON.parse(f());}catch(e){return null;}}).filter(s=>s&&s.active&&s.plan&&s.plan.publication);"#;
+const READ_PLANS: &str = r#"var plans=Object.values(window.__dnacalcRenderPlans||{}).map(f=>{try{return JSON.parse(f());}catch(e){return null;}}).filter(s=>s&&s.active&&s.plan&&s.plan.publication&&!s.plan.interrupted);"#;
 
 fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String> {
     let q = |name: &str| {
@@ -1169,7 +1171,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             format!(r#"{READ_PLANS}var a=window.__dcPresentation,b=plans[0];if(!a||!b||b.pending)return {{ok:false,held:a,seen:b}};
             var x=a.plan,y=b.plan,cause={cause};var values=p=>p.cells.map(c=>[c.address,c.shown.text,c.shown.kind,c.shown.provenance,c.shown.formula,c.shown.format]);
             var input=cause==='resize'?(x.viewport.width!==y.viewport.width||x.viewport.height!==y.viewport.height):cause==='zoom'?x.scale!==y.scale:y.presentation.fonts>x.presentation.fonts;
-            var same=a.commands===b.commands&&x.publication.workbook===y.publication.workbook&&x.publication.revision===y.publication.revision&&JSON.stringify(values(x))===JSON.stringify(values(y));
+            var same=a.commands===b.commands&&x.publication.workbook===y.publication.workbook&&x.publication.revision===y.publication.revision&&JSON.stringify(x.publication.calculation_through)===JSON.stringify(y.publication.calculation_through)&&JSON.stringify(values(x))===JSON.stringify(values(y));
             return {{ok:input&&same&&y.presentation.epoch>x.presentation.epoch,cause,input,same,held:a,seen:b}};"#)
         }
         Check::Spill(name, first, last) => {
@@ -1688,13 +1690,23 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 let xml =
                     std::str::from_utf8(parts.get("xl/workbook.xml").ok_or("no workbook part")?)
                         .map_err(|e| e.to_string())?;
-                if xml.contains("calcMode=") || !xml.contains("<calcPr ") {
+                let start = xml
+                    .find("<calcPr ")
+                    .ok_or("manual smoke fixture has no calcPr")?;
+                let end = start + xml[start..].find('>').ok_or("unterminated calcPr")?;
+                let properties = &xml[start..end];
+                let manual_properties = if properties.contains("calcMode=\"auto\"") {
+                    properties.replacen("calcMode=\"auto\"", "calcMode=\"manual\"", 1)
+                } else if properties.contains("calcMode=\"manual\"") {
+                    properties.to_owned()
+                } else if properties.contains("calcMode=") {
                     return Err(
-                        "manual smoke fixture expects the blank package's original calcPr"
-                            .to_owned(),
+                        "manual smoke fixture has an unsupported calculation mode".to_owned()
                     );
-                }
-                let manual = xml.replacen("<calcPr ", "<calcPr calcMode=\"manual\" ", 1);
+                } else {
+                    properties.replacen("<calcPr ", "<calcPr calcMode=\"manual\" ", 1)
+                };
+                let manual = xml.replacen(properties, &manual_properties, 1);
                 let bytes = crate::oracle_cases::replace_package_parts(
                     &bytes,
                     &std::collections::BTreeMap::from([(
@@ -1876,6 +1888,30 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::FontLoaded => {
             session
                 .script("document.fonts.dispatchEvent(new Event('loadingdone'));return null;")?;
+            Ok(())
+        }
+        Action::LoadLocalFont => {
+            let result = session.script(r#"return (async function() {
+                const face = new FontFace('DnacalcSmokeFont', 'local("DejaVu Sans"), local("Liberation Sans"), local("Arial"), local("Segoe UI")');
+                let finish, timer;
+                const completed = new Promise((resolve, reject) => {
+                    timer = setTimeout(() => reject(new Error('The local font did not complete within 8 seconds')), 8000);
+                    finish = event => {
+                    if (event.fontfaces.includes(face)) resolve(event.isTrusted);
+                }; });
+                document.fonts.addEventListener('loadingdone', finish);
+                document.fonts.add(face);
+                try {
+                    const [faces, trusted] = await Promise.all([document.fonts.load('13px DnacalcSmokeFont', '123'), completed]);
+                    if (!trusted || face.status !== 'loaded' || !faces.includes(face)) throw new Error('No real FontFaceSet completion for the loaded font');
+                    return { status: face.status, trusted, faces: faces.length };
+                } finally {
+                    clearTimeout(timer);
+                    document.fonts.removeEventListener('loadingdone', finish);
+                    document.fonts.delete(face);
+                }
+            })();"#)?;
+            println!("{} FONT completion: {result}", app.label);
             Ok(())
         }
         Action::Wait(check) => wait_for(app, session, check, SETTLE).map_or(Ok(()), Err),
@@ -2235,6 +2271,34 @@ fn measure_skins(
 
 fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
     let selector = select(app, name);
+    if name.starts_with("skin-") || matches!(name, "save" | "new") {
+        // These buttons are disabled until earlier workbook input has answered. WebDriver
+        // reports a successful click on a disabled button without dispatching it. Wait for
+        // the same availability a person sees before making the ordinary pointer click.
+        let quoted = serde_json::to_string(&selector).unwrap();
+        let started = Instant::now();
+        let mut waited = false;
+        loop {
+            if session.script(&format!(
+                "var e=document.querySelector({quoted});return !!e&&!e.disabled;"
+            ))? == Value::Bool(true)
+            {
+                break;
+            }
+            if started.elapsed() >= SETTLE {
+                return Err(format!("{name} did not become enabled before the click"));
+            }
+            waited = true;
+            thread::sleep(Duration::from_millis(20));
+        }
+        if waited {
+            println!(
+                "{} SMOKE action waited for {name} to become enabled ({:.0} ms)",
+                app.label,
+                started.elapsed().as_secs_f64() * 1000.0
+            );
+        }
+    }
     let element = session.element(&selector)?;
     match session.post(&format!("/element/{element}/click"), json!({})) {
         // A worker reply can replace a control between lookup and click. The stale-reference

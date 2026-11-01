@@ -36,6 +36,8 @@ pub struct Server {
     book: Workbook,
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
+    subscription_interests: BTreeMap<u64, calc_host::Interest>,
+    last_subscription: Option<u64>,
     events: Vec<Event>,
     deferred_calculation: Vec<Event>,
     tile_streams: BTreeMap<u64, crate::publication::TileStream>,
@@ -63,6 +65,8 @@ impl Server {
             validation_pending: None,
             book,
             subscriptions: BTreeMap::new(),
+            subscription_interests: BTreeMap::new(),
+            last_subscription: None,
             events: Vec::new(),
             deferred_calculation: Vec::new(),
             tile_streams: BTreeMap::new(),
@@ -88,8 +92,12 @@ impl Server {
         progress
     }
 
-    /// The open workbook (the in-process transport lets the skins not yet moved to the messages
-    /// read it directly).
+    /// Changes whenever this server installs a replacement workbook.
+    pub fn workbook_id(&self) -> u64 {
+        self.workbook
+    }
+
+    /// The open workbook, available to native composition and tests.
     pub fn book(&self) -> &Workbook {
         &self.book
     }
@@ -319,7 +327,19 @@ impl Server {
                     }
                 }
                 Request::Intent(intent) => self.intent(intent),
-                Request::Subscribe { id, interest } => {
+                Request::Subscribe {
+                    workbook,
+                    id,
+                    interest,
+                } => {
+                    if workbook != self.workbook {
+                        return Err("This subscription belongs to a replaced workbook".into());
+                    }
+                    if self.last_subscription.is_some_and(|last| id <= last) {
+                        return Err(
+                            "Subscription identities must increase and cannot be reused".into()
+                        );
+                    }
                     if self.subscriptions.contains_key(&id) {
                         return Err("Subscription identity is already in use".into());
                     }
@@ -327,8 +347,10 @@ impl Server {
                         return Err("Too many tile subscriptions".into());
                     }
                     let interest = host_interest(interest)?;
-                    match self.book.subscribe(interest) {
+                    match self.book.subscribe(interest.clone()) {
                         Ok(host) => {
+                            self.last_subscription = Some(id);
+                            self.subscription_interests.insert(id, interest);
                             self.subscriptions.insert(id, host);
                             self.tile_streams.insert(id, Default::default());
                             Ok(Reply::Subscribed)
@@ -336,14 +358,25 @@ impl Server {
                         Err(error) => Err(error.to_string()),
                     }
                 }
-                Request::SetInterest { id, interest } => {
+                Request::SetInterest {
+                    workbook,
+                    id,
+                    interest,
+                } => {
+                    if workbook != self.workbook {
+                        return Err("This interest belongs to a replaced workbook".into());
+                    }
                     let interest = host_interest(interest)?;
                     let subscription =
                         *self.subscriptions.get(&id).ok_or("no such subscription")?;
-                    self.book.dispatch(SkinIntent::SetInterest {
+                    let receipt = self.book.dispatch(SkinIntent::SetInterest {
                         subscription,
-                        interest,
+                        interest: interest.clone(),
                     });
+                    if let Some(error) = receipt.error {
+                        return Err(error.to_string());
+                    }
+                    self.subscription_interests.insert(id, interest);
                     Ok(Reply::Subscribed)
                 }
                 Request::TileAck(barrier) => {
@@ -354,14 +387,43 @@ impl Server {
                     }
                     Ok(Reply::Subscribed)
                 }
-                Request::ResetTiles { id } => {
-                    self.tile_streams
-                        .get_mut(&id)
+                Request::ResetTiles { workbook, id } => {
+                    if workbook != self.workbook {
+                        return Err("This reset belongs to a replaced workbook".into());
+                    }
+                    let failed = self
+                        .tile_streams
+                        .get(&id)
                         .ok_or("No such tile subscription")?
-                        .reset();
+                        .failed();
+                    self.retire_tile_events(id);
+                    if failed {
+                        // A budget failure discarded the retained root. Only a host snapshot
+                        // can repair it; later deltas cannot reconstruct untouched cells.
+                        let subscription =
+                            *self.subscriptions.get(&id).ok_or("No such subscription")?;
+                        let interest = self
+                            .subscription_interests
+                            .get(&id)
+                            .ok_or("No such interest")?
+                            .clone();
+                        let receipt = self.book.dispatch(SkinIntent::SetInterest {
+                            subscription,
+                            interest,
+                        });
+                        if let Some(error) = receipt.error {
+                            return Err(error.to_string());
+                        }
+                    }
+                    self.tile_streams.get_mut(&id).unwrap().reset();
                     Ok(Reply::Subscribed)
                 }
-                Request::Unsubscribe { id } => {
+                Request::Unsubscribe { workbook, id } => {
+                    if workbook != self.workbook {
+                        return Ok(Reply::Subscribed);
+                    }
+                    self.retire_tile_events(id);
+                    self.subscription_interests.remove(&id);
                     self.tile_streams.remove(&id);
                     if let Some(host) = self.subscriptions.remove(&id) {
                         self.book.unsubscribe(host);
@@ -536,6 +598,8 @@ impl Server {
             .expect("workbook incarnations exhausted");
         self.book = book;
         self.subscriptions.clear();
+        self.subscription_interests.clear();
+        self.last_subscription = None;
         self.events
             .retain(|event| matches!(event, Event::Calculation { .. }));
         self.tile_streams.clear();
@@ -1347,6 +1411,16 @@ impl Server {
         }
     }
 
+    fn retire_tile_events(&mut self, id: u64) {
+        self.events.retain(|event| match event {
+            Event::TileAdmission(stamp) => stamp.id != id,
+            Event::Tiles(batch) => batch.stamp.id != id,
+            Event::TileCompletion(barrier) => barrier.id != id,
+            Event::ProjectionFailed { id: failed, .. } => *failed != id,
+            Event::Calculation { .. } => true,
+        });
+    }
+
     fn geometry(&self, sheet: Sheet) -> wire::Geometry {
         let mut geometry = self
             .book
@@ -1409,21 +1483,52 @@ impl Server {
             };
             let mut cells = Vec::new();
             let mut removed = Vec::new();
+            let mut retained = 0usize;
+            let mut oversized = false;
             for projected in &delta.cells {
+                if cells.len() + removed.len() >= wire::MAX_PUBLICATION_RECORDS {
+                    oversized = true;
+                    break;
+                }
                 let shown = self.book.shown(projected);
                 if projected.input().is_none()
                     && projected.value() == &ProjectedValue::Empty
                     && shown.conditional.is_none()
                 {
+                    retained = retained.saturating_add(16);
+                    if retained > wire::MAX_PUBLICATION_BYTES - wire::MAX_TILE_BYTES {
+                        oversized = true;
+                        break;
+                    }
                     removed.push(Key::of(projected.at()));
                     continue;
                 }
-                cells.push(wire::cell_of(
+                let cell = wire::cell_of(
                     &shown,
                     cells::input_text(projected.input()),
                     cells::provenance_text(self.book.host(), projected),
                     projected,
-                ));
+                );
+                retained = retained.saturating_add(cell.retained_bytes());
+                if cells.len() >= wire::MAX_TILE_CELLS
+                    || retained > wire::MAX_PUBLICATION_BYTES - wire::MAX_TILE_BYTES
+                {
+                    oversized = true;
+                    break;
+                }
+                cells.push(cell);
+            }
+            if oversized {
+                if let Some(stream) = self.tile_streams.get_mut(&id) {
+                    stream.reject();
+                    stream.revision = revision;
+                }
+                self.events.push(Event::ProjectionFailed {
+                    id,
+                    reason: "This projection exceeds the tile budget; narrow its visible area"
+                        .into(),
+                });
+                continue;
             }
             let publication = match &delta.cause {
                 calc_host::DeltaCause::Recalculated { publication, .. } => {
@@ -2443,6 +2548,7 @@ mod tile_tests {
             server
                 .handle(
                     Request::Subscribe {
+                        workbook: server.workbook_id(),
                         id,
                         interest: Interest::Sheet(Sheet::of(sheet))
                     },
@@ -2606,7 +2712,13 @@ mod tile_tests {
         let mut mirror = ViewMirror::default();
         mirror.admit(stamp).unwrap();
         assert!(mirror.complete(stamp.barrier()).is_err());
-        server.handle(Request::ResetTiles { id: 13 }, None);
+        server.handle(
+            Request::ResetTiles {
+                workbook: server.workbook_id(),
+                id: 13,
+            },
+            None,
+        );
         let reset = receive(&mut mirror, projection_events(&mut server));
         assert_eq!(mirror.cells().count(), 300);
         let old = reset;
@@ -2630,7 +2742,9 @@ mod tile_tests {
             subscribe(&mut server, id);
         }
         let sheet = server.book().sheets()[0].id;
+        let workbook = server.workbook_id();
         let request = || Request::Subscribe {
+            workbook,
             id: 100,
             interest: Interest::Sheet(Sheet::of(sheet)),
         };
@@ -2641,10 +2755,172 @@ mod tile_tests {
                 .unwrap_err()
                 .contains("Too many")
         );
-        server.handle(Request::Unsubscribe { id: 0 }, None);
+        server.handle(Request::Unsubscribe { workbook, id: 0 }, None);
         assert!(server.handle(request(), None).reply.is_ok());
         assert!(!server.tile_streams.contains_key(&0));
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn delayed_controls_cannot_reach_a_replacement_or_reuse_a_retired_identity() {
+        let mut server = Server::new();
+        subscribe(&mut server, 1);
+        let old = server.workbook_id();
+        server.execute_current(Request::New, None).reply.unwrap();
+        let current = server.workbook_id();
+        assert!(current > old);
+        subscribe(&mut server, 1);
+        let sheet = server.book().sheets()[0].id;
+        let interest = Interest::Sheet(Sheet::of(sheet));
+        assert!(
+            server
+                .handle(
+                    Request::SetInterest {
+                        workbook: old,
+                        id: 1,
+                        interest: interest.clone()
+                    },
+                    None
+                )
+                .reply
+                .is_err()
+        );
+        assert!(
+            server
+                .handle(
+                    Request::ResetTiles {
+                        workbook: old,
+                        id: 1
+                    },
+                    None
+                )
+                .reply
+                .is_err()
+        );
+        assert!(
+            server
+                .handle(
+                    Request::Subscribe {
+                        workbook: old,
+                        id: 2,
+                        interest: interest.clone()
+                    },
+                    None
+                )
+                .reply
+                .is_err()
+        );
+        server
+            .handle(
+                Request::Unsubscribe {
+                    workbook: old,
+                    id: 1,
+                },
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(server.subscriptions.contains_key(&1));
+        let mut mirror = ViewMirror::default();
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        assert_eq!(barrier.workbook, current);
+        server
+            .handle(
+                Request::Unsubscribe {
+                    workbook: current,
+                    id: 1,
+                },
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(
+            server
+                .handle(
+                    Request::Subscribe {
+                        workbook: current,
+                        id: 1,
+                        interest: interest.clone()
+                    },
+                    None
+                )
+                .reply
+                .unwrap_err()
+                .contains("cannot be reused")
+        );
+        assert!(
+            server
+                .handle(
+                    Request::Subscribe {
+                        workbook: current,
+                        id: 2,
+                        interest
+                    },
+                    None
+                )
+                .reply
+                .is_ok()
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn retiring_subscriptions_discards_undelivered_frames() {
+        let mut server = Server::new();
+        for id in 0..200 {
+            subscribe(&mut server, id);
+            assert!(server.events.iter().any(|e| matches!(e, Event::Tiles(_))));
+            let controls: Vec<_> = server
+                .events
+                .iter()
+                .filter(|e| matches!(e, Event::Calculation { .. }))
+                .cloned()
+                .collect();
+            server
+                .handle(
+                    Request::Unsubscribe {
+                        workbook: server.workbook_id(),
+                        id,
+                    },
+                    None,
+                )
+                .reply
+                .unwrap();
+            assert_eq!(server.take_events(), controls);
+            assert!(server.tile_streams.is_empty());
+            assert!(server.subscription_interests.is_empty());
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn recalculation_versions_presentation_roots_without_an_authored_revision() {
+        let mut server = Server::new();
+        enter(&mut server, "=RAND()");
+        server.take_events();
+        subscribe(&mut server, 11);
+        let mut mirror = ViewMirror::default();
+        let first = receive(&mut mirror, projection_events(&mut server));
+        let previous = mirror.stamp().unwrap();
+        server.handle(Request::TileAck(first), None).reply.unwrap();
+        server.take_events();
+        server
+            .execute_current(Request::Intent(Intent::Recalculate), None)
+            .reply
+            .unwrap();
+        receive(&mut mirror, projection_events(&mut server));
+        let current = mirror.stamp().unwrap();
+        assert_eq!(current.revision, previous.revision);
+        assert!(current.transaction > previous.transaction);
+        assert_eq!(current.geometry_version, current.transaction);
+        assert_eq!(current.style_version, current.transaction);
+        assert_ne!(current.style_version, previous.style_version);
+        let cell = mirror.cells().next().unwrap().1;
+        assert_eq!(cell.input, "=RAND()");
+        assert_eq!(cell.provenance, wire::Provenance::Calculated);
+        assert_eq!(cell.kind, "number");
+        assert!((0.0..1.0).contains(&cell.text.parse::<f64>().unwrap()));
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn calculation_completion_waits_for_its_projection_under_backpressure() {
@@ -2756,6 +3032,56 @@ mod tile_tests {
         assert!(events.iter().any(|e| matches!(e,Event::Calculation { receipt: wire::CalculationEvent::Completed { outcome: wire::CalculationOutcome::Complete, calculated: 100, .. }, failed_projections, .. } if failed_projections == &[11])));
         assert!(server.tile_streams[&11].failed());
         assert!(mirror.cells().next().is_none());
+        let marker = CellKey::new(sheet, 1, 2).unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(marker),
+                    text: "preserved".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        let deleted = GridArea::new(
+            CellKey::new(sheet, 2, 1).unwrap(),
+            CellKey::new(sheet, 100, 1).unwrap(),
+        )
+        .unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::Clear {
+                    areas: vec![Area::of(deleted)],
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(server.tile_streams[&11].failed());
+        assert!(
+            !server
+                .take_events()
+                .iter()
+                .any(|e| matches!(e, Event::Tiles(_) | Event::TileCompletion(_)))
+        );
+        mirror.invalidate();
+        server
+            .handle(
+                Request::ResetTiles {
+                    workbook: server.workbook_id(),
+                    id: 11,
+                },
+                None,
+            )
+            .reply
+            .unwrap();
+        receive(&mut mirror, projection_events(&mut server));
+        assert!(!server.tile_streams[&11].failed());
+        assert!(!mirror.needs_reset());
+        assert_eq!(mirror.cells().count(), 2);
+        assert_eq!(mirror.cell(first).unwrap().text.len(), 32767);
+        assert_eq!(mirror.cell(marker).unwrap().text, "preserved");
+        assert!(mirror.cell(CellKey::new(sheet, 2, 1).unwrap()).is_none());
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -2870,5 +3196,147 @@ mod tile_tests {
             }
         }
         assert_eq!(completed, 1);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn removal_pressure_coalesces_to_the_complete_root_and_never_admits_an_oversized_delta() {
+        let mut server = Server::new();
+        enter(&mut server, "retained");
+        subscribe(&mut server, 11);
+        let mut mirror = ViewMirror::default();
+        let first = receive(&mut mirror, projection_events(&mut server));
+        server.handle(Request::TileAck(first), None);
+        let marker = mirror.cells().next().unwrap().1.clone();
+        let sheet = Sheet(marker.at.0, marker.at.1);
+        let geometry = vec![(sheet, server.geometry(sheet))];
+        let revision = server.book().host().revision().get();
+
+        // Individually legal disjoint removal lists exceed the pending record budget together.
+        // The untouched marker must survive replacing those operations with the current root.
+        let split = wire::MAX_PUBLICATION_RECORDS / 2;
+        let removed = |start: usize, count: usize| {
+            (start..start + count)
+                .map(|row| Key(sheet.0, sheet.1, row as u32, 1))
+                .collect()
+        };
+        {
+            let stream = server.tile_streams.get_mut(&11).unwrap();
+            stream
+                .update(
+                    false,
+                    Vec::new(),
+                    removed(2, split),
+                    revision,
+                    geometry.clone(),
+                    None,
+                )
+                .unwrap();
+            stream
+                .update(
+                    false,
+                    Vec::new(),
+                    removed(2 + split, split + 1),
+                    revision,
+                    geometry.clone(),
+                    None,
+                )
+                .unwrap();
+        }
+        server.collect();
+        let events = projection_events(&mut server);
+        assert!(matches!(events.first(), Some(Event::TileAdmission(s)) if s.reset));
+        let second = receive(&mut mirror, events);
+        assert_eq!(mirror.cells().count(), 1);
+        assert_eq!(mirror.cell(marker.at.cell().unwrap()), Some(&marker));
+        server.handle(Request::TileAck(second), None);
+
+        // Byte pressure also resets a pending delta before its count limit. Every fragment
+        // and the aggregate still pass the shipping codec and atomic mirror route.
+        let mut large = marker.clone();
+        large.text = "x".repeat(16_384);
+        large.input = large.text.clone();
+        let geometry_bytes = geometry
+            .iter()
+            .map(|(_, g)| wire::geometry_bytes(g))
+            .sum::<usize>();
+        let count = (wire::MAX_PUBLICATION_BYTES
+            - wire::MAX_TILE_BYTES
+            - geometry_bytes
+            - marker.retained_bytes())
+            / large.retained_bytes();
+        let cells = (0..count)
+            .map(|row| {
+                let mut cell = large.clone();
+                cell.at = Key(sheet.0, sheet.1, row as u32 + 1, 2);
+                cell
+            })
+            .collect();
+        assert!(count + 16_384 < wire::MAX_PUBLICATION_RECORDS);
+        {
+            let stream = server.tile_streams.get_mut(&11).unwrap();
+            stream
+                .update(false, cells, Vec::new(), revision, geometry.clone(), None)
+                .unwrap();
+            stream
+                .update(
+                    false,
+                    Vec::new(),
+                    removed(2, 16_384),
+                    revision,
+                    geometry.clone(),
+                    None,
+                )
+                .unwrap();
+        }
+        server.collect();
+        let events = projection_events(&mut server);
+        assert!(matches!(events.first(), Some(Event::TileAdmission(s)) if s.reset));
+        let (bytes, records) = events
+            .iter()
+            .fold((0, 0), |(bytes, records), event| match event {
+                Event::Tiles(batch) => (
+                    bytes + batch.retained_bytes(),
+                    records + batch.cells.len() + batch.removed.len(),
+                ),
+                _ => (bytes, records),
+            });
+        assert!(bytes <= wire::MAX_PUBLICATION_BYTES);
+        assert!(records <= wire::MAX_PUBLICATION_RECORDS);
+        let third = receive(&mut mirror, events);
+        assert_eq!(mirror.cells().count(), count + 1);
+        assert_eq!(mirror.cell(marker.at.cell().unwrap()), Some(&marker));
+        assert_eq!(
+            mirror
+                .cell(Key(sheet.0, sheet.1, count as u32, 2).cell().unwrap())
+                .unwrap()
+                .text,
+            large.text
+        );
+        server.handle(Request::TileAck(third), None);
+
+        // An individual oversized list is refused before retaining it or advancing delivery.
+        let stream = server.tile_streams.get_mut(&11).unwrap();
+        let error = stream
+            .update(
+                false,
+                Vec::new(),
+                removed(2, wire::MAX_PUBLICATION_RECORDS + 1),
+                revision,
+                geometry,
+                None,
+            )
+            .unwrap_err();
+        assert!(error.contains("delta exceeds"));
+        assert!(stream.failed());
+        assert!(!stream.has_pending());
+        assert!(
+            stream
+                .publish(11, first.workbook, third.transaction + 1)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(mirror.cells().count(), count + 1);
+        assert_eq!(mirror.stamp().unwrap().barrier(), third);
     }
 }

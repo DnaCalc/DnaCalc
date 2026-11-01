@@ -84,8 +84,8 @@ impl ViewMirror {
         if stamp.next == 0 || stamp.base.checked_add(1) != Some(stamp.next) {
             return Err(TileMirrorError::Continuity);
         }
-        if stamp.geometry_version != stamp.revision
-            || stamp.style_version != stamp.revision
+        if stamp.geometry_version != stamp.transaction
+            || stamp.style_version != stamp.transaction
             || stamp.dictionary != stamp.transaction
         {
             return Err(TileMirrorError::Version);
@@ -168,7 +168,7 @@ impl ViewMirror {
         pending.records = pending
             .records
             .saturating_add(batch.cells.len() + batch.removed.len());
-        if pending.bytes > MAX_PUBLICATION_BYTES || pending.records > MAX_TILE_CELLS * 2 {
+        if pending.bytes > MAX_PUBLICATION_BYTES || pending.records > MAX_PUBLICATION_RECORDS {
             return Err(TileMirrorError::Limit);
         }
         for (sheet, geometry) in &batch.geometry {

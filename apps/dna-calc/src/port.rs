@@ -176,6 +176,35 @@ pub fn call(
     if PORT.with(|port| port.borrow().transport.is_none()) {
         start();
     }
+    #[cfg(target_arch = "wasm32")]
+    if let Request::TileAck(barrier) = &request {
+        let barrier = *barrier;
+        let sent = PORT.with(|port| {
+            let mut port = port.borrow_mut();
+            let id = port.next_id;
+            port.next_id = id.checked_add(1).expect("Transport identities exhausted");
+            let text = wire::encode(&ToServer {
+                id,
+                request: Request::TileAck(barrier),
+            });
+            match port.transport.as_ref() {
+                Some(Transport::Worker(link)) if link.started => post(&link.worker, &text, None),
+                Some(Transport::Failed(message)) => Err(message.clone()),
+                _ => Err("A tile acknowledgement arrived before the worker started".into()),
+            }
+        });
+        // There is at most one ACK per flight/subscription. It cannot wait for an answer
+        // slot held by ordinary queries: doing so could strand every later publication.
+        // The worker's no-op reply is ignored; local success acknowledges the send only.
+        match sent {
+            Ok(()) => answer(Ok(Reply::Subscribed), None),
+            Err(message) => {
+                fail(message.clone());
+                answer(Err(message), None);
+            }
+        }
+        return;
+    }
     let answer: Answer = Box::new(answer);
     // Build each message while holding the port, then release it before invoking an answer.
     let served = PORT.with(|port| {

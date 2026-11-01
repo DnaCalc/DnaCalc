@@ -414,9 +414,36 @@ impl Controller {
     }
 
     fn enqueue(&self, action: impl FnOnce() + 'static) {
-        self.deferred
-            .update_value(|queue| queue.push_back(Box::new(action)));
-        self.deferred_version.update(|v| *v += 1);
+        self.enqueue_admitted(move |accepted| {
+            if accepted {
+                action();
+            }
+        });
+    }
+    fn enqueue_admitted(&self, action: impl FnOnce(bool) + 'static) {
+        let mut action = Some(action);
+        let queued = self
+            .deferred
+            .try_update_value(|queue| {
+                if queue.len() >= wire::MAX_PENDING_REQUESTS {
+                    return false;
+                }
+                let action = action.take().unwrap();
+                queue.push_back(Box::new(move || action(true)));
+                true
+            })
+            .unwrap_or(false);
+        if queued {
+            self.deferred_version.update(|v| *v += 1);
+        } else {
+            if let Some(action) = action {
+                action(false);
+            }
+            self.say(
+                "Too many pending input actions; wait for the current operation",
+                true,
+            );
+        }
     }
     fn perform(&self, action: impl FnOnce()) {
         let prior = self.replaying.get_value();
@@ -645,7 +672,16 @@ impl Controller {
                 wire::CalculationEvent::Yielded { remaining, .. } => {
                     self.say(format!("Calculating {remaining} formulas"), false)
                 }
-                wire::CalculationEvent::Completed { .. } if !failed_projections.is_empty() => {
+                wire::CalculationEvent::Completed { .. }
+                    if !failed_projections.is_empty()
+                        || self.mirrors.with_value(|mirrors| {
+                            mirrors.values().any(|mirror| {
+                                mirror
+                                    .try_with_untracked(|m| m.needs_reset())
+                                    .unwrap_or(false)
+                            })
+                        }) =>
+                {
                     if !self.status.with_untracked(|s| s.refused) {
                         self.say(
                             "Calculation finished; a displayed area could not be updated",
@@ -698,7 +734,13 @@ impl Controller {
                     ),
                     true,
                 );
-                self.ask(Request::ResetTiles { id }, |_| {});
+                self.ask(
+                    Request::ResetTiles {
+                        workbook: self.summary.with_untracked(|s| s.workbook),
+                        id,
+                    },
+                    |_| {},
+                );
             }
             _ => {}
         }
@@ -1267,7 +1309,13 @@ impl Controller {
     fn take(&self, cut: bool, epoch: u64) {
         if self.waiting_input() {
             let controller = *self;
-            self.enqueue(move || controller.take(cut, epoch));
+            self.enqueue_admitted(move |accepted| {
+                if accepted {
+                    controller.take(cut, epoch);
+                } else {
+                    controller.copy_pending.update(|n| *n = n.saturating_sub(1));
+                }
+            });
             return;
         }
         if epoch != self.copy_epoch.get_value() {
@@ -1656,7 +1704,13 @@ impl Controller {
     ) {
         if self.waiting_input() {
             let controller = *self;
-            self.enqueue(move || controller.sheet_command(sheet, change, done));
+            self.enqueue_admitted(move |accepted| {
+                if accepted {
+                    controller.sheet_command(sheet, change, done);
+                } else {
+                    done(false);
+                }
+            });
             return;
         }
         if self.editing.get_untracked().is_some() {
@@ -2087,7 +2141,13 @@ impl Controller {
     ) {
         if self.waiting_input() {
             let controller = *self;
-            self.enqueue(move || controller.navigate_to_with_ticket(at, arrived, ticket));
+            self.enqueue_admitted(move |accepted| {
+                if accepted {
+                    controller.navigate_to_with_ticket(at, arrived, ticket);
+                } else {
+                    arrived(false);
+                }
+            });
             return;
         }
         if self.editing.get_untracked().is_some() {
@@ -2121,7 +2181,13 @@ impl Controller {
     ) {
         let controller = *self;
         if self.waiting_input() {
-            self.enqueue(move || controller.go_to_text_with_ticket(text, arrived, ticket));
+            self.enqueue_admitted(move |accepted| {
+                if accepted {
+                    controller.go_to_text_with_ticket(text, arrived, ticket);
+                } else {
+                    arrived(false);
+                }
+            });
             return;
         }
         if self.editing.get_untracked().is_some() {
@@ -2746,25 +2812,48 @@ impl Controller {
     /// Registers a subscription whose cells go to `mirror`; its number for later changes.
     pub fn subscribe(&self, interest: wire::Interest, mirror: MirrorHandle) -> u64 {
         let id = self.next_subscription.get_value();
-        self.next_subscription.set_value(id + 1);
+        self.next_subscription.set_value(
+            id.checked_add(1)
+                .expect("Subscription identities exhausted"),
+        );
         mirror.set(ViewMirror::default().into());
         self.mirrors.update_value(|mirrors| {
             mirrors.insert(id, mirror);
         });
-        self.ask(Request::Subscribe { id, interest }, |_| {});
+        self.ask(
+            Request::Subscribe {
+                workbook: self.summary.with_untracked(|s| s.workbook),
+                id,
+                interest,
+            },
+            |_| {},
+        );
         id
     }
 
     /// Moves a subscription's interest; its mirror is given the new interest's cells.
     pub fn set_interest(&self, id: u64, interest: wire::Interest) {
-        self.ask(Request::SetInterest { id, interest }, |_| {});
+        self.ask(
+            Request::SetInterest {
+                workbook: self.summary.with_untracked(|s| s.workbook),
+                id,
+                interest,
+            },
+            |_| {},
+        );
     }
 
     pub fn unsubscribe(&self, id: u64) {
         self.mirrors.update_value(|mirrors| {
             mirrors.remove(&id);
         });
-        self.ask(Request::Unsubscribe { id }, |_| {});
+        self.ask(
+            Request::Unsubscribe {
+                workbook: self.summary.with_untracked(|s| s.workbook),
+                id,
+            },
+            |_| {},
+        );
     }
 
     /// Saves the workbook as a package's bytes; `saved` gets its name and bytes, and the status
@@ -3042,6 +3131,66 @@ mod projection_lifetime_tests {
     use super::*;
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn deferred_input_overflow_retires_copy_and_answers_navigation_without_running_it() {
+        let root = Owner::new();
+        root.with(|| {
+            use std::{cell::RefCell, rc::Rc};
+            let controller = Controller::with_transport(Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ));
+            controller.pending_actions.set(1);
+            let seen = Rc::new(RefCell::new(Vec::new()));
+            for index in 0..wire::MAX_PENDING_REQUESTS {
+                let seen = seen.clone();
+                controller.after_input(move || seen.borrow_mut().push(index));
+            }
+            assert!(seen.borrow().is_empty());
+            assert_eq!(
+                controller.deferred.with_value(|q| q.len()),
+                wire::MAX_PENDING_REQUESTS
+            );
+            controller.copy();
+            controller.cut();
+            assert_eq!(controller.copy_pending.get_untracked(), 0);
+            let replies = Rc::new(RefCell::new(Vec::new()));
+            let at = controller.active_key_untracked().unwrap();
+            let reply = replies.clone();
+            controller.navigate_to(at, move |ok| reply.borrow_mut().push(ok));
+            let reply = replies.clone();
+            controller.go_to_text("B9".into(), move |ok| reply.borrow_mut().push(ok));
+            let reply = replies.clone();
+            controller.sheet_command(
+                None,
+                wire::SheetChange::Add {
+                    name: "Overflow".into(),
+                },
+                move |ok| reply.borrow_mut().push(ok),
+            );
+            assert_eq!(&*replies.borrow(), &[false, false, false]);
+            assert_eq!(controller.active_key_untracked(), Some(at));
+            assert!(!controller.sheets().iter().any(|s| s.name == "Overflow"));
+            assert!(controller.status.get_untracked().refused);
+            assert_eq!(
+                controller.deferred.with_value(|q| q.len()),
+                wire::MAX_PENDING_REQUESTS
+            );
+            // Use the same FIFO and performer as the browser's scheduled input flusher.
+            while let Some(action) = controller
+                .deferred
+                .try_update_value(|q| q.pop_front())
+                .flatten()
+            {
+                controller.perform(action);
+            }
+            assert_eq!(
+                &*seen.borrow(),
+                &(0..wire::MAX_PENDING_REQUESTS).collect::<Vec<_>>()
+            );
+        });
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn pointing_a_closed_edit_never_reads_a_retired_editor_handle() {
         let root = Owner::new();
         root.with(|| {
@@ -3091,8 +3240,8 @@ mod projection_lifetime_tests {
                 base: 0,
                 next: 1,
                 revision: 0,
-                geometry_version: 0,
-                style_version: 0,
+                geometry_version: 1,
+                style_version: 1,
                 dictionary: 1,
                 reset: true,
             };
@@ -3187,51 +3336,56 @@ mod projection_lifetime_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn calculation_completion_preserves_a_failed_projection_message() {
-        let root = Owner::new();
-        root.with(|| {
-            let controller = Controller::with_transport(std::rc::Rc::new(
-                dna_calc_worker::transport::InProcessTransport::default(),
-            ));
-            let summary = controller.summary.get_untracked();
-            controller.receive(Event::Calculation {
-                workbook: summary.workbook,
-                receipt: wire::CalculationEvent::Admitted {
-                    domain: 7,
-                    command: 11,
-                    pass: 0,
-                    revision: summary.revision,
-                    scope: wire::CalculationScope::Workbook,
-                    selection: wire::CalculationSelection::ForceAll,
-                    range_post_state: wire::CalculationRangePostState::Satisfied,
-                    predecessor: None,
-                },
-                summary: None,
-                failed_projections: Vec::new(),
+        for client_failure in [false, true] {
+            let root = Owner::new();
+            root.with(|| {
+                let controller = Controller::with_transport(std::rc::Rc::new(
+                    dna_calc_worker::transport::InProcessTransport::default(),
+                ));
+                let summary = controller.summary.get_untracked();
+                controller.receive(Event::Calculation {
+                    workbook: summary.workbook,
+                    receipt: wire::CalculationEvent::Admitted {
+                        domain: 7,
+                        command: 11,
+                        pass: 0,
+                        revision: summary.revision,
+                        scope: wire::CalculationScope::Workbook,
+                        selection: wire::CalculationSelection::ForceAll,
+                        range_post_state: wire::CalculationRangePostState::Satisfied,
+                        predecessor: None,
+                    },
+                    summary: None,
+                    failed_projections: Vec::new(),
+                });
+                if client_failure {
+                    controller.selection.update(|mirror| mirror.invalidate());
+                }
+                controller.say("The displayed area exceeds its tile budget", true);
+                controller.receive(Event::Calculation {
+                    workbook: summary.workbook,
+                    receipt: wire::CalculationEvent::Completed {
+                        domain: 7,
+                        command: 11,
+                        revision: summary.revision,
+                        outcome: wire::CalculationOutcome::Complete,
+                        required: 1,
+                        calculated: 1,
+                        refused: 0,
+                        held: 0,
+                        uncertified: 0,
+                        boundary_cached: 0,
+                        imported_cached: 0,
+                    },
+                    summary: Some((*summary).clone()),
+                    failed_projections: if client_failure { Vec::new() } else { vec![11] },
+                });
+                assert!(controller.status.get_untracked().refused);
+                assert_eq!(
+                    controller.status.get_untracked().text,
+                    "The displayed area exceeds its tile budget"
+                );
             });
-            controller.say("The displayed area exceeds its tile budget", true);
-            controller.receive(Event::Calculation {
-                workbook: summary.workbook,
-                receipt: wire::CalculationEvent::Completed {
-                    domain: 7,
-                    command: 11,
-                    revision: summary.revision,
-                    outcome: wire::CalculationOutcome::Complete,
-                    required: 1,
-                    calculated: 1,
-                    refused: 0,
-                    held: 0,
-                    uncertified: 0,
-                    boundary_cached: 0,
-                    imported_cached: 0,
-                },
-                summary: Some((*summary).clone()),
-                failed_projections: vec![11],
-            });
-            assert!(controller.status.get_untracked().refused);
-            assert_eq!(
-                controller.status.get_untracked().text,
-                "The displayed area exceeds its tile budget"
-            );
-        });
+        }
     }
 }
