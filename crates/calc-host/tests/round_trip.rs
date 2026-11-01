@@ -6811,8 +6811,98 @@ mod async_contract {
         }
     }
 
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_calculated_save_keeps_its_rtd_input_cut_while_async_waits() {
+        use calc_host::{CalculatedSaveProgress as P, RtdDisposition as T};
+        let (mut book, s, counts) = configured("=AsyncEcho(A1)+RtdProbe()", None, 1);
+        let entries = Rc::new(RefCell::new(0));
+        let identities = Rc::new(RefCell::new(Vec::new()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("AsyncEcho", Rc::new(Echo(counts.clone())))
+            .unwrap();
+        functions
+            .register(
+                "RtdProbe",
+                Rc::new(RtdProbe(entries.clone(), identities.clone())),
+            )
+            .unwrap();
+        book.set_user_functions(functions);
+        let provider = book
+            .host()
+            .user_function_bindings()
+            .bind(None, "RtdProbe")
+            .unwrap();
+        assert_eq!(
+            book.update_rtd(provider, 17, 1, CalcValue::number(20.0)),
+            T::Accepted
+        );
+        let mut save = book
+            .prepare_calculated_save(&SavePolicy::default())
+            .unwrap();
+        assert_eq!(drive_save(&mut save, &book), P::Waiting);
+        let token = save.pending_async()[0].clone();
+        assert_eq!(
+            *entries.borrow(),
+            0,
+            "the RTD read follows the retained async call"
+        );
+        assert_eq!(
+            book.update_rtd(provider, 17, 2, CalcValue::number(80.0)),
+            T::Accepted
+        );
+        assert_eq!(drive_save(&mut save, &book), P::Waiting);
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 0));
+        assert_eq!(*entries.borrow(), 0, "RTD notification runs no user code");
+        assert_eq!(
+            save.complete_async(book.host(), &token, CalcValue::number(40.0)),
+            D::Accepted
+        );
+        assert_eq!(
+            counts.borrow().suffix,
+            0,
+            "only an owner step resumes the suffix"
+        );
+        assert_eq!(drive_save(&mut save, &book), P::Ready, "{:?}", save.error());
+        assert_eq!(identities.borrow().as_slice(), &[provider]);
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+        let prepared = book.finish_calculated_save(save).unwrap();
+        assert_eq!(prepared.calculation().unwrap().coverage.calculated, 2);
+        let mut bytes = Vec::new();
+        prepared.write(&mut bytes).unwrap();
+        let reopened = session(&bytes);
+        let t = reopened.host().sheets()[0].id();
+        for (address, expected) in [("B1", 60.0), ("C1", 120.0)] {
+            let ProjectedValue::FileCached(cache) = value(reopened.host(), at(t, address)) else {
+                panic!("reopen imports an unverified saved cache");
+            };
+            assert_eq!(
+                cache.value(),
+                &cached_of(&CalcValue::number(expected)),
+                "the save uses admitted RTD value20, not later value80"
+            );
+        }
+        enter(&mut book, at(s, "B1"), "=RtdProbe()+2");
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(82.0))
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "C1")),
+            Some(CalcValue::number(164.0))
+        );
+        assert_eq!(identities.borrow().as_slice(), &[provider, provider]);
+        assert_eq!(*entries.borrow(), 2);
+    }
+
     #[derive(Debug)]
-    struct RtdProbe(Rc<RefCell<usize>>);
+    struct RtdProbe(
+        Rc<RefCell<usize>>,
+        Rc<RefCell<Vec<calc_host::CallableHandle>>>,
+    );
     impl UserFunction for RtdProbe {
         fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
             panic!("an admitted external input view is required")
@@ -6823,6 +6913,11 @@ mod async_contract {
             context: &mut dyn UserFunctionContext,
         ) -> Result<CalcValue, String> {
             *self.0.borrow_mut() += 1;
+            self.1.borrow_mut().push(
+                context
+                    .callable_identity()
+                    .expect("RTD uses the admitted provider identity"),
+            );
             Ok(context
                 .rtd_value(17)?
                 .map(|(_, value)| value)
@@ -6837,9 +6932,13 @@ mod async_contract {
         let s = book.host().sheets()[0].id();
         book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
         let entries = Rc::new(RefCell::new(0));
+        let identities = Rc::new(RefCell::new(Vec::new()));
         let mut functions = calc_fml::CallableTable::new();
         functions
-            .register("RtdProbe", Rc::new(RtdProbe(entries.clone())))
+            .register(
+                "RtdProbe",
+                Rc::new(RtdProbe(entries.clone(), identities.clone())),
+            )
             .unwrap();
         book.set_user_functions(functions);
         let provider = book
@@ -6869,6 +6968,7 @@ mod async_contract {
         assert_eq!(read.key.callable, provider);
         assert_eq!(read.key.subscription, 17);
         assert_eq!(read.sequence, 1);
+        assert_eq!(identities.borrow().as_slice(), &[provider]);
         assert_eq!(
             book.update_rtd(provider, 17, 1, CalcValue::number(20.0)),
             T::Duplicate
@@ -6898,6 +6998,7 @@ mod async_contract {
             Some(CalcValue::number(41.0))
         );
         assert_eq!(*entries.borrow(), 2);
+        assert_eq!(identities.borrow().as_slice(), &[provider, provider]);
         assert_eq!(book.retire_rtd(provider, 17), T::Accepted);
         assert_eq!(
             book.update_rtd(provider, 17, 99, CalcValue::number(999.0)),
@@ -6911,9 +7012,18 @@ mod async_contract {
         );
         let mut replacement = calc_fml::CallableTable::new();
         replacement
-            .register("RtdProbe", Rc::new(RtdProbe(entries.clone())))
+            .register(
+                "RtdProbe",
+                Rc::new(RtdProbe(entries.clone(), identities.clone())),
+            )
             .unwrap();
         book.set_user_functions(replacement);
+        let next_provider = book
+            .host()
+            .user_function_bindings()
+            .bind(None, "RtdProbe")
+            .unwrap();
+        assert_ne!(next_provider, provider);
         assert_eq!(
             book.update_rtd(provider, 17, 3, CalcValue::number(999.0)),
             T::ProviderChanged
@@ -6924,6 +7034,10 @@ mod async_contract {
             calculated(book.host(), at(s, "B1")).unwrap().as_error(),
             Some(calc_host::value::WorksheetErrorCode::NA)
         ));
+        assert_eq!(
+            identities.borrow().as_slice(),
+            &[provider, provider, provider, next_provider]
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

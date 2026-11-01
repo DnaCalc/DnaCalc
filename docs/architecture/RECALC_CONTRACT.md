@@ -489,7 +489,10 @@ the existing command journal; successful bytes name the saved model revision, so
 does not clear later live edits. Ordinary application Save remains Save(false).
 
 Tests cover nested async save waits, existing-live waits, duplicate delivery and command replay,
-cancel/reload/close, pinned bytes and Manual reopen as unverified file caches. This implements the
+cancel/reload/close, pinned bytes and Manual reopen as unverified file caches. A later RTD input
+does not enter an already admitted save: the retained async suffix reads the save's original
+input cut, while the live workbook's next command reads the newer input. Provider identity
+matches the admitted callable generation, including after replacement. This implements the
 DNA isolated-workbook save strategy. Excel Save(true)'s BeforeSave handlers, domain-peer live
 updates and disabled-sheet/TABLE profiles remain open; P07 does not yet measure concurrent-save
 pinning or non-canceling Save(true) waits in Excel. Existing stored Range handles resolve from
