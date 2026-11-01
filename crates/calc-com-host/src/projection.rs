@@ -18,10 +18,16 @@ type Run = unsafe extern "system" fn(
     *mut Value,
 ) -> i32;
 unsafe extern "C" {
+    #[cfg(test)]
+    fn dna_com_test_events() -> i32;
     fn dna_com_create(hwnd: usize, context: *const c_void, run: Run) -> *mut c_void;
     fn dna_com_getobject(projection: *mut c_void, wparam: usize, object_id: isize) -> isize;
     fn dna_com_destroy(projection: *mut c_void);
     fn dna_com_verify(projection: *mut c_void) -> i32;
+    fn dna_com_sheet(projection: *mut c_void, name: *const u16, length: usize) -> i32;
+    fn dna_com_enable_events(projection: *mut c_void, enabled: bool) -> i32;
+    fn dna_com_sheet_change(projection: *mut c_void, row: u32, column: u32) -> i32;
+    fn dna_com_after_calculate(projection: *mut c_void) -> i32;
     fn dna_com_run_early(
         projection: *mut c_void,
         name: *const u16,
@@ -30,12 +36,26 @@ unsafe extern "C" {
     ) -> i32;
 }
 
+/// Native-only: exercises Excel COM interfaces, retained Range objects and reentrant event sinks.
+#[test]
+fn event_source_owns_cookies_and_disconnects_retained_ranges() {
+    let status = unsafe { dna_com_test_events() };
+    assert_eq!(status, 0, "COM event lifecycle: {status:#x}");
+}
+
 /// Lives on the window's STA; disconnected COM references fail after it is dropped.
 pub struct Projection {
     pointer: *mut c_void,
     _host: Rc<XllHost>,
 }
 impl Projection {
+    fn checked(status: i32, operation: &str) -> Result<(), String> {
+        if status < 0 {
+            Err(format!("{operation}: {status:#x}"))
+        } else {
+            Ok(())
+        }
+    }
     pub fn new(hwnd: usize, host: Rc<XllHost>) -> Result<Self, String> {
         let pointer = unsafe { dna_com_create(hwnd, Rc::as_ptr(&host).cast(), run) };
         if pointer.is_null() {
@@ -58,6 +78,35 @@ impl Projection {
         } else {
             Ok(())
         }
+    }
+    /// Bind the real session's single worksheet name before loading add-ins.
+    pub fn set_sheet(&self, name: &str) -> Result<(), String> {
+        let units = name.encode_utf16().collect::<Vec<_>>();
+        Self::checked(
+            unsafe { dna_com_sheet(self.pointer, units.as_ptr(), units.len()) },
+            "COM worksheet",
+        )
+    }
+    pub fn enable_events(&self, enabled: bool) -> Result<(), String> {
+        Self::checked(
+            unsafe { dna_com_enable_events(self.pointer, enabled) },
+            "COM EnableEvents",
+        )
+    }
+    /// Notify after a committed session edit; coordinates use the model's one-based grid.
+    pub fn sheet_change(&self, row: u32, column: u32) -> Result<(), String> {
+        let row = row.checked_sub(1).ok_or("invalid event row")?;
+        let column = column.checked_sub(1).ok_or("invalid event column")?;
+        Self::checked(
+            unsafe { dna_com_sheet_change(self.pointer, row, column) },
+            "COM SheetChange",
+        )
+    }
+    pub fn after_calculate(&self) -> Result<(), String> {
+        Self::checked(
+            unsafe { dna_com_after_calculate(self.pointer) },
+            "COM AfterCalculate",
+        )
     }
     /// Invoke Excel's early-bound Run slot with its thirty optional arguments omitted.
     pub fn run_early(&self, name: &str) -> Result<CalcValue, String> {

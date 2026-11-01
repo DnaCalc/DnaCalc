@@ -1,7 +1,7 @@
-param([switch]$NativeOnly, [switch]$X2, [switch]$X3, [string]$UpstreamDirectory)
+param([switch]$NativeOnly, [switch]$X2, [switch]$X3, [string]$UpstreamDirectory, [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$out = Join-Path $root 'build'
+$out = if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $root 'build'}
 New-Item -ItemType Directory -Force $out | Out-Null
 $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
 $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath

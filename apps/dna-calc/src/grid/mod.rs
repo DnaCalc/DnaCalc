@@ -428,9 +428,21 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         let Some(sheet) = controller.sheet.get() else {
             return Vec::new();
         };
-        panes
-            .get()
-            .interests(sheet, &metrics.get(), &viewport.get(), grid_extent.get())
+        let mut areas =
+            panes
+                .get()
+                .interests(sheet, &metrics.get(), &viewport.get(), grid_extent.get());
+        let (row, col) = controller.active.get();
+        if let Ok(at) = CellKey::new(sheet, row, col) {
+            let at = published_geometry
+                .get()
+                .as_ref()
+                .map_or(at, |g| g.anchor(at));
+            if !areas.iter().any(|a| a.contains(at)) {
+                areas.push(GridArea::cell(at));
+            }
+        }
+        areas
     });
 
     // Subscribe to the area in view, and move the interest as the view moves. A new workbook is a
@@ -515,7 +527,17 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         let enabled = ctx.canvas.get();
         if let Some(grid) = scroller.get() {
             let _ = grid.set_attribute("data-painter", if enabled { "canvas" } else { "dom" });
+            // This surface already reaches Tachys's 26-attribute tuple limit.
+            let _ = grid.set_attribute("aria-multiselectable", "true");
             plan.with(|plan| {
+                let _ = grid.set_attribute(
+                    "aria-busy",
+                    if plan.interrupted || plan.publication.is_none() {
+                        "true"
+                    } else {
+                        "false"
+                    },
+                );
                 if let Some(stamp) = plan.publication {
                     let _ = grid.set_attribute("data-paint-workbook", &stamp.workbook.to_string());
                     let _ = grid.set_attribute("data-paint-revision", &stamp.revision.to_string());
@@ -1565,16 +1587,23 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 .map(|row| {
                     let cells=row.cells.iter().map(|cell| view! {
             <span role="gridcell" id=format!("dc-grid-cell-{}-{}-{}",ctx.index,cell.row,cell.col)
-                aria-colindex=cell.col.to_string() aria-selected=cell.selected.to_string()
+                aria-colindex=(cell.col+1).to_string() aria-selected=cell.selected.to_string()
                 aria-rowspan=cell.row_span.to_string() aria-colspan=cell.col_span.to_string()
                 aria-readonly=(!cell.editability.can_begin).to_string()
                 aria-label=cell.label.clone()>{cell.address.clone()}</span>
         }).collect_view();
-                    view! { <div role="row" aria-rowindex=row.row.to_string()>{cells}</div> }
+                    view! { <div role="row" aria-rowindex=(row.row+1).to_string()><span role="rowheader" aria-colindex="1">{row.row.to_string()}</span>{cells}</div> }
                 })
                 .collect_view()
         })
     };
+    let semantic_headers = move || {
+        plan.with(|plan| plan.semantic_columns.iter().map(|col| view! {
+        <span role="columnheader" aria-colindex=(col+1).to_string()>{cells::column_letters(*col)}</span>
+    }).collect_view())
+    };
+    // A memo suppresses repeated live-region mutations when only paint geometry changes.
+    let announcement = Memo::new(move |_| plan.with(|plan| plan.announcement.clone()));
     let headers_view = move || {
         let areas = controller.areas.get();
         plan.with(|plan| {
@@ -1984,8 +2013,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 data-frozen-columns=move ||panes.get().columns.to_string()
                 role="grid"
                 aria-label=move || controller.sheet.get().and_then(|id| controller.sheets().into_iter().find(|tab| tab.id == id).map(|tab| format!("{} worksheet", tab.name))).unwrap_or_else(|| "Worksheet".to_owned())
-                aria-rowcount="1048576"
-                aria-colcount="16384"
+                aria-rowcount="1048577"
+                aria-colcount="16385"
                 aria-describedby=format!("dc-grid-keyboard-{}",ctx.index)
                 aria-activedescendant=move || {
                     plan.with(|plan| plan.semantic_rows.iter().flat_map(|r| &r.cells).find(|cell|cell.active).map(|cell|format!("dc-grid-cell-{}-{}-{}",ctx.index,cell.row,cell.col)))
@@ -2010,7 +2039,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 on:mousedown=move |ev|{ctx.activate(controller);on_mousedown(ev)}
                 on:dblclick=on_dblclick
             >
-                <div class="dc-sr-only" role="rowgroup">{semantic_cells}</div>
+                <div class="dc-sr-only" role="rowgroup"><div role="row" aria-rowindex="1"><span role="columnheader" aria-colindex="1">"Row"</span>{semantic_headers}</div>{semantic_cells}</div>
                 <span class="dc-sr-only" id=format!("dc-grid-keyboard-{}",ctx.index)>"Arrow keys move cells. F2 edits. F6 leaves the worksheet; Shift+F6 returns to the formula bar."</span>
                 <div class="dc-space" style:width=space_width style:height=space_height>
                     <div class="dc-layer" node_ref=layer style:font-size=move ||px(13.0*zoom.get()) style:width=move || px(viewport.get().width) style:height=move || px(viewport.get().height)>
@@ -2090,6 +2119,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 </span>
             </div>
             </>})}
+            <span class="dc-sr-only" data-dnacalc="grid-announcement" role="status" aria-live="polite" aria-atomic="true">{move || if ctx.active.get()==ctx.index { announcement.get() } else { String::new() }}</span>
         </div>
     }
 }

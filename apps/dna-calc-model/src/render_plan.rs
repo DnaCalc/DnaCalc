@@ -95,6 +95,9 @@ pub struct RenderPlan {
     pub publication: Option<crate::tiles::TileStamp>,
     pub presentation: crate::presentation::PresentationStamp,
     pub semantic_rows: Vec<SemanticRow>,
+    pub semantic_columns: Vec<u32>,
+    pub selection_announcement: String,
+    pub announcement: String,
     pub interrupted: bool,
     /// The on-screen cells, sorted by `(row, col)`.
     pub cells: Vec<PlannedCell>,
@@ -240,6 +243,9 @@ pub fn build_render_plan_with<'a>(
         publication: None,
         presentation: Default::default(),
         semantic_rows: Vec::new(),
+        semantic_columns: Vec::new(),
+        selection_announcement: String::new(),
+        announcement: String::new(),
         interrupted: false,
         cells: planned,
         col_headers,
@@ -718,6 +724,7 @@ pub struct SemanticCell {
     pub col: u32,
     pub address: String,
     pub text: String,
+    pub formula: Option<String>,
     pub provenance: &'static str,
     pub selected: bool,
     pub active: bool,
@@ -756,70 +763,89 @@ impl RenderPlan {
         });
         let geometry = mirror.geometry(sheet);
         let mut identities = BTreeMap::new();
-        for row in rows {
-            for col in cols {
-                let position = calc_value::CellKey::new(sheet, row.row, col.col)
-                    .expect("validated grid headers");
-                let merged = geometry.and_then(|g| g.merge_at(position));
-                let at = merged.map_or(position, |a| a.first());
-                identities
-                    .entry(crate::projection::Key::of(at))
-                    .or_insert_with(|| {
-                        let cell = mirror.cell(at);
-                        let address = format!(
-                            "{}{}",
-                            crate::address::column_letters(at.column()),
-                            at.row()
-                        );
-                        let text = cell.map_or("", |c| c.text.as_str()).to_owned();
-                        let provenance = cell.map_or("empty", |c| c.provenance.name());
-                        let mut label = if cell.is_some() {
-                            format!("{address}, {text}, {provenance}")
-                        } else {
-                            format!("{address}, empty")
-                        };
-                        if let Some(cell) =
-                            cell.filter(|c| c.provenance == crate::projection::Provenance::Refused)
-                        {
-                            label.push_str(": ");
-                            label.push_str(&cell.why);
-                        }
-                        let row_span = merged.map_or(1, |a| a.row_count());
-                        let col_span = merged.map_or(1, |a| a.column_count());
-                        if merged.is_some() {
-                            label.push_str(&format!(", spans {row_span} rows, {col_span} columns"));
-                        }
-                        let editability = Editability::from_geometry(geometry);
-                        if let Some(reason) = &editability.refusal {
-                            label.push_str(", read only: ");
-                            label.push_str(reason);
-                        }
-                        let footprint = merged.unwrap_or_else(|| calc_value::GridArea::cell(at));
-                        SemanticCell {
-                            at: crate::projection::Key::of(at),
-                            row: at.row(),
-                            col: at.column(),
-                            address,
-                            text,
-                            provenance,
-                            row_span,
-                            col_span,
-                            editability,
-                            selected: selected.iter().any(|a| {
-                                a.sheet() == sheet
-                                    && a.first().row() <= footprint.last().row()
-                                    && a.last().row() >= footprint.first().row()
-                                    && a.first().column() <= footprint.last().column()
-                                    && a.last().column() >= footprint.first().column()
-                            }),
-                            active: active.0 >= footprint.first().row()
-                                && active.0 <= footprint.last().row()
-                                && active.1 >= footprint.first().column()
-                                && active.1 <= footprint.last().column(),
-                            label,
-                        }
-                    });
+        let positions = std::iter::once(active).chain(
+            rows.iter()
+                .flat_map(|r| cols.iter().map(move |c| (r.row, c.col))),
+        );
+        for (row, col) in positions {
+            let position = calc_value::CellKey::new(sheet, row, col)
+                .expect("validated grid headers and active cell");
+            // Reserve one identity for the active cell even when it is scrolled away.
+            if identities.len() == 4096 {
+                break;
             }
+            let merged = geometry.and_then(|g| g.merge_at(position));
+            let at = merged.map_or(position, |a| a.first());
+            identities
+                .entry(crate::projection::Key::of(at))
+                .or_insert_with(|| {
+                    let cell = mirror.cell(at);
+                    let address = format!(
+                        "{}{}",
+                        crate::address::column_letters(at.column()),
+                        at.row()
+                    );
+                    let text = cell.map_or("", |c| c.text.as_str()).to_owned();
+                    let covered = geometry.is_some_and(|g| {
+                        g.coverage
+                            .iter()
+                            .filter_map(|a| a.area())
+                            .any(|a| a.contains(at))
+                    });
+                    let provenance = cell.map_or(if covered { "empty" } else { "pending" }, |c| {
+                        c.provenance.name()
+                    });
+                    let formula = cell.filter(|c| c.formula).map(|c| c.input.clone());
+                    let mut label = if cell.is_some() {
+                        format!("{address}, {text}, {provenance}")
+                    } else {
+                        format!("{address}, {provenance}")
+                    };
+                    if let Some(formula) = &formula {
+                        label.push_str(&format!(", formula {formula}"));
+                    }
+                    if let Some(cell) =
+                        cell.filter(|c| c.provenance == crate::projection::Provenance::Refused)
+                    {
+                        label.push_str(": ");
+                        label.push_str(&cell.why);
+                    }
+                    let row_span = merged.map_or(1, |a| a.row_count());
+                    let col_span = merged.map_or(1, |a| a.column_count());
+                    if merged.is_some() {
+                        label.push_str(&format!(", spans {row_span} rows, {col_span} columns"));
+                    }
+                    let editability = Editability::from_geometry(geometry);
+                    if let Some(reason) = &editability.refusal {
+                        label.push_str(", read only: ");
+                        label.push_str(reason);
+                    }
+                    let footprint = merged.unwrap_or_else(|| calc_value::GridArea::cell(at));
+                    SemanticCell {
+                        at: crate::projection::Key::of(at),
+                        row: at.row(),
+                        col: at.column(),
+                        address,
+                        text,
+                        formula,
+                        provenance,
+                        row_span,
+                        col_span,
+                        editability,
+                        selected: selected.iter().any(|a| {
+                            a.sheet() == sheet
+                                && a.first().row() <= footprint.last().row()
+                                && a.last().row() >= footprint.first().row()
+                                && a.first().column() <= footprint.last().column()
+                                && a.last().column() >= footprint.first().column()
+                        }),
+                        active: active.0 >= footprint.first().row()
+                            && active.0 <= footprint.last().row()
+                            && active.1 >= footprint.first().column()
+                            && active.1 <= footprint.last().column(),
+                        label,
+                    }
+                });
         }
         let mut grouped: BTreeMap<u32, Vec<SemanticCell>> = BTreeMap::new();
         for cell in identities.into_values() {
@@ -829,6 +855,61 @@ impl RenderPlan {
             .into_iter()
             .map(|(row, cells)| SemanticRow { row, cells })
             .collect();
+        self.semantic_columns = self
+            .semantic_rows
+            .iter()
+            .flat_map(|r| &r.cells)
+            .map(|c| c.col)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        // Describe areas without visiting their cells, including whole axes and multi-area
+        // selections. Keep speech bounded even if the selection contains many areas.
+        let areas: Vec<_> = selected.iter().filter(|a| a.sheet() == sheet).collect();
+        let mut selection: Vec<_> = areas
+            .iter()
+            .take(4)
+            .map(|area| {
+                let first = format!(
+                    "{}{}",
+                    column_letters(area.first().column()),
+                    area.first().row()
+                );
+                let last = format!(
+                    "{}{}",
+                    column_letters(area.last().column()),
+                    area.last().row()
+                );
+                if first == last {
+                    first
+                } else {
+                    format!(
+                        "{first}:{last}, {} rows by {} columns",
+                        area.row_count(),
+                        area.column_count()
+                    )
+                }
+            })
+            .collect();
+        if areas.len() > 4 {
+            selection.push(format!("and {} more areas", areas.len() - 4));
+        }
+        self.selection_announcement = format!("Selection {}", selection.join("; "));
+        self.announcement = if self.interrupted {
+            "Worksheet update interrupted; displayed values are from the last committed update."
+                .into()
+        } else if self.publication.is_none() {
+            "Worksheet values pending.".into()
+        } else if let Some(cell) = self
+            .semantic_rows
+            .iter()
+            .flat_map(|r| &r.cells)
+            .find(|c| c.active)
+        {
+            format!("{}. {}", cell.label, self.selection_announcement)
+        } else {
+            self.selection_announcement.clone()
+        };
     }
 }
 fn semantic_window<T>(headers: &[T], active: u32, limit: usize, index: impl Fn(&T) -> u32) -> &[T] {
@@ -879,15 +960,36 @@ mod semantic_tests {
         assert!(
             cells
                 .iter()
-                .all(|c| c.text.is_empty() && c.provenance == "empty")
+                .all(|c| c.text.is_empty() && c.provenance == "pending")
         );
         let focused = cells.iter().find(|c| c.active).unwrap();
         assert!(focused.selected);
         assert_eq!(focused.address, "CV900");
-        assert_eq!(focused.label, "CV900, empty");
+        assert_eq!(focused.label, "CV900, pending");
         assert_eq!(cells.iter().filter(|c| c.active).count(), 1);
         let keys: std::collections::BTreeSet<_> = cells.iter().map(|c| c.at).collect();
         assert_eq!(keys.len(), cells.len());
+
+        plan.attach_semantics(
+            &mirror,
+            sheet,
+            &[calc_value::GridArea::cell(at)],
+            (1_000_000, 16_384),
+        );
+        let focused = plan
+            .semantic_rows
+            .iter()
+            .flat_map(|r| &r.cells)
+            .find(|c| c.active)
+            .unwrap();
+        assert_eq!(focused.label, "XFD1000000, pending");
+        assert_eq!(
+            plan.semantic_rows
+                .iter()
+                .map(|r| r.cells.len())
+                .sum::<usize>(),
+            4096
+        );
         assert!(!plan.interrupted);
         mirror.invalidate();
         plan.attach_semantics(&mirror, sheet, &[calc_value::GridArea::cell(at)], active);

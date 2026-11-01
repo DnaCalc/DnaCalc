@@ -238,7 +238,7 @@ an `AsyncDependents` pass. Tombstones distinguish identical and conflicting dupl
 Every live edit conservatively revokes authority, including moves, overwrite/Undo and reload;
 reopen has a fresh host namespace. Native and browser fixtures exercise the shared host route.
 The worker projects waiting/return events and schedules no task while parked. Native XLL handle
-integration, async pinned-save calculations and nested async blocks remain open; the synchronous
+integration and async pinned-save calculations remain open; the synchronous
 entry returns a named refusal when it has no owner able to retain a wait.
 
 ## 4. Reads and freshness
@@ -415,7 +415,8 @@ Headless callers enabling those handoffs must drain `publish_ready` between `ste
 The callable runtime now supplies checked slot/generation bindings, invocation identities and pinned
 cached/reference views. Root typed Long/Double and DNA numeric Range calls retain owning VM/JIT activations;
 counted native tests demonstrate suspension and reload without repeating the prefix. Variant adapters
-retain an explicit synchronous interval, and nested CalcFml blocks are not yet sliced internally.
+retain an explicit synchronous interval. Lazy argument blocks, defined names and direct LAMBDA
+bodies now retain their cursors, lexical frames and async activations across slices.
 Reload revokes command publication authority and rebinds compiled consumers whose callable watches
 changed. Unresolved compilation refusals are retried conservatively when registrations change.
 P03 now records registration-authorized XLL unwind and provisional scalar-argument evaluations
@@ -437,10 +438,16 @@ fresh entry around an already admitted independent producer; the existing graph 
 the caller and its known consumers, preventing artificial cycles. The cached view explicitly
 carries its executing caller, whose self observation is Empty even with array metadata or a prior
 published value. Seven shared controls cover these rules through VM/JIT and both budgets, with
-explicit Excel.Range types. Unqualified stored Range.Value2 conversion remains dc-hsa5.4.2;
-request-area ordering and warm initial-cache visibility still need their measured profiles.
-Nested waits, the remaining Range-order profiles and nested CalcFml continuations remain bounded
-refusals or later work. P07's owner boundary is in 3.4.
+both plain Range and explicit Excel.Range types. The Excel-compatible projection has a distinct
+DNA nominal interface identity before the numeric-only DnaCalcObjects.Range reference, so stored
+Value2 retains Empty. Original Empty counters pass VM/JIT and finite/unlimited budgets.
+Request-area ordering and warm initial-cache visibility still need their measured profiles.
+Nested P07 waits now retain lazy arguments, defined-name and direct LAMBDA frames; sequential
+sites keep distinct tokens and one root activation. Lazy selection uses the existing catalogue
+kernels over retained arguments, without replaying argument effects or random draws. Helper
+kernels such as MAP and synchronous user callbacks still refuse waits they cannot retain.
+Post-effect dependency/placement waits and the remaining Range-order profiles stay open.
+P07's owner boundary is in 3.4.
 RTD events use a separate provider/subscription sequence and immutable input snapshot. They mark
 provider consumers required for later demand, never supply a formula result or resume an async
 activation. Manual mode waits for a calculation command. Duplicates/stale/conflicting sequences,

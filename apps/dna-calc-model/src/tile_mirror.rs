@@ -373,6 +373,12 @@ mod tests {
         let active: Vec<_> = semantic.iter().filter(|c| c.active).collect();
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].address, "A1");
+        assert_eq!(active[0].formula.as_deref(), Some("=SEQUENCE(2)"));
+        assert!(
+            plan.announcement
+                .contains("10, calculated, formula =SEQUENCE(2)")
+        );
+        assert_eq!(plan.selection_announcement, "Selection B2");
         assert_eq!((active[0].row_span, active[0].col_span), (2, 2));
         assert!(
             active[0].selected && active[0].editability.checked && !active[0].editability.can_begin
@@ -383,6 +389,16 @@ mod tests {
                 .any(|c| matches!(c.address.as_str(), "B1" | "A2" | "B2"))
         );
         assert_eq!(plan.publication, mirror.stamp());
+        let mut uncommitted = batch(3, false, vec![cell(1, "999")], vec![]);
+        uncommitted.final_fragment = false;
+        mirror.admit(uncommitted.stamp).unwrap();
+        mirror.stage(&uncommitted).unwrap();
+        plan.attach_semantics(&mirror, sheet, &[], (1, 1));
+        assert!(plan.announcement.contains("10, calculated"));
+        assert!(!plan.announcement.contains("999"));
+        mirror.invalidate();
+        plan.attach_semantics(&mirror, sheet, &[], (1, 1));
+        assert!(plan.announcement.contains("interrupted"));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

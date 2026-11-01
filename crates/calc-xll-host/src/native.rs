@@ -390,7 +390,7 @@ impl XllHost {
         }
         Ok(functions)
     }
-    /// Execute a registered XLL command on the owning STA. The command's originating
+    /// Execute a registered XLL entry on the owning STA. The entry's originating
     /// module supplies its callback context even when a different add-in loaded last.
     pub fn run(&self, name: &str, arguments: &[CalcValue]) -> Result<CalcValue, String> {
         let registration = {
@@ -405,14 +405,16 @@ impl XllHost {
                 .cloned()
                 .ok_or("missing command registration")?
         };
-        if registration.info.macro_type != 2 {
-            return Err("dc-snz.18: Application.Run of worksheet functions is not modelled".into());
+        if registration.info.signature.asynchronous {
+            return Err(
+                "dc-snz.23: asynchronous Application.Run has no admitted continuation".into(),
+            );
         }
         XllFunction {
             state: self.state.clone(),
             registration,
         }
-        .invoke(arguments, None)
+        .invoke_run(arguments)
     }
     pub fn registrations(&self) -> Vec<RegistrationInfo> {
         self.state

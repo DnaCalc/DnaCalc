@@ -1790,6 +1790,29 @@ impl Server {
                 (sheet, self.geometry(sheet))
             })
             .collect();
+        let geometry: BTreeMap<_, Vec<_>> = self
+            .subscription_interests
+            .iter()
+            .map(|(&id, interest)| {
+                let areas = self.book.session().interest_areas(interest);
+                (
+                    id,
+                    geometry
+                        .iter()
+                        .map(|(sheet, g)| {
+                            let mut g = g.clone();
+                            g.coverage = areas
+                                .iter()
+                                .filter(|a| a.sheet() == sheet.id())
+                                .copied()
+                                .map(wire::Area::of)
+                                .collect();
+                            (*sheet, g)
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
         let ids: BTreeMap<SubscriptionId, u64> =
             self.subscriptions.iter().map(|(&p, &h)| (h, p)).collect();
         for delta in deltas {
@@ -1862,7 +1885,7 @@ impl Server {
                     cells,
                     removed,
                     revision,
-                    geometry.clone(),
+                    geometry.get(&id).cloned().unwrap_or_default(),
                     publication,
                 ) {
                     self.events.push(Event::ProjectionFailed { id, reason });
@@ -1876,7 +1899,7 @@ impl Server {
                     Vec::new(),
                     Vec::new(),
                     revision,
-                    geometry.clone(),
+                    geometry.get(&id).cloned().unwrap_or_default(),
                     None,
                 ) {
                     self.events.push(Event::ProjectionFailed { id, reason });
@@ -2960,6 +2983,19 @@ mod tile_tests {
             .unwrap();
         let mut mirror = ViewMirror::default();
         let barrier = receive(&mut mirror, projection_events(&mut server));
+        let coverage = &mirror.geometry(sheet).unwrap().coverage;
+        assert!(
+            coverage
+                .iter()
+                .filter_map(|a| a.area())
+                .any(|a| a.contains(anchor))
+        );
+        assert!(
+            !coverage
+                .iter()
+                .filter_map(|a| a.area())
+                .any(|a| a.contains(CellKey::new(sheet, 99, 99).unwrap()))
+        );
         assert_eq!(mirror.cell(anchor).unwrap().text, "merge source");
         assert_eq!(
             mirror.cell(anchor).unwrap().provenance,
@@ -3824,68 +3860,74 @@ mod async_contract_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p07_worker_wait_return_and_completion_use_the_existing_server() {
-        let mut server = Server::new();
-        let s = server.book.host().sheets()[0].id();
-        let b = CellKey::new(s, 1, 2).unwrap();
-        server
-            .execute_current(Request::Intent(Intent::SetCalcMode { manual: true }), None)
-            .reply
-            .unwrap();
-        let counts = Rc::new(RefCell::new(Counts::default()));
-        let mut functions = calc_host::CallableTable::new();
-        functions
-            .register("AsyncEcho", Rc::new(Echo(counts.clone())))
-            .unwrap();
-        server.book_mut().set_user_functions(functions);
-        server
-            .execute_current(
-                Request::Intent(Intent::EnterCell {
-                    at: Key::of(b),
-                    text: "=AsyncEcho(1)+2".into(),
-                }),
-                None,
+        for formula in [
+            "=AsyncEcho(1)+2",
+            "=LET(x,2,IF(TRUE,AsyncEcho(1)+x,0))",
+            "=LAMBDA(x,IF(TRUE,AsyncEcho(1)+x,0))(2)",
+        ] {
+            let mut server = Server::new();
+            let s = server.book.host().sheets()[0].id();
+            let b = CellKey::new(s, 1, 2).unwrap();
+            server
+                .execute_current(Request::Intent(Intent::SetCalcMode { manual: true }), None)
+                .reply
+                .unwrap();
+            let counts = Rc::new(RefCell::new(Counts::default()));
+            let mut functions = calc_host::CallableTable::new();
+            functions
+                .register("AsyncEcho", Rc::new(Echo(counts.clone())))
+                .unwrap();
+            server.book_mut().set_user_functions(functions);
+            server
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key::of(b),
+                        text: formula.into(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
+            server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
+            server
+                .execute_current(Request::Intent(Intent::Recalculate), None)
+                .reply
+                .unwrap();
+            for _ in 0..100 {
+                if !server.has_pending_calculation() {
+                    break;
+                }
+                server.advance_calculation();
+            }
+            assert!(!server.has_pending_calculation());
+            let token = server.book().host().pending_async()[0].clone();
+            let before = server.take_events();
+            assert!(before.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::AwaitingAsync{token:id,..},..}if *id==token.id)));
+            assert!(!before.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::Completed{domain,command,..},..}if *domain==token.invocation.pass.command.domain_incarnation && *command==token.invocation.pass.command.sequence)));
+            assert_eq!(
+                server.complete_async(&token, calc_value::CalcValue::number(40.0)),
+                calc_host::AsyncDisposition::Accepted
+            );
+            assert_eq!(counts.borrow().suffix, 0);
+            let returned = server.take_events();
+            assert!(returned.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::AsyncReturned{token:id,disposition:wire::AsyncReturnDisposition::Accepted},..}if *id==token.id)));
+            for _ in 0..100 {
+                if !server.has_pending_calculation() {
+                    break;
+                }
+                server.advance_calculation();
+            }
+            let after = server.take_events();
+            assert!(after.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::Completed{domain,command,outcome:wire::CalculationOutcome::Complete,calculated:1,required:1,..},..}if *domain==token.invocation.pass.command.domain_incarnation && *command==token.invocation.pass.command.sequence)));
+            assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+            let value = calc_host::project(
+                server.book().host(),
+                &calc_host::ProjectionRequest { cells: vec![b] },
             )
-            .reply
             .unwrap();
-        server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
-        server
-            .execute_current(Request::Intent(Intent::Recalculate), None)
-            .reply
-            .unwrap();
-        for _ in 0..100 {
-            if !server.has_pending_calculation() {
-                break;
-            }
-            server.advance_calculation();
+            assert!(
+                matches!(value.cells()[0].value(),calc_host::ProjectedValue::Calculated{value,..}if value.as_number()==Some(42.0))
+            );
         }
-        assert!(!server.has_pending_calculation());
-        let token = server.book().host().pending_async()[0].clone();
-        let before = server.take_events();
-        assert!(before.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::AwaitingAsync{token:id,..},..}if *id==token.id)));
-        assert!(!before.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::Completed{domain,command,..},..}if *domain==token.invocation.pass.command.domain_incarnation && *command==token.invocation.pass.command.sequence)));
-        assert_eq!(
-            server.complete_async(&token, calc_value::CalcValue::number(40.0)),
-            calc_host::AsyncDisposition::Accepted
-        );
-        assert_eq!(counts.borrow().suffix, 0);
-        let returned = server.take_events();
-        assert!(returned.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::AsyncReturned{token:id,disposition:wire::AsyncReturnDisposition::Accepted},..}if *id==token.id)));
-        for _ in 0..100 {
-            if !server.has_pending_calculation() {
-                break;
-            }
-            server.advance_calculation();
-        }
-        let after = server.take_events();
-        assert!(after.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::Completed{domain,command,outcome:wire::CalculationOutcome::Complete,calculated:1,required:1,..},..}if *domain==token.invocation.pass.command.domain_incarnation && *command==token.invocation.pass.command.sequence)));
-        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
-        let value = calc_host::project(
-            server.book().host(),
-            &calc_host::ProjectionRequest { cells: vec![b] },
-        )
-        .unwrap();
-        assert!(
-            matches!(value.cells()[0].value(),calc_host::ProjectedValue::Calculated{value,..}if value.as_number()==Some(42.0))
-        );
     }
 }

@@ -5951,6 +5951,13 @@ mod async_contract {
 
     use super::async_provider::{Counts, Echo};
     fn setup(formula: &str) -> (HostSession, SheetId, Rc<RefCell<Counts>>) {
+        setup_with_name(formula, None, 1)
+    }
+    fn setup_with_name(
+        formula: &str,
+        name: Option<&str>,
+        budget: usize,
+    ) -> (HostSession, SheetId, Rc<RefCell<Counts>>) {
         let mut book = session(&calc_host::blank_package());
         let s = book.host().sheets()[0].id();
         book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
@@ -5960,10 +5967,22 @@ mod async_contract {
             .register("AsyncEcho", Rc::new(Echo(counts.clone())))
             .unwrap();
         book.set_user_functions(functions);
+        if let Some(body) = name {
+            assert!(
+                book.dispatch(SkinIntent::Edit {
+                    edits: vec![CellEdit::SetName {
+                        name: "AsyncName".into(),
+                        scope: calc_doc_model::NameScope::Workbook,
+                        formula: Some(body.into()),
+                    }],
+                })
+                .accepted()
+            );
+        }
         enter(&mut book, at(s, "A1"), "1");
         enter(&mut book, at(s, "B1"), formula);
         enter(&mut book, at(s, "C1"), "=B1*2");
-        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.set_calculation_budget(WorkBudget::evaluations(budget));
         book.dispatch(SkinIntent::Recalculate);
         for _ in 0..100 {
             if !book.host().pending_async().is_empty() {
@@ -6061,6 +6080,119 @@ mod async_contract {
             book.complete_async(&first, CalcValue::number(29.0)),
             D::Duplicate
         );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_async_waits_retain_lazy_name_and_lambda_frames() {
+        for (formula, name, expected) in [
+            ("=IF(TRUE,AsyncEcho(A1),AsyncEcho(999))+2", None, 42.0),
+            ("=IF(AsyncEcho(A1),40,99)+2", None, 42.0),
+            ("=IFERROR(1/0,AsyncEcho(A1))+2", None, 42.0),
+            ("=IFNA(NA(),AsyncEcho(A1))+2", None, 42.0),
+            ("=CHOOSE(2,AsyncEcho(999),AsyncEcho(A1))+2", None, 42.0),
+            ("=LET(x,1,IF(TRUE,AsyncEcho(A1)+x,999))+2", None, 43.0),
+            ("=LAMBDA(x,IF(TRUE,AsyncEcho(x)+x,999))(A1)+2", None, 43.0),
+            ("=AsyncName+2", Some("IF(TRUE,AsyncEcho($A$1),999)"), 42.0),
+            (
+                "=AsyncName(A1)+2",
+                Some("LAMBDA(x,IF(TRUE,AsyncEcho(x)+x,999))"),
+                43.0,
+            ),
+        ] {
+            for budget in [1, usize::MAX] {
+                let (mut book, s, counts) = setup_with_name(formula, name, budget);
+                let first = token(&book);
+                assert!(!book.has_pending_calculation(), "parked {formula}");
+                for _ in 0..3 {
+                    assert!(matches!(
+                        book.advance_calculation(),
+                        HostProgress::Waiting { .. }
+                    ));
+                }
+                assert_eq!(counts.borrow().resumes, 1, "no provider polling: {formula}");
+                assert_eq!(
+                    book.complete_async(&first, CalcValue::number(40.0)),
+                    D::Accepted
+                );
+                drain(&mut book);
+                assert_eq!(
+                    calculated(book.host(), at(s, "B1")),
+                    Some(CalcValue::number(expected)),
+                    "{formula}"
+                );
+                assert_eq!(
+                    calculated(book.host(), at(s, "C1")),
+                    Some(CalcValue::number(expected * 2.0)),
+                    "{formula}"
+                );
+                assert_eq!(
+                    (counts.borrow().prefix, counts.borrow().suffix),
+                    (1, 1),
+                    "{formula}"
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_two_nested_async_sites_keep_locals_and_distinct_tokens() {
+        let (mut book, s, counts) =
+            setup("=LET(x,AsyncEcho(A1),LAMBDA(y,IF(TRUE,AsyncEcho(y)+x,99))(x))+2");
+        let first = token(&book);
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(20.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        let second = token(&book);
+        assert_ne!(first.runtime, second.runtime);
+        assert_ne!(first.invocation.call_site, second.invocation.call_site);
+        assert_eq!(first.invocation.pass, second.invocation.pass);
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(20.0)),
+            D::Duplicate
+        );
+        assert_eq!(
+            book.complete_async(&second, CalcValue::number(20.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(42.0))
+        );
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (2, 2));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_async_lazy_array_publishes_one_complete_footprint() {
+        let (mut book, s, counts) = setup("=IF({TRUE;FALSE},AsyncEcho(A1),7)");
+        let first = token(&book);
+        assert!(matches!(
+            value(book.host(), at(s, "B2")),
+            ProjectedValue::Empty
+        ));
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(40.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(40.0))
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "B2")),
+            Some(CalcValue::number(7.0))
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "C1")),
+            Some(CalcValue::number(80.0))
+        );
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -7118,165 +7250,173 @@ fn dc_hsa5_7__explicit_dynamic_intersection_survives_copy_and_save() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
-    let source = seven_cell::P03_VBA_SOURCE;
+    let sources = [
+        seven_cell::P03_VBA_SOURCE.to_owned(),
+        seven_cell::P03_VBA_SOURCE.replace("As Range", "As Excel.Range"),
+    ];
     let mut backends = vec![calc_vba::Backend::Interpreter];
     #[cfg(not(target_arch = "wasm32"))]
     backends.push(calc_vba::Backend::Jit);
-    for backend in backends {
-        for &(formula, producer, seed, expected, stats, reevaluations, held_target) in
-            seven_cell::P03_RANGE_CASES
-        {
-            for budget in [1, usize::MAX] {
-                let mut book = session(&calc_host::blank_package());
-                let s = book.host().sheets()[0].id();
-                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
-                book.set_user_functions(
-                    calc_vba::load_module_with_backend(
-                        "ProvisionalRange",
-                        source,
-                        100_000,
-                        backend,
-                    )
-                    .unwrap(),
-                );
-                if let Some(target) = held_target {
-                    enter(
-                        &mut book,
-                        at(s, "H1"),
-                        &format!("=HoldRange(INDIRECT(\"{target}\"))"),
+    for source in &sources {
+        for backend in backends.iter().copied() {
+            for &(formula, producer, seed, expected, stats, reevaluations, held_target) in
+                seven_cell::P03_RANGE_CASES
+            {
+                for budget in [1, usize::MAX] {
+                    let mut book = session(&calc_host::blank_package());
+                    let s = book.host().sheets()[0].id();
+                    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+                    book.set_user_functions(
+                        calc_vba::load_module_with_backend(
+                            "ProvisionalRange",
+                            source,
+                            100_000,
+                            backend,
+                        )
+                        .unwrap(),
                     );
-                    assert!(
-                        book.dispatch(SkinIntent::CalculateRange {
-                            areas: vec![GridArea::cell(at(s, "H1"))]
-                        })
-                        .accepted()
-                    );
-                    while book.has_pending_calculation() {
-                        book.advance_calculation();
-                    }
-                    assert_eq!(
-                        calculated(book.host(), at(s, "H1")),
-                        Some(CalcValue::number(1.0))
-                    );
-                    book.take_calculation_events();
-                }
-                for (address, text) in [("B1", formula), ("C1", "=B1+1")] {
-                    enter(&mut book, at(s, address), text);
-                }
-                if let Some(seed) = seed {
-                    enter(&mut book, at(s, "F1"), "1");
-                    enter(&mut book, at(s, "D1"), &format!("={seed}"));
-                    assert!(
-                        book.dispatch(SkinIntent::CalculateRange {
-                            areas: vec![GridArea::cell(at(s, "D1"))]
-                        })
-                        .accepted()
-                    );
-                    while book.has_pending_calculation() {
-                        book.advance_calculation();
-                    }
-                    let held = match value(book.host(), at(s, "D2")) {
-                        ProjectedValue::Calculated { value, .. } => Some(value),
-                        ProjectedValue::Stale(held) => held.last_value().cloned(),
-                        _ => None,
-                    };
-                    assert_eq!(
-                        held,
-                        Some(CalcValue::number(2.0)),
-                        "the producer supplied its held spill child"
-                    );
-                    book.take_calculation_events();
-                    enter(&mut book, at(s, "F1"), "20");
-                } else {
-                    enter(&mut book, at(s, "D1"), &format!("={producer}"));
-                }
-                book.set_calculation_budget(WorkBudget::evaluations(budget));
-                assert!(book.dispatch(SkinIntent::Recalculate).accepted());
-                for _ in 0..100 {
-                    if !book.has_pending_calculation() {
-                        break;
-                    }
-                    book.advance_calculation();
-                }
-                assert!(!book.has_pending_calculation());
-                assert_eq!(
-                    calculated(book.host(), at(s, "B1")),
-                    Some(CalcValue::number(expected)),
-                    "{formula} {backend:?} budget={budget}"
-                );
-                assert_eq!(
-                    calculated(book.host(), at(s, "C1")),
-                    Some(CalcValue::number(expected + 1.0))
-                );
-                if held_target.is_some() {
-                    assert_eq!(
-                        book.host().precedents(at(s, "B1")),
-                        Some(Vec::new()),
-                        "a cached observation adds no persistent value edge"
-                    );
-                    let ProjectedValue::Calculated { calculation, .. } =
-                        value(book.host(), at(s, "B1"))
-                    else {
-                        panic!("calculated observer");
-                    };
-                    assert!(
-                        !calculation.held_by_circular_rule(),
-                        "hidden observations do not invent a cycle"
-                    );
-                }
-                let events = book.take_calculation_events();
-                assert_eq!(
-                    events
-                        .iter()
-                        .filter(|event| matches!(event, calc_engine::CalcEvent::Reevaluated { .. }))
-                        .count(),
-                    reevaluations
-                );
-                for event in &events {
-                    if let calc_engine::CalcEvent::Reevaluated {
-                        previous,
-                        next,
-                        invocations,
-                    } = event
-                    {
-                        assert_eq!((previous.evaluation, next.evaluation), (0, 1));
-                        assert_eq!(previous.pass, next.pass);
-                        assert_eq!(
-                            next.reason,
-                            calc_engine::contract::ReevaluationReason::ProvisionalArguments
+                    if let Some(target) = held_target {
+                        enter(
+                            &mut book,
+                            at(s, "H1"),
+                            &format!("=HoldRange(INDIRECT(\"{target}\"))"),
                         );
-                        assert_eq!(invocations.len(), 1);
                         assert!(
-                            invocations[0].completed,
-                            "the provisional body finished before reentry"
+                            book.dispatch(SkinIntent::CalculateRange {
+                                areas: vec![GridArea::cell(at(s, "H1"))]
+                            })
+                            .accepted()
+                        );
+                        while book.has_pending_calculation() {
+                            book.advance_calculation();
+                        }
+                        assert_eq!(
+                            calculated(book.host(), at(s, "H1")),
+                            Some(CalcValue::number(1.0))
+                        );
+                        book.take_calculation_events();
+                    }
+                    for (address, text) in [("B1", formula), ("C1", "=B1+1")] {
+                        enter(&mut book, at(s, address), text);
+                    }
+                    if let Some(seed) = seed {
+                        enter(&mut book, at(s, "F1"), "1");
+                        enter(&mut book, at(s, "D1"), &format!("={seed}"));
+                        assert!(
+                            book.dispatch(SkinIntent::CalculateRange {
+                                areas: vec![GridArea::cell(at(s, "D1"))]
+                            })
+                            .accepted()
+                        );
+                        while book.has_pending_calculation() {
+                            book.advance_calculation();
+                        }
+                        let held = match value(book.host(), at(s, "D2")) {
+                            ProjectedValue::Calculated { value, .. } => Some(value),
+                            ProjectedValue::Stale(held) => held.last_value().cloned(),
+                            _ => None,
+                        };
+                        assert_eq!(
+                            held,
+                            Some(CalcValue::number(2.0)),
+                            "the producer supplied its held spill child"
+                        );
+                        book.take_calculation_events();
+                        enter(&mut book, at(s, "F1"), "20");
+                    } else {
+                        enter(&mut book, at(s, "D1"), &format!("={producer}"));
+                    }
+                    book.set_calculation_budget(WorkBudget::evaluations(budget));
+                    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+                    for _ in 0..100 {
+                        if !book.has_pending_calculation() {
+                            break;
+                        }
+                        book.advance_calculation();
+                    }
+                    assert!(!book.has_pending_calculation());
+                    assert_eq!(
+                        calculated(book.host(), at(s, "B1")),
+                        Some(CalcValue::number(expected)),
+                        "{formula} {backend:?} budget={budget}"
+                    );
+                    assert_eq!(
+                        calculated(book.host(), at(s, "C1")),
+                        Some(CalcValue::number(expected + 1.0))
+                    );
+                    if held_target.is_some() {
+                        assert_eq!(
+                            book.host().precedents(at(s, "B1")),
+                            Some(Vec::new()),
+                            "a cached observation adds no persistent value edge"
                         );
                         let ProjectedValue::Calculated { calculation, .. } =
                             value(book.host(), at(s, "B1"))
                         else {
-                            panic!("calculated");
+                            panic!("calculated observer");
                         };
-                        let stamp = calculation.stamp().unwrap();
-                        assert_ne!(stamp.reads.invocations[0].runtime, invocations[0].runtime);
+                        assert!(
+                            !calculation.held_by_circular_rule(),
+                            "hidden observations do not invent a cycle"
+                        );
                     }
-                }
-                enter(&mut book, at(s, "Z1"), "=EntryStats()");
-                assert!(
-                    book.dispatch(SkinIntent::CalculateRange {
-                        areas: vec![GridArea::cell(at(s, "Z1"))]
-                    })
-                    .accepted()
-                );
-                for _ in 0..100 {
-                    if !book.has_pending_calculation() {
-                        break;
+                    let events = book.take_calculation_events();
+                    assert_eq!(
+                        events
+                            .iter()
+                            .filter(|event| matches!(
+                                event,
+                                calc_engine::CalcEvent::Reevaluated { .. }
+                            ))
+                            .count(),
+                        reevaluations
+                    );
+                    for event in &events {
+                        if let calc_engine::CalcEvent::Reevaluated {
+                            previous,
+                            next,
+                            invocations,
+                        } = event
+                        {
+                            assert_eq!((previous.evaluation, next.evaluation), (0, 1));
+                            assert_eq!(previous.pass, next.pass);
+                            assert_eq!(
+                                next.reason,
+                                calc_engine::contract::ReevaluationReason::ProvisionalArguments
+                            );
+                            assert_eq!(invocations.len(), 1);
+                            assert!(
+                                invocations[0].completed,
+                                "the provisional body finished before reentry"
+                            );
+                            let ProjectedValue::Calculated { calculation, .. } =
+                                value(book.host(), at(s, "B1"))
+                            else {
+                                panic!("calculated");
+                            };
+                            let stamp = calculation.stamp().unwrap();
+                            assert_ne!(stamp.reads.invocations[0].runtime, invocations[0].runtime);
+                        }
                     }
-                    book.advance_calculation();
+                    enter(&mut book, at(s, "Z1"), "=EntryStats()");
+                    assert!(
+                        book.dispatch(SkinIntent::CalculateRange {
+                            areas: vec![GridArea::cell(at(s, "Z1"))]
+                        })
+                        .accepted()
+                    );
+                    for _ in 0..100 {
+                        if !book.has_pending_calculation() {
+                            break;
+                        }
+                        book.advance_calculation();
+                    }
+                    assert_eq!(
+                        calculated(book.host(), at(s, "Z1")),
+                        Some(CalcValue::number(stats)),
+                        "{formula} {backend:?} budget={budget}"
+                    );
                 }
-                assert_eq!(
-                    calculated(book.host(), at(s, "Z1")),
-                    Some(CalcValue::number(stats)),
-                    "{formula} {backend:?} budget={budget}"
-                );
             }
         }
     }

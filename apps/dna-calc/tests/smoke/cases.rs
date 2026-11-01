@@ -15,6 +15,14 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Text("document", "Book1.xlsx"),
             Check::Text("[data-dnacalc=\"sheet-tab\"]", "Sheet1"),
             Check::Value("name-box", "A1"),
+            Check::Attr("grid", "aria-rowcount", "1048577"),
+            Check::Attr("grid", "aria-colcount", "16385"),
+            Check::Attr("grid", "aria-multiselectable", "true"),
+            Check::Text("[role=columnheader][aria-colindex=\"2\"]", "A"),
+            Check::Text("[role=rowheader][aria-colindex=\"1\"]", "1"),
+            Check::Attr("#dc-grid-cell-0-1-1", "aria-colindex", "2"),
+            Check::Attr("grid-announcement", "aria-live", "polite"),
+            Check::Attr("result-announcement", "aria-live", "off"),
             Check::Attr("[data-dnacalc=\"skin-grid\"]", "aria-pressed", "true"),
         ],
     },
@@ -61,6 +69,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Value("name-box", "A3"),
             Check::Value(BAR, "=A1*A2+1"),
+            Check::Text("grid-announcement", "A3, 7, calculated, formula =A1*A2+1. Selection A3"),
             Check::Starts(
                 "cell-provenance",
                 "Sheet1!A3: calculated by DNA Calc's engine",
@@ -1857,7 +1866,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 "Sheet1!B1: calculated by DNA Calc's engine",
             ),
             Check::Reachable("recover-edit"),
-            Check::Attr("result-announcement", "aria-live", "polite"),
+            Check::Attr("result-announcement", "aria-live", "off"),
+            Check::Attr("grid-announcement", "aria-live", "polite"),
         ],
     },
     Case {
@@ -1912,6 +1922,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
         actions: &[Action::Click("skin-ledger")],
         checks: &[
             Check::Text("result-state", "Refused"),
+            Check::Attr("result-announcement", "aria-live", "polite"),
+            Check::TextContains("result-announcement", "Refused"),
             Check::Name("ledger-filter", "Formula filter"),
             Check::Reachable("recover-edit"),
         ],
@@ -2467,6 +2479,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Value("name-box", "E4"),
             Check::Attr("selection", "data-area", "E1:E1048576"),
             Check::Bounded("[role=gridcell]", 5000),
+            Check::TextContains("grid-announcement", "Selection E1:E1048576, 1048576 rows by 1 columns"),
         ],
     },
     Case {
@@ -6329,6 +6342,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Wait(Check::Text(cell!("A1"), "42")),
             Action::ScrollGrid(0, 1200),
             Action::Wait(Check::Absent(cell!("A1"))),
+            Action::Wait(Check::ActiveDescendant("grid")),
+            Action::Wait(Check::Name("#dc-grid-cell-0-1-1", "A1, 42, literal")),
             Action::Into("name-box", "A1\u{E007}"),
         ],
         checks: &[
