@@ -664,6 +664,7 @@ pub fn begin_recalc(
         mode,
         CalcScope::Workbook,
         EvalSelection::DirtyAndVolatile,
+        false,
     )
 }
 
@@ -676,7 +677,7 @@ pub fn begin_recalc_scoped(
     scope: CalcScope,
     selection: EvalSelection,
 ) -> Result<RecalcWork, StartError> {
-    begin_with_scope(state, inputs, mode, scope, selection)
+    begin_with_scope(state, inputs, mode, scope, selection, false)
 }
 
 fn begin_with_scope(
@@ -685,11 +686,12 @@ fn begin_with_scope(
     mode: NumericMode,
     scope: CalcScope,
     requested_selection: EvalSelection,
+    empty_successor: bool,
 ) -> Result<RecalcWork, StartError> {
     let sheets: Vec<_> = match &scope {
         CalcScope::Workbook => Vec::new(),
         CalcScope::Sheet(sheet) => vec![*sheet],
-        CalcScope::Range(areas) if areas.is_empty() => {
+        CalcScope::Range(areas) if areas.is_empty() && !empty_successor => {
             return Err(StartError::InvalidScope { sheet: None });
         }
         CalcScope::Range(areas) => areas.iter().map(|area| area.sheet()).collect(),
@@ -1013,7 +1015,7 @@ pub fn supersede_recalc_scoped(
         .to_vec();
         state.contract.invalidate(affected);
     }
-    let mut next = begin_with_scope(state, inputs, mode, scope, selection)?;
+    let mut next = begin_with_scope(state, inputs, mode, scope, selection, true)?;
     next.admission.predecessor = Some(predecessor);
     let terminal = previous.completion(
         CompletionOutcome::Superseded {

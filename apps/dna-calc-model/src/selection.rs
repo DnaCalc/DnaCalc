@@ -437,41 +437,7 @@ pub fn navigate(
 
 /// Remove a selected rectangle using at most four rectangles per existing area.
 pub fn subtract(area: GridArea, removed: GridArea) -> Vec<GridArea> {
-    if area.sheet() != removed.sheet() {
-        return vec![area];
-    }
-    let (t, l, b, r) = (
-        area.first().row().max(removed.first().row()),
-        area.first().column().max(removed.first().column()),
-        area.last().row().min(removed.last().row()),
-        area.last().column().min(removed.last().column()),
-    );
-    if t > b || l > r {
-        return vec![area];
-    }
-    let mut result = Vec::new();
-    let at = area.first();
-    if area.first().row() < t {
-        result.push(rectangle(
-            at,
-            (area.first().row(), area.first().column()),
-            (t - 1, area.last().column()),
-        ));
-    }
-    if b < area.last().row() {
-        result.push(rectangle(
-            at,
-            (b + 1, area.first().column()),
-            (area.last().row(), area.last().column()),
-        ));
-    }
-    if area.first().column() < l {
-        result.push(rectangle(at, (t, area.first().column()), (b, l - 1)));
-    }
-    if r < area.last().column() {
-        result.push(rectangle(at, (t, r + 1), (b, area.last().column())));
-    }
-    result
+    area.subtract(removed)
 }
 
 // --- Keyboard grammar (mirrors the Notebook stage's keyboard.rs) -------------

@@ -735,12 +735,73 @@ fn blanks_still_absent(
 }
 
 impl CalcScope {
+    /// Retarget a scope through an accepted structural edit, preserving disjoint pieces.
+    /// A removed sheet or fully deleted range becomes an empty successor, never Workbook.
+    pub fn transformed(&self, edit: &calc_fml::reference::StructuralEdit) -> Self {
+        use calc_fml::reference::StructuralEdit as E;
+        match self {
+            Self::Workbook => Self::Workbook,
+            Self::Sheet(sheet) => match edit {
+                E::RemoveSheet { sheet: removed, .. } if removed == sheet => {
+                    Self::Range(Vec::new())
+                }
+                _ => Self::Sheet(*sheet),
+            },
+            Self::Range(areas) => Self::Range(
+                areas
+                    .iter()
+                    .flat_map(|area| scope_area(*area, edit))
+                    .collect(),
+            ),
+        }
+    }
+
     pub fn contains(&self, at: CellKey) -> bool {
         match self {
             Self::Workbook => true,
             Self::Sheet(sheet) => at.sheet() == *sheet,
             Self::Range(areas) => areas.iter().any(|area| area.contains(at)),
         }
+    }
+}
+
+fn scope_area(area: GridArea, edit: &calc_fml::reference::StructuralEdit) -> Vec<GridArea> {
+    use calc_fml::reference::StructuralEdit as E;
+    match edit {
+        E::RemoveSheet { sheet, .. } if *sheet == area.sheet() => Vec::new(),
+        E::MoveCells { area: source, .. } => {
+            let Some(common) = area.intersection(*source) else {
+                return vec![area];
+            };
+            let mut pieces = area.subtract(common);
+            pieces.extend(edit.area(common));
+            pieces
+        }
+        E::ShiftCells {
+            area: band, down, ..
+        } if band.sheet() == area.sheet() => {
+            let stripe = if *down {
+                GridArea::new(
+                    CellKey::new(band.sheet(), 1, band.first().column()).expect("valid stripe"),
+                    CellKey::new(band.sheet(), calc_value::MAX_ROWS, band.last().column())
+                        .expect("valid stripe"),
+                )
+            } else {
+                GridArea::new(
+                    CellKey::new(band.sheet(), band.first().row(), 1).expect("valid stripe"),
+                    CellKey::new(band.sheet(), band.last().row(), calc_value::MAX_COLUMNS)
+                        .expect("valid stripe"),
+                )
+            }
+            .expect("one sheet");
+            let Some(common) = area.intersection(stripe) else {
+                return vec![area];
+            };
+            let mut pieces = area.subtract(common);
+            pieces.extend(edit.area(common));
+            pieces
+        }
+        _ => edit.area(area).into_iter().collect(),
     }
 }
 
@@ -841,4 +902,78 @@ pub(crate) fn absence_corridor(region: GridArea) -> GridArea {
         region.last(),
     )
     .expect("one sheet")
+}
+
+#[cfg(test)]
+mod scope_transform_tests {
+    use super::*;
+    use calc_fml::reference::StructuralEdit;
+    use calc_value::IdAllocator;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_partial_cut_keeps_its_hole_and_only_adds_the_moved_piece() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let a = ids.issue().unwrap();
+        let b = ids.issue().unwrap();
+        let cell = |s, r, c| CellKey::new(s, r, c).unwrap();
+        let scope = CalcScope::Range(vec![GridArea::new(cell(a, 1, 1), cell(a, 4, 4)).unwrap()]);
+        let moved = scope.transformed(&StructuralEdit::MoveCells {
+            area: GridArea::new(cell(a, 2, 2), cell(a, 3, 3)).unwrap(),
+            to: cell(b, 6, 6),
+            source_name: "A".into(),
+            target_name: "B".into(),
+        });
+        let mut count = 0;
+        for s in [a, b] {
+            for row in 1..=10 {
+                for column in 1..=10 {
+                    let expected = (s == a
+                        && row <= 4
+                        && column <= 4
+                        && !((2..=3).contains(&row) && (2..=3).contains(&column)))
+                        || (s == b && (6..=7).contains(&row) && (6..=7).contains(&column));
+                    assert_eq!(
+                        moved.contains(cell(s, row, column)),
+                        expected,
+                        "{s:?}:{row},{column}"
+                    );
+                    count += usize::from(moved.contains(cell(s, row, column)));
+                }
+            }
+        }
+        assert_eq!(count, 16);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_partial_shift_does_not_widen_its_unaffected_columns() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let s = ids.issue().unwrap();
+        let cell = |r, c| CellKey::new(s, r, c).unwrap();
+        let scope = CalcScope::Range(vec![GridArea::new(cell(1, 1), cell(4, 4)).unwrap()]);
+        let shifted = scope.transformed(&StructuralEdit::ShiftCells {
+            area: GridArea::new(cell(2, 2), cell(2, 3)).unwrap(),
+            down: true,
+            insert: true,
+        });
+        for row in 1..=6 {
+            for column in 1..=5 {
+                let expected = (row <= 4 && (column == 1 || column == 4))
+                    || (row <= 5 && (column == 2 || column == 3));
+                assert_eq!(
+                    shifted.contains(cell(row, column)),
+                    expected,
+                    "{row},{column}"
+                );
+            }
+        }
+        assert_eq!(
+            CalcScope::Sheet(s).transformed(&StructuralEdit::RemoveSheet {
+                sheet: s,
+                order: Vec::new()
+            }),
+            CalcScope::Range(Vec::new())
+        );
+    }
 }

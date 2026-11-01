@@ -111,6 +111,7 @@ pub struct HostState {
     /// The recalculation in progress, between two [`crate::step`] calls.
     pub(crate) work: Option<RecalcWork>,
     pub(crate) full_calculate_requested: bool,
+    pub(crate) transformed_calculation_scope: Option<calc_engine::CalcScope>,
     pub(crate) requested_calculation: Option<(calc_engine::CalcScope, calc_engine::EvalSelection)>,
     pub(crate) calculation_source: Option<calc_engine::contract::CommandId>,
     pub(crate) calculation_cancelled: bool,
@@ -184,6 +185,7 @@ impl HostState {
             options,
             work: None,
             full_calculate_requested: false,
+            transformed_calculation_scope: None,
             requested_calculation: None,
             calculation_source: None,
             calculation_cancelled: false,

@@ -89,7 +89,7 @@ use std::ops::ControlFlow;
 /// - [`ReadObserver::evaluated`]: the outcome of each evaluation, in the report CalcFml's
 ///   evaluator makes before returning it ([`calc_fml::EvaluationReport`], which only the evaluator
 ///   can make), forwarded unchanged with the recalculation's revision, tick and numeric mode
-///   ([`ObservedEvaluation`]). It is shown before `calc_fml::evaluate` returns to the engine, so it
+///   ([`ObservedEvaluation`]). It is shown before the formula activation returns its terminal outcome, so it
 ///   is not the engine's account of the value it then stages; [`crate::finish`], which publishes,
 ///   is given no observer. A formula CalcFml refused to compile is not evaluated and is not shown.
 ///

@@ -78,6 +78,8 @@ pub fn step(
         Some(work) if work.revision() != host.model.revision() || force => {
             let facts = host.workbook_facts();
             host.engine.set_workbook_facts(Some(facts));
+            let transformed = host.transformed_calculation_scope.take();
+            let selection = work.admission().selection;
             let started = if force {
                 host.calculate_requested = false;
                 calc_engine::supersede_recalc_scoped(
@@ -87,6 +89,15 @@ pub fn step(
                     host.options.numeric.clone(),
                     calc_engine::CalcScope::Workbook,
                     calc_engine::EvalSelection::ForceAll,
+                )
+            } else if let Some(scope) = transformed {
+                calc_engine::supersede_recalc_scoped(
+                    &mut host.engine,
+                    &host.model,
+                    work,
+                    host.options.numeric.clone(),
+                    scope,
+                    selection,
                 )
             } else {
                 calc_engine::supersede_recalc(
@@ -121,6 +132,7 @@ pub fn step(
             let facts = host.workbook_facts();
             host.engine.set_workbook_facts(Some(facts));
             let started = if let Some((scope, selection)) = host.requested_calculation.take() {
+                let scope = host.transformed_calculation_scope.take().unwrap_or(scope);
                 calc_engine::begin_recalc_scoped(
                     &mut host.engine,
                     &host.model,

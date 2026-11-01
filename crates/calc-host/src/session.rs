@@ -384,6 +384,7 @@ impl HostSession {
         self.host.calculate_requested = false;
         self.host.full_calculate_requested = false;
         self.host.requested_calculation = None;
+        self.host.transformed_calculation_scope = None;
         self.host.calculation_source = None;
         self.host.calculation_cancelled = true;
     }
@@ -432,6 +433,11 @@ impl HostSession {
     /// [`INTENT_LOG_LIMIT`]. A record's `seq` counts every intent the session dispatched.
     pub fn intent_log(&self) -> &[IntentRecord] {
         &self.log
+    }
+
+    /// Pins the current model and result view without invoking or draining calculation.
+    pub fn prepare_save(&self, policy: &SavePolicy) -> Result<crate::PreparedSave, SaveFailed> {
+        crate::prepare_save(&self.host, policy)
     }
 
     /// Writes the current revision ([`crate::save`]).
