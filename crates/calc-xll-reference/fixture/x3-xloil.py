@@ -51,6 +51,16 @@ def _startup_calculate():
 xloil.event.AfterCalculate += _startup_calculate
 
 
+if __import__("os").environ.get("DNA_XLL_RTD_TESTS"):
+    import asyncio
+
+    @xloil.func(name="X5.Rtd", threaded=False)
+    async def rtd_sequence():
+        yield 1
+        await asyncio.sleep(0.25)
+        yield 42
+
+
 @xloil.func(name="X4.PyCom")
 def com_properties() -> str:
     app = xloil.app()

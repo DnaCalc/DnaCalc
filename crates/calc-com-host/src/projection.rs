@@ -3,11 +3,11 @@ use calc_xll_host::XllHost;
 use std::{ffi::c_void, rc::Rc};
 
 #[repr(C)]
-struct Value {
-    kind: u32,
-    number: f64,
-    text: *const u16,
-    length: usize,
+pub(crate) struct Value {
+    pub kind: u32,
+    pub number: f64,
+    pub text: *const u16,
+    pub length: usize,
 }
 type Run = unsafe extern "system" fn(
     *const c_void,

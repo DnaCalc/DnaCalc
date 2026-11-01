@@ -19,6 +19,7 @@ pub(crate) struct Frame<'a> {
     pub origin: Rc<Module>,
     pub context: Option<&'a mut dyn UserFunctionContext>,
     pub signature: Option<XllSignature>,
+    pub provider: Option<crate::RtdProvider>,
 }
 impl Frame<'_> {
     pub fn lifecycle(state: Shared, module: Rc<Module>) -> Self {
@@ -28,6 +29,7 @@ impl Frame<'_> {
             module,
             context: None,
             signature: None,
+            provider: None,
         }
     }
 }
@@ -232,6 +234,8 @@ fn refuse(frame: &mut Frame<'_>, why: &str) {
             "an XLL callback is not modelled",
             if why.starts_with("dc-snz.18:") {
                 "dc-snz.18"
+            } else if why.starts_with("dc-snz.23:") {
+                "dc-snz.23"
             } else {
                 "dc-snz.2"
             },
@@ -456,6 +460,12 @@ fn run(
         return Err((
             NOT_THREAD_SAFE,
             "dc-snz.18: event registration from calculation workers is not modelled".into(),
+        ));
+    }
+    if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == 379 {
+        return Err((
+            NOT_THREAD_SAFE,
+            "dc-snz.23: RTD requires the owning STA".into(),
         ));
     }
     if frame.signature.as_ref().is_some_and(|s| s.thread_safe)
@@ -704,12 +714,51 @@ fn run(
             let adapter = crate::native::XllFunction {
                 state: frame.state.clone(),
                 registration,
+                bound: false,
             };
             match &mut frame.context {
                 Some(context) => adapter.invoke(&values[1..], Some(&mut **context)),
                 None => adapter.invoke(&values[1..], None),
             }
             .map_err(err)?
+        }
+        379 => {
+            if values.len() < 3 {
+                return Err((INVALID_COUNT, "RTD needs a ProgID, server and topic".into()));
+            }
+            let progid = text(&values[0])?;
+            if !values[1].is_missing() && !values[1].is_empty() && !text(&values[1])?.is_empty() {
+                return Err(err("dc-snz.23: remote RTD servers are not modelled"));
+            }
+            let topics = values[2..]
+                .iter()
+                .map(text)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| err("dc-snz.23: nontext RTD topics are not modelled"))?;
+            let provider = frame
+                .provider
+                .ok_or_else(|| err("dc-snz.23: RTD requires an admitted callable identity"))?;
+            let service = frame
+                .state
+                .borrow()
+                .rtd
+                .clone()
+                .ok_or_else(|| err("dc-snz.23: RTD client is not attached"))?;
+            let context = frame
+                .context
+                .as_mut()
+                .ok_or_else(|| err("dc-snz.23: RTD requires an admitted input view"))?;
+            let caller = context
+                .caller()
+                .ok_or_else(|| err("dc-snz.23: RTD requires a worksheet caller"))?;
+            let subscription = service
+                .subscribe(provider, caller, &progid, &topics)
+                .map_err(err)?;
+            context
+                .rtd_value(subscription)
+                .map_err(err)?
+                .map(|(_, value)| value)
+                .unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::NA))
         }
         // Ftab numbers come from the existing file-formula table. Dispatch is through the
         // evaluator's ordinary worksheet route, with its current numeric and read policy.

@@ -10,6 +10,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include "value.h"
 
 namespace {
 constexpr GUID application_iid = {0x000208d5,0,0,{0xc0,0,0,0,0,0,0,0x46}};
@@ -19,7 +20,6 @@ constexpr GUID workbooks_iid = {0x000208db,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID events_iid = {0x00024413,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID worksheet_iid = {0x000208d8,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID range_iid = {0x00020846,0,0,{0xc0,0,0,0,0,0,0,0x46}};
-struct Value { unsigned kind; double number; const wchar_t* text; size_t length; };
 using Run = HRESULT (WINAPI*)(const void*,const wchar_t*,size_t,const Value*,size_t,Value*);
 using Qualifier = HRESULT (WINAPI*)(const wchar_t*,size_t,const wchar_t*,size_t,BSTR*);
 struct Object;

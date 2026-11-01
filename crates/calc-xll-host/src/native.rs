@@ -247,6 +247,7 @@ pub(crate) struct State {
     pub workers: Option<Rc<crate::worker::Pool>>,
     pub pending_async: BTreeMap<usize, crate::callbacks::PendingOwner>,
     pub async_continuations: bool,
+    pub rtd: Option<Rc<dyn crate::RtdService>>,
 }
 impl State {
     pub fn refusal(&mut self, why: impl Into<String>) {
@@ -290,6 +291,7 @@ impl XllHost {
                 workers: Some(Rc::new(crate::worker::Pool::new())),
                 pending_async: BTreeMap::new(),
                 async_continuations: false,
+                rtd: None,
             })),
         }
     }
@@ -389,13 +391,12 @@ impl XllHost {
             if registration.uses.get() == 0 || registration.info.macro_type == 2 {
                 continue;
             }
-            functions.register(
-                name,
-                Rc::new(XllFunction {
-                    state: self.state.clone(),
-                    registration: registration.clone(),
-                }),
-            )?;
+            let adapter = Rc::new(XllFunction {
+                state: self.state.clone(),
+                registration: registration.clone(),
+                bound: true,
+            });
+            functions.register(name, adapter.clone())?;
         }
         Ok(functions)
     }
@@ -430,6 +431,7 @@ impl XllHost {
         XllFunction {
             state: self.state.clone(),
             registration,
+            bound: false,
         }
         .invoke_run(arguments)
     }
@@ -455,6 +457,14 @@ impl XllHost {
     pub fn outstanding_native_calls(&self) -> usize {
         self.reap_cancelled_async();
         self.state.borrow().pending_async.len()
+    }
+    pub fn set_rtd_service(&self, service: Rc<dyn crate::RtdService>) -> Result<(), String> {
+        let mut state = self.state.borrow_mut();
+        if state.closed || state.rtd.is_some() {
+            return Err("dc-snz.23: RTD service already set or host closed".into());
+        }
+        state.rtd = Some(service);
+        Ok(())
     }
     /// Return messages only. The composition must resolve each request to its complete
     /// owner-issued P07 token and call HostSession::complete_async before resuming.
@@ -511,6 +521,10 @@ impl XllHost {
         if !self.state.borrow().pending_async.is_empty() {
             return Err("dc-snz.23: XLL removal waits for outstanding native async handles".into());
         }
+        let service = self.state.borrow().rtd.clone();
+        if let Some(service) = service {
+            service.close()?;
+        }
         let modules = self.state.borrow().modules.clone();
         let mut failures = Vec::new();
         for module in modules.iter().rev() {
@@ -541,6 +555,10 @@ impl XllHost {
     }
     fn unload_module(&self, module: &Rc<Module>) -> Result<(), String> {
         self.reap_cancelled_async();
+        let service = self.state.borrow().rtd.clone();
+        if service.is_some_and(|service| service.has_live_servers()) {
+            return Err("dc-snz.23: XLL removal waits for RTD server termination".into());
+        }
         if self.state.borrow().pending_async.values().any(|pending| {
             pending.registration.origin.handle == module.handle
                 || pending.registration.module.handle == module.handle
@@ -597,6 +615,7 @@ impl Drop for XllHost {
 pub(crate) struct XllFunction {
     pub state: Shared,
     pub registration: Rc<Registration>,
+    pub bound: bool,
 }
 impl fmt::Debug for XllFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -1,10 +1,11 @@
 param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))), [switch]$NoTrace, [string]$X1Xll, [string]$HostExecutable,
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
     [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
-    [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal)
+    [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine)
 $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Run with pwsh -Sta -File run.ps1.' }
 if ($ReloadNewHost) { $Reload=$true }
+if ($Engine -and -not $HostExecutable) { throw '-Engine needs -HostExecutable.' }
 if ($ExpectAotReloadRefusal -and ((-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectAotReloadRefusal requires a reload/alias attempt and -HostExecutable.' }
 if ($ExpectXloilReloadRefusal -and ($ExpectAotReloadRefusal -or (-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectXloilReloadRefusal requires a host reload/alias attempt without the AOT expectation.' }
 $expectedRefusal=if($ExpectAotReloadRefusal){'dc-snz.18: reinitializing a packed Native AOT runtime already attempted'}elseif($ExpectXloilReloadRefusal){'dc-snz.21: reopening the measured xlOil 0.22.1 runtime after teardown is not modelled'}else{$null}
@@ -41,11 +42,11 @@ if ($ExcelDnaDirectory) {
 if ($X1Xll -or $ExcelDnaDirectory -or $AddInDirectory) {
     $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     foreach ($directory in 'crates/calc-xll-abi','crates/calc-xll-host','crates/calc-xll-fixture','crates/calc-com-host','platform/calc-xll-shim','apps/dna-calc-desktop','crates/calc-fml','crates/calc-syntax','crates/calc-func','crates/calc-value','apps/dna-onecalc') {
-        Get-ChildItem -LiteralPath (Join-Path $repositoryRoot $directory) -Recurse -File | Where-Object Extension -in '.rs','.toml','.c','.cpp','.rc' | ForEach-Object {
+        Get-ChildItem -LiteralPath (Join-Path $repositoryRoot $directory) -Recurse -File | Where-Object Extension -in '.rs','.toml','.c','.cpp','.rc','.h','.hpp' | ForEach-Object {
             $sourceFiles[[IO.Path]::GetRelativePath($repositoryRoot, $_.FullName).Replace('\','/')] = (Get-FileHash -LiteralPath $_.FullName).Hash
         }
     }
-    foreach ($file in 'Cargo.toml','Cargo.lock') { $sourceFiles[$file]=(Get-FileHash -LiteralPath (Join-Path $repositoryRoot $file)).Hash }
+    foreach ($file in 'Cargo.toml','Cargo.lock','crates/calc-xll-reference/native/owned.cpp','crates/calc-xll-reference/build.ps1') { $sourceFiles[$file]=(Get-FileHash -LiteralPath (Join-Path $repositoryRoot $file)).Hash }
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'fixture') -File | ForEach-Object { $sourceFiles[[IO.Path]::GetRelativePath($repositoryRoot, $_.FullName).Replace('\','/')] = (Get-FileHash -LiteralPath $_.FullName).Hash }
 }
 if ($HostExecutable) {
@@ -69,9 +70,10 @@ if ($HostExecutable) {
         $launch.UseShellExecute=$false; $launch.CreateNoWindow=$true
         $launch.RedirectStandardOutput=$true; $launch.RedirectStandardError=$true
         $arguments = @('--xll',$nativeXll,'--ready',$readyFile,'--wait',$go,'--finished',$done,'--release',$release)
+        if ($Engine) { $arguments += '--engine' }
         if ($ExcelDnaDirectory -or $AddInDirectory) {
             $arguments += @('--cases',$Cases,'--sheet','X0')
-            if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X4\.Py') {
+            if ($XllFileName -ieq 'xlOil.xll' -and (Get-Content -LiteralPath $Cases -Raw) -match 'X[45]\.(Py|Rtd)') {
                 $arguments += @('--startup-ack',(Join-Path $run 'x4-startup-ready'))
             }
             if (-not $AddInDirectory -and $AddInName -eq 'X0') {
@@ -268,7 +270,7 @@ try {
         if (-not $excel.RegisterXLL($xll)) { throw 'Excel refused the selected add-in.' }
         Note 'RegisterXLL managed' $true
         if (-not $AddInDirectory -and $AddInName -eq 'X0') { Note 'RegisterXLL native' ([bool]$excel.RegisterXLL($nativeXll)) }
-        if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X4\.Py') {
+        if ($XllFileName -ieq 'xlOil.xll' -and (Get-Content -LiteralPath $Cases -Raw) -match 'X[45]\.(Py|Rtd)') {
             # The original plugin queues its built-in module import. That import
             # temporarily suppresses Python events, independently of EnableEvents.
             # The fixture acknowledges a delivered AfterCalculate after that
@@ -288,6 +290,7 @@ try {
         }
         $sheet.Range('A1').Value2 = 7
         foreach ($case in (Get-Content -LiteralPath $Cases -Raw | ConvertFrom-Json)) {
+            if ($case.PSObject.Properties['dependent']) { $sheet.Range('C3').Formula2=[string]$case.dependent }
             if ($case.PSObject.Properties['enable_events']) { $excel.EnableEvents=[bool]$case.enable_events }
             if ($case.PSObject.Properties['edit']) { $sheet.Range([string]$case.edit.cell).Value2=[double]$case.edit.value }
             # Assign the formula anchor directly, as the OneCalc controller does.
@@ -297,7 +300,21 @@ try {
                 $deadline=[DateTime]::UtcNow.AddSeconds(60)
                 do { Start-Sleep -Milliseconds 100; $value=$sheet.Range('B3').Value2 } until ($value -eq 42 -or [DateTime]::UtcNow -gt $deadline)
             }
+            if ($case.PSObject.Properties['rtd_wait_value']) {
+                $deadline=[DateTime]::UtcNow.AddSeconds(60)
+                do {
+                    Start-Sleep -Milliseconds 50
+                    try { [void]$excel.Ready; $excel.Calculate(); $value=$sheet.Range('B3').Value2 }
+                    catch { if ($_.Exception.HResult -notin @(-2147418111,-2147417846)) { throw }; Note 'RTD COM retry' $_.Exception.HResult }
+                } until ($value -eq $case.rtd_wait_value -or [DateTime]::UtcNow -gt $deadline)
+                if ($value -ne $case.rtd_wait_value) { throw 'RTD value deadline expired.' }
+            }
             Note ([string]$case.formula) $sheet.Range('B3').Value2
+            if ($case.PSObject.Properties['dependent']) {
+                $dependent=$sheet.Range('C3').Value2
+                Note ('dependent ' + [string]$case.formula) $dependent
+                if ($dependent -ne $case.dependent_value) { throw 'Dependent value differs.' }
+            }
         }
         if (-not $AddInDirectory -and $AddInName -eq 'X0') {
             Note 'Application.Run X0.Queue' $excel.Run('X0.Queue')

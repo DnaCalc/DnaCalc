@@ -175,7 +175,8 @@ static void watchObject(Address p,const std::string& label,const std::string& ki
     method(2,"Release");
     if(kind=="container")method(4,"FindConnectionPoint");
     else if(kind=="point"){method(5,"Advise");method(6,"Unadvise");}
-    else if(kind!="unknown"){method(5,"GetIDsOfNames");method(6,"Invoke");}
+    else if(kind=="classfactory"){method(3,"CreateInstance");method(4,"LockServer");}
+    else if(kind!="unknown"){method(3,"GetTypeInfoCount");method(4,"GetTypeInfo");method(5,"GetIDsOfNames");method(6,"Invoke");}
     auto early=[&](int slot,const char* member,const char* result){Entry e{"COM!early."+kind+"."+member,result};arm(read<Address>(table+8*slot),&e);};
     if(kind=="application" || kind=="workbook" || kind=="workbooks" || kind=="worksheet") {
         early(7,"Application","object1"); early(9,"Parent","object1");
@@ -188,8 +189,11 @@ static void watchObject(Address p,const std::string& label,const std::string& ki
         early(14,"ActiveSheet","object1");early(50,"FullName","bstr2");early(66,"Name","bstr1");early(76,"Path","bstr2");
     } else if(kind=="workbooks") {early(12,"Count","int1");early(13,"Item","object2");}
     else if(kind=="worksheet") early(18,"Name","bstr1");
+    else if(kind=="rtdserver"){early(7,"ServerStart","rtdstart");early(8,"ConnectData","rtdconnect");early(9,"RefreshData","rtdrefresh");early(10,"DisconnectData","rtddisconnect");early(11,"Heartbeat","int1");early(12,"ServerTerminate","rtdterminate");}
+    else if(kind=="rtdsink"){early(7,"UpdateNotify","rtdnotify");early(8,"HeartbeatInterval.get","int1");early(9,"HeartbeatInterval.put","rtdinterval");early(10,"Disconnect","rtdterminate");}
     emit("\"event\":\"com_object\",\"object\":"+hex(p)+",\"label\":"+quote(label)+",\"interface\":"+quote(kind));
 }
+static std::string variantArray(Address p);
 static std::string variant(Address p,int depth=0) {
     if(!p)return "null";
     uint16_t vt=read<uint16_t>(p);Address v=read<Address>(p+8);
@@ -206,10 +210,18 @@ static std::string variant(Address p,int depth=0) {
         case 5:case 7:s+=number(read<double>(p+8));break;
         case 8:s+=v?quote(utf8(wide(v,read<uint32_t>(v-4)/2))):"null";break;
         case 9:case 13:s+=hex(v);break;
+        case 0x200c:s+=variantArray(v);break;
         case 11:s+=read<int16_t>(p+8)?"true":"false";break;
         default:s+="{\"raw_union\":"+hex(v)+"}";
     }
     return s+"}";
+}
+static std::string variantArray(Address p){
+    if(!p)return "null";auto dims=read<uint16_t>(p);auto width=read<uint32_t>(p+4);
+    std::string s="{\"dimensions\":"+std::to_string(dims)+",\"element_bytes\":"+std::to_string(width)+",\"bounds\":[";uint64_t count=1;
+    if(dims<1||dims>2||width!=24)return s+"],\"unsupported\":true}";
+    for(unsigned i=0;i<dims;++i){auto n=read<uint32_t>(p+24+8*i);auto lower=read<int32_t>(p+28+8*i);if(i)s+=",";s+="{\"count\":"+std::to_string(n)+",\"lower\":"+std::to_string(lower)+"}";count*=n;}
+    s+="],\"values\":[";auto data=read<Address>(p+16);for(uint64_t i=0;i<count&&i<4096;++i){if(i)s+=",";s+=variant(data+24*i);}return s+"],\"truncated\":"+(count>4096?"true":"false")+"}";
 }
 
 static bool writeByte(Address p, unsigned char byte) {
@@ -292,7 +304,7 @@ static void addModule(Address base, const std::wstring& path) {
     }
     for (auto& [name,addr]:m.exports) {
         bool watch = name=="MdCallBack12" || name=="xlAutoFree12" || (lower=="xlcall32.dll" && (name=="XLCallVer" || name=="LPenHelper")) ||
-            (lower=="oleacc.dll" && name=="AccessibleObjectFromWindow") ||
+            (lower=="oleacc.dll" && name=="AccessibleObjectFromWindow") || (lower=="xloil.dll"&&name=="DllGetClassObject") ||
             (xll && (name=="xlAutoOpen" || name=="xlAutoClose" || name=="xlAutoRemove" || name=="xlAutoAdd" ||
                 name=="xlAutoFree12" || name=="xlAutoRegister12" || name=="xlAddInManagerInfo12" ||
                 name=="DllGetClassObject" || name=="DllCanUnloadNow" || name=="SyncMacro" ||
@@ -376,10 +388,26 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
         if(!objects.count(ctx.Rcx))return; // Shared vtable code: observe only discovered objects.
         if(read<Address>(ctx.Rcx)!=objectTables[ctx.Rcx])watchObject(ctx.Rcx,"reused COM pointer","dispatch");
         if(entry.name.rfind("COM!early.",0)==0 && entry.name.rfind("COM!early."+interfaces[ctx.Rcx]+".",0)!=0)return;
+        if(entry.name.rfind("COM!early.",0)==0) {
+            // Excel's adjustor thunk can tail-forward to a second watched
+            // vtable body with exactly the same caller/stack frame. Preserve
+            // that identity observation without counting a second API call.
+            size_t count=entry.signature=="object1"||entry.signature=="bstr1"||entry.signature=="int1"||entry.signature=="bool1"?1:entry.signature=="object2"||entry.signature=="bstr2"?2:0;
+            for(auto& active:calls[thread])if(count&&active.entry.name==entry.name&&active.ret==c.ret&&active.stack==c.stack&&std::equal(c.raw.begin()+1,c.raw.begin()+1+count,active.raw.begin()+1)){
+                std::string args="[";for(size_t i=1;i<=count;++i){if(i>1)args+=",";args+=hex(c.raw[i]);}args+="]";
+                emit("\"event\":\"com_tail_forward\",\"call\":"+std::to_string(active.id)+",\"entry\":"+quote(entry.name)+",\"thread\":"+std::to_string(thread)+",\"object\":"+hex(ctx.Rcx)+",\"entry_address\":"+hex(ctx.Rip)+",\"stack\":"+hex(ctx.Rsp)+",\"return\":"+hex(c.ret)+",\"non_this_arguments\":"+args);return;
+            }
+        }
         fields+=",\"object\":"+hex(ctx.Rcx)+",\"object_label\":"+quote(objects[ctx.Rcx]);
         if(entry.name.rfind("COM!early.",0)==0) {
             fields+=",\"result_abi\":"+quote(entry.signature);
+            size_t count=entry.signature=="object1"||entry.signature=="bstr1"||entry.signature=="int1"||entry.signature=="bool1"?1:entry.signature=="object2"||entry.signature=="bstr2"?2:0;
+            if(count){fields+=",\"stack\":"+hex(ctx.Rsp)+",\"return\":"+hex(c.ret)+",\"entry_address\":"+hex(ctx.Rip)+",\"non_this_arguments\":[";for(size_t i=1;i<=count;++i){if(i>1)fields+=",";fields+=hex(c.raw[i]);}fields+="]";}
             if(entry.signature=="putbool") fields+=",\"value\":"+std::string((int16_t)ctx.Rdx?"true":"false");
+            if(entry.signature=="rtdstart"){fields+=",\"callback\":"+hex(ctx.Rdx);watchObject(ctx.Rdx,"RTD update sink","rtdsink");}
+            if(entry.signature=="rtdconnect")fields+=",\"topic\":"+std::to_string((int32_t)ctx.Rdx)+",\"strings\":"+variantArray(read<Address>(ctx.R8))+",\"new_values\":"+std::string(read<int16_t>(ctx.R9)?"true":"false");
+            if(entry.signature=="rtddisconnect")fields+=",\"topic\":"+std::to_string((int32_t)ctx.Rdx);
+            if(entry.signature=="rtdinterval")fields+=",\"value\":"+std::to_string((int32_t)ctx.Rdx);
             if(entry.name=="COM!early.workbooks.Item")fields+=",\"index\":"+variant(ctx.Rdx);
             if(entry.signature=="run") {
                 fields+=",\"arguments\":[";
@@ -387,6 +415,8 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
                 fields+="]";c.run_result=argument(ctx,32);
             }
         }else if(entry.name=="COM!QueryInterface")fields+=",\"iid\":"+quote(guid(ctx.Rdx));
+        else if(entry.name=="COM!CreateInstance")fields+=",\"iid\":"+quote(guid(ctx.R8));
+        else if(entry.name=="COM!GetTypeInfo")fields+=",\"index\":"+std::to_string((uint32_t)ctx.Rdx)+",\"lcid\":"+std::to_string((uint32_t)ctx.R8);
         else if(entry.name=="COM!GetIDsOfNames") {
             if(interfaces[ctx.Rcx]=="container"||interfaces[ctx.Rcx]=="point")return;
             fields+=",\"names\":[";
@@ -414,6 +444,8 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
         }else if(entry.name=="COM!FindConnectionPoint")fields+=",\"iid\":"+quote(guid(ctx.Rdx));
         else if(entry.name=="COM!Advise"){fields+=",\"sink\":"+hex(ctx.Rdx);watchObject(ctx.Rdx,"AppEvents sink","unknown");}
         else if(entry.name=="COM!Unadvise")fields+=",\"cookie\":"+std::to_string((uint32_t)ctx.Rdx);
+    }else if(entry.name.find("!DllGetClassObject")!=std::string::npos) {
+        fields+=",\"clsid\":"+quote(guid(ctx.Rcx))+",\"iid\":"+quote(guid(ctx.Rdx));
     }else if(entry.name.find("!AccessibleObjectFromWindow")!=std::string::npos) {
         fields+=",\"hwnd\":"+hex(ctx.Rcx)+",\"object_id\":"+std::to_string((int32_t)ctx.Rdx)+",\"iid\":"+quote(guid(ctx.R8));
     }else if(entry.name.find("!LPenHelper")!=std::string::npos) {
@@ -432,7 +464,8 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
 }
 static void leave(const Call& c,const CONTEXT& ctx) {
     std::string fields="\"event\":\"leave\",\"call\":"+std::to_string(c.id)+",\"thread\":"+std::to_string(c.thread)+",\"entry\":"+quote(c.entry.name)+",\"elapsed_qpc\":"+std::to_string(ticks()-c.started)+",\"rax\":"+hex(ctx.Rax);
-    if(c.entry.name.find("!AccessibleObjectFromWindow")!=std::string::npos) {
+    if(c.entry.name.find("!DllGetClassObject")!=std::string::npos){fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);if((int32_t)ctx.Rax>=0)watchObject(read<Address>(c.raw[2]),"RTD class factory","classfactory");
+    }else if(c.entry.name.find("!AccessibleObjectFromWindow")!=std::string::npos) {
         fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax)+",\"object\":"+hex(read<Address>(c.raw[3]));
         if((int32_t)ctx.Rax>=0)watchObject(read<Address>(c.raw[3]),"AccessibleObjectFromWindow");
     }else if(c.entry.name.rfind("COM!",0)==0) {
@@ -457,6 +490,14 @@ static void leave(const Call& c,const CONTEXT& ctx) {
                 } else if(abi=="int1")fields+=",\"value\":"+std::to_string(read<int32_t>(out));
                 else if(abi=="bool1")fields+=",\"value\":"+std::string(read<int16_t>(out)?"true":"false");
                 else if(abi=="run")fields+=",\"result\":"+variant(c.run_result);
+                else if(abi=="rtdstart")fields+=",\"started\":"+std::to_string(read<int32_t>(c.raw[2]));
+                else if(abi=="rtdconnect")fields+=",\"result\":"+variant(c.raw[4])+",\"new_values\":"+std::string(read<int16_t>(c.raw[3])?"true":"false");
+                else if(abi=="rtdrefresh")fields+=",\"count\":"+std::to_string(read<int32_t>(c.raw[1]))+",\"data\":"+variantArray(read<Address>(c.raw[2]));
+            }else if(kind=="COM!GetTypeInfoCount")fields+=",\"count\":"+std::to_string(read<uint32_t>(c.raw[1]));
+            else if(kind=="COM!GetTypeInfo")fields+=",\"type_info\":"+hex(read<Address>(c.raw[3]));
+            else if(kind=="COM!CreateInstance"){
+                auto iid=guid(c.raw[2]);auto object=read<Address>(c.raw[3]);fields+=",\"object\":"+hex(object);
+                watchObject(object,"RTD server",iid=="ec0e6191-db51-11d3-8f3e-00c04f3651b8"?"rtdserver":iid=="00020400-0000-0000-c000-000000000046"?"dispatch":"unknown");
             }else if(kind=="COM!GetIDsOfNames") {
                 fields+=",\"dispids\":[";
                 for(size_t i=0;i<c.names.size();++i){int32_t id=read<int32_t>(c.raw[5]+i*4);members[{c.raw[0],id}]=c.names[i];if(i)fields+=",";fields+=std::to_string(id);}fields+="]";
@@ -474,6 +515,8 @@ static void leave(const Call& c,const CONTEXT& ctx) {
                 else if(iid=="000208db-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"workbooks");
                 else if(iid=="000208d8-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"worksheet");
                 else if(iid=="00020846-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"range");
+                else if(iid=="ec0e6191-db51-11d3-8f3e-00c04f3651b8")watchObject(p,objects[c.raw[0]],"rtdserver");
+                else if(iid=="a43788c1-d91b-11d3-8f39-00c04f3651b8")watchObject(p,objects[c.raw[0]],"rtdsink");
                 else watchObject(p,objects[c.raw[0]],"unknown");
             }else if(kind=="COM!FindConnectionPoint")watchObject(read<Address>(c.raw[2]),objects[c.raw[0]]+".ConnectionPoint","point");
             else if(kind=="COM!Advise"){
@@ -575,7 +618,15 @@ static bool breakpoint(DWORD thread,Address addr) {
         }
     }
     // One machine address can be re-registered under a new name. Latest registration wins.
-    if(!found->second.entries.empty()) enter(found->second.entries.back(),thread,ctx);
+    if(!found->second.entries.empty()) {
+        const Entry* selected=&found->second.entries.back();
+        if(selected->name.rfind("COM!early.",0)==0) {
+            auto prefix="COM!early."+interfaces[ctx.Rcx]+".";
+            for(auto it=found->second.entries.rbegin();it!=found->second.entries.rend();++it)
+                if(it->name.rfind(prefix,0)==0){selected=&*it;break;}
+        }
+        enter(*selected,thread,ctx);
+    }
     suspendOthers(thread);
     if(!writeByte(addr,found->second.original))healthy=false;
     found->second.enabled=false; stepping[thread]=addr;

@@ -3192,6 +3192,9 @@ struct UserCallContext<'b, 'a, 'r> {
 }
 
 impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
+    fn callable_identity(&self) -> Option<calc_func::UserCallableIdentity> {
+        Some(self.callable)
+    }
     fn rtd_value(&mut self, subscription: u64) -> Result<Option<(u64, CalcValue)>, String> {
         let Some(inputs) = self.run.external_inputs else {
             return Err(self.refuse_by("RTD input without an admitted input view", "dc-hsa5.4"));

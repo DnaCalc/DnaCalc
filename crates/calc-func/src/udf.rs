@@ -160,6 +160,10 @@ pub trait UserFunction: fmt::Debug {
 /// adapters can retain reference identities, and must read their values through this context.
 pub trait UserFunctionContext {
     fn caller(&self) -> Option<CellKey>;
+    /// Exact provider generation admitted for this invocation, after table replacement.
+    fn callable_identity(&self) -> Option<UserCallableIdentity> {
+        None
+    }
     fn rtd_value(&mut self, _subscription: u64) -> Result<Option<(u64, CalcValue)>, String> {
         Err(self.refuse_by("RTD input without an admitted input view", "dc-hsa5.4"))
     }

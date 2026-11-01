@@ -116,6 +116,18 @@ impl XllFunction {
         if self.state.borrow().thread != unsafe { GetCurrentThreadId() } {
             return Err("dc-snz.2: XLL calls require the owning main lane in X1".into());
         }
+        if self.bound
+            && let Some(context) = context.as_mut()
+            && let Some(provider) = context.callable_identity()
+            && let Some(caller) = context.caller()
+        {
+            let service = self.state.borrow().rtd.clone();
+            if let Some(service) = service {
+                for subscription in service.subscriptions(provider, caller) {
+                    context.rtd_value(subscription)?;
+                }
+            }
+        }
         if signature.volatile {
             if let Some(context) = &mut context {
                 context.set_volatile(true);
@@ -188,12 +200,18 @@ impl XllFunction {
             }
         }
         let sheet = current_sheet(&context);
+        let provider = if self.bound {
+            context.as_ref().and_then(|c| c.callable_identity())
+        } else {
+            None
+        };
         let mut frame = Frame {
             state: self.state.clone(),
             module: r.module.clone(),
             origin: r.origin.clone(),
             context,
             signature: (!as_run && r.info.macro_type != 2).then(|| signature.clone()),
+            provider,
         };
         let guard = unsafe { callbacks::enter(&mut frame) };
         let mut returned = Returned::default();

@@ -18,9 +18,25 @@ mod worker;
 #[cfg(windows)]
 pub use calc_fml::reference::format_workbook_sheet_qualifier;
 #[cfg(windows)]
+pub use calc_func::UserCallableIdentity as RtdProvider;
+#[cfg(windows)]
 pub use callbacks::dispatch;
 #[cfg(windows)]
 pub use native::{AsyncReturn, RegistrationInfo, XllHost};
+/// Owning-STA service; RTD returns admitted inputs, never an async call result.
+#[cfg(windows)]
+pub trait RtdService {
+    fn subscribe(
+        &self,
+        provider: RtdProvider,
+        caller: calc_value::CellKey,
+        progid: &str,
+        topics: &[String],
+    ) -> Result<u64, String>;
+    fn close(&self) -> Result<(), String>;
+    fn subscriptions(&self, provider: RtdProvider, caller: calc_value::CellKey) -> Vec<u64>;
+    fn has_live_servers(&self) -> bool;
+}
 
 #[cfg(not(windows))]
 pub struct XllHost;

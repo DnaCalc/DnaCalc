@@ -1,4 +1,4 @@
-param([switch]$NativeOnly, [switch]$X2, [switch]$X3, [string]$UpstreamDirectory, [string]$OutputDirectory)
+param([switch]$NativeOnly, [switch]$X2, [switch]$X3, [switch]$X5, [string]$UpstreamDirectory, [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $out = if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $root 'build'}
@@ -13,6 +13,9 @@ $obj = Join-Path $out 'trace.obj'
 $ownedSource = Join-Path $root 'native/owned.cpp'
 $ownedObj = Join-Path $out 'owned.obj'
 $ownedXll = Join-Path $out 'NativeOwner64.xll'
+$rtdObj=Join-Path $out 'rtd-owned.obj'
+$rtdXll=Join-Path $out 'X5Native64.xll'
+$rtdCommand=if($X5){"if errorlevel 1 exit /b 1`r`ncl /nologo /std:c++17 /EHsc /W4 /O2 /LD /DDNA_X5_RTD /DUNICODE /D_UNICODE `"$ownedSource`" /Fo`"$rtdObj`" /Fe`"$rtdXll`" /link /INCREMENTAL:NO /EXPORT:DllGetClassObject /EXPORT:DllCanUnloadNow ole32.lib oleaut32.lib advapi32.lib uuid.lib"}else{''}
 $buildCommand = Join-Path $out 'compile.cmd'
 @"
 @echo off
@@ -22,6 +25,7 @@ if errorlevel 1 exit /b 1
 cl /nologo /std:c++17 /EHsc /W4 /O2 /DUNICODE /D_UNICODE "$source" /Fo"$obj" /Fe"$exe" /link /INCREMENTAL:NO
 if errorlevel 1 exit /b 1
 cl /nologo /std:c++17 /EHsc /W4 /O2 /LD /DUNICODE /D_UNICODE "$ownedSource" /Fo"$ownedObj" /Fe"$ownedXll" /link /INCREMENTAL:NO
+$rtdCommand
 "@ | Set-Content -LiteralPath $buildCommand -Encoding ascii
 & cmd.exe /d /c $buildCommand
 if ($LASTEXITCODE -ne 0) { throw 'Native tracer build failed.' }

@@ -186,6 +186,7 @@ pub(crate) fn submit(
                     workers: None,
                     pending_async: BTreeMap::new(),
                     async_continuations: false,
+                    rtd: None,
                 }));
                 let cif = crate::invoke::call_interface(&info.signature);
                 let registration = Rc::new(Registration {
@@ -198,6 +199,7 @@ pub(crate) fn submit(
                 let adapter = XllFunction {
                     state: state.clone(),
                     registration,
+                    bound: false,
                 };
                 let mut reader = Reader {
                     sender: sender.clone(),

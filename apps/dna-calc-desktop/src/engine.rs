@@ -7,6 +7,7 @@ use calc_host::{
 use calc_value::{CalcValue, CellKey};
 use calc_xll_host::XllHost;
 use std::{
+    collections::BTreeSet,
     path::PathBuf,
     rc::Rc,
     sync::Arc,
@@ -24,6 +25,22 @@ fn enter(book: &mut HostSession, at: CellKey, text: &str) -> Result<(), String> 
         Err(format!("cell entry refused: {:?}", receipt.error))
     }
 }
+fn retire_rtd(
+    book: &mut HostSession,
+    rtd: &calc_com_host::RtdClient,
+    providers: &BTreeSet<calc_xll_host::RtdProvider>,
+    at: CellKey,
+    retired: &mut Vec<serde_json::Value>,
+) -> Result<(), String> {
+    for (provider, subscription) in rtd.disconnect_caller(providers, at)? {
+        let disposition = book.retire_rtd(provider, subscription);
+        if disposition != calc_host::RtdDisposition::Accepted {
+            return Err(format!("RTD disconnect was not admitted: {disposition:?}"));
+        }
+        retired.push(serde_json::json!({"provider":format!("{provider:?}"),"subscription":subscription,"disposition":format!("{disposition:?}")}));
+    }
+    Ok(())
+}
 fn value(book: &HostSession, at: CellKey) -> Result<(CalcValue, serde_json::Value), String> {
     let page = calc_host::project(book.host(), &ProjectionRequest { cells: vec![at] })
         .map_err(|e| e.to_string())?;
@@ -38,6 +55,7 @@ fn value(book: &HostSession, at: CellKey) -> Result<(CalcValue, serde_json::Valu
                 "invocations":stamp.reads.invocations.len(),
                 "cooperative_invocations":stamp.reads.invocations.iter().filter(|i|!i.non_preemptible).count(),
                 "completed_invocations":stamp.reads.invocations.iter().filter(|i|i.completed).count(),
+                "rtd_inputs":stamp.reads.external_inputs.iter().map(|read|serde_json::json!({"provider":format!("{:?}",read.key.callable),"subscription":read.key.subscription,"sequence":read.sequence})).collect::<Vec<_>>(),
                 "pass_reason":format!("{:?}",stamp.certification.pass.reason)}),
             ))
         }
@@ -71,7 +89,15 @@ pub fn run(
     native.set_sheet(sheet, format!("[Book1]{sheet_name}"), true);
     shell.projection()?.set_sheet(sheet_name)?;
     native.set_async_continuations(true)?;
+    let rtd = Rc::new(calc_com_host::RtdClient::new()?);
+    native.set_rtd_service(rtd.clone())?;
     book.set_user_functions(native.functions()?);
+    let bindings = book.host().user_function_bindings();
+    let providers = native
+        .registrations()
+        .iter()
+        .filter_map(|r| bindings.bind(None, &r.name))
+        .collect::<BTreeSet<_>>();
     book.set_calculation_budget(WorkBudget::evaluations(1));
     let a = CellKey::new(sheet, 1, 1).unwrap();
     let b = CellKey::new(sheet, 3, 2).unwrap();
@@ -85,12 +111,16 @@ pub fn run(
     let mut results = Vec::new();
     let mut returns = Vec::new();
     let mut revoked = Vec::new();
+    let mut rtd_updates = Vec::new();
+    let mut rtd_retired = Vec::new();
     for case in cases {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
         if let Some(dependent) = case["dependent"].as_str() {
             enter(&mut book, c, dependent)?;
+            retire_rtd(&mut book, &rtd, &providers, c, &mut rtd_retired)?;
         }
         enter(&mut book, b, formula)?;
+        retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
         // Separate workbook commands retain separate read views and activations.
         // This lets the owner interleave them without moving either evaluator.
         let mut concurrent = if let Some(formula) = case["concurrent_formula"].as_str() {
@@ -115,6 +145,21 @@ pub fn run(
         let deadline = Instant::now() + Duration::from_secs(20);
         let mut replaced = false;
         loop {
+            for input in rtd.poll()? {
+                let disposition = book.update_rtd(
+                    input.provider,
+                    input.subscription,
+                    input.sequence,
+                    input.value.clone(),
+                );
+                if disposition != calc_host::RtdDisposition::Accepted {
+                    return Err(format!("RTD input was not admitted: {disposition:?}"));
+                }
+                rtd_updates.push(serde_json::json!({"provider":format!("{:?}",input.provider),"subscription":input.subscription,"sequence":input.sequence,"value":crate::value_json(&input.value),"disposition":format!("{disposition:?}")}));
+                // This controller explicitly requests a new manual command.
+                // The notification itself never completes an activation.
+                book.dispatch(SkinIntent::Recalculate);
+            }
             // The complete token, including workbook/target/provider generations,
             // comes from CalcHost. A native request number alone never publishes.
             for returned in native.take_async_returns() {
@@ -148,6 +193,7 @@ pub fn run(
                 && let Some(token) = book.host().pending_async().first().cloned()
             {
                 enter(&mut book, b, replacement)?;
+                retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
                 book.dispatch(SkinIntent::Recalculate);
                 let disposition = book.complete_async(&token, CalcValue::number(-123.));
                 if disposition
@@ -163,6 +209,15 @@ pub fn run(
             if !book.has_pending_calculation()
                 && book.host().pending_async().is_empty()
                 && native.outstanding_native_calls() == 0
+                && case.get("rtd_wait_value").is_none_or(|expected| {
+                    value(&book, b).is_ok_and(|(actual, _)| {
+                        let actual = crate::value_json(&actual);
+                        actual == *expected
+                            || actual.is_number()
+                                && expected.is_number()
+                                && actual.as_f64() == expected.as_f64()
+                    })
+                })
                 && concurrent.as_ref().is_none_or(|(peer, _)| {
                     !peer.has_pending_calculation() && peer.host().pending_async().is_empty()
                 })
@@ -242,7 +297,7 @@ pub fn run(
         return Err("removed native entry still executes".into());
     }
     Ok(
-        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"results":results,"async_returns":returns,"revoked_tokens":revoked,
+        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"results":results,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),
         "reload_results":[],"commands":[],"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
     )
 }

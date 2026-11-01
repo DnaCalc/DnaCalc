@@ -9,3 +9,7 @@ compile_error!("calc-com-host supports Windows x64 only");
 mod projection;
 #[cfg(windows)]
 pub use projection::Projection;
+#[cfg(windows)]
+mod rtd;
+#[cfg(windows)]
+pub use rtd::{RtdClient, RtdInput};

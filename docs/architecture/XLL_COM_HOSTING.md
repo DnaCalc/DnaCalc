@@ -588,3 +588,34 @@ hung task. Unsupported ABI failures remain typed refusals through IFERROR.
 An overwrite case checks P07 token revocation, the delayed native return code256,
 and the replacement cell/dependent values. RTD client integration and the broader
 Excel callback permission matrix are still open under dc-snz.23.
+
+## 15. RTD numeric inputs on P07 (dc-snz.23)
+
+The native COM client implements the measured Excel IRTDUpdateEvent IID and calls
+IRtdServer on the owning STA. UpdateNotify only sets an atomic notice; the owner
+polls RefreshData and copies scalar values. Initial and refreshed inputs pass
+through CalcHost.update_rtd with the exact callable generation, subscription and
+monotonic sequence. The desktop controller explicitly requests another manual
+calculation after admitting an input. Existing subscriptions remain declared reads
+when an add-in returns a cached value. A formula replacement retires its topics
+after the edit succeeds. RTD never completes a parked native async invocation.
+
+The client only reads ProgID mappings and registers no class. Its callback owns
+independent notification state, including after disconnection. Close runs before
+XLL teardown; public module removal refuses while RTD servers remain. A failed
+start/termination keeps the failure and native server/module leases until process
+exit, so repeating close cannot convert it to success.
+
+The existing native ownership fixture has an optional controlled numeric RTD
+server and callback-permission functions. That test server creates unique private
+HKCU DnaCalc.X5 classes, rolls back failed setup, and removes its own keys on close.
+It never changes Excel registrations. Numeric controls produce55 and dependent110
+from admitted values1 and42; the final certificate retains sequence2. Replacing
+the formula produces99/dependent198 and disconnects the subscription. Excel uses
+IDispatch for this server; the host uses its early-bound interface. Traced protocol
+comparison and the callback-permission matrix remain separate evidence work.
+
+Empty RTD values are currently refused. Original xlOil Python uses empty RTD
+signals and a separate Python result cache; a numeric coincidence of55 without a
+retained RTD read was a failed qualification. Arrays, remote servers, nontext
+topics, general signaling-cache providers and arbitrary RTD teardown are open.
