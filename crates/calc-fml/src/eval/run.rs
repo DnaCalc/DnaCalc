@@ -189,6 +189,7 @@ struct PendingCall {
 struct PendingUserCall {
     callable: crate::CallableHandle,
     cached: bool,
+    provisional_arguments: Vec<GridArea>,
     reevaluation: Option<calc_func::UserReevaluationReason>,
     activation: Box<dyn calc_func::UserFunctionInvocation>,
     frame: calc_func::UserInvocationFrame,
@@ -609,7 +610,16 @@ impl Run<'_, '_> {
                 index
             });
             let cached = function.cached_reads();
+            let provisional_arguments: Vec<GridArea> = arguments
+                .iter()
+                .flat_map(|value| match value.core_ref() {
+                    CoreRef::Reference(reference) => reference.areas(),
+                    _ => &[],
+                })
+                .copied()
+                .collect();
             let mut context = UserCallContext {
+                provisional_arguments: &provisional_arguments,
                 cached,
                 reevaluation,
                 run: self,
@@ -627,6 +637,7 @@ impl Run<'_, '_> {
                     *pending = Some(Box::new(PendingUserCall {
                         callable: handle,
                         cached,
+                        provisional_arguments,
                         reevaluation,
                         activation,
                         frame,
@@ -645,6 +656,7 @@ impl Run<'_, '_> {
                     let result = match other {
                         Ok(None) => {
                             let mut context = UserCallContext {
+                                provisional_arguments: &provisional_arguments,
                                 cached,
                                 reevaluation,
                                 run: self,
@@ -683,6 +695,7 @@ impl Run<'_, '_> {
             return Ok(false);
         }
         let mut context = UserCallContext {
+            provisional_arguments: &call.provisional_arguments,
             callable: call.callable,
             async_result: call
                 .external
@@ -3020,6 +3033,7 @@ mod tests {
 
 struct UserCallContext<'b, 'a, 'r> {
     callable: crate::CallableHandle,
+    provisional_arguments: &'b [GridArea],
     reevaluation: Option<calc_func::UserReevaluationReason>,
     async_result: Option<(u64, CalcValue)>,
     cached: bool,
@@ -3208,7 +3222,25 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         })
         .values_of(reference)
         {
-            Ok(value) => Ok(value),
+            Ok(value) => {
+                // A failed cached read stays a fault; only an actual successful observation
+                // can request a second semantic entry around an admitted producer.
+                if self.cached
+                    && self.reevaluation
+                        == Some(calc_func::UserReevaluationReason::ProvisionalArguments)
+                    && reference.areas().iter().all(|read| {
+                        self.provisional_arguments.iter().any(|argument| {
+                            argument.contains(read.first()) && argument.contains(read.last())
+                        })
+                    })
+                    && self.run.reader.provisional_argument_pending(reference)
+                {
+                    self.request_reevaluation(
+                        calc_func::UserReevaluationReason::ProvisionalArguments,
+                    )?;
+                }
+                Ok(value)
+            }
             Err(fault) => {
                 let text = format!("{fault:?}");
                 self.fault.get_or_insert(fault);

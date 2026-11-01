@@ -12,6 +12,14 @@ pub(crate) fn calculation_script() -> String {
             "$PURE_SCOPE",
             &serde_json::to_string(seven_cell::PURE_SCOPE).expect("the scope serializes"),
         )
+        .replace(
+            "$P03_VBA_SOURCE",
+            &serde_json::to_string(seven_cell::P03_VBA_SOURCE).expect("VBA source serializes"),
+        )
+        .replace(
+            "$P03_RANGE_CASES",
+            &serde_json::to_string(seven_cell::P03_RANGE_CASES).expect("P03 cases serialize"),
+        )
 }
 
 pub(crate) fn alignment(bytes: &[u8]) -> Result<Vec<u8>, String> {

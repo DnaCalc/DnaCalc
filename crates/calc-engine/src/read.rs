@@ -1336,10 +1336,107 @@ impl ReferenceReader for WorkbookReader<'_> {
     fn pending_producer(&self, at: CellKey) -> bool {
         self.uncomputed.get().is_some_and(|(cell, node)| {
             cell == at
-                && !matches!(self.view.state.bindings.get(&node), Some(crate::state::Binding::Refused(_)) | None)
+                && !matches!(
+                    self.view.state.bindings.get(&node),
+                    Some(crate::state::Binding::Refused(_)) | None
+                )
                 && self.view.progress.is_scheduled(node)
                 && !self.view.progress.is_evaluated(node)
         })
+    }
+
+    fn provisional_argument_pending(&self, reference: &calc_fml::value::ReferenceLike) -> bool {
+        if self.view.cached_observation {
+            return false;
+        }
+        let pending = |node| {
+            self.view.progress.is_scheduled(node)
+                && !self.view.progress.is_evaluated(node)
+                && !self
+                    .view
+                    .iterates
+                    .is_some_and(|iterates| iterates.contains_key(&node))
+                && !matches!(
+                    self.view.state.bindings.get(&node),
+                    Some(crate::state::Binding::Refused(_)) | None
+                )
+        };
+        let mut found = None;
+        for &area in reference.areas() {
+            found = self.view.state.anchors_in(area).find_map(|at| {
+                let node = self.view.state.node_at(at)?;
+                pending(node).then_some((at, node))
+            });
+            if found.is_none() {
+                // Before its first stage a dirty producer still owns its retained published
+                // or complete imported footprint. A child has no anchor of its own.
+                found = self
+                    .view
+                    .state
+                    .spills
+                    .meeting(area)
+                    .into_iter()
+                    .chain(self.view.spills.meeting(area))
+                    .chain(
+                        self.view
+                            .boundary_caches
+                            .into_iter()
+                            .flat_map(|pin| pin.spills.meeting(area)),
+                    )
+                    .find_map(|spill| {
+                        let node = self.view.state.node_at(spill.anchor())?;
+                        pending(node)
+                            .then(|| {
+                                area.intersection(spill.area())
+                                    .map(|part| (part.first(), node))
+                            })
+                            .flatten()
+                    });
+            }
+            if found.is_none() {
+                found = self
+                    .view
+                    .state
+                    .cached_arrays
+                    .iter()
+                    .find_map(|(&node, spill)| {
+                        pending(node)
+                            .then(|| {
+                                area.intersection(spill.area())
+                                    .map(|part| (part.first(), node))
+                            })
+                            .flatten()
+                    });
+            }
+            if found.is_none() {
+                found = self
+                    .view
+                    .progress
+                    .footprints
+                    .iter()
+                    .find_map(|(&node, &footprint)| {
+                        pending(node)
+                            .then(|| {
+                                area.intersection(footprint)
+                                    .map(|part| (part.first(), node))
+                            })
+                            .flatten()
+                    });
+            }
+            if found.is_some() {
+                break;
+            }
+        }
+        if let Some(producer) = found {
+            if self.uncomputed.get().is_none() {
+                self.uncomputed.set(Some(producer));
+            }
+            return self
+                .uncomputed
+                .get()
+                .is_some_and(|(at, _)| self.pending_producer(at));
+        }
+        false
     }
 
     fn read_denial(&self) -> Option<calc_fml::ReadDenial> {

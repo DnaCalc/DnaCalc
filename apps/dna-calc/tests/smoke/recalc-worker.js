@@ -323,6 +323,50 @@ return (async function () {
     require(output(1, 5)?.text === "1", "VBA reload did not start fresh project state");
     const vbaWitness = { targets: vbaReceipt.calculated, yielded: vbaYield, pong: vbaPong,
       completed: vbaComplete, old_cache: "2", entries: "1", reload: output(1, 4)?.text };
+    const provisionalRanges = [];
+    const rangeSource = $P03_VBA_SOURCE;
+    for (const [formula, producer, seed, expected, stats, reevaluations] of $P03_RANGE_CASES) {
+      const name = "P03 Range " + provisionalRanges.length;
+      await intent({ EditSheet: { sheet: null, change: { Add: { name } } } });
+      sheet = summary.sheets.find(([, title]) => title === name)[0];
+      await command({ LoadVbaModule: { name: "ProvisionalRange", source: rangeSource, max_steps: 100000 } });
+      for (const [col, text] of [[2, formula], [3, "=B1+1"]]) {
+        await intent({ EnterCell: { at: key(1, col), text } });
+      }
+      if (seed != null) {
+        await intent({ EnterCell: { at: key(1, 6), text: "1" } });
+        await intent({ EnterCell: { at: key(1, 4), text: "=" + seed } });
+        const seedDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+        seedDone.catch(() => {});
+        await intent({ CalculateRange: { areas: [area(1, 4)] } });
+        require((await seedDone).calculated === 1, "the retained spill control was not calculated");
+        await intent({ EnterCell: { at: key(1, 6), text: "20" } });
+      } else { await intent({ EnterCell: { at: key(1, 4), text: "=" + producer } }); }
+      await send({ SetInterest: { id: 1, workbook: summary.workbook,
+        interest: { Areas: [area(1, 2, 1, 4), area(1, 26)] } } });
+      const start = trace.length;
+      const rangeDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+      rangeDone.catch(() => {});
+      await intent({ CalculateRange: { areas: [area(1, 2, 1, 4)] } });
+      const rangeReceipt = await rangeDone;
+      require(rangeReceipt.outcome === "Complete" && rangeReceipt.calculated === 3 && rangeReceipt.refused === 0,
+        "the provisional Range command lost its three-target coverage");
+      require(output(1, 2)?.text === String(expected) && output(1, 3)?.text === String(expected + 1),
+        "the Range read did not calculate its final value and consumer: " + formula);
+      const repeated = trace.slice(start).filter((event) => event.Reevaluated).length;
+      require(repeated === reevaluations, "Range semantic reevaluation count differs: " + formula);
+      await intent({ EnterCell: { at: key(1, 26), text: "=EntryStats()" } });
+      const statsDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+      statsDone.catch(() => {});
+      await intent({ CalculateRange: { areas: [area(1, 26)] } });
+      const statsReceipt = await statsDone;
+      require(statsReceipt.outcome === "Complete" && statsReceipt.calculated === 1 && statsReceipt.refused === 0,
+        "the Range counter command did not complete its one target");
+      require(output(1, 26)?.text === String(stats), "Range entry/Empty-read counters differ: " + formula);
+      provisionalRanges.push({ formula, value: String(expected), entry_stats: output(1, 26)?.text,
+        reevaluations: repeated });
+    }
+    vbaWitness.provisional_ranges = provisionalRanges;
     sheet = fixtureSheet;
     // Exercise Save/Open over transferred package bytes, through the product worker itself.
     for (const [col, text] of [[17, "1"], [18, "=Q1*2"], [19, "=R1+1"]]) {

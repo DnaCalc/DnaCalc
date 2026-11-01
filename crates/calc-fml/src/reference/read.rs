@@ -15,6 +15,13 @@ pub trait ReferenceReader {
         false
     }
 
+    /// Notes an actual value read of an explicit reference argument. A positive answer
+    /// identifies an admitted unfinished producer for semantic reevaluation; it reads no
+    /// value and must not admit out-of-scope or terminal-unavailable work.
+    fn provisional_argument_pending(&self, _reference: &calc_func::value::ReferenceLike) -> bool {
+        false
+    }
+
     fn read_denial(&self) -> Option<crate::ReadDenial>;
     /// Records a host question without demanding the cell's value. Metadata reads retain their
     /// own facets and invalidation policy through a value overlay.
