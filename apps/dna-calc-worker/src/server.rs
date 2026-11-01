@@ -1,6 +1,6 @@
 //! The workbook's server (dc-p96): one open [`Workbook`] and the page's subscriptions to it,
 //! answering [`Request`]s and turning calc-host's deltas into the cells the page shows
-//! ([`Event::Cells`]). The calculation worker owns one ([`crate::worker`]); native composition
+//! ([`Event::Tiles`]). The calculation worker owns one ([`crate::worker`]); native composition
 //! injects the same route through [`crate::transport::InProcessTransport`].
 //!
 //! A cell crosses as the page shows it: the server works out its text in its number format and
@@ -10,8 +10,8 @@
 
 use crate::cells;
 use crate::wire::{
-    self, Area, Cells, Chart, ChartPlace, Event, Intent, Interest, Key, Outcome, Reply, Request,
-    Sheet, Summary, Validation,
+    self, Area, Chart, ChartPlace, Event, Intent, Interest, Key, Outcome, Reply, Request, Sheet,
+    Summary, Validation,
 };
 use crate::workbook::Workbook;
 use calc_host::value::{CellKey, GridArea};
@@ -36,6 +36,8 @@ pub struct Server {
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
     events: Vec<Event>,
+    tile_streams: BTreeMap<u64, crate::publication::TileStream>,
+    next_publication: u64,
     snapshots: BTreeMap<u64, calc_host::CopySnapshot>,
     next_clip: u64,
     clipboard_session: String,
@@ -59,6 +61,8 @@ impl Server {
             book,
             subscriptions: BTreeMap::new(),
             events: Vec::new(),
+            tile_streams: BTreeMap::new(),
+            next_publication: 1,
             snapshots: BTreeMap::new(),
             next_clip: 1,
             clipboard_session: crate::services::session_nonce(),
@@ -293,10 +297,17 @@ impl Server {
                 }
                 Request::Intent(intent) => self.intent(intent),
                 Request::Subscribe { id, interest } => {
+                    if self.subscriptions.contains_key(&id) {
+                        return Err("Subscription identity is already in use".into());
+                    }
+                    if self.subscriptions.len() >= wire::MAX_SUBSCRIPTIONS {
+                        return Err("Too many tile subscriptions".into());
+                    }
                     let interest = host_interest(interest)?;
                     match self.book.subscribe(interest) {
                         Ok(host) => {
                             self.subscriptions.insert(id, host);
+                            self.tile_streams.insert(id, Default::default());
                             Ok(Reply::Subscribed)
                         }
                         Err(error) => Err(error.to_string()),
@@ -312,39 +323,29 @@ impl Server {
                     });
                     Ok(Reply::Subscribed)
                 }
+                Request::TileAck(barrier) => {
+                    if barrier.workbook == self.workbook {
+                        if let Some(stream) = self.tile_streams.get_mut(&barrier.id) {
+                            stream.acknowledge(barrier);
+                        }
+                    }
+                    Ok(Reply::Subscribed)
+                }
+                Request::ResetTiles { id } => {
+                    self.tile_streams
+                        .get_mut(&id)
+                        .ok_or("No such tile subscription")?
+                        .reset();
+                    Ok(Reply::Subscribed)
+                }
                 Request::Unsubscribe { id } => {
+                    self.tile_streams.remove(&id);
                     if let Some(host) = self.subscriptions.remove(&id) {
                         self.book.unsubscribe(host);
                     }
                     Ok(Reply::Subscribed)
                 }
-                Request::Geometry(sheet) => {
-                    let mut geometry = self
-                        .book
-                        .host()
-                        .sheet_geometry(sheet.id())
-                        .map(|g| wire::geometry_of(&g))
-                        .unwrap_or_default();
-                    if let Some(panes) = self
-                        .book
-                        .host()
-                        .model()
-                        .definitions()
-                        .frozen_panes(sheet.id())
-                    {
-                        geometry.frozen_rows = panes.rows();
-                        geometry.frozen_columns = panes.columns();
-                    }
-                    if let Some(view) = self.book.host().sheet_view(sheet.id()) {
-                        geometry.top_left = view.top_left;
-                        geometry.pane_top_left = view.pane_top_left;
-                        geometry.active_cell = view.active_cell;
-                        geometry.active_pane = view.active_pane;
-                        geometry.split = view.split;
-                        geometry.split_window = view.split_window;
-                    }
-                    Ok(Reply::Geometry(geometry))
-                }
+                Request::Geometry(sheet) => Ok(Reply::Geometry(self.geometry(sheet))),
                 Request::UsedArea(sheet) => Ok(Reply::UsedArea(
                     self.book.used_area(sheet.id()).map(Area::of),
                 )),
@@ -506,6 +507,7 @@ impl Server {
         self.book = book;
         self.subscriptions.clear();
         self.events.clear();
+        self.tile_streams.clear();
         self.snapshots.clear();
         self.paste_plan = None;
     }
@@ -1185,30 +1187,64 @@ impl Server {
         })
     }
 
-    /// calc-host's deltas since the last call, as the page's subscriptions' cells.
+    fn geometry(&self, sheet: Sheet) -> wire::Geometry {
+        let mut geometry = self
+            .book
+            .host()
+            .sheet_geometry(sheet.id())
+            .map(|g| wire::geometry_of(&g))
+            .unwrap_or_default();
+        if let Some(panes) = self
+            .book
+            .host()
+            .model()
+            .definitions()
+            .frozen_panes(sheet.id())
+        {
+            geometry.frozen_rows = panes.rows();
+            geometry.frozen_columns = panes.columns();
+        }
+        if let Some(view) = self.book.host().sheet_view(sheet.id()) {
+            geometry.top_left = view.top_left;
+            geometry.pane_top_left = view.pane_top_left;
+            geometry.active_cell = view.active_cell;
+            geometry.active_pane = view.active_pane;
+            geometry.split = view.split;
+            geometry.split_window = view.split_window;
+        }
+        geometry
+    }
+
+    /// Adapt installed host deltas into bounded projection publications. There is no new
+    /// evaluation here. Geometry-only revisions also publish, keeping value/style/layout roots
+    /// related even when no displayed text changed.
     fn collect(&mut self) {
         let deltas = self.book.take_deltas();
-        if deltas.is_empty() {
-            return;
-        }
-        let ids: BTreeMap<SubscriptionId, u64> = self
-            .subscriptions
-            .iter()
-            .map(|(&page, &host)| (host, page))
+        let revision = self.book.host().revision().get();
+        let geometry: Vec<_> = self
+            .book
+            .sheets()
+            .into_iter()
+            .map(|s| {
+                let sheet = Sheet::of(s.id);
+                (sheet, self.geometry(sheet))
+            })
             .collect();
+        let ids: BTreeMap<SubscriptionId, u64> =
+            self.subscriptions.iter().map(|(&p, &h)| (h, p)).collect();
         for delta in deltas {
             let Some(&id) = ids.get(&delta.subscription) else {
                 continue;
             };
             let mut cells = Vec::new();
-            let mut emptied = Vec::new();
+            let mut removed = Vec::new();
             for projected in &delta.cells {
                 let shown = self.book.shown(projected);
                 if projected.input().is_none()
                     && projected.value() == &ProjectedValue::Empty
                     && shown.conditional.is_none()
                 {
-                    emptied.push(Key::of(projected.at()));
+                    removed.push(Key::of(projected.at()));
                     continue;
                 }
                 cells.push(wire::cell_of(
@@ -1218,13 +1254,31 @@ impl Server {
                     projected,
                 ));
             }
-            self.events.push(Event::Cells(Cells {
-                id,
-                seq: delta.seq,
-                reset: delta.reset,
-                cells,
-                emptied,
-            }));
+            if let Some(stream) = self.tile_streams.get_mut(&id) {
+                if let Err(reason) =
+                    stream.update(delta.reset, cells, removed, revision, geometry.clone())
+                {
+                    self.events.push(Event::ProjectionFailed { id, reason });
+                }
+            }
+        }
+        for (&id, stream) in &mut self.tile_streams {
+            if stream.revision != revision {
+                if let Err(reason) =
+                    stream.update(false, Vec::new(), Vec::new(), revision, geometry.clone())
+                {
+                    self.events.push(Event::ProjectionFailed { id, reason });
+                }
+            }
+            let transaction = self.next_publication;
+            self.next_publication = self
+                .next_publication
+                .checked_add(1)
+                .expect("Tile transaction identities exhausted");
+            match stream.publish(id, self.workbook, transaction) {
+                Ok(events) => self.events.extend(events),
+                Err(reason) => self.events.push(Event::ProjectionFailed { id, reason }),
+            }
         }
     }
 
@@ -2119,5 +2173,198 @@ fn conditional_change(change: wire::ConditionalChange) -> calc_host::Conditional
         },
         W::Move { up } => H::Move { up },
         W::Remove => H::Remove,
+    }
+}
+
+#[cfg(test)]
+mod tile_tests {
+    use super::*;
+    use dna_calc_model::{TileApply, ViewMirror};
+    fn enter(server: &mut Server, text: &str) {
+        let sheet = server.book().sheets()[0].id;
+        let answer = server.execute_current(
+            Request::Intent(Intent::EnterCell {
+                at: Key::of(CellKey::new(sheet, 1, 1).unwrap()),
+                text: text.into(),
+            }),
+            None,
+        );
+        assert!(
+            matches!(
+                answer.reply,
+                Ok(Reply::Done {
+                    outcome: Outcome { accepted: true, .. },
+                    ..
+                })
+            ),
+            "{:?}",
+            answer.reply
+        );
+    }
+    fn subscribe(server: &mut Server, id: u64) {
+        let sheet = server.book().sheets()[0].id;
+        assert!(
+            server
+                .handle(
+                    Request::Subscribe {
+                        id,
+                        interest: Interest::Sheet(Sheet::of(sheet))
+                    },
+                    None
+                )
+                .reply
+                .is_ok()
+        );
+    }
+    fn receive(mirror: &mut ViewMirror, events: Vec<Event>) -> wire::TileBarrier {
+        let mut barrier = None;
+        assert!(matches!(events.first(), Some(Event::TileAdmission(_))));
+        assert!(matches!(events.last(), Some(Event::TileCompletion(_))));
+        let original = mirror
+            .cells()
+            .map(|(at, c)| (*at, c.clone()))
+            .collect::<Vec<_>>();
+        for event in events {
+            match event {
+                Event::TileAdmission(stamp) => {
+                    mirror.admit(stamp).unwrap();
+                }
+                Event::Tiles(batch) => {
+                    let batch = wire::decode_tiles(&wire::encode_tiles(&batch).unwrap()).unwrap();
+                    assert_eq!(mirror.stage(&batch), Ok(TileApply::Staged));
+                    assert_eq!(
+                        mirror
+                            .cells()
+                            .map(|(at, c)| (*at, c.clone()))
+                            .collect::<Vec<_>>(),
+                        original
+                    );
+                }
+                Event::TileCompletion(b) => {
+                    assert_eq!(mirror.complete(b), Ok(TileApply::Applied(b)));
+                    barrier = Some(b);
+                }
+                Event::ProjectionFailed { reason, .. } => panic!("{reason}"),
+            }
+        }
+        barrier.expect("the completion barrier")
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn fragmented_spills_shrink_atomically_through_the_application_codec() {
+        let mut server = Server::new();
+        enter(&mut server, "=SEQUENCE(600)");
+        subscribe(&mut server, 11);
+        let events = server.take_events();
+        assert!(
+            events
+                .iter()
+                .filter(|e| matches!(e, Event::Tiles(_)))
+                .count()
+                >= 3
+        );
+        let mut mirror = ViewMirror::default();
+        let barrier = receive(&mut mirror, events);
+        assert_eq!(mirror.cells().count(), 600);
+        assert!(server.handle(Request::TileAck(barrier), None).reply.is_ok());
+        enter(&mut server, "=SEQUENCE(2)");
+        let events = server.take_events();
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e,Event::Tiles(b) if !b.removed.is_empty()))
+        );
+        receive(&mut mirror, events);
+        assert_eq!(mirror.cells().count(), 2);
+        assert_eq!(
+            mirror
+                .cells()
+                .map(|(_, c)| c.text.as_str())
+                .collect::<Vec<_>>(),
+            ["1", "2"]
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_slow_subscriber_keeps_one_flight_and_coalesces_missed_revisions_into_a_reset() {
+        let mut server = Server::new();
+        enter(&mut server, "1");
+        subscribe(&mut server, 12);
+        let mut mirror = ViewMirror::default();
+        let first = receive(&mut mirror, server.take_events());
+        for n in 2..=75 {
+            enter(&mut server, &n.to_string());
+            assert!(server.take_events().is_empty());
+        }
+        let mut forged = first;
+        forged.transaction += 1;
+        server.handle(Request::TileAck(forged), None);
+        assert!(server.take_events().is_empty());
+        server.handle(Request::TileAck(first), None);
+        let events = server.take_events();
+        assert!(
+            matches!(events.first(),Some(Event::TileAdmission(s)) if s.reset && s.base==first.through)
+        );
+        let latest = receive(&mut mirror, events);
+        assert_eq!(mirror.cells().next().unwrap().1.text, "75");
+        assert_eq!(latest.through, first.through + 1);
+        server.handle(Request::TileAck(first), None); // duplicate ack cannot release the new flight
+        enter(&mut server, "76");
+        assert!(server.take_events().is_empty());
+        server.handle(Request::TileAck(latest), None);
+        receive(&mut mirror, server.take_events());
+        assert_eq!(mirror.cells().next().unwrap().1.text, "76");
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn lost_fragments_recover_by_explicit_reset_and_old_workbook_acks_cannot_release_new_flights() {
+        let mut server = Server::new();
+        enter(&mut server, "=SEQUENCE(300)");
+        subscribe(&mut server, 13);
+        let events = server.take_events();
+        let Event::TileAdmission(stamp) = events[0] else {
+            panic!("admission")
+        };
+        let mut mirror = ViewMirror::default();
+        mirror.admit(stamp).unwrap();
+        assert!(mirror.complete(stamp.barrier()).is_err());
+        server.handle(Request::ResetTiles { id: 13 }, None);
+        let reset = receive(&mut mirror, server.take_events());
+        assert_eq!(mirror.cells().count(), 300);
+        let old = reset;
+        assert!(server.execute_current(Request::New, None).reply.is_ok());
+        subscribe(&mut server, 13);
+        let mut replacement = ViewMirror::default();
+        let new = receive(&mut replacement, server.take_events());
+        assert_ne!(old.workbook, new.workbook);
+        server.handle(Request::TileAck(old), None);
+        enter(&mut server, "42");
+        assert!(server.take_events().is_empty());
+        server.handle(Request::TileAck(new), None);
+        receive(&mut replacement, server.take_events());
+        assert_eq!(replacement.cells().next().unwrap().1.text, "42");
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn subscription_budget_is_enforced_and_unsubscribe_releases_it() {
+        let mut server = Server::new();
+        for id in 0..wire::MAX_SUBSCRIPTIONS as u64 {
+            subscribe(&mut server, id);
+        }
+        let sheet = server.book().sheets()[0].id;
+        let request = || Request::Subscribe {
+            id: 100,
+            interest: Interest::Sheet(Sheet::of(sheet)),
+        };
+        assert!(
+            server
+                .handle(request(), None)
+                .reply
+                .unwrap_err()
+                .contains("Too many")
+        );
+        server.handle(Request::Unsubscribe { id: 0 }, None);
+        assert!(server.handle(request(), None).reply.is_ok());
+        assert!(!server.tile_streams.contains_key(&0));
     }
 }

@@ -552,19 +552,46 @@ impl Controller {
         });
     }
 
-    /// The server's events: a subscription's changed cells go to its mirror.
+    /// Projection controls bracket binary fragments. Only a closed transaction and its
+    /// completion barrier replace the root a skin can read.
     fn receive(&self, event: Event) {
-        match event {
-            Event::Cells(cells) => {
-                if let Some(mirror) = self.mirrors.with_value(|m| m.get(&cells.id).copied()) {
-                    mirror.try_update(|mirror| {
-                        if !mirror.apply(&cells) {
-                            // A gap means a change was lost: the next reset brings the mirror back.
-                            *mirror = ViewMirror::default().into();
-                        }
-                    });
-                }
+        use dna_calc_model::TileApply;
+        let id = match &event {
+            Event::TileAdmission(s) => s.id,
+            Event::Tiles(b) => b.stamp.id,
+            Event::TileCompletion(b) => b.id,
+            Event::ProjectionFailed { id, .. } => *id,
+        };
+        let Some(mirror) = self.mirrors.with_value(|m| m.get(&id).copied()) else {
+            return;
+        };
+        let was_failed = mirror
+            .try_with_untracked(|m| m.needs_reset())
+            .unwrap_or(true);
+        let result = mirror.try_update(|mirror| match &event {
+            Event::TileAdmission(stamp) => mirror.admit(*stamp),
+            Event::Tiles(batch) => mirror.stage(batch),
+            Event::TileCompletion(barrier) => mirror.complete(*barrier),
+            Event::ProjectionFailed { .. } => {
+                mirror.invalidate();
+                Ok(TileApply::Ignored)
             }
+        });
+        match result {
+            Some(Ok(TileApply::Applied(barrier))) => self.ask(Request::TileAck(barrier), |_| {}),
+            Some(Err(reason)) if !was_failed => {
+                self.say(
+                    format!(
+                        "Display publication interrupted ({reason:?}); requesting its current tiles"
+                    ),
+                    true,
+                );
+                self.ask(Request::ResetTiles { id }, |_| {});
+            }
+            _ => {}
+        }
+        if let Event::ProjectionFailed { reason, .. } = event {
+            self.say(reason, true);
         }
     }
 
@@ -2938,13 +2965,28 @@ mod projection_lifetime_tests {
             );
             assert!(mirror.try_get_untracked().is_none());
             assert!(mirror.try_update(|_| ()).is_none());
-            controller.receive(Event::Cells(wire::Cells {
+            let stamp = wire::TileStamp {
                 id,
-                seq: 1,
+                workbook: 0,
+                transaction: 1,
+                base: 0,
+                next: 1,
+                revision: 0,
+                geometry_version: 0,
+                style_version: 0,
+                dictionary: 1,
                 reset: true,
+            };
+            controller.receive(Event::TileAdmission(stamp));
+            controller.receive(Event::Tiles(wire::TileBatch {
+                stamp,
+                fragment: 0,
+                final_fragment: true,
+                geometry: Vec::new(),
                 cells: Vec::new(),
-                emptied: Vec::new(),
+                removed: Vec::new(),
             }));
+            controller.receive(Event::TileCompletion(stamp.barrier()));
             assert!(
                 controller
                     .model

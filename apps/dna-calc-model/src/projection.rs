@@ -473,6 +473,12 @@ pub enum Request {
     Unsubscribe {
         id: u64,
     },
+    /// Release the one in-flight publication after the mirror applies its completion barrier.
+    TileAck(crate::tiles::TileBarrier),
+    /// Explicit recovery; the server coalesces all missed deltas into one atomic reset.
+    ResetTiles {
+        id: u64,
+    },
     Review(Key),
     ReviewMarkers(Sheet),
     /// A sheet's sizes, as the grid lays it out.
@@ -910,22 +916,14 @@ impl Cell {
     }
 }
 
-/// Changed cells of the page's subscription `id`, as calc-host's deltas give them: `reset` means
-/// these are all of its cells.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Cells {
-    pub id: u64,
-    pub seq: u64,
-    pub reset: bool,
-    pub cells: Vec<Cell>,
-    /// Cells that became empty.
-    pub emptied: Vec<Key>,
-}
-
-/// What the server tells the page without being asked.
+/// What the server tells the page without being asked. Controls remain JSON; tile batches
+/// use the binary codec on worker transports.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Event {
-    Cells(Cells),
+    TileAdmission(crate::tiles::TileStamp),
+    Tiles(crate::tiles::TileBatch),
+    TileCompletion(crate::tiles::TileBarrier),
+    ProjectionFailed { id: u64, reason: String },
 }
 
 /// The server to the page. A message lives only until it is encoded or applied, so its

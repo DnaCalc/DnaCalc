@@ -1,6 +1,8 @@
-//! Current JSON control protocol shared by page and worker.
+//! JSON controls and bounded binary tile records shared by page and worker.
+pub mod tiles;
 pub use dna_calc_model::projection::*;
 use serde::{Serialize, de::DeserializeOwned};
+pub use tiles::*;
 /// A message as the JSON text `postMessage` carries.
 pub fn encode<T: Serialize>(message: &T) -> String {
     serde_json::to_string(message).expect("a wire message always encodes")
@@ -45,8 +47,31 @@ mod tests {
             owner: None,
             error_meaning: None,
         };
+        let stamp = TileStamp {
+            id: 1,
+            workbook: 0,
+            transaction: 2,
+            base: 1,
+            next: 2,
+            revision: 3,
+            geometry_version: 3,
+            style_version: 3,
+            dictionary: 2,
+            reset: false,
+        };
+        let tiles = TileBatch {
+            stamp,
+            fragment: 0,
+            final_fragment: true,
+            geometry: vec![(Sheet(3, 1), Geometry::default())],
+            cells: vec![cell.clone()],
+            removed: vec![at],
+        };
+        assert_eq!(decode_tiles(&encode_tiles(&tiles).unwrap()), Ok(tiles));
         for message in [
             FromServer::Started,
+            FromServer::Event(Event::TileAdmission(stamp)),
+            FromServer::Event(Event::TileCompletion(stamp.barrier())),
             FromServer::Reply {
                 id: 7,
                 reply: Reply::Pong {
@@ -57,13 +82,6 @@ mod tests {
                 id: None,
                 message: "no".to_owned(),
             },
-            FromServer::Event(Event::Cells(Cells {
-                id: 1,
-                seq: 2,
-                reset: false,
-                cells: vec![cell.clone()],
-                emptied: vec![at],
-            })),
         ] {
             assert_eq!(decode::<FromServer>(&encode(&message)), Ok(message));
         }
