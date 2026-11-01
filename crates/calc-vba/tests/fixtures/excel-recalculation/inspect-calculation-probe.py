@@ -40,7 +40,7 @@ def main():
         parts = {}
         with zipfile.ZipFile(file) as z:
             for name in z.namelist():
-                if name in ('xl/workbook.xml', 'xl/calcChain.xml', 'xl/metadata.xml') or re.fullmatch(r'xl/worksheets/sheet\d+\.xml', name):
+                if name in ('xl/workbook.xml', 'xl/calcChain.xml', 'xl/metadata.xml', 'xl/sharedStrings.xml') or name.startswith('xl/richData/') or re.fullmatch(r'xl/worksheets/sheet\d+\.xml', name):
                     xml = z.read(name).decode('utf-8')
                     parts[name] = {'sha256': sha(z.read(name)), 'xml': xml}
         files.append({'file': file.name, 'sha256': sha(data), 'bytes': len(data), 'parts': parts})
@@ -74,7 +74,7 @@ def main():
             setup_operations={'source':'probe.bas or recorded injected source','raw_lines':[n for n,s,k,v in rows if k=='stage' and not s.startswith(('after','tested','followup'))]},
             accepted_initial_observations=[{'line':n,'stage':s,'value':v} for n,s,k,v in rows if k=='cell' and s in ('seed','accepted-seed')],
             tested_operation=[{'line':n,'stage':s} for n,s,k,v in rows if k=='stage' and s.startswith('tested')],
-            live_observations=[n for n,s,k,v in rows if k in ('cell','spill','spill-flag','formula-form','array-flags')],
+            live_observations=[n for n,s,k,v in rows if k in ('cell','spill','spill-flag','formula-form','array-flags','opened-formula-form','opened-array-flags')],
             callback_trace=[n for n,s,k,v in rows if k in ('entry','exit','read','size','counter')],
             event_trace=[n for n,s,k,v in rows if k=='event'],
             saved_artifact_hashes=[{'file':f['file'],'sha256':f['sha256']} for f in files if stem and (f['file']==main or f['file'].startswith(stem+'-'))],
