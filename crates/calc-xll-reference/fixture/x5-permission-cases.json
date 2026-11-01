@@ -1,0 +1,158 @@
+[
+  {
+    "formula": "=X5.Permission(4)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(16393)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(16385)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(89)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(16386)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(16388)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(16389)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(16392)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(16403)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(237)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(186)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(257)",
+    "value": null
+  },
+  {
+    "formula": "=X5.Permission(32890)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(4)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(16393)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(16385)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(89)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(16386)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(16388)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(16389)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(16392)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(16403)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(237)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(186)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(257)",
+    "value": null
+  },
+  {
+    "formula": "=X5.MacroPermission(32890)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(4)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(16393)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(16385)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(89)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(16386)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(16388)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(16389)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(16392)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(16403)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(237)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(186)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(257)",
+    "value": null
+  },
+  {
+    "formula": "=X5.PoolPermission(32890)",
+    "value": null
+  }
+]

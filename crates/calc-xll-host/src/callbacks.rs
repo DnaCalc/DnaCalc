@@ -184,6 +184,20 @@ pub unsafe fn dispatch(
                 return FAILED;
             }
             let frame = &mut *ptr;
+            // These are modeled permission denials measured on Excel20527.
+            // They leave the result operand undefined and can be handled by
+            // the add-in; they are not absent-capability refusals.
+            if let Some(signature) = &frame.signature {
+                if matches!(function, 237 | 186) && !signature.macro_equivalent {
+                    return INVALID_FUNCTION;
+                }
+                if signature.thread_safe && matches!(function, XLF_EVALUATE | 32890) {
+                    return NOT_THREAD_SAFE;
+                }
+                if function == 32890 && !signature.macro_equivalent {
+                    return INVALID_FUNCTION;
+                }
+            }
             if function == 16403 {
                 if count != 0 {
                     return INVALID_COUNT;
@@ -450,7 +464,10 @@ fn run(
         }
         return Ok(None);
     }
-    if frame.signature.is_some() && function & 0x8000 != 0 {
+    if frame.signature.is_some()
+        && function & 0x8000 != 0
+        && !(function == 32890 && frame.signature.as_ref().is_some_and(|s| s.macro_equivalent))
+    {
         return Err((
             INVALID_FUNCTION,
             "dc-snz.18: worksheet functions cannot call commands".into(),

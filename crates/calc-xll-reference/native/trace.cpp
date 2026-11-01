@@ -201,6 +201,9 @@ static std::string variant(Address p,int depth=0) {
     if(vt&0x4000){
         if(vt==0x400c&&depth<4)s+=variant(v,depth+1);
         else if(vt==0x4009||vt==0x400d)s+="{\"byref\":"+hex(v)+",\"object\":"+hex(read<Address>(v))+"}";
+        else if(vt==0x400b)s+="{\"byref\":"+hex(v)+",\"value\":"+std::string(read<int16_t>(v)?"true":"false")+"}";
+        else if(vt==0x4003)s+="{\"byref\":"+hex(v)+",\"value\":"+std::to_string(read<int32_t>(v))+"}";
+        else if(vt==0x600c)s+=variantArray(read<Address>(v));
         else s+="{\"byref\":"+hex(v)+"}";
     }else switch(vt){
         case 0:case 1:s+="null";break;
@@ -435,6 +438,7 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
                     if(vt==9)watchObject(read<Address>(v+8),"AppEvents rgvarg["+std::to_string(i)+"]");
                     else if(vt==0x4009)watchObject(read<Address>(read<Address>(v+8)),"AppEvents rgvarg["+std::to_string(i)+"]");
                 }
+                if(i==0&&objects[ctx.Rcx]=="RTD server"&&(int32_t)ctx.Rdx==10){Address v=values;auto vt=read<uint16_t>(v);if(vt==9||vt==13)watchObject(read<Address>(v+8),"RTD update callback","unknown");}
             }
             if(objects[ctx.Rcx].rfind("AppEvents sink",0)==0&&(int32_t)ctx.Rdx==0x61c)inspectedEventArguments=true;
             fields+="],\"named_dispids\":[";
@@ -503,6 +507,7 @@ static void leave(const Call& c,const CONTEXT& ctx) {
                 for(size_t i=0;i<c.names.size();++i){int32_t id=read<int32_t>(c.raw[5]+i*4);members[{c.raw[0],id}]=c.names[i];if(i)fields+=",";fields+=std::to_string(id);}fields+="]";
             }else if(kind=="COM!Invoke") {
                 fields+=",\"result\":"+variant(c.raw[6]);
+                if(objects[c.raw[0]]=="RTD server") {auto values=read<Address>(c.raw[5]);auto count=read<uint32_t>(c.raw[5]+16);fields+=",\"arguments_after\":[";for(uint32_t i=0;i<count&&i<256;++i){if(i)fields+=",";fields+=variant(values+i*24);}fields+="]";}
                 if(c.raw[6]&&read<uint16_t>(c.raw[6])==9)
                     watchObject(read<Address>(c.raw[6]+8),objects[c.raw[0]]+"."+members[{c.raw[0],(int32_t)c.raw[1]}]);
             }else if(kind=="COM!QueryInterface") {
