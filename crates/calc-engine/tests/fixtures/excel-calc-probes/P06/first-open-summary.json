@@ -1,0 +1,842 @@
+[
+  {
+    "run_id": "P06-first-manual-01-safe",
+    "run": "ok",
+    "observation": {
+      "cells_before_diagnostic_macro": [
+        {
+          "address": "A1",
+          "value": 5.0,
+          "clr_type": "System.Double",
+          "formula": "5"
+        },
+        {
+          "address": "B1",
+          "value": 2.0,
+          "clr_type": "System.Double",
+          "formula": "=A1*2"
+        },
+        {
+          "address": "C1",
+          "value": 3.0,
+          "clr_type": "System.Double",
+          "formula": "=B1+1"
+        }
+      ],
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "pid": 58092,
+      "state_before_controller": 2,
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "utc": "2026-11-01T01:43:49.8783844Z",
+      "explicit_calculation_before_observation": false,
+      "mode_before_controller": -4135
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-01-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-02-safe",
+    "run": "ok",
+    "observation": {
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "mode_before_controller": -4135,
+      "cells_before_diagnostic_macro": [
+        {
+          "formula": "5",
+          "address": "A1",
+          "value": 5.0,
+          "clr_type": "System.Double"
+        },
+        {
+          "formula": "=A1*2",
+          "address": "B1",
+          "value": 2.0,
+          "clr_type": "System.Double"
+        },
+        {
+          "formula": "=B1+1",
+          "address": "C1",
+          "value": 3.0,
+          "clr_type": "System.Double"
+        }
+      ],
+      "explicit_calculation_before_observation": false,
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "state_before_controller": 2,
+      "pid": 43208,
+      "utc": "2026-11-01T01:44:16.5974435Z"
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-02-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-03-safe",
+    "run": "ok",
+    "observation": {
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "state_before_controller": 2,
+      "mode_before_controller": -4135,
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "utc": "2026-11-01T01:44:39.1064692Z",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "pid": 16576,
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20",
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "explicit_calculation_before_observation": false,
+      "cells_before_diagnostic_macro": [
+        {
+          "address": "A1",
+          "formula": "5",
+          "value": 5.0,
+          "clr_type": "System.Double"
+        },
+        {
+          "address": "B1",
+          "formula": "=A1*2",
+          "value": 2.0,
+          "clr_type": "System.Double"
+        },
+        {
+          "address": "C1",
+          "formula": "=B1+1",
+          "value": 3.0,
+          "clr_type": "System.Double"
+        }
+      ]
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-03-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-04-safe",
+    "run": "ok",
+    "observation": {
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "state_before_controller": 2,
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "cells_before_diagnostic_macro": [
+        {
+          "formula": "5",
+          "value": 5.0,
+          "clr_type": "System.Double",
+          "address": "A1"
+        },
+        {
+          "formula": "=A1*2",
+          "value": 2.0,
+          "clr_type": "System.Double",
+          "address": "B1"
+        },
+        {
+          "formula": "=B1+1",
+          "value": 3.0,
+          "clr_type": "System.Double",
+          "address": "C1"
+        }
+      ],
+      "utc": "2026-11-01T01:44:59.3658829Z",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "mode_before_controller": -4135,
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20",
+      "explicit_calculation_before_observation": false,
+      "pid": 52720
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-04-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-05-safe",
+    "run": "ok",
+    "observation": {
+      "state_before_controller": 2,
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "mode_before_controller": -4135,
+      "pid": 47712,
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "explicit_calculation_before_observation": false,
+      "diagnostic_trace": "first-open-trace.tsv",
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20",
+      "cells_before_diagnostic_macro": [
+        {
+          "value": 5.0,
+          "address": "A1",
+          "formula": "5",
+          "clr_type": "System.Double"
+        },
+        {
+          "value": 2.0,
+          "address": "B1",
+          "formula": "=A1*2",
+          "clr_type": "System.Double"
+        },
+        {
+          "value": 3.0,
+          "address": "C1",
+          "formula": "=B1+1",
+          "clr_type": "System.Double"
+        }
+      ],
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "utc": "2026-11-01T01:45:25.6478215Z"
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-05-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-06-safe",
+    "run": "ok",
+    "observation": {
+      "diagnostic_trace": "first-open-trace.tsv",
+      "state_before_controller": 2,
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "pid": 21104,
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20",
+      "utc": "2026-11-01T01:45:52.6757827Z",
+      "mode_before_controller": -4135,
+      "explicit_calculation_before_observation": false,
+      "cells_before_diagnostic_macro": [
+        {
+          "formula": "5",
+          "value": 5.0,
+          "clr_type": "System.Double",
+          "address": "A1"
+        },
+        {
+          "formula": "=A1*2",
+          "value": 2.0,
+          "clr_type": "System.Double",
+          "address": "B1"
+        },
+        {
+          "formula": "=B1+1",
+          "value": 3.0,
+          "clr_type": "System.Double",
+          "address": "C1"
+        }
+      ]
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-06-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-07-safe",
+    "run": "ok",
+    "observation": {
+      "explicit_calculation_before_observation": false,
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20",
+      "utc": "2026-11-01T01:46:20.7654523Z",
+      "cells_before_diagnostic_macro": [
+        {
+          "formula": "5",
+          "clr_type": "System.Double",
+          "value": 5.0,
+          "address": "A1"
+        },
+        {
+          "formula": "=A1*2",
+          "clr_type": "System.Double",
+          "value": 2.0,
+          "address": "B1"
+        },
+        {
+          "formula": "=B1+1",
+          "clr_type": "System.Double",
+          "value": 3.0,
+          "address": "C1"
+        }
+      ],
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "state_before_controller": 2,
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "pid": 40584,
+      "mode_before_controller": -4135
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-07-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-08-safe",
+    "run": "ok",
+    "observation": {
+      "diagnostic_trace": "first-open-trace.tsv",
+      "utc": "2026-11-01T01:46:47.0275255Z",
+      "explicit_calculation_before_observation": false,
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "cells_before_diagnostic_macro": [
+        {
+          "clr_type": "System.Double",
+          "address": "A1",
+          "formula": "5",
+          "value": 5.0
+        },
+        {
+          "clr_type": "System.Double",
+          "address": "B1",
+          "formula": "=A1*2",
+          "value": 2.0
+        },
+        {
+          "clr_type": "System.Double",
+          "address": "C1",
+          "formula": "=B1+1",
+          "value": 3.0
+        }
+      ],
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20",
+      "mode_before_controller": -4135,
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "pid": 31732,
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "state_before_controller": 2
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-08-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-09-safe",
+    "run": "ok",
+    "observation": {
+      "pid": 14180,
+      "state_before_controller": 2,
+      "cells_before_diagnostic_macro": [
+        {
+          "clr_type": "System.Double",
+          "formula": "5",
+          "address": "A1",
+          "value": 5.0
+        },
+        {
+          "clr_type": "System.Double",
+          "formula": "=A1*2",
+          "address": "B1",
+          "value": 2.0
+        },
+        {
+          "clr_type": "System.Double",
+          "formula": "=B1+1",
+          "address": "C1",
+          "value": 3.0
+        }
+      ],
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "utc": "2026-11-01T01:47:12.125768Z",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "explicit_calculation_before_observation": false,
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "mode_before_controller": -4135,
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20"
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-09-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-manual-10-safe",
+    "run": "ok",
+    "observation": {
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "sha256_before": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "cells_before_diagnostic_macro": [
+        {
+          "formula": "5",
+          "value": 5.0,
+          "address": "A1",
+          "clr_type": "System.Double"
+        },
+        {
+          "formula": "=A1*2",
+          "value": 2.0,
+          "address": "B1",
+          "clr_type": "System.Double"
+        },
+        {
+          "formula": "=B1+1",
+          "value": 3.0,
+          "address": "C1",
+          "clr_type": "System.Double"
+        }
+      ],
+      "diagnostic_trace": "first-open-trace.tsv",
+      "explicit_calculation_before_observation": false,
+      "mode_before_controller": -4135,
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "state_before_controller": 2,
+      "sha256_after": "5407073976F58BE0212E270D2AB7B8CA6C704C5F2EFB64EF124429DEE737BEAD",
+      "utc": "2026-11-01T01:47:34.9462593Z",
+      "pid": 33132,
+      "diagnostic_trace_sha256": "B28A3D8F9A09A30D5D3BD23198AE6B799C1DBA2E111601C9788B691D1D397E20"
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-manual-10-trace.tsv",
+    "profile": "manual",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-auto-01-safe",
+    "run": "ok",
+    "observation": {
+      "diagnostic_trace_sha256": "D8C0B8A59FC056BF6178479403FCB26A9F683DE50761EA1A74F90B793490EAAF",
+      "pid": 52984,
+      "cells_before_diagnostic_macro": [
+        {
+          "address": "A1",
+          "formula": "5",
+          "value": 5.0,
+          "clr_type": "System.Double"
+        },
+        {
+          "address": "B1",
+          "formula": "=A1*2",
+          "value": 10.0,
+          "clr_type": "System.Double"
+        },
+        {
+          "address": "C1",
+          "formula": "=B1+1",
+          "value": 11.0,
+          "clr_type": "System.Double"
+        }
+      ],
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "mode_before_controller": -4105,
+      "diagnostic_trace": "first-open-trace.tsv",
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm",
+      "state_before_controller": 0,
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "utc": "2026-11-01T01:47:59.4081263Z",
+      "explicit_calculation_before_observation": false
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-auto-01-trace.tsv",
+    "profile": "auto",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-auto-02-safe",
+    "run": "ok",
+    "observation": {
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "diagnostic_trace_sha256": "8DD8D5E8816DCFCB51A6E8EBEAC6B7173BBDCCFE9AED992141F749EA9ED323F9",
+      "cells_before_diagnostic_macro": [
+        {
+          "clr_type": "System.Double",
+          "value": 5.0,
+          "formula": "5",
+          "address": "A1"
+        },
+        {
+          "clr_type": "System.Double",
+          "value": 10.0,
+          "formula": "=A1*2",
+          "address": "B1"
+        },
+        {
+          "clr_type": "System.Double",
+          "value": 11.0,
+          "formula": "=B1+1",
+          "address": "C1"
+        }
+      ],
+      "explicit_calculation_before_observation": false,
+      "utc": "2026-11-01T01:48:25.4447524Z",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "pid": 45032,
+      "mode_before_controller": -4105,
+      "state_before_controller": 0,
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm"
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-auto-02-trace.tsv",
+    "profile": "auto",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-auto-03-safe",
+    "run": "ok",
+    "observation": {
+      "pid": 39728,
+      "diagnostic_trace_sha256": "50A5AE2500F69F95502BF8BC4A25794D8942E8BCD65F6032C85E594027B25C5A",
+      "cells_before_diagnostic_macro": [
+        {
+          "clr_type": "System.Double",
+          "value": 5.0,
+          "address": "A1",
+          "formula": "5"
+        },
+        {
+          "clr_type": "System.Double",
+          "value": 10.0,
+          "address": "B1",
+          "formula": "=A1*2"
+        },
+        {
+          "clr_type": "System.Double",
+          "value": 11.0,
+          "address": "C1",
+          "formula": "=B1+1"
+        }
+      ],
+      "diagnostic_trace": "first-open-trace.tsv",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "mode_before_controller": -4105,
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm",
+      "explicit_calculation_before_observation": false,
+      "state_before_controller": 0,
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "utc": "2026-11-01T01:48:51.2167598Z",
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868"
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-auto-03-trace.tsv",
+    "profile": "auto",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run_id": "P06-first-auto-04-safe",
+    "run": "ok",
+    "observation": {
+      "diagnostic_trace": "first-open-trace.tsv",
+      "pid": 21756,
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm",
+      "explicit_calculation_before_observation": false,
+      "mode_before_controller": -4105,
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "diagnostic_trace_sha256": "A68F992D404335657E0B46A6F8B457A609A3034A0DF36D508970F09E1BDFCC6E",
+      "cells_before_diagnostic_macro": [
+        {
+          "value": 5.0,
+          "formula": "5",
+          "clr_type": "System.Double",
+          "address": "A1"
+        },
+        {
+          "value": 10.0,
+          "formula": "=A1*2",
+          "clr_type": "System.Double",
+          "address": "B1"
+        },
+        {
+          "value": 11.0,
+          "formula": "=B1+1",
+          "clr_type": "System.Double",
+          "address": "C1"
+        }
+      ],
+      "utc": "2026-11-01T01:49:26.218464Z",
+      "state_before_controller": 0
+    },
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "compile": "ok",
+    "trace": "first-auto-04-trace.tsv",
+    "profile": "auto",
+    "cleanup": "owned-process-zero"
+  },
+  {
+    "run": "ok",
+    "observation": {
+      "diagnostic_trace_sha256": "9B4C35142BD9C32B63DE143884ED9DE69DA2DB510514C12FDCD6C1FAD2C01C37",
+      "pid": 53320,
+      "mode_before_controller": -4105,
+      "diagnostic_trace": "first-open-trace.tsv",
+      "cells_before_diagnostic_macro": [
+        {
+          "value": 5.0,
+          "formula": "5",
+          "clr_type": "System.Double",
+          "address": "A1"
+        },
+        {
+          "value": 10.0,
+          "formula": "=A1*2",
+          "clr_type": "System.Double",
+          "address": "B1"
+        },
+        {
+          "value": 11.0,
+          "formula": "=B1+1",
+          "clr_type": "System.Double",
+          "address": "C1"
+        }
+      ],
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm",
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "utc": "2026-11-01T01:55:33.5050359Z",
+      "explicit_calculation_before_observation": false,
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "state_before_controller": 0,
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868"
+    },
+    "cleanup": "owned-process-zero",
+    "profile": "auto",
+    "run_id": "P06-first-auto-05-retry1-safe",
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "trace": "first-auto-05-trace.tsv",
+    "compile": "ok"
+  },
+  {
+    "run": "ok",
+    "observation": {
+      "state_before_controller": 0,
+      "cells_before_diagnostic_macro": [
+        {
+          "address": "A1",
+          "value": 5.0,
+          "formula": "5",
+          "clr_type": "System.Double"
+        },
+        {
+          "address": "B1",
+          "value": 10.0,
+          "formula": "=A1*2",
+          "clr_type": "System.Double"
+        },
+        {
+          "address": "C1",
+          "value": 11.0,
+          "formula": "=B1+1",
+          "clr_type": "System.Double"
+        }
+      ],
+      "diagnostic_trace_sha256": "D68650A63EB3DB56634A3ECE96064DDB64B054494395B61CC813B7030FB0CD54",
+      "utc": "2026-11-01T01:55:59.9464804Z",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "explicit_calculation_before_observation": false,
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "pid": 37360,
+      "mode_before_controller": -4105,
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm"
+    },
+    "cleanup": "owned-process-zero",
+    "profile": "auto",
+    "run_id": "P06-first-auto-06-safe",
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "trace": "first-auto-06-trace.tsv",
+    "compile": "ok"
+  },
+  {
+    "run": "ok",
+    "observation": {
+      "cells_before_diagnostic_macro": [
+        {
+          "formula": "5",
+          "clr_type": "System.Double",
+          "value": 5.0,
+          "address": "A1"
+        },
+        {
+          "formula": "=A1*2",
+          "clr_type": "System.Double",
+          "value": 10.0,
+          "address": "B1"
+        },
+        {
+          "formula": "=B1+1",
+          "clr_type": "System.Double",
+          "value": 11.0,
+          "address": "C1"
+        }
+      ],
+      "diagnostic_trace_sha256": "2B7D684B64A34858CB808037114758D58D2252A1781CD0F9808365618BFA6C02",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "pid": 25268,
+      "utc": "2026-11-01T01:56:26.0261872Z",
+      "explicit_calculation_before_observation": false,
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "state_before_controller": 0,
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "mode_before_controller": -4105,
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868"
+    },
+    "cleanup": "owned-process-zero",
+    "profile": "auto",
+    "run_id": "P06-first-auto-07-safe",
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "trace": "first-auto-07-trace.tsv",
+    "compile": "ok"
+  },
+  {
+    "run": "ok",
+    "observation": {
+      "diagnostic_trace": "first-open-trace.tsv",
+      "diagnostic_trace_sha256": "53812F47743FC6E8927DF224C4A7C2AEC0B0AAE2DD375CB3D34FE391154E677C",
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "state_before_controller": 0,
+      "utc": "2026-11-01T01:56:57.4766121Z",
+      "mode_before_controller": -4105,
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "cells_before_diagnostic_macro": [
+        {
+          "formula": "5",
+          "address": "A1",
+          "value": 5.0,
+          "clr_type": "System.Double"
+        },
+        {
+          "formula": "=A1*2",
+          "address": "B1",
+          "value": 10.0,
+          "clr_type": "System.Double"
+        },
+        {
+          "formula": "=B1+1",
+          "address": "C1",
+          "value": 11.0,
+          "clr_type": "System.Double"
+        }
+      ],
+      "explicit_calculation_before_observation": false,
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm",
+      "pid": 25008
+    },
+    "cleanup": "owned-process-zero",
+    "profile": "auto",
+    "run_id": "P06-first-auto-08-safe",
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "trace": "first-auto-08-trace.tsv",
+    "compile": "ok"
+  },
+  {
+    "run": "ok",
+    "observation": {
+      "cells_before_diagnostic_macro": [
+        {
+          "clr_type": "System.Double",
+          "formula": "5",
+          "address": "A1",
+          "value": 5.0
+        },
+        {
+          "clr_type": "System.Double",
+          "formula": "=A1*2",
+          "address": "B1",
+          "value": 10.0
+        },
+        {
+          "clr_type": "System.Double",
+          "formula": "=B1+1",
+          "address": "C1",
+          "value": 11.0
+        }
+      ],
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm",
+      "pid": 14792,
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "state_before_controller": 0,
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "utc": "2026-11-01T01:57:34.1770274Z",
+      "mode_before_controller": -4105,
+      "explicit_calculation_before_observation": false,
+      "diagnostic_trace_sha256": "080DA96D1A5190D6209033292D62C8BAF0203607F3572D2F92119FCA4FD975A3",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868"
+    },
+    "cleanup": "owned-process-zero",
+    "profile": "auto",
+    "run_id": "P06-first-auto-09-safe",
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "trace": "first-auto-09-trace.tsv",
+    "compile": "ok"
+  },
+  {
+    "run": "ok",
+    "observation": {
+      "state_before_controller": 0,
+      "explicit_calculation_before_observation": false,
+      "sha256_before": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "source": "C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\synthetic-first-open-auto.xlsm",
+      "diagnostic_trace_sha256": "123FD03E95F63F6D08B0A8EDFADD5B684579B40A7D076189341F9937A86876AB",
+      "diagnostic_trace": "first-open-trace.tsv",
+      "mode_before_controller": -4105,
+      "pid": 42448,
+      "sha256_after": "6B767DA5824859EE1851B2347344C2D5DB6A3690EECC96512D93817A36E09868",
+      "schema": "dnacalc.probe.first-workbook-observation",
+      "utc": "2026-11-01T01:58:06.3670162Z",
+      "cells_before_diagnostic_macro": [
+        {
+          "value": 5.0,
+          "address": "A1",
+          "formula": "5",
+          "clr_type": "System.Double"
+        },
+        {
+          "value": 10.0,
+          "address": "B1",
+          "formula": "=A1*2",
+          "clr_type": "System.Double"
+        },
+        {
+          "value": 11.0,
+          "address": "C1",
+          "formula": "=B1+1",
+          "clr_type": "System.Double"
+        }
+      ]
+    },
+    "cleanup": "owned-process-zero",
+    "profile": "auto",
+    "run_id": "P06-first-auto-10-safe",
+    "transport": "observed compile 'ok' and run 'ok' did not satisfy the sealed case contract",
+    "trace": "first-auto-10-trace.tsv",
+    "compile": "ok"
+  }
+]

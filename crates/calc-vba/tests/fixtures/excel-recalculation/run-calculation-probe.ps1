@@ -10,6 +10,7 @@ param(
     [string]$SourceFile = '',
     [switch]$ExternalDirect,
     [switch]$UIPause,
+    [string]$FirstWorkbook = '',
     [string]$RunId = ('calc-probe-' + [Guid]::NewGuid().ToString('N')),
     [switch]$SafeMode
 )
@@ -77,6 +78,44 @@ $supervisor = $supervisor.Insert($at, $extension)
 $workerSource = Get-Content -Raw -LiteralPath (Join-Path $OxVbaRoot 'scripts/excel-vba-oracle-worker.ps1')
 $workerSource = $workerSource.Replace('$PSScriptRoot', "'" + (Join-Path $OxVbaRoot 'scripts') + "'")
 $workerSource = $workerSource.Replace('[ValidateRange(5, 600)][int]$CaseTimeoutSeconds', '[ValidateRange(5, 1500)][int]$CaseTimeoutSeconds')
+if($FirstWorkbook){
+    $firstSource=(Resolve-Path -LiteralPath $FirstWorkbook).Path
+    if(-not $firstSource.StartsWith($probe+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw 'First workbook must be this probe directory or a child'}
+    $launchLine='$launchedExcel = Start-OwnedExcelApplication -ExcelExecutable $script:ExcelExecutablePath -BootstrapWorkbook $bootstrapWorkbook -DiagnosticPath $excelAttachmentDiagnosticFile'
+    if(-not $workerSource.Contains($launchLine)){throw 'First workbook launch insertion point absent'}
+    $firstLaunch=@'
+$firstSource='__FIRST__'
+        $firstSourceHash=(Get-FileHash -LiteralPath $firstSource -Algorithm SHA256).Hash
+        $firstLaunchDescriptor=[pscustomobject]@{schema='dnacalc.probe.first-workbook';path=$firstSource;sha256=$firstSourceHash;measurement_input=$true}
+        $launchedExcel = Start-OwnedExcelApplication -ExcelExecutable $script:ExcelExecutablePath -BootstrapWorkbook $firstLaunchDescriptor -DiagnosticPath $excelAttachmentDiagnosticFile
+'@
+    $workerSource=$workerSource.Replace($launchLine,$firstLaunch.Replace('__FIRST__',$firstSource.Replace("'","''")))
+    $firstHook=@'
+        if([int]$excel.Workbooks.Count -ne 1){throw 'First-open measurement did not start with exactly one workbook'}
+        $firstBook=$excel.Workbooks.Item(1)
+        if($firstBook.FullName -ine $firstSource){throw 'First-open measurement source identity differs'}
+        $firstCells=@()
+        foreach($firstCell in @('A1','B1','C1')){
+            $firstRange=$firstBook.Worksheets.Item('S').Range($firstCell)
+            $firstValue=$firstRange.Value2
+            $firstCells += @{address=$firstCell;value=$firstValue;clr_type=if($null -eq $firstValue){'null'}else{$firstValue.GetType().FullName};formula=[string]$firstRange.Formula2}
+        }
+        $firstMode=[int]$excel.Calculation
+        $firstState=[int]$excel.CalculationState
+        $firstTrace=[string]$excel.Run("'"+$firstBook.Name+"'!OracleProbe.ReadAfterOpen")
+        $firstTracePath=Join-Path $caseDirectory 'first-open-trace.tsv'
+        [IO.File]::WriteAllText($firstTracePath,$firstTrace,[Text.UTF8Encoding]::new($false))
+        $firstBook.Close($false)
+        $firstSourceHashAfter=(Get-FileHash -LiteralPath $firstSource -Algorithm SHA256).Hash
+        @{schema='dnacalc.probe.first-workbook-observation';utc=[DateTime]::UtcNow.ToString('o');pid=$excelPid;source=$firstSource;sha256_before=$firstSourceHash;sha256_after=$firstSourceHashAfter;mode_before_controller=$firstMode;state_before_controller=$firstState;cells_before_diagnostic_macro=$firstCells;diagnostic_trace='first-open-trace.tsv';diagnostic_trace_sha256=(Get-FileHash $firstTracePath -Algorithm SHA256).Hash;explicit_calculation_before_observation=$false}|ConvertTo-Json -Depth 8|Set-Content (Join-Path $caseDirectory 'first-open-observation.json') -Encoding utf8NoBOM
+        if($firstSourceHash -cne $firstSourceHashAfter){throw 'First-open measurement changed its source file'}
+        [void]$excel.Workbooks.Open($bootstrapWorkbook.path,0,$false)
+
+'@
+    $firstAt=$workerSource.IndexOf('        if ([int]$excel.Workbooks.Count -ne 1)')
+    if($firstAt -lt 0){throw 'First-open observation insertion point absent'}
+    $workerSource=$workerSource.Insert($firstAt,$firstHook)
+}
 $workerSource = $workerSource.Replace('        $errorMessage = $_.Exception.Message', '        $errorMessage = $_.Exception.Message' + "`n" + '        ($_.Exception.ToString() + "`n" + $_.ScriptStackTrace) | Set-Content -LiteralPath (Join-Path $caseDirectory "measurement-error.txt") -Encoding utf8NoBOM')
 $startupAnchor = '            $blocked = @($blockingWindows'
 $startupAt = $workerSource.IndexOf($startupAnchor)

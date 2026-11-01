@@ -129,6 +129,7 @@ impl ToolState {
 }
 
 pub struct RuntimeState {
+    pub font_revision: u64,
     pub tools: ToolState,
     pub active_calculation: Option<(u64, u64)>,
     pub calculation_frontier: u64,
@@ -172,6 +173,7 @@ pub struct RuntimeState {
 impl Default for RuntimeState {
     fn default() -> Self {
         Self {
+            font_revision: 0,
             tools: ToolState::default(),
             active_calculation: None,
             calculation_frontier: 0,

@@ -160,6 +160,10 @@ and read-back values, the formula, argument types and available workbook setting
 including failed input-admission obligations. Echo cells expose literal parsing;
 effective callee inputs remain unobserved. A changed input is not a same-input
 build contradiction. Historical transport and Compatibility Version remain unknown.
+Literal outcomes stay in `transport_audit_readings`, with their raw outcomes and
+failed obligations counted separately; the semantic bank never imports them as
+ordinary typed calls. Excel's number-text separator settings are read without
+changing them, so text coercion has an explicit locale context.
 
 Normal CDF is the next bounded research unit: 13,716 failures among 21,810 counted
 CDF observations, with one scalar input and published rational regions. Gamma CDF

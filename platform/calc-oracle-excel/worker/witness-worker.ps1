@@ -158,6 +158,10 @@ try {
         try { $settings[$name] = Get-ComProperty $workbook $name }
         catch { $settings.unavailable += $name }
     }
+    foreach ($name in @('UseSystemSeparators', 'DecimalSeparator', 'ThousandsSeparator')) {
+        try { $settings[$name] = Get-ComProperty $excel $name }
+        catch { $settings.unavailable += $name }
+    }
     $Output.calculation_settings = $settings
 
     for ($start = 0; $start -lt $rows.Count; $start += $ChunkRows) {

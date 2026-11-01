@@ -1,0 +1,142 @@
+[
+  {
+    "pid": 58092,
+    "state": "not-running",
+    "run_id": "P06-first-manual-01-safe",
+    "observed_utc": "2026-11-01T02:02:33.3354624Z",
+    "recorded_start": "2026-11-01T01:43:41.1831305Z"
+  },
+  {
+    "pid": 43208,
+    "state": "not-running",
+    "run_id": "P06-first-manual-02-safe",
+    "observed_utc": "2026-11-01T02:02:33.3491658Z",
+    "recorded_start": "2026-11-01T01:44:07.0206346Z"
+  },
+  {
+    "pid": 16576,
+    "state": "not-running",
+    "run_id": "P06-first-manual-03-safe",
+    "observed_utc": "2026-11-01T02:02:33.3530825Z",
+    "recorded_start": "2026-11-01T01:44:31.2314106Z"
+  },
+  {
+    "pid": 52720,
+    "state": "not-running",
+    "run_id": "P06-first-manual-04-safe",
+    "observed_utc": "2026-11-01T02:02:33.3568374Z",
+    "recorded_start": "2026-11-01T01:44:51.2932197Z"
+  },
+  {
+    "pid": 47712,
+    "state": "not-running",
+    "run_id": "P06-first-manual-05-safe",
+    "observed_utc": "2026-11-01T02:02:33.3609641Z",
+    "recorded_start": "2026-11-01T01:45:13.3171553Z"
+  },
+  {
+    "pid": 21104,
+    "state": "not-running",
+    "run_id": "P06-first-manual-06-safe",
+    "observed_utc": "2026-11-01T02:02:33.3646521Z",
+    "recorded_start": "2026-11-01T01:45:42.6125082Z"
+  },
+  {
+    "pid": 40584,
+    "state": "not-running",
+    "run_id": "P06-first-manual-07-safe",
+    "observed_utc": "2026-11-01T02:02:33.3723312Z",
+    "recorded_start": "2026-11-01T01:46:07.5061891Z"
+  },
+  {
+    "pid": 31732,
+    "state": "not-running",
+    "run_id": "P06-first-manual-08-safe",
+    "observed_utc": "2026-11-01T02:02:33.3762759Z",
+    "recorded_start": "2026-11-01T01:46:36.0367416Z"
+  },
+  {
+    "pid": 14180,
+    "state": "not-running",
+    "run_id": "P06-first-manual-09-safe",
+    "observed_utc": "2026-11-01T02:02:33.3807594Z",
+    "recorded_start": "2026-11-01T01:47:01.6158838Z"
+  },
+  {
+    "pid": 33132,
+    "state": "not-running",
+    "run_id": "P06-first-manual-10-safe",
+    "observed_utc": "2026-11-01T02:02:33.3839708Z",
+    "recorded_start": "2026-11-01T01:47:26.0129875Z"
+  },
+  {
+    "pid": 52984,
+    "state": "not-running",
+    "run_id": "P06-first-auto-01-safe",
+    "observed_utc": "2026-11-01T02:02:33.3873735Z",
+    "recorded_start": "2026-11-01T01:47:50.2415689Z"
+  },
+  {
+    "pid": 45032,
+    "state": "not-running",
+    "run_id": "P06-first-auto-02-safe",
+    "observed_utc": "2026-11-01T02:02:33.3908918Z",
+    "recorded_start": "2026-11-01T01:48:14.5050896Z"
+  },
+  {
+    "pid": 39728,
+    "state": "not-running",
+    "run_id": "P06-first-auto-03-safe",
+    "observed_utc": "2026-11-01T02:02:33.3953714Z",
+    "recorded_start": "2026-11-01T01:48:39.4724691Z"
+  },
+  {
+    "pid": 21756,
+    "state": "not-running",
+    "run_id": "P06-first-auto-04-safe",
+    "observed_utc": "2026-11-01T02:02:33.3999176Z",
+    "recorded_start": "2026-11-01T01:49:11.5293344Z"
+  },
+  {
+    "pid": 53320,
+    "state": "not-running",
+    "run_id": "P06-first-auto-05-retry1-safe",
+    "observed_utc": "2026-11-01T02:02:33.4070189Z",
+    "recorded_start": "2026-11-01T01:55:23.7923912Z"
+  },
+  {
+    "pid": 37360,
+    "state": "not-running",
+    "run_id": "P06-first-auto-06-safe",
+    "observed_utc": "2026-11-01T02:02:33.4128648Z",
+    "recorded_start": "2026-11-01T01:55:50.8577561Z"
+  },
+  {
+    "pid": 25268,
+    "state": "not-running",
+    "run_id": "P06-first-auto-07-safe",
+    "observed_utc": "2026-11-01T02:02:33.4175123Z",
+    "recorded_start": "2026-11-01T01:56:15.4995801Z"
+  },
+  {
+    "pid": 25008,
+    "state": "not-running",
+    "run_id": "P06-first-auto-08-safe",
+    "observed_utc": "2026-11-01T02:02:33.4227612Z",
+    "recorded_start": "2026-11-01T01:56:43.6699069Z"
+  },
+  {
+    "pid": 14792,
+    "state": "not-running",
+    "run_id": "P06-first-auto-09-safe",
+    "observed_utc": "2026-11-01T02:02:33.4274956Z",
+    "recorded_start": "2026-11-01T01:57:19.1271526Z"
+  },
+  {
+    "pid": 42448,
+    "state": "not-running",
+    "run_id": "P06-first-auto-10-safe",
+    "observed_utc": "2026-11-01T02:02:33.4319637Z",
+    "recorded_start": "2026-11-01T01:57:53.7041392Z"
+  }
+]

@@ -120,3 +120,20 @@ pub fn unpack(data: wasm_bindgen::JsValue) -> Option<(String, Option<Vec<u8>>)> 
     let bytes = js_sys::Uint8Array::new(&pair.get(1)).to_vec();
     Some((text, Some(bytes)))
 }
+
+/// Decode a transferred tile for JavaScript clients through the page's existing bounded codec.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn decode_tile_event(
+    data: wasm_bindgen::JsValue,
+) -> Result<Option<String>, wasm_bindgen::JsValue> {
+    let Some((tag, bytes)) = unpack(data) else {
+        return Ok(None);
+    };
+    if tag != TILE_TAG {
+        return Ok(None);
+    }
+    let bytes = bytes.ok_or_else(|| wasm_bindgen::JsValue::from_str("Tile event has no bytes"))?;
+    let batch = decode_tiles(&bytes).map_err(|reason| wasm_bindgen::JsValue::from_str(&reason))?;
+    Ok(Some(encode(&batch)))
+}

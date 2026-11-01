@@ -133,6 +133,10 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   bound for this sizing path, not a global graph-wave count; use new evaluations/draws per sizing attempt.
   [Full arrays, transient-error case and raw evidence](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P04/README.md).
 
+- **Nonvolatile control.** Seventy changed-seed workbooks: clean F9 made zero SizeUdf calls; range/Full/Rebuild
+  made one and installed two rows. Later scripted sizes/errors were not requested. The volatile eight-call bound
+  must not be generalized to every size expression. See the same P04 evidence folder.
+
 ### P05 ★ Blank occupancy, spill growth/shrink and conflicts (E06; A7 spill contention)
 - **Setup A.** Z1=1, A1=`=SEQUENCE(Z1)`, C10=`=A10+1`, calculated. **Setup B.** Z1=0; A3 and B1 both
   `=IF(Z1,SEQUENCE(4,3),1)`; F1=`=SUM(B3:C4)`; with Z1=1 the footprints overlap.
@@ -180,7 +184,9 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   Stale disabled caches can lack ca/calcCompleted. Semiautomatic Save recalculated stale TABLE output even with
   false. Manual reopen kept ordinary caches; Automatic refreshed them, but could retain the unmarked disabled
   cache. P07's UI pending-async Save(false) supplement canceled work and saved held numeric caches despite a live
-  error. First-workbook open remains unmeasured. [Evidence and exact limits](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P06/README.md).
+  error. Twenty fresh-process first-workbook controls confirm ordinary Manual 2/3 with zero counter calls and
+  Automatic 10/11 with one call each; the Auto mode variant is explicitly synthetic. First-source bytes stayed
+  unchanged. [Evidence and exact limits](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P06/README.md).
 
 ### P07 ★ Async identity, continuation and stale returns (E10; contract async sentinel)
 - **Setup.** Test XLL `AsyncEcho(input, latch)`: deep-copies arguments, keeps its handle, waits on a latch the
@@ -227,7 +233,11 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
   `t`, `ref`, `cm` and metadata parts.
 - **Outcome -> design.** Scalar 2 vs array 1..4 from identical text: `FormulaForm` stays in the semantic key and every
   ingress sets it. Rewrites on paste/fill: dialect follows the operation. Mixed `SavedAsArray`: tri-state.
-- **Measured.** `Formula2` file form only (section 1).
+- **Measured 2026-11-01 (O).** Build 20527 safe mode: ten ingresses x ten workbooks plus 200 read-only Manual/Auto
+  reopens. Identical Formula text gives scalar 2 vs dynamic [1,2,3,4]; CSE remains fixed. Modern copy has no spill
+  before Full and mixed SavedAsArray=Null; modern FillDown creates obstruction errors. All reopened forms, flags
+  and values match post-Full. Saved live Error2045 uses #VALUE! plus rich-error metadata. Retain form/extent and
+  tri-state metadata at every ingress. [Evidence](../../crates/calc-engine/tests/fixtures/excel-calc-probes/P09/README.md).
 
 ### P10 ★ Module and provider reload; stored Range across edits (A7 reload and stored Range; E21)
 - **Setup.** Controller add-in workbook holding a module-level `Range` and a Static counter; UDF `Hold(r As Range)`

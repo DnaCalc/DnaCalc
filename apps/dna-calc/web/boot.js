@@ -37,7 +37,11 @@ window.__dnacalcAssets = new URL(".", import.meta.url).href;
 // may put both in an asset folder of their own.
 import("./dna-calc-web.js")
   .then(function (glue) {
-    return glue.default({ module_or_path: new URL("./dna-calc-web_bg.wasm", import.meta.url) });
+    return glue.default({ module_or_path: new URL("./dna-calc-web_bg.wasm", import.meta.url) })
+      .then(function () {
+        // Share the initialized bounded decoder with clients in another JavaScript realm.
+        window.__dnacalcDecodeTile = glue.decode_tile_event;
+      });
   })
   .then(function () {
     var element = loading();

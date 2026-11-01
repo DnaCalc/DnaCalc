@@ -2442,6 +2442,25 @@ mod tile_tests {
                 .is_ok()
         );
     }
+    fn render(mirror: &ViewMirror, server: &Server) -> dna_calc_model::render_plan::RenderPlan {
+        let sheet = server.book().sheets()[0].id;
+        let shown: Vec<_> = mirror.cells().filter_map(|(_, c)| c.shown()).collect();
+        let metrics = dna_calc_model::geometry::sheet_metrics(mirror.geometry(sheet));
+        let view = dna_calc_model::geometry::Viewport {
+            width: 800.,
+            height: 16_000.,
+            ..Default::default()
+        };
+        let mut plan =
+            dna_calc_model::render_plan::build_render_plan(&shown, &metrics, &view, 1000, 20);
+        plan.attach_semantics(
+            mirror,
+            sheet,
+            &[GridArea::cell(CellKey::new(sheet, 1, 1).unwrap())],
+            (1, 1),
+        );
+        plan
+    }
     fn receive(mirror: &mut ViewMirror, events: Vec<Event>) -> wire::TileBarrier {
         let mut barrier = None;
         assert!(matches!(events.first(), Some(Event::TileAdmission(_))));
@@ -2495,6 +2514,14 @@ mod tile_tests {
         let mut mirror = ViewMirror::default();
         let barrier = receive(&mut mirror, events);
         assert_eq!(mirror.cells().count(), 600);
+        let plan = render(&mirror, &server);
+        assert_eq!(plan.cells.len(), 600);
+        assert_eq!(plan.publication, mirror.stamp());
+        assert_eq!(plan.cells[599].shown.text, "600");
+        assert_eq!(
+            plan.cells[599].shown.provenance,
+            wire::Provenance::Calculated
+        );
         assert!(server.handle(Request::TileAck(barrier), None).reply.is_ok());
         enter(&mut server, "=SEQUENCE(2)");
         let events = projection_events(&mut server);
@@ -2505,6 +2532,18 @@ mod tile_tests {
         );
         receive(&mut mirror, events);
         assert_eq!(mirror.cells().count(), 2);
+        let plan = render(&mirror, &server);
+        assert_eq!(plan.cells.len(), 2);
+        assert_eq!(plan.cells[1].shown.text, "2");
+        assert!(plan.semantic_rows[0].cells[0].selected);
+        let cleared = plan
+            .semantic_rows
+            .iter()
+            .flat_map(|r| &r.cells)
+            .find(|c| c.address == "A3")
+            .unwrap();
+        assert_eq!(cleared.provenance, "empty");
+        assert!(cleared.text.is_empty());
         assert_eq!(
             mirror
                 .cells()

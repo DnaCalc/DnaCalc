@@ -341,7 +341,7 @@ framework can produce:
 | `X0.Caller()` (macro type) | `Q#` |
 | `X0.Big()` (mixed array) | `Q` |
 | `X0.Async(double, ExcelAsyncHandle)` | `>EX` |
-| Excel-DNA `SyncMacro_<session>` | `>B`, macro type 2 |
+| Excel-DNA `SyncMacro_<guid>` | `>B`, macro type 2 |
 | Native `X0.NativeOwned()` | `Q` |
 
 The original Excel-DNA binary exports 10,000 numbered `fN` stubs and no `xlAutoRegister12`.
@@ -363,11 +363,11 @@ Excel-DNA then attempts `xlFree` (16384), which also returns 32 there. This narr
 out-of-context [P] in section 2: do not assume `xlretInvXlfn` for this measured route. It does
 not complete the full permission table for all thread and function contexts.
 
-`QueueAsMacro` executes through `Application.Run` of the registered `SyncMacro_<session>`;
+`QueueAsMacro` executes through `Application.Run` of the registered `SyncMacro_<guid>`;
 `LPenHelper` is also observed. The queued body has C API access and `xlGetName` identifies its
 own Excel-DNA XLL even after a second native XLL has loaded. Application.Run of the fixture's
 zero-argument commands returns Boolean TRUE in the controller. The two observed Run calls of
-`SyncMacro_<session>` return `VT_R8` (5), value 0; this settles that `>B` command's Run return
+`SyncMacro_<guid>` return `VT_R8` (5), value 0; this settles that `>B` command's Run return
 for this build, separately from the fixture commands' Boolean return.
 
 ### 9.2 Ownership, COM and persistence

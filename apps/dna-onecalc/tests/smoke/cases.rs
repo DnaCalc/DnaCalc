@@ -546,6 +546,19 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         actions: &[Action::Window(1280, 1000)],
         checks: &[Check::Fits],
     },
+    Case {
+        name: "evaluation context: ROW and COLUMN use the formula instance in C7",
+        actions: &[
+            Action::Click("fixture-tools"),
+            Action::Into("formula-cell", "C7"),
+            Action::Formula("=ROW()*100+COLUMN()"),
+        ],
+        checks: &[
+            Check::Text("formula-cell-status", "Sheet1!C7"),
+            Check::Text("result-value", "703"),
+            Check::Starts("provenance", "calculated in Sheet1!C7"),
+        ],
+    },
 ];
 
 pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
@@ -569,5 +582,12 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         end: 51,
         core: 3,
         setup: &[Action::Formula("=Spin()")],
+    },
+    CaseGroup {
+        name: "evaluation-context",
+        start: 51,
+        end: 52,
+        core: 1,
+        setup: &[],
     },
 ];
