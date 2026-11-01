@@ -71,6 +71,10 @@ impl<'r> SharedReader<'r> {
         }
     }
 
+    pub(super) fn pending_producer(&self, at: CellKey) -> bool {
+        self.reader.borrow().pending_producer(at)
+    }
+
     pub(super) fn environment(&self) -> Option<CalcEnvironment> {
         self.environment
     }

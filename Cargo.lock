@@ -854,6 +854,7 @@ dependencies = [
 name = "dna-calc-worker"
 version = "0.1.0"
 dependencies = [
+ "calc-fml",
  "calc-func",
  "calc-host",
  "calc-value",

@@ -651,6 +651,9 @@ impl Controller {
                 }
                 | wire::CalculationEvent::AwaitingAsync {
                     domain, command, ..
+                }
+                | wire::CalculationEvent::Reevaluated {
+                    domain, command, ..
                 } => {
                     if self.model.with_untracked(|m| m.runtime.active_calculation)
                         != Some((*domain, *command))

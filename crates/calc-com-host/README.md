@@ -24,3 +24,10 @@ The projection uses Windows' object-return mechanism and local objects only.
 It has no class factory, ROT entry, activation hook, registry-writing code or
 type-library registration. Excel's ProgIDs, CLSIDs and registered interfaces are
 untouched. COM activation for a general desktop object model remains undecided.
+
+X3 adds the observed Window.Parent workbook, Workbook.Application/Name/FullName/Path,
+Application.Workbooks/Path/EnableEvents and Workbooks.Count/Item. The measured
+Workbook dual vtable has 289 slots and Workbooks has 26. These objects describe
+one local Book1 shell; they do not enumerate or project arbitrary application
+documents. xlOil's original native and Python plugins use this route in the
+[X3 captures](../calc-xll-reference/traces/2026-11-01-x3/).

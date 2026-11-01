@@ -9,6 +9,12 @@ use std::ops::ControlFlow;
 
 /// Supplies the cells of grid areas.
 pub trait ReferenceReader {
+    /// True only when this missing read is waiting for an admitted, unfinished producer.
+    /// Terminal unavailable inputs and unloaded cells never authorize provisional values.
+    fn pending_producer(&self, _at: CellKey) -> bool {
+        false
+    }
+
     fn read_denial(&self) -> Option<crate::ReadDenial>;
     /// Records a host question without demanding the cell's value. Metadata reads retain their
     /// own facets and invalidation policy through a value overlay.

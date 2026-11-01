@@ -300,7 +300,8 @@ nonterminal certified scalar units through that same host/worker projection rout
   dependency. The root evaluator retains supported typed VM/JIT activations across worker slices. A dependency or
   spill-placement wait discovered after an effect is a typed refusal until that continuation exists. Stored Ranges
   resolve workbook-owned identities through the admitted reference view, including edits, deletion and close.
-  General provisional reevaluation, nested callback reentry and async completion remain open.
+  Explicit P03 reevaluation and synchronous nested callback entry are now supported as below.
+  Async owner completion is described in 3.4.
 
 P10 (O, 20527 safe mode) refines retained-reference authority: a Range tracks insert/delete-above/cut and union
 areas, but deleting its cell or closing the owner makes its properties fail with error424 even though TypeName
@@ -417,7 +418,20 @@ counted native tests demonstrate suspension and reload without repeating the pre
 retain an explicit synchronous interval, and nested CalcFml blocks are not yet sliced internally.
 Reload revokes command publication authority and rebinds compiled consumers whose callable watches
 changed. Unresolved compilation refusals are retried conservatively when registrations change.
-General P03 semantic reevaluation remains open; the P07 owner boundary is described in 3.4.
+P03 now records registration-authorized XLL unwind and provisional scalar-argument evaluations
+with distinct ordinals/reasons and prior call records. A provisional body retains its activation
+across physical safepoints and finishes before the next semantic evaluation is admitted. The
+producer and surviving fences install before that next cached view. Nested synchronous callbacks
+inherit the invocation frame/pin and file positive/negative callable watches; an occupied state
+lane requires explicit reentry permission. Nested waits, general Range provisional ordering and
+nested CalcFml continuations remain bounded refusals or later work. P07's owner boundary is in 3.4.
+RTD events use a separate provider/subscription sequence and immutable input snapshot. They mark
+provider consumers required for later demand, never supply a formula result or resume an async
+activation. Manual mode waits for a calculation command. Duplicates/stale/conflicting sequences,
+retired subscriptions and old provider generations cannot change the current snapshot. A new
+input event conservatively supersedes live work at the next owner step; input reads carry
+subscription versions and commands retain their admitted cut. Native XLL/RTD adapters still need
+to connect to these owner APIs; this is not evidence of a native RTD server running.
 Live range scopes follow cut/paste and cell shifts through the product command and Undo/Redo paths,
 as well as axis/sheet edits. Overwritten cut destinations and deleted locations leave the command;
 Undo never revives them. Disjoint surviving pieces stay disjoint, including cross-sheet moves.

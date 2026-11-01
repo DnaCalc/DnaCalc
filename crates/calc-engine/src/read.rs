@@ -1333,6 +1333,15 @@ fn scope_denial() -> calc_fml::ReadDenial {
 }
 
 impl ReferenceReader for WorkbookReader<'_> {
+    fn pending_producer(&self, at: CellKey) -> bool {
+        self.uncomputed.get().is_some_and(|(cell, node)| {
+            cell == at
+                && !matches!(self.view.state.bindings.get(&node), Some(crate::state::Binding::Refused(_)) | None)
+                && self.view.progress.is_scheduled(node)
+                && !self.view.progress.is_evaluated(node)
+        })
+    }
+
     fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
         self.denial
             .get()

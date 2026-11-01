@@ -5019,6 +5019,8 @@ fn a_pass_pins_its_clock_across_steps() {
 // never invents its value or evaluates it as part of these demonstrations.
 #[path = "fixtures/seven_cell.rs"]
 mod seven_cell;
+#[path = "fixtures/seven_cell_async.rs"]
+mod async_provider;
 struct SevenCellSlice {
     sheet: SheetId,
     root: Arc<ModelRoot>,
@@ -7484,4 +7486,76 @@ fn contract_partial_callable_projection_preserves_refusals_and_rebinds_qualified
     for column in [1, 2] {
         assert_eq!(l1_value(&state, cell(column)), CalcValue::number(52.0));
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p07_intervening_same_revision_publication_revokes_the_engine_return() {
+    use calc_engine::{CalcScope, EvalSelection, begin_recalc_scoped};
+    use async_provider::{Counts, Echo};
+    use std::{cell::RefCell, rc::Rc};
+    let book = Workbook::new();
+    let s = book.alpha;
+    let b = key(s, 1, 2);
+    let d = key(s, 1, 4);
+    let root = l3_root(
+        &[(s, "Calc")],
+        vec![(b, formula("AsyncEcho(1)")), (d, formula("1+1"))],
+        Definitions::default(),
+    );
+    let counts = Rc::new(RefCell::new(Counts::default()));
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register("AsyncEcho", Rc::new(Echo(counts.clone())))
+        .unwrap();
+    let mut state = EngineState::new(&root);
+    state.set_callable_bindings(&root, functions.bindings());
+    let mut old = begin_recalc_scoped(
+        &mut state,
+        &root,
+        NumericMode::Fast,
+        CalcScope::Range(vec![GridArea::cell(b)]),
+        EvalSelection::ForceAll,
+    )
+    .unwrap()
+    .with_functions(&functions);
+    assert!(matches!(
+        step(
+            &state,
+            &root,
+            &mut old,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Waiting { .. }
+    ));
+    let token = old.pending_async().next().unwrap().clone();
+    let mut later = begin_recalc_scoped(
+        &mut state,
+        &root,
+        NumericMode::Fast,
+        CalcScope::Range(vec![GridArea::cell(d)]),
+        EvalSelection::ForceAll,
+    )
+    .unwrap()
+    .with_functions(&functions);
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut later,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, &root, later).unwrap();
+    assert_eq!(
+        old.accept_async(&state, &root, &token, CalcValue::number(42.0)),
+        Err(calc_engine::contract::AsyncRejection::Revoked)
+    );
+    assert_eq!(counts.borrow().suffix, 0);
+    assert_eq!(counts.borrow().resumes, 1);
+    assert!(matches!(state.result(b), None));
+    assert_eq!(l1_value(&state, d), CalcValue::number(2.0));
 }

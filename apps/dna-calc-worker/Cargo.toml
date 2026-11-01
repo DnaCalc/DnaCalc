@@ -17,5 +17,8 @@ calc-func = {path="../../crates/calc-func"}
 wasm-bindgen = "=0.2.117"
 js-sys = "=0.3.94"
 web-sys = {version="=0.3.94",features=["DedicatedWorkerGlobalScope","MessageEvent","Crypto"]}
+[dev-dependencies]
+calc-fml = {path="../../crates/calc-fml"}
+
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"

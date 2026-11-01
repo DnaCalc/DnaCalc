@@ -10,12 +10,16 @@ use std::{
     fmt,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{Mutex, OnceLock},
+    sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn LoadLibraryExW(path: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
+    pub(crate) fn GetModuleHandleW(name: *const u16) -> *mut c_void;
     fn GetModuleHandleExW(flags: u32, name: *const u16, module: *mut *mut c_void) -> i32;
     fn GetModuleFileNameW(module: *mut c_void, path: *mut u16, length: u32) -> u32;
     fn GetProcAddress(module: *mut c_void, name: *const u8) -> *mut c_void;
@@ -36,7 +40,18 @@ pub(crate) fn wide(path: &std::ffi::OsStr) -> Vec<u16> {
 pub(crate) struct Module {
     pub handle: *mut c_void,
     pub path: PathBuf,
+    measured_xloil: bool,
 }
+
+// Compatibility refusal for the exact original PyPI xlOil 0.22.1 loader measured
+// in X3 (both wheel profiles contain this file). Its still-loaded core crashes
+// during plugin reinitialization after teardown. Do not extrapolate to other
+// releases or pretend that a refused reload is a compatibility pass (dc-snz.21).
+const XLOIL_0221: [u8; 32] = [
+    0xf0, 0x8e, 0x0b, 0x44, 0xee, 0x61, 0x14, 0x7b, 0x25, 0xba, 0x15, 0x3b, 0x41, 0x26, 0x43, 0x54,
+    0x72, 0xd3, 0xcd, 0x62, 0x52, 0xf1, 0xa2, 0x6a, 0x11, 0x77, 0x18, 0x0c, 0x6d, 0xc7, 0xa8, 0xb0,
+];
+static XLOIL_0221_REMOVED: AtomicBool = AtomicBool::new(false);
 impl fmt::Debug for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Module").field(&self.path).finish()
@@ -65,7 +80,10 @@ impl Module {
             Some(std::slice::from_raw_parts(bytes, size))
         }
     }
-    fn reserve_native_aot(&self) -> Result<(), String> {
+    fn reserve_runtime_initialization(&self) -> Result<(), String> {
+        if self.measured_xloil && XLOIL_0221_REMOVED.load(Ordering::Acquire) {
+            return Err("dc-snz.21: reopening the measured xlOil 0.22.1 runtime after teardown is not modelled; restart the host".into());
+        }
         let Some(payload) = self.resource("__MAIN__", "NATIVE_ASSEMBLY") else {
             return Ok(());
         };
@@ -128,7 +146,15 @@ impl Module {
                 std::io::Error::last_os_error()
             ));
         }
-        Ok(Rc::new(Self { handle, path }))
+        let bytes = std::fs::read(&path);
+        let measured_xloil = bytes
+            .as_ref()
+            .is_ok_and(|bytes| Sha256::digest(bytes).as_slice() == XLOIL_0221);
+        Ok(Rc::new(Self {
+            handle,
+            path,
+            measured_xloil,
+        }))
     }
     pub(crate) fn loaded(name: &str) -> Result<Rc<Self>, String> {
         let mut handle = std::ptr::null_mut();
@@ -150,6 +176,7 @@ impl Module {
         Ok(Rc::new(Self {
             handle,
             path: std::ffi::OsString::from_wide(&path[..length]).into(),
+            measured_xloil: false,
         }))
     }
     pub(crate) fn address(&self, name: &str) -> Result<usize, String> {
@@ -272,7 +299,7 @@ impl XllHost {
             return Err("XLL already loaded by this host".into());
         }
         let open = module.address("xlAutoOpen")?;
-        module.reserve_native_aot()?;
+        module.reserve_runtime_initialization()?;
         // xlAutoOpen runs at an execution boundary. A failed load must restore names and
         // use counts it changed in previously loaded add-ins, as well as remove its own entries.
         let (previous_registrations, previous_names, previous_uses) = {
@@ -438,6 +465,10 @@ impl XllHost {
         self.unload_module(&module)
     }
     fn unload_module(&self, module: &Rc<Module>) -> Result<(), String> {
+        if module.measured_xloil {
+            // Retain this process-lifetime fact even if teardown only partly succeeds.
+            XLOIL_0221_REMOVED.store(true, Ordering::Release);
+        }
         let mut failures = Vec::new();
         for entry in ["xlAutoRemove", "xlAutoClose"] {
             if let Ok(address) = module.address(entry) {

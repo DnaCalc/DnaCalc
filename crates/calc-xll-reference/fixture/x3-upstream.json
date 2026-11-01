@@ -1,0 +1,68 @@
+{
+  "captured_utc": "2026-11-01",
+  "xlw": {
+    "version": "23.10.12-rc",
+    "source_commit": "6cfa12453e00218c7f808d16cb7738eb319392fa",
+    "source_repository": "https://github.com/xlw/xlw",
+    "package_url": "https://github.com/xlw/xlw/releases/download/23.10.12-rc/xlw.23.10.12-rc.nupkg",
+    "package_sha256": "24eb354b5c174a31bdd80388e5cd3427759f46fce6db73dfcb9284cb62ea6ed4",
+    "source_paths": {
+      "xlw/DevAndTestProject/cppinterface.h": "d2562db45c6c0330739d0b2ab9f5fed12f89bd48678be3b81ac58a06119339f5",
+      "xlw/DevAndTestProject/source.cpp": "06c691ad75b4bd0b13c9bdffc521a20f1d37d53a73c131c3a66063f4b63f76b4",
+      "LICENSE.TXT": "90ce5b6685683f434756561c06fda405e3357a5ff87100127f94e13aa7dbd16d"
+    },
+    "licence": "upstream BSD-style notice; sources and binaries remain outside this repository",
+    "source_raw_sha256": {
+      "xlw/DevAndTestProject/cppinterface.h": "33dcaee9a74596b50b72540ac095df2319767d169ddc3cfc9f68f6203fc98a21",
+      "xlw/DevAndTestProject/source.cpp": "416adca911897c5472b1e8db6a0c14336887ee1fcaec5f09a0dbbf20bb73893a",
+      "LICENSE.TXT": "b1dd146d6d745b2d0ddcf76baddcc832bcb3aa5d880cc22fc1249ee5b97d71ff"
+    }
+  },
+  "xloil": {
+    "version": "0.22.1",
+    "source_commit": "6aff3a4f1dbce4fe91828018bb2be819ae8181c9",
+    "source_repository": "https://github.com/cunnane/xloil",
+    "source_tag": "v0.22.1",
+    "distribution": "https://pypi.org/project/xloil/0.22.1/",
+    "licence": "Apache-2.0",
+    "wheels": [
+      {
+        "file": "xloil-0.22.1-cp312-cp312-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/c0/23/6706f3780f0220b02ed1df917ff3051bb62759201947ebb6509ff023b878/xloil-0.22.1-cp312-cp312-win_amd64.whl",
+        "sha256": "c1a84adbebd6e4cc5ab46a8497e2d16f61d49cb94a842c96398a5f24bb2af543"
+      },
+      {
+        "file": "xloil-0.22.1-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/94/f6/8dde8653f7042709948e223bc76982a79c43bbde5bafa9dd5556f31971cd/xloil-0.22.1-cp314-cp314-win_amd64.whl",
+        "sha256": "22aa2c2baf4087513e7f6700247ff334db0d3883462b06a78c898ddcedcaa14b"
+      }
+    ]
+  },
+  "runtime_files": {
+    "xlw-runtime": {
+      "xlwSample.xll": "d01b0dc43c92619e3fc910f998e4a59c7132976f2d031b5b6afaa3161e7f4565"
+    },
+    "xloil-runtime": {
+      "xlOil.dll": "b53a0c3675c49e5ba6139fdc611dc4bf5885b035e6ebe6eea55b104766a24abf",
+      "xlOil.ini": "fc0efa4fcd582988425a94685249c28e217116f6bb321eef5e8e4d0b901b04c2",
+      "xlOil.xll": "f08e0b44ee61147b25ba153b4126435472d3cd6252f1a26a1177180c6dc7a8b0",
+      "xlOil_SQL.dll": "3294a2525cfb1039bffb308261d2a3620b4f5ac63545dfcfd26eb0df055aff5d",
+      "xlOil_Utils.dll": "74a29dffb30d3827c5f2a8d9f2b1581a1c7bd6ec33ac44a4490ab5e0300f89ff"
+    },
+    "xloil-python-runtime": {
+      "xlOil.dll": "b53a0c3675c49e5ba6139fdc611dc4bf5885b035e6ebe6eea55b104766a24abf",
+      "xlOil.ini": "c8c2d399400f043e5ecc61c0afe811bd2893ac5cf1e23c5bf1ed3a49e0344ade",
+      "xlOil.py": "f8ff8617016792ea06b582d22f0a24d586c0adb618f8012f6374ecaf42712f57",
+      "xlOil.xll": "f08e0b44ee61147b25ba153b4126435472d3cd6252f1a26a1177180c6dc7a8b0",
+      "xlOil_Python.dll": "f0de6a63045231b792fc30749d20bb328f5065022ad6c102ec219c296fc0b5b1",
+      "xlOil_Python312.pyd": "cde7586ecc497fa0ba956731b69a80fdf476c634209d1e03e503f638ac9b087e",
+      "xlOil_SQL.dll": "3294a2525cfb1039bffb308261d2a3620b4f5ac63545dfcfd26eb0df055aff5d",
+      "xlOil_Utils.dll": "74a29dffb30d3827c5f2a8d9f2b1581a1c7bd6ec33ac44a4490ab5e0300f89ff"
+    }
+  },
+  "python_environment": {
+    "executable": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\python.exe",
+    "numpy_path": "C:\\Users\\GovertvanDrimmelen\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages",
+    "numpy_version": "2.1.0"
+  }
+}

@@ -175,6 +175,7 @@ impl std::error::Error for StartError {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RecalcFailure {
     CallableBindingMismatch,
+    ExternalInputMismatch,
     /// A read of `area` by the evaluation of the formula at `formula` did not complete, so the
     /// evaluation's result was discarded: the read observer stopped the recalculation there
     /// ([`ReadObserver::observe`]), or the reads broke CalcFml's reader contract, which the
@@ -217,6 +218,9 @@ impl fmt::Display for RecalcFailure {
                 f,
                 "a read of {area:?} by the formula at {formula:?} did not complete"
             ),
+            RecalcFailure::ExternalInputMismatch => {
+                write!(f, "the external input view differs from its admitted cut")
+            }
             RecalcFailure::CallableBindingMismatch => {
                 f.write_str("the executable callable table differs from its admitted bindings")
             }
@@ -326,8 +330,12 @@ impl<T> BySlot<T> {
 /// moved on since [`begin_recalc`].
 #[derive(Debug)]
 pub struct RecalcWork {
+    external_input_version: u64,
+    external_inputs: Option<std::rc::Rc<dyn calc_fml::UserExternalInputs>>,
     async_waits: BTreeMap<NodeId, AsyncToken>,
     async_resumed: BTreeSet<NodeId>,
+    evaluations: BTreeMap<NodeId, (u64, ReevaluationReason)>,
+    semantic_waits: BTreeSet<NodeId>,
     functions: Option<calc_fml::CallableTable>,
     references: Option<std::rc::Rc<calc_fml::reference::ReferenceTracker>>,
     callable_bindings: calc_fml::CallableBindings,
@@ -419,6 +427,7 @@ struct Sizing {
 #[derive(Debug, Default)]
 pub(crate) struct EvalLocal {
     effects: calc_fml::UserFunctionEffects,
+    semantic_prerequisite: Option<(CellKey, NodeId)>,
     references: Option<std::rc::Rc<calc_fml::reference::ReferenceView>>,
     observation: Option<crate::CachedReadLease>,
     observation_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
@@ -448,6 +457,7 @@ pub(crate) struct EvalLocal {
 pub(crate) struct EvalShared<'a> {
     pass: CalcPassId,
     root_reason: ReevaluationReason,
+    evaluations: &'a BTreeMap<NodeId, (u64, ReevaluationReason)>,
     requirements: &'a BTreeMap<NodeId, RequirementState>,
     facts_version: u64,
     volatile_inputs: u64,
@@ -456,6 +466,7 @@ pub(crate) struct EvalShared<'a> {
     pub(crate) calculation: &'a Calculation,
     pub(crate) environment: Option<calc_fml::CalcEnvironment>,
     pub(crate) random_seed: u64,
+    external_inputs: Option<&'a dyn calc_fml::UserExternalInputs>,
     pub(crate) workbook_facts: Option<&'a Arc<dyn calc_fml::WorkbookFacts>>,
     pub(crate) progress: &'a Progress,
     pub(crate) spills: &'a SpillIndex,
@@ -499,6 +510,7 @@ macro_rules! shared_of {
         EvalShared {
             pass: $work.pass,
             root_reason: $work.root_reason,
+            evaluations: &$work.evaluations,
             requirements: &$work.requirements,
             facts_version: $work.facts_version,
             volatile_inputs: $work.volatile_input_version,
@@ -507,6 +519,7 @@ macro_rules! shared_of {
             calculation: &$work.calculation,
             environment: $work.environment,
             random_seed: $work.random_seed,
+            external_inputs: $work.external_inputs.as_deref(),
             workbook_facts: $work.workbook_facts.as_ref(),
             progress: &$work.progress,
             spills: &$work.spills,
@@ -520,6 +533,26 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
+    pub fn with_external_inputs(
+        mut self,
+        inputs: std::rc::Rc<dyn calc_fml::UserExternalInputs>,
+    ) -> Self {
+        if inputs.version() != self.external_input_version {
+            self.failure = Some(RecalcFailure::ExternalInputMismatch);
+        }
+        self.external_inputs = Some(inputs);
+        self
+    }
+    /// Live hosts admit a successor for a new clock/random/input cut. The raw engine can
+    /// finish a historical clock-pinned pass, whose unmet current requirements remain stale.
+    pub fn live_inputs_current(&self, state: &EngineState) -> bool {
+        self.inputs_current(state)
+            && self.volatile_input_version == state.volatile_input_version
+            && state.environment == self.environment.map(Into::into)
+    }
+    pub fn inputs_current(&self, state: &EngineState) -> bool {
+        self.external_input_version == state.contract.external_inputs
+    }
     pub fn with_reference_tracker(
         mut self,
         references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
@@ -1154,8 +1187,12 @@ fn begin_with_scope(
         urgent_interest: false,
         service_clock: 0,
         last_service: BTreeMap::new(),
+        external_input_version: state.contract.external_inputs,
+        external_inputs: None,
         async_waits: BTreeMap::new(),
         async_resumed: BTreeSet::new(),
+        evaluations: BTreeMap::new(),
+        semantic_waits: BTreeSet::new(),
         suspended: BTreeMap::new(),
         early_published: BTreeMap::new(),
         publication_fences: false,
@@ -1418,6 +1455,7 @@ pub fn step(
         && (state.revision() != work.revision
             || inputs.revision() != work.revision
             || state.generation != work.generation
+            || !work.inputs_current(state)
             || !work.callables_current(state)
             || state.environment != work.environment.map(Into::into))
     {
@@ -1575,6 +1613,70 @@ fn apply(
             if work.async_resumed.remove(&node) {
                 work.open_pass(PassReason::AsyncDependents);
             }
+        }
+        Ok(Attempt::Reevaluate { on, cell, reason }) => {
+            let previous = root_invocation(state, &shared_of!(work), node);
+            let invocations = work
+                .local
+                .effects
+                .invocations()
+                .iter()
+                .map(|record| {
+                    let mut identity = previous.clone();
+                    identity.call_site = record.call_site;
+                    identity.occurrence = record.occurrence.clone();
+                    CallInvocation {
+                        identity,
+                        runtime: record.id,
+                        parent: record.parent,
+                        callable: record.callable,
+                        completed: record.completed,
+                        non_preemptible: record.non_preemptible,
+                    }
+                })
+                .collect();
+            work.evaluations.insert(
+                node,
+                (
+                    previous
+                        .evaluation
+                        .checked_add(1)
+                        .expect("evaluation ordinal exhausted"),
+                    reason,
+                ),
+            );
+            let next = root_invocation(state, &shared_of!(work), node);
+            work.events.push(CalcEvent::Reevaluated {
+                previous,
+                next,
+                invocations,
+            });
+            work.local = EvalLocal::default();
+            work.semantic_waits.insert(node);
+            // The previous invocation has ended. Its next evaluation and known consumers
+            // follow the unresolved producer and the surviving observation fences. Install
+            // that prefix before admitting the new cached view; never certify staged inputs
+            // against an older installed frontier.
+            let moved: BTreeSet<_> = dirty_closure(state, inputs, [node].into(), &|n| {
+                invalidation_areas(state, inputs, n)
+            })
+            .members()
+            .iter()
+            .copied()
+            .collect();
+            let mut ranks: BTreeMap<_, usize> = work
+                .segments
+                .iter()
+                .map(|(node, segment)| ((moved.contains(node), *segment), 0))
+                .collect();
+            for (rank, value) in ranks.values_mut().enumerate() {
+                *value = rank;
+            }
+            for (node, segment) in &mut work.segments {
+                *segment = ranks[&(moved.contains(node), *segment)];
+            }
+            observer.deferred(live_anchor(state, node), cell);
+            defer(state, inputs, work, node, on);
         }
         Ok(Attempt::Kept) => keep(state, inputs, work, node),
         Ok(Attempt::Waits { on, cell }) => {
@@ -1918,6 +2020,7 @@ pub fn publish_ready(
         || state.revision() != work.revision
         || inputs.revision() != work.revision
         || state.generation != work.generation
+        || !work.inputs_current(state)
         || !work.callables_current(state)
         || state.environment != work.environment.map(Into::into)
     {
@@ -2113,6 +2216,7 @@ pub fn finish(
     if state.revision() != work.revision
         || inputs.revision() != work.revision
         || state.generation != work.generation
+        || !work.inputs_current(state)
         || !work.callables_current(state)
         || state.environment != work.environment.map(Into::into)
     {
@@ -3322,7 +3426,10 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
 fn active_segment(work: &RecalcWork) -> Option<usize> {
     work.segments
         .iter()
-        .filter(|(node, _)| !work.progress.is_evaluated(**node))
+        .filter(|(node, _)| {
+            !work.progress.is_evaluated(**node)
+                && !(work.semantic_waits.contains(node) && work.waits_on.contains_key(node))
+        })
         .map(|(_, segment)| *segment)
         .min()
 }
@@ -3734,6 +3841,10 @@ struct Observed<'l, 'o> {
 }
 
 impl ReferenceReader for Observed<'_, '_> {
+    fn pending_producer(&self, at: CellKey) -> bool {
+        self.cells.pending_producer(at)
+    }
+
     fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
         self.cells.read_denial()
     }
@@ -3894,6 +4005,11 @@ enum Attempt {
     /// The same semantic activation retains its stack, instruction pointer and kernel buffer.
     Suspended,
     AwaitExternal,
+    Reevaluate {
+        on: NodeId,
+        cell: CellKey,
+        reason: ReevaluationReason,
+    },
     /// The result to stage.
     Done(Done),
     /// The evaluation read `cell`, which `on` calculates and this recalculation has yet to
@@ -3973,16 +4089,19 @@ fn root_invocation(state: &EngineState, shared: &EvalShared<'_>, node: NodeId) -
         pass: shared.pass,
         workbook: state.contract.workbook,
         locus: live_anchor(state, node),
-        evaluation: 0,
+        evaluation: shared.evaluations.get(&node).map_or(0, |entry| entry.0),
         call_site: 0,
         occurrence: Vec::new(),
-        reason: match shared.pass.reason {
-            PassReason::SpillShape => ReevaluationReason::SpillShapePass,
-            PassReason::IterationSweep(_) => ReevaluationReason::IterationSweep,
-            PassReason::Scenario(_) => ReevaluationReason::TableScenario,
-            PassReason::DependencyRepair => ReevaluationReason::DependencyRepair,
-            _ => shared.root_reason,
-        },
+        reason: shared.evaluations.get(&node).map_or_else(
+            || match shared.pass.reason {
+                PassReason::SpillShape => ReevaluationReason::SpillShapePass,
+                PassReason::IterationSweep(_) => ReevaluationReason::IterationSweep,
+                PassReason::Scenario(_) => ReevaluationReason::TableScenario,
+                PassReason::DependencyRepair => ReevaluationReason::DependencyRepair,
+                _ => shared.root_reason,
+            },
+            |entry| entry.1,
+        ),
     }
 }
 
@@ -4103,10 +4222,16 @@ fn evaluate_with(
         bindings: state.contract.bindings,
         ..ReadCertificate::default()
     };
+    reads.external_inputs = local.effects.external_inputs().to_vec();
     reads.callables = match state.bindings.get(&node) {
         Some(Binding::Placed(instance, _)) => instance.plan().callable_bindings().to_vec(),
         _ => Vec::new(),
     };
+    for proof in local.effects.callable_reads() {
+        if !reads.callables.contains(proof) {
+            reads.callables.push(proof.clone());
+        }
+    }
     if let Some(pin) = &local.observation {
         for (request, region) in &local.observation_reads {
             let read = pin.observation(*request, *region);
@@ -4456,7 +4581,11 @@ fn evaluate_unstamped(
     });
     let mut random = local.random.take().unwrap_or_else(|| {
         RandomStream::new(
-            shared.random_seed ^ (u64::from(shared.pass.ordinal) << 32),
+            shared.random_seed
+                ^ (u64::from(shared.pass.ordinal) << 32)
+                ^ root_invocation(state, shared, node)
+                    .evaluation
+                    .rotate_left(17),
             calculation.tick().get(),
             formula,
         )
@@ -4518,6 +4647,9 @@ fn evaluate_unstamped(
             .with_random(&mut random)
             .with_user_function_effects(&mut user_effects)
             .observed_by(instrument);
+            if let Some(inputs) = shared.external_inputs {
+                services = services.with_external_inputs(inputs);
+            }
             if let Some(functions) = functions {
                 services = services.with_functions(functions);
             }
@@ -4568,8 +4700,35 @@ fn evaluate_unstamped(
         return Ok(Attempt::Kept);
     }
     if local.boundary_read.get().is_none()
-        && let Some((cell, on)) = uncomputed.get()
+        && let Some((cell, on)) = uncomputed.get().or(local.semantic_prerequisite)
     {
+        if let Some(reason) = local.effects.reevaluation() {
+            if matches!(outcome, calc_fml::EvalStep::Suspended(_)) {
+                if activation.pending_external().is_some() {
+                    return Ok(Attempt::Done(refused_by(
+                        &calculation,
+                        NotModeled::Evaluation(EvalFault::NotModelled {
+                            construct: "an async wait inside a provisional semantic evaluation",
+                            owner: "dc-hsa5.4",
+                        }),
+                    )));
+                }
+                local.semantic_prerequisite = Some((cell, on));
+                local.footprint = footprint.into_inner();
+                local.activation = Some(activation);
+                local.random = Some(random);
+                return Ok(Attempt::Suspended);
+            }
+            let reason = match reason {
+                calc_fml::UserReevaluationReason::XllUncalcedUnwind => {
+                    ReevaluationReason::XllUncalcedUnwind
+                }
+                calc_fml::UserReevaluationReason::ProvisionalArguments => {
+                    ReevaluationReason::ProvisionalArguments
+                }
+            };
+            return Ok(Attempt::Reevaluate { on, cell, reason });
+        }
         if local.effects.calls() > 0 {
             return Ok(Attempt::Done(refused_by(
                 &calculation,
@@ -4594,6 +4753,15 @@ fn evaluate_unstamped(
             return Err(RecalcFailure::UnscheduledRead { formula, cell });
         }
         return Ok(Attempt::Waits { on, cell });
+    }
+    if local.effects.reevaluation().is_some() {
+        return Ok(Attempt::Done(refused_by(
+            &calculation,
+            NotModeled::Evaluation(EvalFault::NotModelled {
+                construct: "semantic reevaluation without an unresolved prerequisite",
+                owner: "dc-hsa5.4",
+            }),
+        )));
     }
     let outcome = match outcome {
         calc_fml::EvalStep::Suspended(_) => {
@@ -4929,6 +5097,8 @@ impl RecalcWork {
             return Err(AsyncRejection::IdentityMismatch);
         }
         if self.failure.is_some()
+            || !self.live_inputs_current(state)
+            || self.generation != state.generation
             || self.revision != inputs.revision()
             || self.revision != state.revision()
             || token.invocation.pass.command != self.admission.command

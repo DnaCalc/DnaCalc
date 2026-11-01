@@ -500,7 +500,19 @@ impl EngineState {
                     )) => true,
                     _ => false,
                 };
-                changed.then_some(*node)
+                (changed
+                    || self
+                        .results
+                        .of(*node)
+                        .and_then(FormulaResult::stamp)
+                        .is_some_and(|stamp| {
+                            stamp
+                                .reads
+                                .callables
+                                .iter()
+                                .any(|proof| !next.validates(proof))
+                        }))
+                .then_some(*node)
             })
             .collect();
         let dirty = crate::recalc::dirty_closure(self, inputs, affected.clone(), &|node| {
@@ -518,6 +530,39 @@ impl EngineState {
                 .all(|proof| next.validates(proof))
         });
         self.callables = next;
+    }
+
+    /// An RTD/subscription event advances the next command's input cut. It is neither an
+    /// authored cell edit nor an async return, and never supplies a formula result directly.
+    pub fn invalidate_callable_input(
+        &mut self,
+        inputs: &ModelRoot,
+        key: calc_fml::UserInputKey,
+        sequence: u64,
+    ) {
+        let provider = key.callable;
+        let roots:BTreeSet<_>=self.bindings.iter().filter_map(|(node,binding)| {
+            let watched=matches!(binding,Binding::Placed(instance,_) if instance.plan().callable_bindings().iter().any(|proof| proof.bound==Some(provider)))
+                || self.results.of(*node).and_then(FormulaResult::stamp).is_some_and(|stamp| stamp.reads.callables.iter().any(|proof| proof.bound==Some(provider)));
+            watched.then_some(*node)
+        }).collect();
+        let dirty = crate::recalc::dirty_closure(self, inputs, roots.clone(), &|n| {
+            crate::recalc::invalidation_areas(self, inputs, n)
+        })
+        .members()
+        .to_vec();
+        self.pending.extend(roots);
+        self.contract.invalidate(dirty);
+        self.contract.external_versions.insert(key, sequence);
+        self.contract.external_inputs = self
+            .contract
+            .external_inputs
+            .checked_add(1)
+            .expect("external input epoch exhausted");
+        self.volatile_input_version = self
+            .volatile_input_version
+            .checked_add(1)
+            .expect("external input epoch exhausted");
     }
 
     /// The state of the snapshot `inputs`, at its revision: one unbound, pending node for each

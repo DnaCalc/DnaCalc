@@ -266,7 +266,7 @@ static void addModule(Address base, const std::wstring& path) {
         emit("\"event\":\"xll_exports\",\"module\":"+quote(file)+",\"numbered_stub_count\":"+std::to_string(stubs)+",\"names\":"+names+"]");
     }
     for (auto& [name,addr]:m.exports) {
-        bool watch = name=="MdCallBack12" || (lower=="xlcall32.dll" && (name=="XLCallVer" || name=="LPenHelper")) ||
+        bool watch = name=="MdCallBack12" || name=="xlAutoFree12" || (lower=="xlcall32.dll" && (name=="XLCallVer" || name=="LPenHelper")) ||
             (lower=="oleacc.dll" && name=="AccessibleObjectFromWindow") ||
             (xll && (name=="xlAutoOpen" || name=="xlAutoClose" || name=="xlAutoRemove" || name=="xlAutoAdd" ||
                 name=="xlAutoFree12" || name=="xlAutoRegister12" || name=="xlAddInManagerInfo12" ||
@@ -283,6 +283,9 @@ static void registerEntry(const Call& c) {
     std::string signature = operString(read<Address>(c.args+16));
     std::string name = operString(read<Address>(c.args+24));
     auto slash=module.find_last_of("\\/"); if(slash!=std::string::npos) module=module.substr(slash+1);
+    // GetModuleHandle accepts a DLL name without its extension. xlOil's native
+    // plugins register exactly that form; use the same module identity here.
+    if(module.find('.')==std::string::npos)module+=".dll";
     for (auto& [base,m]:modules) {
         if (_stricmp(basename(m.path).c_str(),module.c_str()) != 0) continue;
         // xlOil changes its PE export entry between registrations. Read the current table,

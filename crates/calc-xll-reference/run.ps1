@@ -1,15 +1,29 @@
 param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))), [switch]$NoTrace, [string]$X1Xll, [string]$HostExecutable,
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
-    [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal)
+    [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
+    [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal)
 $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Run with pwsh -Sta -File run.ps1.' }
 if ($ReloadNewHost) { $Reload=$true }
 if ($ExpectAotReloadRefusal -and ((-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectAotReloadRefusal requires a reload/alias attempt and -HostExecutable.' }
+if ($ExpectXloilReloadRefusal -and ($ExpectAotReloadRefusal -or (-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectXloilReloadRefusal requires a host reload/alias attempt without the AOT expectation.' }
+$expectedRefusal=if($ExpectAotReloadRefusal){'dc-snz.18: reinitializing a packed Native AOT runtime already attempted'}elseif($ExpectXloilReloadRefusal){'dc-snz.21: reopening the measured xlOil 0.22.1 runtime after teardown is not modelled'}else{$null}
 $run = [IO.Path]::GetFullPath($RunDirectory)
 if (Test-Path -LiteralPath $run) { throw 'Use a new run directory; earlier evidence is never overwritten.' }
 New-Item -ItemType Directory -Path $run -Force | Out-Null
 $sourceFiles = [ordered]@{}
 $managedFiles = [ordered]@{}
+if ($AddInDirectory) {
+    if ($X1Xll -or $ExcelDnaDirectory -or -not $Cases -or -not $XllFileName) { throw 'An external add-in needs -XllFileName and -Cases, without another fixture.' }
+    if ([IO.Path]::GetFileName($XllFileName) -ne $XllFileName -or [IO.Path]::GetExtension($XllFileName) -ne '.xll') { throw 'XllFileName must be a simple .xll file name.' }
+    Get-ChildItem -LiteralPath (Resolve-Path -LiteralPath $AddInDirectory).Path -File | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $run
+        $managedFiles[$_.Name] = (Get-FileHash -LiteralPath $_.FullName).Hash
+    }
+    $managedXll = Join-Path $run $XllFileName
+    if (-not (Test-Path -LiteralPath $managedXll)) { throw 'Missing external XLL.' }
+    $Cases = (Resolve-Path -LiteralPath $Cases).Path
+}
 if ($ExcelDnaDirectory) {
     if ($X1Xll) { throw 'Select either the X1 fixture or an Excel-DNA fixture.' }
     if ($AddInName -notmatch '^[A-Za-z0-9]+$') { throw 'AddInName must be a simple fixture name.' }
@@ -24,7 +38,7 @@ if ($ExcelDnaDirectory) {
     }
     $Cases = (Resolve-Path -LiteralPath $Cases).Path
 }
-if ($X1Xll -or $ExcelDnaDirectory) {
+if ($X1Xll -or $ExcelDnaDirectory -or $AddInDirectory) {
     $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     foreach ($directory in 'crates/calc-xll-abi','crates/calc-xll-host','crates/calc-xll-fixture','crates/calc-com-host','platform/calc-xll-shim','apps/dna-calc-desktop','crates/calc-fml','crates/calc-func','crates/calc-value','apps/dna-onecalc') {
         Get-ChildItem -LiteralPath (Join-Path $repositoryRoot $directory) -Recurse -File | Where-Object Extension -in '.rs','.toml','.c','.cpp','.rc' | ForEach-Object {
@@ -35,14 +49,14 @@ if ($X1Xll -or $ExcelDnaDirectory) {
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'fixture') -File | ForEach-Object { $sourceFiles[[IO.Path]::GetRelativePath($repositoryRoot, $_.FullName).Replace('\','/')] = (Get-FileHash -LiteralPath $_.FullName).Hash }
 }
 if ($HostExecutable) {
-    if (-not $X1Xll -and -not $ExcelDnaDirectory) { throw '-HostExecutable requires an XLL fixture.' }
+    if (-not $X1Xll -and -not $ExcelDnaDirectory -and -not $AddInDirectory) { throw '-HostExecutable requires an XLL fixture.' }
     $builtExe = (Resolve-Path -LiteralPath $HostExecutable).Path
     # A capture owns its executable copy; a later build cannot replace its code,
     # and the capture cannot hold the build output open while Cargo links it.
     $exe = Join-Path $run ([IO.Path]::GetFileName($builtExe))
     Copy-Item -LiteralPath $builtExe -Destination $exe
     Copy-Item -LiteralPath (Join-Path (Split-Path $builtExe) 'xlcall32.dll') -Destination (Join-Path $run 'xlcall32.dll')
-    if ($ExcelDnaDirectory) { $nativeXll = $managedXll } else {
+    if ($ExcelDnaDirectory -or $AddInDirectory) { $nativeXll = $managedXll } else {
         $nativeXll = Join-Path $run 'X1.xll'
         Copy-Item -LiteralPath (Resolve-Path -LiteralPath $X1Xll).Path -Destination $nativeXll
     }
@@ -55,9 +69,9 @@ if ($HostExecutable) {
         $launch.UseShellExecute=$false; $launch.CreateNoWindow=$true
         $launch.RedirectStandardOutput=$true; $launch.RedirectStandardError=$true
         $arguments = @('--xll',$nativeXll,'--ready',$readyFile,'--wait',$go,'--finished',$done,'--release',$release)
-        if ($ExcelDnaDirectory) {
+        if ($ExcelDnaDirectory -or $AddInDirectory) {
             $arguments += @('--cases',$Cases,'--sheet','X0')
-            if ($AddInName -eq 'X0') {
+            if (-not $AddInDirectory -and $AddInName -eq 'X0') {
                 $ownerXll = Join-Path $run 'NativeOwner64.xll'
                 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'build/NativeOwner64.xll') -Destination $ownerXll
                 $arguments += @('--xll',$ownerXll,'--command','X0.Queue','--command','X0.Context','--early-command','X0.Queue')
@@ -95,15 +109,15 @@ if ($HostExecutable) {
             source_files=$sourceFiles
             host_arguments=$arguments
         }
-        if ($ExcelDnaDirectory) {
-            $metadata.fixture_files=$managedFiles; $metadata.fixture_name=$AddInName
-            $metadata.fixture_framework=$ExcelDnaDirectory
+        if ($ExcelDnaDirectory -or $AddInDirectory) {
+            $metadata.fixture_files=$managedFiles; $metadata.fixture_name=if($AddInDirectory){$XllFileName}else{$AddInName}
+            $metadata.fixture_framework=if($AddInDirectory){'external unmodified add-in: ' + $AddInDirectory}else{$ExcelDnaDirectory}
             $metadata.cases_sha256=(Get-FileHash -LiteralPath $Cases).Hash
             $metadata.reload=[bool]$Reload
             $metadata.reload_new_host=[bool]$ReloadNewHost
             $metadata.aot_alias_load=[bool]$AotAliasLoad
             $metadata.assume_excel_process='1 (set by the host before creating threads)'
-            if ($AddInName -eq 'X0') { $metadata.owner_xll_sha256=(Get-FileHash -LiteralPath $ownerXll).Hash }
+            if (-not $AddInDirectory -and $AddInName -eq 'X0') { $metadata.owner_xll_sha256=(Get-FileHash -LiteralPath $ownerXll).Hash }
         }
         $metadata.runner_sha256=(Get-FileHash -LiteralPath $PSCommandPath).Hash
         $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $run 'environment.json') -Encoding utf8NoBOM
@@ -122,7 +136,7 @@ if ($HostExecutable) {
         Set-Content -LiteralPath $go -Value 'go'
         $deadline = [DateTime]::UtcNow.AddSeconds(600)
         while (-not (Test-Path -LiteralPath $done)) {
-            if ($ExpectAotReloadRefusal -and $hostProcess.HasExited) { break }
+            if ($expectedRefusal -and $hostProcess.HasExited) { break }
             if ($hostProcess.HasExited -or [DateTime]::UtcNow -gt $deadline) { throw 'Native host did not finish; inspect host.stderr.' }
             Start-Sleep -Milliseconds 100
         }
@@ -140,19 +154,20 @@ if ($HostExecutable) {
             }
             $stdout.GetAwaiter().GetResult() | Set-Content -LiteralPath (Join-Path $run 'host.stdout') -Encoding utf8NoBOM
             $stderr.GetAwaiter().GetResult() | Set-Content -LiteralPath (Join-Path $run 'host.stderr') -Encoding utf8NoBOM
+            [ordered]@{exit_code=$hostProcess.ExitCode; finished=(Test-Path -LiteralPath $done)} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'host.exit.json') -Encoding utf8NoBOM
         }
     }
     if (-not $detached) { throw 'Tracer did not detach; owned host left running for inspection.' }
-    if ($ExpectAotReloadRefusal) {
+    if ($expectedRefusal) {
         $message=Get-Content -LiteralPath (Join-Path $run 'host.stderr') -Raw
-        if ($hostProcess.ExitCode -ne 1 -or $message -notmatch 'dc-snz.18: reinitializing a packed Native AOT runtime already attempted' -or $message -match 'Unhandled exception') { throw 'Expected a typed AOT reload refusal; inspect host.stderr.' }
+        if ($hostProcess.ExitCode -ne 1 -or -not $message.Contains($expectedRefusal) -or $message -match 'Unhandled exception') { throw 'Expected a typed runtime reload refusal; inspect host.stderr.' }
         [ordered]@{status='typed refusal, not a compatibility pass';exit_code=$hostProcess.ExitCode;message=$message.Trim()} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'refusal.json') -Encoding utf8NoBOM
     } elseif ($hostProcess.ExitCode -ne 0) { throw 'Native host returned failure; inspect host.stderr.' }
     if ($debugger -and $debugger.ExitCode -ne 0) { throw 'Native host tracer reported an incomplete capture.' }
     Write-Output $run
     return
 }
-if ($ExcelDnaDirectory) { $xll=$managedXll } else {
+if ($ExcelDnaDirectory -or $AddInDirectory) { $xll=$managedXll } else {
     $fixture = Join-Path $PSScriptRoot 'fixture/bin/Release/net48'
     foreach ($file in 'X0-AddIn64.xll','X0-AddIn64.dna','X0.dll') { Copy-Item -LiteralPath (Join-Path $fixture $file) -Destination $run }
     $xll = Join-Path $run 'X0-AddIn64.xll'
@@ -223,10 +238,10 @@ try {
         $metadata.automation_security_before = [int]$excel.AutomationSecurity
         $metadata.source_files = $sourceFiles
     }
-    if ($ExcelDnaDirectory) {
-        $metadata.fixture_files=$managedFiles; $metadata.fixture_name=$AddInName
+    if ($ExcelDnaDirectory -or $AddInDirectory) {
+        $metadata.fixture_files=$managedFiles; $metadata.fixture_name=if($AddInDirectory){$XllFileName}else{$AddInName}
         $metadata.cases_sha256=(Get-FileHash -LiteralPath $Cases).Hash
-        $metadata.fixture_framework=$ExcelDnaDirectory
+        $metadata.fixture_framework=if($AddInDirectory){'external unmodified add-in: ' + $AddInDirectory}else{$ExcelDnaDirectory}
         $metadata.source_files=$sourceFiles
         $metadata.automation_security_before=[int]$excel.AutomationSecurity
         $metadata.owner_xll_sha256=(Get-FileHash -LiteralPath $nativeXll).Hash
@@ -245,10 +260,10 @@ try {
         } until ($ready -or [DateTime]::UtcNow -gt $deadline)
         if (-not $ready) { throw 'Tracer attach did not finish.' }
     }
-    if ($ExcelDnaDirectory) {
-        if (-not $excel.RegisterXLL($xll)) { throw 'Excel refused the Excel-DNA fixture.' }
+    if ($ExcelDnaDirectory -or $AddInDirectory) {
+        if (-not $excel.RegisterXLL($xll)) { throw 'Excel refused the selected add-in.' }
         Note 'RegisterXLL managed' $true
-        if ($AddInName -eq 'X0') { Note 'RegisterXLL native' ([bool]$excel.RegisterXLL($nativeXll)) }
+        if (-not $AddInDirectory -and $AddInName -eq 'X0') { Note 'RegisterXLL native' ([bool]$excel.RegisterXLL($nativeXll)) }
         $sheet.Range('A1').Value2 = 7
         foreach ($case in (Get-Content -LiteralPath $Cases -Raw | ConvertFrom-Json)) {
             $sheet.Range('B3:Z10').ClearContents()
@@ -259,14 +274,14 @@ try {
             }
             Note ([string]$case.formula) $sheet.Range('B3').Value2
         }
-        if ($AddInName -eq 'X0') {
+        if (-not $AddInDirectory -and $AddInName -eq 'X0') {
             Note 'Application.Run X0.Queue' $excel.Run('X0.Queue')
             Note 'Application.Run X0.Context' $excel.Run('X0.Context')
             for($i=0;$i -lt 10;$i++){Start-Sleep -Milliseconds 100; [void]$excel.Ready}
             if ((Get-Content -LiteralPath (Join-Path $run 'fixture.tsv') -Raw) -notmatch "Outside 89`t") { throw 'Outside-context probes did not finish.' }
         }
         Note 'ExecuteExcel4Macro UNREGISTER(managed)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
-        if ($AddInName -eq 'X0') { Note 'ExecuteExcel4Macro UNREGISTER(native)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $nativeXll.Replace('"','""') + '")') }
+        if (-not $AddInDirectory -and $AddInName -eq 'X0') { Note 'ExecuteExcel4Macro UNREGISTER(native)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $nativeXll.Replace('"','""') + '")') }
         Note 'AutomationSecurity unchanged' ([int]$excel.AutomationSecurity -eq $metadata.automation_security_before)
     } elseif ($X1Xll) {
         if (-not $excel.RegisterXLL($nativeXll)) { throw 'Excel refused the X1 fixture.' }

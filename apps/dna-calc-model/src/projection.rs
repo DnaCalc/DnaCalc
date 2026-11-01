@@ -1139,6 +1139,15 @@ pub enum CalculationRangePostState {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CalculationEvent {
+    Reevaluated {
+        domain: u64,
+        command: u64,
+        pass: u32,
+        at: Key,
+        evaluation: u64,
+        reason: String,
+        previous_calls: Vec<u64>,
+    },
     AwaitingAsync {
         domain: u64,
         command: u64,

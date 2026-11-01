@@ -16,6 +16,8 @@ mod contract_support;
 mod existing_wire_support;
 #[path = "../../calc-engine/tests/fixtures/seven_cell.rs"]
 mod seven_cell;
+#[path = "../../calc-engine/tests/fixtures/seven_cell_async.rs"]
+mod async_provider;
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -5817,61 +5819,7 @@ mod async_contract {
     };
     use calc_host::{AsyncDisposition as D, AsyncRejection as R, AsyncToken};
 
-    #[derive(Debug, Default)]
-    struct Counts {
-        prefix: usize,
-        suffix: usize,
-        resumes: usize,
-    }
-    #[derive(Debug)]
-    struct Echo(Rc<RefCell<Counts>>);
-    #[derive(Debug)]
-    struct EchoCall {
-        counts: Rc<RefCell<Counts>>,
-        entered: bool,
-    }
-    impl UserFunction for Echo {
-        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
-            panic!("the cooperative entry owns this call")
-        }
-        fn begin_call(
-            &self,
-            arguments: &[CalcValue],
-            _: UserInvocationFrame,
-            context: &mut dyn UserFunctionContext,
-        ) -> Result<Option<Box<dyn UserFunctionInvocation>>, String> {
-            // Deep-copy explicit inputs before entering the provider.
-            for argument in arguments {
-                if let Some(reference) = argument.as_reference() {
-                    context.argument_values_of(reference)?;
-                }
-            }
-            Ok(Some(Box::new(EchoCall {
-                counts: self.0.clone(),
-                entered: false,
-            })))
-        }
-    }
-    impl UserFunctionInvocation for EchoCall {
-        fn resume(
-            &mut self,
-            context: &mut dyn UserFunctionContext,
-            _: u64,
-        ) -> Result<UserFunctionStep, String> {
-            self.counts.borrow_mut().resumes += 1;
-            if !self.entered {
-                self.entered = true;
-                self.counts.borrow_mut().prefix += 1;
-                return Ok(UserFunctionStep::Awaiting { request: 7 });
-            }
-            let value = context
-                .take_async_result(7)
-                .expect("only a delivered return resumes the suffix");
-            assert!(context.take_async_result(7).is_none());
-            self.counts.borrow_mut().suffix += 1;
-            Ok(UserFunctionStep::Complete(value))
-        }
-    }
+    use super::async_provider::{Counts, Echo};
     fn setup(formula: &str) -> (HostSession, SheetId, Rc<RefCell<Counts>>) {
         let mut book = session(&calc_host::blank_package());
         let s = book.host().sheets()[0].id();
@@ -5905,10 +5853,8 @@ mod async_contract {
             if !book.has_pending_calculation() {
                 return;
             }
-            assert!(!matches!(
-                book.advance_calculation(),
-                HostProgress::Failed(_)
-            ));
+            let progress = book.advance_calculation();
+            assert!(!matches!(progress, HostProgress::Failed(_)), "{progress:?}");
         }
         panic!("finite continuation did not finish")
     }
@@ -6113,4 +6059,608 @@ mod async_contract {
             Some(CalcValue::number(42.0))
         );
     }
+    #[derive(Debug)]
+    struct LateRead {
+        source: CellKey,
+        provisional: bool,
+        entries: Rc<RefCell<Vec<(u64, Option<f64>)>>>,
+    }
+    impl UserFunction for LateRead {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("reference context required")
+        }
+        fn reevaluation_policy(&self) -> Option<calc_fml::UserReevaluationReason> {
+            Some(if self.provisional {
+                calc_fml::UserReevaluationReason::ProvisionalArguments
+            } else {
+                calc_fml::UserReevaluationReason::XllUncalcedUnwind
+            })
+        }
+        fn call_with_context(
+            &self,
+            _: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            let index = self.entries.borrow().len();
+            self.entries
+                .borrow_mut()
+                .push((context.invocation().unwrap().id, None));
+            let result =
+                context.argument_values_of(&calc_host::value::ReferenceLike::cell(self.source));
+            match result {
+                Ok(value) => {
+                    let n = value.as_number().unwrap_or(0.0);
+                    self.entries.borrow_mut()[index].1 = Some(n);
+                    Ok(CalcValue::number(n))
+                }
+                Err(message) => {
+                    context.request_reevaluation(
+                        calc_fml::UserReevaluationReason::XllUncalcedUnwind,
+                    )?;
+                    Err(message)
+                }
+            }
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_unwind_and_provisional_arguments_are_new_semantic_evaluations() {
+        for provisional in [false, true] {
+            for budget in [1, usize::MAX] {
+                let mut book = session(&calc_host::blank_package());
+                let s = book.host().sheets()[0].id();
+                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+                let entries = Rc::new(RefCell::new(Vec::new()));
+                let mut functions = calc_fml::CallableTable::new();
+                functions
+                    .register(
+                        "LateRead",
+                        Rc::new(LateRead {
+                            source: at(s, "D1"),
+                            provisional,
+                            entries: entries.clone(),
+                        }),
+                    )
+                    .unwrap();
+                book.set_user_functions(functions);
+                for (address, text) in [("B1", "=LateRead()"), ("C1", "=B1+1"), ("D1", "=10+1")] {
+                    enter(&mut book, at(s, address), text);
+                }
+                book.set_calculation_budget(WorkBudget::evaluations(budget));
+                book.dispatch(SkinIntent::Recalculate);
+                drain(&mut book);
+                assert_eq!(
+                    calculated(book.host(), at(s, "B1")),
+                    Some(CalcValue::number(11.0)),
+                    "provisional={provisional} budget={budget}"
+                );
+                assert_eq!(
+                    calculated(book.host(), at(s, "C1")),
+                    Some(CalcValue::number(12.0))
+                );
+                let entries = entries.borrow();
+                assert_eq!(entries.len(), 2);
+                assert_ne!(entries[0].0, entries[1].0);
+                assert_eq!(entries[0].1, if provisional { Some(0.0) } else { None });
+                assert_eq!(entries[1].1, Some(11.0));
+                let events = book.take_calculation_events();
+                let transitions: Vec<_> = events
+                    .iter()
+                    .filter_map(|e| {
+                        if let calc_engine::CalcEvent::Reevaluated {
+                            previous,
+                            next,
+                            invocations,
+                        } = e
+                        {
+                            Some((previous, next, invocations))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                assert_eq!(transitions.len(), 1);
+                let (previous, next, calls) = transitions[0];
+                assert_eq!(previous.evaluation, 0);
+                assert_eq!(next.evaluation, 1);
+                assert_eq!(previous.pass, next.pass);
+                assert_eq!(
+                    next.reason,
+                    if provisional {
+                        calc_engine::contract::ReevaluationReason::ProvisionalArguments
+                    } else {
+                        calc_engine::contract::ReevaluationReason::XllUncalcedUnwind
+                    }
+                );
+                assert_eq!(calls.len(), 1);
+                assert_eq!(calls[0].runtime, entries[0].0);
+                let ProjectedValue::Calculated { calculation, .. } =
+                    value(book.host(), at(s, "B1"))
+                else {
+                    panic!("calculated")
+                };
+                let root = match &calculation.stamp().unwrap().computed_by {
+                    calc_engine::contract::ComputationOrigin::Evaluated { root } => root,
+                    _ => panic!("evaluated"),
+                };
+                assert_eq!(root, next);
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct Reentrant {
+        allowed: bool,
+        entries: Rc<RefCell<Vec<UserInvocationFrame>>>,
+    }
+    impl UserFunction for Reentrant {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("invocation-aware callback required")
+        }
+        fn state_lane(&self) -> Option<u64> {
+            Some(77)
+        }
+        fn permits_reentry(&self) -> bool {
+            self.allowed
+        }
+        fn call_with_context(
+            &self,
+            args: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            self.entries
+                .borrow_mut()
+                .push(context.invocation().unwrap().clone());
+            let n = args[0].as_number().unwrap();
+            if n == 0.0 {
+                Ok(CalcValue::number(0.0))
+            } else {
+                let value = context.call_user_function("Nested", &[CalcValue::number(n - 1.0)])?;
+                Ok(CalcValue::number(value.as_number().unwrap() + 1.0))
+            }
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_nested_callbacks_inherit_the_frame_and_enforce_state_lane_policy() {
+        for allowed in [false, true] {
+            let mut book = session(&calc_host::blank_package());
+            let s = book.host().sheets()[0].id();
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            let entries = Rc::new(RefCell::new(Vec::new()));
+            let mut functions = calc_fml::CallableTable::new();
+            functions
+                .register(
+                    "Nested",
+                    Rc::new(Reentrant {
+                        allowed,
+                        entries: entries.clone(),
+                    }),
+                )
+                .unwrap();
+            book.set_user_functions(functions);
+            enter(&mut book, at(s, "B1"), "=IFERROR(Nested(3)+39,999)");
+            book.dispatch(SkinIntent::Recalculate);
+            drain(&mut book);
+            let entries = entries.borrow();
+            if allowed {
+                assert_eq!(
+                    calculated(book.host(), at(s, "B1")),
+                    Some(CalcValue::number(42.0))
+                );
+                assert_eq!(entries.len(), 4);
+                for pair in entries.windows(2) {
+                    assert_eq!(pair[1].parent, Some(pair[0].id));
+                    assert!(Rc::ptr_eq(&pair[0].read_view, &pair[1].read_view));
+                }
+            } else {
+                assert_eq!(entries.len(), 1, "refuse before nested entry or effects");
+                assert!(
+                    matches!(
+                        value(book.host(), at(s, "B1")),
+                        ProjectedValue::NotModeled { .. }
+                    ),
+                    "a policy refusal survives IFERROR"
+                );
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct RtdProbe(Rc<RefCell<usize>>);
+    impl UserFunction for RtdProbe {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("an admitted external input view is required")
+        }
+        fn call_with_context(
+            &self,
+            _: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            *self.0.borrow_mut() += 1;
+            Ok(context
+                .rtd_value(17)?
+                .map(|(_, value)| value)
+                .unwrap_or_else(|| CalcValue::error(calc_host::value::WorksheetErrorCode::NA)))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_rtd_events_are_ordered_inputs_and_manual_demand_pins_the_view() {
+        use calc_host::RtdDisposition as T;
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let entries = Rc::new(RefCell::new(0));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("RtdProbe", Rc::new(RtdProbe(entries.clone())))
+            .unwrap();
+        book.set_user_functions(functions);
+        let provider = book
+            .host()
+            .user_function_bindings()
+            .bind(None, "RtdProbe")
+            .unwrap();
+        enter(&mut book, at(s, "B1"), "=RtdProbe()+1");
+        let revision = book.host().revision();
+        assert_eq!(
+            book.update_rtd(provider, 17, 1, CalcValue::number(20.0)),
+            T::Accepted
+        );
+        assert_eq!(*entries.borrow(), 0);
+        assert!(!book.has_pending_calculation());
+        assert_eq!(book.host().revision(), revision);
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(21.0))
+        );
+        let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, "B1")) else {
+            panic!("calculated")
+        };
+        let read = &calculation.stamp().unwrap().reads.external_inputs[0];
+        assert_eq!(read.key.callable, provider);
+        assert_eq!(read.key.subscription, 17);
+        assert_eq!(read.sequence, 1);
+        assert_eq!(
+            book.update_rtd(provider, 17, 1, CalcValue::number(20.0)),
+            T::Duplicate
+        );
+        assert_eq!(
+            book.update_rtd(provider, 17, 1, CalcValue::number(999.0)),
+            T::ConflictingSequence
+        );
+        assert_eq!(*entries.borrow(), 1);
+        assert_eq!(
+            book.update_rtd(provider, 17, 2, CalcValue::number(40.0)),
+            T::Accepted
+        );
+        assert_eq!(
+            book.update_rtd(provider, 17, 1, CalcValue::number(999.0)),
+            T::StaleSequence
+        );
+        assert!(!book.has_pending_calculation());
+        assert!(matches!(
+            value(book.host(), at(s, "B1")),
+            ProjectedValue::Stale(_)
+        ));
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(41.0))
+        );
+        assert_eq!(*entries.borrow(), 2);
+        assert_eq!(book.retire_rtd(provider, 17), T::Accepted);
+        assert_eq!(
+            book.update_rtd(provider, 17, 99, CalcValue::number(999.0)),
+            T::Retired
+        );
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")).unwrap().as_error(),
+            Some(calc_host::value::WorksheetErrorCode::NA)
+        );
+        let mut replacement = calc_fml::CallableTable::new();
+        replacement
+            .register("RtdProbe", Rc::new(RtdProbe(entries.clone())))
+            .unwrap();
+        book.set_user_functions(replacement);
+        assert_eq!(
+            book.update_rtd(provider, 17, 3, CalcValue::number(999.0)),
+            T::ProviderChanged
+        );
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert!(matches!(
+            calculated(book.host(), at(s, "B1")).unwrap().as_error(),
+            Some(calc_host::value::WorksheetErrorCode::NA)
+        ));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_old_and_new_async_requests_return_in_reverse_order() {
+        let (mut book, s, counts) = setup("=AsyncEcho(A1)+1");
+        let old = token(&book);
+        enter(&mut book, at(s, "A1"), "2");
+        for _ in 0..100 {
+            book.advance_calculation();
+            if book
+                .host()
+                .pending_async()
+                .first()
+                .is_some_and(|token| token.id != old.id)
+            {
+                break;
+            }
+        }
+        let new = token(&book);
+        assert_ne!(old.id, new.id);
+        assert_ne!(old.invocation.pass.command, new.invocation.pass.command);
+        assert_eq!(
+            book.complete_async(&new, CalcValue::number(41.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        assert!(matches!(
+            book.complete_async(&old, CalcValue::number(999.0)),
+            D::Rejected(_)
+        ));
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(42.0))
+        );
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (2, 1));
+    }
+
+    #[derive(Debug)]
+    struct YieldLate {
+        source: CellKey,
+        counts: Rc<RefCell<Counts>>,
+    }
+    #[derive(Debug)]
+    struct YieldLateCall {
+        value: CalcValue,
+        counts: Rc<RefCell<Counts>>,
+        remaining: u32,
+        entered: bool,
+    }
+    impl UserFunction for YieldLate {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("cooperative entry required")
+        }
+        fn reevaluation_policy(&self) -> Option<calc_fml::UserReevaluationReason> {
+            Some(calc_fml::UserReevaluationReason::ProvisionalArguments)
+        }
+        fn begin_call(
+            &self,
+            _: &[CalcValue],
+            _: UserInvocationFrame,
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<Option<Box<dyn UserFunctionInvocation>>, String> {
+            let value =
+                context.argument_values_of(&calc_host::value::ReferenceLike::cell(self.source))?;
+            Ok(Some(Box::new(YieldLateCall {
+                value,
+                counts: self.counts.clone(),
+                remaining: 3,
+                entered: false,
+            })))
+        }
+    }
+    impl UserFunctionInvocation for YieldLateCall {
+        fn resume(
+            &mut self,
+            _: &mut dyn UserFunctionContext,
+            _: u64,
+        ) -> Result<UserFunctionStep, String> {
+            self.counts.borrow_mut().resumes += 1;
+            if !self.entered {
+                self.entered = true;
+                self.counts.borrow_mut().prefix += 1;
+            }
+            if self.remaining > 0 {
+                self.remaining -= 1;
+                return Ok(UserFunctionStep::Suspended);
+            }
+            self.counts.borrow_mut().suffix += 1;
+            Ok(UserFunctionStep::Complete(self.value.clone()))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_provisional_body_finishes_across_safepoints_before_semantic_reentry() {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let counts = Rc::new(RefCell::new(Counts::default()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register(
+                "YieldLate",
+                Rc::new(YieldLate {
+                    source: at(s, "D1"),
+                    counts: counts.clone(),
+                }),
+            )
+            .unwrap();
+        book.set_user_functions(functions);
+        enter(&mut book, at(s, "B1"), "=YieldLate()");
+        enter(&mut book, at(s, "D1"), "=10+1");
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(11.0))
+        );
+        assert_eq!(
+            (
+                counts.borrow().prefix,
+                counts.borrow().suffix,
+                counts.borrow().resumes
+            ),
+            (2, 2, 8)
+        );
+        assert_eq!(
+            book.take_calculation_events()
+                .iter()
+                .filter(|e| matches!(e, calc_engine::CalcEvent::Reevaluated { .. }))
+                .count(),
+            1
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_many_provisional_parents_share_a_consumer_without_growing_fence_ranks() {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let entries = Rc::new(RefCell::new(Vec::new()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register(
+                "LateRead",
+                Rc::new(LateRead {
+                    source: at(s, "D1000"),
+                    provisional: true,
+                    entries: entries.clone(),
+                }),
+            )
+            .unwrap();
+        book.set_user_functions(functions);
+        let edits = (1..=72)
+            .map(|row| CellEdit::Set {
+                at: CellKey::new(s, row, 2).unwrap(),
+                input: formula("LateRead()"),
+            })
+            .chain([
+                CellEdit::Set {
+                    at: at(s, "A999"),
+                    input: formula("SUM(B1:B72)"),
+                },
+                CellEdit::Set {
+                    at: at(s, "D1000"),
+                    input: formula("10+1"),
+                },
+            ])
+            .collect();
+        assert!(book.dispatch(SkinIntent::Edit { edits }).accepted());
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.dispatch(SkinIntent::Recalculate);
+        for _ in 0..1000 {
+            if !book.has_pending_calculation() {
+                break;
+            }
+            let progress = book.advance_calculation();
+            assert!(!matches!(progress, HostProgress::Failed(_)), "{progress:?}");
+        }
+        assert!(!book.has_pending_calculation());
+        assert_eq!(
+            calculated(book.host(), at(s, "A999")),
+            Some(CalcValue::number(792.0))
+        );
+        assert_eq!(entries.borrow().len(), 144);
+        assert_eq!(
+            book.take_calculation_events()
+                .iter()
+                .filter(|event| matches!(event, calc_engine::CalcEvent::Reevaluated { .. }))
+                .count(),
+            72
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_clock_input_change_supersedes_a_waiting_command_without_stranding_it() {
+        let (mut book, s, counts) = setup("=AsyncEcho(A1)+NOW()");
+        let old = token(&book);
+        book.set_clock(Some(40000.0));
+        assert!(book.has_pending_calculation());
+        assert!(matches!(
+            book.complete_async(&old, CalcValue::number(999.0)),
+            D::Rejected(_)
+        ));
+        for _ in 0..100 {
+            book.advance_calculation();
+            if book
+                .host()
+                .pending_async()
+                .first()
+                .is_some_and(|token| token.id != old.id)
+            {
+                break;
+            }
+        }
+        let new = token(&book);
+        assert_ne!(new.id, old.id);
+        assert_eq!(
+            book.complete_async(&new, CalcValue::number(42.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        assert!(!book.has_pending_calculation());
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(40042.0))
+        );
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (2, 1));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_terminal_unavailable_arguments_do_not_enter_a_provisional_body() {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let counts = Rc::new(RefCell::new(Counts::default()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register(
+                "YieldLate",
+                Rc::new(YieldLate {
+                    source: at(s, "D1"),
+                    counts: counts.clone(),
+                }),
+            )
+            .unwrap();
+        functions.register("TerminalProducer",Rc::new(TerminalProducer)).unwrap();
+        book.set_user_functions(functions);
+        enter(&mut book, at(s, "D1"), "=TerminalProducer()");
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert!(matches!(value(book.host(),at(s,"D1")),ProjectedValue::NotModeled{..}), "terminal producer: {:?}", value(book.host(),at(s,"D1")));
+        enter(&mut book, at(s, "B1"), "=YieldLate(D1)");
+        book.take_calculation_events();
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(
+            (
+                counts.borrow().prefix,
+                counts.borrow().suffix,
+                counts.borrow().resumes
+            ),
+            (0, 0, 0)
+        );
+        assert!(matches!(
+            value(book.host(), at(s, "B1")),
+            ProjectedValue::NotModeled { .. }
+        ));
+        assert!(
+            !book
+                .take_calculation_events()
+                .iter()
+                .any(|event| matches!(event, calc_engine::CalcEvent::Reevaluated { .. }))
+        );
+    }
+    #[derive(Debug)]
+    struct TerminalProducer;
+    impl UserFunction for TerminalProducer {
+        fn call(&self,_:&[CalcValue])->Result<CalcValue,String>{Err("fixture has no value entry".into())}
+        fn call_with_context(&self,_:&[CalcValue],context:&mut dyn UserFunctionContext)->Result<CalcValue,String>{Err(context.refuse_by("fixture absent external facility","dc-hsa5.4"))}
+    }
+
 }

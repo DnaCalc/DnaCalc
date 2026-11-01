@@ -112,6 +112,8 @@ pub struct HostState {
     pub(crate) work: Option<RecalcWork>,
     pub(crate) async_records: std::collections::BTreeMap<u64, crate::recalc::AsyncRecord>,
     pub(crate) functions: calc_fml::CallableTable,
+    pub(crate) rtd_inputs: std::rc::Rc<crate::recalc::RtdSnapshot>,
+    pub(crate) retired_rtd: std::collections::BTreeSet<calc_fml::UserInputKey>,
     pub(crate) references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
     pub(crate) calculation_interest: Vec<calc_doc_model::value::GridArea>,
     pub(crate) full_calculate_requested: bool,
@@ -146,6 +148,9 @@ pub struct HostState {
 }
 
 impl HostState {
+    pub fn user_function_bindings(&self) -> calc_fml::CallableBindings {
+        self.functions.bindings()
+    }
     pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
         self.functions.replace(functions);
         self.engine
@@ -207,6 +212,8 @@ impl HostState {
             work: None,
             async_records: Default::default(),
             functions: calc_fml::CallableTable::new(),
+            rtd_inputs: Default::default(),
+            retired_rtd: Default::default(),
             references: calc_fml::reference::ReferenceTracker::new(),
             calculation_interest: Vec::new(),
             full_calculate_requested: false,
@@ -298,6 +305,7 @@ impl HostState {
     pub fn has_pending_calculation(&self) -> bool {
         if let Some(work) = &self.work {
             return work.revision() != self.model.revision()
+                || !work.live_inputs_current(&self.engine)
                 || !work.callables_current(&self.engine)
                 || !work.is_waiting_external();
         }
