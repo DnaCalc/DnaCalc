@@ -30,6 +30,15 @@ rows still fail. The remaining mismatches include 22 structural, ten text/format
 1,090 numerical and three capture failures. Nearly dependent full-rank regressions,
 two Bessel admission boundaries and number-to-text ties remain open.
 
+After the Round-10 readings arrive, the canonical bank has 3,874,964 counted rows:
+3,230,357 match and 644,607 fail, including 116 unread. Its 72 new semantic calls
+match 22 times and fail 50 times. Forty of those calls refresh the chosen
+representative of an existing typed-input/outcome group; their inputs, expected
+answers and calculated outputs are unchanged. All other 3,874,776 baseline trace
+rows remain byte-identical. Thus the full baseline still has zero output changes
+and zero losses; the later totals use a changed observation set. Both comparisons
+and the initially failed whole-trace membership assumption are retained.
+
 Evidence `51bed087` answered the frozen Round-10 packet. Original packet hashes
 were checked before scoring. All 32 numeric PMT rechecks reproduce their historical
 answers, including all 24 certified gaps; the application matches eight controls.
@@ -55,6 +64,29 @@ arbitrary common first principal, and another excludes an arbitrary internal pay
 constrained by its recorded PMT publication, under their stated growth/consumer
 assumptions. Neither identifies a helper or a complete CUMPRINC program.
 
+A separate 7,500-profile balance family also rejects at the first singleton
+when its internal payment must publish to the external PMT companion. Dropping
+that publication assumption gives every Ext80 payment in the exact inverse of
+the first CUMPRINC singleton, shared across all nine intervals of each loan.
+All 7,500 principal-summing profiles still reject: 7,190 at the 31-period prefix
+and 310 at the 76-period prefix. The independent checker verifies all 15,000
+initial domains, 15,310 monotone lattice cuts and 1,399,485 full-width node values.
+No payment is selected or fitted. These are necessary consumer exclusions;
+the payment producer and complete CUMPRINC program remain unidentified.
+
+Factoring the accumulated principal as count times payment plus accumulated
+positive interest gives another 7,500 bounded profiles. All reject at the
+31-period prefix, even with an arbitrary shared payment. Its independent checker
+verifies 45,000 first-singleton domains, 15,000 cuts and 1,275,000 node values.
+Native/software proof artifacts agree exactly for both unrestricted-payment
+families. No complete program survives, and neither family is promoted.
+
+Recovered original capture metadata declares bulk Value2 inputs and workbook
+compatibility 2 for both historical CUMPRINC and PMT captures. The provenance
+erratum in the research repository preserves those declarations and source hashes.
+Submitted/read-back arguments and effective callee inputs remain unavailable.
+Original frozen units and packets retain their original declarations unchanged.
+
 The frozen 64-call coupled audit is in `DnaCalc-Research/packets/round11/` and
 `/home/ubuntu/codex-runs/fresh-questions-r11/`: CUMPRINC 32, PMT four, PPMT 16,
 CUMIPMT 12. Application predictions and conditional diagnostic relations are
@@ -64,6 +96,14 @@ companions omitted from the packet's partial selection metadata. The claim and
 receipts are indexed by `DnaCalc-Research/cumulative-r11-claim.json` and
 `round11-result.json`. The numerical search changes no annuity or approximation
 body, pin or Excel answer; the separate structural fixes above change the product.
+
+A separate 52-call boundary/conversion audit is frozen in
+`DnaCalc-Research/packets/structural-r11-v2/`. It asks adjacent Bessel inputs and
+numeric-only CONCAT/CONCATENATE calls. The original packet remains preserved;
+the revision removes an empty-string argument that Value2 may read back as blank.
+Kind-only boundary obligations never count as exact numerical matches. The
+existing blind scorer now scores all frozen route predictions through canonical
+judge traces; missing readings fail, and conflicts or changed arguments reject.
 
 ## Method and claim record
 
