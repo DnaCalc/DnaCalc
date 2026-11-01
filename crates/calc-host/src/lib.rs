@@ -133,4 +133,4 @@ pub use presentation_commands::{
     AUTOFIT_CELLS, autofit_cells, can_edit, prepare_notebook_link, prepare_notebook_order,
 };
 
-pub use calc_engine::contract::CompletionOutcome;
+pub use calc_engine::contract::{CompletionOutcome, RangePostState};

@@ -5274,13 +5274,14 @@ fn contract_force_successors_evaluate_pure_targets_again() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn contract_scope_is_exact_and_boundary_cache_waits_for_p02() {
+fn contract_scope_is_exact_and_dirty_scalar_boundary_caches_stay_qualified() {
     let mut book = SevenCellSlice::new();
     book.baseline();
     book.change(Some(10.0), None);
     let c = book.c(1, 3);
     let b = book.c(1, 2);
     let old_b = calculated(&book.state, b);
+    let boundary_view = book.state.result_view();
     let scope = calc_engine::CalcScope::Range(vec![GridArea::cell(c)]);
     let mut work = calc_engine::begin_recalc_scoped(
         &mut book.state,
@@ -5305,11 +5306,30 @@ fn contract_scope_is_exact_and_boundary_cache_waits_for_p02() {
     assert_eq!(delta.completion().unwrap().scope, scope);
     assert_eq!(
         delta.completion().unwrap().outcome,
-        calc_engine::contract::CompletionOutcome::Incomplete
+        calc_engine::contract::CompletionOutcome::Complete
     );
     assert_eq!(calculated(&book.state, b), old_b);
+    assert_eq!(l1_value(&book.state, c), CalcValue::number(4.0));
+    assert_eq!(delta.completion().unwrap().coverage.boundary_cached, 1);
+    assert_eq!(delta.completion().unwrap().coverage.imported_cached, 0);
+    let stamp = book.state.result(c).unwrap().stamp().unwrap();
+    assert!(stamp.reads.uses_boundary_cache && !stamp.reads.uses_imported_cache);
     assert!(
-        matches!(book.state.result(c), Some(FormulaResult::NotModeled { refusal: NotModeled::Evaluation(EvalFault::NotModelled { owner: "dc-hsa5", construct }), .. }) if construct.contains("P02"))
+        stamp
+            .reads
+            .boundary_caches
+            .iter()
+            .any(|span| span.region == GridArea::cell(b)
+                && span.view == boundary_view
+                && span.dirty == 1)
+    );
+    assert!(
+        book.state.validated_result(&book.root, c).is_none(),
+        "a qualified scoped result is not workbook-wide freshness"
+    );
+    assert_ne!(
+        book.state.requirement_at(b).unwrap().required,
+        book.state.requirement_at(b).unwrap().satisfied
     );
 }
 
@@ -5721,4 +5741,177 @@ fn contract_edit_abandons_a_partial_kernel_before_starting_the_successor() {
     finish(&mut state, &root, work).unwrap();
     assert_eq!(l1_value(&state, b), CalcValue::number(139.0));
     assert!(state.validated_result(&root, b).is_some());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_imported_boundary_cache_lineage_propagates_without_calculating_the_source() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |col| key(s, 1, col);
+    let root = l3_root(
+        &[(s, "Boundary")],
+        vec![
+            (c(1), number(5.0)),
+            (c(2), formula("A1*2")),
+            (c(3), formula("B1+1")),
+            (c(4), formula("C1+1")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let part = Arc::new(SourcePart::new(
+        "xl/worksheets/sheet1.xml".into(),
+        0xB0A0,
+        128,
+    ));
+    let cache = FileCached::new(
+        CachedValue::Number(FiniteNumber::new(2.0).unwrap()),
+        part.clone(),
+    );
+    let mut state = EngineState::with_file_caches(&root, [(c(2), cache.clone())]).unwrap();
+    let mut work = calc_engine::begin_recalc_scoped(
+        &mut state,
+        &root,
+        NumericMode::Fast,
+        calc_engine::CalcScope::Range(vec![GridArea::new(c(3), c(4)).unwrap()]),
+        calc_engine::EvalSelection::ForceAll,
+    )
+    .unwrap();
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    let delta = finish(&mut state, &root, work).unwrap();
+    assert_eq!(
+        delta.completion().unwrap().outcome,
+        calc_engine::contract::CompletionOutcome::Complete
+    );
+    assert_eq!(
+        (
+            delta.completion().unwrap().coverage.calculated,
+            delta.completion().unwrap().coverage.boundary_cached,
+            delta.completion().unwrap().coverage.imported_cached
+        ),
+        (2, 2, 2)
+    );
+    assert_eq!(state.result(c(2)), Some(&FormulaResult::FileCached(cache)));
+    assert!(state.result(c(2)).unwrap().stamp().is_none());
+    for (at, expected) in [(c(3), 3.0), (c(4), 4.0)] {
+        assert_eq!(l1_value(&state, at), CalcValue::number(expected));
+        let stamp = state.result(at).unwrap().stamp().unwrap();
+        assert!(matches!(
+            stamp.computed_by,
+            calc_engine::contract::ComputationOrigin::Evaluated { .. }
+        ));
+        assert!(stamp.reads.uses_boundary_cache && stamp.reads.uses_imported_cache);
+        assert!(
+            stamp
+                .reads
+                .boundary_caches
+                .iter()
+                .any(|span| span.imported_sources.contains(&part))
+        );
+        assert!(state.validated_result(&root, at).is_none());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_sheet_calculation_uses_a_dirty_scalar_cache_on_another_sheet() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let data = ids.issue().unwrap();
+    let calc = ids.issue().unwrap();
+    let a = key(data, 1, 1);
+    let b = key(data, 1, 2);
+    let c = key(calc, 1, 1);
+    let root = l3_root(
+        &[(data, "Data"), (calc, "Calc")],
+        vec![
+            (a, number(1.0)),
+            (b, formula("A1*2")),
+            (c, formula("Data!B1+1")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let old = state.result(b).unwrap().clone();
+    let root = edit(&mut state, &root, vec![set(a, number(5.0))]);
+    let mut work = calc_engine::begin_recalc_scoped(
+        &mut state,
+        &root,
+        NumericMode::Fast,
+        calc_engine::CalcScope::Sheet(calc),
+        calc_engine::EvalSelection::DirtyAndVolatile,
+    )
+    .unwrap();
+    assert_eq!(work.scheduled(), 1);
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    let delta = finish(&mut state, &root, work).unwrap();
+    assert_eq!(
+        delta.completion().unwrap().outcome,
+        calc_engine::contract::CompletionOutcome::Complete
+    );
+    assert_eq!(state.result(b), Some(&old));
+    assert_eq!(l1_value(&state, c), CalcValue::number(3.0));
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, b), CalcValue::number(10.0));
+    assert_eq!(l1_value(&state, c), CalcValue::number(11.0));
+    assert!(state.validated_result(&root, c).is_some());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_reentered_formula_cannot_read_its_orphaned_predecessor_as_a_boundary_cache() {
+    let mut book = SevenCellSlice::new();
+    book.baseline();
+    let b = book.c(1, 2);
+    let c = book.c(1, 3);
+    book.root = edit(&mut book.state, &book.root, vec![set(b, formula("99"))]);
+    assert!(book.state.permitted_cache(b).is_none());
+    let mut work = calc_engine::begin_recalc_scoped(
+        &mut book.state,
+        &book.root,
+        NumericMode::Fast,
+        calc_engine::CalcScope::Range(vec![GridArea::cell(c)]),
+        calc_engine::EvalSelection::ForceAll,
+    )
+    .unwrap();
+    assert_eq!(
+        step(
+            &book.state,
+            &book.root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    let delta = finish(&mut book.state, &book.root, work).unwrap();
+    assert_eq!(delta.completion().unwrap().coverage.refused, 1);
+    assert!(matches!(
+        book.state.result(c),
+        Some(FormulaResult::NotModeled {
+            refusal: NotModeled::Evaluation(EvalFault::NotModelled {
+                owner: "dc-hsa5.4",
+                ..
+            }),
+            ..
+        })
+    ));
 }

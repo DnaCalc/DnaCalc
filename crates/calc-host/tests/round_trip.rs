@@ -3750,3 +3750,80 @@ fn contract_p09_loaded_formula_forms_keep_their_measured_scalar_and_array_behavi
         }
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_manual_range_keeps_only_its_targets_required_for_the_next_f9() {
+    use calc_engine::contract::{CalcEvent, ComputationOrigin, RangePostState};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [("A1", "1"), ("B1", "=A1*2"), ("C1", "=B1+1"), ("K1", "=99")] {
+        assert!(enter(&mut book, at(s, address), text).accepted());
+    }
+    let produced_by = |book: &HostSession, address: &str| {
+        let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, address))
+        else {
+            panic!("expected a calculated {address}")
+        };
+        match &calculation.stamp().unwrap().computed_by {
+            ComputationOrigin::Evaluated { root } => root.pass.command,
+            _ => panic!("expected an evaluated origin"),
+        }
+    };
+    let (b_before, k_before) = (produced_by(&book, "B1"), produced_by(&book, "K1"));
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    book.take_calculation_events();
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "C1"))]
+        })
+        .accepted()
+    );
+    let range = produced_by(&book, "C1");
+    let events = book.take_calculation_events();
+    assert!(events.iter().any(|event|matches!(event,CalcEvent::Admitted(receipt) if receipt.range_post_state==RangePostState::StillRequired)));
+    assert!(events.iter().any(|event|matches!(event,CalcEvent::Completed(receipt) if receipt.coverage.calculated==1 && receipt.coverage.boundary_cached==1 && receipt.outcome==calc_engine::contract::CompletionOutcome::Complete)));
+    assert!(
+        !book.has_pending_calculation(),
+        "Manual waits for another authorized command"
+    );
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_ne!(
+        produced_by(&book, "C1"),
+        range,
+        "F9 must evaluate the clean range target again"
+    );
+    assert_eq!(produced_by(&book, "B1"), b_before);
+    assert_eq!(
+        produced_by(&book, "K1"),
+        k_before,
+        "an unrelated clean formula does not run"
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "C1")),
+        Some(CalcValue::number(3.0))
+    );
+    assert!(book.take_calculation_events().iter().any(|event|matches!(event,CalcEvent::Completed(receipt) if receipt.coverage.calculated==1 && receipt.coverage.boundary_cached==0)));
+    // Automatic range admission has a different post-state. Do not inherit the Manual option.
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic))
+            .accepted()
+    );
+    book.take_calculation_events();
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "C1"))]
+        })
+        .accepted()
+    );
+    let automatic_range = produced_by(&book, "C1");
+    assert!(book.take_calculation_events().iter().any(|event|matches!(event,CalcEvent::Admitted(receipt) if receipt.range_post_state==RangePostState::Satisfied)));
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(produced_by(&book, "C1"), automatic_range);
+    assert!(book.take_calculation_events().iter().any(
+        |event| matches!(event,CalcEvent::Completed(receipt) if receipt.coverage.calculated==0)
+    ));
+}

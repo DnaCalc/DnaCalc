@@ -145,8 +145,7 @@ fn contract_seven_cell_scope_yields_and_delivers_receipts_through_the_wire() {
         } => *command,
         _ => unreachable!(),
     };
-    // A C1-only replay needs the P02 out-of-scope B1 cache. This check explicitly requests
-    // the same pure scope, so equal values need no unimplemented boundary-cache policy.
+    // Repeat the pure scope before narrowing to the measured P02 scalar-cache boundary.
     let replay_scope = areas.clone();
     assert!(matches!(
         send(&mut server, Request::Intent(Intent::CalculateRange { areas: replay_scope.clone() })),
@@ -188,6 +187,41 @@ fn contract_seven_cell_scope_yields_and_delivers_receipts_through_the_wire() {
         replay_publication < replay_complete,
         "equal values still publish calculation status"
     );
+    let narrow_scope = vec![Area::of(GridArea::cell(cell(1, 3)))];
+    assert!(matches!(
+        send(&mut server, Request::Intent(Intent::CalculateRange { areas: narrow_scope.clone() })),
+        FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted
+    ));
+    for _ in 0..64 {
+        if !server.has_pending_calculation() {
+            break;
+        }
+        server.advance_calculation();
+    }
+    assert!(!server.has_pending_calculation());
+    let narrow = server.take_events();
+    assert!(narrow.iter().any(|event| matches!(event,
+        Event::Calculation { receipt: C::Admitted {
+            scope: wire::CalculationScope::Range(scope),
+            range_post_state: wire::CalculationRangePostState::StillRequired, .. }, .. }
+            if *scope == narrow_scope
+    )));
+    assert!(narrow.iter().any(|event| matches!(
+        event,
+        Event::Calculation {
+            receipt: C::Completed {
+                calculated: 1,
+                refused: 0,
+                boundary_cached: 1,
+                imported_cached: 0,
+                outcome: CalculationOutcome::Complete,
+                ..
+            },
+            ..
+        }
+    )));
+    assert_eq!(shown(server.book(), cell(1, 3)).text, "4");
+    assert_eq!(shown(server.book(), cell(1, 2)).text, "2");
     // SliceV1 salvages only dirty successors. Request that selection explicitly; the Manual
     // CalculateRange command above and below continues to normalize to ForceAll.
     for (col, text) in [(1, "10"), (6, "2")] {

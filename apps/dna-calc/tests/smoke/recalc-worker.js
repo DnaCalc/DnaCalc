@@ -156,8 +156,7 @@ return (async function () {
     require(output(10, 5)?.text === "99" && output(10, 5)?.provenance === "Literal", "the spill overwrote authored E10");
     require(output(10, 7)?.text === "100", "G10 did not read the authored blocker");
     const replayStart = trace.length;
-    // C1 alone would cross the P02 B1-cache boundary. Repeating the explicit pure scope
-    // proves equal-value status delivery without making that unimplemented policy implicit.
+    // Repeat the pure scope, then narrow to C1 through the measured P02 scalar-cache policy.
     await intent({ CalculateRange: { areas: pureScope.map(([row, col]) => area(row, col)) } });
     const replay = trace.slice(replayStart);
     const replayAdmission = replay.findIndex((event) => event.Admitted);
@@ -171,6 +170,24 @@ return (async function () {
       && replay[replayCompletion].Completed.outcome === "Complete" && output(1, 3)?.text === "42",
       "an equal-value replay must certify the same C1 value for a new command");
     const equalText = output(1, 3)?.text;
+    const narrowStart = trace.length;
+    const narrowDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+    narrowDone.catch(() => {});
+    await intent({ CalculateRange: { areas: [area(1, 3)] } });
+    const narrowReceipt = await narrowDone;
+    const narrowTrace = trace.slice(narrowStart);
+    const narrowAdmission = narrowTrace.findIndex((event) => event.Admitted);
+    const narrowPublication = narrowTrace.findIndex((event) => event.Published);
+    const narrowCompletion = narrowTrace.findIndex((event) => event.Completed);
+    require(narrowAdmission >= 0 && narrowAdmission < narrowPublication && narrowPublication < narrowCompletion,
+      "C1-only replay did not deliver ordered calculation receipts");
+    const narrowAdmitted = narrowTrace[narrowAdmission].Admitted;
+    require(JSON.stringify(narrowAdmitted.scope) === JSON.stringify({ Range: [area(1, 3)] })
+      && narrowAdmitted.range_post_state === "StillRequired", "Manual C1-only admission changed its scope or post-state");
+    require(narrowReceipt.calculated === 1 && narrowReceipt.refused === 0 && narrowReceipt.outcome === "Complete"
+      && narrowReceipt.boundary_cached === 1 && narrowReceipt.imported_cached === 0,
+      "C1-only replay did not retain its scalar boundary-cache qualification");
+    require(output(1, 3)?.text === "42" && output(1, 2)?.text === "21", "C1-only replay changed the boundary result");
     // One admitted formula must yield inside its SEQUENCE kernel; there are no background
     // targets in this command from which an inter-cell handoff could be inferred.
     await intent({ EnterCell: { at: key(1, 10), text: "=SUM(SEQUENCE(262144))+1" } });
@@ -195,6 +212,8 @@ return (async function () {
     return { yielded, pong, complete, calculated: receipt.calculated, publications: publications.length,
       reused_spill: { from: predecessor, to: successor }, spill_companions: ["shrink", "authored-blocker"],
       equal_value_status: { command: replayCommand, text: equalText },
+      narrow_cache_replay: { targets: narrowReceipt.calculated, boundary_cached: narrowReceipt.boundary_cached,
+        post_state: narrowAdmitted.range_post_state, text: output(1, 3)?.text },
       in_cell: { targets: longReceipt.calculated, yielded: longYield, pong: longPong, completed: longComplete, text: output(1, 10)?.text } };
   } finally {
     worker.terminate();

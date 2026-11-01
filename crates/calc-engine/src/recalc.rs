@@ -353,6 +353,7 @@ pub struct RecalcWork {
     waves: u32,
     /// The storage one evaluation works in, kept between evaluations ([`EvalLocal`]).
     pub(crate) local: EvalLocal,
+    boundary_caches: crate::read::BoundarySnapshot,
     failure: Option<RecalcFailure>,
     /// The workbook's iteration settings.
     iteration: IterationSettings,
@@ -387,6 +388,7 @@ pub(crate) struct EvalLocal {
     blank_reads: Vec<(GridArea, BlankRun)>,
     current_node: Cell<Option<NodeId>>,
     boundary_read: Cell<Option<calc_fml::ReadDenial>>,
+    boundary_used: Cell<bool>,
     read_batch: Vec<CalcValue>,
     kept_read: Cell<bool>,
 }
@@ -401,6 +403,7 @@ pub(crate) struct EvalShared<'a> {
     requirements: &'a BTreeMap<NodeId, RequirementState>,
     facts_version: u64,
     volatile_inputs: u64,
+    boundary_caches: &'a crate::read::BoundarySnapshot,
     scope: &'a CalcScope,
     pub(crate) calculation: &'a Calculation,
     pub(crate) environment: Option<calc_fml::CalcEnvironment>,
@@ -432,6 +435,8 @@ impl<'a> EvalShared<'a> {
             caller: local.current_node.get(),
             scope: Some(self.scope),
             boundary: Some(&local.boundary_read),
+            boundary_caches: Some(self.boundary_caches),
+            boundary_used: Some(&local.boundary_used),
             iterates: self.iterates,
             kept: self.kept.map(|kept| (kept, &local.kept_read)),
         }
@@ -448,6 +453,7 @@ macro_rules! shared_of {
             facts_version: $work.facts_version,
             volatile_inputs: $work.volatile_input_version,
             scope: &$work.admission.scope,
+            boundary_caches: &$work.boundary_caches,
             calculation: &$work.calculation,
             environment: $work.environment,
             random_seed: $work.random_seed,
@@ -464,6 +470,22 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
+    /// Select the measured Manual ForceAll-range profile before admission is delivered.
+    pub fn with_manual_range_poststate(mut self) -> Self {
+        assert!(
+            self.admission_pending()
+                && matches!(self.admission.scope, CalcScope::Range(_))
+                && self.admission.selection == EvalSelection::ForceAll,
+            "Manual range post-state is fixed at range admission"
+        );
+        self.admission.range_post_state = crate::contract::RangePostState::StillRequired;
+        for event in &mut self.events {
+            if let CalcEvent::Admitted(admission) = event {
+                admission.range_post_state = self.admission.range_post_state;
+            }
+        }
+        self
+    }
     pub fn continuation_progress(&self) -> Option<calc_fml::ContinuationProgress> {
         self.local
             .activation
@@ -532,6 +554,10 @@ impl RecalcWork {
                 }
                 FormulaResult::Calculated { .. } => {
                     coverage.calculated += 1;
+                    if let Some(stamp) = result.stamp() {
+                        coverage.boundary_cached += usize::from(stamp.reads.uses_boundary_cache);
+                        coverage.imported_cached += usize::from(stamp.reads.uses_imported_cache);
+                    }
                     if result.stamp().is_none_or(|stamp| {
                         stamp.reads.legacy_boundary || stamp.reads.external_cache
                     }) {
@@ -668,8 +694,8 @@ pub fn begin_recalc(
     )
 }
 
-/// Exact SliceV1 scope. Formula caches outside it are a named P02 refusal until the measured
-/// boundary-cache qualifications land. Authored constants outside the scope remain readable.
+/// Exact SliceV1 scope. Ordinary scalar boundary caches are pinned and qualified; imported
+/// caches never acquire producing invocations or freshness. Array boundary caches remain refused.
 pub fn begin_recalc_scoped(
     state: &mut EngineState,
     inputs: &ModelRoot,
@@ -708,6 +734,30 @@ fn begin_with_scope(
             engine: revision,
             inputs: inputs.revision(),
         });
+    }
+    // Manual CalcRange keeps a separate obligation for the next authorized command. Admit
+    // it now, only inside this scope; unrelated clean targets remain untouched (P02).
+    let redemand: BTreeSet<_> = state
+        .range_redemand
+        .iter()
+        .copied()
+        .filter(|node| {
+            state
+                .node(*node)
+                .is_some_and(|node| scope.contains(node.anchor()))
+        })
+        .collect();
+    if !redemand.is_empty() {
+        state.range_redemand.retain(|node| !redemand.contains(node));
+        if requested_selection != EvalSelection::ForceAll && !state.contract.force_all {
+            let affected = dirty_closure(state, inputs, redemand, &|node| {
+                invalidation_areas(state, inputs, node)
+            })
+            .members()
+            .to_vec();
+            state.contract.invalidate(affected.iter().copied());
+            state.pending.extend(affected);
+        }
     }
     // Required versions are authoritative demand, including transitive invalidation that
     // arrived before the next scheduler cut. A stale producer cannot remain unscheduled.
@@ -903,6 +953,7 @@ fn begin_with_scope(
         },
         pass,
         scope,
+        range_post_state: crate::contract::RangePostState::Satisfied,
         selection,
         admitted: AdmissionFrontier {
             model: revision,
@@ -910,7 +961,9 @@ fn begin_with_scope(
         },
         predecessor: None,
     };
+    let boundary_caches = crate::read::BoundarySnapshot::capture(state, inputs, &admission.scope);
     Ok(RecalcWork {
+        boundary_caches,
         admission: admission.clone(),
         pass,
         requirements: state.contract.snapshot(),
@@ -1016,6 +1069,12 @@ pub fn supersede_recalc_scoped(
         state.contract.invalidate(affected);
     }
     let mut next = begin_with_scope(state, inputs, mode, scope, selection, true)?;
+    if previous.admission.range_post_state == crate::contract::RangePostState::StillRequired
+        && matches!(next.admission.scope, CalcScope::Range(_))
+        && next.admission.selection == EvalSelection::ForceAll
+    {
+        next = next.with_manual_range_poststate();
+    }
     next.admission.predecessor = Some(predecessor);
     let terminal = previous.completion(
         CompletionOutcome::Superseded {
@@ -1052,6 +1111,8 @@ pub fn supersede_recalc_scoped(
             && next.progress.is_scheduled(node)
             && !state.volatile.contains(&node)
             && !stamp.reads.legacy_boundary
+            && !stamp.reads.uses_boundary_cache
+            && !stamp.reads.uses_imported_cache
             && result.calculated().is_some_and(|(_, calculation)| {
                 !calculation.held_by_circular_rule()
                     && !calculation.reads_external_links()
@@ -1624,6 +1685,15 @@ pub fn finish(
         state.contract.satisfy(node, result.stamp(), work.pass);
         state.results.publish(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
+    }
+    state.range_redemand.retain(|node| {
+        !published
+            .get(node.slot() as usize)
+            .copied()
+            .unwrap_or(false)
+    });
+    if work.admission.range_post_state == crate::contract::RangePostState::StillRequired {
+        state.range_redemand.extend(installed.iter().copied());
     }
     // The published nodes are no longer pending, nor entered since the last publication: each set
     // is built anew from the nodes that stay, in node order, which builds it in one pass (dc-dxm),
@@ -3135,6 +3205,7 @@ fn evaluate_with(
         local.blank_reads.clear();
         local.footprint.clear();
         local.boundary_read.set(None);
+        local.boundary_used.set(false);
         local.kept_read.set(false);
         local.current_node.set(Some(node));
     } else {
@@ -3149,15 +3220,26 @@ fn evaluate_with(
             .iter()
             .any(|read| read.region == region && read.request == request)
         {
+            let versions =
+                span_versions_at(state, shared.progress, region, Some(shared.requirements));
+            let mut boundary_caches = if versions.boundary_cache > 0 || versions.imported_cache > 0
+            {
+                crate::contract::boundary_ancestry_at(state, shared.progress, region)
+            } else {
+                Vec::new()
+            };
+            if local.boundary_used.get()
+                && let Some(span) = shared.boundary_caches.span(region)
+            {
+                if !boundary_caches.contains(&span) {
+                    boundary_caches.push(span);
+                }
+            }
             local.read_stamps.push(ReadSpan {
+                boundary_caches,
                 region,
                 request,
-                versions: span_versions_at(
-                    state,
-                    shared.progress,
-                    region,
-                    Some(shared.requirements),
-                ),
+                versions,
             });
         }
     }
@@ -3183,6 +3265,23 @@ fn evaluate_with(
         ..ReadCertificate::default()
     };
     reads.dependencies = local.read_stamps.clone();
+    for read in &reads.dependencies {
+        for span in &read.boundary_caches {
+            if !reads.boundary_caches.contains(span) {
+                reads.boundary_caches.push(span.clone());
+            }
+        }
+    }
+    reads.uses_boundary_cache = !reads.boundary_caches.is_empty()
+        || reads
+            .dependencies
+            .iter()
+            .any(|read| read.versions.boundary_cache > 0);
+    reads.uses_imported_cache = reads.boundary_caches.iter().any(|span| span.imported > 0)
+        || reads
+            .dependencies
+            .iter()
+            .any(|read| read.versions.imported_cache > 0);
     reads.legacy_boundary = reads
         .dependencies
         .iter()

@@ -154,6 +154,14 @@ pub fn step(
         }
     };
     if work.admission_pending()
+        && work.admission().predecessor.is_none()
+        && host.calc_mode() == CalcMode::Manual
+        && matches!(work.admission().scope, calc_engine::CalcScope::Range(_))
+        && work.admission().selection == calc_engine::EvalSelection::ForceAll
+    {
+        work = work.with_manual_range_poststate();
+    }
+    if work.admission_pending()
         && let Some(source) = host.calculation_source.take()
     {
         work = work.with_source(source);

@@ -3,8 +3,9 @@
 //!
 //! A literal cell's value is its authored input, read from the snapshot's page. A formula cell's
 //! value is the result this recalculation staged for it, or else the published result when that
-//! was calculated; a file cache, a result not modelled and a formula this recalculation has yet
-//! to evaluate are never handed out as values. The engine's reader is the only source of what an
+//! was calculated. Scoped scalar boundary reads use an admission-time pin and retain cache
+//! qualifications; all other file-cache reads, refused results and unfinished in-scope formulas
+//! are withheld. The engine's reader is the only source of what an
 //! evaluation reads: a caller's [`ReadObserver`] sees the runs it reports and cannot change them,
 //! and is shown what CalcFml's evaluator reports of each evaluation it ran.
 
@@ -409,6 +410,100 @@ fn table_info(table: &calc_doc_model::Table) -> TableInfo {
     }
 }
 
+/// An admission-time cache pin. Only ordinary scalar formula records are permitted here;
+/// cached array topology remains an explicit refusal until its complete read view is modelled.
+#[derive(Debug)]
+pub(crate) struct BoundarySnapshot {
+    view: crate::contract::ReadViewId,
+    entries: BTreeMap<CellKey, BoundaryValue>,
+}
+#[derive(Debug)]
+struct BoundaryValue {
+    node: NodeId,
+    value: CalcValue,
+    dirty: bool,
+    imported: bool,
+    external: bool,
+    source: Option<std::sync::Arc<calc_doc_model::SourcePart>>,
+}
+impl BoundarySnapshot {
+    pub(crate) fn capture(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        scope: &crate::CalcScope,
+    ) -> Self {
+        let mut entries = BTreeMap::new();
+        for node in state.nodes() {
+            let at = node.anchor();
+            if scope.contains(at)
+                || !matches!(inputs.cell(at), Some(CellInput::Formula(_)))
+                || inputs.definitions().array(at).is_some()
+                || state.spills.get(at).is_some()
+            {
+                continue;
+            }
+            let Some(result) = state.permitted_cache(at) else {
+                continue;
+            };
+            let (value, imported, external) = match result {
+                FormulaResult::Calculated { value, calculation } => (
+                    value.clone(),
+                    result
+                        .stamp()
+                        .is_some_and(|stamp| stamp.reads.uses_imported_cache),
+                    calculation.reads_external_links(),
+                ),
+                FormulaResult::FileCached(cache) => (cache.value().to_value(), true, false),
+                FormulaResult::NotModeled { .. } => continue,
+            };
+            let requirement = state.contract.requirement(node.id());
+            entries.insert(
+                at,
+                BoundaryValue {
+                    source: match result {
+                        FormulaResult::FileCached(cache) => Some(cache.source().clone()),
+                        _ => None,
+                    },
+                    node: node.id(),
+                    value,
+                    imported,
+                    external,
+                    dirty: state.range_redemand.contains(&node.id())
+                        || state.pending.contains(&node.id())
+                        || requirement.required != requirement.satisfied,
+                },
+            );
+        }
+        Self {
+            view: state.result_view(),
+            entries,
+        }
+    }
+    pub(crate) fn span(&self, region: GridArea) -> Option<crate::contract::BoundaryReadSpan> {
+        let mut span = crate::contract::BoundaryReadSpan {
+            region,
+            view: self.view,
+            values: 0,
+            dirty: 0,
+            imported: 0,
+            imported_sources: Vec::new(),
+        };
+        for (&at, value) in self.entries.range(region.first()..=region.last()) {
+            if region.contains(at) {
+                if let Some(source) = &value.source {
+                    if !span.imported_sources.contains(source) {
+                        span.imported_sources.push(source.clone());
+                    }
+                }
+                span.values += 1;
+                span.dirty += u64::from(value.dirty);
+                span.imported += u64::from(value.imported);
+            }
+        }
+        (span.values != 0).then_some(span)
+    }
+}
+
 /// What one recalculation knows of the workbook's formula results while it runs: the results and
 /// spills it has staged, the nodes it calculates and those it has evaluated, over the published
 /// generation.
@@ -417,6 +512,8 @@ pub(crate) struct RecalcView<'a> {
     pub(crate) caller: Option<NodeId>,
     pub(crate) scope: Option<&'a crate::contract::CalcScope>,
     pub(crate) boundary: Option<&'a Cell<Option<calc_fml::ReadDenial>>>,
+    pub(crate) boundary_caches: Option<&'a BoundarySnapshot>,
+    pub(crate) boundary_used: Option<&'a Cell<bool>>,
     pub(crate) workbook_facts: Option<&'a std::sync::Arc<dyn calc_fml::WorkbookFacts>>,
     pub(crate) inputs: &'a ModelRoot,
     pub(crate) state: &'a EngineState,
@@ -803,6 +900,20 @@ impl<'a> WorkbookReader<'a> {
     /// [`WorkbookReader::formula_lookup`] of the formula cell `at`, whose node is `node`.
     fn node_lookup(&self, node: NodeId, at: CellKey) -> Result<Option<&'a CalcValue>, Unread> {
         if self.view.scope.is_some_and(|scope| !scope.contains(at)) {
+            if let Some(value) = self
+                .view
+                .boundary_caches
+                .and_then(|pin| pin.entries.get(&at))
+                .filter(|value| value.node == node)
+            {
+                if let Some(used) = self.view.boundary_used {
+                    used.set(true);
+                }
+                if value.external {
+                    self.external.set(true);
+                }
+                return Ok(Some(&value.value));
+            }
             if let Some(boundary) = self.view.boundary {
                 boundary.set(Some(scope_denial()));
             }
@@ -1049,8 +1160,8 @@ impl<'a> WorkbookReader<'a> {
 
 fn scope_denial() -> calc_fml::ReadDenial {
     calc_fml::ReadDenial {
-        construct: "an out-of-scope formula cache (waiting for Excel P02)",
-        owner: "dc-hsa5",
+        construct: "an out-of-scope formula without a permitted scalar cache (dc-hsa5.4)",
+        owner: "dc-hsa5.4",
     }
 }
 
