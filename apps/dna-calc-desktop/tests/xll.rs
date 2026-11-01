@@ -427,7 +427,7 @@ fn cooperative_native_abi_refusals_cannot_be_swallowed() {
 /// Native-only: valid worker event/status requests must not succeed against a discarded snapshot.
 #[test]
 fn worker_state_mutations_remain_typed_refusals() {
-    for callback in ["16401", "32890"] {
+    for callback in ["16401"] {
         let fixture = Fixture::new();
         let output = fixture
             .command()
@@ -443,6 +443,38 @@ fn worker_state_mutations_remain_typed_refusals() {
             "{callback}: {error}"
         );
     }
+}
+
+/// Native-only: measured denied calls return Excel's code without changing the owner, while # runs its allowed mutation.
+#[test]
+fn measured_worker_denial_and_macro_message_permissions() {
+    let fixture = Fixture::new();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .args([
+                "--engine",
+                "--formula",
+                "=IFERROR(MyWorkerDeniedStatus(),123)",
+            ])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 128.);
+    assert!(result["status_message"].is_null());
+    let fixture = Fixture::new();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .env("DNA_XLL_NEGATIVE_CALLBACK", "32890")
+            .args(["--engine", "--formula", "=MyMacroSetStatus()"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 0.);
+    assert_eq!(result["status_message"], "worker status");
 }
 
 /// Native-only: a nested native call cannot silently inherit a different reference-read mode.

@@ -450,6 +450,9 @@ impl XllHost {
     pub fn diagnostics(&self) -> Vec<String> {
         self.state.borrow().diagnostics.clone()
     }
+    pub fn status_message(&self) -> Option<String> {
+        self.state.borrow().status_message.clone()
+    }
     pub fn live_callback_allocations(&self) -> usize {
         self.state.borrow().allocations.len()
     }

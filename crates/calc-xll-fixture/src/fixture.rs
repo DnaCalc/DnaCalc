@@ -256,6 +256,8 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
             ("MyThreadId", "J", "MyMainThread"),
             ("MyFreeCount", "J", "MyFreeCount"),
             ("MyUnsupported", "Q$", "MyWorkerUnsupported"),
+            ("MyDeniedStatus", "J$", "MyWorkerDeniedStatus"),
+            ("MyUnsupported", "Q#", "MyMacroSetStatus"),
         ] {
             if !unsafe { register(&module, procedure, signature, name) } {
                 return 0;
@@ -426,8 +428,17 @@ pub unsafe extern "system" fn MyUnsupported() -> *mut XlOper12 {
             call(function, &[], &mut result);
         }
     }
-    // Deliberately swallow the callback error. The formula host must retain the refusal.
+    // Ignore the callback status. Unsupported operations must retain a refusal;
+    // modeled permission denials may be ignored, as in Excel.
     returned(XlOper12::number(0.))
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyDeniedStatus() -> i32 {
+    let mut arena = Arena::new();
+    let mut show = XlOper12::boolean(true);
+    let mut text = arena.text("denied worker status").unwrap();
+    let mut result = XlOper12::default();
+    unsafe { call(32890, &[&mut show, &mut text], &mut result) }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyReference(reference: *mut XlOper12) -> *mut XlOper12 {
