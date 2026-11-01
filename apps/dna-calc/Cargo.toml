@@ -28,6 +28,16 @@ wasm-bindgen-futures = "=0.4.67"
 # The clock for timings, the opened file's bytes and the saved package's Blob.
 js-sys = "=0.3.94"
 web-sys = { version = "=0.3.94", features = [
+    "CanvasRenderingContext2d",
+    "CanvasGradient",
+    "HtmlCanvasElement",
+    "TextMetrics",
+    "CssStyleDeclaration",
+    "Location",
+    "Storage",
+    "MutationObserver",
+    "MutationObserverInit",
+    "MediaQueryList",
     "Blob",
     "BlobPropertyBag",
     "Clipboard",

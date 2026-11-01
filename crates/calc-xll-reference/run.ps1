@@ -93,12 +93,15 @@ if ($HostExecutable) {
             repository_dirty=[bool](& git -C $PSScriptRoot status --porcelain)
             mode=if($NoTrace){'DNA Calc control without debugger'}else{'DNA Calc debugger boundary trace'}
             source_files=$sourceFiles
+            host_arguments=$arguments
         }
         if ($ExcelDnaDirectory) {
             $metadata.fixture_files=$managedFiles; $metadata.fixture_name=$AddInName
             $metadata.fixture_framework=$ExcelDnaDirectory
             $metadata.cases_sha256=(Get-FileHash -LiteralPath $Cases).Hash
             $metadata.reload=[bool]$Reload
+            $metadata.reload_new_host=[bool]$ReloadNewHost
+            $metadata.aot_alias_load=[bool]$AotAliasLoad
             $metadata.assume_excel_process='1 (set by the host before creating threads)'
             if ($AddInName -eq 'X0') { $metadata.owner_xll_sha256=(Get-FileHash -LiteralPath $ownerXll).Hash }
         }

@@ -80,3 +80,7 @@
 .dc-split .dc-grid{min-width:0;min-height:80px;border:1px solid var(--dna-line)}
 .dc-split .dc-grid[data-grid-active=true]{border-color:var(--dna-accent)}
 .dc-split :is(.dc-clipboard-tools,.dc-gridbar){grid-column:1/-1}
+
+.dc-grid-canvas{position:absolute;left:0;top:0;pointer-events:none}
+
+.dc-canvas-icon{position:absolute;overflow:hidden;pointer-events:none}.dc-canvas-icon .dc-icon{display:inline-flex;padding-right:4px}

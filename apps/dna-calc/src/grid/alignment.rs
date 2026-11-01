@@ -201,7 +201,7 @@ pub fn layout(
 /// Space words when there are several and character clusters in a single word.
 /// Keep the original text content, including spaces, inside the visual spans. Segmenter keeps
 /// combining marks and emoji sequences together; no second copy of the cell value is stored.
-fn distributed_segments(text: &str) -> Vec<String> {
+pub(super) fn distributed_segments(text: &str) -> Vec<String> {
     use wasm_bindgen::JsCast;
     let mut words = Vec::<String>::new();
     for word in text.split_inclusive(char::is_whitespace) {
@@ -235,7 +235,7 @@ fn distributed_segments(text: &str) -> Vec<String> {
 
 /// Let the browser place graphemes and wrap words in the actual font, then keep its line
 /// boundaries when spreading those lines vertically. The probe never changes workbook data.
-fn wrapped_lines(font: &str, text: &str, width: f64) -> Result<Vec<String>, String> {
+pub(super) fn wrapped_lines(font: &str, text: &str, width: f64) -> Result<Vec<String>, String> {
     use leptos::prelude::*;
     use wasm_bindgen::JsCast;
     let node = document()
