@@ -2435,6 +2435,69 @@ mod tests {
         assert_eq!(evaluated("=COLUMN(B3:D3)", blank.clone()), n(2.0));
         assert_eq!(evaluated("=SUM(COLUMN(B3:D3))", blank), n(2.0));
     }
+
+    /// The dc_10y Lg!D124 and catalogue dcuar_text!D1293 captures distinguish
+    /// range expressions from reference-valued arguments and array-returning calls.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn legacy_n_intersects_range_expressions() {
+        let one = CalcValue::number(1.0);
+        // This test's formula is in row 5, outside A1:A3. N of a reference still
+        // reads its first cell; the multiplication takes the caller's row.
+        assert_eq!(evaluated("=N(A1:A3)", one.clone()), Ok(one.clone()));
+        assert_eq!(
+            evaluated("=N(A1:A3*1)", one.clone()),
+            Ok(CalcValue::error(WorksheetErrorCode::Value))
+        );
+        // A generated array of references continues to lift under N.
+        assert_eq!(
+            evaluated("=SUM(N(OFFSET(A1,{0;1;2},0)))", one.clone()),
+            Ok(CalcValue::number(3.0))
+        );
+        assert_eq!(
+            evaluated("=SUMPRODUCT(N(OFFSET(A1,{0;1;2},0)))", one),
+            Ok(CalcValue::number(3.0))
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn legacy_filterxml_intersects_its_result_outside_array_places() {
+        let blank = CalcValue::empty();
+        assert_eq!(
+            evaluated("=SUM(FILTERXML(\"<a><b>1</b><b>2</b><b>3</b></a>\",\"//b\"))", blank.clone()),
+            Ok(CalcValue::number(1.0))
+        );
+        assert_eq!(
+            evaluated("=SUMPRODUCT(FILTERXML(\"<a><b>1</b><b>2</b><b>3</b></a>\",\"//b\"))", blank),
+            Ok(CalcValue::number(6.0))
+        );
+    }
+
+    /// Captured proportional-predictor cases: the redundant predictor has a
+    /// zero coefficient (one after LOGEST exponentiation) and consumes no degree of freedom.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn regression_removes_exactly_proportional_predictors() {
+        let blank = CalcValue::empty();
+        for (formula, expected) in [
+            ("=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),1,2)", 0.0),
+            ("=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),4,2)", 2.0),
+            ("=INDEX(LOGEST({1;2;4;7},{1,2;2,4;5,10;4,8},TRUE,TRUE),1,2)", 1.0),
+        ] {
+            assert_eq!(evaluated(formula, blank.clone()), Ok(CalcValue::number(expected)), "{formula}");
+        }
+        // A full-rank neighbouring input must retain the second predictor.
+        let neighbour = evaluated("=INDEX(LINEST({1;2;4;7},{1,2;2,4;5,10;4,8.0001},TRUE,TRUE),1,2)", blank)
+            .expect("the full-rank neighbour computes");
+        assert!(neighbour.as_number().is_some_and(|x| x.is_finite() && x != 0.0));
+        // Preserve the existing initial-zero-column policy: centering constant
+        // predictors is different from eliminating a nonzero predictor by QR.
+        assert_eq!(
+            evaluated("=INDEX(LINEST({1;2;4;7},{3,6;3,6;3,6;3,6},TRUE,TRUE),4,2)", CalcValue::empty()),
+            Ok(CalcValue::number(1.0))
+        );
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn suspended_sequence_keeps_prefix_effects_operands_and_one_terminal_report() {

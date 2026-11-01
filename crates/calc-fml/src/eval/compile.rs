@@ -931,10 +931,12 @@ impl<'c> Lowering<'c> {
             // taken (dc-b1l, measured in Excel 16.0.20430 on 2026-10-25: `Range.Formula`
             // `=SUM(ROW(B3:B5))` reads back as `=SUM(@ROW(B3:B5))`, 3, and
             // `=MATCH(4,ROW(B3:B5),0)` as `=MATCH(4,@ROW(B3:B5),0)`, #N/A; `=SUMPRODUCT(ROW(B3:B5))`
-            // and `=ROWS(ROW(B3:B5))` keep no `@`, 12 and 3).
+            // and `=ROWS(ROW(B3:B5))` keep no `@`, 12 and 3). FILTERXML behaves
+            // likewise: catalogue dcuar_text!D1293 captures SUM(FILTERXML(...))
+            // as the first matching node, rather than the sum of all nodes.
             if self.form == FormulaForm::Legacy
                 && place != Place::Array
-                && (spelled == "ROW" || spelled == "COLUMN")
+                && matches!(spelled, "ROW" | "COLUMN" | "FILTERXML")
             {
                 tasks.push(Task::Emit {
                     block,

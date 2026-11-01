@@ -412,8 +412,9 @@ fn prediction_input_from_optional(
 ///    the later columns.
 /// 4. The intercept is `my - b_1*m_1 - b_2*m_2 - ...`, subtracted in predictor order.
 ///
-/// 5. Zero and surplus predictors retain their structural handling. Numerical
-/// rank detection beyond an exactly zero remainder is not identified.
+/// 5. Exactly proportional predictors are removed after the larger column has
+///    been selected. Zero and surplus predictors retain their structural handling.
+///    Numerical rank detection for other near-dependent columns is not identified.
 fn least_squares(
     columns: &[Vec<f64>],
     y: &[f64],
@@ -493,6 +494,20 @@ fn least_squares(
         let x0 = matrix[j].1[j];
         let rest = squares_from(&matrix[j].1, j + 1);
         let squares = squares_from(&matrix[j].1, j);
+        // Reflections can leave a nonzero floating-point remainder even when
+        // two original columns are exactly proportional. Test that dependence
+        // in the original binary inputs, without a numerical rank tolerance.
+        let proportional = scale[j].1 > 0.0 && matrix[j].0.is_some_and(|index| {
+            matrix[..j].iter().zip(&scale[..j]).any(|((earlier, _), (_, original_squares))| {
+                *original_squares > 0.0
+                    && earlier.is_some_and(|other| exactly_proportional(&columns[index], &columns[other]))
+            })
+        });
+        if proportional {
+            matrix.remove(j);
+            scale.remove(j);
+            continue;
+        }
         if squares == 0.0 && scale[j].1 > 0.0 {
             matrix.remove(j);
             scale.remove(j);
@@ -564,6 +579,40 @@ fn least_squares(
         y: centred_y,
         observations: n,
     })
+}
+
+/// Equality of cross products of finite binary64 values, without rounding or
+/// overflow. A significand product needs at most 106 bits, so u128 is sufficient.
+fn exact_product(a: f64, b: f64) -> (bool, u128, i32) {
+    let parts = |x: f64| {
+        let bits = x.to_bits();
+        let exponent = ((bits >> 52) & 0x7ff) as i32;
+        let fraction = bits & ((1u64 << 52) - 1);
+        if exponent == 0 {
+            (fraction, -1074)
+        } else {
+            (fraction | (1u64 << 52), exponent - 1075)
+        }
+    };
+    let (am, ae) = parts(a);
+    let (bm, be) = parts(b);
+    let product = u128::from(am) * u128::from(bm);
+    if product == 0 {
+        return (false, 0, 0);
+    }
+    let zeros = product.trailing_zeros();
+    (a.is_sign_negative() != b.is_sign_negative(), product >> zeros, ae + be + zeros as i32)
+}
+
+fn exactly_proportional(a: &[f64], b: &[f64]) -> bool {
+    if a.len() != b.len() || !a.iter().chain(b).all(|x| x.is_finite()) {
+        return false;
+    }
+    // Initially zero columns have their own recorded degrees-of-freedom policy.
+    let Some((&ax, &bx)) = a.iter().zip(b).find(|(x, y)| **x != 0.0 && **y != 0.0) else {
+        return false;
+    };
+    a.iter().zip(b).all(|(&x, &y)| exact_product(x, bx) == exact_product(y, ax))
 }
 
 fn linear_model_from_data(

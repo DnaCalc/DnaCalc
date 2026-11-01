@@ -278,7 +278,6 @@ const REFERENCES_LIFT: &[(&str, &[usize])] = &[
     ("SUMIF", &[0]),
     ("COUNTIF", &[0]),
     ("AREAS", &[0]),
-    ("N", &[0]),
     ("ROW", &[0]),
     ("INDEX", &[0]),
 ];
@@ -369,7 +368,13 @@ impl Place {
             Some(ParameterClass::Value) if listed(SINGLE, spelling, index) => Place::Value,
             Some(ParameterClass::Value) => self,
             Some(ParameterClass::ValueOrReference | ParameterClass::Reference) | None => {
-                if listed(NESTED_ARRAY, spelling, index) || listed(REFERENCES_LIFT, spelling, index) {
+                // N's range arithmetic intersects at an aggregate place (dc_10y
+                // Lg!D124). An enclosing array place still lifts it, including
+                // generated arrays of references below SUMPRODUCT.
+                if listed(NESTED_ARRAY, spelling, index)
+                    || listed(REFERENCES_LIFT, spelling, index)
+                    || (self == Place::Array && spelling.eq_ignore_ascii_case("N") && index == 0)
+                {
                     Place::Array
                 } else if listed(AGGREGATE_ANYWHERE, spelling, index) {
                     Place::Aggregate
