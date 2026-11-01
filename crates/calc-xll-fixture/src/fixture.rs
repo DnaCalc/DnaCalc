@@ -23,8 +23,13 @@ static CALLBACK: AtomicUsize = AtomicUsize::new(0);
 static FREES: AtomicUsize = AtomicUsize::new(0);
 static OWNERS: Mutex<BTreeMap<usize, u32>> = Mutex::new(BTreeMap::new());
 static BAD_FREES: AtomicUsize = AtomicUsize::new(0);
+static ASYNC_ENTRIES: AtomicUsize = AtomicUsize::new(0);
+static ASYNC_RETURNS: AtomicUsize = AtomicUsize::new(0);
+static ASYNC_LAST_CODE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
 static REGISTRATIONS: Mutex<Vec<(f64, String)>> = Mutex::new(Vec::new());
 static WORKERS: Mutex<Vec<std::thread::JoinHandle<()>>> = Mutex::new(Vec::new());
+static OVERLAP: Mutex<(usize, usize, usize)> = Mutex::new((0, 0, 0));
+static OVERLAP_READY: std::sync::Condvar = std::sync::Condvar::new();
 thread_local! {
     static RETURN:UnsafeCell<XlOper12>=UnsafeCell::new(XlOper12::default());
     static TEXT:UnsafeCell<Vec<u16>>=const{UnsafeCell::new(Vec::new())};
@@ -257,6 +262,31 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
             }
         }
     }
+    if std::env::var_os("DNA_XLL_ASYNC_TESTS").is_some() {
+        for name in ["MyAsyncEntries", "MyAsyncReturns", "MyAsyncLastCode"] {
+            if !unsafe { register(&module, name, "J", name) } {
+                return 0;
+            }
+        }
+    }
+    if std::env::var_os("DNA_XLL_POOL_TESTS").is_some() {
+        if !unsafe {
+            register(&module, "MyOverlap", "QE$", "MyOverlap")
+                && register(&module, "MyOverlapMax", "J", "MyOverlapMax")
+        } {
+            return 0;
+        }
+    }
+    if std::env::var_os("DNA_XLL_ABI_NEGATIVE_TESTS").is_some() {
+        // These deliberately unsupported registrations must refuse before
+        // constructing an ABI call, so their procedures must never be entered.
+        if !unsafe {
+            register(&module, "MyUnsupported", "P$", "MyPoolUnsupportedAbi")
+                && register(&module, "MyAsync", ">CX", "MyAsyncUnsupportedAbi")
+        } {
+            return 0;
+        }
+    }
     unsafe {
         call(XL_FREE_FN, &[&mut module], std::ptr::null_mut());
     }
@@ -308,6 +338,29 @@ pub unsafe extern "system" fn MyWide(value: *mut u16) -> *mut XlOper12 {
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyThreadSafe(value: *const f64) -> *mut XlOper12 {
     returned(XlOper12::number(unsafe { *value } + 1.))
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyOverlap(value: *const f64) -> *mut XlOper12 {
+    let mut held = OVERLAP.lock().unwrap();
+    held.0 += 1;
+    held.1 += 1;
+    held.2 = held.2.max(held.0);
+    OVERLAP_READY.notify_all();
+    let (mut held, _) = OVERLAP_READY
+        .wait_timeout_while(held, std::time::Duration::from_secs(10), |s| s.1 < 2)
+        .unwrap();
+    let both_entered = held.1 >= 2;
+    held.0 -= 1;
+    drop(held);
+    returned(if both_entered {
+        XlOper12::number(unsafe { *value } + 1.)
+    } else {
+        XlOper12::error(15)
+    })
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyOverlapMax() -> i32 {
+    OVERLAP.lock().unwrap().2 as i32
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyVolatile(value: *const f64) -> *mut XlOper12 {
@@ -468,11 +521,18 @@ pub extern "system" fn MyNonfiniteOper() -> *mut XlOper12 {
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyAsync(value: *const f64, handle: *const XlOper12) {
+    ASYNC_ENTRIES.fetch_add(1, Ordering::AcqRel);
     let value = unsafe { *value };
+    let delay = std::env::var("DNA_XLL_ASYNC_DELAY_MS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0)
+        .min(5000);
     let handle_data = unsafe { (*handle).value.big_data };
     let pointer = handle_data.data as usize;
     let byte_count = handle_data.byte_count;
     let worker = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(delay));
         let mut handle = XlOper12 {
             value: XlValue12 {
                 big_data: XlBigData {
@@ -484,11 +544,23 @@ pub unsafe extern "system" fn MyAsync(value: *const f64, handle: *const XlOper12
         };
         let mut answer = XlOper12::number(value + 1.);
         let mut result = XlOper12::default();
-        unsafe {
-            call(XL_ASYNC_RETURN, &[&mut handle, &mut answer], &mut result);
-        }
+        let code = unsafe { call(XL_ASYNC_RETURN, &[&mut handle, &mut answer], &mut result) };
+        ASYNC_LAST_CODE.store(code, Ordering::Release);
+        ASYNC_RETURNS.fetch_add(1, Ordering::AcqRel);
     });
     WORKERS.lock().unwrap().push(worker);
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyAsyncEntries() -> i32 {
+    ASYNC_ENTRIES.load(Ordering::Acquire) as i32
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyAsyncReturns() -> i32 {
+    ASYNC_RETURNS.load(Ordering::Acquire) as i32
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyAsyncLastCode() -> i32 {
+    ASYNC_LAST_CODE.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

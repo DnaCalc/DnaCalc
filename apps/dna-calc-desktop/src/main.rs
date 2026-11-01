@@ -1,6 +1,8 @@
 #[cfg(target_arch = "wasm32")]
 compile_error!("dna-calc-desktop is native-only");
 #[cfg(windows)]
+mod engine;
+#[cfg(windows)]
 mod shell;
 
 #[cfg(windows)]
@@ -25,9 +27,11 @@ fn run() -> Result<(), String> {
     let mut early_commands = Vec::new();
     let mut reload = false;
     let mut reload_new_host = false;
+    let mut engine = false;
     let mut sheet_name = "X1".to_owned();
     let mut wait = None;
     let mut ready = None;
+    let mut startup_ack = None;
     let mut finished = None;
     let mut release = None;
     let mut args = std::env::args().skip(1);
@@ -45,12 +49,18 @@ fn run() -> Result<(), String> {
                 early_commands.push(args.next().ok_or("--early-command needs a name")?)
             }
             "--reload" => reload = true,
+            "--engine" => engine = true,
             "--reload-new-host" => {
                 reload = true;
                 reload_new_host = true;
             }
             "--ready" => ready = Some(PathBuf::from(args.next().ok_or("--ready needs a path")?)),
             "--wait" => wait = Some(PathBuf::from(args.next().ok_or("--wait needs a path")?)),
+            "--startup-ack" => {
+                startup_ack = Some(PathBuf::from(
+                    args.next().ok_or("--startup-ack needs a path")?,
+                ))
+            }
             "--finished" => {
                 finished = Some(PathBuf::from(args.next().ok_or("--finished needs a path")?))
             }
@@ -96,7 +106,29 @@ fn run() -> Result<(), String> {
             ));
         }
     }
+    if let Some(path) = startup_ack {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        while !path.is_file() {
+            if std::time::Instant::now() > deadline {
+                return Err("add-in startup event acknowledgment expired".into());
+            }
+            shell.pump_for(std::time::Duration::from_millis(10));
+            shell.projection()?.after_calculate()?;
+        }
+    }
     let registrations = host.registrations();
+    if engine {
+        let output = engine::run(&shell, &host, &sheet_name, cases_file, formula)?;
+        host.close()?;
+        println!("{output}");
+        if let Some(path) = finished {
+            std::fs::write(path, "finished").map_err(|e| e.to_string())?;
+        }
+        if let Some(path) = release {
+            shell.wait_for(&path)?;
+        }
+        return Ok(());
+    }
     let stale_name = registrations
         .iter()
         .find(|r| r.macro_type == 1)

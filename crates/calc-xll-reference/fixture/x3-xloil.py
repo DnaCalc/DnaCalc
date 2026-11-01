@@ -1,5 +1,7 @@
 """Small MIT fixture for the original xlOil Python plugin; no framework changes."""
 import xloil
+import sys
+from pathlib import Path
 
 
 @xloil.func(name="X3.PyAdd", macro=False)
@@ -37,6 +39,16 @@ def _sheet_change(name, target):
 
 
 xloil.event.SheetChange += _sheet_change
+
+
+def _startup_calculate():
+    # The importer pauses Python events through scan_module. A delivered
+    # calculation event after that module appears acknowledges event resumption.
+    if "xloil.excelfuncs" in sys.modules:
+        Path(__file__).with_name("x4-startup-ready").write_text("AfterCalculate delivered\n")
+
+
+xloil.event.AfterCalculate += _startup_calculate
 
 
 @xloil.func(name="X4.PyCom")

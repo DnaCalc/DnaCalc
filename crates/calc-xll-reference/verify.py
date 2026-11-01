@@ -128,7 +128,7 @@ def boundary(directory):
     require([x["seq"] for x in events] == list(range(1, len(events)+1)), "Noncontiguous trace sequence")
     require(events[-1]["event"] == "detach" and events[-1]["healthy"], "Tracer did not detach cleanly")
     require(events[-1]["restore_failed"] == events[-1]["outstanding_calls"] == 0, "Incomplete breakpoint cleanup or calls")
-    require(not any(x["event"] in ("breakpoint_error", "debugger_error", "read_error", "second_chance_exception", "process_exit") for x in events), "Tracer error")
+    require(not any(x["event"] in ("breakpoint_error", "debugger_error", "read_error", "unrecognized_breakpoint", "second_chance_exception", "process_exit") for x in events), "Tracer error")
     enters = {x["call"]: x for x in events if x["event"] == "enter"}
     leaves = {x["call"]: x for x in events if x["event"] == "leave"}
     require(enters.keys() == leaves.keys(), "Calls lack entries or returns")
@@ -350,11 +350,11 @@ def normalize_x2(value):
     return value
 
 
-def invocation_record(trace, entry):
+def invocation_record(trace, entry, defined=True):
     events, enters, leaves = trace
     returned = leaves[entry["call"]]
     callbacks = [[x["function"], normalize_x2(x["args"]), leaves[x["call"]]["return_code"],
-                  normalize_x2(leaves[x["call"]].get("result"))]
+                  None if defined and x["function"] == 16384 else normalize_x2(leaves[x["call"]].get("result"))]
                  for x in enters.values() if x["entry"].endswith("!MdCallBack12")
                  and x["thread"] == entry["thread"] and entry["seq"] < x["seq"]
                  and leaves[x["call"]]["seq"] < returned["seq"]]
@@ -368,8 +368,8 @@ def x2_invocation(trace, name):
     return invocation_record(trace, entry)
 
 
-def all_invocations(trace, name):
-    return [invocation_record(trace, x) for x in trace[1].values() if x["entry"].endswith(":" + name)]
+def all_invocations(trace, name, defined=True):
+    return [invocation_record(trace, x, defined) for x in trace[1].values() if x["entry"].endswith(":" + name)]
 
 
 def framework_callbacks(trace):
@@ -456,6 +456,10 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             return "<workbook>" + value[len(env["workbook_name"]):]
         if x4 and isinstance(value, str) and value == env["workbook_name"]:
             return "<workbook>"
+        if x4 and isinstance(value, str):
+            for prefix in ("[" + env["workbook_name"] + "]", "'[" + env["workbook_name"] + "]"):
+                if value.startswith(prefix):
+                    return prefix.replace(env["workbook_name"], "<workbook>") + value[len(prefix):]
         if isinstance(value, dict):
             return {key: observed(child, env) for key, child in value.items()}
         if isinstance(value, list):
@@ -476,7 +480,8 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
     for env in environments:
         require(env["fixture_files"] == environments[0]["fixture_files"], "Different managed fixture files")
         require(env["cases_sha256"] == digest(cases_path), "Case file differs from capture")
-        require(source_matches(env["tracer_source_sha256"], Path(__file__).resolve().parent / "native/trace.cpp", env["repository_commit"]), "Tracer source not retained")
+        require(retained(env["tracer_source_sha256"], "crates/calc-xll-reference/native/trace.cpp", env), "Tracer source not retained")
+        require(retained(env["runner_sha256"], "crates/calc-xll-reference/run.ps1", env), "Runner source not retained")
         for source, sha in env["source_files"].items():
             require(retained(sha, source, env), "Source not retained: " + source)
     require(environments[0]["excel_file_version"] == environments[1]["excel_file_version"], "Different Excel builds")
@@ -531,11 +536,42 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         measured_names = sorted(names[0])
     call_comparisons = {}
     opaque_storage = []
+    initialization_context_commands = [[], []]
+    def startup_context(trace, entry):
+        if not x4 or not entry["entry"].endswith(":xloRunInXLLContext"):
+            return False
+        first_change = min(e["seq"] for e in trace[1].values()
+                           if e["entry"] == "COM!Invoke" and e.get("dispid") == 0x61c
+                           and e.get("object_label", "").startswith("AppEvents sink"))
+        if entry["seq"] >= first_change:
+            return False
+        record = invocation_record(trace, entry)
+        registrations = [c[1][3]["value"] for c in record["callbacks"] if c[0] == 149]
+        if not registrations:
+            return False
+        require(Counter(registrations) == Counter(["xloAttr", "xloAttrObj", "xloImport", "xloPyDebug"]),
+                "Startup context command registered an unexpected function set")
+        require(all(c[0] in (149, 16384) and c[2] == 0 for c in record["callbacks"]), "Unexpected startup command callback")
+        require(record["arguments"] == [] and record["result"] == {"type": 2048, "value": 1}, "Unexpected startup command native boundary")
+        return True
+    def measured_records(trace, name, index, defined=True):
+        entries = [entry for entry in trace[1].values() if entry["entry"].endswith(":" + name)]
+        rows = [invocation_record(trace, entry, defined) for entry in entries]
+        if x4 and name == "xloRunInXLLContext":
+            # Retain built-in registration before the first worksheet edit
+            # separately from the event-driven command under comparison.
+            startup = [row for entry, row in zip(entries, rows) if startup_context(trace, entry)]
+            if defined:
+                initialization_context_commands[index] = startup
+            rows = [row for entry, row in zip(entries, rows) if not startup_context(trace, entry)]
+        return rows
     for name in measured_names:
-        records = [(all_invocations(trace, name) if x3 else x2_invocation(trace, name)) for trace in traces]
+        records = [(measured_records(trace, name, index) if x3 else x2_invocation(trace, name)) for index, trace in enumerate(traces)]
+        raw_records = [(measured_records(trace, name, index, False) if x3 else invocation_record(trace, next(e for e in trace[1].values() if e["entry"].endswith(":" + name)), False)) for index, trace in enumerate(traces)]
         if x4:
             records = [observed(rows, env) for rows, env in zip(records, (environments[0], environments[2]))]
-        raw_equal = records[0] == records[1]
+            raw_records = [observed(rows, env) for rows, env in zip(raw_records, (environments[0], environments[2]))]
+        raw_equal = raw_records[0] == raw_records[1]
         if name == "X0.Async":
             # Excel-DNA's ObjectParam reads hData only for XlTypeBigData
             # (XlMarshalContext.cs:597-600). Keep cbData differences explicit;
@@ -649,6 +685,8 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             for entry in trace[1].values():
                 if ":" in entry["entry"]:
                     name = entry["entry"].rsplit(":", 1)[1]
+                    if startup_context(trace, entry):
+                        continue
                     by_udf.setdefault(name, []).append(com_calls(trace, entry["seq"], trace[2][entry["call"]]["seq"], entry["thread"], env))
             nested.append(by_udf)
             sheet_changes = []
@@ -682,6 +720,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                 "The single event-driven early-bound Application.Run was not measured")
         require(any(nested[0].get("X4.PyCom", [])), "No early-bound application/workbook/worksheet reads")
         x4_details = {"nested_early_bound_com_calls": nested[0], "ordered_sheet_changes": changes[0],
+                      "initialization_context_commands_excel_and_host": initialization_context_commands,
                       "sheet_change_count_each_host": len(changes[0]), "a1_changes_each_host": a1,
                       "all_delivered_event_counts_excel_and_host": delivered,
                       "event_scope": "Ordered SheetChange calls and addresses agree; other event counts are retained separately. Retained Python COM objects/futures are explicitly released before teardown.",
@@ -695,7 +734,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             "x0_callback_code_pairs_observed": len(old_codes),
             "callback_counts_excel_and_host": [[{"function": fn, "return_code": rc, "count": count} for (fn, rc), count in sorted(c.items())] for c in callback_counts],
             "reload_checked": bool(host_outputs[0]["reload_results"]),
-            "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories; X4 also replaces only the independently recorded blank-workbook name. Early COM object results check nonnull presence, not a complete identity graph. Other value/type/ownership bits and nested callback order remain exact.",
+            "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories; X4 also replaces only the independently recorded blank-workbook name. xlFree has no defined result operand; raw differences remain in the trace and native raw-equality flags. Early COM object results check nonnull presence, not a complete identity graph. Other value/type/ownership bits and nested callback order remain exact.",
             "scope": ("Original xlOil Python; measured single-workbook properties, local single-cell event ranges, SheetChange delivery and context command. General COM, RTD, arbitrary Python teardown and safe reload remain open."
                       if x4 else "Single-invocation worker dispatch; no simultaneous workbook calculation, RTD, cancellation, delivered host AppEvents or full COM model claim."
                       if fixture_name == "X0" else "All observed native UDF invocations, including repetitions; no full COM, event delivery, RTD or reload claim." if x3 else "Hello only; no COM, worker, async or reload claim."),

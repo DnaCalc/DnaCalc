@@ -17,10 +17,21 @@ type Run = unsafe extern "system" fn(
     usize,
     *mut Value,
 ) -> i32;
+type Qualifier =
+    unsafe extern "system" fn(*const u16, usize, *const u16, usize, *mut *mut u16) -> i32;
+#[link(name = "oleaut32")]
+unsafe extern "system" {
+    fn SysAllocStringLen(text: *const u16, length: u32) -> *mut u16;
+}
 unsafe extern "C" {
     #[cfg(test)]
     fn dna_com_test_events() -> i32;
-    fn dna_com_create(hwnd: usize, context: *const c_void, run: Run) -> *mut c_void;
+    fn dna_com_create(
+        hwnd: usize,
+        context: *const c_void,
+        run: Run,
+        qualifier: Qualifier,
+    ) -> *mut c_void;
     fn dna_com_getobject(projection: *mut c_void, wparam: usize, object_id: isize) -> isize;
     fn dna_com_destroy(projection: *mut c_void);
     fn dna_com_verify(projection: *mut c_void) -> i32;
@@ -57,7 +68,7 @@ impl Projection {
         }
     }
     pub fn new(hwnd: usize, host: Rc<XllHost>) -> Result<Self, String> {
-        let pointer = unsafe { dna_com_create(hwnd, Rc::as_ptr(&host).cast(), run) };
+        let pointer = unsafe { dna_com_create(hwnd, Rc::as_ptr(&host).cast(), run, qualifier) };
         if pointer.is_null() {
             return Err("cannot create local COM projection".into());
         }
@@ -175,12 +186,12 @@ unsafe extern "system" fn run(
         let Ok(values) = values else {
             return 0x80020005u32 as i32;
         };
-        match unsafe { &*context.cast::<XllHost>() }.run(&name, &values) {
-            Ok(value) => {
+        match unsafe { &*context.cast::<XllHost>() }.run_variant(&name, &values) {
+            Ok((value, integer)) => {
                 let out = unsafe { &mut *result };
                 match value.core_ref() {
                     CoreRef::Number(n) => {
-                        out.kind = 1;
+                        out.kind = if integer { 4 } else { 1 };
                         out.number = n;
                     }
                     CoreRef::Logical(b) => {
@@ -198,4 +209,32 @@ unsafe extern "system" fn run(
         }
     }))
     .unwrap_or(0x80004005u32 as i32)
+}
+
+unsafe extern "system" fn qualifier(
+    book: *const u16,
+    book_len: usize,
+    sheet: *const u16,
+    sheet_len: usize,
+    output: *mut *mut u16,
+) -> i32 {
+    if output.is_null() {
+        return 0x80004003u32 as i32;
+    }
+    unsafe {
+        *output = std::ptr::null_mut();
+    }
+    let book = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(book, book_len) });
+    let sheet = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(sheet, sheet_len) });
+    let text = calc_xll_host::format_workbook_sheet_qualifier(&book, &sheet)
+        .encode_utf16()
+        .collect::<Vec<_>>();
+    let value = unsafe { SysAllocStringLen(text.as_ptr(), text.len() as u32) };
+    if value.is_null() {
+        return 0x8007000eu32 as i32;
+    }
+    unsafe {
+        *output = value;
+    }
+    0
 }

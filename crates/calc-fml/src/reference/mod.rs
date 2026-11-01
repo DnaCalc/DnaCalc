@@ -47,8 +47,8 @@ pub use structured::{TableInfo, TableLookup};
 pub use template::{template_key, template_key_of_chars};
 pub use text::bind_text;
 pub use transform::{
-    EditAxis, StructuralEdit, convert_notation, shift_formula_supported, transform_formula,
-    transform_name,
+    EditAxis, StructuralEdit, convert_notation, format_workbook_sheet_qualifier,
+    shift_formula_supported, transform_formula, transform_name,
 };
 
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode};

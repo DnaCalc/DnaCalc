@@ -245,6 +245,8 @@ pub(crate) struct State {
     pub closed: bool,
     pub status_message: Option<String>,
     pub workers: Option<Rc<crate::worker::Pool>>,
+    pub pending_async: BTreeMap<usize, crate::callbacks::PendingOwner>,
+    pub async_continuations: bool,
 }
 impl State {
     pub fn refusal(&mut self, why: impl Into<String>) {
@@ -261,6 +263,11 @@ pub(crate) struct CallbackAllocation {
 /// an existing OneCalc/CalcHost session. Each adapter leases its exact module and address.
 pub struct XllHost {
     pub(crate) state: Shared,
+}
+#[derive(Clone, Debug)]
+pub struct AsyncReturn {
+    pub request: u64,
+    pub value: Result<CalcValue, String>,
 }
 impl XllHost {
     pub fn new(hwnd: usize) -> Self {
@@ -281,6 +288,8 @@ impl XllHost {
                 closed: false,
                 status_message: None,
                 workers: Some(Rc::new(crate::worker::Pool::new())),
+                pending_async: BTreeMap::new(),
+                async_continuations: false,
             })),
         }
     }
@@ -393,6 +402,14 @@ impl XllHost {
     /// Execute a registered XLL entry on the owning STA. The entry's originating
     /// module supplies its callback context even when a different add-in loaded last.
     pub fn run(&self, name: &str, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+        self.run_variant(name, arguments).map(|(value, _)| value)
+    }
+    /// Preserve the native integer result when projecting Application.Run to VARIANT.
+    pub fn run_variant(
+        &self,
+        name: &str,
+        arguments: &[CalcValue],
+    ) -> Result<(CalcValue, bool), String> {
         let registration = {
             let state = self.state.borrow();
             let id = state
@@ -434,9 +451,65 @@ impl XllHost {
     pub fn live_callback_allocations(&self) -> usize {
         self.state.borrow().allocations.len()
     }
+    /// Includes canceled tasks until native code acknowledges physical return.
+    pub fn outstanding_native_calls(&self) -> usize {
+        self.reap_cancelled_async();
+        self.state.borrow().pending_async.len()
+    }
+    /// Return messages only. The composition must resolve each request to its complete
+    /// owner-issued P07 token and call HostSession::complete_async before resuming.
+    pub fn take_async_returns(&self) -> Vec<AsyncReturn> {
+        self.reap_cancelled_async();
+        self.state
+            .borrow()
+            .pending_async
+            .iter()
+            .filter_map(|(&request, held)| {
+                if !held.completion.active.load(Ordering::Acquire) {
+                    return None;
+                }
+                let value = held.completion.result.lock().unwrap().clone()?;
+                (!held.completion.forwarded.swap(true, Ordering::AcqRel)).then_some(AsyncReturn {
+                    request: request as u64,
+                    value: value.map(crate::invoke::normalize_return),
+                })
+            })
+            .collect()
+    }
+    fn reap_cancelled_async(&self) {
+        let keys = self
+            .state
+            .borrow()
+            .pending_async
+            .iter()
+            .filter_map(|(&key, held)| {
+                (!held.completion.active.load(Ordering::Acquire)
+                    && held.completion.physical_returned.load(Ordering::Acquire))
+                .then_some(key)
+            })
+            .collect::<Vec<_>>();
+        for key in keys {
+            crate::callbacks::cancel(key);
+            self.state.borrow_mut().pending_async.remove(&key);
+        }
+    }
+    /// Select the owner-driven async route before publishing callable adapters.
+    /// OneCalc's explicit single-formula controller keeps the synchronous wait route.
+    pub fn set_async_continuations(&self, enabled: bool) -> Result<(), String> {
+        let mut state = self.state.borrow_mut();
+        if !state.pending_async.is_empty() {
+            return Err("native async calls are still pending".into());
+        }
+        state.async_continuations = enabled;
+        Ok(())
+    }
     pub fn close(&self) -> Result<(), String> {
         if self.state.borrow().closed {
             return Ok(());
+        }
+        self.reap_cancelled_async();
+        if !self.state.borrow().pending_async.is_empty() {
+            return Err("dc-snz.23: XLL removal waits for outstanding native async handles".into());
         }
         let modules = self.state.borrow().modules.clone();
         let mut failures = Vec::new();
@@ -467,6 +540,13 @@ impl XllHost {
         self.unload_module(&module)
     }
     fn unload_module(&self, module: &Rc<Module>) -> Result<(), String> {
+        self.reap_cancelled_async();
+        if self.state.borrow().pending_async.values().any(|pending| {
+            pending.registration.origin.handle == module.handle
+                || pending.registration.module.handle == module.handle
+        }) {
+            return Err("dc-snz.23: XLL removal waits for outstanding native async handles".into());
+        }
         if module.measured_xloil {
             // Retain this process-lifetime fact even if teardown only partly succeeds.
             XLOIL_0221_REMOVED.store(true, Ordering::Release);
@@ -497,10 +577,23 @@ impl Drop for XllHost {
     fn drop(&mut self) {
         if let Err(e) = self.close() {
             self.state.borrow_mut().refusal(e);
+            // A parked invocation can outlive its host handle. Keep native code
+            // loaded until process exit when its owner did not drain/cancel it.
+            let state = self.state.borrow();
+            std::mem::forget(state.modules.clone());
+            if !state.pending_async.is_empty() {
+                // Final teardown cannot join a hung native task or a task
+                // waiting for a callback owner that is being dropped.
+                std::mem::forget(state.workers.clone());
+            }
+            for pending in state.pending_async.values() {
+                std::mem::forget(pending.registration.clone());
+            }
         }
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct XllFunction {
     pub state: Shared,
     pub registration: Rc<Registration>,
@@ -512,7 +605,62 @@ impl fmt::Debug for XllFunction {
             .finish()
     }
 }
+pub(crate) fn refuse_native_error(context: &mut dyn UserFunctionContext, why: &str) {
+    for (prefix, owner) in [
+        ("dc-snz.2:", "dc-snz.2"),
+        ("dc-snz.18:", "dc-snz.18"),
+        ("dc-snz.23:", "dc-snz.23"),
+    ] {
+        if why.starts_with(prefix) {
+            context.refuse_by("an XLL invocation capability is not modelled", owner);
+            break;
+        }
+    }
+}
 impl UserFunction for XllFunction {
+    fn state_lane(&self) -> Option<u64> {
+        (!self.registration.info.signature.thread_safe)
+            .then_some(self.registration.origin.handle as u64)
+    }
+    fn begin_call(
+        &self,
+        arguments: &[CalcValue],
+        _frame: calc_func::UserInvocationFrame,
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<Option<Box<dyn calc_func::UserFunctionInvocation>>, String> {
+        if !self.state.borrow().async_continuations {
+            return Ok(None);
+        }
+        if self.registration.info.signature.thread_safe
+            && !self.registration.info.signature.asynchronous
+        {
+            let pool =
+                self.state.borrow().workers.clone().ok_or_else(|| {
+                    context.refuse_by("native calculation pool stopped", "dc-snz.23")
+                })?;
+            let call = crate::worker::submit(self, &pool, arguments, context.caller(), true)
+                .map_err(|why| {
+                    refuse_native_error(context, &why);
+                    why
+                })?;
+            return Ok(Some(Box::new(call)));
+        }
+        if !self.registration.info.signature.asynchronous {
+            return Ok(None);
+        }
+        if self.registration.info.signature.thread_safe {
+            return Err(context.refuse_by(
+                "thread-safe native async entry is not modelled",
+                "dc-snz.23",
+            ));
+        }
+        Ok(Some(Box::new(NativeAsyncInvocation {
+            function: self.clone(),
+            arguments: arguments.to_vec(),
+            pending: None,
+            finished: false,
+        })))
+    }
     fn cached_reads(&self) -> bool {
         self.registration.info.signature.macro_equivalent
     }
@@ -526,13 +674,62 @@ impl UserFunction for XllFunction {
     ) -> Result<CalcValue, String> {
         let result = self.invoke(arguments, Some(&mut *context));
         if let Err(why) = &result {
-            if why.starts_with("dc-snz.2:") {
-                context.refuse_by("an XLL invocation ABI is not modelled", "dc-snz.2");
-            } else if why.starts_with("dc-snz.18:") {
-                context.refuse_by("an XLL worker capability is not modelled", "dc-snz.18");
-            }
+            refuse_native_error(context, why);
         }
         result
+    }
+}
+
+struct NativeAsyncInvocation {
+    function: XllFunction,
+    arguments: Vec<CalcValue>,
+    pending: Option<crate::callbacks::Pending>,
+    finished: bool,
+}
+impl fmt::Debug for NativeAsyncInvocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NativeAsyncInvocation")
+            .field("request", &self.pending.as_ref().map(|p| p.key))
+            .field("finished", &self.finished)
+            .finish()
+    }
+}
+impl calc_func::UserFunctionInvocation for NativeAsyncInvocation {
+    fn resume(
+        &mut self,
+        context: &mut dyn UserFunctionContext,
+        _quantum: u64,
+    ) -> Result<calc_func::UserFunctionStep, String> {
+        use calc_func::UserFunctionStep;
+        if self.finished {
+            return Err("native async activation already completed".into());
+        }
+        if let Some(pending) = &self.pending {
+            let request = pending.key as u64;
+            if let Some(value) = context.take_async_result(request) {
+                self.pending.take();
+                self.finished = true;
+                return Ok(UserFunctionStep::Complete(value));
+            }
+            return Ok(UserFunctionStep::Awaiting { request });
+        }
+        match self
+            .function
+            .start_inline(&self.arguments, Some(&mut *context), false)
+            .map_err(|why| {
+                refuse_native_error(context, &why);
+                why
+            })? {
+            crate::invoke::NativeReturn::Value(value, _) => {
+                self.finished = true;
+                Ok(UserFunctionStep::Complete(value))
+            }
+            crate::invoke::NativeReturn::Pending(pending) => {
+                let request = pending.key as u64;
+                self.pending = Some(pending);
+                Ok(UserFunctionStep::Awaiting { request })
+            }
+        }
     }
 }
 

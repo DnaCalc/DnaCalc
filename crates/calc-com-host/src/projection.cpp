@@ -21,12 +21,14 @@ constexpr GUID worksheet_iid = {0x000208d8,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID range_iid = {0x00020846,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 struct Value { unsigned kind; double number; const wchar_t* text; size_t length; };
 using Run = HRESULT (WINAPI*)(const void*,const wchar_t*,size_t,const Value*,size_t,Value*);
+using Qualifier = HRESULT (WINAPI*)(const wchar_t*,size_t,const wchar_t*,size_t,BSTR*);
 struct Object;
 struct State {
     HWND hwnd;
     DWORD thread;
     const void* context;
     Run run;
+    Qualifier qualifier = nullptr;
     bool connected = true;
     bool enable_events = true;
     Object* workbook = nullptr;
@@ -267,9 +269,14 @@ HRESULT range_address(Object* object,DISPPARAMS* params,VARIANT* result) {
         VariantClear(&value);
     }
     std::wstring text;
-    // A workbook-qualified address needs the shared formula name printer,
-    // including apostrophe escaping. Do not emit an invalid unquoted name.
-    if(external) return E_NOTIMPL;
+    if(external) {
+        auto& state=*object->state;
+        if(!state.qualifier) return E_NOTIMPL;
+        BSTR prefix=nullptr;
+        HRESULT hr=state.qualifier(state.workbook_name.data(),state.workbook_name.size(),state.worksheet_name.data(),state.worksheet_name.size(),&prefix);
+        if(FAILED(hr)) return hr;
+        text.assign(prefix,SysStringLen(prefix)); SysFreeString(prefix); text+=L"!";
+    }
     if(style==1) {
         std::wstring column; unsigned n=object->column+1;
         while(n) { column.insert(column.begin(),static_cast<wchar_t>(L'A'+(n-1)%26)); n=(n-1)/26; }
@@ -329,6 +336,7 @@ HRESULT run(Object* object,DISPPARAMS* params,VARIANT* result) {
         hr=object->state->run(object->state->context,macro.bstrVal,SysStringLen(macro.bstrVal),values.data(),count,&output);
         if(SUCCEEDED(hr) && result) {
             if(output.kind==1) { result->vt=VT_R8; result->dblVal=output.number; }
+            else if(output.kind==4) { result->vt=VT_I4; result->lVal=static_cast<LONG>(output.number); }
             else if(output.kind==3) { result->vt=VT_BOOL; result->boolVal=output.number?VARIANT_TRUE:VARIANT_FALSE; }
             else hr=E_NOTIMPL;
         }
@@ -469,9 +477,10 @@ HRESULT fire(Object* object,DISPID id,VARIANT* args,UINT count) {
 }
 }
 
-extern "C" void* dna_com_create(size_t hwnd,const void* context,Run run) noexcept {
+extern "C" void* dna_com_create(size_t hwnd,const void* context,Run run,Qualifier qualifier) noexcept {
     try {
         auto state=std::make_shared<State>(State{reinterpret_cast<HWND>(hwnd),GetCurrentThreadId(),context,run});
+        state->qualifier=qualifier;
         auto app=std::make_unique<Object>(Object{application_vtable.data(),1,state,nullptr,true});
         app->application=app.get();
         auto workbook=std::make_unique<Object>(Object{workbook_vtable.data(),1,state,app.get(),false,app.get(),true});
@@ -577,7 +586,7 @@ public:
 };
 }
 extern "C" HRESULT dna_com_test_events() noexcept {
-    auto projection=static_cast<Projection*>(dna_com_create(1,nullptr,nullptr));
+    auto projection=static_cast<Projection*>(dna_com_create(1,nullptr,nullptr,nullptr));
     if(!projection) return E_OUTOFMEMORY;
     HRESULT hr=dna_com_sheet(projection,L"Unit",4);
     IConnectionPointContainer* container=nullptr;
@@ -643,6 +652,7 @@ extern "C" HRESULT dna_com_run_early(void* pointer,const wchar_t* name,size_t le
         missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,&result);
     if(SUCCEEDED(hr)) {
         if(result.vt==VT_R8) { output->kind=1; output->number=result.dblVal; }
+        else if(result.vt==VT_I4) { output->kind=1; output->number=result.lVal; }
         else if(result.vt==VT_BOOL) { output->kind=3; output->number=result.boolVal!=VARIANT_FALSE; }
         else hr=E_NOTIMPL;
     }

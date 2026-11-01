@@ -533,8 +533,8 @@ general COM, xlwDotNet, Excel4 and x86 have not been established by these cases.
 The Windows projection now exposes the measured `_Worksheet` IID and its complete
 158-slot layout, plus Excel's dispatch-only Range interface for single-cell event
 targets. Application.ActiveWorkbook/ActiveSheet, Workbook.ActiveSheet and worksheet
-Name use the measured slots. Range identity, parent, local address and bounds are available;
-workbook-qualified addresses return E_NOTIMPL until the shared name printer is connected;
+Name use the measured slots. Range identity, parent, local/qualified address and bounds are available;
+qualified names use the shared reference printer, including apostrophe escaping;
 general Range value/formula editing remains unimplemented and returns a failing HRESULT.
 No type library, Excel COM identity or security setting is registered or changed.
 
@@ -543,7 +543,7 @@ desktop composition delivers SheetChange after committed OneCalc edits and
 AfterCalculate after calculation. Named arguments preserve Excel's measured
 declaration order. A native regression checks fan-out, EnableEvents suppression,
 reentrant Unadvise, cross-point cookies and disconnected retained Range objects.
-The original xlOil Python fixture additionally reads these properties and retains
+The fixture running with the original xlOil Python plugin reads these properties and retains
 an event range across edits. Its event callback enters `xloRunInXLLContext` through
 Application.Run; hidden macro-equivalent registrations use the ordinary native
 invocation path on the STA. Async Application.Run remains a typed refusal.
@@ -555,4 +555,36 @@ on close without recreating it on open. Safe runtime reinitialization remains
 dc-snz.21; the existing measured-runtime refusal is retained and is not a pass.
 Python COM references and completed futures in this fixture are explicitly released
 before normal teardown. The unreleased-future failure is kept outside the repository.
+The built-in Python import runs asynchronously and temporarily suppresses Python
+events. The reference composition waits for a fixture AfterCalculate acknowledgment
+after that import, before measuring edits. Captures that raced startup or teardown
+remain failed observations. Startup context commands are bounded before the first
+SheetChange and their exact built-in registrations are checked separately.
 These cases do not establish general COM, arbitrary Python teardown, RTD or safe reload.
+
+## 14. X5 native async owner route (dc-snz.23)
+
+The desktop `--engine` composition calculates through CalcHost. Native async entries
+can opt into its cooperative callable route: one native entry produces an opaque
+request, the existing activation parks, and return messages are resolved to the
+complete owner-issued P07 token. Only CalcHost.complete_async admits the value;
+resuming consumes that checked return without running the native entry again.
+The normal OneCalc controller retains its explicit synchronous completion path.
+Module removal refuses while an admitted native handle remains outstanding.
+Dropping an activation invalidates its handle; request numbers are never reused.
+An entered canceled call retains its module lease until a late return attempt is
+observed. A task that never returns keeps removal refused and its code resident
+until process exit. Normal teardown still asks the add-in to drain its own work.
+Thread-safe native async entries and asynchronous Application.Run remain refusals.
+Synchronous `$` entries can also use an owning cooperative activation. Only owned
+arguments, callback requests and results cross the pool boundary; evaluator reads
+are serviced on the owner. Two workbook commands can interleave these activations.
+The native barrier fixture establishes overlapping entry before either call
+returns, while a single workbook still services a suspended cell first.
+Queued calls retain both originating and executable-module leases. Dropping a
+pool activation cancels and disconnects callback replies before releasing its
+owner. Final host drop retains a pool with outstanding work instead of joining a
+hung task. Unsupported ABI failures remain typed refusals through IFERROR.
+An overwrite case checks P07 token revocation, the delayed native return code256,
+and the replacement cell/dependent values. RTD client integration and the broader
+Excel callback permission matrix are still open under dc-snz.23.
