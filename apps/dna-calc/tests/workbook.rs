@@ -1593,6 +1593,7 @@ mod rule_review {
             server
                 .execute_current(
                     Request::Subscribe {
+                        workbook: server.workbook_id(),
                         id: 42,
                         interest: wire::Interest::Area(wire::Area::of(
                             GridArea::new(

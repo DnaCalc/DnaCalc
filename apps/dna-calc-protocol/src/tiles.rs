@@ -156,23 +156,44 @@ pub fn decode_tiles(bytes: &[u8]) -> Result<TileBatch, String> {
     stamp.reset = flags & 1 != 0;
     let count = r.count(MAX_TILE_RECORDS)?;
     let mut dictionary: Vec<Cell> = Vec::with_capacity(count);
+    let mut dictionary_bytes = 0usize;
     for _ in 0..count {
-        dictionary.push(decode(r.text()?)?);
+        let atom: Cell = decode(r.text()?)?;
+        dictionary_bytes = dictionary_bytes.saturating_add(atom.retained_bytes());
+        if dictionary_bytes > MAX_TILE_BYTES {
+            return Err("Decoded tile dictionary exceeds its retention limit".into());
+        }
+        dictionary.push(atom);
     }
     let geometry: Vec<(Sheet, Geometry)> = decode(r.text()?)?;
+    let mut retained = geometry
+        .iter()
+        .fold(512usize, |n, (_, g)| n.saturating_add(geometry_bytes(g)));
+    if retained > MAX_TILE_BYTES {
+        return Err("Decoded tile geometry exceeds its retention limit".into());
+    }
     let count = r.count(MAX_TILE_RECORDS)?;
     let mut cells = Vec::with_capacity(count);
     for _ in 0..count {
         let at = r.key()?;
         let index = r.u32()? as usize;
-        let mut cell = dictionary
+        let atom = dictionary
             .get(index)
-            .ok_or("Undefined tile dictionary reference")?
-            .clone();
+            .ok_or("Undefined tile dictionary reference")?;
+        // A small dictionary can fan out into large records. Charge each reference before
+        // cloning its strings, rather than allocating the entire expansion and checking later.
+        retained = retained.saturating_add(atom.retained_bytes());
+        if retained > MAX_TILE_BYTES {
+            return Err("Decoded tile exceeds its retention limit".into());
+        }
+        let mut cell = atom.clone();
         cell.at = at;
         cells.push(cell);
     }
     let count = r.count(MAX_TILE_RECORDS - cells.len())?;
+    if retained.saturating_add(count.saturating_mul(16)) > MAX_TILE_BYTES {
+        return Err("Decoded tile removals exceed their retention limit".into());
+    }
     let mut removed = Vec::with_capacity(count);
     for _ in 0..count {
         removed.push(r.key()?);
@@ -301,6 +322,39 @@ mod tests {
         let mut bad = bytes;
         bad[80] = 2;
         assert!(decode_tiles(&bad).is_err());
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dictionary_fanout_is_charged_before_expanding_the_references() {
+        let mut batch = sample();
+        batch.cells.truncate(1);
+        batch.cells[0].text = "x".repeat(40_000);
+        batch.removed.clear();
+        let mut bytes = encode_tiles(&batch).unwrap();
+        let mut reader = Reader(&bytes[86..]);
+        assert_eq!(reader.u32().unwrap(), 1);
+        reader.text().unwrap();
+        reader.text().unwrap();
+        let records = bytes.len() - reader.0.len();
+        bytes.truncate(records);
+        write_u32(&mut bytes, MAX_TILE_RECORDS);
+        for row in 1..=MAX_TILE_RECORDS as u32 {
+            write_key(&mut bytes, Key(0, 0, row, 1));
+            bytes.extend_from_slice(&0u32.to_le_bytes());
+        }
+        write_u32(&mut bytes, 0);
+        assert!(bytes.len() < MAX_TILE_BYTES);
+        // Three expanded records already exceed the retained budget. Refuse there even
+        // when the rest of the declared record sequence has not arrived: checking only
+        // after decoding the entire batch would instead read on and report truncation.
+        assert_eq!(
+            decode_tiles(&bytes[..records + 4 + 3 * 20]).unwrap_err(),
+            "Decoded tile exceeds its retention limit"
+        );
+        assert_eq!(
+            decode_tiles(&bytes).unwrap_err(),
+            "Decoded tile exceeds its retention limit"
+        );
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -470,20 +470,24 @@ pub enum Request {
     Intent(Intent),
     /// Registers subscription `id` (the page's number for it); its cells come as events.
     Subscribe {
+        workbook: u64,
         id: u64,
         interest: Interest,
     },
     SetInterest {
+        workbook: u64,
         id: u64,
         interest: Interest,
     },
     Unsubscribe {
+        workbook: u64,
         id: u64,
     },
     /// Release the one in-flight publication after the mirror applies its completion barrier.
     TileAck(crate::tiles::TileBarrier),
     /// Explicit recovery; the server coalesces all missed deltas into one atomic reset.
     ResetTiles {
+        workbook: u64,
         id: u64,
     },
     Review(Key),

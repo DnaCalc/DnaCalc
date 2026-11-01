@@ -1,13 +1,15 @@
 //! Subscription publications, independent of a painter and of calculation completion.
 //!
 //! These receipts close a projection of already installed host results. They are not engine
-//! AdmissionReceipt/CompletionReceipt or a claim that a workbook is fresh. When the engine
-//! exposes its publication identities they can be carried alongside these stream identities.
+//! AdmissionReceipt/CompletionReceipt or a claim that a workbook is fresh. Engine publication
+//! identities travel alongside stream identities without upgrading individual cell provenance.
 use crate::projection::{Cell, Geometry, Key, Sheet};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_SUBSCRIPTIONS: usize = 32;
 pub const MAX_TILE_CELLS: usize = 65_536;
+/// A delta can remove the old root and install a disjoint new root.
+pub const MAX_PUBLICATION_RECORDS: usize = MAX_TILE_CELLS * 2;
 pub const MAX_PUBLICATION_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_TILE_BYTES: usize = 512 * 1024;
 pub const MAX_TILE_RECORDS: usize = 256;
@@ -27,7 +29,8 @@ pub struct TileStamp {
     pub base: u64,
     pub next: u64,
     pub revision: u64,
-    /// Geometry and cell styles belong to this model revision, even for equal-value updates.
+    /// Geometry and styles share this publication's root epoch. They can change without an
+    /// authored revision changing, for example when conditional formatting recalculates.
     pub geometry_version: u64,
     pub style_version: u64,
     /// Dictionaries are local to a publication and are released with it.
