@@ -520,7 +520,7 @@ impl HostSession {
                         if edits.is_empty() {
                             return Ok(());
                         }
-                        let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                        let edits = self.authored_edits(edits);
                         self.edit_coordinates(edits, coordinates, &mut receipt)
                     })
             }
@@ -540,14 +540,14 @@ impl HostSession {
                 None => Err(IntentError::EmptySelection),
             },
             SkinIntent::Edit { edits } => {
-                let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                let edits = self.authored_edits(edits);
                 self.edit(edits, &mut receipt)
             }
             SkinIntent::EditAxis(edit) => self.edit(vec![CellEdit::Axis(edit)], &mut receipt),
             SkinIntent::Copy { from, to, cut } => {
                 match crate::copy::copy_edits(&self.host, from, to, cut) {
                     Ok(edits) => {
-                        let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                        let edits = self.authored_edits(edits);
                         let coordinates = cut
                             .then(|| crate::copy::move_coordinates(&self.host, from, to.first()));
                         self.edit_coordinates(edits, coordinates, &mut receipt)
@@ -693,10 +693,104 @@ impl HostSession {
     /// typed or pasted into a cell, so the engine spills its result. A formula whose text the
     /// parser does not read is left as typed, for the edit to refuse.
     fn authored(&self, edit: CellEdit) -> CellEdit {
-        let names = self.host.model.definitions().names();
-        let links = self.host.model.definitions().external_file_names();
-        let file_form = |formula: &FormulaText| {
-            let form = calc_doc::file_form_with_links(formula, names, &links).ok()?;
+        self.authored_with_names(edit, &BTreeMap::new())
+    }
+
+    fn authored_edits(&self, edits: Vec<CellEdit>) -> Vec<CellEdit> {
+        let mut pending =
+            BTreeMap::<calc_doc_model::value::NameKey, std::collections::VecDeque<String>>::new();
+        for edit in &edits {
+            if let CellEdit::SetName {
+                name,
+                scope,
+                formula,
+            } = edit
+            {
+                let key = calc_doc_model::value::NameKey::new(*scope, name);
+                let queue = pending.entry(key.clone()).or_insert_with(|| {
+                    self.host
+                        .model
+                        .definitions()
+                        .name_table()
+                        .matching(&key)
+                        .map(|node| node.definition().formula.clone())
+                        .collect()
+                });
+                match formula {
+                    Some(formula) => {
+                        if let Some(first) = queue.front_mut() {
+                            *first = formula.clone();
+                        } else {
+                            queue.push_back(formula.clone());
+                        }
+                    }
+                    None => {
+                        queue.pop_front();
+                    }
+                }
+            }
+        }
+        let names: BTreeMap<_, _> = pending
+            .into_iter()
+            .map(|(key, mut values)| (key, values.pop_front()))
+            .collect();
+        edits
+            .into_iter()
+            .map(|edit| self.authored_with_names(edit, &names))
+            .collect()
+    }
+
+    fn authored_with_names(
+        &self,
+        edit: CellEdit,
+        names: &BTreeMap<calc_doc_model::value::NameKey, Option<String>>,
+    ) -> CellEdit {
+        let file_form = |formula: &FormulaText, sheet| {
+            let lookup = |qualifier: Option<&str>, spelling: &str| {
+                let local = match qualifier {
+                    Some(name) => self
+                        .host
+                        .model
+                        .sheets()
+                        .iter()
+                        .find(|entry| {
+                            entry
+                                .name()
+                                .text()
+                                .to_string_lossy()
+                                .chars()
+                                .flat_map(char::to_uppercase)
+                                .eq(name.chars().flat_map(char::to_uppercase))
+                        })
+                        .map(|entry| entry.id())?,
+                    None => sheet,
+                };
+                for scope in [
+                    Some(calc_doc_model::NameScope::Sheet(local)),
+                    qualifier
+                        .is_none()
+                        .then_some(calc_doc_model::NameScope::Workbook),
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    let key = calc_doc_model::value::NameKey::new(scope, spelling);
+                    match names.get(&key) {
+                        Some(Some(formula)) => return Some(formula.as_str()),
+                        Some(None) => continue,
+                        None => {
+                            if let Some(node) =
+                                self.host.model.definitions().name_table().lookup_key(&key)
+                            {
+                                return Some(node.definition().formula.as_str());
+                            }
+                        }
+                    }
+                }
+                None
+            };
+            let links = self.host.model.definitions().external_file_names();
+            let form = calc_doc::file_form_with_lookup(formula, &lookup, &links).ok()?;
             let text = FormulaText::new(ExcelText::from_utf16_code_units(form.text)).ok()?;
             Some((text, form.dynamic))
         };
@@ -704,7 +798,7 @@ impl HostSession {
             CellEdit::Set {
                 at,
                 input: CellInput::Formula(formula),
-            } => match file_form(&formula) {
+            } => match file_form(&formula, at.sheet()) {
                 Some((text, true)) => CellEdit::SetArray {
                     array: ArrayFormula::new(
                         GridArea::cell(at),
@@ -723,7 +817,8 @@ impl HostSession {
             },
             CellEdit::SetArray { array, formula } => CellEdit::SetArray {
                 array,
-                formula: file_form(&formula).map_or(formula, |(text, _)| text),
+                formula: file_form(&formula, array.anchor().sheet())
+                    .map_or(formula, |(text, _)| text),
             },
             edit => edit,
         }

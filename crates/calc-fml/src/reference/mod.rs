@@ -34,10 +34,10 @@ mod text;
 mod transform;
 
 pub use bind::{
-    BindError, ExternalBookRef, ExternalOperand, NameDefinition, NameScope, ReferenceCatalog,
-    ReferenceSite, bind_references,
+    BindError, BoundName, ExternalBookRef, ExternalOperand, NameBindingProof, NameDefinition,
+    NameProbe, NameScope, ReferenceCatalog, ReferenceSite, bind_references, qualified_name,
 };
-pub(crate) use bind::{external_operand, qualified_call, qualified_name};
+pub(crate) use bind::{external_operand, qualified_call};
 pub use calc_func::TextReference;
 pub use read::{
     CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cell_by_area,

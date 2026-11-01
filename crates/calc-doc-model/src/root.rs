@@ -397,7 +397,18 @@ impl ModelRoot {
             sheets: earlier.sheets.clone(),
             cells: earlier.cells.clone(),
             layout: Arc::clone(&earlier.layout),
-            definitions: Arc::clone(&earlier.definitions),
+            definitions: Arc::new(
+                Definitions::clone(&earlier.definitions).with_name_table(
+                    self.definitions.name_table().replaced(
+                        earlier
+                            .definitions
+                            .name_table()
+                            .definitions()
+                            .cloned()
+                            .collect(),
+                    ),
+                ),
+            ),
             lineage: earlier.lineage,
         }))
     }
@@ -529,7 +540,7 @@ impl ModelRoot {
         let mut panes = Vec::new();
         let mut axis_formats = Vec::new();
         // The defined names' formulas the batch sets, as the names will read.
-        let mut names: Option<Vec<crate::DefinedName>> = None;
+        let mut names: Option<crate::NameTable> = None;
         let mut iteration: Option<crate::definitions::IterationSettings> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
@@ -573,27 +584,11 @@ impl ModelRoot {
                     if let crate::NameScope::Sheet(sheet) = scope {
                         self.position_of(operation, *sheet)?;
                     }
-                    let all = names.get_or_insert_with(|| self.definitions.names().to_vec());
-                    let held = all.iter().position(|held| {
-                        held.scope == *scope && calc_value::workbook_names_equal(&held.name, name)
-                    });
-                    match (held, formula) {
-                        (Some(at), Some(formula)) => all[at].formula = formula.clone(),
-                        (Some(at), None) => {
-                            all.remove(at);
-                        }
-                        (None, Some(formula)) => all.push(crate::DefinedName {
-                            name: name.clone(),
-                            scope: *scope,
-                            formula: formula.clone(),
-                            hidden: false,
-                            comment: None,
-                            function: false,
-                            vb_procedure: false,
-                            xlm: false,
-                        }),
-                        (None, None) => return Err(ApplyError::UnknownName { operation }),
+                    let all = names.get_or_insert_with(|| self.definitions.name_table().clone());
+                    if formula.is_none() && all.lookup(*scope, name).is_none() {
+                        return Err(ApplyError::UnknownName { operation });
                     }
+                    all.set_formula(*scope, name, formula.as_deref());
                 }
                 WorkbookOp::SetIteration(settings) => iteration = Some(*settings),
                 WorkbookOp::SetAxisFormat(edit) => {
@@ -678,7 +673,7 @@ impl ModelRoot {
                 next = next.with_format_of(at, format);
             }
             if let Some(names) = names {
-                next = next.with_names(names);
+                next = next.with_name_table(names);
             }
             definitions = Arc::new(next);
         }

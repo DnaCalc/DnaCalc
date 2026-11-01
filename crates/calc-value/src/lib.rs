@@ -53,7 +53,9 @@ pub fn fold_parameter_name(text: &str) -> String {
 }
 
 pub use grid::{CellKey, GridArea, GridError, MAX_COLUMNS, MAX_ROWS, Selection};
-pub use id::{IdAllocator, IdError, NameId, NodeId, SheetId, TableId, WorkbookId};
+pub use id::{
+    IdAllocator, IdError, NameId, NameKey, NameScope, NodeId, SheetId, TableId, WorkbookId,
+};
 pub use numeric::{NumericMode, NumericTargetId};
 pub use value::{
     ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CoreRef, CoreValue,

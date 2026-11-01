@@ -155,7 +155,8 @@ fn seed_dependents(seeds: &[InputSeed<'_>]) -> Vec<Vec<NodeId>> {
         .map(|seed| match seed {
             InputSeed::Cell { dependents, .. }
             | InputSeed::Area { dependents, .. }
-            | InputSeed::Spill { dependents, .. } => dependents.clone(),
+            | InputSeed::Spill { dependents, .. }
+            | InputSeed::Name { dependents, .. } => dependents.clone(),
         })
         .collect()
 }
@@ -166,6 +167,7 @@ fn cell_seed_map(seeds: &[InputSeed<'_>]) -> BTreeMap<CellKey, Vec<NodeId>> {
         .iter()
         .map(|seed| match seed {
             InputSeed::Cell { at, dependents, .. } => (*at, dependents.clone()),
+            InputSeed::Name { key, .. } => panic!("unexpected name seed {key:?}"),
             InputSeed::Area { area, .. } | InputSeed::Spill { area, .. } => {
                 panic!("unexpected area seed {area:?}")
             }
@@ -215,6 +217,7 @@ fn clear_readers(
             InputSeed::Area { area, dependents } => (*area, dependents.clone()),
             InputSeed::Cell { at, .. } => panic!("unexpected cell seed {at:?}"),
             InputSeed::Spill { anchor, .. } => panic!("unexpected spill seed {anchor:?}"),
+            InputSeed::Name { key, .. } => panic!("unexpected name seed {key:?}"),
         })
         .collect();
     assert_eq!(found.len(), areas.len(), "a probed area emptied no cell");
@@ -6820,4 +6823,553 @@ fn contract_imported_arrays_require_a_complete_image_and_keep_file_lineage() {
             }
         }
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_edit_rebinds_users_and_keeps_unrelated_binding_and_requirement() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |col| key(s, 1, col);
+    let mut root = l3_root(
+        &[(s, "Names")],
+        vec![
+            (c(1), formula("Rate+1")),
+            (c(2), formula("A1+1")),
+            (c(3), formula("2+2")),
+        ],
+        Definitions::new(
+            vec![],
+            vec![l1_name("Rate", NameScope::Workbook, "1")],
+            vec![],
+            [],
+        ),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let unrelated = plan_at(&state, c(3));
+    let requirement = state.requirement_at(c(3)).unwrap();
+    let old_result = state.result(c(3)).unwrap().clone();
+    root = edit(
+        &mut state,
+        &root,
+        vec![WorkbookOp::SetNameFormula {
+            name: "Rate".into(),
+            scope: NameScope::Workbook,
+            formula: Some("7".into()),
+        }],
+    );
+    assert_eq!(state.requirement_at(c(3)).unwrap(), requirement);
+    assert!(state.validated_result(&root, c(3)).is_some());
+    let mut instrument = Instrument::default();
+    recalc(&mut state, &root, &mut instrument);
+    assert_eq!(l1_value(&state, c(1)), CalcValue::number(8.0));
+    assert_eq!(l1_value(&state, c(2)), CalcValue::number(9.0));
+    assert_eq!(state.result(c(3)), Some(&old_result));
+    assert!(Arc::ptr_eq(&unrelated, &plan_at(&state, c(3))));
+    assert_eq!(
+        instrument
+            .evaluations
+            .iter()
+            .map(|r| r.0)
+            .collect::<Vec<_>>(),
+        [c(1), c(2)]
+    );
+}
+
+/// Native-only: wall-clock edit cost with retained authored snapshots; no timing assertion.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+#[ignore = "run explicitly for the name edit measurements"]
+fn names_edit_cost_measurement() {
+    use std::time::Instant;
+    let mut wrong = 0;
+    for count in [1_000usize, 100_000] {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let s = ids.issue().unwrap();
+        let c = |col| key(s, 1, col);
+        let names = (0..count)
+            .map(|i| l1_name(&format!("Name_{i:06}"), NameScope::Workbook, "1"))
+            .collect();
+        let spelling = format!("Name_{:06}", count - 1);
+        let mut root = l3_root(
+            &[(s, "Names")],
+            vec![
+                (c(1), formula(&format!("{spelling}+1"))),
+                (c(2), formula("A1+1")),
+                (c(3), formula("2+2")),
+            ],
+            Definitions::new(vec![], names, vec![], []),
+        );
+        let mut state = EngineState::new(&root);
+        recalc(&mut state, &root, &mut Unobserved);
+        let mut snapshots = Vec::new();
+        let mut micros = Vec::new();
+        let mut required = 0;
+        for value in 2..=12 {
+            snapshots.push(root.clone());
+            let start = Instant::now();
+            root = edit(
+                &mut state,
+                &root,
+                vec![WorkbookOp::SetNameFormula {
+                    name: spelling.clone(),
+                    scope: NameScope::Workbook,
+                    formula: Some(value.to_string()),
+                }],
+            );
+            micros.push(start.elapsed().as_secs_f64() * 1e6);
+            required = required.max(
+                state
+                    .nodes()
+                    .filter(|node| state.calculation_required_at(node.anchor()))
+                    .count(),
+            );
+            recalc(&mut state, &root, &mut Unobserved);
+            wrong += usize::from(l1_value(&state, c(1)) != CalcValue::number(f64::from(value + 1)));
+        }
+        micros.sort_by(f64::total_cmp);
+        println!(
+            "NAME-COST profile=debug names={count} formulas=3 snapshots={} edits={} median_us={:.3} min_us={:.3} max_us={:.3} max_required={required}",
+            snapshots.len(),
+            micros.len(),
+            micros[micros.len() / 2],
+            micros[0],
+            micros[micros.len() - 1]
+        );
+    }
+    assert_eq!(
+        wrong, 0,
+        "every measured edit must also calculate the changed definition"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_scoped_watches_rebind_shadow_fallback_and_only_their_users() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let a = ids.issue().unwrap();
+    let b = ids.issue().unwrap();
+    let at = |s, col| key(s, 1, col);
+    let mut root = l3_root(
+        &[(a, "One"), (b, "Two")],
+        vec![
+            (at(a, 1), formula("Rate")),
+            (at(b, 1), formula("Rate")),
+            (at(a, 2), formula("Missing")),
+            (at(b, 2), formula("Missing")),
+            (at(a, 3), formula("One!Scoped")),
+            (at(b, 3), formula("2+2")),
+        ],
+        Definitions::new(
+            vec![],
+            vec![l1_name("Rate", NameScope::Workbook, "10")],
+            vec![],
+            [],
+        ),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let b_plan = plan_at(&state, at(b, 1));
+    let b_requirement = state.requirement_at(at(b, 1)).unwrap();
+    root = edit(
+        &mut state,
+        &root,
+        vec![WorkbookOp::SetNameFormula {
+            name: "rATE".into(),
+            scope: NameScope::Sheet(a),
+            formula: Some("20".into()),
+        }],
+    );
+    assert_eq!(state.requirement_at(at(b, 1)).unwrap(), b_requirement);
+    let mut trace = Instrument::default();
+    recalc(&mut state, &root, &mut trace);
+    assert_eq!(
+        trace.evaluations.iter().map(|v| v.0).collect::<Vec<_>>(),
+        [at(a, 1)]
+    );
+    assert_eq!(l1_value(&state, at(a, 1)), CalcValue::number(20.0));
+    assert_eq!(l1_value(&state, at(b, 1)), CalcValue::number(10.0));
+    assert!(Arc::ptr_eq(&b_plan, &plan_at(&state, at(b, 1))));
+    root = edit(
+        &mut state,
+        &root,
+        vec![
+            WorkbookOp::SetNameFormula {
+                name: "RATE".into(),
+                scope: NameScope::Sheet(a),
+                formula: None,
+            },
+            WorkbookOp::SetNameFormula {
+                name: "Missing".into(),
+                scope: NameScope::Sheet(a),
+                formula: Some("30".into()),
+            },
+            WorkbookOp::SetNameFormula {
+                name: "Scoped".into(),
+                scope: NameScope::Sheet(a),
+                formula: Some("40".into()),
+            },
+        ],
+    );
+    trace.evaluations.clear();
+    recalc(&mut state, &root, &mut trace);
+    assert_eq!(
+        trace.evaluations.iter().map(|v| v.0).collect::<Vec<_>>(),
+        [at(a, 1), at(a, 2), at(a, 3)]
+    );
+    assert_eq!(l1_value(&state, at(a, 1)), CalcValue::number(10.0));
+    assert_eq!(l1_value(&state, at(a, 2)), CalcValue::number(30.0));
+    assert_eq!(l1_value(&state, at(a, 3)), CalcValue::number(40.0));
+    assert!(matches!(
+        l1_value(&state, at(b, 2)).core_ref(),
+        calc_value::CoreRef::Error(_)
+    ));
+    root = edit(
+        &mut state,
+        &root,
+        vec![WorkbookOp::SetNameFormula {
+            name: "Missing".into(),
+            scope: NameScope::Workbook,
+            formula: Some("50".into()),
+        }],
+    );
+    trace.evaluations.clear();
+    recalc(&mut state, &root, &mut trace);
+    assert_eq!(
+        trace.evaluations.iter().map(|v| v.0).collect::<Vec<_>>(),
+        [at(b, 2)]
+    );
+    assert_eq!(l1_value(&state, at(b, 2)), CalcValue::number(50.0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_are_reference_or_value_participants_with_contextual_alias_edges() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let a = ids.issue().unwrap();
+    let b = ids.issue().unwrap();
+    let at = |s, row, col| key(s, row, col);
+    let mut root = l3_root(
+        &[(a, "One"), (b, "Two")],
+        vec![
+            (at(a, 1, 1), number(3.0)),
+            (at(a, 2, 1), number(4.0)),
+            (at(b, 1, 1), number(90.0)),
+            (at(b, 1, 2), formula("SUM(One!Alias)")),
+            (at(b, 1, 3), formula("ISREF(One!Alias)")),
+            (at(b, 1, 4), formula("ROWS(One!Alias)")),
+            (at(b, 1, 5), formula("ISREF(Amount)")),
+            (at(b, 1, 6), formula("Outer+Outer")),
+            (at(b, 1, 7), formula("Outer")),
+            (at(b, 1, 8), formula("SUM(INDIRECT(\"One!Alias\"))")),
+        ],
+        Definitions::new(
+            vec![],
+            vec![
+                l1_name("Block", NameScope::Sheet(a), "$A$1:$A$2"),
+                l1_name("Alias", NameScope::Sheet(a), "Block"),
+                l1_name("Amount", NameScope::Workbook, "7"),
+                l1_name("Inner", NameScope::Workbook, "RAND()"),
+                l1_name("Outer", NameScope::Workbook, "Inner+1"),
+                l1_name("Unused", NameScope::Workbook, "RAND()"),
+            ],
+            vec![],
+            [],
+        ),
+    );
+    let mut state = EngineState::new(&root);
+    let mut trace = Instrument::default();
+    recalc(&mut state, &root, &mut trace);
+    assert_eq!(l1_value(&state, at(b, 1, 2)), CalcValue::number(7.0));
+    assert_eq!(l1_value(&state, at(b, 1, 3)), CalcValue::logical(true));
+    assert_eq!(l1_value(&state, at(b, 1, 4)), CalcValue::number(2.0));
+    assert_eq!(l1_value(&state, at(b, 1, 5)), CalcValue::logical(false));
+    assert_eq!(l1_value(&state, at(b, 1, 8)), CalcValue::number(7.0));
+    let table = root.definitions().name_table();
+    let alias = table.lookup(NameScope::Sheet(a), "Alias").unwrap().id();
+    let block = table.lookup(NameScope::Sheet(a), "Block").unwrap().id();
+    let outer = table.lookup(NameScope::Workbook, "Outer").unwrap().id();
+    let inner = table.lookup(NameScope::Workbook, "Inner").unwrap().id();
+    let unused = table.lookup(NameScope::Workbook, "Unused").unwrap().id();
+    assert_eq!(state.name_prerequisites(alias), [block]);
+    assert_eq!(state.name_prerequisites(outer), [inner]);
+    assert!(state.name_dependents(unused).is_empty());
+    assert!(state.name_node(&root, unused).is_some());
+    assert!(
+        state
+            .node(state.node_at(at(b, 1, 2)).unwrap())
+            .unwrap()
+            .prerequisites()
+            .unwrap()
+            .contains(&Prerequisite::Name(alias))
+    );
+    // An unused RAND name adds no evaluation; repeated uses draw independently.
+    let rand_calls = trace
+        .calls
+        .iter()
+        .filter(|call| call.ends_with(" RAND"))
+        .count();
+    assert_eq!(rand_calls, 3);
+    root = edit(
+        &mut state,
+        &root,
+        vec![WorkbookOp::SetNameFormula {
+            name: "Block".into(),
+            scope: NameScope::Sheet(a),
+            formula: Some("$A$1".into()),
+        }],
+    );
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, at(b, 1, 2)), CalcValue::number(3.0));
+    assert_eq!(l1_value(&state, at(b, 1, 4)), CalcValue::number(1.0));
+    assert_eq!(l1_value(&state, at(b, 1, 8)), CalcValue::number(3.0));
+    assert_eq!(
+        root.definitions()
+            .name_table()
+            .lookup(NameScope::Sheet(a), "Block")
+            .unwrap()
+            .id(),
+        block
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_dynamic_indirect_misses_follow_scoped_creation_and_delete_recreate() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |col| key(s, 1, col);
+    let mut root = l3_root(
+        &[(s, "Names")],
+        vec![
+            (c(1), number(11.0)),
+            (c(2), number(22.0)),
+            (c(3), formula("INDIRECT(\"Future\")")),
+            (c(4), formula("IF(FALSE,INDIRECT(\"Unseen\"),9)")),
+            (c(5), formula("INDIRECT(\"Alias\")")),
+        ],
+        Definitions::new(
+            vec![],
+            vec![l1_name("Alias", NameScope::Workbook, "Future")],
+            vec![],
+            [],
+        ),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let untouched = state.requirement_at(c(4)).unwrap();
+    root = edit(
+        &mut state,
+        &root,
+        vec![
+            WorkbookOp::SetNameFormula {
+                name: "Future".into(),
+                scope: NameScope::Workbook,
+                formula: Some("Names!$A$1".into()),
+            },
+            WorkbookOp::SetNameFormula {
+                name: "Unseen".into(),
+                scope: NameScope::Workbook,
+                formula: Some("Names!$B$1".into()),
+            },
+        ],
+    );
+    assert!(state.calculation_required_at(c(3)));
+    assert_eq!(state.requirement_at(c(4)).unwrap(), untouched);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(3)), CalcValue::number(11.0));
+    assert_eq!(l1_value(&state, c(5)), CalcValue::number(11.0));
+    let alias = root
+        .definitions()
+        .name_table()
+        .lookup(NameScope::Workbook, "Alias")
+        .unwrap()
+        .id();
+    let old = root
+        .definitions()
+        .name_table()
+        .lookup(NameScope::Workbook, "Future")
+        .unwrap()
+        .id();
+    assert_eq!(state.name_prerequisites(alias), [old]);
+    root = edit(
+        &mut state,
+        &root,
+        vec![
+            WorkbookOp::SetNameFormula {
+                name: "Future".into(),
+                scope: NameScope::Workbook,
+                formula: None,
+            },
+            WorkbookOp::SetNameFormula {
+                name: "Future".into(),
+                scope: NameScope::Workbook,
+                formula: Some("Names!$B$1".into()),
+            },
+        ],
+    );
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(3)), CalcValue::number(22.0));
+    assert_ne!(
+        root.definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, "Future")
+            .unwrap()
+            .id(),
+        old
+    );
+    assert!(state.name_node(&root, old).is_none());
+    assert_eq!(l1_value(&state, c(5)), CalcValue::number(22.0));
+    let current = root
+        .definitions()
+        .name_table()
+        .lookup(NameScope::Workbook, "Future")
+        .unwrap()
+        .id();
+    assert_eq!(state.name_prerequisites(alias), [current]);
+    assert!(state.name_dependents(old).is_empty());
+    root = edit(&mut state, &root, vec![clear(GridArea::cell(c(5)))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert!(state.name_prerequisites(alias).is_empty());
+    assert!(state.name_dependents(alias).is_empty());
+    assert!(
+        state.name_node(&root, alias).is_some(),
+        "the unused definition remains a non-cell participant"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_nested_workbook_aliases_preserve_their_use_context() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let a = ids.issue().unwrap();
+    let b = ids.issue().unwrap();
+    let at = |s, row, col| key(s, row, col);
+    let mut root = l3_root(
+        &[(a, "One"), (b, "Two")],
+        vec![
+            (at(a, 1, 1), number(3.0)),
+            (at(a, 2, 1), number(7.0)),
+            (at(b, 1, 1), number(90.0)),
+            (at(b, 1, 2), formula("SUM(Global)+SUM(One!Alias)")),
+            (at(b, 1, 3), formula("SUM(One!Alias)+SUM(Global)")),
+            (
+                at(b, 1, 4),
+                formula("SUM(INDIRECT(\"Global\"))+SUM(INDIRECT(\"One!Alias\"))"),
+            ),
+            (at(b, 1, 5), formula("SUM(One!Alias)")),
+            (at(b, 1, 6), formula("SUM(Global)")),
+            (at(b, 1, 7), formula("SUM(INDIRECT(\"One!Alias\"))")),
+            (at(b, 1, 8), formula("SUM(INDIRECT(\"Global\"))")),
+        ],
+        Definitions::new(
+            vec![],
+            vec![
+                l1_name("Block", NameScope::Sheet(a), "$A$1"),
+                l1_name("Block", NameScope::Sheet(b), "$A$1"),
+                l1_name("Global", NameScope::Workbook, "Block"),
+                l1_name("Alias", NameScope::Sheet(a), "Global"),
+            ],
+            vec![],
+            [],
+        ),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    for (col, value) in [
+        (2, 93.0),
+        (3, 93.0),
+        (4, 93.0),
+        (5, 3.0),
+        (6, 90.0),
+        (7, 3.0),
+        (8, 90.0),
+    ] {
+        assert_eq!(l1_value(&state, at(b, 1, col)), CalcValue::number(value));
+    }
+    let old = state.requirement_at(at(b, 1, 6)).unwrap();
+    root = edit(
+        &mut state,
+        &root,
+        vec![WorkbookOp::SetNameFormula {
+            name: "Block".into(),
+            scope: NameScope::Sheet(a),
+            formula: Some("$A$2".into()),
+        }],
+    );
+    assert_eq!(state.requirement_at(at(b, 1, 6)).unwrap(), old);
+    let mut trace = Instrument::default();
+    recalc(&mut state, &root, &mut trace);
+    assert!(!trace.evaluations.iter().any(|v| v.0 == at(b, 1, 6)));
+    for (col, value) in [
+        (2, 97.0),
+        (3, 97.0),
+        (4, 97.0),
+        (5, 7.0),
+        (6, 90.0),
+        (7, 7.0),
+        (8, 90.0),
+    ] {
+        assert_eq!(l1_value(&state, at(b, 1, col)), CalcValue::number(value));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_refused_bodies_and_missing_calls_keep_binding_watches() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |col| key(s, 1, col);
+    let mut root = l3_root(
+        &[(s, "Names")],
+        vec![
+            (c(1), formula("Broken+1")),
+            (c(2), formula("FutureFn(4)")),
+            (c(3), formula("2+2")),
+        ],
+        Definitions::new(
+            vec![],
+            vec![l1_name("Broken", NameScope::Workbook, "1+")],
+            vec![],
+            [],
+        ),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert!(matches!(
+        state.result(c(1)),
+        Some(FormulaResult::NotModeled { .. })
+    ));
+    let broken = root
+        .definitions()
+        .name_table()
+        .lookup(NameScope::Workbook, "Broken")
+        .unwrap()
+        .id();
+    assert_eq!(
+        state.name_dependents(broken),
+        [state.node_at(c(1)).unwrap()]
+    );
+    let old = state.requirement_at(c(3)).unwrap();
+    root = edit(
+        &mut state,
+        &root,
+        vec![
+            WorkbookOp::SetNameFormula {
+                name: "Broken".into(),
+                scope: NameScope::Workbook,
+                formula: Some("7".into()),
+            },
+            WorkbookOp::SetNameFormula {
+                name: "FutureFn".into(),
+                scope: NameScope::Workbook,
+                formula: Some("_xlfn.LAMBDA(_xlpm.x,_xlpm.x*2)".into()),
+            },
+        ],
+    );
+    assert_eq!(state.requirement_at(c(3)).unwrap(), old);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(1)), CalcValue::number(8.0));
+    assert_eq!(l1_value(&state, c(2)), CalcValue::number(8.0));
 }

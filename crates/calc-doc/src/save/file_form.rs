@@ -116,8 +116,8 @@ struct Shape {
     multi: bool,
 }
 
-struct Walk<'n> {
-    names: &'n [DefinedName],
+struct Walk<'n, 'd> {
+    name_formula: &'n dyn Fn(Option<&str>, &str) -> Option<&'d str>,
     /// The workbook's links to other workbooks: each link's number and its target's file name in
     /// upper case (dc-ylr).
     links: &'n [(u32, String)],
@@ -182,7 +182,7 @@ fn arguments(list: &SyntaxNode) -> Vec<&SyntaxNode> {
     list.child_nodes().collect()
 }
 
-impl Walk<'_> {
+impl Walk<'_, '_> {
     fn parameter(&self, name: &str) -> Option<bool> {
         let upper = name.to_uppercase();
         self.scopes
@@ -253,12 +253,8 @@ impl Walk<'_> {
         if is_cell(text) {
             return false;
         }
-        match self
-            .names
-            .iter()
-            .find(|name| name.name.eq_ignore_ascii_case(text))
-        {
-            Some(name) => !is_constant(&name.formula),
+        match (self.name_formula)(None, text) {
+            Some(formula) => !is_constant(formula),
             // A name the workbook does not define, a whole column (`A`), or a structured
             // reference: possibly more than one value.
             None => true,
@@ -305,10 +301,7 @@ impl Walk<'_> {
                     && !token.text().eq_ignore_ascii_case("TRUE")
                     && !token.text().eq_ignore_ascii_case("FALSE")
                     && function(token.text()).is_some()
-                    && !self
-                        .names
-                        .iter()
-                        .any(|name| name.name.eq_ignore_ascii_case(token.text()))
+                    && (self.name_formula)(None, token.text()).is_none()
                 {
                     self.insert(token.span().start, "_xleta.");
                     return multi(false);
@@ -318,6 +311,15 @@ impl Walk<'_> {
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
                 if node.kind() == SyntaxKind::QualifiedReferenceExpr {
                     self.number_external_book(node);
+                    if let Some((sheet, name)) = calc_fml::reference::qualified_name(node)
+                        && !is_cell(name.text())
+                    {
+                        // A sheet-qualified identifier is a name, never a bare function value.
+                        return multi(
+                            (self.name_formula)(Some(&sheet), name.text())
+                                .is_none_or(|formula| !is_constant(formula)),
+                        );
+                    }
                 }
                 let mut shape = Shape::default();
                 for child in node.child_nodes() {
@@ -694,6 +696,26 @@ pub fn file_form_with_links(
     names: &[DefinedName],
     links: &[(u32, String)],
 ) -> Result<FileForm, FileFormError> {
+    file_form_with_lookup(
+        formula,
+        &|_, text| {
+            names
+                .iter()
+                .find(|name| calc_doc_model::value::workbook_names_equal(&name.name, text))
+                .map(|name| name.formula.as_str())
+        },
+        links,
+    )
+}
+
+/// The same file-form walk with a caller's scoped name lookup. This lets authored
+/// snapshots and pending batches use the canonical name table without flattening it.
+/// The first callback argument is an explicit sheet qualifier, or `None` for the caller's scope.
+pub fn file_form_with_lookup<'d>(
+    formula: &FormulaText,
+    name_formula: &dyn Fn(Option<&str>, &str) -> Option<&'d str>,
+    links: &[(u32, String)],
+) -> Result<FileForm, FileFormError> {
     let links: Vec<(u32, String)> = links
         .iter()
         .map(|(number, name)| (*number, name.to_uppercase()))
@@ -706,7 +728,7 @@ pub fn file_form_with_links(
         return Err(FileFormError::Unreadable);
     }
     let mut walk = Walk {
-        names,
+        name_formula,
         links: &links,
         edits: Vec::new(),
         dynamic: false,

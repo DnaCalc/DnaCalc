@@ -7,7 +7,7 @@ use crate::state::{EngineState, issue_node_id};
 use calc_doc_model::{
     AuthoredRevision, CellInput, ModelRoot, OpBatch, SheetEdit, WorkbookOp, moved_cell,
 };
-use calc_value::{CellKey, GridArea, NodeId, SheetId};
+use calc_value::{CellKey, GridArea, NameKey, NodeId, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -24,11 +24,15 @@ pub enum NodeChange {
     Removed { node: NodeId, at: CellKey },
 }
 
-/// An authored input the edit changes, with the nodes that read it directly. Dependents are the
-/// nodes whose value edges cover a changed cell, in ID order, without the nodes the same edit
-/// replaces or removes.
+/// An authored input the edit changes, with its direct graph users in ID order, without
+/// the nodes the same edit replaces or removes. Names include scoped missing-name watches.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InputSeed<'r> {
+    /// A scoped definition edit and its bound or missing-name users.
+    Name {
+        key: NameKey,
+        dependents: Vec<NodeId>,
+    },
     /// A cell the batch sets to an input other than the one it holds in the base snapshot.
     /// `before` is that input, borrowed from the snapshot's page (`None` for an empty cell).
     Cell {
@@ -106,7 +110,7 @@ impl fmt::Display for PrepareError {
 impl std::error::Error for PrepareError {}
 
 /// The engine's staged share of one authored batch: the node changes and the cell seeds in anchor
-/// order, then the area seeds in operation order. It holds the state it was prepared against, so
+/// order, then area/spill seeds and scoped name seeds. It holds the state it was prepared against, so
 /// nothing else changes that state until it is committed or dropped. The IDs of the nodes it adds
 /// are reserved in the state's allocator; dropping the change without committing it releases
 /// them.
@@ -124,9 +128,8 @@ pub struct PreparedEngineChange<'s, 'r> {
     /// For a structural batch, where each formula node's anchor goes (`None`: its cell or sheet
     /// is deleted).
     moves: Option<Vec<(NodeId, Option<CellKey>)>>,
-    /// The batch sets a defined name's formula (dc-gf0): the compiled templates, which hold the
-    /// names' formulas as they were, go when it commits.
-    names_changed: bool,
+    /// Formula bindings which embedded an edited definition or watched its scoped spelling.
+    names_rebind: Vec<NodeId>,
     /// The batch changes the iteration settings (dc-y2o.2): the formulas on a circular reference
     /// become pending when it commits.
     iteration_changed: bool,
@@ -230,7 +233,7 @@ pub fn prepare_edit<'s, 'r>(
             seeds: Vec::new(),
             moves: Some(moves),
             // A structural commit empties the templates anyway.
-            names_changed: false,
+            names_rebind: Vec::new(),
             iteration_changed: false,
             dimensions_pending: None,
         });
@@ -457,12 +460,48 @@ pub fn prepare_edit<'s, 'r>(
         .iter()
         .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_)))
         .then(|| state.nodes().map(|node| node.id()).collect());
-    let schema_changed = change.operations.iter().any(|op| {
-        matches!(
-            op,
-            WorkbookOp::SetNameFormula { .. } | WorkbookOp::SetIteration(_)
-        )
-    });
+    let schema_changed = change
+        .operations
+        .iter()
+        .any(|op| matches!(op, WorkbookOp::SetIteration(_)));
+    // Preview text only. Allocation of a name identity/version belongs to ModelRoot::apply.
+    let mut name_after = BTreeMap::<NameKey, Option<&str>>::new();
+    let mut name_keys = BTreeSet::new();
+    for op in &change.operations {
+        if let WorkbookOp::SetNameFormula {
+            scope,
+            name,
+            formula,
+        } = op
+        {
+            let key = NameKey::new(*scope, name);
+            let before = name_after.get(&key).copied().unwrap_or_else(|| {
+                inputs
+                    .definitions()
+                    .name_table()
+                    .lookup_key(&key)
+                    .map(|n| n.definition().formula.as_str())
+            });
+            if before != formula.as_deref() {
+                name_keys.insert(key.clone());
+            }
+            name_after.insert(key, formula.as_deref());
+        }
+    }
+    let mut names_rebind = BTreeSet::new();
+    for key in name_keys {
+        let mut users = BTreeSet::new();
+        state.index.namespace_dependents(&key, &mut users);
+        if let Some(node) = inputs.definitions().name_table().lookup_key(&key) {
+            state.index.name_dependents(node.id(), &mut users);
+        }
+        users.retain(|node| !leaving.contains(node));
+        names_rebind.extend(users.iter().copied());
+        seeds.push(InputSeed::Name {
+            key,
+            dependents: users.into_iter().collect(),
+        });
+    }
     let regions = change
         .operations
         .iter()
@@ -480,7 +519,8 @@ pub fn prepare_edit<'s, 'r>(
         .flat_map(|seed| match seed {
             InputSeed::Cell { dependents, .. }
             | InputSeed::Area { dependents, .. }
-            | InputSeed::Spill { dependents, .. } => dependents.iter().copied(),
+            | InputSeed::Spill { dependents, .. }
+            | InputSeed::Name { dependents, .. } => dependents.iter().copied(),
         })
         .collect();
     roots.extend(node_changes.iter().filter_map(|change| match change {
@@ -512,10 +552,7 @@ pub fn prepare_edit<'s, 'r>(
         node_changes,
         seeds,
         moves: None,
-        names_changed: change
-            .operations
-            .iter()
-            .any(|op| matches!(op, WorkbookOp::SetNameFormula { .. })),
+        names_rebind: names_rebind.into_iter().collect(),
         dimensions_pending,
         iteration_changed: change.operations.iter().any(|op| {
             matches!(op, WorkbookOp::SetIteration(settings)
@@ -671,8 +708,8 @@ pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     if let Some(pending) = change.dimensions_pending.take() {
         state.pending = pending;
     }
-    if change.names_changed {
-        state.templates.clear();
+    for node in std::mem::take(&mut change.names_rebind) {
+        state.rebind_names(node);
     }
     // New iteration settings (dc-y2o.2): the formulas the last recalculation found on a circular
     // reference are calculated again under them.
@@ -716,7 +753,8 @@ pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
         match seed {
             InputSeed::Cell { dependents, .. }
             | InputSeed::Area { dependents, .. }
-            | InputSeed::Spill { dependents, .. } => {
+            | InputSeed::Spill { dependents, .. }
+            | InputSeed::Name { dependents, .. } => {
                 state.pending.extend(dependents.iter().copied());
             }
         }

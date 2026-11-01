@@ -4631,3 +4631,49 @@ fn contract_paste_cut_drops_overwritten_scope_locations_before_undo() {
         }
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_batch_delete_preserves_imported_duplicate_fallback() {
+    use existing_wire_support::{RawEntry, build_zip, parse_zip};
+    let blank = calc_host::blank_package();
+    let archive = parse_zip(&blank);
+    let entries:Vec<_>=archive.entries.iter().map(|entry| {
+        let payload=entry.payload(&blank);
+        if entry.name=="xl/workbook.xml" {
+            let bytes=if entry.method==0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+            let xml=String::from_utf8(bytes).unwrap().replace("</sheets>","</sheets><definedNames><definedName name=\"Rate\">2</definedName><definedName name=\"RATE\">7</definedName></definedNames>");
+            RawEntry::stored(&entry.name,xml.as_bytes())
+        } else if entry.method==0 { RawEntry::stored(&entry.name,payload) }
+        else { RawEntry::deflated(&entry.name,payload,entry.size,entry.crc32) }
+    }).collect();
+    let mut book = session(&build_zip(&entries));
+    let sheet = book.host().sheets()[0].id();
+    let a1 = CellKey::new(sheet, 1, 1).unwrap();
+    assert_eq!(book.host().model().definitions().name_table().len(), 2);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![
+                CellEdit::SetName {
+                    name: "Rate".into(),
+                    scope: calc_doc_model::NameScope::Workbook,
+                    formula: None,
+                },
+                CellEdit::Set {
+                    at: a1,
+                    input: formula("Rate+1")
+                }
+            ]
+        })
+        .accepted()
+    );
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    assert_eq!(calculated(book.host(), a1), Some(CalcValue::number(8.0)));
+    let calc_doc_model::CellInput::Formula(text) = book.host().model().cell(a1).unwrap() else {
+        panic!("a formula")
+    };
+    assert_eq!(text.text().to_string_lossy(), "Rate+1");
+    assert_eq!(book.host().model().definitions().name_table().len(), 1);
+}

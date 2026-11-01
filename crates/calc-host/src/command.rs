@@ -53,8 +53,8 @@ pub enum CellEdit {
     /// dc-09v). It changes no input and no value.
     SetFormat { at: CellKey, format: Option<u32> },
     /// Gives the defined name `name` of `scope` the formula `formula`
-    /// ([`calc_doc_model::WorkbookOp::SetNameFormula`], dc-gf0). A command that holds one sets
-    /// every formula that uses the name again, so the engine binds it to the new formula.
+    /// ([`calc_doc_model::WorkbookOp::SetNameFormula`], dc-gf0). Scoped graph watches rebind
+    /// its users without changing the authored formulas or their generations.
     SetName {
         name: String,
         scope: calc_doc_model::NameScope,
@@ -444,7 +444,9 @@ pub fn dispatch(
             }
             // The cells a removed array formula filled change though no input of theirs did;
             // the anchor's own cell is among the changed or cleared cells already.
-            InputSeed::Spill { dependents, .. } => seeded += dependents.len(),
+            InputSeed::Spill { dependents, .. } | InputSeed::Name { dependents, .. } => {
+                seeded += dependents.len()
+            }
         }
     }
     // After the commit the pending nodes are those pending before, the added and replaced nodes

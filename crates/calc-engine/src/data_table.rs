@@ -245,7 +245,7 @@ impl WhatIf<'_> {
         };
         let mut reader = WhatIfReader { what_if: self };
         let mut scratch = EvalScratch::new();
-        let catalog = SnapshotCatalog(self.inputs);
+        let catalog = SnapshotCatalog::new(self.inputs);
         // The observer is taken out while the table's formula is evaluated, so the evaluations
         // of the formulas it reads under the substitution are not shown as the cell's.
         let top = self

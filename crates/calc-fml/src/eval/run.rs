@@ -670,7 +670,7 @@ impl Run<'_, '_> {
                         .push(super::closure::FunctionValue { target: *target }.into_value());
                     Ok(())
                 }
-                Instruction::Name(block) => self.name(*block),
+                Instruction::Name(target) => self.name(target.block),
                 Instruction::External(index) => self.external(*index),
             };
             if let Err(fault) = step {

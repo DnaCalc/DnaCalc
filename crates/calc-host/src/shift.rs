@@ -196,8 +196,7 @@ pub fn shift_cell_edits(
             }
         }
     }
-    let mut name_changed = false;
-    for name in model.definitions().names() {
+    for name in model.definitions().name_table().definitions() {
         let sheet = match name.scope {
             calc_doc_model::NameScope::Workbook => model.sheets()[0].id(),
             calc_doc_model::NameScope::Sheet(sheet) => sheet,
@@ -218,25 +217,6 @@ pub fn shift_cell_edits(
                 scope: name.scope,
                 formula: Some(formula),
             });
-            name_changed = true;
-        }
-    }
-    if name_changed {
-        // Rebind name users through the same edit, as copy/move already does.
-        for sheet in model.sheets() {
-            for (at, input) in model.sheet_cells(sheet.id()).into_iter().flatten() {
-                if matches!(input, CellInput::Formula(_))
-                    && !tail.contains(at)
-                    && !edits
-                        .iter()
-                        .any(|e| matches!(e,CellEdit::Set {at:held,..} if *held==at))
-                {
-                    edits.push(CellEdit::Set {
-                        at,
-                        input: input.clone(),
-                    });
-                }
-            }
         }
     }
     Ok(edits)

@@ -416,6 +416,24 @@ Re-entry never inherits an orphaned cache; dirty array topology remains excluded
 CurrentCalculatedOnly stays an explicit option. Save(true), BeforeSave handlers, domain-peer live
 updates, disabled-sheet/TABLE profiles and pending async saves remain open.
 
+
+Defined-name implementation update (dc-hsa5.5, 2026-11-01): the canonical `NameTable` stores
+non-cell definition participants by stable `NameId`, scoped folded key and binding version,
+with shared record and lookup pages. Formula plans bind those identifiers and keep the namespace
+probes that selected them, including misses before workbook fallback. Definition edits rebind
+only those users and their downstream cells; unrelated plans, results and requirements survive.
+Runtime INDIRECT lookups add executed name watches and contextual alias edges to the same graph.
+Deletion and restoration never revive a removed name identity or an earlier binding version.
+The existing ordered `names()` view remains available for file writers and materializes on request;
+ordinary edits, binding and product authoring use the indexed table and a sparse pending-name preview.
+
+A definition node has no synthetic cell or shared cached value. Its existing evaluator block
+returns a reference or value per caller; unused names do not evaluate, and repeated volatile uses
+remain separate. Local definitions select their sheet for unqualified references and nested names;
+workbook aliases inherit the current use context. Static and INDIRECT routes test the same policy;
+new Excel parity for nested cross-scope aliases awaits P12. Per-name invocation identities,
+`NameView` evaluation commands and transitive eligibility for any shared memo remain open.
+
 ## 10. First slice: the eight demonstrations and their oracles
 
 Fixture, Manual mode, independent clone per demo: A1=1, B1=`=A1+1` (2), C1=`=B1*2` (4), D1=`=PeekB1()` (2; typed,

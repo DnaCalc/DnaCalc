@@ -93,7 +93,7 @@ pub fn bind_text(
     // Excel 16.0.20430 read a line feed after the text as a space (`A1` and a line feed is A1,
     // bead dc-51ka's oracle row); a line feed anywhere else is not measured.
     let text = text.trim_end_matches([' ', '\n']);
-    bind_str(text, notation, anchor, anchor, catalog, 0)
+    bind_str(text, notation, anchor, anchor, catalog, 0, None)
 }
 
 /// How deep defined names may refer to other names in INDIRECT's text before the text is refused
@@ -110,6 +110,7 @@ fn bind_str(
     anchor: FormulaAnchor,
     catalog: &dyn ReferenceCatalog,
     depth: usize,
+    parent: Option<calc_func::value::NameId>,
 ) -> TextReference {
     // A tab and a carriage return are characters no reference or name holds; a line feed and the
     // other control characters are not modelled (bead dc-m3u).
@@ -145,15 +146,15 @@ fn bind_str(
     };
     match target {
         Target::Shape(shape) => TextReference::Area(placed(shape, sheet, anchor.cell())),
-        Target::Name(name) => bind_name(&name, scope, anchor, catalog, depth),
+        Target::Name(name) => bind_name(&name, scope, anchor, catalog, depth, parent),
         // A range whose endpoint could be a name names a reference only when that name does:
         // with no such name defined it names none (`A1:B` is #REF!, Excel 16.0.20430, bead
         // dc-51ka's oracle row); a range through a defined name is not modelled.
         Target::NamedRange(names) => {
-            if names
-                .iter()
-                .all(|name| catalog.defined_name(name, scope) == NameDefinition::Unknown)
-            {
+            if names.iter().all(|name| {
+                let _ = catalog.name_binding(name, scope, parent);
+                catalog.defined_name(name, scope) == NameDefinition::Unknown
+            }) {
                 TextReference::Invalid
             } else {
                 TextReference::NotModelled
@@ -178,7 +179,11 @@ fn bind_name(
     anchor: FormulaAnchor,
     catalog: &dyn ReferenceCatalog,
     depth: usize,
+    parent: Option<calc_func::value::NameId>,
 ) -> TextReference {
+    let binding = catalog
+        .name_binding(name, scope, parent)
+        .and_then(|proof| proof.resolved);
     match catalog.defined_name(name, scope) {
         NameDefinition::Unknown => TextReference::Invalid,
         NameDefinition::NotModelled => TextReference::NotModelled,
@@ -188,19 +193,32 @@ fn bind_name(
             if is_constant(text) {
                 return TextReference::Invalid;
             }
-            let a1 = CellKey::new(anchor.sheet(), 1, 1).expect("A1 lies on the grid");
+            let sheet = binding
+                .and_then(|bound| match bound.scope {
+                    calc_func::value::NameScope::Sheet(sheet) => Some(sheet),
+                    calc_func::value::NameScope::Workbook => None,
+                })
+                .unwrap_or(anchor.sheet());
+            // A local definition's unqualified references and nested names belong to its
+            // defining sheet; relative coordinates still use the caller's row and column.
+            let place = FormulaAnchor::new(
+                CellKey::new(sheet, anchor.cell().row(), anchor.cell().column())
+                    .expect("the caller's coordinates lie on the grid"),
+            );
+            let a1 = CellKey::new(sheet, 1, 1).expect("A1 lies on the grid");
             let base = if has_relative_coordinate(text) {
                 FormulaAnchor::new(a1)
             } else {
-                anchor
+                place
             };
             match bind_str(
                 text,
                 ReferenceNotation::A1,
                 base,
-                anchor,
+                place,
                 catalog,
                 depth + 1,
+                binding.map(|bound| bound.id),
             ) {
                 TextReference::Area(area) => TextReference::Area(area),
                 _ => TextReference::NotModelled,

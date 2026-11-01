@@ -1,7 +1,7 @@
 //! Generational identities for workbooks, sheets, names, tables and calculation nodes.
 //!
-//! An ID is a slot index and a generation. Only an [`IdAllocator`] issues IDs; there is no public
-//! constructor from raw parts. Releasing an ID frees its slot, and the next ID issued for that
+//! An ID is a slot index and a generation. An allocator issues IDs; `from_parts` reconstructs
+//! an issued identity. Releasing an ID frees its slot, and the next ID issued for that
 //! slot carries a new generation, so a stale ID never equals a live one. A slot whose generation
 //! would wrap past `u32::MAX` is retired instead and never issued again.
 //!
@@ -150,7 +150,7 @@ macro_rules! generational_id {
     ($(#[$doc:meta])* $name:ident) => {
         $(#[$doc])*
         ///
-        /// A slot and a generation, issued only by an [`IdAllocator`]. IDs order by slot, then
+        /// A slot and a generation, issued by an allocator. IDs order by slot, then
         /// generation.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         pub struct $name {
@@ -213,6 +213,28 @@ generational_id! {
 generational_id! {
     /// The identity of a defined name inside one workbook.
     NameId
+}
+
+/// The namespace of a defined name inside one workbook.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum NameScope {
+    Workbook,
+    Sheet(SheetId),
+}
+
+/// A case-folded namespace watch, including names that do not exist yet.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct NameKey {
+    pub scope: NameScope,
+    pub folded: String,
+}
+impl NameKey {
+    pub fn new(scope: NameScope, spelling: &str) -> Self {
+        Self {
+            scope,
+            folded: crate::fold_workbook_name(spelling),
+        }
+    }
 }
 
 generational_id! {

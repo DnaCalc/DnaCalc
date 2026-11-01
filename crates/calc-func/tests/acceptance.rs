@@ -15,8 +15,8 @@
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CellKey, CoreRef,
     CoreValue, ExcelText, GridArea, GridError, IdAllocator, IdError, MAX_COLUMNS, MAX_ROWS, NameId,
-    NodeId, NumericMode, NumericTargetId, OpaqueCallable, ReferenceError, ReferenceLike, Selection,
-    SheetId, TableId, WorkbookId, WorksheetErrorCode,
+    NameKey, NameScope, NodeId, NumericMode, NumericTargetId, OpaqueCallable, ReferenceError,
+    ReferenceLike, Selection, SheetId, TableId, WorkbookId, WorksheetErrorCode,
 };
 use calc_func::{
     ArgumentDemand, CellReader, EvalServices, FunctionCallScratch, FunctionCallTarget,
@@ -361,6 +361,8 @@ send_sync_types![
     WorkbookId,
     SheetId,
     NameId,
+    NameKey,
+    NameScope,
     TableId,
     NodeId,
     IdAllocator<WorkbookId>,

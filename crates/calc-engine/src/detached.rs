@@ -61,7 +61,7 @@ impl DetachedFormula {
             &parse_formula(&source),
             ReferenceNotation::A1,
             FormulaAnchor::new(origin),
-            &SnapshotCatalog(inputs),
+            &SnapshotCatalog::new(inputs),
             &mut plans,
             form,
         )
@@ -99,7 +99,7 @@ impl DetachedFormula {
         let uncomputed = Cell::new(None);
         let mut reader = WorkbookReader::new(view, &uncomputed);
         let mut host = WorkbookReader::new(view, &uncomputed);
-        let catalog = SnapshotCatalog(inputs);
+        let catalog = SnapshotCatalog::new(inputs);
         let mode = state.published_mode.clone().unwrap_or(NumericMode::Fast);
         let mut scratch = EvalScratch::new();
         let outcome = {

@@ -38,6 +38,17 @@ pub trait ReferenceCatalog {
     /// refused rather than given #NAME?.
     fn defined_name(&self, name: &str, scope: NameScope) -> NameDefinition;
 
+    /// Identifier and namespace evidence for a name lookup. Small fixture catalogues
+    /// may omit this; an engine catalogue supplies it for both hits and misses.
+    fn name_binding(
+        &self,
+        _name: &str,
+        _scope: NameScope,
+        _parent: Option<calc_func::value::NameId>,
+    ) -> Option<NameBindingProof> {
+        None
+    }
+
     /// The table (ListObject) whose name is `name`, matched regardless of case (L3, dc-m3u). The
     /// result [`TableLookup::NotModelled`] explicitly refuses a structured reference.
     fn table(&self, name: &str) -> TableLookup;
@@ -194,6 +205,28 @@ pub enum NameDefinition {
     Unknown,
     /// The catalogue does not carry defined names.
     NotModelled,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BoundName {
+    pub id: calc_func::value::NameId,
+    pub version: u64,
+    pub scope: calc_func::value::NameScope,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NameProbe {
+    pub key: calc_func::value::NameKey,
+    pub found: Option<calc_func::value::NameId>,
+}
+
+/// A resolved definition plus every namespace probe that allowed its binding.
+/// Missing local probes are retained when resolution falls back to the workbook.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NameBindingProof {
+    pub resolved: Option<BoundName>,
+    pub probes: Vec<NameProbe>,
+    pub parent: Option<calc_func::value::NameId>,
 }
 
 /// One reference of a formula, or one stretch of syntax the parser refused, and what it bound to.
@@ -727,7 +760,7 @@ fn endpoint(node: &SyntaxNode) -> Option<(Qualifier, &Token)> {
 
 /// The sheet name and the name token of a name qualified by one sheet (`Sheet2!TaxRate`,
 /// `'Q2 Data'!Rate`), when `node` is one.
-pub(crate) fn qualified_name(node: &SyntaxNode) -> Option<(String, &Token)> {
+pub fn qualified_name(node: &SyntaxNode) -> Option<(String, &Token)> {
     let (qualifier, target) = qualified_parts(node)?;
     let Qualifier::Sheet(sheet) = qualifier else {
         return None;

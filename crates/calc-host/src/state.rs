@@ -494,6 +494,7 @@ impl HostState {
         let mut areas: Vec<GridArea> = Vec::new();
         for prerequisite in placed.iter().chain(node.dynamic_prerequisites()) {
             let area = match *prerequisite {
+                calc_engine::Prerequisite::Name(_) => continue,
                 calc_engine::Prerequisite::Cell(cell) => GridArea::cell(cell),
                 calc_engine::Prerequisite::Area(area) => area,
                 calc_engine::Prerequisite::AxisValue(interval) => {

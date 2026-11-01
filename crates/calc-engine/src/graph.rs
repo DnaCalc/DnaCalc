@@ -1,11 +1,11 @@
 //! What a formula node reads, and the reverse indexes that find the nodes reading a changed cell.
 //!
-//! Every edge belongs to one workbook-wide graph: a [`Prerequisite`] names its sheet by
-//! [`SheetId`], so a cell of one sheet and the cell at the same row and column of another are
-//! different inputs, and a node may read any sheet of the workbook.
+//! Every edge belongs to one workbook-wide graph. Cell/area edges name sheets by [`SheetId`];
+//! name edges use stable NameId participants from the canonical authored table. Namespace
+//! probes, including misses, are binding metadata in this same reverse index.
 
 use calc_doc_model::{Axis, ModelRoot, SheetEntry};
-use calc_value::{CellKey, GridArea, GridError, NodeId, SheetId};
+use calc_value::{CellKey, GridArea, GridError, NameId, NameKey, NodeId, SheetId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::{BuildHasherDefault, Hasher};
 
@@ -104,6 +104,8 @@ impl SheetSpan {
 /// keeps each as one edge, never expanded into one edge per cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Prerequisite {
+    /// A bound defined-name participant, independent of its caller-relative evaluation.
+    Name(NameId),
     /// The value of one cell. Its binding from a direct reference is ceng-m1.2's.
     Cell(CellKey),
     /// The values of every cell of a rectangle. Its binding from a range is ceng-m1.2's.
@@ -122,6 +124,7 @@ impl Prerequisite {
     /// covers `at` only on one of its endpoints here).
     pub(crate) fn covers(self, at: CellKey) -> bool {
         match self {
+            Prerequisite::Name(_) => false,
             Prerequisite::Cell(cell) => cell == at,
             Prerequisite::Area(area) => area.contains(at),
             Prerequisite::AxisValue(interval) => {
@@ -143,6 +146,7 @@ impl Prerequisite {
     pub(crate) fn meets_area(self, area: GridArea) -> bool {
         let rect = Rect::of(area);
         match self {
+            Prerequisite::Name(_) => false,
             Prerequisite::Cell(cell) => area.contains(cell),
             Prerequisite::Area(own) => {
                 own.sheet() == area.sheet() && Rect::of(own).intersects(rect)
@@ -166,6 +170,7 @@ impl Prerequisite {
     /// Whether every cell of `area` is one this prerequisite reads.
     pub(crate) fn contains_area(self, area: GridArea) -> bool {
         match self {
+            Prerequisite::Name(_) => false,
             Prerequisite::Cell(cell) => area.cell_count() == 1 && area.first() == cell,
             Prerequisite::Area(own) => own.contains(area.first()) && own.contains(area.last()),
             Prerequisite::AxisValue(_) | Prerequisite::SheetSpan(_) => {
@@ -174,13 +179,16 @@ impl Prerequisite {
         }
     }
 
-    pub(crate) fn sheets(self) -> [SheetId; 2] {
+    pub(crate) fn sheets(self) -> impl Iterator<Item = SheetId> {
         match self {
-            Prerequisite::Cell(at) => [at.sheet(); 2],
-            Prerequisite::Area(area) => [area.sheet(); 2],
-            Prerequisite::AxisValue(interval) => [interval.sheet(); 2],
-            Prerequisite::SheetSpan(span) => [span.first(), span.last()],
+            Prerequisite::Name(_) => [None, None],
+            Prerequisite::Cell(at) => [Some(at.sheet()), None],
+            Prerequisite::Area(area) => [Some(area.sheet()), None],
+            Prerequisite::AxisValue(interval) => [Some(interval.sheet()), None],
+            Prerequisite::SheetSpan(span) => [Some(span.first()), Some(span.last())],
         }
+        .into_iter()
+        .flatten()
     }
 }
 
@@ -340,6 +348,10 @@ struct SpanEdge {
 #[derive(Debug, Default)]
 pub(crate) struct ReverseIndex {
     cells: BTreeMap<CellKey, NodeSet>,
+    names: BTreeMap<NameId, NodeSet>,
+    namespace: BTreeMap<NameKey, NodeSet>,
+    name_bindings: BTreeMap<NodeId, Vec<calc_fml::reference::NameBindingProof>>,
+    name_edges: BTreeMap<(NameId, NameId), NodeSet>,
     /// Each block's rectangles, each with the nodes that read it. A rectangle is filed in every
     /// block of its level it meets (at most four).
     rect_blocks: BlockMap<BTreeMap<Rect, NodeSet>>,
@@ -356,6 +368,64 @@ pub(crate) struct ReverseIndex {
 }
 
 impl ReverseIndex {
+    pub(crate) fn name_bindings(&self, node: NodeId) -> &[calc_fml::reference::NameBindingProof] {
+        self.name_bindings.get(&node).map_or(&[], Vec::as_slice)
+    }
+
+    pub(crate) fn set_name_bindings(
+        &mut self,
+        node: NodeId,
+        proofs: Vec<calc_fml::reference::NameBindingProof>,
+    ) {
+        if let Some(old) = self.name_bindings.remove(&node) {
+            for proof in old {
+                for probe in proof.probes {
+                    update(&mut self.namespace, probe.key, node, false);
+                }
+                if let (Some(parent), Some(child)) = (proof.parent, proof.resolved) {
+                    update(&mut self.name_edges, (parent, child.id), node, false);
+                }
+            }
+        }
+        for proof in &proofs {
+            for probe in &proof.probes {
+                update(&mut self.namespace, probe.key.clone(), node, true);
+            }
+            if let (Some(parent), Some(child)) = (proof.parent, proof.resolved) {
+                update(&mut self.name_edges, (parent, child.id), node, true);
+            }
+        }
+        if !proofs.is_empty() {
+            self.name_bindings.insert(node, proofs);
+        }
+    }
+
+    pub(crate) fn name_dependents(&self, id: NameId, out: &mut impl Extend<NodeId>) {
+        out.extend(
+            self.names
+                .get(&id)
+                .into_iter()
+                .flat_map(|nodes| nodes.iter().copied()),
+        );
+    }
+
+    pub(crate) fn namespace_dependents(&self, key: &NameKey, out: &mut impl Extend<NodeId>) {
+        out.extend(
+            self.namespace
+                .get(key)
+                .into_iter()
+                .flat_map(|nodes| nodes.iter().copied()),
+        );
+    }
+
+    pub(crate) fn name_children(&self, id: NameId) -> Vec<NameId> {
+        self.name_edges
+            .range((id, NameId::from_parts(0, 0))..)
+            .take_while(|((parent, _), _)| *parent == id)
+            .map(|((_, child), _)| *child)
+            .collect()
+    }
+
     /// Files `node`'s prerequisites.
     pub(crate) fn insert(&mut self, node: NodeId, prerequisites: &[Prerequisite]) {
         for prerequisite in prerequisites {
@@ -378,6 +448,7 @@ impl ReverseIndex {
     fn file(&mut self, node: NodeId, prerequisite: Prerequisite, insert: bool) {
         self.epoch += 1;
         match prerequisite {
+            Prerequisite::Name(id) => update(&mut self.names, id, node, insert),
             Prerequisite::Cell(at) => update(&mut self.cells, at, node, insert),
             Prerequisite::Area(area) => {
                 let edge = RectEdge {

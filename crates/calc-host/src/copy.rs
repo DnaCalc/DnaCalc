@@ -22,7 +22,7 @@
 //! tests/fixtures/dc_gf0/cut-excel.json): a reference to moved cells follows them, one to cells
 //! the paste writes over is `#REF!`, and a formula moved to another sheet keeps reading the cells
 //! it read. Each defined name whose reference is absolute follows the moved cells too
-//! ([`calc_engine::move_name`]), and the formulas that use a name so changed are set again, so
+//! ([`calc_engine::move_name`]), and scoped graph watches rebind the formulas that use it, so
 //! they are bound to its new formula; a legacy array moves whole (dc-09v, dc-gf0).
 //!
 //! Every edit is read from the revision before the copy, so a target that overlaps its source
@@ -33,9 +33,7 @@
 
 use crate::command::CellEdit;
 use crate::state::HostState;
-use calc_doc_model::value::{
-    CalcValue, CellKey, CoreRef, GridArea, fold_workbook_name, workbook_names_equal,
-};
+use calc_doc_model::value::{CalcValue, CellKey, CoreRef, GridArea, fold_workbook_name};
 use calc_doc_model::{ArrayFormula, ArrayKind, CellInput, CellText, FiniteNumber};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -712,15 +710,12 @@ fn copy_edits_from(
                 }
             }
         }
-        // Each defined name whose reference follows the moved cells, and the formulas that use
-        // it, set again so they are bound to its new formula.
-        let mut renamed: Vec<String> = Vec::new();
+        // Definition edits rebind their graph users through scoped name watches.
         let mut moved_names: Vec<(String, calc_doc_model::NameScope, String)> = Vec::new();
-        for name in definitions.names() {
+        for name in definitions.name_table().definitions() {
             if let Some(formula) =
                 calc_engine::move_name(model, &name.formula, name.scope, from, to.first())
             {
-                renamed.push(fold_workbook_name(&name.name));
                 moved_names.push((name.name.clone(), name.scope, formula.clone()));
                 edits.push(CellEdit::SetName {
                     name: name.name.clone(),
@@ -749,14 +744,15 @@ fn copy_edits_from(
                 })
                 .collect();
             for name in definitions
-                .names()
-                .iter()
+                .name_table()
+                .definitions()
                 .filter(|name| name.scope == source)
             {
                 let lower = fold_workbook_name(&name.name);
-                let taken = definitions.names().iter().any(|held| {
-                    held.scope == target && workbook_names_equal(&held.name, &name.name)
-                });
+                let taken = definitions
+                    .name_table()
+                    .lookup(target, &name.name)
+                    .is_some();
                 if taken || !moving.iter().any(|text| uses_name(text, &lower)) {
                     continue;
                 }
@@ -764,49 +760,11 @@ fn copy_edits_from(
                     .iter()
                     .find(|(moved, scope, _)| *scope == source && moved == &name.name)
                     .map_or_else(|| name.formula.clone(), |(_, _, formula)| formula.clone());
-                renamed.push(lower);
                 edits.push(CellEdit::SetName {
                     name: name.name.clone(),
                     scope: target,
                     formula: Some(formula),
                 });
-            }
-        }
-        if !renamed.is_empty() {
-            let set: BTreeSet<CellKey> = edits
-                .iter()
-                .filter_map(|edit| match edit {
-                    CellEdit::Set { at, .. } => Some(*at),
-                    CellEdit::SetArray { array, .. } => Some(array.anchor()),
-                    _ => None,
-                })
-                .collect();
-            for entry in model.sheets() {
-                for (at, input) in model.sheet_cells(entry.id()).into_iter().flatten() {
-                    let CellInput::Formula(formula) = input else {
-                        continue;
-                    };
-                    if from.contains(at) || to.contains(at) || set.contains(&at) {
-                        continue;
-                    }
-                    let text = fold_workbook_name(&formula.text().to_string_lossy());
-                    if !renamed.iter().any(|name| uses_name(&text, name)) {
-                        continue;
-                    }
-                    match definitions
-                        .array_containing(at)
-                        .filter(|a| a.anchor() == at)
-                    {
-                        Some(array) => edits.push(CellEdit::SetArray {
-                            array: *array,
-                            formula: formula.clone(),
-                        }),
-                        None => edits.push(CellEdit::Set {
-                            at,
-                            input: CellInput::Formula(formula.clone()),
-                        }),
-                    }
-                }
             }
         }
     }

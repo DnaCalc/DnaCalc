@@ -7,7 +7,7 @@ use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
 use crate::spill::{Spill, SpillIndex};
 use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
 use calc_fml::{CalcEnvironment, CompiledPlan, FormulaForm, FormulaInstance, PlanCache};
-use calc_value::{CellKey, GridArea, IdAllocator, NodeId, NumericMode, SheetId};
+use calc_value::{CellKey, GridArea, IdAllocator, NameId, NodeId, NumericMode, SheetId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::hash::BuildHasherDefault;
@@ -37,8 +37,8 @@ impl FormulaNode {
     /// What the node reads, or `None` while its formula's plan is not bound: a node adopted from
     /// a snapshot, or added or replaced by an edit, has no prerequisites until
     /// [`EngineState::set_prerequisites`] states them, which [`crate::begin_recalc`] does when it
-    /// binds the node's formula. A node whose formula CalcFml refused to compile reads nothing:
-    /// its result is a refusal no input changes.
+    /// binds the node's formula. A node whose formula CalcFml refused to compile keeps any
+    /// inspected definitions and namespace probes, so a name edit can make it bind again.
     pub fn prerequisites(&self) -> Option<&[Prerequisite]> {
         self.prerequisites.as_deref()
     }
@@ -64,6 +64,8 @@ pub enum PrerequisiteError {
     },
     /// The node is not live in this state.
     UnknownNode(NodeId),
+    /// A name prerequisite no longer exists in the input snapshot.
+    UnknownName(NameId),
     /// A prerequisite names a sheet the input snapshot does not hold.
     UnknownSheet(SheetId),
 }
@@ -77,6 +79,9 @@ impl fmt::Display for PrerequisiteError {
                 inputs.get(),
                 engine.get()
             ),
+            PrerequisiteError::UnknownName(id) => {
+                write!(f, "the input snapshot holds no name {id:?}")
+            }
             PrerequisiteError::UnknownNode(node) => {
                 write!(f, "node {node:?} is not live in this engine state")
             }
@@ -1048,6 +1053,14 @@ impl EngineState {
         {
             return Err(PrerequisiteError::UnknownSheet(sheet));
         }
+        if let Some(id) = prerequisites.iter().find_map(|p| match p {
+            Prerequisite::Name(id) if inputs.definitions().name_table().get(*id).is_none() => {
+                Some(*id)
+            }
+            _ => None,
+        }) {
+            return Err(PrerequisiteError::UnknownName(id));
+        }
         let record = self.nodes[node.slot() as usize]
             .as_mut()
             .filter(|record| record.id == node)
@@ -1058,6 +1071,30 @@ impl EngineState {
         self.index.insert(node, &prerequisites);
         record.prerequisites = Some(prerequisites);
         Ok(())
+    }
+
+    /// A non-cell graph participant from the canonical name table. Its body is evaluated
+    /// in each use's context, so a name has no shared cell value or synthetic anchor.
+    pub fn name_node<'a>(
+        &self,
+        inputs: &'a ModelRoot,
+        id: NameId,
+    ) -> Option<&'a calc_doc_model::NameNode> {
+        (inputs.revision() == self.revision)
+            .then(|| inputs.definitions().name_table().get(id))
+            .flatten()
+    }
+
+    /// Formula users of this name, including aliases bound in their plans.
+    pub fn name_dependents(&self, id: NameId) -> Vec<NodeId> {
+        let mut out = BTreeSet::new();
+        self.index.name_dependents(id, &mut out);
+        out.into_iter().collect()
+    }
+
+    /// Names bound from this name's body in live caller contexts.
+    pub fn name_prerequisites(&self, id: NameId) -> Vec<NameId> {
+        self.index.name_children(id)
     }
 
     /// The anchors of the nodes inside `area`.
@@ -1128,6 +1165,7 @@ impl EngineState {
                 self.index.remove(node, prerequisites);
             }
             self.index.remove(node, &record.dynamic);
+            self.index.set_name_bindings(node, Vec::new());
             self.bindings.remove(&node);
             self.cached_arrays.remove(&node);
             self.contract.retire(node);
@@ -1155,6 +1193,14 @@ impl EngineState {
 
     /// Drops a live node's prerequisites and plan, leaving it unbound and pending.
     pub(crate) fn unbind_node(&mut self, node: NodeId) {
+        self.drop_binding(node, true);
+    }
+
+    pub(crate) fn rebind_names(&mut self, node: NodeId) {
+        self.drop_binding(node, false);
+    }
+
+    fn drop_binding(&mut self, node: NodeId, replace_formula: bool) {
         if let Some(record) = self
             .nodes
             .get_mut(node.slot() as usize)
@@ -1170,7 +1216,10 @@ impl EngineState {
             self.volatile.remove(&node);
             self.subtotal_cells.remove(&record.anchor);
             self.pending.insert(node);
-            self.contract.replace(node);
+            if replace_formula {
+                self.contract.replace(node);
+            }
+            self.index.set_name_bindings(node, Vec::new());
         }
     }
 

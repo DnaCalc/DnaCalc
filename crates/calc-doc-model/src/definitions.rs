@@ -52,14 +52,7 @@ impl ArrayFormula {
     }
 }
 
-/// Where a defined name is visible.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum NameScope {
-    /// Every sheet of the workbook.
-    Workbook,
-    /// One sheet (the file's `localSheetId`).
-    Sheet(SheetId),
-}
+pub use calc_value::NameScope;
 
 /// A defined name as the workbook part declares it: its name, scope, the formula text it stands
 /// for (without a leading `=`, with the file's `_xlfn.` prefixes as written), and the attributes
@@ -304,7 +297,7 @@ pub struct Definitions {
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::FrozenPanes>,
     arrays: BTreeMap<CellKey, ArrayFormula>,
-    names: Vec<DefinedName>,
+    names: crate::NameTable,
     tables: Vec<Table>,
     unloaded: BTreeMap<CellKey, UnloadedCell>,
     hidden_rows: BTreeMap<(SheetId, u32), RowHidden>,
@@ -398,7 +391,7 @@ impl Definitions {
                 .into_iter()
                 .map(|array| (array.anchor(), array))
                 .collect(),
-            names,
+            names: crate::NameTable::new(names),
             tables,
             unloaded: unloaded.into_iter().collect(),
             hidden_rows: BTreeMap::new(),
@@ -577,6 +570,15 @@ impl Definitions {
 
     /// These definitions with `names` as the defined names.
     pub fn with_names(mut self, names: Vec<DefinedName>) -> Self {
+        self.names = self.names.replaced(names);
+        self
+    }
+
+    pub fn name_table(&self) -> &crate::NameTable {
+        &self.names
+    }
+
+    pub(crate) fn with_name_table(mut self, names: crate::NameTable) -> Self {
         self.names = names;
         self
     }
@@ -659,7 +661,7 @@ impl Definitions {
     }
 
     pub fn names(&self) -> &[DefinedName] {
-        &self.names
+        self.names.as_slice()
     }
 
     pub fn tables(&self) -> &[Table] {
@@ -706,10 +708,14 @@ impl Definitions {
             .chain(self.panes.keys().copied())
             .chain(self.axis_layouts.sheets())
             .chain(self.data_tables.iter().map(|table| table.area.sheet()))
-            .chain(self.names.iter().filter_map(|name| match name.scope {
-                NameScope::Sheet(sheet) => Some(sheet),
-                NameScope::Workbook => None,
-            }))
+            .chain(
+                self.names
+                    .definitions()
+                    .filter_map(|name| match name.scope {
+                        NameScope::Sheet(sheet) => Some(sheet),
+                        NameScope::Workbook => None,
+                    }),
+            )
     }
 
     /// These definitions after cell edits that set or cleared the cells for which `touched`

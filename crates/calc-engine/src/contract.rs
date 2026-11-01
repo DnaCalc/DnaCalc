@@ -178,6 +178,8 @@ pub struct ReadCertificate {
     pub absences: Vec<AbsenceProof>,
     pub semantic_environment: u64,
     pub bindings: u64,
+    /// Resolved identities/versions and scoped namespace probes, including misses.
+    pub names: Vec<calc_fml::reference::NameBindingProof>,
     pub volatile_inputs: Option<u64>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -727,6 +729,25 @@ pub(crate) fn certificate_valid(
     )
 }
 
+/// Validate only names/probes this plan actually bound; unrelated name edits preserve it.
+pub(crate) fn name_bindings_valid(
+    inputs: &ModelRoot,
+    proofs: &[calc_fml::reference::NameBindingProof],
+) -> bool {
+    let table = inputs.definitions().name_table();
+    proofs.iter().all(|proof| {
+        proof
+            .probes
+            .iter()
+            .all(|probe| table.lookup_key(&probe.key).map(|n| n.id()) == probe.found)
+            && proof.resolved.is_none_or(|bound| {
+                table.get(bound.id).is_some_and(|n| {
+                    n.binding_version() == bound.version && n.definition().scope == bound.scope
+                })
+            })
+    })
+}
+
 pub(crate) fn certificate_valid_at(
     state: &EngineState,
     inputs: &ModelRoot,
@@ -758,6 +779,7 @@ pub(crate) fn certificate_valid_at(
         || stamp.certification.required != required
         || stamp.reads.semantic_environment != state.contract.environment
         || stamp.reads.bindings != state.contract.bindings
+        || !name_bindings_valid(inputs, &stamp.reads.names)
         || stamp
             .reads
             .volatile_inputs

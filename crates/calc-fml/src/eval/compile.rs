@@ -31,14 +31,14 @@
 use super::builtins::is_builtin;
 use super::legacy::{self, Place};
 use super::{
-    Admission, CompiledPlan, FormulaForm, Instruction, Literal, PlanCache, Target,
+    Admission, CompiledPlan, FormulaForm, Instruction, Literal, NameTarget, PlanCache, Target,
     UserFunctionSource,
 };
 use crate::parse_formula;
 use crate::reference::{
-    BindError, ExternalBookRef, ExternalOperand, FormulaAnchor, NameDefinition, NameScope,
-    ReferenceCatalog, ReferenceNotation, ReferenceOperand, SheetTarget, TableLookup,
-    bind_references, external_operand, qualified_call, qualified_name,
+    BindError, BoundName, ExternalBookRef, ExternalOperand, FormulaAnchor, NameBindingProof,
+    NameDefinition, NameScope, ReferenceCatalog, ReferenceNotation, ReferenceOperand, SheetTarget,
+    TableLookup, bind_references, external_operand, qualified_call, qualified_name,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, ExcelText, WorksheetErrorCode};
@@ -252,6 +252,11 @@ fn compile_as(
         scope: Vec::new(),
         floor: 0,
         names: HashMap::new(),
+        name_bindings: Vec::new(),
+        active_name: None,
+        name_sheet: None,
+        last_name: None,
+        last_name_sheet: None,
         nesting: 0,
         loaded,
     };
@@ -266,6 +271,7 @@ fn compile_as(
         references: lowering.references.into_boxed_slice(),
         wrapped: lowering.wrapped.into_boxed_slice(),
         externals: lowering.externals.into_boxed_slice(),
+        name_bindings: lowering.name_bindings.into_boxed_slice(),
         form,
     };
     Ok(cache.share(plan))
@@ -314,7 +320,20 @@ struct Lowering<'c> {
     floor: usize,
     /// The block of each defined name compiled into the plan, by its upper-case spelling and
     /// definition.
-    names: HashMap<(String, String), usize>,
+    names: HashMap<
+        (
+            String,
+            String,
+            Option<calc_func::value::NameId>,
+            Option<calc_func::value::SheetId>,
+        ),
+        NameTarget,
+    >,
+    name_bindings: Vec<NameBindingProof>,
+    active_name: Option<calc_func::value::NameId>,
+    name_sheet: Option<calc_func::value::SheetId>,
+    last_name: Option<BoundName>,
+    last_name_sheet: Option<calc_func::value::SheetId>,
     /// How many defined names' formulas are being lowered, one inside another.
     nesting: usize,
     /// Whether the formula's text is as a file stores it ([`compile_loaded`]).
@@ -489,7 +508,8 @@ impl<'c> Lowering<'c> {
                             })?;
                         self.blocks[block].push(Instruction::Function(target));
                     } else {
-                        let scope = NameScope::Formula(self.anchor.sheet());
+                        let scope =
+                            NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet()));
                         self.defined_name(text, scope, span, block)?;
                     }
                 }
@@ -502,7 +522,8 @@ impl<'c> Lowering<'c> {
                     // dc-g9q: `[0]!Name`, a defined name qualified by the formula's own workbook,
                     // as a file stores one: the name as the formula's sheet sees it.
                     if let Some(name) = own_workbook_name(node) {
-                        let scope = NameScope::Formula(self.anchor.sheet());
+                        let scope =
+                            NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet()));
                         self.defined_name(name.text(), scope, span, block)?;
                         return Ok(());
                     }
@@ -1033,8 +1054,8 @@ impl<'c> Lowering<'c> {
         if let Some(slot) = self.local(&parameter_key(name.text())) {
             self.blocks[block].push(Instruction::Local(slot));
         } else {
-            let scope = NameScope::Formula(self.anchor.sheet());
-            match self.catalog.defined_name(name.text(), scope) {
+            let scope = NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet()));
+            match self.lookup_name(name.text(), scope) {
                 NameDefinition::Formula(definition) => {
                     let name_block = self.name_block(name.text(), &definition, name.span())?;
                     self.blocks[block].push(Instruction::Name(name_block));
@@ -1143,10 +1164,10 @@ impl<'c> Lowering<'c> {
             )
         };
         if own {
-            match self
-                .catalog
-                .defined_name(name.text(), NameScope::Formula(self.anchor.sheet()))
-            {
+            match self.lookup_name(
+                name.text(),
+                NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet())),
+            ) {
                 NameDefinition::Formula(definition) => {
                     let name_block = self.name_block(name.text(), &definition, name.span())?;
                     self.blocks[block].push(Instruction::Name(name_block));
@@ -1353,6 +1374,34 @@ impl<'c> Lowering<'c> {
         Ok((parameter_key(text), optional))
     }
 
+    fn lookup_name(&mut self, name: &str, scope: NameScope) -> NameDefinition {
+        let proof = self.catalog.name_binding(name, scope, self.active_name);
+        self.last_name = proof.as_ref().and_then(|proof| proof.resolved);
+        self.last_name_sheet = self
+            .last_name
+            .and_then(|name| match name.scope {
+                calc_func::value::NameScope::Sheet(sheet) => Some(sheet),
+                calc_func::value::NameScope::Workbook => self.name_sheet,
+            })
+            .or_else(|| {
+                if proof.is_none() {
+                    match scope {
+                        NameScope::Sheet(sheet) => Some(sheet),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            });
+        if let Some(mut proof) = proof {
+            proof.parent = self.active_name;
+            if !self.name_bindings.contains(&proof) {
+                self.name_bindings.push(proof);
+            }
+        }
+        self.catalog.defined_name(name, scope)
+    }
+
     /// Pushes onto block `block` the value of the defined name `name` seen from `scope`: its
     /// formula's block, #NAME? when the workbook holds no such name, or the refusal of a name the
     /// catalogue cannot say.
@@ -1363,7 +1412,7 @@ impl<'c> Lowering<'c> {
         span: TextSpan,
         block: usize,
     ) -> Result<(), CompileError> {
-        match self.catalog.defined_name(name, scope) {
+        match self.lookup_name(name, scope) {
             NameDefinition::Formula(definition) => {
                 let name_block = self.name_block(name, &definition, span)?;
                 self.blocks[block].push(Instruction::Name(name_block));
@@ -1407,10 +1456,12 @@ impl<'c> Lowering<'c> {
         name: &str,
         definition: &str,
         span: TextSpan,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<NameTarget, CompileError> {
         let key = (
             calc_func::value::fold_workbook_name(name),
             definition.to_owned(),
+            self.last_name.map(|name| name.id),
+            self.last_name_sheet,
         );
         if let Some(block) = self.names.get(&key) {
             return Ok(*block);
@@ -1422,6 +1473,8 @@ impl<'c> Lowering<'c> {
                 OWNER,
             ));
         }
+        let bound = self.last_name;
+        let definition_sheet = self.last_name_sheet;
         let text = if definition.starts_with('=') {
             definition.to_owned()
         } else {
@@ -1435,7 +1488,8 @@ impl<'c> Lowering<'c> {
         let Some(expression) = tree.expression() else {
             return Err(refused());
         };
-        let a1 = CellKey::new(self.anchor.sheet(), 1, 1).expect("A1 lies on the grid");
+        let a1 = CellKey::new(definition_sheet.unwrap_or(self.anchor.sheet()), 1, 1)
+            .expect("A1 lies on the grid");
         let sites = sites(
             &tree,
             ReferenceNotation::A1,
@@ -1444,7 +1498,13 @@ impl<'c> Lowering<'c> {
         );
         let block = self.blocks.len();
         self.blocks.push(Vec::new());
-        self.names.insert(key, block);
+        let target = NameTarget {
+            block,
+            id: bound.map(|name| name.id),
+        };
+        self.names.insert(key, target);
+        let name_sheet = std::mem::replace(&mut self.name_sheet, definition_sheet);
+        let active_name = std::mem::replace(&mut self.active_name, target.id);
         let floor = std::mem::replace(&mut self.floor, self.scope.len());
         let in_name = std::mem::replace(&mut self.in_name, true);
         self.nesting += 1;
@@ -1452,11 +1512,13 @@ impl<'c> Lowering<'c> {
         self.nesting -= 1;
         self.in_name = in_name;
         self.floor = floor;
+        self.name_sheet = name_sheet;
+        self.active_name = active_name;
         lowered.map_err(|error| match error {
             CompileError::Unsupported { .. } | CompileError::UnknownFunction { .. } => error,
             _ => refused(),
         })?;
-        Ok(block)
+        Ok(target)
     }
 
     /// Pushes onto block `block` the reference `node` binds to, when binding gave it a site;
@@ -1473,7 +1535,8 @@ impl<'c> Lowering<'c> {
             // as a file stores it, relative to A1 of the formula's sheet, and wraps when placed.
             Some((Err(BindError::ExternalWorkbook), _)) => {
                 let (notation, anchor) = if self.in_name {
-                    let a1 = CellKey::new(self.anchor.sheet(), 1, 1).expect("A1 lies on the grid");
+                    let a1 = CellKey::new(self.name_sheet.unwrap_or(self.anchor.sheet()), 1, 1)
+                        .expect("A1 lies on the grid");
                     (ReferenceNotation::A1, FormulaAnchor::new(a1))
                 } else {
                     (self.notation, self.anchor)
@@ -1535,7 +1598,13 @@ impl<'c> Lowering<'c> {
     }
 
     /// Pushes `operand` onto block `block`, followed by implicit intersection with `this_row`.
-    fn push_reference(&mut self, operand: ReferenceOperand, this_row: bool, block: usize) {
+    fn push_reference(&mut self, mut operand: ReferenceOperand, this_row: bool, block: usize) {
+        if self.in_name
+            && operand.sheet == SheetTarget::Anchor
+            && let Some(sheet) = self.name_sheet
+        {
+            operand.sheet = SheetTarget::Sheet(sheet);
+        }
         self.blocks[block].push(Instruction::Reference(self.references.len()));
         self.references.push(operand);
         self.wrapped.push(self.in_name);

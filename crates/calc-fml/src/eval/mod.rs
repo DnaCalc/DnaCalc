@@ -84,6 +84,7 @@ pub struct CompiledPlan {
     /// (dc-ylr).
     externals: Box<[ExternalOperand]>,
     form: FormulaForm,
+    name_bindings: Box<[crate::reference::NameBindingProof]>,
 }
 
 /// How a formula's text is evaluated where a range or an array meets a place that takes one
@@ -111,6 +112,10 @@ pub enum FormulaForm {
 }
 
 impl CompiledPlan {
+    pub fn name_bindings(&self) -> &[crate::reference::NameBindingProof] {
+        &self.name_bindings
+    }
+
     /// Conservative effect boundary for pure-result reuse. A user function in any branch
     /// keeps the whole formula out of that path until callable capabilities are modeled.
     pub fn has_user_calls(&self) -> bool {
@@ -340,7 +345,7 @@ enum Instruction {
     /// the workbook's link to the other book caches.
     External(usize),
     /// Runs block `.0`, a defined name's formula, in a frame of its own and pushes its value.
-    Name(usize),
+    Name(NameTarget),
     /// Pushes a copy of the value `.0` places below the top of the stack (0 is the top).
     Copy(usize),
     /// Starts the check of the formula's final infix `+` or `-`, whose call retained its two
@@ -353,6 +358,13 @@ enum Instruction {
     /// pushes the result, or refuses it as [`EvalFault::NearZeroFinalSum`]. Compile emits the two
     /// negations as calls of their own, between the guard and this check.
     NearZeroCheck,
+}
+
+/// The identifier bound to a definition body; anonymous fixture catalogues omit it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct NameTarget {
+    block: usize,
+    id: Option<calc_func::value::NameId>,
 }
 
 /// A literal operand. A number is held as its bits, so that a plan is hashed and compared by the

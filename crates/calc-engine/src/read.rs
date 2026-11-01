@@ -22,7 +22,7 @@ use calc_fml::{
     SubtotalExclusions,
 };
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId, WorksheetErrorCode};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
@@ -48,7 +48,7 @@ mod provider_tests {
             definitions,
         )
         .unwrap();
-        let catalog = SnapshotCatalog(&root);
+        let catalog = SnapshotCatalog::new(&root);
         assert_eq!(
             catalog.external_function_target(&ExternalBookRef::Number(1)),
             Some("file:///C:/original/probe.xlam".into())
@@ -225,7 +225,83 @@ impl ReadObserver for Unobserved {
 /// its Unicode uppercase. Excel compares sheet names without case; which characters its
 /// comparison folds is not measured: bead dc-m3u measures Excel's sheet-name rules, case-blind
 /// matching included.
-pub(crate) struct SnapshotCatalog<'r>(pub(crate) &'r ModelRoot);
+pub(crate) struct SnapshotCatalog<'r> {
+    root: &'r ModelRoot,
+    trace: Option<&'r RefCell<Vec<calc_fml::reference::NameBindingProof>>>,
+}
+impl<'r> SnapshotCatalog<'r> {
+    pub(crate) fn new(root: &'r ModelRoot) -> Self {
+        Self { root, trace: None }
+    }
+    pub(crate) fn traced(
+        root: &'r ModelRoot,
+        trace: &'r RefCell<Vec<calc_fml::reference::NameBindingProof>>,
+    ) -> Self {
+        Self {
+            root,
+            trace: Some(trace),
+        }
+    }
+    fn name_proof(
+        &self,
+        name: &str,
+        scope: FmlNameScope,
+        parent: Option<calc_value::NameId>,
+    ) -> calc_fml::reference::NameBindingProof {
+        use calc_fml::reference::{BoundName, NameBindingProof, NameProbe};
+        let table = self.root.definitions().name_table();
+        let sheet = match scope {
+            FmlNameScope::Formula(sheet) | FmlNameScope::Sheet(sheet) => sheet,
+        };
+        let local = calc_value::NameKey::new(NameScope::Sheet(sheet), name);
+        let found = table.lookup_key(&local);
+        let mut probes = vec![NameProbe {
+            key: local,
+            found: found.map(|node| node.id()),
+        }];
+        let resolved = if let Some(node) = found {
+            Some(node)
+        } else {
+            let global = calc_value::NameKey::new(NameScope::Workbook, name);
+            let node = table.lookup_key(&global);
+            probes.push(NameProbe {
+                key: global,
+                found: node.map(|node| node.id()),
+            });
+            match scope {
+                FmlNameScope::Formula(_) => node,
+                FmlNameScope::Sheet(_) => None,
+            }
+        }
+        .map(|node| BoundName {
+            id: node.id(),
+            version: node.binding_version(),
+            scope: node.definition().scope,
+        });
+        let proof = NameBindingProof {
+            resolved,
+            probes,
+            parent,
+        };
+        if let Some(trace) = self.trace {
+            let mut trace = trace.borrow_mut();
+            // defined_name also records lookups for callers which do not request a proof.
+            // Prefer the parent-qualified witness when the binder supplies one for that query.
+            let same_query = |held: &calc_fml::reference::NameBindingProof| {
+                held.resolved == proof.resolved && held.probes == proof.probes
+            };
+            if !trace.iter().any(|held| {
+                same_query(held) && (proof.parent.is_none() || held.parent == proof.parent)
+            }) {
+                if proof.parent.is_some() {
+                    trace.retain(|held| held.parent.is_some() || !same_query(held));
+                }
+                trace.push(proof.clone());
+            }
+        }
+        proof
+    }
+}
 
 /// Resolve reference text with the catalogue and binder that INDIRECT uses.
 /// This reads no values and performs no evaluation; computed names retain the binder's refusal.
@@ -238,13 +314,13 @@ pub fn resolve_reference_text(
         &text.encode_utf16().collect::<Vec<_>>(),
         calc_fml::reference::ReferenceNotation::A1,
         calc_fml::reference::FormulaAnchor::new(at),
-        &SnapshotCatalog(inputs),
+        &SnapshotCatalog::new(inputs),
     )
 }
 
 impl ReferenceCatalog for SnapshotCatalog<'_> {
     fn external_function_target(&self, book: &ExternalBookRef) -> Option<String> {
-        let definitions = self.0.definitions();
+        let definitions = self.root.definitions();
         let target = |held: &calc_doc_model::ExternalBook| {
             held.absolute_target
                 .as_ref()
@@ -277,12 +353,12 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
     }
 
     fn workbook_name(&self) -> Option<&str> {
-        self.0.definitions().workbook_name()
+        self.root.definitions().workbook_name()
     }
 
     fn sheet_named(&self, name: &str) -> Option<SheetId> {
         let wanted: Vec<u16> = name.encode_utf16().collect();
-        self.0
+        self.root
             .sheets()
             .iter()
             .find(|sheet| {
@@ -302,40 +378,46 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
     /// own. A name the snapshot does not hold is unknown (#NAME?). A macro or VBA name, and a
     /// qualified name that only the workbook holds, are not modelled.
     fn defined_name(&self, name: &str, scope: FmlNameScope) -> NameDefinition {
-        // Defined names compare under the full Unicode case fold, as Excel compares them
-        // (dc-cpr).
-        let same = |held: &str| held == name || calc_value::workbook_names_equal(held, name);
-        let names = self.0.definitions().names();
-        let find = |wanted: NameScope| {
-            names
-                .iter()
-                .find(|defined| defined.scope == wanted && same(&defined.name))
-        };
-        let found = match scope {
-            FmlNameScope::Formula(sheet) => {
-                find(NameScope::Sheet(sheet)).or_else(|| find(NameScope::Workbook))
-            }
-            FmlNameScope::Sheet(sheet) => match find(NameScope::Sheet(sheet)) {
-                Some(defined) => Some(defined),
-                None if find(NameScope::Workbook).is_some() => {
-                    return NameDefinition::NotModelled;
-                }
-                None => None,
-            },
-        };
-        match found {
-            None => NameDefinition::Unknown,
-            Some(defined) if defined.function || defined.vb_procedure || defined.xlm => {
+        let proof = self.name_proof(name, scope, None);
+        let Some(bound) = proof.resolved else {
+            return if matches!(scope, FmlNameScope::Sheet(_))
+                && proof
+                    .probes
+                    .last()
+                    .is_some_and(|probe| probe.found.is_some())
+            {
                 NameDefinition::NotModelled
-            }
-            Some(defined) => NameDefinition::Formula(defined.formula.clone()),
+            } else {
+                NameDefinition::Unknown
+            };
+        };
+        let defined = self
+            .root
+            .definitions()
+            .name_table()
+            .get(bound.id)
+            .expect("resolved name is in the pinned table")
+            .definition();
+        if defined.function || defined.vb_procedure || defined.xlm {
+            NameDefinition::NotModelled
+        } else {
+            NameDefinition::Formula(defined.formula.clone())
         }
+    }
+
+    fn name_binding(
+        &self,
+        name: &str,
+        scope: FmlNameScope,
+        parent: Option<calc_value::NameId>,
+    ) -> Option<calc_fml::reference::NameBindingProof> {
+        Some(self.name_proof(name, scope, parent))
     }
 
     /// The snapshot's table whose display name is `name`, matched as Excel matches names (L3,
     /// dc-cpr).
     fn table(&self, name: &str) -> TableLookup {
-        let found = self.0.definitions().tables().iter().find(|table| {
+        let found = self.root.definitions().tables().iter().find(|table| {
             table.display_name == name
                 || calc_value::workbook_names_equal(&table.display_name, name)
         });
@@ -348,7 +430,7 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
     /// The snapshot's table whose area holds `cell` (L3).
     fn table_containing(&self, cell: CellKey) -> TableLookup {
         match self
-            .0
+            .root
             .definitions()
             .tables()
             .iter()
@@ -361,7 +443,7 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
 
     /// The sheets from `first` to `last` in the snapshot's sheet order, both included (L3).
     fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>> {
-        let sheets = self.0.sheets();
+        let sheets = self.root.sheets();
         let at = |id: SheetId| sheets.iter().position(|sheet| sheet.id() == id);
         let (a, b) = (at(first)?, at(last)?);
         let (from, to) = (a.min(b), a.max(b));
@@ -371,7 +453,7 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
     /// A call of a name no function or defined name holds is #NAME? unless the workbook is
     /// macro-enabled, whose VBA project may define the function.
     fn unknown_calls_are_names(&self) -> bool {
-        !self.0.definitions().macro_enabled()
+        !self.root.definitions().macro_enabled()
     }
 
     /// The sheet of another workbook the snapshot's link to it caches (dc-ylr): the ID the load
@@ -379,7 +461,7 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
     /// target has that name; the sheet name is matched without regard to case, as a sheet name of
     /// the workbook is.
     fn external_sheet(&self, book: &ExternalBookRef, sheet: &str) -> Option<SheetId> {
-        let definitions = self.0.definitions();
+        let definitions = self.root.definitions();
         let number = match book {
             ExternalBookRef::Number(number) => *number,
             ExternalBookRef::File(name) => definitions.external_book_named(name)?,

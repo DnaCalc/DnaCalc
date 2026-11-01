@@ -411,6 +411,7 @@ pub(crate) struct EvalLocal {
     random: Option<RandomStream>,
     quantum: usize,
     read_stamps: Vec<ReadSpan>,
+    name_reads: Vec<calc_fml::reference::NameBindingProof>,
     footprint: Vec<GridArea>,
     fact_reads: Vec<calc_fml::FactRead>,
     value_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
@@ -1889,6 +1890,11 @@ pub fn publish_ready(
         if let Some(extent) = work.blocked_spills.get(&at) {
             state.blocked_spills.insert(at, *extent);
         }
+        if let Some(stamp) = stamp {
+            state
+                .index
+                .set_name_bindings(node, stamp.reads.names.clone());
+        }
         state.contract.satisfy(node, stamp, work.pass);
         work.early_published.insert(node, stamp.cloned());
         state.cached_arrays.remove(&node);
@@ -2060,6 +2066,11 @@ pub fn finish(
         if let Some(extent) = work.blocked_spills.get(&at) {
             state.blocked_spills.insert(at, *extent);
         }
+        if let Some(stamp) = result.stamp() {
+            state
+                .index
+                .set_name_bindings(node, stamp.reads.names.clone());
+        }
         state.contract.satisfy(node, result.stamp(), work.pass);
         state.cached_arrays.remove(&node);
         state.results.publish(node, at, result);
@@ -2192,17 +2203,22 @@ fn bind(
     // the template is new, the compilation; an unpaired surrogate refuses it.
     let decoded: Result<Vec<char>, _> =
         char::decode_utf16(text.text().utf16_code_units().iter().copied()).collect();
+    let name_trace = RefCell::new(Vec::new());
     let binding = match decoded {
         Err(_) => Binding::Refused(NotModeled::FormulaText),
         Ok(chars) => {
             let key = template_key_of_chars(&chars, anchor).map(|key| (at.sheet(), form, key));
-            match key.as_ref().and_then(|key| state.templates.get(key)) {
+            match key
+                .as_ref()
+                .and_then(|key| state.templates.get(key))
+                .filter(|plan| crate::contract::name_bindings_valid(inputs, plan.name_bindings()))
+            {
                 Some(plan) => Binding::Placed(instantiate(plan, anchor), role),
                 None => match compile_loaded_with(
                     &parse_formula(&chars.iter().collect::<String>()),
                     ReferenceNotation::A1,
                     anchor,
-                    &SnapshotCatalog(inputs),
+                    &SnapshotCatalog::traced(inputs, &name_trace),
                     &mut state.plans,
                     form,
                 ) {
@@ -2217,7 +2233,7 @@ fn bind(
             }
         }
     };
-    let prerequisites = match &binding {
+    let mut prerequisites = match &binding {
         Binding::Placed(instance, _) => {
             let plan = instance.plan();
             if plan.volatile() {
@@ -2235,6 +2251,17 @@ fn bind(
         }
         Binding::Refused(_) | Binding::DataTable(_) => Vec::new(),
     };
+    let proofs = match &binding {
+        Binding::Placed(instance, _) => instance.plan().name_bindings().to_vec(),
+        _ => name_trace.into_inner(),
+    };
+    for bound in proofs.iter().filter_map(|proof| proof.resolved) {
+        let edge = Prerequisite::Name(bound.id);
+        if !prerequisites.contains(&edge) {
+            prerequisites.push(edge);
+        }
+    }
+    state.index.set_name_bindings(node, proofs);
     state
         .set_prerequisites(inputs, node, prerequisites)
         .expect("the snapshot is at the state's revision, the node is live, and every sheet came from the snapshot");
@@ -2268,9 +2295,17 @@ fn bind_table_cell(state: &mut EngineState, inputs: &ModelRoot, node: NodeId, at
     state.bindings.insert(node, Binding::DataTable(table));
 }
 
-/// What a placed formula reads: one prerequisite per distinct placed reference.
+/// What a placed formula reads: distinct placed references and bound definition identities.
 fn prerequisites(instance: &FormulaInstance) -> Vec<Prerequisite> {
     let mut out: Vec<Prerequisite> = Vec::with_capacity(instance.areas().len());
+    for proof in instance.plan().name_bindings() {
+        if let Some(bound) = proof.resolved {
+            let edge = Prerequisite::Name(bound.id);
+            if !out.contains(&edge) {
+                out.push(edge);
+            }
+        }
+    }
     for (operand, placed) in instance.plan().references().iter().zip(instance.areas()) {
         let Ok(area) = placed else {
             continue;
@@ -3817,6 +3852,7 @@ fn evaluate_with(
         local.fact_reads.clear();
         local.value_reads.clear();
         local.read_stamps.clear();
+        local.name_reads.clear();
         local.blank_reads.clear();
         local.footprint.clear();
         local.boundary_read.set(None);
@@ -3879,6 +3915,25 @@ fn evaluate_with(
         bindings: state.contract.bindings,
         ..ReadCertificate::default()
     };
+    reads.names = match state.bindings.get(&node) {
+        Some(Binding::Placed(instance, _)) => instance.plan().name_bindings().to_vec(),
+        _ => state.index.name_bindings(node).to_vec(),
+    };
+    for proof in &local.name_reads {
+        if !reads.names.contains(proof) {
+            reads.names.push(proof.clone());
+        }
+        if let Some(bound) = proof.resolved {
+            let edge = Prerequisite::Name(bound.id);
+            if !done.dynamic.contains(&edge)
+                && !state
+                    .node(node)
+                    .is_some_and(|n| n.prerequisites().is_some_and(|p| p.contains(&edge)))
+            {
+                done.dynamic.push(edge);
+            }
+        }
+    }
     reads.dependencies = local.read_stamps.clone();
     for read in &reads.dependencies {
         for span in &read.boundary_caches {
@@ -4139,9 +4194,10 @@ fn evaluate_unstamped(
             formula,
         )
     });
+    let name_reads = RefCell::new(std::mem::take(&mut local.name_reads));
     let view = shared.view(state, inputs, &*local);
     let mut cells = WorkbookReader::new(view, &uncomputed).with_batch(batch);
-    let catalog = SnapshotCatalog(inputs);
+    let catalog = SnapshotCatalog::traced(inputs, &name_reads);
     let silent = observer.is_silent();
     let observer = RefCell::new(observer);
     let (outcome, stopped) = {
@@ -4194,6 +4250,7 @@ fn evaluate_unstamped(
         calculation
     };
     local.read_batch = cells.into_batch();
+    local.name_reads = name_reads.into_inner();
     local.fact_reads = facts.into_inner();
     local.value_reads = value_reads.into_inner();
     local.blank_reads = blanks.into_inner();

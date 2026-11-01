@@ -74,8 +74,12 @@ impl FormulaRewriter for ReferenceRewriter {
         change: &StructuralChange,
     ) -> Option<FormulaText> {
         let text = String::from_utf16(formula.text().utf16_code_units()).ok()?;
-        let rewritten =
-            transform_formula(&text, at, &fml_edit(root, change), &SnapshotCatalog(root))?;
+        let rewritten = transform_formula(
+            &text,
+            at,
+            &fml_edit(root, change),
+            &SnapshotCatalog::new(root),
+        )?;
         FormulaText::new(ExcelText::from_utf16_code_units(
             rewritten.encode_utf16().collect(),
         ))
@@ -94,7 +98,12 @@ impl FormulaRewriter for ReferenceRewriter {
             NameScope::Workbook => root.sheets().first()?.id(),
         };
         let text = formula.strip_prefix('=').unwrap_or(formula);
-        transform_name(text, sheet, &fml_edit(root, change), &SnapshotCatalog(root))
+        transform_name(
+            text,
+            sheet,
+            &fml_edit(root, change),
+            &SnapshotCatalog::new(root),
+        )
     }
 }
 
@@ -111,7 +120,7 @@ pub fn relocate_formula(
     to: CellKey,
 ) -> Option<FormulaText> {
     let text = String::from_utf16(formula.text().utf16_code_units()).ok()?;
-    let catalog = SnapshotCatalog(root);
+    let catalog = SnapshotCatalog::new(root);
     let relative = convert_notation(
         &text,
         from,
@@ -165,7 +174,7 @@ pub fn move_references(
         &text,
         at,
         &move_edit(root, area, to)?,
-        &SnapshotCatalog(root),
+        &SnapshotCatalog::new(root),
     )?;
     FormulaText::new(ExcelText::from_utf16_code_units(
         moved.encode_utf16().collect(),
@@ -193,7 +202,7 @@ pub fn move_name(
         text,
         sheet,
         &move_edit(root, area, to)?,
-        &SnapshotCatalog(root),
+        &SnapshotCatalog::new(root),
     )
 }
 
@@ -208,7 +217,7 @@ pub fn shift_formula(
     name: bool,
 ) -> Result<Option<String>, &'static str> {
     let text = formula.strip_prefix('=').unwrap_or(formula);
-    let catalog = SnapshotCatalog(root);
+    let catalog = SnapshotCatalog::new(root);
     if !calc_fml::reference::shift_formula_supported(text, at, area, down, name, &catalog) {
         return Err(
             "cell shifts with crossing ranges, whole-axis/3D references or relative names need Excel readings (dc-971p.7)",
