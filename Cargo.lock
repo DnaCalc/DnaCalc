@@ -190,6 +190,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
+name = "calc-com-host"
+version = "0.1.0"
+dependencies = [
+ "calc-value",
+ "calc-xll-host",
+ "cc",
+]
+
+[[package]]
 name = "calc-doc"
 version = "0.1.0"
 dependencies = [
@@ -786,6 +795,7 @@ dependencies = [
 name = "dna-calc-desktop"
 version = "0.1.0"
 dependencies = [
+ "calc-com-host",
  "calc-value",
  "calc-xll-abi",
  "calc-xll-fixture",

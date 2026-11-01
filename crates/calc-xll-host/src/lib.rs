@@ -12,6 +12,8 @@ mod invoke;
 #[cfg(windows)]
 mod native;
 #[cfg(windows)]
+mod worker;
+#[cfg(windows)]
 pub use callbacks::dispatch;
 #[cfg(windows)]
 pub use native::{RegistrationInfo, XllHost};

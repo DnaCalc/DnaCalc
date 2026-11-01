@@ -1,4 +1,4 @@
-param([switch]$NativeOnly)
+param([switch]$NativeOnly, [switch]$X2)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $out = Join-Path $root 'build'
@@ -28,4 +28,16 @@ if ($LASTEXITCODE -ne 0) { throw 'Native tracer build failed.' }
 if (-not $NativeOnly) {
     & dotnet build (Join-Path $root 'fixture/X0.csproj') -c Release
     if ($LASTEXITCODE -ne 0) { throw 'Fixture build failed.' }
+    if ($X2) {
+        & dotnet build (Join-Path $root 'fixture/X2Hello.csproj') -c Release
+        if ($LASTEXITCODE -ne 0) { throw 'Hello fixture build failed.' }
+        & dotnet build (Join-Path $root 'fixture/X2Pool.csproj') -c Release
+        if ($LASTEXITCODE -ne 0) { throw 'Export pool fixture build failed.' }
+        $savedPath = $env:PATH
+        try {
+            $env:PATH = "$([IO.Path]::GetDirectoryName($vswhere));$savedPath"
+            & dotnet publish (Join-Path $root 'fixture/X2Aot.csproj') -c Release -r win-x64
+            if ($LASTEXITCODE -ne 0) { throw 'Native AOT fixture build failed.' }
+        } finally { $env:PATH = $savedPath }
+    }
 }

@@ -1,0 +1,26 @@
+# Local COM objects for the native host
+
+This Windows x64 package answers the Application lookup measured in X0:
+`WM_GETOBJECT` / `AccessibleObjectFromWindow(OBJID_NATIVEOM, IID_IDispatch)` on
+EXCEL7, then Window.Application. Application implements Version, Hwnd and Run.
+Run calls the registered XLL command on its owning STA with a command callback
+frame; it does not activate another application.
+
+The interface facts come from Excel 16.0.20527.20088's type library, read with
+`LoadTypeLibEx(REGKIND_NONE)`. Application uses Excel's `_Application` IID
+`000208D5-0000-0000-C000-000000000046`, its 474-slot dual vtable, and the observed
+DISPIDs. The supported early-bound slots are Application 7, Parent 9, Run 42,
+Version 281 (including LCID) and Hwnd 351. Window's IID is
+`00020893-0000-0000-C000-000000000046`; it is a dispatch-only interface with
+seven vtable slots. Its property descriptors must not be mistaken for a dual
+interface's callable slots. Unimplemented members fail with HRESULTs.
+
+The objects expose no type information yet. Managed callers tested here use
+IDispatch name lookup; early-bound tests call the measured slots directly.
+The AppEvents connection point retains subscriptions and supports Unadvise;
+this shell does not deliver workbook events. Subscription is not event parity.
+
+The projection uses Windows' object-return mechanism and local objects only.
+It has no class factory, ROT entry, activation hook, registry-writing code or
+type-library registration. Excel's ProgIDs, CLSIDs and registered interfaces are
+untouched. COM activation for a general desktop object model remains undecided.

@@ -1,6 +1,7 @@
 use calc_xll_abi::*;
 use std::{
     cell::UnsafeCell,
+    collections::BTreeMap,
     ffi::c_void,
     sync::{
         Mutex,
@@ -16,9 +17,12 @@ unsafe extern "system" {
     fn FreeLibrary(module: *mut c_void) -> i32;
     fn GetModuleHandleExW(flags: u32, name: *const u16, module: *mut *mut c_void) -> i32;
     fn VirtualProtect(address: *mut c_void, bytes: usize, protection: u32, old: *mut u32) -> i32;
+    fn GetCurrentThreadId() -> u32;
 }
 static CALLBACK: AtomicUsize = AtomicUsize::new(0);
 static FREES: AtomicUsize = AtomicUsize::new(0);
+static OWNERS: Mutex<BTreeMap<usize, u32>> = Mutex::new(BTreeMap::new());
+static BAD_FREES: AtomicUsize = AtomicUsize::new(0);
 static REGISTRATIONS: Mutex<Vec<(f64, String)>> = Mutex::new(Vec::new());
 static WORKERS: Mutex<Vec<std::thread::JoinHandle<()>>> = Mutex::new(Vec::new());
 thread_local! {
@@ -238,6 +242,21 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
             }
         }
     }
+    if std::env::var_os("DNA_XLL_WORKER_TESTS").is_some() {
+        for (procedure, signature, name) in [
+            ("MyOwned", "Q$", "MyWorkerOwned"),
+            ("MyReference", "QU$", "MyWorkerReference"),
+            ("MyCallbacks", "QQQ$", "MyWorkerCallbacks"),
+            ("MyThreadId", "J$", "MyWorkerThread"),
+            ("MyThreadId", "J", "MyMainThread"),
+            ("MyFreeCount", "J", "MyFreeCount"),
+            ("MyUnsupported", "Q$", "MyWorkerUnsupported"),
+        ] {
+            if !unsafe { register(&module, procedure, signature, name) } {
+                return 0;
+            }
+        }
+    }
     unsafe {
         call(XL_FREE_FN, &[&mut module], std::ptr::null_mut());
     }
@@ -270,6 +289,10 @@ pub unsafe extern "system" fn xlAutoClose() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn MyAdd(a: f64, b: f64) -> f64 {
     a + b
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyThreadId() -> i32 {
+    (unsafe { GetCurrentThreadId() }) as i32
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyEcho(value: *mut XlOper12) -> *mut XlOper12 {
@@ -376,10 +399,15 @@ pub extern "system" fn MyOwned() -> *mut XlOper12 {
         .into_boxed_slice();
     let pointer = units.as_mut_ptr();
     std::mem::forget(units);
-    Box::into_raw(Box::new(XlOper12 {
+    let result = Box::into_raw(Box::new(XlOper12 {
         value: XlValue12 { string: pointer },
         xltype: XL_STR | DLL_FREE,
-    }))
+    }));
+    OWNERS
+        .lock()
+        .unwrap()
+        .insert(result as usize, unsafe { GetCurrentThreadId() });
+    result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn xlAutoFree12(value: *mut XlOper12) {
@@ -387,6 +415,9 @@ pub unsafe extern "system" fn xlAutoFree12(value: *mut XlOper12) {
         return;
     }
     FREES.fetch_add(1, Ordering::Relaxed);
+    if OWNERS.lock().unwrap().remove(&(value as usize)) != Some(unsafe { GetCurrentThreadId() }) {
+        BAD_FREES.fetch_add(1, Ordering::Relaxed);
+    }
     let owned = unsafe { Box::from_raw(value) };
     if owned.xltype & TYPE_MASK == XL_STR {
         let pointer = unsafe { owned.value.string };
@@ -400,6 +431,9 @@ pub unsafe extern "system" fn xlAutoFree12(value: *mut XlOper12) {
 }
 #[unsafe(no_mangle)]
 pub extern "system" fn MyFreeCount() -> i32 {
+    if BAD_FREES.load(Ordering::Relaxed) != 0 {
+        return -1;
+    }
     FREES.load(Ordering::Relaxed) as i32
 }
 #[unsafe(no_mangle)]

@@ -1,0 +1,4 @@
+[
+  {"formula":"=X2.Pool0(3)", "value":3.0},
+  {"formula":"=X2.Pool9999(3)", "value":10002.0}
+]

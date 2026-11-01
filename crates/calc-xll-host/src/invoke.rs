@@ -52,6 +52,19 @@ impl XllFunction {
     pub(crate) fn invoke(
         &self,
         arguments: &[CalcValue],
+        context: Option<&mut dyn UserFunctionContext>,
+    ) -> Result<CalcValue, String> {
+        if self.registration.info.signature.thread_safe {
+            let pool = self.state.borrow().workers.clone();
+            if let Some(pool) = pool {
+                return crate::worker::invoke(self, &pool, arguments, context);
+            }
+        }
+        self.invoke_inline(arguments, context)
+    }
+    pub(crate) fn invoke_inline(
+        &self,
+        arguments: &[CalcValue],
         mut context: Option<&mut dyn UserFunctionContext>,
     ) -> Result<CalcValue, String> {
         let r = &self.registration;
@@ -139,7 +152,7 @@ impl XllFunction {
             module: r.module.clone(),
             origin: r.origin.clone(),
             context,
-            signature: Some(signature.clone()),
+            signature: (r.info.macro_type != 2).then(|| signature.clone()),
         };
         let guard = unsafe { callbacks::enter(&mut frame) };
         let mut returned = Returned::default();
@@ -205,7 +218,11 @@ impl XllFunction {
             XllType::Int => CalcValue::number(f64::from(result.word as i32)),
             XllType::Void => {
                 if r.info.macro_type == 2 {
-                    CalcValue::logical(true)
+                    if r.info.type_text.is_empty() {
+                        CalcValue::logical(true)
+                    } else {
+                        CalcValue::number(0.)
+                    }
                 } else if r
                     .info
                     .signature

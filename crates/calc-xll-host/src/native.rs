@@ -18,6 +18,7 @@ unsafe extern "system" {
     fn GetProcAddress(module: *mut c_void, name: *const u8) -> *mut c_void;
     fn FreeLibrary(module: *mut c_void) -> i32;
     pub(crate) fn GetCurrentThreadId() -> u32;
+    pub(crate) fn GetCurrentThreadStackLimits(low: *mut usize, high: *mut usize);
 }
 
 pub(crate) fn wide(path: &std::ffi::OsStr) -> Vec<u16> {
@@ -37,6 +38,15 @@ impl fmt::Debug for Module {
 impl Module {
     fn load(path: &Path) -> Result<Rc<Self>, String> {
         let path = std::fs::canonicalize(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        // Framework add-ins use System.IO.Path, which rejects the extended Win32 prefix.
+        let text = path.to_string_lossy();
+        let path = if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+            PathBuf::from(format!(r"\\{unc}"))
+        } else if let Some(local) = text.strip_prefix(r"\\?\") {
+            PathBuf::from(local)
+        } else {
+            path
+        };
         // Search the XLL's directory and normal safe locations, never the current directory.
         let handle = unsafe {
             LoadLibraryExW(
@@ -132,11 +142,16 @@ pub(crate) struct State {
     pub names: BTreeMap<String, u64>,
     pub next_id: u64,
     pub sheets: SheetMap,
+    pub sheet_names: BTreeMap<SheetId, String>,
+    pub active_sheet: Option<SheetId>,
+    pub events: BTreeMap<(usize, i32), usize>,
     pub allocations: HashMap<usize, CallbackAllocation>,
     pub diagnostics: Vec<String>,
     pub hwnd: usize,
     pub thread: u32,
     pub closed: bool,
+    pub status_message: Option<String>,
+    pub workers: Option<Rc<crate::worker::Pool>>,
 }
 impl State {
     pub fn refusal(&mut self, why: impl Into<String>) {
@@ -163,11 +178,16 @@ impl XllHost {
                 names: BTreeMap::new(),
                 next_id: 1,
                 sheets: SheetMap::default(),
+                sheet_names: BTreeMap::new(),
+                active_sheet: None,
+                events: BTreeMap::new(),
                 allocations: HashMap::new(),
                 diagnostics: Vec::new(),
                 hwnd,
                 thread: unsafe { GetCurrentThreadId() },
                 closed: false,
+                status_message: None,
+                workers: Some(Rc::new(crate::worker::Pool::new())),
             })),
         }
     }
@@ -226,6 +246,15 @@ impl XllHost {
         }
         Ok(())
     }
+    /// Publish the document's sheet identity and qualified C API name at a main-lane boundary.
+    pub fn set_sheet(&self, sheet: SheetId, qualified_name: String, active: bool) {
+        let mut state = self.state.borrow_mut();
+        state.sheets.encode(sheet);
+        state.sheet_names.insert(sheet, qualified_name);
+        if active {
+            state.active_sheet = Some(sheet);
+        }
+    }
     fn remove_module(&self, module: &Rc<Module>) {
         let mut state = self.state.borrow_mut();
         let ids = state
@@ -240,6 +269,9 @@ impl XllHost {
             state.names.retain(|_, n| *n != id);
         }
         state.modules.retain(|m| m.handle != module.handle);
+        state
+            .events
+            .retain(|(owner, _), _| *owner != module.handle as usize);
         state
             .allocations
             .retain(|_, allocation| allocation.owner != module.handle as usize);
@@ -263,6 +295,30 @@ impl XllHost {
             )?;
         }
         Ok(functions)
+    }
+    /// Execute a registered XLL command on the owning STA. The command's originating
+    /// module supplies its callback context even when a different add-in loaded last.
+    pub fn run(&self, name: &str, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+        let registration = {
+            let state = self.state.borrow();
+            let id = state
+                .names
+                .get(&calc_value::fold_workbook_name(name))
+                .ok_or_else(|| format!("unknown XLL command: {name}"))?;
+            state
+                .registrations
+                .get(id)
+                .cloned()
+                .ok_or("missing command registration")?
+        };
+        if registration.info.macro_type != 2 {
+            return Err("dc-snz.18: Application.Run of worksheet functions is not modelled".into());
+        }
+        XllFunction {
+            state: self.state.clone(),
+            registration,
+        }
+        .invoke(arguments, None)
     }
     pub fn registrations(&self) -> Vec<RegistrationInfo> {
         self.state
@@ -289,27 +345,51 @@ impl XllHost {
         let modules = self.state.borrow().modules.clone();
         let mut failures = Vec::new();
         for module in modules.iter().rev() {
-            if let Ok(address) = module.address("xlAutoClose") {
-                let mut frame =
-                    crate::callbacks::Frame::lifecycle(self.state.clone(), module.clone());
-                let guard = unsafe { crate::callbacks::enter(&mut frame) };
-                let close: unsafe extern "system" fn() -> i32 =
-                    unsafe { std::mem::transmute(address) };
-                if unsafe { close() } == 0 {
-                    failures.push(module.path.display().to_string());
-                }
-                drop(guard);
+            if let Err(why) = self.unload_module(module) {
+                failures.push(why);
             }
-            self.remove_module(module);
         }
         self.state.borrow_mut().closed = true;
         if failures.is_empty() {
             Ok(())
         } else {
-            Err(format!(
-                "xlAutoClose returned zero: {}",
-                failures.join(", ")
-            ))
+            Err(failures.join(", "))
+        }
+    }
+    /// Remove one add-in at an execution boundary. Outstanding registry snapshots are
+    /// invalidated before their module leases can be released; the host can then reload it.
+    pub fn unload(&self, path: &Path) -> Result<(), String> {
+        let target = std::fs::canonicalize(path).map_err(|e| e.to_string())?;
+        let module = self
+            .state
+            .borrow()
+            .modules
+            .iter()
+            .find(|m| std::fs::canonicalize(&m.path).ok().as_ref() == Some(&target))
+            .cloned()
+            .ok_or("XLL is not loaded")?;
+        self.unload_module(&module)
+    }
+    fn unload_module(&self, module: &Rc<Module>) -> Result<(), String> {
+        let mut failures = Vec::new();
+        for entry in ["xlAutoRemove", "xlAutoClose"] {
+            if let Ok(address) = module.address(entry) {
+                let mut frame =
+                    crate::callbacks::Frame::lifecycle(self.state.clone(), module.clone());
+                let guard = unsafe { crate::callbacks::enter(&mut frame) };
+                let remove: unsafe extern "system" fn() -> i32 =
+                    unsafe { std::mem::transmute(address) };
+                if unsafe { remove() } as i16 == 0 {
+                    failures.push(format!("{entry} returned zero: {}", module.path.display()));
+                }
+                drop(guard);
+            }
+        }
+        self.remove_module(module);
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(failures.join(", "))
         }
     }
 }
