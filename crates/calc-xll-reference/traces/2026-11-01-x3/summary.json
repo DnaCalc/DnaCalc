@@ -1,0 +1,46 @@
+{
+  "status": "bounded X3 first-load UDF comparisons verified",
+  "profiles": [
+    {
+      "profile": "xlw",
+      "formulas": 5,
+      "native_invocations": 5,
+      "pre_close_callbacks": 12,
+      "raw_callback_differences": 0,
+      "owned_returns": 0
+    },
+    {
+      "profile": "xlw-types",
+      "formulas": 5,
+      "native_invocations": 5,
+      "pre_close_callbacks": 14,
+      "raw_callback_differences": 0,
+      "owned_returns": 0
+    },
+    {
+      "profile": "xloil",
+      "formulas": 12,
+      "native_invocations": 13,
+      "pre_close_callbacks": 78,
+      "raw_callback_differences": 3,
+      "owned_returns": 12
+    },
+    {
+      "profile": "python",
+      "formulas": 5,
+      "native_invocations": 5,
+      "pre_close_callbacks": 87,
+      "raw_callback_differences": 12,
+      "owned_returns": 5
+    }
+  ],
+  "formula_cases": 27,
+  "native_invocations": 28,
+  "owned_returns": 17,
+  "raw_differences_remain": true,
+  "reload_compatibility": false,
+  "source_commit": "ed8383790618a0a5359b70116128c502800f3b00",
+  "external_inputs": "C:\\Work\\DnaCalc\\codex-runs\\x3-upstream",
+  "full_raw_runs": "C:\\Work\\DnaCalc\\codex-runs\\x3-runs",
+  "scope": "Identical original add-in files, 4 profiles, separate traced/control runs; not general XLL or COM compatibility."
+}

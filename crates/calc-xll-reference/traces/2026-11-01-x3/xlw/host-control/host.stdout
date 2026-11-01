@@ -1,0 +1,2 @@
+{"closed_name":"EchoShort","closed_registration":"#NAME?","commands":[],"duplicate_use_count":null,"host":"DNA Calc / OneCalc controller","live_callback_allocations":0,"numbered_exports":null,"registrations":1,"reload_results":[],"results":[{"formula":"=EchoShort(7)","value":7.0},{"formula":"=EchoShort(-2)","value":-2.0},{"formula":"=EchoShort(1.6)","value":1.0},{"formula":"=EchoShort(\"12\")","value":12.0},{"formula":"=EchoShort(TRUE)","value":1.0}]}
+

@@ -58,11 +58,15 @@
       "xlOil_Python312.pyd": "cde7586ecc497fa0ba956731b69a80fdf476c634209d1e03e503f638ac9b087e",
       "xlOil_SQL.dll": "3294a2525cfb1039bffb308261d2a3620b4f5ac63545dfcfd26eb0df055aff5d",
       "xlOil_Utils.dll": "74a29dffb30d3827c5f2a8d9f2b1581a1c7bd6ec33ac44a4490ab5e0300f89ff"
+    },
+    "xlw-types-runtime": {
+      "xlwTypes.xll": "1272ecb3864a135e6d48d5d67924f8752faf2155015ceb668dec133bfa57398d"
     }
   },
   "python_environment": {
     "executable": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\python.exe",
     "numpy_path": "C:\\Users\\GovertvanDrimmelen\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages",
     "numpy_version": "2.1.0"
-  }
+  },
+  "runtime_hash_scope": "Captured runtime files. Rebuilt xlw PE timestamps may differ; compare the identical single build in both hosts."
 }

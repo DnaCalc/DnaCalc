@@ -1,0 +1,961 @@
+{
+  "status": "verified X3 measured cases",
+  "fixture": "xlOil.xll",
+  "formula_cases": 5,
+  "matched_each_capture": 5,
+  "controls_match": true,
+  "source_revisions": [
+    "02ba537291f65e286198fd87d695a17a730cd1ab",
+    "baf27cdec01dbb40c19039e2234d613f5fee6f0f",
+    "ed8383790618a0a5359b70116128c502800f3b00"
+  ],
+  "source_publication_revisions": [
+    "02ba537291f65e286198fd87d695a17a730cd1ab",
+    "97464996d932dc03b4efb85470a548f7effcb1c1",
+    "656691738186b5103cbe2f2ca95cc7d6e51f8fcd",
+    "ed8383790618a0a5359b70116128c502800f3b00"
+  ],
+  "same_fixture_files": {
+    "xlOil_Python.dll": "F0DE6A63045231B792FC30749D20BB328F5065022AD6C102EC219C296FC0B5B1",
+    "xlOil_Python312.pyd": "CDE7586ECC497FA0BA956731B69A80FDF476C634209D1E03E503F638AC9B087E",
+    "xlOil_SQL.dll": "3294A2525CFB1039BFFB308261D2A3620B4F5AC63545DFCFD26EB0DF055AFF5D",
+    "xlOil_Utils.dll": "74A29DFFB30D3827C5F2A8D9F2B1581A1C7BD6EC33AC44A4490AB5E0300F89FF",
+    "xlOil.dll": "B53A0C3675C49E5BA6139FDC611DC4BF5885B035E6EBE6EEA55B104766A24ABF",
+    "xlOil.ini": "C8C2D399400F043E5ECC61C0AFE811BD2893AC5CF1E23C5BF1ED3A49E0344ADE",
+    "xlOil.py": "F8FF8617016792EA06B582D22F0A24D586C0ADB618F8012F6374ECAF42712F57",
+    "xlOil.xll": "F08E0B44EE61147B25BA153B4126435472D3CD6252F1A26A1177180C6DC7A8B0"
+  },
+  "registration_forms": {
+    "xloRunInXLLContext": {
+      "procedure": "xloRunInXLLContext",
+      "type": "U#",
+      "macro_type": 0
+    },
+    "xloVersion": {
+      "procedure": "xloVersion",
+      "type": "U$",
+      "macro_type": 1
+    },
+    "xloLog": {
+      "procedure": "xloLog",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloHelp": {
+      "procedure": "xloHelp",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloRef": {
+      "procedure": "xloRef",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloVal": {
+      "procedure": "xloVal",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "RegistrationInfo_<guid>": {
+      "procedure": "IntellisenseRegistrationInfo",
+      "type": "UQ",
+      "macro_type": 0
+    },
+    "X3.PyArray": {
+      "procedure": "xloil_stub",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "X3.PyAdd": {
+      "procedure": "xloil_stub",
+      "type": "UQQ",
+      "macro_type": 1
+    },
+    "X3.PyHello": {
+      "procedure": "xloil_stub",
+      "type": "UQ",
+      "macro_type": 1
+    },
+    "xloSql": {
+      "procedure": "xloSql",
+      "type": "UQQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSqlDB": {
+      "procedure": "xloSqlDB",
+      "type": "U$",
+      "macro_type": 1
+    },
+    "xloSqlQuery": {
+      "procedure": "xloSqlQuery",
+      "type": "UQQ$",
+      "macro_type": 1
+    },
+    "xloSqlTable": {
+      "procedure": "xloSqlTable",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSqlTables": {
+      "procedure": "xloSqlTables",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloBlock": {
+      "procedure": "xloBlock",
+      "type": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloConcat": {
+      "procedure": "xloConcat",
+      "type": "UQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloFill": {
+      "procedure": "xloFill",
+      "type": "UQQQ$",
+      "macro_type": 1
+    },
+    "xloFillNA": {
+      "procedure": "xloFillNA",
+      "type": "UQQQ$",
+      "macro_type": 1
+    },
+    "xloIndex": {
+      "procedure": "xloIndex",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloPad": {
+      "procedure": "xloPad",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloRegex": {
+      "procedure": "xloRegex",
+      "type": "UQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSearch": {
+      "procedure": "xloSearch",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSort": {
+      "procedure": "xloSort",
+      "type": "UQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSplit": {
+      "procedure": "xloSplit",
+      "type": "UQQQ$",
+      "macro_type": 1
+    }
+  },
+  "native_invocations": {
+    "X3.PyAdd": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 2,
+      "same_ordered_callbacks": [
+        [],
+        []
+      ]
+    },
+    "X3.PyArray": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 2,
+      "same_ordered_callbacks": [
+        [],
+        []
+      ]
+    },
+    "X3.PyHello": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    }
+  },
+  "excel_and_host": [
+    {
+      "records": 600,
+      "paired_calls": 266,
+      "c_api_calls": 249,
+      "trace_sha256": "B1237B45C71F32BC7DF2A7F81D2A1DF818C4F4B8537BAB53D04E57B0A0B12638"
+    },
+    {
+      "records": 584,
+      "paired_calls": 265,
+      "c_api_calls": 249,
+      "trace_sha256": "E196161A1F91200DF070D4FF9211CDE340B0D20D62F87B11127B0913962E4FF1"
+    }
+  ],
+  "x0_callback_code_pairs_observed": 0,
+  "callback_counts_excel_and_host": [
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 18
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 43
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 36
+      },
+      {
+        "function": 614,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 147
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16401,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16403,
+        "return_code": 0,
+        "count": 1
+      }
+    ],
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 18
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 43
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 36
+      },
+      {
+        "function": 614,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 147
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16401,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16403,
+        "return_code": 0,
+        "count": 1
+      }
+    ]
+  ],
+  "reload_checked": false,
+  "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
+  "scope": "All observed native UDF invocations, including repetitions; no full COM, event delivery, RTD or reload claim.",
+  "known_difference": null,
+  "pre_close_callbacks_each_host": 87,
+  "same_ordered_callback_numbers_and_codes": true,
+  "callbacks_equal_after_identity_normalization": 75,
+  "raw_callback_differences": [
+    {
+      "index": 8,
+      "excel": {
+        "function": 614,
+        "args": [
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2048,
+            "value": 1
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 64,
+          "value": {
+            "rows": 1,
+            "columns": 1,
+            "items": [
+              {
+                "type": 2048,
+                "value": 1
+              }
+            ],
+            "omitted": 0
+          }
+        }
+      },
+      "host": {
+        "function": 614,
+        "args": [
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2048,
+            "value": 1
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 64,
+          "value": {
+            "rows": 1,
+            "columns": 1,
+            "items": [
+              {
+                "type": 1,
+                "value": 1
+              }
+            ],
+            "omitted": 0
+          }
+        }
+      }
+    },
+    {
+      "index": 9,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4160,
+            "value": {
+              "rows": 1,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 2048,
+                  "value": 1
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4160,
+            "value": {
+              "rows": 1,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 1,
+                  "value": 1
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 31,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ$"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyArray"
+          },
+          {
+            "type": 2,
+            "value": "n"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyArray>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyHello"
+          },
+          {
+            "type": 2,
+            "value": "name"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyHello>"
+        }
+      }
+    },
+    {
+      "index": 32,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyArray>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyHello>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 33,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyArray>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyHello>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 34,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQQ"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyAdd"
+          },
+          {
+            "type": 2,
+            "value": "a,[b]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyAdd>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ$"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyArray"
+          },
+          {
+            "type": 2,
+            "value": "n"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyArray>"
+        }
+      }
+    },
+    {
+      "index": 35,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyAdd>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyArray>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 36,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyAdd>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyArray>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 37,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyHello"
+          },
+          {
+            "type": 2,
+            "value": "name"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyHello>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQQ"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyAdd"
+          },
+          {
+            "type": 2,
+            "value": "a,[b]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyAdd>"
+        }
+      }
+    },
+    {
+      "index": 38,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyHello>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyAdd>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 39,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyHello>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyAdd>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 85,
+      "excel": {
+        "function": 16401,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlHandleCalculationCancelled"
+          },
+          {
+            "type": 2048,
+            "value": 2
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 2048,
+          "value": -1575550950
+        }
+      },
+      "host": {
+        "function": 16401,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlHandleCalculationCancelled"
+          },
+          {
+            "type": 2048,
+            "value": 2
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 2048,
+          "value": 1
+        }
+      }
+    }
+  ],
+  "ownership_excel_and_host": [
+    {
+      "owned_returns": 5,
+      "free_calls": 5,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 5
+      }
+    },
+    {
+      "owned_returns": 5,
+      "free_calls": 5,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 5
+      }
+    }
+  ],
+  "rewritten_export_registrations_each_host": [
+    3,
+    3
+  ],
+  "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted.",
+  "timing": "Debugger timing is not uninstrumented performance evidence."
+}

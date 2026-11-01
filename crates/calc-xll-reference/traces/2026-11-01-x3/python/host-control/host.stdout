@@ -1,0 +1,2 @@
+{"closed_name":"xloVersion","closed_registration":"#NAME?","commands":[],"duplicate_use_count":null,"host":"DNA Calc / OneCalc controller","live_callback_allocations":0,"numbered_exports":null,"registrations":25,"reload_results":[],"results":[{"formula":"=X3.PyAdd(3,4)","value":7.0},{"formula":"=X3.PyAdd(5)","value":7.0},{"formula":"=X3.PyHello(\"world\")","value":"Hello, world"},{"formula":"=SUM(X3.PyArray(4))","value":20.0},{"formula":"=INDEX(X3.PyArray(4),4,2)","value":9.0}]}
+

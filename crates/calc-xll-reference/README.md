@@ -305,3 +305,16 @@ owns safe reinitialization and comparison of the same lifecycle in Excel.
 Native AOT reinitialization remains dc-snz.19. RTD, event delivery, cancellation,
 concurrent workbook calculation, ribbon/UI integration, the general COM model,
 xlwDotNet, legacy Excel4 and x86 remain unverified.
+
+Final integration at `ed838379` repeats all 27 formulas, 28 native invocations
+and 17 owning-module frees after the shared evaluator changes. The native tests
+pass 21 cases; Linux's full check at `65669173` passes 1,506, with zero failures,
+five ignored and three not run. All 21 complete corpus verdict/evaluation files
+remain byte-identical: 18,812/20,030 matches and 1,218 nonpasses.
+
+The structural sweep passes on clean `65669173`. The full sweep on `97464996`
+remains failed: the Chrome worker runner ran out of memory before startup, and
+DNA Calc has three UI failures in each browser (dc-971p.6). The unchanged worker
+WASM passes all 23 cases in a focused Chrome retry. OneCalc passes 52 cases in
+each browser. The long acceptance suite was skipped. The validation records keep
+the initial file-lock failure, runner failure, retry and exact UI failure messages.

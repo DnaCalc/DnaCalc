@@ -1,0 +1,492 @@
+{
+  "status": "verified X3 measured cases",
+  "fixture": "xlOil.xll",
+  "formula_cases": 12,
+  "matched_each_capture": 12,
+  "controls_match": true,
+  "source_revisions": [
+    "02ba537291f65e286198fd87d695a17a730cd1ab",
+    "baf27cdec01dbb40c19039e2234d613f5fee6f0f",
+    "ed8383790618a0a5359b70116128c502800f3b00"
+  ],
+  "source_publication_revisions": [
+    "02ba537291f65e286198fd87d695a17a730cd1ab",
+    "97464996d932dc03b4efb85470a548f7effcb1c1",
+    "656691738186b5103cbe2f2ca95cc7d6e51f8fcd",
+    "ed8383790618a0a5359b70116128c502800f3b00"
+  ],
+  "same_fixture_files": {
+    "xlOil_SQL.dll": "3294A2525CFB1039BFFB308261D2A3620B4F5AC63545DFCFD26EB0DF055AFF5D",
+    "xlOil_Utils.dll": "74A29DFFB30D3827C5F2A8D9F2B1581A1C7BD6EC33AC44A4490AB5E0300F89FF",
+    "xlOil.dll": "B53A0C3675C49E5BA6139FDC611DC4BF5885B035E6EBE6EEA55B104766A24ABF",
+    "xlOil.ini": "FC0EFA4FCD582988425A94685249C28E217116F6BB321EEF5E8E4D0B901B04C2",
+    "xlOil.xll": "F08E0B44EE61147B25BA153B4126435472D3CD6252F1A26A1177180C6DC7A8B0"
+  },
+  "registration_forms": {
+    "xloRunInXLLContext": {
+      "procedure": "xloRunInXLLContext",
+      "type": "U#",
+      "macro_type": 0
+    },
+    "xloVersion": {
+      "procedure": "xloVersion",
+      "type": "U$",
+      "macro_type": 1
+    },
+    "xloLog": {
+      "procedure": "xloLog",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloHelp": {
+      "procedure": "xloHelp",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloRef": {
+      "procedure": "xloRef",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloVal": {
+      "procedure": "xloVal",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "RegistrationInfo_<guid>": {
+      "procedure": "IntellisenseRegistrationInfo",
+      "type": "UQ",
+      "macro_type": 0
+    },
+    "xloSql": {
+      "procedure": "xloSql",
+      "type": "UQQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSqlDB": {
+      "procedure": "xloSqlDB",
+      "type": "U$",
+      "macro_type": 1
+    },
+    "xloSqlQuery": {
+      "procedure": "xloSqlQuery",
+      "type": "UQQ$",
+      "macro_type": 1
+    },
+    "xloSqlTable": {
+      "procedure": "xloSqlTable",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSqlTables": {
+      "procedure": "xloSqlTables",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloBlock": {
+      "procedure": "xloBlock",
+      "type": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloConcat": {
+      "procedure": "xloConcat",
+      "type": "UQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloFill": {
+      "procedure": "xloFill",
+      "type": "UQQQ$",
+      "macro_type": 1
+    },
+    "xloFillNA": {
+      "procedure": "xloFillNA",
+      "type": "UQQQ$",
+      "macro_type": 1
+    },
+    "xloIndex": {
+      "procedure": "xloIndex",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloPad": {
+      "procedure": "xloPad",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloRegex": {
+      "procedure": "xloRegex",
+      "type": "UQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSearch": {
+      "procedure": "xloSearch",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSort": {
+      "procedure": "xloSort",
+      "type": "UQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSplit": {
+      "procedure": "xloSplit",
+      "type": "UQQQ$",
+      "macro_type": 1
+    }
+  },
+  "native_invocations": {
+    "xloConcat": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 3,
+      "same_ordered_callbacks": [
+        [],
+        [],
+        []
+      ]
+    },
+    "xloFill": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 2,
+      "same_ordered_callbacks": [
+        [],
+        []
+      ]
+    },
+    "xloRegex": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 2,
+      "same_ordered_callbacks": [
+        [],
+        []
+      ]
+    },
+    "xloSort": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "xloSplit": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 3,
+      "same_ordered_callbacks": [
+        [],
+        [],
+        []
+      ]
+    },
+    "xloSql": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "xloVersion": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    }
+  },
+  "excel_and_host": [
+    {
+      "records": 755,
+      "paired_calls": 340,
+      "c_api_calls": 213,
+      "trace_sha256": "4C191DC0854EE4991F50E88E1EE6AD429F9BB350BF9E310DAE406C4FB60ED8FD"
+    },
+    {
+      "records": 534,
+      "paired_calls": 244,
+      "c_api_calls": 213,
+      "trace_sha256": "AF714216D8656724595F45E026BEB586FCCEA612C3B52D766520543CBF17AD5C"
+    }
+  ],
+  "x0_callback_code_pairs_observed": 0,
+  "callback_counts_excel_and_host": [
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 15
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 37
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 30
+      },
+      {
+        "function": 614,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 126
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16401,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16403,
+        "return_code": 0,
+        "count": 1
+      }
+    ],
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 15
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 37
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 30
+      },
+      {
+        "function": 614,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 126
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16401,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16403,
+        "return_code": 0,
+        "count": 1
+      }
+    ]
+  ],
+  "reload_checked": false,
+  "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
+  "scope": "All observed native UDF invocations, including repetitions; no full COM, event delivery, RTD or reload claim.",
+  "known_difference": null,
+  "pre_close_callbacks_each_host": 78,
+  "same_ordered_callback_numbers_and_codes": true,
+  "callbacks_equal_after_identity_normalization": 75,
+  "raw_callback_differences": [
+    {
+      "index": 8,
+      "excel": {
+        "function": 614,
+        "args": [
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2048,
+            "value": 1
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 64,
+          "value": {
+            "rows": 1,
+            "columns": 1,
+            "items": [
+              {
+                "type": 2048,
+                "value": 1
+              }
+            ],
+            "omitted": 0
+          }
+        }
+      },
+      "host": {
+        "function": 614,
+        "args": [
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2048,
+            "value": 1
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 64,
+          "value": {
+            "rows": 1,
+            "columns": 1,
+            "items": [
+              {
+                "type": 1,
+                "value": 1
+              }
+            ],
+            "omitted": 0
+          }
+        }
+      }
+    },
+    {
+      "index": 9,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4160,
+            "value": {
+              "rows": 1,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 2048,
+                  "value": 1
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4160,
+            "value": {
+              "rows": 1,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 1,
+                  "value": 1
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 76,
+      "excel": {
+        "function": 16401,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlHandleCalculationCancelled"
+          },
+          {
+            "type": 2048,
+            "value": 2
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 2048,
+          "value": -1838219241
+        }
+      },
+      "host": {
+        "function": 16401,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlHandleCalculationCancelled"
+          },
+          {
+            "type": 2048,
+            "value": 2
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 2048,
+          "value": 1
+        }
+      }
+    }
+  ],
+  "ownership_excel_and_host": [
+    {
+      "owned_returns": 12,
+      "free_calls": 12,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 1,
+        "xlOil_Utils.dll": 10,
+        "xlOil_SQL.dll": 1
+      }
+    },
+    {
+      "owned_returns": 12,
+      "free_calls": 12,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 1,
+        "xlOil_Utils.dll": 10,
+        "xlOil_SQL.dll": 1
+      }
+    }
+  ],
+  "rewritten_export_registrations_each_host": [
+    0,
+    0
+  ],
+  "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted.",
+  "timing": "Debugger timing is not uninstrumented performance evidence."
+}

@@ -1,0 +1,37 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.56s
+     Running `target\debug\xtask.exe sweep --skip wasm --skip app-smoke --skip acceptance`
+   Compiling calc-doc-model v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-doc-model)
+   Compiling calc-oracle-excel v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\platform\calc-oracle-excel)
+   Compiling calc-platform-desktop v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\platform\calc-platform-desktop)
+   Compiling xtask v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\tools\xtask)
+   Compiling calc-doc v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-doc)
+   Compiling calc-engine v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-engine)
+   Compiling calc-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-host)
+   Compiling xtask-harness v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\tools\xtask-harness)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 46.80s
+warning: field `driver_pid` is never read
+   --> tools\xtask-harness\src\app.rs:797:5
+    |
+793 | struct Session {
+    |        ------- field in this struct
+...
+797 |     driver_pid: u32,
+    |     ^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+SWEEP running architecture
+SWEEP passed architecture dependencies: 12 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown
+SWEEP passed architecture os-imports: 428 non-test source files of 17 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure
+SWEEP passed architecture wasm-refusal: 10 native-only packages (calc-xll-abi, calc-xll-host, calc-com-host, calc-xll-fixture, dna-calc-desktop, calc-xll-shim, calc-platform-desktop, calc-oracle-excel, xtask, xtask-harness) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!
+SWEEP passed architecture tree-reference-tokens: 428 non-test source files and 0 build-script files of 17 portable packages against 6 denied phrases and the include macros; 1 exact identifier allowances
+SWEEP running provenance
+SWEEP running ceiling
+SWEEP skipped wasm (--skip)
+SWEEP skipped app-smoke (--skip)
+SWEEP skipped acceptance (--skip)
+SWEEP summary:
+SWEEP passed architecture (0 min 43 s): dependencies passed, os-imports passed, wasm-refusal passed, tree-reference-tokens passed
+SWEEP passed provenance (3 min 1 s): 556 tracked files under crates/calc-func and crates/calc-value against 560 ledger entries; 0 markers of 5 families in 0 of 2648 text files under crates, apps, platform, tools, deploy, allowances 0 in 0 files
+SWEEP passed ceiling (0 min 1 s): ["dna-onecalc", "dna-formula-ui"] reach none of ["calc-engine", "calc-doc", "calc-host"], and dna-calc does not depend on dna-onecalc, on x86_64-pc-windows-msvc and wasm32-unknown-unknown
+SWEEP RESULT passed: 3 steps, 3 skipped (3 min 46 s)

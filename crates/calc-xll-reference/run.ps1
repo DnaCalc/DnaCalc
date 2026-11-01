@@ -40,7 +40,7 @@ if ($ExcelDnaDirectory) {
 }
 if ($X1Xll -or $ExcelDnaDirectory -or $AddInDirectory) {
     $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-    foreach ($directory in 'crates/calc-xll-abi','crates/calc-xll-host','crates/calc-xll-fixture','crates/calc-com-host','platform/calc-xll-shim','apps/dna-calc-desktop','crates/calc-fml','crates/calc-func','crates/calc-value','apps/dna-onecalc') {
+    foreach ($directory in 'crates/calc-xll-abi','crates/calc-xll-host','crates/calc-xll-fixture','crates/calc-com-host','platform/calc-xll-shim','apps/dna-calc-desktop','crates/calc-fml','crates/calc-syntax','crates/calc-func','crates/calc-value','apps/dna-onecalc') {
         Get-ChildItem -LiteralPath (Join-Path $repositoryRoot $directory) -Recurse -File | Where-Object Extension -in '.rs','.toml','.c','.cpp','.rc' | ForEach-Object {
             $sourceFiles[[IO.Path]::GetRelativePath($repositoryRoot, $_.FullName).Replace('\','/')] = (Get-FileHash -LiteralPath $_.FullName).Hash
         }

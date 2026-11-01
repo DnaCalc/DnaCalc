@@ -1,0 +1,75 @@
+[2026-11-01 14:48:13.757] [logger] [info] [AddinLoader.cpp:65] Found settings file 'C:\Work\DnaCalc\codex-runs\x3-runs\integrated\xloil\excel-traced\xlOil.ini' for 'C:\Work\DnaCalc\codex-runs\x3-runs\integrated\xloil\excel-traced\xlOil.dll'
+[2026-11-01 14:48:13.758] [logger] [debug] [AddinLoader.cpp:112] Creating addin context for 'C:\Work\DnaCalc\codex-runs\x3-runs\integrated\xloil\excel-traced\xlOil.xll'
+[2026-11-01 14:48:13.758] [logger] [debug] [CoreEntryPoint.cpp:71] Loaded xlOil core from: C:\Work\DnaCalc\codex-runs\x3-runs\integrated\xloil\excel-traced\xlOil.dll
+[2026-11-01 14:48:13.760] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRunInXLLContext" at entry point xloRunInXLLContext with 0 args
+[2026-11-01 14:48:14.991] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloVersion" at entry point xloVersion with 0 args
+[2026-11-01 14:48:16.025] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloLog" at entry point xloLog with 1 args
+[2026-11-01 14:48:16.985] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloHelp" at entry point xloHelp with 1 args
+[2026-11-01 14:48:17.947] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRef" at entry point xloRef with 1 args
+[2026-11-01 14:48:18.928] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloVal" at entry point xloVal with 1 args
+[2026-11-01 14:48:19.900] [logger] [debug] [FuncRegistry.cpp:229] Registering "RegistrationInfo_660e7cf9557757b4a33a2d7e0d5cc126" at entry point IntellisenseRegistrationInfo with 1 args
+[2026-11-01 14:48:20.854] [logger] [info] [PluginLoader.cpp:62] Loading plugins from settings file C:\Work\DnaCalc\codex-runs\x3-runs\integrated\xloil\excel-traced\xlOil.ini
+[2026-11-01 14:48:20.855] [logger] [info] [PluginLoader.cpp:79] Loading plugin xlOil_SQL
+[2026-11-01 14:48:20.867] [logger] [info] [FuncRegistry.cpp:222] Excel does not support help strings longer than 255 chars. Truncating for function 'xloSql'
+[2026-11-01 14:48:20.867] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSql" at entry point xloSql with 12 args
+[2026-11-01 14:48:21.736] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlDB" at entry point xloSqlDB with 0 args
+[2026-11-01 14:48:22.643] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlQuery" at entry point xloSqlQuery with 2 args
+[2026-11-01 14:48:23.578] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlTable" at entry point xloSqlTable with 5 args
+[2026-11-01 14:48:24.438] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSqlTables" at entry point xloSqlTables with 1 args
+[2026-11-01 14:48:25.290] [logger] [debug] [PluginLoader.cpp:137] Finished loading plugin xlOil_SQL
+[2026-11-01 14:48:25.290] [logger] [info] [PluginLoader.cpp:62] Loading plugins from settings file C:\Work\DnaCalc\codex-runs\x3-runs\integrated\xloil\excel-traced\xlOil.ini
+[2026-11-01 14:48:25.290] [logger] [info] [PluginLoader.cpp:79] Loading plugin xlOil_Utils
+[2026-11-01 14:48:25.322] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloBlock" at entry point xloBlock with 31 args
+[2026-11-01 14:48:26.324] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloConcat" at entry point xloConcat with 11 args
+[2026-11-01 14:48:27.311] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloFill" at entry point xloFill with 3 args
+[2026-11-01 14:48:28.117] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloFillNA" at entry point xloFillNA with 3 args
+[2026-11-01 14:48:28.905] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloIndex" at entry point xloIndex with 5 args
+[2026-11-01 14:48:29.686] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloPad" at entry point xloPad with 1 args
+[2026-11-01 14:48:30.453] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloRegex" at entry point xloRegex with 6 args
+[2026-11-01 14:48:31.342] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSearch" at entry point xloSearch with 5 args
+[2026-11-01 14:48:32.171] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSort" at entry point xloSort with 10 args
+[2026-11-01 14:48:33.030] [logger] [debug] [FuncRegistry.cpp:229] Registering "xloSplit" at entry point xloSplit with 3 args
+[2026-11-01 14:48:33.834] [logger] [debug] [PluginLoader.cpp:137] Finished loading plugin xlOil_Utils
+[2026-11-01 14:48:35.563] [logger] [debug] [Connect.cpp:93] Made COM connection to Excel at 'C:\Program Files\Microsoft Office\Root\Office16' with hwnd=197200
+[2026-11-01 14:48:48.068] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:48:55.805] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:49:04.051] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:49:18.577] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:49:26.054] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:49:38.089] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:49:44.441] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:49:56.362] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:50:02.744] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:50:14.567] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:50:20.850] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:50:37.154] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:50:43.935] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:50:55.876] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:51:02.274] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:51:14.764] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:51:20.925] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:51:33.010] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:51:39.912] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:51:51.969] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:51:58.553] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:52:10.742] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:52:17.885] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:52:30.400] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:52:37.724] [logger] [debug] [Events.h:175] Firing event AfterCalculate
+[2026-11-01 14:52:45.533] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloBlock
+[2026-11-01 14:52:47.931] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloConcat
+[2026-11-01 14:52:50.588] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloFill
+[2026-11-01 14:52:52.994] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloFillNA
+[2026-11-01 14:52:55.376] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloIndex
+[2026-11-01 14:52:57.690] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloPad
+[2026-11-01 14:52:59.936] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloRegex
+[2026-11-01 14:53:02.406] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSearch
+[2026-11-01 14:53:05.206] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSort
+[2026-11-01 14:53:07.804] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSplit
+[2026-11-01 14:53:10.360] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSql
+[2026-11-01 14:53:12.942] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlDB
+[2026-11-01 14:53:15.525] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlQuery
+[2026-11-01 14:53:17.944] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlTable
+[2026-11-01 14:53:20.526] [logger] [debug] [FuncRegistry.cpp:299] Deregistering xloSqlTables
+[2026-11-01 14:53:23.010] [logger] [debug] [PluginLoader.cpp:193] Unloading plugin xlOil_SQL
+[2026-11-01 14:53:23.011] [logger] [debug] [PluginLoader.cpp:193] Unloading plugin xlOil_Utils

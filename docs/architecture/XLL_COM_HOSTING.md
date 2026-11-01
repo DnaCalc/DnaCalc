@@ -512,8 +512,9 @@ instrumentation. The comparison checks ordered UDF callbacks and 17 exact-pointe
 same-thread frees through their owning core/plugin modules before reuse.
 
 The host reads packed XLOPER12 operands and UTF-16 strings without assuming native
-alignment, supplies the actual executable instance handle, and obtains international
-settings from Windows NLS. Lifecycle FILTER calls use the existing CalcFunc path.
+alignment, supplies the actual executable instance handle, and obtains regional
+settings from Windows NLS with English interface/function syntax. Other locales
+remain unverified. Lifecycle FILTER calls use the existing CalcFunc path.
 COM adds the observed Window.Parent workbook, its application/name/path properties,
 and the Workbooks collection. This is one Book1 object, not a general workbook
 object model. No Excel registration or security setting is changed.

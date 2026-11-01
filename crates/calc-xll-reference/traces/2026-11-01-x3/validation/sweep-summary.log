@@ -1,0 +1,36 @@
+SWEEP running architecture
+SWEEP passed architecture dependencies: 11 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown
+SWEEP passed architecture os-imports: 426 non-test source files of 16 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure
+SWEEP passed architecture wasm-refusal: 10 native-only packages (calc-xll-abi, calc-xll-host, calc-com-host, calc-xll-fixture, dna-calc-desktop, calc-xll-shim, calc-platform-desktop, calc-oracle-excel, xtask, xtask-harness) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!
+SWEEP passed architecture tree-reference-tokens: 426 non-test source files and 0 build-script files of 16 portable packages against 6 denied phrases and the include macros; 1 exact identifier allowances
+SWEEP running provenance
+SWEEP running ceiling
+SWEEP running wasm
+CI RESULT failed: wasm with 2 problems; record target/ci/wasm/executed-targets.json; exit code 1
+SWEEP wasm calc-value: Chrome ran 30, Firefox ran 30 of 30 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm calc-func: Chrome ran 511, Firefox ran 511 of 511 tests marked for the browsers; 14 native-only (3 compares with the x87 hardware, which only x86_64 has.; 4 it runs the x87 hardware, which only x86_64 has.; 1 the reference is the MSVC runtime's `pow`, which only Windows has.; 4 the reference is the MSVC runtime's libm, which only Windows has.; 2 the x87 assembly these tests run compiles only on x86_64.); 0 unmarked
+SWEEP wasm calc-verdict: Chrome ran 57, Firefox ran 57 of 57 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm calc-fml: Chrome ran 81, Firefox ran 81 of 81 tests marked for the browsers; 1 native-only (1 exercises distinct OS thread identity namespaces.); 0 unmarked
+SWEEP wasm calc-vba: Chrome ran 7, Firefox ran 7 of 7 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm calc-doc-model: Chrome ran 12, Firefox ran 12 of 12 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm calc-doc: Chrome ran 56, Firefox ran 56 of 56 tests marked for the browsers; 1 native-only (1 it lists the fixture directories on disk, which a browser cannot read.); 0 unmarked
+SWEEP wasm calc-engine: Chrome ran 7, Firefox ran 7 of 7 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm calc-host: Chrome ran 120, Firefox ran 120 of 120 tests marked for the browsers; 4 native-only (1 it reads and writes the workbook files an environment variable names.; 2 it reads the repository's oracle workbooks from disk (wasm32 runs on one thread).; 1 product dispatch and history wall-clock cost, calculation outside the timer.); 0 unmarked
+SWEEP wasm dna-formula-ui: Chrome ran 17, Firefox ran 17 of 17 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm dna-calc-model: Chrome ran 87, Firefox ran 87 of 87 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm dna-strand: Chrome ran 24, Firefox ran 24 of 24 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm dna-onecalc: Chrome ran 13, Firefox ran 13 of 13 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm dna-calc: Chrome ran 80, Firefox ran 80 of 80 tests marked for the browsers; 3 native-only (1 it reads the workbook the environment variable `DNACALC_OPEN_TIMING` names from; 1 it writes the saved workbook to the folder `DNACALC_RIF_SAVE_DIR` names, for Excel; 1 it writes the saved workbooks to the folder `DNACALC_RIF_SAVE_DIR` names, for); 0 unmarked
+SWEEP wasm dna-calc-protocol: Chrome ran 7, Firefox ran 7 of 7 tests marked for the browsers; 0 native-only; 0 unmarked
+SWEEP wasm dna-calc-worker: Chrome ran 0, Firefox ran 23 of 23 tests marked for the browsers; 1 native-only (1 the axis arithmetic and escaping, without a page.); 0 unmarked
+SWEEP running app-smoke
+ONECALC RESULT passed: 52 cases per browser; chromium: 52 passed, 0 failed, 14.696 s; firefox: 52 passed, 0 failed, 13.781 s
+DNACALC RESULT failed: 477 cases per browser; chromium: 474 passed, 3 failed, 340.959 s; firefox: 474 passed, 3 failed, 308.643 s
+SWEEP skipped acceptance (--skip)
+SWEEP summary:
+SWEEP passed architecture (0 min 56 s): dependencies passed, os-imports passed, wasm-refusal passed, tree-reference-tokens passed
+SWEEP passed provenance (2 min 5 s): 556 tracked files under crates/calc-func and crates/calc-value against 560 ledger entries; 0 markers of 5 families in 0 of 2644 text files under crates, apps, platform, tools, deploy, allowances 0 in 0 files
+SWEEP passed ceiling (0 min 34 s): ["dna-onecalc", "dna-formula-ui"] reach none of ["calc-engine", "calc-doc", "calc-host"], and dna-calc does not depend on dna-onecalc, on x86_64-pc-windows-msvc and wasm32-unknown-unknown
+SWEEP failed wasm (35 min 57 s): record target/ci/wasm
+SWEEP failed app-smoke (23 min 57 s): Full app suites; group timings printed above
+SWEEP RESULT failed: wasm, app-smoke (63 min 31 s)

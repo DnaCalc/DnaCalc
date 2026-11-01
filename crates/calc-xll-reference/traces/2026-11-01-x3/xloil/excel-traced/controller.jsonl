@@ -1,0 +1,17 @@
+{"utc":"2026-11-01T12:48:34.4965577Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-01T12:49:11.4621283Z","operation":"=INDEX(xloVersion(),1,2)","value":"0.22.1"}
+{"utc":"2026-11-01T12:49:32.1039034Z","operation":"=xloConcat(\"-\",\"a\",\"b\",3)","value":"a-b-3"}
+{"utc":"2026-11-01T12:49:50.3830894Z","operation":"=INDEX(xloSplit(\"alpha,beta\",\",\"),2,1)","value":"beta"}
+{"utc":"2026-11-01T12:50:08.6616864Z","operation":"=SUM(xloFill(2,3,4))","value":24.0}
+{"utc":"2026-11-01T12:50:31.2178710Z","operation":"=INDEX(xloFill(\"tag\",2,2),2,2)","value":""}
+{"utc":"2026-11-01T12:50:49.9325788Z","operation":"=xloRegex(\"Alpha123\",\"[0-9]+\")","value":true}
+{"utc":"2026-11-01T12:51:08.6056673Z","operation":"=xloRegex(\"Alpha123\",\"([0-9]+)\",\"[$1]\")","value":"[123]"}
+{"utc":"2026-11-01T12:51:27.0622393Z","operation":"=INDEX(xloSort({3;1;2}),1,1)","value":1.0}
+{"utc":"2026-11-01T12:51:45.9009986Z","operation":"=xloConcat(\",\",xloSplit(\"a,b\",\",\"))","value":"a,b"}
+{"utc":"2026-11-01T12:52:04.5927868Z","operation":"=INDEX(xloSplit({\"a,b\";\"c,d\"},\",\"),2,2)","value":"d"}
+{"utc":"2026-11-01T12:52:24.1859997Z","operation":"=xloConcat(\"-\",A1)","value":"7"}
+{"utc":"2026-11-01T12:52:44.7636252Z","operation":"=INDEX(xloSql(\"SELECT 2 + 3\"),1,1)","value":5.0}
+{"utc":"2026-11-01T12:53:23.1319370Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-01T12:53:23.3867676Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-01T12:53:23.4630873Z","operation":"tracer exit","value":0}
+{"utc":"2026-11-01T12:53:24.2170746Z","operation":"cleanup","value":"Stopped owned Excel PID 54212"}

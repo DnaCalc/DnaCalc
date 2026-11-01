@@ -1,0 +1,30 @@
+{
+  "source_commit": "97464996d932dc03b4efb85470a548f7effcb1c1",
+  "failures": [
+    {
+      "case": "DNACALC SMOKE chromium failed: its column widths, row heights and hidden column and row lay out the grid",
+      "detail": "expected [data-dnacalc=\"cell\"][data-cell=\"E3\"]'s style sets \"left:425px;top:62px;width:289px;height:40px\"; saw [[\"left\",\"425px\",\"425px\"],[\"top\",\"62px\",\"62px\"],[\"width\",\"225px\",\"289px\"],[\"height\",\"40px\",\"40px\"]]"
+    },
+    {
+      "case": "DNACALC SMOKE chromium failed: alignment: text spills left, right or both ways while keeping its physical anchor",
+      "detail": "expected [data-dnacalc=\"cell\"][data-cell=\"B3\"] text clips between columns B and E; saw false"
+    },
+    {
+      "case": "DNACALC SMOKE chromium failed: alignment: editing a neighbour releases and blocks overflow; saved alignment reopens",
+      "detail": "action 3 failed: expected [data-dnacalc=\"cell\"][data-cell=\"E9\"] text clips between columns B and E; saw false"
+    },
+    {
+      "case": "DNACALC SMOKE firefox failed: its column widths, row heights and hidden column and row lay out the grid",
+      "detail": "expected [data-dnacalc=\"cell\"][data-cell=\"E3\"]'s style sets \"left:425px;top:62px;width:289px;height:40px\"; saw [[\"left\",\"425px\",\"425px\"],[\"top\",\"62px\",\"62px\"],[\"width\",\"225px\",\"289px\"],[\"height\",\"40px\",\"40px\"]]"
+    },
+    {
+      "case": "DNACALC SMOKE firefox failed: alignment: text spills left, right or both ways while keeping its physical anchor",
+      "detail": "expected [data-dnacalc=\"cell\"][data-cell=\"B3\"] text clips between columns B and E; saw false"
+    },
+    {
+      "case": "DNACALC SMOKE firefox failed: alignment: editing a neighbour releases and blocks overflow; saved alignment reopens",
+      "detail": "action 3 failed: expected [data-dnacalc=\"cell\"][data-cell=\"E9\"] text clips between columns B and E; saw false"
+    }
+  ],
+  "owner_bead": "dc-971p.6"
+}

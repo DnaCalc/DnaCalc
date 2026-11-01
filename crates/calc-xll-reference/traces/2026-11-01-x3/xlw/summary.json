@@ -1,0 +1,180 @@
+{
+  "status": "verified X3 measured cases",
+  "fixture": "xlwSample.xll",
+  "formula_cases": 5,
+  "matched_each_capture": 5,
+  "controls_match": true,
+  "source_revisions": [
+    "02ba537291f65e286198fd87d695a17a730cd1ab",
+    "baf27cdec01dbb40c19039e2234d613f5fee6f0f",
+    "ed8383790618a0a5359b70116128c502800f3b00"
+  ],
+  "source_publication_revisions": [
+    "02ba537291f65e286198fd87d695a17a730cd1ab",
+    "97464996d932dc03b4efb85470a548f7effcb1c1",
+    "656691738186b5103cbe2f2ca95cc7d6e51f8fcd",
+    "ed8383790618a0a5359b70116128c502800f3b00"
+  ],
+  "same_fixture_files": {
+    "xlwSample.xll": "D01B0DC43C92619E3FC910F998E4A59C7132976F2D031B5B6AFAA3161E7F4565"
+  },
+  "registration_forms": {
+    "EchoShort": {
+      "procedure": "xlEchoShort",
+      "type": "QQ",
+      "macro_type": 1
+    }
+  },
+  "native_invocations": {
+    "EchoShort": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 5,
+      "same_ordered_callbacks": [
+        [],
+        [],
+        [],
+        [
+          [
+            16386,
+            [
+              {
+                "type": 2,
+                "value": "12"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 12
+            }
+          ]
+        ],
+        []
+      ]
+    }
+  },
+  "excel_and_host": [
+    {
+      "records": 52,
+      "paired_calls": 19,
+      "c_api_calls": 12,
+      "trace_sha256": "2252854B072CE05906A79A8B3627450C07635D8BDC7DBA385C1F6F8A87DD3A5B"
+    },
+    {
+      "records": 53,
+      "paired_calls": 22,
+      "c_api_calls": 14,
+      "trace_sha256": "80C43E955063D6FBA7174F3803E0521E4445E6754D3995B3B68561B981424F59"
+    }
+  ],
+  "x0_callback_code_pairs_observed": 0,
+  "callback_counts_excel_and_host": [
+    [
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 16386,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16393,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 32890,
+        "return_code": 0,
+        "count": 3
+      }
+    ],
+    [
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 3
+      },
+      {
+        "function": 16386,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 16393,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 32890,
+        "return_code": 0,
+        "count": 3
+      }
+    ]
+  ],
+  "reload_checked": false,
+  "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
+  "scope": "All observed native UDF invocations, including repetitions; no full COM, event delivery, RTD or reload claim.",
+  "known_difference": null,
+  "pre_close_callbacks_each_host": 12,
+  "same_ordered_callback_numbers_and_codes": true,
+  "callbacks_equal_after_identity_normalization": 12,
+  "raw_callback_differences": [],
+  "ownership_excel_and_host": [
+    {
+      "owned_returns": 0,
+      "free_calls": 0,
+      "same_pointer_thread_and_module": true,
+      "by_module": {}
+    },
+    {
+      "owned_returns": 0,
+      "free_calls": 0,
+      "same_pointer_thread_and_module": true,
+      "by_module": {}
+    }
+  ],
+  "rewritten_export_registrations_each_host": [
+    0,
+    0
+  ],
+  "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted.",
+  "timing": "Debugger timing is not uninstrumented performance evidence."
+}
