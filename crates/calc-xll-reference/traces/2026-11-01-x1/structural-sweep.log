@@ -1,0 +1,22 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.38s
+     Running `target\debug\xtask.exe sweep --skip wasm --skip app-smoke --skip acceptance`
+   Compiling calc-engine v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-engine)
+   Compiling calc-doc v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-doc)
+   Compiling calc-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-host)
+   Compiling xtask-harness v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\tools\xtask-harness)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 31.87s
+SWEEP running architecture
+SWEEP passed architecture dependencies: 11 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown
+SWEEP passed architecture os-imports: 417 non-test source files of 16 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure
+SWEEP passed architecture wasm-refusal: 9 native-only packages (calc-xll-abi, calc-xll-host, calc-xll-fixture, dna-calc-desktop, calc-xll-shim, calc-platform-desktop, calc-oracle-excel, xtask, xtask-harness) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!
+SWEEP passed architecture tree-reference-tokens: 417 non-test source files and 0 build-script files of 16 portable packages against 6 denied phrases and the include macros
+SWEEP running provenance
+SWEEP running ceiling
+SWEEP skipped wasm (--skip)
+SWEEP skipped app-smoke (--skip)
+SWEEP skipped acceptance (--skip)
+SWEEP summary:
+SWEEP passed architecture (0 min 53 s): dependencies passed, os-imports passed, wasm-refusal passed, tree-reference-tokens passed
+SWEEP passed provenance (1 min 50 s): 556 tracked files under crates/calc-func and crates/calc-value against 560 ledger entries; 0 markers of 5 families in 0 of 2413 text files under crates, apps, platform, tools, deploy, allowances 0 in 0 files
+SWEEP passed ceiling (0 min 1 s): ["dna-onecalc", "dna-formula-ui"] reach none of ["calc-engine", "calc-doc", "calc-host"], and dna-calc does not depend on dna-onecalc, on x86_64-pc-windows-msvc and wasm32-unknown-unknown
+SWEEP RESULT passed: 3 steps, 3 skipped (2 min 44 s)

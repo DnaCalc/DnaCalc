@@ -1,0 +1,30 @@
+{"utc":"2026-11-01T06:14:36.5142050Z","operation":"RegisterXLL X1","value":true}
+{"utc":"2026-11-01T06:14:37.0325345Z","operation":"=MyAdd(1,2)","value":3.0}
+{"utc":"2026-11-01T06:14:37.2698568Z","operation":"=MyAdd(-4,9.5)","value":5.5}
+{"utc":"2026-11-01T06:14:37.5664204Z","operation":"=MyEcho(\"hello 😀\")","value":"hello 😀"}
+{"utc":"2026-11-01T06:14:37.8665493Z","operation":"=SUM(MyEcho({1,2;3,4}))","value":10.0}
+{"utc":"2026-11-01T06:14:38.1503614Z","operation":"=MyEcho(TRUE)","value":true}
+{"utc":"2026-11-01T06:14:38.4329395Z","operation":"raw =MyEcho(#N/A)","value":-2146826246}
+{"utc":"2026-11-01T06:14:38.4421242Z","operation":"=MyEcho(#N/A)","value":{"error":"#N/A"}}
+{"utc":"2026-11-01T06:14:38.9631865Z","operation":"=MyOwned()","value":"native owned"}
+{"utc":"2026-11-01T06:14:39.2071934Z","operation":"=MyThreadSafe(9)","value":10.0}
+{"utc":"2026-11-01T06:14:39.9245154Z","operation":"=MyCaller()","value":"2,2,1,1"}
+{"utc":"2026-11-01T06:14:40.3892838Z","operation":"=MyReference(A1)","value":7.0}
+{"utc":"2026-11-01T06:14:40.9295857Z","operation":"=MyAsync(41)","value":42.0}
+{"utc":"2026-11-01T06:14:41.3977676Z","operation":"=MyCallbacks(7,8)","value":15.0}
+{"utc":"2026-11-01T06:14:41.6260656Z","operation":"=MyWide(\"counted 😀\")","value":"counted 😀"}
+{"utc":"2026-11-01T06:14:41.8575189Z","operation":"=MyFpSum({1,2;3,4})","value":10.0}
+{"utc":"2026-11-01T06:14:42.1011812Z","operation":"=MyMix(1,2,3,4,5)","value":15.0}
+{"utc":"2026-11-01T06:14:42.3379816Z","operation":"=MyVolatile(5)","value":6.0}
+{"utc":"2026-11-01T06:14:42.5725571Z","operation":"=MyDynamicA(40)","value":41.0}
+{"utc":"2026-11-01T06:14:42.8089772Z","operation":"=MyDynamicB(40)","value":42.0}
+{"utc":"2026-11-01T06:14:43.0292666Z","operation":"raw =MyNonfiniteValue()","value":-2146826252}
+{"utc":"2026-11-01T06:14:43.0331386Z","operation":"=MyNonfiniteValue()","value":{"error":"#NUM!"}}
+{"utc":"2026-11-01T06:14:43.2679002Z","operation":"raw =MyNonfinitePointer()","value":-2146826252}
+{"utc":"2026-11-01T06:14:43.2714301Z","operation":"=MyNonfinitePointer()","value":{"error":"#NUM!"}}
+{"utc":"2026-11-01T06:14:43.5076854Z","operation":"raw =MyNonfiniteOper()","value":-2146826252}
+{"utc":"2026-11-01T06:14:43.5115505Z","operation":"=MyNonfiniteOper()","value":{"error":"#NUM!"}}
+{"utc":"2026-11-01T06:15:00.9563227Z","operation":"ExecuteExcel4Macro UNREGISTER(X1)","value":true}
+{"utc":"2026-11-01T06:15:00.9615198Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-01T06:15:01.0552853Z","operation":"tracer exit","value":0}
+{"utc":"2026-11-01T06:15:02.1431523Z","operation":"cleanup","value":"Stopped owned Excel PID 25140"}

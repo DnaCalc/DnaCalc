@@ -213,14 +213,18 @@ def verify_x1(excel, excel_control, host, host_control):
     require(len(expected) == 21, "X1 case denominator changed")
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig"))
                     for p in (excel, excel_control, host, host_control)]
+    require(len({env["repository_commit"] for env in environments}) == 1, "Different capture source revisions")
     for env in environments:
         require(env["native_xll_sha256"] == environments[0]["native_xll_sha256"], "Different fixture binaries")
         require(env["cases_sha256"] == digest(cases_path), "Case file differs from capture")
         root = Path(__file__).resolve().parents[2]
+        require(source_matches(env["tracer_source_sha256"], Path(__file__).resolve().parent / "native/trace.cpp", env["repository_commit"]), "Tracer source not retained")
         for source, sha in env["source_files"].items():
             require(source_matches(sha, root / source, env["repository_commit"]), "Source not retained: " + source)
     require(environments[0]["excel_file_version"] == environments[1]["excel_file_version"], "Different Excel builds")
     require(environments[2]["executable_sha256"] == environments[3]["executable_sha256"], "Different host binaries")
+    require(environments[2]["shim_sha256"] == environments[3]["shim_sha256"], "Different companion DLL binaries")
+    require(environments[0]["tracer_sha256"] == environments[2]["tracer_sha256"], "Different tracer binaries")
     require(environments[2]["executable_version"].startswith("16."), "Missing host version resource")
     for directory, env in zip((excel, excel_control), environments):
         require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
@@ -270,9 +274,15 @@ def verify_x1(excel, excel_control, host, host_control):
         dynamic = {x["entry"].rsplit(":", 1)[-1]: x["result"] for x in leaves.values() if ":MyDynamic" in x["entry"]}
         require(dynamic == {"MyDynamicA": 41, "MyDynamicB": 42}, "Registration address was not frozen")
     require(counts[0] == counts[1], "C API function/return-code counts differ between Excel and DNA Calc")
+    sequence = [[(x["function"], x["return_code"]) for x in events
+                 if x["event"] == "leave" and "return_code" in x] for events in (excel_events, host_events)]
+    require(sequence[0] == sequence[1], "Ordered C API callback/return-code sequences differ")
     require(signatures[0] == signatures[1], "Registration signatures differ")
     return {
         "status": "verified X1 fixture boundary", "formula_cases": len(expected), "formula_matches_each_host": len(expected),
+        "source_revision": environments[0]["repository_commit"],
+        "ordered_callback_sequence_matches": True,
+        "trace_sha256": {"excel": digest(excel / "boundary.jsonl"), "dna_calc": digest(host / "boundary.jsonl")},
         "excel_file_version": environments[0]["excel_file_version"], "host_file_version": environments[2]["executable_version"],
         "same_fixture_sha256": environments[0]["native_xll_sha256"],
         "excel_trace_records": len(excel_events), "host_trace_records": len(host_events),

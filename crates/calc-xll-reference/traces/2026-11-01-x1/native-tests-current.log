@@ -1,0 +1,76 @@
+   Compiling calc-value v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-value)
+   Compiling calc-xll-abi v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-abi)
+   Compiling calc-func v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-func)
+   Compiling dna-calc-model v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\apps\dna-calc-model)
+   Compiling calc-xll-shim v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\platform\calc-xll-shim)
+   Compiling calc-xll-fixture v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-fixture)
+   Compiling calc-fml v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-fml)
+   Compiling calc-vba v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-vba)
+   Compiling calc-xll-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-host)
+   Compiling dna-formula-ui v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\apps\dna-formula-ui)
+   Compiling dna-onecalc v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\apps\dna-onecalc)
+   Compiling dna-calc-desktop v0.1.0 (C:\Work\DnaCalc\DnaCalc-cdoc\apps\dna-calc-desktop)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 28.35s
+     Running unittests src\lib.rs (target\debug\deps\calc_xll_abi-f28097c429fec644.exe)
+
+running 3 tests
+test tests::documented_offsets_and_sizes ... ok
+test signature::tests::x0_observed_signatures_and_invalid_combinations ... ok
+test value::tests::values_copy_before_the_arena_is_freed ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\calc_xll_host-b8b6eaa41d8e8cb2.exe)
+
+running 3 tests
+test callbacks::tests::dropped_preparation_invalidates_its_handle_without_reuse ... ok
+test invoke::tests::native_publication_never_exposes_nonfinite_or_missing_values ... ok
+test callbacks::tests::duplicate_and_completed_async_handles_are_rejected ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\xlcall32-71ec6ef19f800919.exe)
+
+running 1 test
+test bridge::tests::version_and_ready_mode ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\dna_calc_desktop-bb2c579b27f158f8.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\xll.rs (target\debug\deps\xll-381e11431d293a13.exe)
+
+running 9 tests
+test unmeasured_stack_headroom_cannot_become_a_value ... ok
+test unimplemented_evaluate_expression_remains_a_typed_refusal ... ok
+test real_executable_uses_onecalc_for_the_same_excel_fixture ... ok
+test swallowed_unsupported_callbacks_remain_typed_refusals ... ok
+test known_but_unimplemented_worksheet_callbacks_keep_the_xll_owner ... ok
+test helper_module_owns_the_return_and_its_free_callback ... ok
+test failed_second_load_restores_previous_names_and_use_counts ... ok
+test failed_load_rolls_back_every_registration_from_its_origin ... ok
+test ten_thousand_registrations_have_no_small_pool_limit ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.32s
+
+   Doc-tests calc_xll_abi
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests calc_xll_host
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests xlcall32
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

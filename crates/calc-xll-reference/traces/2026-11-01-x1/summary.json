@@ -1,0 +1,106 @@
+{
+  "status": "verified X1 fixture boundary",
+  "formula_cases": 21,
+  "formula_matches_each_host": 21,
+  "source_revision": "523aa3cd2e6b26c3bdafea181873e2095a78a45e",
+  "ordered_callback_sequence_matches": true,
+  "trace_sha256": {
+    "excel": "609498B6ADAD86B01997CC6DE323299DA669D76BB72B2441BA27DBB0EEBBAF22",
+    "dna_calc": "2DB9E84DFB15FD7A6EA3081B786A9181F08B02A6F86F2CC046E1DCC447B2A3A7"
+  },
+  "excel_file_version": "16.0.20527.20088",
+  "host_file_version": "16.0.0.1",
+  "same_fixture_sha256": "AD2D226E90EC0ACB15847DDF18186021F87C9FF75C7F5DB2E5BEC4667EA0C661",
+  "excel_trace_records": 343,
+  "host_trace_records": 334,
+  "c_api_calls_each_host": 127,
+  "callback_return_codes": [
+    {
+      "function": 4,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 88,
+      "return_code": 0,
+      "calls_each_host": 19
+    },
+    {
+      "function": 89,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 89,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 149,
+      "return_code": 0,
+      "calls_each_host": 19
+    },
+    {
+      "function": 186,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 201,
+      "return_code": 0,
+      "calls_each_host": 19
+    },
+    {
+      "function": 16384,
+      "return_code": 0,
+      "calls_each_host": 60
+    },
+    {
+      "function": 16384,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16385,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16386,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16393,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16393,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16400,
+      "return_code": 0,
+      "calls_each_host": 1
+    }
+  ],
+  "ownership_excel_and_host": [
+    {
+      "returns": 1,
+      "frees": 1,
+      "same_pointer_and_thread": true
+    },
+    {
+      "returns": 1,
+      "frees": 1,
+      "same_pointer_and_thread": true
+    }
+  ],
+  "registration_time_address_lookup": true,
+  "controls_match": true,
+  "timing": "debugger timing; no uninstrumented scheduling or latency claim",
+  "scope": "OneCalc controller in a minimal native executable; no Excel-DNA, COM object model or worker scheduling claim",
+  "async_result_operand": "Excel direct callback leaves type zero; DNA Calc supplies the documented Boolean. Callback codes and published values match; this raw output difference remains recorded."
+}

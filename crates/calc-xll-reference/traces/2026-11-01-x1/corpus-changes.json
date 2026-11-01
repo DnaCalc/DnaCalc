@@ -1,0 +1,18 @@
+{
+  "formula_cells_compared": 20030,
+  "gains": 1,
+  "losses": 0,
+  "changes": [
+    {
+      "report": "calc-func_catalogue_oracle.xlsx/session-1/report.json",
+      "sheet": "prefix_metadata",
+      "row": 128,
+      "column": 1,
+      "before": "mismatched",
+      "after": "matched",
+      "formula": "=IMSEC(\"4+3i\")",
+      "upstream_commit": "19b799bd",
+      "attribution": "The changed reciprocal implementation was merged from upstream during this run."
+    }
+  ]
+}

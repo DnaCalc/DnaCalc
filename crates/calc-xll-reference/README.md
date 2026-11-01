@@ -137,6 +137,18 @@ Two registrations rewrite the fixture's own PE export metadata, then restore it;
 their different results check registration-time address retention as xlOil needs.
 This tests registry capacity, not an Excel-DNA 10,000-export binary in this host.
 
+The [retained X1 comparison](traces/2026-11-01-x1/summary.json) binds product source
+`523aa3cd` and the same fixture binary in both hosts. All 21 formulas agree; the
+ordered 127 C API callback numbers and return codes agree, including the four
+outside-context failures. Each host calls xlAutoFree12 once with the returned
+pointer on the same thread. Traced and untraced controls agree. The raw async
+result-operand difference remains visible in the captures and discrepancy note.
+The retained source check has 1,490 passing tests. The structural sweep checks
+layering, OS imports, each native package's own wasm refusal, provenance and the
+dependency limits; browser tests, app smoke and acceptance were skipped. Corpus
+summaries record 18,811 to 18,812 matches over 20,030 cells, with one IMSEC gain
+corresponding to merged upstream `19b799bd` and zero losses.
+
 Use the existing runner and tracer for four separate fresh directories:
 
 ```powershell

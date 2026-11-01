@@ -411,3 +411,31 @@ session. Ribbon activation and DllGetClassObject therefore remain unmeasured. RT
 table, early-bound COM vtables, legacy Excel4 and x86 also remain open. xlw and xlOil were not
 built or loaded; the reference README records the upstream source-build requirements. These
 captures establish X0 observations, not compatibility of a DNA Calc host that does not yet exist.
+
+## 10. X1 native host (2026-11-01, dc-snz.17)
+
+`calc-xll-abi` now supplies XLOPER12/FP12 layouts, registration type parsing and
+value arenas. `calc-xll-host` loads XLLs, retains registration-time addresses and
+the separate originating and free modules, dispatches C API callbacks and copies
+results before releasing their storage. Failed loads restore the previous names
+and use counts. The caller-owned `UserFunctions` registry connects it to CalcFml.
+The existing Ftab table moved from CalcDoc to CalcFml so both consumers share it.
+
+The minimal `dna-calc-desktop` executable creates an STA and hidden Win32 window
+hierarchy, exports MdCallBack12, carries version 16.x and calculates through the
+ordinary OneCalc controller. `calc-xll-shim` builds its XLCALL32 companion. There
+is no native dependency in the browser application closures.
+
+The [same-binary fixture comparison](../../crates/calc-xll-reference/traces/2026-11-01-x1/summary.json)
+records 21 agreeing formulas, including `=MyAdd(1,2)` = 3, and the same ordered
+127 callback numbers and return codes in Excel 16.0.20527.20088 and DNA Calc.
+Exact-pointer/same-thread DLLFree ownership and two addresses registered through
+a rewritten export are checked. Native process tests cover 10,000 extra names,
+helper-module ownership, failed-load rollback and refusals that survive handlers.
+
+This establishes X1's own fixture, not Excel-DNA or general XLL compatibility.
+Synchronous entries stay on the main lane; async waits for one completion.
+COM objects, command integration, worker scheduling and complete async lifetime
+behavior remain open. The raw xlAsyncReturn result operand differs from this
+Excel build; the documented Boolean is returned by DNA Calc, while callback
+codes and published values match. See the reference folder's discrepancy note.
