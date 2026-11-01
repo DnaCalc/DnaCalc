@@ -7,8 +7,6 @@ use calc_value::{CellKey, GridArea};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-pub const FORMAT_LIMIT: u64 = 32_768;
-
 /// None leaves the property alone; empty colours mean automatic font colour or no fill.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FormatPatch {
@@ -38,24 +36,6 @@ pub struct BorderPatch {
     pub color: String,
 }
 
-pub fn format_cells(areas: &[GridArea]) -> Result<Vec<CellKey>, String> {
-    let count = areas
-        .iter()
-        .try_fold(0u64, |n, a| n.checked_add(a.cell_count()))
-        .ok_or("The selection is too large")?;
-    if count == 0 || count > FORMAT_LIMIT {
-        return Err(format!("Format between 1 and {FORMAT_LIMIT} cells at once"));
-    }
-    let mut cells = BTreeSet::new();
-    for a in areas {
-        for row in a.first().row()..=a.last().row() {
-            for col in a.first().column()..=a.last().column() {
-                cells.insert(CellKey::new(a.sheet(), row, col).expect("bounded area"));
-            }
-        }
-    }
-    Ok(cells.into_iter().collect())
-}
 fn color(value: &str) -> Result<Option<StyleColor>, String> {
     if value.is_empty() {
         return Ok(None);
@@ -361,9 +341,11 @@ pub(crate) fn prepare(
     patch: &FormatPatch,
 ) -> Result<Vec<CellEdit>, String> {
     patch.validate()?;
-    let cells = format_cells(areas)?;
-    for sheet in cells.iter().map(|c| c.sheet()).collect::<BTreeSet<_>>() {
-        crate::can_edit(host, CellKey::new(sheet, 1, 1).expect("sheet anchor"))?;
+    if areas.is_empty() {
+        return Err("Select cells to format".into());
+    }
+    for sheet in areas.iter().map(|a| a.sheet()).collect::<BTreeSet<_>>() {
+        crate::can_edit(host, CellKey::new(sheet, 1, 1).unwrap())?;
     }
     if patch == &FormatPatch::default() {
         return Ok(Vec::new());
@@ -371,8 +353,54 @@ pub(crate) fn prepare(
     let mut table = (**host.styles()).clone();
     let mut mapped = BTreeMap::new();
     let mut edits = Vec::new();
-    for at in cells {
-        let old = host.cell_style(at);
+    for area in areas {
+        let mut changes = Vec::new();
+        for run in format_regions(host, *area)? {
+            let next = if let Some(id) = mapped.get(&run.format) {
+                *id
+            } else {
+                let id = patched_style(&mut table, run.format, patch)?;
+                mapped.insert(run.format, id);
+                id
+            };
+            changes.push((run, next));
+        }
+        if !changes.iter().any(|(run, next)| run.format != *next) {
+            continue;
+        }
+        let whole_axis = (area.first().row() == 1 && area.last().row() == calc_value::MAX_ROWS)
+            || (area.first().column() == 1 && area.last().column() == calc_value::MAX_COLUMNS);
+        let baseline = if whole_axis {
+            let id = if let Some(id) = mapped.get(&0) {
+                *id
+            } else {
+                let id = patched_style(&mut table, 0, patch)?;
+                mapped.insert(0, id);
+                id
+            };
+            table.runs.assign(calc_doc_model::StyleRun {
+                area: *area,
+                format: id,
+            });
+            Some(id)
+        } else {
+            None
+        };
+        for (run, next) in changes {
+            if baseline.map_or(next != run.format, |base| next != base) {
+                table.runs.assign(calc_doc_model::StyleRun {
+                    format: next,
+                    ..run
+                });
+            }
+        }
+    }
+    for (at, old) in host
+        .model()
+        .definitions()
+        .cell_formats()
+        .filter(|(at, _)| areas.iter().any(|a| a.contains(*at)))
+    {
         let next = if let Some(id) = mapped.get(&old) {
             *id
         } else {
@@ -387,8 +415,65 @@ pub(crate) fn prepare(
             });
         }
     }
-    if !edits.is_empty() {
+    if &table != host.styles().as_ref() {
         edits.insert(0, CellEdit::Styles(Arc::new(table)));
     }
     Ok(edits)
+}
+
+/// Current uniform styles, including imported axis defaults and existing style points.
+/// This visits stored records and their boundaries, not every cell of the requested rectangle.
+pub fn format_regions(
+    host: &HostState,
+    area: GridArea,
+) -> Result<Vec<calc_doc_model::StyleRun>, String> {
+    use calc_doc_model::{StyleRun, StyleRuns};
+    if host.model().sheet_by_id(area.sheet()).is_none() {
+        return Err("A selected sheet is unavailable".into());
+    }
+    let mut layers = Vec::new();
+    if let Some(sheet) = host.loaded().sheet(area.sheet()) {
+        layers.extend(sheet.default_styles());
+        for (r, c, format) in sheet.explicit_styles() {
+            if format == sheet.default_style(r, c) {
+                continue;
+            }
+            if host.axis_edits.is_empty()
+                && !area.contains(CellKey::new(area.sheet(), r, c).unwrap())
+            {
+                continue;
+            }
+            layers.push(StyleRun {
+                area: GridArea::cell(CellKey::new(area.sheet(), r, c).unwrap()),
+                format,
+            });
+        }
+    }
+    let mut imported = StyleRuns::from_layers(layers);
+    for edit in &host.axis_edits {
+        imported = imported.moved(*edit);
+    }
+    let sources = imported.iter().chain(host.styles().runs.iter()).chain(
+        host.model()
+            .definitions()
+            .cell_formats()
+            .map(|(at, format)| StyleRun {
+                area: GridArea::cell(at),
+                format,
+            }),
+    );
+    Ok(StyleRuns::regions(area, sources))
+}
+/// Representative cells for exact mixed-property inspection, one per actual style in the areas.
+pub fn format_samples(host: &HostState, areas: &[GridArea]) -> Result<Vec<CellKey>, String> {
+    if areas.is_empty() {
+        return Err("Select cells to format".into());
+    }
+    let mut styles = BTreeMap::new();
+    for area in areas {
+        for run in format_regions(host, *area)? {
+            styles.entry(run.format).or_insert(run.area.first());
+        }
+    }
+    Ok(styles.into_values().collect())
 }

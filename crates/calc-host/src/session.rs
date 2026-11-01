@@ -1198,8 +1198,23 @@ impl HostSession {
                     .map(|(at, _)| at),
             );
             if bounded {
+                cells.extend(cells_of(Some(area)).filter(|at| self.host.cell_style(*at) != 0));
                 for rule_area in &rule_areas {
                     cells.extend(cells_of(intersection(*rule_area, area)));
+                }
+            } else {
+                // A sheet-wide observer still receives small authored style-only regions.
+                // Large defaults are expanded only by bounded viewport subscriptions.
+                let mut remaining = 32768;
+                for run in self.host.styles().runs.iter().filter(|r| r.format != 0) {
+                    if let Some(part) = intersection(run.area, area)
+                        && part.cell_count() <= remaining
+                    {
+                        remaining -= part.cell_count();
+                        cells.extend(
+                            cells_of(Some(part)).filter(|at| self.host.cell_style(*at) != 0),
+                        );
+                    }
                 }
             }
             for array in definitions.arrays_meeting(area) {

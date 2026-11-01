@@ -200,6 +200,9 @@ impl Default for SavePolicy {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
+    /// This rectangular style plane still needs too many individual blank-cell XML records.
+    /// Row and column defaults have already been compacted; no bytes have been written.
+    StyleExpansionNotModelled { cells: u64, owner: &'static str },
     /// XLSB output needs the validated original binary package (dc-snz.14).
     BinarySourceRequired,
     /// The XML authoring route found part rewrites, for which no binary writer exists yet.
@@ -295,6 +298,10 @@ pub enum SaveRefusal {
 impl fmt::Display for SaveRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::StyleExpansionNotModelled { cells, owner } => write!(
+                f,
+                "Saving this formatting needs {cells} individual blank-cell records; larger style expansion is not modelled ({owner})"
+            ),
             Self::BinarySourceRequired => {
                 f.write_str("XLSB output requires an original XLSB package (dc-snz.14)")
             }

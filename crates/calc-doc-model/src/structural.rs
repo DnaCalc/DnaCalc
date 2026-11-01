@@ -342,7 +342,13 @@ impl ModelRoot {
                 }
             });
         let mut next = Definitions::new(arrays, names, tables, unloaded)
-            .with_styles(std::sync::Arc::clone(definitions.styles()))
+            .with_styles(if definitions.styles().runs.iter().next().is_some() {
+                let mut styles = (**definitions.styles()).clone();
+                styles.runs = styles.runs.moved(edit);
+                Arc::new(styles)
+            } else {
+                Arc::clone(definitions.styles())
+            })
             .with_panes(definitions.panes().filter_map(|(sheet, panes)| {
                 Some((
                     sheet,

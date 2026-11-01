@@ -4850,9 +4850,11 @@ fn contract_paste_cut_drops_overwritten_scope_locations_before_undo() {
 }
 
 fn package_with_part(name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
+    package_with_part_from(&calc_host::blank_package(), name, rewrite)
+}
+fn package_with_part_from(blank: &[u8], name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
     use existing_wire_support::{RawEntry, build_zip, parse_zip};
-    let blank = calc_host::blank_package();
-    let archive = parse_zip(&blank);
+    let archive = parse_zip(blank);
     let entries: Vec<_> = archive
         .entries
         .iter()
@@ -7420,4 +7422,263 @@ fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
             }
         }
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__whole_axes_and_large_ranges_are_sparse_and_round_trip() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    // Match the application's locale-bearing host options; CELL format codes need a locale.
+    let mut book = HostSession::open(
+        Arc::new(MemorySource::new(calc_host::blank_package())),
+        &OpenPolicy::default(),
+        HostOptions {
+            locale: calc_host::FormatProfile::for_culture("en-US"),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "B5"), "12.5").accepted());
+    assert!(enter(&mut book, at(s, "C100"), "3.5").accepted());
+    assert!(enter(&mut book, at(s, "E1"), "=CELL(\"format\",B5)").accepted());
+    let fact = |text: &str| {
+        Some(CalcValue::text(
+            calc_host::value::ExcelText::from_interop_assignment(text),
+        ))
+    };
+    assert_eq!(
+        session_calculated(&book, at(s, "E1")),
+        fact("G"),
+        "initial CELL: {:?}, mode {:?}",
+        session_value(&book, at(s, "E1")),
+        book.host().calc_mode()
+    );
+    let cells = book.host().model().sheet_cells(s).unwrap().count();
+    let format = |book: &mut HostSession, first: &str, last: &str, patch: FormatPatch| {
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::new(at(s, first), at(s, last)).unwrap()],
+            patch,
+        }));
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+    };
+    format(
+        &mut book,
+        "B1",
+        "B1048576",
+        FormatPatch {
+            number_format: Some("0.00".into()),
+            fill: Some("#ffeedd".into()),
+            ..Default::default()
+        },
+    );
+    format(
+        &mut book,
+        "A5",
+        "XFD5",
+        FormatPatch {
+            bold: Some(true),
+            ..Default::default()
+        },
+    );
+    let before = book.host().styles().clone();
+    format(
+        &mut book,
+        "C100",
+        "D20100",
+        FormatPatch {
+            fill: Some("#00ff00".into()),
+            ..Default::default()
+        },
+    );
+    let final_styles = book.host().styles().clone();
+    assert_eq!(session_calculated(&book, at(s, "E1")), fact("F2"));
+    let samples = [
+        "A5", "B5", "B1048576", "C99", "C100", "D20100", "D20101", "XFD5", "XFD6",
+    ];
+    let styles: Vec<_> = samples
+        .iter()
+        .map(|a| book.host().cell_style(at(s, a)))
+        .collect();
+    assert_eq!(book.host().number_format(at(s, "B5")), Some("0.00"));
+    assert_eq!(book.host().number_format(at(s, "A5")), Some("General"));
+    assert_eq!(book.host().model().sheet_cells(s).unwrap().count(), cells);
+    assert_eq!(book.host().model().definitions().cell_formats().count(), 0);
+    assert!(
+        book.host().styles().runs.iter().count() < 20,
+        "formats follow boundaries, not the selected cell count"
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().styles(), &before);
+    assert_eq!(book.host().cell_style(at(s, "C100")), 0);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().styles(), &final_styles);
+    for _ in 0..3 {
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+    }
+    assert_eq!(session_calculated(&book, at(s, "E1")), fact("G"));
+    for _ in 0..3 {
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+    }
+    assert_eq!(session_calculated(&book, at(s, "E1")), fact("F2"));
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    eprintln!(
+        "whole-axis plus 40,002-cell rectangle xlsx: {} bytes; {} style runs",
+        saved.len(),
+        book.host().styles().runs.iter().count()
+    );
+    let reopened = open(&saved);
+    let r = reopened.sheets()[0].id();
+    for (address, style) in samples.into_iter().zip(styles) {
+        assert_eq!(reopened.cell_style(at(r, address)), style, "{address}");
+    }
+    assert_eq!(
+        reopened.model().cell(at(r, "B5")),
+        book.host().model().cell(at(s, "B5"))
+    );
+    assert_eq!(
+        reopened.model().cell(at(r, "C100")),
+        book.host().model().cell(at(s, "C100"))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__imported_axis_defaults_and_explicit_zero_survive_sparse_edit_and_structural_save() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    let mut source = session(&calc_host::blank_package());
+    let s = source.host().sheets()[0].id();
+    for (a, patch) in [
+        (
+            "A1",
+            FormatPatch {
+                number_format: Some("0.00".into()),
+                ..Default::default()
+            },
+        ),
+        (
+            "A2",
+            FormatPatch {
+                bold: Some(true),
+                ..Default::default()
+            },
+        ),
+    ] {
+        assert!(
+            source
+                .dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                    areas: vec![GridArea::cell(at(s, a))],
+                    patch
+                }))
+                .accepted()
+        );
+    }
+    let number = source.host().cell_style(at(s, "A1"));
+    let bold = source.host().cell_style(at(s, "A2"));
+    let mut bytes = Vec::new();
+    source.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let bytes = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |_| {
+        format!(
+            r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:v="urn:style-test"><cols><col min="2" max="2" style="{number}" v:keep="column"/></cols><sheetData><row r="5" s="{number}" customFormat="1"><c r="B5" s="0" v:keep="zero"/><c r="D5" s="{bold}" v:keep="bold"/></row><row r="999999"><c r="B999999" s="{bold}"/></row><row r="1000000"><c r="B1000000" s="0"/></row></sheetData></worksheet>"#
+        )
+    });
+    for (axis, first, samples) in [
+        (
+            Axis::Rows,
+            1,
+            vec![("B1", number), ("B6", 0), ("A6", number)],
+        ),
+        (
+            Axis::Columns,
+            1,
+            vec![("A5", number), ("C5", 0), ("E5", bold)],
+        ),
+        (Axis::Rows, 6, vec![("B6", 0), ("D6", bold)]),
+        (Axis::Columns, 3, vec![("C5", 0), ("E5", bold)]),
+        (
+            Axis::Rows,
+            1000000,
+            vec![("B1000000", bold), ("B1000001", 0)],
+        ),
+    ] {
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        assert!(
+            book.dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, axis, AxisChange::Insert, first, 1).unwrap()
+            ))
+            .accepted()
+        );
+        for &(a, style) in &samples {
+            assert_eq!(
+                book.host().cell_style(at(s, a)),
+                style,
+                "before save {axis:?} {first} {a}"
+            );
+        }
+        // Unrelated tall rectangle forces column defaults to change at save time.
+        if first == 1000000 {
+            assert!(
+                book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                    areas: vec![GridArea::new(at(s, "C1"), at(s, "D900000")).unwrap()],
+                    patch: FormatPatch {
+                        fill: Some("#ddeeff".into()),
+                        ..Default::default()
+                    }
+                }))
+                .accepted()
+            );
+        }
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = open(&saved);
+        let r = reopened.sheets()[0].id();
+        for (a, style) in samples {
+            assert_eq!(
+                reopened.cell_style(at(r, a)),
+                style,
+                "after save {axis:?} {first} {a}"
+            );
+        }
+        let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+        assert!(xml.contains("v:keep=\"column\""));
+        assert!(xml.contains("v:keep=\"zero\""));
+        assert!(xml.contains("v:keep=\"bold\""));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__cell_shift_moves_sparse_range_styles_without_point_holes() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "B10"), "7").accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::new(at(s, "B8"), at(s, "B10")).unwrap()],
+            patch: FormatPatch {
+                fill: Some("#abcdef".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let style = book.host().cell_style(at(s, "B10"));
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::ShiftCells {
+            area: GridArea::cell(at(s, "B5")),
+            down: true,
+            insert: true
+        }))
+        .accepted()
+    );
+    for a in ["B9", "B10", "B11"] {
+        assert_eq!(book.host().cell_style(at(s, a)), style, "{a}");
+    }
+    assert_eq!(book.host().cell_style(at(s, "B8")), 0);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().cell_style(at(s, "B8")), style);
+    assert_eq!(book.host().cell_style(at(s, "B11")), 0);
 }

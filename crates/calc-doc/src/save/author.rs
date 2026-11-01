@@ -397,7 +397,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     let cells_changed = cache_state.is_some()
         || !changes.iter().all(SheetChanges::is_empty)
         || moved.is_some()
-        || formats.iter().any(|formats| !formats.is_empty());
+        || formats.iter().any(|formats| !formats.is_empty())
+        || model.definitions().styles().runs.iter().next().is_some();
     let mut layout = layout_changes(package, edit)?;
     let mut out = Changes::default();
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
@@ -600,6 +601,12 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                     .any(|(_, input)| matches!(input, CellInput::Formula(_)));
                 !changes.is_empty()
                     || !formats[index].is_empty()
+                    || model
+                        .definitions()
+                        .styles()
+                        .runs
+                        .iter()
+                        .any(|r| r.area.sheet() == sheet.id())
                     || moved_part
                     || moves[index].is_some()
                     || !cleared.is_empty()
@@ -665,7 +672,10 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 Some(xml) => xml,
                 None => super::sheets::read_sheet(package, name)?,
             };
+            let style_plan =
+                super::styles::sheet_plan(&xml, sheet.id(), &model.definitions().styles().runs)?;
             let job = Job {
+                style_plan: style_plan.as_ref(),
                 changes,
                 cleared,
                 forms,
@@ -983,16 +993,22 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     {
         out.removed.push(chain);
     }
-    if dimensions_changed {
+    if dimensions_changed || model.definitions().styles().runs.iter().next().is_some() {
         for sheet in sheets.iter() {
-            let changed = [calc_doc_model::Axis::Rows, calc_doc_model::Axis::Columns]
-                .into_iter()
-                .any(|axis| {
-                    base.definitions()
-                        .axis_layouts()
-                        .bands(sheet.id(), axis)
-                        .ne(model.definitions().axis_layouts().bands(sheet.id(), axis))
-                });
+            let changed = model
+                .definitions()
+                .styles()
+                .runs
+                .iter()
+                .any(|r| r.area.sheet() == sheet.id())
+                || [calc_doc_model::Axis::Rows, calc_doc_model::Axis::Columns]
+                    .into_iter()
+                    .any(|axis| {
+                        base.definitions()
+                            .axis_layouts()
+                            .bands(sheet.id(), axis)
+                            .ne(model.definitions().axis_layouts().bands(sheet.id(), axis))
+                    });
             if !changed {
                 continue;
             }
@@ -1017,10 +1033,14 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 .rewritten
                 .remove(sheet.part().name())
                 .map(|bytes| original.with_bytes(bytes));
+            let xml = current.as_ref().unwrap_or(&original);
+            let style_plan =
+                super::styles::sheet_plan(xml, sheet.id(), &model.definitions().styles().runs)?;
             let bytes = super::geometry::rewrite(
-                current.as_ref().unwrap_or(&original),
+                xml,
                 sheet.id(),
                 model.definitions().axis_layouts(),
+                style_plan.as_ref(),
             )?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
