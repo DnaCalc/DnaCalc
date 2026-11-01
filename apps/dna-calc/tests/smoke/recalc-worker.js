@@ -67,29 +67,35 @@ return (async function () {
       if (waiting) {
         pending.delete(response.id);
         if (message.Failed) waiting.reject(new Error(response.message));
-        else waiting.resolve(response.reply);
+        else {
+          if (Array.isArray(event.data)) response.reply.package_bytes = event.data[1];
+          waiting.resolve(response.reply);
+        }
       } else if (message.Failed) { throw new Error(response.message); }
     } catch (error) { abort(error); }
   };
   worker.onerror = function (event) { abort(new Error(event.message)); };
-  function send(request) {
+  function send(request, bytes) {
     const id = ++requestId;
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
-      worker.postMessage(JSON.stringify({ id, request }));
+      const text = JSON.stringify({ id, request });
+      if (bytes) worker.postMessage([text, bytes], [bytes]);
+      else worker.postMessage(text);
     });
   }
-  async function intent(value) {
+  async function command(request, bytes) {
     const reply = await send({ Command: {
       session: summary.session, id: ++commandId, workbook: summary.workbook,
       base_revision: summary.revision, source: "engine-contract-smoke", undo_group: null,
-      resolved_selection: selection, request: { Intent: value }
-    } });
+      resolved_selection: selection, request
+    } }, bytes);
     require(reply.Done && reply.Done.outcome.accepted, "the worker refused the fixture command");
     summary = reply.Done.outcome.summary;
     selection = reply.Done.outcome.selection;
     return reply;
   }
+  function intent(value) { return command({ Intent: value }); }
   try {
     await ready;
     summary = (await send("Summary")).Summary;
@@ -257,7 +263,37 @@ return (async function () {
       && event.Published.sequence === priorityPublication.sequence);
     require(publishedCone >= 0 && publishedCone < priorityEvents.findIndex((event) => event.Completed),
       "the worker exposed completion before the short cone's publication barrier");
+    // Exercise Save/Open over transferred package bytes, through the product worker itself.
+    for (const [col, text] of [[17, "1"], [18, "=Q1*2"], [19, "=R1+1"]]) {
+      await intent({ EnterCell: { at: key(1, col), text } });
+    }
+    const scalarDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+    scalarDone.catch(() => {});
+    await intent({ CalculateRange: { areas: [area(1, 18, 1, 19)] } });
+    require((await scalarDone).calculated === 2, "the save fixture did not calculate its scalar caches");
+    await intent({ EnterCell: { at: key(1, 17), text: "5" } });
+    const saved = await command("Save");
+    require(Object.prototype.toString.call(saved.package_bytes) === "[object ArrayBuffer]" && saved.package_bytes.byteLength > 0,
+      "Save did not transfer a package beside its reply");
+    const packageBytes = saved.package_bytes.byteLength;
+    const reopenStart = trace.length;
+    const reopened = await command({ Open: { name: saved.Done.saved } }, saved.package_bytes);
+    require(reopened.Done.opened?.[1] === null, "Manual reopen performed an unrequested calculation");
+    const reopenedSheet = summary.sheets[0][0];
+    const savedKey = (col) => [reopenedSheet[0], reopenedSheet[1], 1, col];
+    await send({ Subscribe: { id: 1, interest: { Areas: [[savedKey(17), savedKey(19)]] } } });
+    const savedCell = (col) => cells.get(JSON.stringify(savedKey(col)));
+    require(savedCell(17)?.text === "5" && savedCell(17)?.provenance === "Literal",
+      "the saved input was replaced by a calculation cache");
+    for (const [col, text] of [[18, "2"], [19, "3"]]) {
+      require(savedCell(col)?.text === text && savedCell(col)?.provenance === "FileCache",
+        "Manual Save/Open did not retain its unverified scalar cache");
+    }
+    require(!trace.slice(reopenStart).some((event) => event.Admitted), "Manual Open admitted hidden calculation work");
+    const manualSave = { input: savedCell(17)?.text, caches: [savedCell(18)?.text, savedCell(19)?.text],
+      provenance: "FileCache", bytes: packageBytes };
     return { yielded, pong, complete, calculated: receipt.calculated, publications: publications.length,
+      manual_save: manualSave,
       spill_publications: spillPublications.length, interest_publication: priorityPublication,
       reused_spill: { from: predecessor, to: successor }, spill_companions: ["shrink", "authored-blocker"],
       equal_value_status: { command: replayCommand, text: equalText },
