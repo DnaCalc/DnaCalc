@@ -31,7 +31,7 @@ pub fn rotated_size(width: f64, height: f64, degrees: i16) -> (f64, f64) {
     let (c, s) = (angle.cos().abs(), angle.sin().abs());
     (width * c + height * s, width * s + height * c)
 }
-fn family_css(family: Option<&str>) -> String {
+pub(super) fn family_css(family: Option<&str>) -> String {
     if let Some(f) = family.filter(|f| {
         matches!(
             f.to_ascii_lowercase().as_str(),

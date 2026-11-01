@@ -1,5 +1,5 @@
 //! `cargo xtask app bundle <app> [--out <dir>]` and `cargo xtask app smoke <app> [--bundle <dir>]
-//! [--browser chromium|firefox] [--suite core|full] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>]]`: the browser
+//! [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>]]`: the browser
 //! bundle of an application and its smoke test, for DNA OneCalc (`onecalc`) and DNA Calc
 //! (`calc`). `cargo xtask onecalc bundle|smoke ...` is the same command for `onecalc`.
 //!
@@ -52,6 +52,8 @@
 use crate::accept::{BROWSERS, Browser, find_on_path, variable_file};
 use crate::cargo::{self, WASM_TARGET, Workspace};
 use crate::site::SiteHeaders;
+#[path = "app_renderer.rs"]
+mod renderer;
 use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
@@ -62,7 +64,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
 /// Independent page scenario. `core` is a prefix, so it has no omitted prerequisites.
 pub struct CaseGroup {
@@ -81,6 +83,7 @@ pub(crate) struct SmokeSelection {
     groups: Vec<String>,
     cases: Vec<String>,
     list: bool,
+    renderer: Option<String>,
 }
 impl SmokeSelection {
     fn selected(&self, group: &CaseGroup, index: usize, case: &Case) -> bool {
@@ -233,6 +236,7 @@ pub(crate) struct WorkbookRun {
     profile: Option<PathBuf>,
     /// Time each skin's showing and the edit with it shown (`--skins`).
     skins: bool,
+    renderer_report: Option<PathBuf>,
 }
 
 pub fn run(raw: &[String]) -> ExitCode {
@@ -276,6 +280,7 @@ pub fn run(raw: &[String]) -> ExitCode {
             let mut edit = None;
             let mut profile = None;
             let mut skins = false;
+            let mut renderer_report = None;
             let mut selection = SmokeSelection::default();
             let mut args = rest.iter();
             while let Some(arg) = args.next() {
@@ -288,6 +293,14 @@ pub fn run(raw: &[String]) -> ExitCode {
                     continue;
                 }
                 match (arg.as_str(), args.next()) {
+                    ("--renderer", Some(name))
+                        if app.key == "calc" && matches!(name.as_str(), "dom" | "canvas") =>
+                    {
+                        selection.renderer = Some(name.clone())
+                    }
+                    ("--renderer-report", Some(path)) if app.key == "calc" => {
+                        renderer_report = Some(PathBuf::from(path))
+                    }
                     ("--suite", Some(suite)) if matches!(suite.as_str(), "core" | "full") => {
                         selection.suite = Some(suite.clone())
                     }
@@ -309,14 +322,34 @@ pub fn run(raw: &[String]) -> ExitCode {
                     _ => return usage(raw),
                 }
             }
-            if (edit.is_some() && workbook.is_none()) || (skins && edit.is_none()) {
+            if (edit.is_some() && workbook.is_none())
+                || (skins && edit.is_none())
+                || (renderer_report.is_some() && (workbook.is_none() || skins))
+            {
                 return usage(raw);
+            }
+            if workbook.as_deref() == Some(Path::new("@renderer-grid")) {
+                let source = ws
+                    .root
+                    .join("crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx");
+                let generated = fs::read(source)
+                    .map_err(|e| e.to_string())
+                    .and_then(|b| calc_cases::fixtures::renderer_grid(&b));
+                let path = ws.root.join("target/renderer-grid.xlsx");
+                match generated.and_then(|b| fs::write(&path, b).map_err(|e| e.to_string())) {
+                    Ok(()) => workbook = Some(path),
+                    Err(e) => {
+                        eprintln!("renderer fixture: {e}");
+                        return ExitCode::from(1);
+                    }
+                }
             }
             let workbook = workbook.map(|path| WorkbookRun {
                 path,
                 edit,
                 profile,
                 skins,
+                renderer_report,
             });
             let target = match (url, bundle_dir) {
                 (Some(_), Some(_)) => return usage(raw),
@@ -761,6 +794,7 @@ struct Session {
     port: u16,
     id: String,
     downloads: PathBuf,
+    driver_pid: u32,
     bidi: Option<String>,
 }
 
@@ -941,6 +975,7 @@ fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
         port: driver.port,
         id,
         downloads,
+        driver_pid: driver.child.id(),
         bidi: created
             .pointer("/capabilities/webSocketUrl")
             .and_then(Value::as_str)
@@ -1033,6 +1068,7 @@ pub enum Action {
     DragToCell(&'static str, u32, &'static str),
     /// Drag a visible trailing header edge, optionally cancelling before release.
     ResizeHeader(&'static str, bool, i32, bool),
+    SetPainter(&'static str),
     /// Synthetic IME events exercise the composition boundary; this is not a device IME test.
     Composing(&'static str, &'static str),
     CompositionEnd(&'static str),
@@ -1050,6 +1086,8 @@ pub enum Check {
     PlanCell(&'static str, &'static str, &'static str),
     PlanAbsent(&'static str),
     PlanReady,
+    PainterStable,
+    CanvasInk(&'static str),
     /// A named layout input changed, values and command count stayed fixed, and the plan rebuilt.
     PresentationChanged(&'static str),
     PinnedCell,
@@ -1157,6 +1195,14 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         );
     }
     let script = match check {
+        Check::PainterStable => format!("{READ_PLANS}return JSON.stringify(window.__dcPresentation)===JSON.stringify(plans[0]);"),
+        Check::CanvasInk(address) => {
+            let address=serde_json::to_string(address).unwrap();
+            format!(r#"{READ_PLANS}var p=plans[0]?.plan,c=p?.cells.find(c=>c.address==={address}),g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]'),canvas=g?.querySelector('canvas');if(!c||!canvas||g.dataset.painter!=='canvas')return false;
+            var r=c.anchor,d=devicePixelRatio,ctx=canvas.getContext('2d'),data=ctx.getImageData(Math.ceil((r.x+4)*d),Math.ceil((r.y+2)*d),Math.max(1,Math.floor((r.w-8)*d)),Math.max(1,Math.floor((r.h-4)*d))).data;
+            var colors=new Set();for(var i=0;i<data.length;i+=4)colors.add([data[i],data[i+1],data[i+2],data[i+3]].join(','));return colors.size>4;"#)
+        }
+
         Check::PlanCell(address, field, _) => {
             let address=serde_json::to_string(address).unwrap(); let field=serde_json::to_string(field).unwrap();
             format!("{READ_PLANS}var c=plans.flatMap(s=>s.plan.cells).find(c=>c.address==={address});if(!c)return null;var v=c.shown[{field}];return typeof v==='boolean'?String(v):v;")
@@ -1322,6 +1368,8 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         Check::Aligned(..)
         | Check::PlanAbsent(_)
         | Check::PlanReady
+        | Check::PainterStable
+        | Check::CanvasInk(_)
         | Check::Spill(..)
         | Check::TextBounds(_)
         | Check::Before(_, _)
@@ -1365,6 +1413,10 @@ fn describe(check: &Check) -> String {
         Check::PlanReady => {
             "the committed RenderPlan is ready and the transport has no pending requests".into()
         }
+        Check::PainterStable => {
+            "switching painter preserves the exact committed plan and command count".into()
+        }
+        Check::CanvasInk(address) => format!("Canvas2D has rasterized text in {address}"),
         Check::PresentationChanged(cause) => format!(
             "{cause} rebuilds the RenderPlan without changing values, model revision or submitting a workbook command"
         ),
@@ -1876,6 +1928,27 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             session.script(&format!("document.querySelector({selector}).dispatchEvent(new CompositionEvent('compositionend', {{bubbles:true}})); return null;"))?;
             Ok(())
         }
+        Action::SetPainter(mode) => {
+            act(ws, app, session, &Action::OpenDetails("pane-tools"))?;
+            let css = select(app, "grid-painter");
+            session.keys(
+                &css,
+                if *mode == "canvas" {
+                    "c\u{E007}"
+                } else {
+                    "d\u{E007}"
+                },
+            )?;
+            if let Some(reason) = wait_for(
+                app,
+                session,
+                &Check::Attr("grid", "data-painter", mode),
+                SETTLE,
+            ) {
+                return Err(reason);
+            }
+            session.keys(&select(app, "grid"), ESCAPE)
+        }
         Action::RememberPresentation => {
             if let Some(reason) = wait_for(app, session, &Check::PlanReady, SETTLE) {
                 return Err(reason);
@@ -2064,7 +2137,14 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             }
         }
     }
-    freeze_reset(session);
+    if run.renderer_report.is_some() {
+        if let Err(e) = renderer::prepare(session, browser) {
+            return vec![e];
+        }
+    }
+    if run.renderer_report.is_none() {
+        freeze_reset(session);
+    }
     if let Err(e) = upload(app, session, "open-file", &run.path) {
         return vec![format!("the workbook was not chosen: {e}")];
     }
@@ -2074,10 +2154,12 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         let status = text_of(app, session, "status");
         if status.starts_with(&opened) {
             println!("{label} WORKBOOK {browser} open: {status}");
-            println!(
-                "{label} WORKBOOK {browser} open froze the page for at most {}",
-                freeze_read(session)
-            );
+            if run.renderer_report.is_none() {
+                println!(
+                    "{label} WORKBOOK {browser} open froze the page for at most {}",
+                    freeze_read(session)
+                );
+            }
             if profiling && let Some(path) = &run.profile {
                 match session.post(
                     "/goog/cdp/execute",
@@ -2099,6 +2181,11 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             return failures;
         }
         thread::sleep(Duration::from_millis(200));
+    }
+    if run.renderer_report.is_some() {
+        if let Err(e) = renderer::after_open(session) {
+            return vec![e];
+        }
     }
     if run.skins
         && let Some(edit) = &run.edit
@@ -2127,7 +2214,9 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             return failures;
         }
         let before = text_of(app, session, "status");
-        freeze_reset(session);
+        if run.renderer_report.is_none() {
+            freeze_reset(session);
+        }
         if let Err(e) = session.keys(&select(app, "cell-editor"), &format!("{rest}{ENTER}")) {
             failures.push(format!("the edit was not entered: {e}"));
             return failures;
@@ -2140,10 +2229,12 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
                     "{label} WORKBOOK {browser} edit {sheet}!{cell}: {status} (seen after {:.1} s)",
                     started.elapsed().as_secs_f64()
                 );
-                println!(
-                    "{label} WORKBOOK {browser} edit froze the page for at most {}",
-                    freeze_read(session)
-                );
+                if run.renderer_report.is_none() {
+                    println!(
+                        "{label} WORKBOOK {browser} edit froze the page for at most {}",
+                        freeze_read(session)
+                    );
+                }
                 break;
             }
             if started.elapsed() > WORKBOOK_SETTLE {
@@ -2154,6 +2245,12 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         }
     }
     let started = Instant::now();
+    if let Some(dir) = &run.renderer_report {
+        return match renderer::finish(session, browser, &run.path, dir) {
+            Ok(()) => faults(app, session).unwrap_or_else(|e| vec![e]),
+            Err(e) => vec![e],
+        };
+    }
     if let Err(e) = act_click(app, session, "skin-atlas") {
         failures.push(e);
         return failures;
@@ -2369,7 +2466,12 @@ fn run_browser(
     workbook: Option<&WorkbookRun>,
     selection: &SmokeSelection,
 ) -> Result<(usize, usize), String> {
+    if let Some(run) = workbook.filter(|r| r.renderer_report.is_some()) {
+        return renderer::run_measurements(ws, app, browser, page, run);
+    }
     let (_driver, session) = open(browser)?;
+    let page = renderer::page(page, selection.renderer.as_deref());
+    let page = page.as_str();
     let outcome = (|| {
         let (mut passed, mut failed) = (0, 0);
         for group in app.groups {
@@ -2636,18 +2738,27 @@ fn smoke_selected(
         println!("{} RESULT failed: no browser named {only:?}", app.label);
         return ExitCode::from(2);
     }
-    println!(
-        "{} RESULT {}: {} cases per browser{}; {}",
-        app.label,
-        if all_passed { "passed" } else { "failed" },
-        count,
-        if workbook.is_some() {
-            " and the workbook"
-        } else {
-            ""
-        },
-        summary.join("; ")
-    );
+    if workbook.is_some_and(|r| r.renderer_report.is_some()) {
+        println!(
+            "{} RESULT {}: 6 renderer trials per browser; {}",
+            app.label,
+            if all_passed { "passed" } else { "failed" },
+            summary.join("; ")
+        );
+    } else {
+        println!(
+            "{} RESULT {}: {} cases per browser{}; {}",
+            app.label,
+            if all_passed { "passed" } else { "failed" },
+            count,
+            if workbook.is_some() {
+                " and the workbook"
+            } else {
+                ""
+            },
+            summary.join("; ")
+        );
+    }
     if all_passed {
         ExitCode::SUCCESS
     } else {

@@ -6345,6 +6345,46 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::PlanCell("A1", "provenance", "calculated"),
         ],
     },
+    Case {
+        name: "renderer: switching to Canvas2D keeps the committed plan and paints actual text",
+        actions: &[
+            Action::Into(BAR, "=6*7\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::PlanCell("A1", "text", "42")),
+            Action::OpenDetails("pane-tools"),
+            Action::RememberPresentation,
+            Action::SetPainter("canvas"),
+        ],
+        checks: &[
+            Check::PainterStable,
+            Check::CanvasInk("A1"),
+            Check::ActiveDescendant("grid"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "renderer: Canvas2D edits and recalculates through the shared keyboard and worker route",
+        actions: &[
+            Action::Keys("grid", "5"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::PlanCell("A1", "text", "5"),
+            Check::CanvasInk("A1"),
+            Check::ActiveDescendant("grid"),
+        ],
+    },
+    Case {
+        name: "renderer: returning to DOM preserves the same result and focus",
+        actions: &[Action::RememberPresentation, Action::SetPainter("dom")],
+        checks: &[
+            Check::PainterStable,
+            Check::Text(cell!("A1"), "5"),
+            Check::ActiveDescendant("grid"),
+            Check::Focused("grid"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -6997,6 +7037,13 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         start: 445,
         end: 449,
         core: 3,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "renderer",
+        start: 449,
+        end: 452,
+        core: 0,
         setup: &[],
     },
 ];
