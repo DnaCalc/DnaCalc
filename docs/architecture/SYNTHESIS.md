@@ -480,11 +480,23 @@ its key from the source rather than trusting an authored block's supplied identi
 and dynamic ordinary inputs remain distinct through wire encoding, evaluation and xlsx persistence;
 loaded array definitions continue to select their evaluation and publication form.
 
-Copy and row insertion/deletion use the existing reference-occurrence transforms. This slice
-materializes affected groups and saves individual formulas; untouched eligible groups retain their
-shared file form. It does not yet regroup edited formulas, coalesce unrelated writer output, compact
-authored fragmentation or extract the parser/binder. The sparse test
+Copy and row insertion/deletion use the existing reference-occurrence transforms. Structural edits
+materialize affected groups and save individual formulas; untouched eligible groups retain their
+shared file form. It does not yet regroup edited formulas, coalesce unrelated writer output or
+extract the parser/binder. The sparse test
 uses a full-sheet extent (17,179,869,184 coordinates), two members, two runs and two authored pages.
+
+Cell-edit source retention (dc-hsa5.9, 2026-11-01): Set/Clear/SetArray prune membership from actual
+survivors and retain the existing source allocation without rendering each untouched member.
+The reference origin can outlive its authored master cell; it still supplies the same spelling
+and reference-occurrence renderer. Dense holes become sorted runs. Earlier model revisions keep
+their original membership. The affected-group pass still scans occupied workbook cells; this is
+source retention rather than a new edit index. UI projections can request and cache a member's
+rendered spelling. Undo restores the edited formula individually through the existing inverse
+edit, while the sibling retains its source. Tests cover dense and full-sheet sparse membership,
+removing the source-origin cell, history, a fresh engine binding after model restore, and the
+existing individual-formula save/reopen fallback. Regrouping separately authored or restored
+inputs and writing edited groups as shared file formulas remain open.
 
 Result columns (dc-hsa5.8, 2026-11-01): the ordinary publication path places results with the
 same interned bound plan in one member-sized column within a sheet and array role. Each row

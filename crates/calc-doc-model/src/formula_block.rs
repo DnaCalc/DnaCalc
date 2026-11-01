@@ -29,6 +29,7 @@ pub enum FormulaMembership {
 /// The codec's validated source and existing reference-occurrence renderer. It owns no result,
 /// bound plan, document or evaluator. A renderer must accept every admitted block member.
 pub trait FormulaTemplateSource: std::fmt::Debug + Send + Sync {
+    /// Reference origin of the retained source; a later edit can remove that member.
     fn anchor(&self) -> CellKey;
     fn source(&self) -> &ExcelText;
     fn render(&self, at: CellKey) -> ExcelText;
@@ -56,6 +57,39 @@ impl FormulaBlock {
         form: FormulaForm,
         source: Arc<dyn FormulaTemplateSource>,
     ) -> Option<Arc<Self>> {
+        Self::build(id, extent, members, key, form, source, true)
+    }
+
+    /// Keep only validated existing members. The original source origin can outlive its
+    /// authored cell; binding/rendering still use that origin, never a new offset recipe.
+    pub(crate) fn retaining(
+        &self,
+        members: impl IntoIterator<Item = CellKey>,
+    ) -> Option<Arc<Self>> {
+        let members: Vec<_> = members.into_iter().collect();
+        if members.iter().any(|at| !self.contains(*at)) {
+            return None;
+        }
+        Self::build(
+            self.id,
+            self.extent,
+            members,
+            self.key.clone(),
+            self.form,
+            self.source.clone(),
+            false,
+        )
+    }
+
+    fn build(
+        id: FormulaBlockId,
+        extent: GridArea,
+        members: impl IntoIterator<Item = CellKey>,
+        key: Option<SemanticTemplateKey>,
+        form: FormulaForm,
+        source: Arc<dyn FormulaTemplateSource>,
+        require_origin_member: bool,
+    ) -> Option<Arc<Self>> {
         if id.sheet != extent.sheet()
             || !extent.contains(source.anchor())
             || source.source().utf16_code_units().is_empty()
@@ -71,9 +105,11 @@ impl FormulaBlock {
         }
         offsets.sort_unstable();
         offsets.dedup();
-        if offsets
-            .binary_search(&Self::offset(extent, source.anchor())?)
-            .is_err()
+        if offsets.is_empty()
+            || require_origin_member
+                && offsets
+                    .binary_search(&Self::offset(extent, source.anchor())?)
+                    .is_err()
         {
             return None;
         }

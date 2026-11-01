@@ -11172,11 +11172,116 @@ fn dc_hsa5_7__sparse_shared_members_retain_one_source() {
     let Some(CellInput::Formula(survivor)) = next.cell(cell(sheet, 1048576, 16384)) else {
         panic!("survivor");
     };
-    assert!(survivor.block().is_none());
-    assert_eq!(survivor.save_mode(), FormulaSaveMode::Individual);
+    let retained = survivor
+        .block()
+        .expect("the untouched member keeps its source");
+    assert_eq!(retained.member_count(), 1);
+    assert!(!retained.contains(cell(sheet, 1, 1)));
+    assert!(retained.contains(cell(sheet, 1048576, 16384)));
+    assert!(!survivor.materialized());
+    assert_eq!(retained.source().anchor(), cell(sheet, 1, 1));
+    assert!(std::ptr::eq(retained.source(), block.source()));
+    assert_eq!(survivor.save_mode(), FormulaSaveMode::SharedGroup);
     assert_eq!(survivor.text().to_string_lossy(), "$B$2+1");
     assert!(
         get(1, 1).block().is_some(),
         "the earlier revision retains its block"
     );
+}
+
+/// Cell edits retain the existing source, prune actual members and compact their runs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_hsa5_9__cell_edits_prune_members_without_rendering_the_source() {
+    use calc_doc_model::FormulaMembership;
+    let bytes = m1_2_one_sheet(
+        r#"<row r="1"><c r="A1"><f t="shared" ref="A1:A4" si="9">B1+1</f></c></row><row r="2"><c r="A2"><f t="shared" si="9"/></c></row><row r="3"><c r="A3"><f t="shared" si="9"/></c></row><row r="4"><c r="A4"><f t="shared" si="9"/></c></row>"#,
+    );
+    let loaded = m1_2_load(&bytes, &mut IdAllocator::new()).unwrap();
+    let first = loaded.model();
+    let sheet = first.sheets()[0].id();
+    let input = |root: &ModelRoot, row| match root.cell(cell(sheet, row, 1)).unwrap() {
+        CellInput::Formula(text) => text.clone(),
+        _ => panic!("formula member"),
+    };
+    let source = input(first, 1).block().unwrap().clone();
+    assert!(matches!(source.membership(), FormulaMembership::Dense));
+    let second = first
+        .apply(&OpBatch {
+            base: first.revision(),
+            operations: vec![WorkbookOp::Clear {
+                area: GridArea::cell(cell(sheet, 2, 1)),
+            }],
+        })
+        .unwrap();
+    let survivor = input(&second, 3);
+    let block = survivor.block().unwrap();
+    assert_eq!(block.member_count(), 3);
+    assert!(
+        matches!(block.membership(), FormulaMembership::Runs(runs) if runs.as_ref()==[0..=0,2..=3])
+    );
+    assert!(!block.contains(cell(sheet, 2, 1)));
+    assert!(!survivor.materialized());
+    assert!(std::ptr::eq(block.source(), source.source()));
+    let third = second
+        .apply(&OpBatch {
+            base: second.revision(),
+            operations: vec![WorkbookOp::SetCell {
+                at: cell(sheet, 1, 1),
+                input: number(9.0),
+            }],
+        })
+        .unwrap();
+    let a3 = input(&third, 3);
+    let a4 = input(&third, 4);
+    let block = a3.block().unwrap();
+    assert!(Arc::ptr_eq(block, a4.block().unwrap()));
+    assert_eq!(block.member_count(), 2);
+    assert!(matches!(block.membership(), FormulaMembership::Runs(runs) if runs.as_ref()==[2..=3]));
+    assert_eq!(block.source().anchor(), cell(sheet, 1, 1));
+    assert!(!block.contains(block.source().anchor()));
+    assert!(std::ptr::eq(block.source(), source.source()));
+    for row in 3..=4 {
+        assert!(!input(&third, row).materialized());
+    }
+    assert_eq!(source.member_count(), 4);
+    for row in 1..=4 {
+        assert!(!input(first, row).materialized());
+    }
+    assert_eq!(a3.text().to_string_lossy(), "B3+1");
+    assert_eq!(a4.text().to_string_lossy(), "B4+1");
+
+    // The prepass prunes original members; ordered operations still decide the final inputs.
+    // A later Set restores its formula individually, rather than inventing group membership.
+    let mixed = first
+        .apply(&OpBatch {
+            base: first.revision(),
+            operations: vec![
+                WorkbookOp::Clear {
+                    area: GridArea::new(cell(sheet, 2, 1), cell(sheet, 3, 1)).unwrap(),
+                },
+                WorkbookOp::SetCell {
+                    at: cell(sheet, 2, 1),
+                    input: first.cell(cell(sheet, 2, 1)).unwrap().clone(),
+                },
+                WorkbookOp::SetCell {
+                    at: cell(sheet, 1, 1),
+                    input: number(9.0),
+                },
+            ],
+        })
+        .unwrap();
+    assert_eq!(mixed.cell(cell(sheet, 1, 1)), Some(&number(9.0)));
+    assert!(mixed.cell(cell(sheet, 3, 1)).is_none());
+    let restored = input(&mixed, 2);
+    assert!(restored.block().is_none());
+    assert_eq!(restored.text().to_string_lossy(), "B2+1");
+    let survivor = input(&mixed, 4);
+    let block = survivor.block().unwrap();
+    assert_eq!(block.member_count(), 1);
+    assert!(block.contains(cell(sheet, 4, 1)));
+    assert!(!block.contains(cell(sheet, 2, 1)));
+    assert!(!survivor.materialized());
+    assert!(std::ptr::eq(block.source(), source.source()));
+    assert_eq!(survivor.text().to_string_lossy(), "B4+1");
 }
