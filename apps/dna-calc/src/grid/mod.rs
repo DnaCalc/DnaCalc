@@ -28,6 +28,7 @@ pub mod axis;
 pub mod geometry;
 pub mod icons;
 mod inspect;
+mod painter;
 pub mod panes;
 pub mod render_plan;
 pub mod selection;
@@ -141,6 +142,7 @@ struct PaneContext {
     active: RwSignal<u8>,
     axes: RwSignal<SplitAxes>,
     zoom: RwSignal<f64>,
+    canvas: RwSignal<bool>,
 }
 impl PaneContext {
     fn split(self) -> bool {
@@ -165,6 +167,7 @@ impl PaneContext {
     }
 }
 fn grid_workspace(controller: Controller) -> impl IntoView {
+    let canvas = RwSignal::new(painter::initial_canvas());
     let layout = RwSignal::new(wire::Geometry::default());
     let loaded = RwSignal::new(false);
     let active = RwSignal::new(0u8);
@@ -256,6 +259,7 @@ fn grid_workspace(controller: Controller) -> impl IntoView {
         active,
         axes,
         zoom,
+        canvas,
     };
     view! {<div class="dc-grid-workspace" class:dc-split=move ||layout.get().split_window&&layout.get().split.is_some() node_ref=frame>
         <For each=move ||panes::split_slots(&layout.get()) key=|id|*id children=move |index|grid_pane(controller,PaneContext {index,..ctx})/>
@@ -494,6 +498,30 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         plan
     });
     inspect::register(plan, ctx, controller);
+    let canvas_node = NodeRef::<leptos::html::Canvas>::new();
+    let colors = painter::watch_colors();
+    Effect::new(move |_| {
+        let enabled = ctx.canvas.get();
+        if let Some(grid) = scroller.get() {
+            let _ = grid.set_attribute("data-painter", if enabled { "canvas" } else { "dom" });
+            plan.with(|plan| {
+                if let Some(stamp) = plan.publication {
+                    let _ = grid.set_attribute("data-paint-workbook", &stamp.workbook.to_string());
+                    let _ = grid.set_attribute("data-paint-revision", &stamp.revision.to_string());
+                }
+            });
+        }
+        colors.track();
+        controller.active_skin.track();
+        if let Some(node) = canvas_node.get() {
+            if enabled {
+                plan.with(|plan| painter::paint(&node, plan, panes.get(), &metrics.get()));
+            } else {
+                node.set_width(0);
+                node.set_height(0);
+            }
+        }
+    });
 
     let scales = move || {
         let m = metrics.get_untracked();
@@ -1392,6 +1420,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     };
 
     let cells_view = move || {
+        if ctx.canvas.get() {
+            return Vec::new().collect_view();
+        }
         plan.with(|plan| {
             plan.cells
                 .iter()
@@ -1464,6 +1495,16 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 })
                 .collect_view()
         })
+    };
+    let canvas_icons = move || {
+        plan.with(|plan| plan.cells.iter().filter(|_|ctx.canvas.get()).filter_map(|cell| {
+            let conditional=cell.shown.conditional.as_ref()?;
+            let (set,index)=conditional.icon.as_ref()?;
+            let italic=matches!(cell.shown.provenance,cells::Provenance::FileCache|cells::Provenance::Refused);
+            let layout=alignment::layout(cell,conditional,italic,plan.scale);
+            let style=format!("{}{}",rect_style(&cell.rect),panes.get().clip_style(cell.rect,&metrics.get(),&viewport.get(),Some(cell.row),Some(cell.col)));
+            Some(view!{<div class="dc-canvas-icon" aria-hidden="true" use:css=style><span class="dc-icon" use:css=layout.icon inner_html=icons::icon_svg(set,*index)></span></div>})
+        }).collect_view())
     };
     // The semantic rows are already part of the plan. Empty identities, selection and
     // refusal text follow its committed publication rather than painted DOM attributes.
@@ -1809,12 +1850,13 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     };
     // The gridlines: one line after each visible column and row.
     let gridlines = move || {
+        let enabled = !ctx.canvas.get();
         let v = viewport.get();
         plan.with(|plan| {
             let columns = plan
                 .col_headers
                 .iter()
-                .filter(|header| header.rect.w > 0.0)
+                .filter(|header| enabled && header.rect.w > 0.0)
                 .map(|header| {
                     let style = format!(
                         "left:{};top:0;width:1px;height:{}",
@@ -1827,7 +1869,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             let rows = plan
                 .row_headers
                 .iter()
-                .filter(|header| header.rect.h > 0.0)
+                .filter(|header| enabled && header.rect.h > 0.0)
                 .map(|header| {
                     let style = format!(
                         "left:0;top:{};width:{};height:1px",
@@ -1887,6 +1929,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 <span class="dc-sr-only" id=format!("dc-grid-keyboard-{}",ctx.index)>"Arrow keys move cells. F2 edits. F6 leaves the worksheet; Shift+F6 returns to the formula bar."</span>
                 <div class="dc-space" style:width=space_width style:height=space_height>
                     <div class="dc-layer" node_ref=layer style:font-size=move ||px(13.0*zoom.get()) style:width=move || px(viewport.get().width) style:height=move || px(viewport.get().height)>
+                        <canvas class="dc-grid-canvas" aria-hidden="true" data-dnacalc="grid-canvas" node_ref=canvas_node hidden=move ||!ctx.canvas.get() style:width=move ||px(viewport.get().width) style:height=move ||px(viewport.get().height)></canvas>
                         {gridlines}
                         {move || {
                             let m=metrics.get();let v=viewport.get();let (w,h)=panes.get().size(&m);
@@ -1896,6 +1939,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                             }
                         }}
                         {cells_view}
+                        {canvas_icons}
                         {charts_view}
                         {markers_view}
                         {selection_view}
@@ -1932,6 +1976,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 {move ||(split_window.get()&&ctx.layout.get().split.is_some()).then(||view!{<p class="dc-note">"Split panes scroll independently; adjacent panes share their row or column position. Split sizes adapt to the viewport."</p>})}
                 {move || {let (w,h)=panes.get().size(&metrics.get());let m=metrics.get();let v=viewport.get();((w>0.0 && w>=v.width-m.header_w) || (h>0.0 && h>=v.height-m.header_h)).then(||view!{<p class="dc-note">"The frozen area fills this viewport. Unfreeze to reach the cells after it."</p>})}}
                 <div class="dc-command-row">
+                    <label>"Cell painter "<select data-dnacalc="grid-painter" prop:value=move ||if ctx.canvas.get(){"canvas"}else{"dom"}
+                        on:change=move |ev|{let enabled=event_target_value(&ev)=="canvas";painter::remember(enabled);ctx.canvas.set(enabled);}>
+                        <option value="dom">"DOM"</option><option value="canvas">"Canvas2D"</option>
+                    </select></label>
                     <button data-dnacalc="freeze-active" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("active")>"Freeze above & left of active cell"</button>
                     <button data-dnacalc="freeze-row" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("first-row")>"Freeze first row"</button>
                     <button data-dnacalc="freeze-column" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("first-column")>"Freeze first column"</button>
