@@ -135,8 +135,8 @@ fn properties(host: &calc_host::HostState, at: CellKey) -> FormatPatch {
     }
 }
 pub fn selection(book: &Workbook, areas: Vec<GridArea>) -> Result<FormatSelection, String> {
-    let keys = calc_host::format_cells(&areas)?;
-    let first = *keys.first().ok_or("Select cells to format")?;
+    let keys = calc_host::format_samples(book.host(), &areas)?;
+    let first = areas.first().ok_or("Select cells to format")?.first();
     if keys
         .iter()
         .any(|at| book.host().model().sheet_by_id(at.sheet()).is_none())
@@ -148,7 +148,6 @@ pub fn selection(book: &Workbook, areas: Vec<GridArea>) -> Result<FormatSelectio
     styles.insert(book.host().cell_style(first));
     for at in keys
         .iter()
-        .skip(1)
         .filter(|at| styles.insert(book.host().cell_style(**at)))
     {
         let next = properties(book.host(), *at);

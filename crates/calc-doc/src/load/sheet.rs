@@ -38,6 +38,8 @@ pub(super) struct SheetLoad {
     pub(super) part: Arc<SourcePart>,
     pub(super) inputs: Vec<(CellKey, CellInput)>,
     pub(super) styles: BTreeMap<(u32, u32), u32>,
+    pub(super) row_styles: BTreeMap<u32, u32>,
+    pub(super) column_styles: Vec<(u32, u32, u32)>,
     pub(super) formulas: BTreeMap<(u32, u32), FormulaRecord>,
     /// The sheet's array formulas.
     pub(super) arrays: Vec<ArrayFormula>,
@@ -427,7 +429,7 @@ impl Sheet<'_> {
                 return Err(twice("an element a cell does not hold"));
             }
         }
-        if style != 0 {
+        if element.attribute("s").is_some() {
             self.styles.push(((row, column), style));
         }
         let kind = kind.as_deref();
@@ -859,6 +861,11 @@ impl Sheet<'_> {
                 self.load.hidden_rows.push(number);
             }
             self.load.geometry.read_row(number, &row);
+            if matches!(row.attribute("customFormat"), Some("1" | "true"))
+                && let Some(style) = row.attribute("s").and_then(|s| collapsed(s).parse().ok())
+            {
+                self.load.row_styles.insert(number, style);
+            }
             let mut previous_column = 0u32;
             loop {
                 match events.next()? {
@@ -930,6 +937,8 @@ pub(super) fn load_sheet(
             part: source,
             inputs: Vec::new(),
             styles: BTreeMap::new(),
+            row_styles: BTreeMap::new(),
+            column_styles: Vec::new(),
             formulas: BTreeMap::new(),
             arrays: Vec::new(),
             data_tables: Vec::new(),
@@ -1030,6 +1039,19 @@ pub(super) fn load_sheet(
                 match events.next()? {
                     Some(XmlEvent::Start(col)) if col.name.is(MAIN_NAMESPACE, "col") => {
                         sheet.load.geometry.read_column(&col);
+                        if let (Some(first), Some(last), Some(style)) = (
+                            col.attribute("min")
+                                .and_then(|s| collapsed(s).parse::<u32>().ok()),
+                            col.attribute("max")
+                                .and_then(|s| collapsed(s).parse::<u32>().ok()),
+                            col.attribute("style")
+                                .and_then(|s| collapsed(s).parse().ok()),
+                        ) && first >= 1
+                            && first <= last
+                            && last <= MAX_COLUMNS
+                        {
+                            sheet.load.column_styles.push((first, last, style));
+                        }
                         events.skip()?;
                     }
                     Some(XmlEvent::Start(_)) => events.skip()?,

@@ -160,6 +160,11 @@ pub(crate) fn next_command_scope() -> u64 {
 }
 
 impl HostState {
+    /// Physical result rows; this does not claim calculation coverage or freshness.
+    pub fn result_storage_stats(&self) -> calc_engine::ResultStorageStats {
+        self.engine.result_storage_stats()
+    }
+
     pub fn user_function_bindings(&self) -> calc_fml::CallableBindings {
         self.functions.bindings()
     }
@@ -747,10 +752,10 @@ impl HostState {
         if let Some(format) = self.model.definitions().cell_format(at) {
             return format;
         }
-        match (self.loaded.sheet(at.sheet()), self.opened_position(at)) {
-            (Some(sheet), Some((row, column))) => sheet.style(row, column),
-            _ => 0,
+        if let Some(format) = self.styles().runs.get(at) {
+            return format;
         }
+        crate::facts::imported_style(self.loaded.sheet(at.sheet()), &self.axis_edits, at)
     }
 
     /// The effective workbook alignment, through the same resolver CELL("prefix") uses.

@@ -2157,7 +2157,7 @@ pub fn publish_ready(
                 state.volatile.remove(&node);
             }
         }
-        state.results.publish(node, at, result);
+        state.publish_result(node, at, result);
         state.pending.remove(&node);
         state.entered.remove(&node);
         if work.admission.range_post_state == crate::contract::RangePostState::StillRequired {
@@ -2340,7 +2340,7 @@ pub fn finish(
                 state.volatile.remove(&node);
             }
         }
-        state.results.publish(node, at, result);
+        state.publish_result(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
     }
     state.range_redemand.retain(|node| {

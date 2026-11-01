@@ -61,6 +61,8 @@ mod random;
 mod read;
 mod recalc;
 mod result;
+mod results;
+pub use results::ResultStorageStats;
 mod spill;
 mod state;
 mod structural;

@@ -4850,9 +4850,11 @@ fn contract_paste_cut_drops_overwritten_scope_locations_before_undo() {
 }
 
 fn package_with_part(name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
+    package_with_part_from(&calc_host::blank_package(), name, rewrite)
+}
+fn package_with_part_from(blank: &[u8], name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
     use existing_wire_support::{RawEntry, build_zip, parse_zip};
-    let blank = calc_host::blank_package();
-    let archive = parse_zip(&blank);
+    let archive = parse_zip(blank);
     let entries: Vec<_> = archive
         .entries
         .iter()
@@ -6153,16 +6155,32 @@ mod async_contract {
     fn contract_p07_calculated_save_receipt_survives_a_live_rebuild() {
         use calc_host::CalculatedSaveProgress as P;
         let (mut book, s, counts) = configured("=AsyncEcho(A1)+2", None, 1);
-        let mut save = book.prepare_calculated_save(&SavePolicy::default()).unwrap();
+        let mut save = book
+            .prepare_calculated_save(&SavePolicy::default())
+            .unwrap();
         assert_eq!(drive_save(&mut save, &book), P::Waiting);
         let token = save.pending_async()[0].clone();
-        assert!(book.dispatch(SkinIntent::EditAxis(
-            AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 10, 1).unwrap())).accepted());
-        let live_view = book.prepare_save(&SavePolicy::default()).unwrap().pin().results;
-        assert_eq!(save.complete_async(book.host(), &token, CalcValue::number(40.0)), D::Accepted);
+        assert!(
+            book.dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 10, 1).unwrap()
+            ))
+            .accepted()
+        );
+        let live_view = book
+            .prepare_save(&SavePolicy::default())
+            .unwrap()
+            .pin()
+            .results;
+        assert_eq!(
+            save.complete_async(book.host(), &token, CalcValue::number(40.0)),
+            D::Accepted
+        );
         assert_eq!(drive_save(&mut save, &book), P::Ready, "{:?}", save.error());
         let prepared = book.finish_calculated_save(save).unwrap();
-        assert_eq!(prepared.calculation().unwrap().results, prepared.pin().results);
+        assert_eq!(
+            prepared.calculation().unwrap().results,
+            prepared.pin().results
+        );
         assert_ne!(prepared.pin().results, live_view);
         assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
     }
@@ -7210,6 +7228,154 @@ mod async_contract {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_8__sparse_result_columns_compact_without_recalculation() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        let data = r#"<sheetData><row r="1"><c r="A1"><f t="shared" ref="A1:XFD1048576" si="7">$B$2+1</f><v>31</v></c></row><row r="1048576"><c r="XFD1048576"><f t="shared" si="7"/><v>47</v></c></row></sheetData>"#;
+        xml.replace("<sheetData/>", data)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let addresses = [at(s, "A1"), at(s, "XFD1048576")];
+    assert!(
+        addresses
+            .iter()
+            .all(|at| matches!(value(book.host(), *at), ProjectedValue::FileCached(_)))
+    );
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    for at in addresses {
+        assert_eq!(session_calculated(&book, at), Some(CalcValue::number(1.0)));
+    }
+    let before = book.host().result_storage_stats();
+    assert_eq!((before.grouped_columns, before.grouped_members), (1, 2));
+    assert_eq!((before.allocated_slots, before.vacant_slots), (4, 2));
+    let values: Vec<_> = addresses.iter().map(|at| value(book.host(), *at)).collect();
+    let view = book
+        .prepare_save(&SavePolicy::default())
+        .unwrap()
+        .pin()
+        .results;
+    book.take_calculation_events();
+    assert_eq!(book.compact_result_storage(0), None);
+    assert_eq!(book.host().result_storage_stats(), before);
+    let compact = book.compact_result_storage(64).unwrap();
+    assert_eq!((compact.allocated_slots, compact.vacant_slots), (2, 0));
+    assert_eq!((compact.grouped_columns, compact.grouped_members), (1, 2));
+    assert_eq!(
+        book.prepare_save(&SavePolicy::default())
+            .unwrap()
+            .pin()
+            .results,
+        view
+    );
+    assert!(book.take_calculation_events().is_empty());
+    for (at, expected) in addresses.iter().zip(&values) {
+        assert_eq!(&value(book.host(), *at), expected);
+    }
+
+    // Editing one member leaves independently certified neighbors intact. Each changed plan
+    // leaves a vacant physical row, which bounded compaction later removes.
+    for n in 2..20 {
+        assert!(enter(&mut book, addresses[1], &format!("=$B$2+{n}")).accepted());
+        assert_eq!(
+            session_calculated(&book, addresses[0]),
+            Some(CalcValue::number(1.0))
+        );
+        assert_eq!(
+            session_calculated(&book, addresses[1]),
+            Some(CalcValue::number(n as f64))
+        );
+    }
+    assert!(enter(&mut book, addresses[1], "=$B$2+1").accepted());
+    let fragmented = book.host().result_storage_stats();
+    assert_eq!(
+        (fragmented.grouped_columns, fragmented.grouped_members),
+        (1, 2)
+    );
+    assert!(fragmented.vacant_slots >= 18);
+    let values: Vec<_> = addresses.iter().map(|at| value(book.host(), *at)).collect();
+    let view = book
+        .prepare_save(&SavePolicy::default())
+        .unwrap()
+        .pin()
+        .results;
+    book.take_calculation_events();
+    let compact = book.compact_result_storage(256).unwrap();
+    assert_eq!((compact.allocated_slots, compact.vacant_slots), (2, 0));
+    assert!(compact.reserved_slots < fragmented.reserved_slots);
+    assert_eq!(
+        book.prepare_save(&SavePolicy::default())
+            .unwrap()
+            .pin()
+            .results,
+        view
+    );
+    assert!(book.take_calculation_events().is_empty());
+    for (at, expected) in addresses.iter().zip(&values) {
+        assert_eq!(&value(book.host(), *at), expected);
+    }
+    println!(
+        "ACCEPT-NOTE: dc-hsa5.8: full-sheet extent with2 members; file caches to calculated columns {before:?}; edited fragmentation {fragmented:?}; compaction {compact:?}; certificates and result view unchanged"
+    );
+
+    // Manual edits retain a removed result as an orphan until publication. Compaction must
+    // retain that qualification and must not give it to a reused node slot at another cell.
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    assert!(enter(&mut book, addresses[0], "9").accepted());
+    assert!(enter(&mut book, at(s, "C1"), "=7").accepted());
+    let held = value(book.host(), addresses[1]);
+    let pending = value(book.host(), at(s, "C1"));
+    assert!(matches!(pending, ProjectedValue::Stale { .. }));
+    assert_eq!(book.host().result_storage_stats().orphan_results, 1);
+    let view = book
+        .prepare_save(&SavePolicy::default())
+        .unwrap()
+        .pin()
+        .results;
+    book.take_calculation_events();
+    assert_eq!(book.compact_result_storage(256).unwrap().orphan_results, 1);
+    assert_eq!(value(book.host(), addresses[1]), held);
+    assert_eq!(value(book.host(), at(s, "C1")), pending);
+    assert_eq!(
+        book.prepare_save(&SavePolicy::default())
+            .unwrap()
+            .pin()
+            .results,
+        view
+    );
+    assert!(book.take_calculation_events().is_empty());
+    assert!(
+        matches!(value(book.host(), addresses[0]), ProjectedValue::Literal(value) if value.as_number()==Some(9.0))
+    );
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(book.host().result_storage_stats().orphan_results, 0);
+    assert_eq!(
+        session_calculated(&book, at(s, "C1")),
+        Some(CalcValue::number(7.0))
+    );
+    assert_eq!(
+        session_calculated(&book, addresses[1]),
+        Some(CalcValue::number(1.0))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let t = reopened.host().sheets()[0].id();
+    assert_eq!(
+        session_calculated(&reopened, at(t, "C1")),
+        Some(CalcValue::number(7.0))
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(t, "XFD1048576")),
+        Some(CalcValue::number(1.0))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_7__blocks_bind_without_expansion_and_edit_save_through_host() {
     use calc_doc_model::FormulaSaveMode;
     let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
@@ -7238,6 +7404,8 @@ fn dc_hsa5_7__blocks_bind_without_expansion_and_edit_save_through_host() {
             "binding and evaluation use the source"
         );
     }
+    let storage = book.host().result_storage_stats();
+    assert_eq!((storage.grouped_columns, storage.grouped_members), (1, 2));
     let mut untouched = Vec::new();
     book.save(&SavePolicy::default(), &mut untouched).unwrap();
     assert_eq!(
@@ -7685,4 +7853,263 @@ fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
             }
         }
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__whole_axes_and_large_ranges_are_sparse_and_round_trip() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    // Match the application's locale-bearing host options; CELL format codes need a locale.
+    let mut book = HostSession::open(
+        Arc::new(MemorySource::new(calc_host::blank_package())),
+        &OpenPolicy::default(),
+        HostOptions {
+            locale: calc_host::FormatProfile::for_culture("en-US"),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "B5"), "12.5").accepted());
+    assert!(enter(&mut book, at(s, "C100"), "3.5").accepted());
+    assert!(enter(&mut book, at(s, "E1"), "=CELL(\"format\",B5)").accepted());
+    let fact = |text: &str| {
+        Some(CalcValue::text(
+            calc_host::value::ExcelText::from_interop_assignment(text),
+        ))
+    };
+    assert_eq!(
+        session_calculated(&book, at(s, "E1")),
+        fact("G"),
+        "initial CELL: {:?}, mode {:?}",
+        session_value(&book, at(s, "E1")),
+        book.host().calc_mode()
+    );
+    let cells = book.host().model().sheet_cells(s).unwrap().count();
+    let format = |book: &mut HostSession, first: &str, last: &str, patch: FormatPatch| {
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::new(at(s, first), at(s, last)).unwrap()],
+            patch,
+        }));
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+    };
+    format(
+        &mut book,
+        "B1",
+        "B1048576",
+        FormatPatch {
+            number_format: Some("0.00".into()),
+            fill: Some("#ffeedd".into()),
+            ..Default::default()
+        },
+    );
+    format(
+        &mut book,
+        "A5",
+        "XFD5",
+        FormatPatch {
+            bold: Some(true),
+            ..Default::default()
+        },
+    );
+    let before = book.host().styles().clone();
+    format(
+        &mut book,
+        "C100",
+        "D20100",
+        FormatPatch {
+            fill: Some("#00ff00".into()),
+            ..Default::default()
+        },
+    );
+    let final_styles = book.host().styles().clone();
+    assert_eq!(session_calculated(&book, at(s, "E1")), fact("F2"));
+    let samples = [
+        "A5", "B5", "B1048576", "C99", "C100", "D20100", "D20101", "XFD5", "XFD6",
+    ];
+    let styles: Vec<_> = samples
+        .iter()
+        .map(|a| book.host().cell_style(at(s, a)))
+        .collect();
+    assert_eq!(book.host().number_format(at(s, "B5")), Some("0.00"));
+    assert_eq!(book.host().number_format(at(s, "A5")), Some("General"));
+    assert_eq!(book.host().model().sheet_cells(s).unwrap().count(), cells);
+    assert_eq!(book.host().model().definitions().cell_formats().count(), 0);
+    assert!(
+        book.host().styles().runs.iter().count() < 20,
+        "formats follow boundaries, not the selected cell count"
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().styles(), &before);
+    assert_eq!(book.host().cell_style(at(s, "C100")), 0);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().styles(), &final_styles);
+    for _ in 0..3 {
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+    }
+    assert_eq!(session_calculated(&book, at(s, "E1")), fact("G"));
+    for _ in 0..3 {
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+    }
+    assert_eq!(session_calculated(&book, at(s, "E1")), fact("F2"));
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    eprintln!(
+        "whole-axis plus 40,002-cell rectangle xlsx: {} bytes; {} style runs",
+        saved.len(),
+        book.host().styles().runs.iter().count()
+    );
+    let reopened = open(&saved);
+    let r = reopened.sheets()[0].id();
+    for (address, style) in samples.into_iter().zip(styles) {
+        assert_eq!(reopened.cell_style(at(r, address)), style, "{address}");
+    }
+    assert_eq!(
+        reopened.model().cell(at(r, "B5")),
+        book.host().model().cell(at(s, "B5"))
+    );
+    assert_eq!(
+        reopened.model().cell(at(r, "C100")),
+        book.host().model().cell(at(s, "C100"))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__imported_axis_defaults_and_explicit_zero_survive_sparse_edit_and_structural_save() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    let mut source = session(&calc_host::blank_package());
+    let s = source.host().sheets()[0].id();
+    for (a, patch) in [
+        (
+            "A1",
+            FormatPatch {
+                number_format: Some("0.00".into()),
+                ..Default::default()
+            },
+        ),
+        (
+            "A2",
+            FormatPatch {
+                bold: Some(true),
+                ..Default::default()
+            },
+        ),
+    ] {
+        assert!(
+            source
+                .dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                    areas: vec![GridArea::cell(at(s, a))],
+                    patch
+                }))
+                .accepted()
+        );
+    }
+    let number = source.host().cell_style(at(s, "A1"));
+    let bold = source.host().cell_style(at(s, "A2"));
+    let mut bytes = Vec::new();
+    source.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let bytes = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |_| {
+        format!(
+            r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:v="urn:style-test"><cols><col min="2" max="2" style="{number}" v:keep="column"/></cols><sheetData><row r="5" s="{number}" customFormat="1"><c r="B5" s="0" v:keep="zero"/><c r="D5" s="{bold}" v:keep="bold"/></row><row r="999999"><c r="B999999" s="{bold}"/></row><row r="1000000"><c r="B1000000" s="0"/></row></sheetData></worksheet>"#
+        )
+    });
+    for (axis, first, samples) in [
+        (
+            Axis::Rows,
+            1,
+            vec![("B1", number), ("B6", 0), ("A6", number)],
+        ),
+        (
+            Axis::Columns,
+            1,
+            vec![("A5", number), ("C5", 0), ("E5", bold)],
+        ),
+        (Axis::Rows, 6, vec![("B6", 0), ("D6", bold)]),
+        (Axis::Columns, 3, vec![("C5", 0), ("E5", bold)]),
+        (
+            Axis::Rows,
+            1000000,
+            vec![("B1000000", bold), ("B1000001", 0)],
+        ),
+    ] {
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        assert!(
+            book.dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, axis, AxisChange::Insert, first, 1).unwrap()
+            ))
+            .accepted()
+        );
+        for &(a, style) in &samples {
+            assert_eq!(
+                book.host().cell_style(at(s, a)),
+                style,
+                "before save {axis:?} {first} {a}"
+            );
+        }
+        // Unrelated tall rectangle forces column defaults to change at save time.
+        if first == 1000000 {
+            assert!(
+                book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                    areas: vec![GridArea::new(at(s, "C1"), at(s, "D900000")).unwrap()],
+                    patch: FormatPatch {
+                        fill: Some("#ddeeff".into()),
+                        ..Default::default()
+                    }
+                }))
+                .accepted()
+            );
+        }
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = open(&saved);
+        let r = reopened.sheets()[0].id();
+        for (a, style) in samples {
+            assert_eq!(
+                reopened.cell_style(at(r, a)),
+                style,
+                "after save {axis:?} {first} {a}"
+            );
+        }
+        let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+        assert!(xml.contains("v:keep=\"column\""));
+        assert!(xml.contains("v:keep=\"zero\""));
+        assert!(xml.contains("v:keep=\"bold\""));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__cell_shift_moves_sparse_range_styles_without_point_holes() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "B10"), "7").accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::new(at(s, "B8"), at(s, "B10")).unwrap()],
+            patch: FormatPatch {
+                fill: Some("#abcdef".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let style = book.host().cell_style(at(s, "B10"));
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::ShiftCells {
+            area: GridArea::cell(at(s, "B5")),
+            down: true,
+            insert: true
+        }))
+        .accepted()
+    );
+    for a in ["B9", "B10", "B11"] {
+        assert_eq!(book.host().cell_style(at(s, a)), style, "{a}");
+    }
+    assert_eq!(book.host().cell_style(at(s, "B8")), 0);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().cell_style(at(s, "B8")), style);
+    assert_eq!(book.host().cell_style(at(s, "B11")), 0);
 }

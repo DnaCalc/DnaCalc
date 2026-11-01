@@ -6776,6 +6776,51 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[Check::Value("name-formula","=100"),Check::Text("name-value","Not evaluated"),Check::PlanCell("A1","text","200")],
     },
 
+    Case {
+        name: "large formatting: a whole column formats values and visible blank cells",
+        actions: &[
+            Action::Click("new"),Action::DiscardReplacement,Action::Into("name-box","B2\u{E007}"),Action::Into(BAR,"12.5\u{E007}"),
+            Action::Into("name-box","B1:B1048576\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),
+            Action::Into("format-number","0.00"),Action::Click("format-tab-font"),Action::Into("format-font","monospace"),
+            Action::Click("format-tab-fill"),Action::Into("format-fill","#ffeedd"),Action::Click("format-apply"),
+        ],
+        checks: &[Check::PlanCell("B2","text","12.50"),Check::PlanCell("B10","style.fill","#ffeedd"),Check::PlanCell("B10","provenance","empty"),Check::PlanCell("B2","style.family","monospace")],
+    },
+    Case {
+        name: "large formatting: a whole row preserves the column intersection's other properties",
+        actions: &[
+            Action::Into("name-box","A2:XFD2\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-font"),Action::Choose("format-bold","true"),Action::Click("format-apply"),
+        ],
+        checks: &[Check::PlanCell("B2","text","12.50"),Check::PlanCell("B2","style.fill","#ffeedd"),Check::PlanCell("B2","style.bold","true"),Check::PlanCell("C2","style.bold","true")],
+    },
+    Case {
+        name: "large formatting: a 40002-cell rectangle uses the same command as a small selection",
+        actions: &[
+            Action::Into("name-box","D10:E20010\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-fill"),Action::Into("format-fill","#00ff00"),Action::Click("format-apply"),
+        ],
+        checks: &[Check::PlanCell("D10","style.fill","#00ff00"),Check::PlanCell("E10","style.fill","#00ff00"),Check::PlanCell("B10","style.fill","#ffeedd"),Check::PlanAbsent("C10")],
+    },
+    Case {
+        name: "large formatting: Undo and Redo restore the rectangle without changing axis defaults",
+        actions: &[Action::Click("undo"),Action::Wait(Check::PlanAbsent("D10")),Action::Wait(Check::PlanCell("B10","style.fill","#ffeedd")),Action::Click("redo")],
+        checks: &[Check::PlanCell("D10","style.fill","#00ff00"),Check::PlanCell("B2","style.bold","true")],
+    },
+    Case {
+        name: "large formatting: row, column and rectangle formats survive actual xlsx save and reopen",
+        actions: &[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady),Action::Into("name-box","D10:E20010\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Choose("format-italic","true"),Action::Click("format-apply")],
+        checks: &[Check::PlanCell("B2","text","12.50"),Check::PlanCell("B2","style.bold","true"),Check::PlanCell("B10","style.fill","#ffeedd"),Check::PlanCell("D10","style.fill","#00ff00"),Check::PlanAbsent("C10"),Check::PlanCell("D10","style.italic","true")],
+    },
+    Case {
+        name: "large formatting: reopened whole-axis defaults reach the final row and column",
+        actions: &[
+            Action::Into("name-box","XFD2\u{E007}"),Action::Wait(Check::PlanCell("XFD2","style.bold","true")),
+            Action::Into("name-box","B1048576\u{E007}"),
+        ],
+        checks: &[Check::PlanCell("B1048576","style.fill","#ffeedd"),Check::PlanCell("B1048576","style.family","monospace"),Check::PlanCell("B1048576","provenance","empty")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -7452,4 +7497,5 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {name:"name-manager",start:464,end:474,core:10,setup:&[]},
+    CaseGroup {name:"large-format",start:474,end:480,core:6,setup:&[]},
 ];

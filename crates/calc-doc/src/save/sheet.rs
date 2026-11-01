@@ -90,6 +90,7 @@ pub(super) struct Job<'a> {
     /// The cell formats edits gave the sheet's cells (dc-09v), by (row, column): each cell's `s`
     /// over the one the part gave it.
     pub(super) formats: &'a BTreeMap<(u32, u32), u32>,
+    pub(super) style_plan: Option<&'a super::styles::SheetStyles>,
 }
 
 impl Job<'_> {
@@ -102,12 +103,36 @@ impl Job<'_> {
         }
     }
 
-    /// The `s` an edit gave the cell: `None` when no edit did and the cell keeps its own,
-    /// `Some(None)` for format 0, which is written as no `s`.
-    fn style(&self, row: u32, column: u32) -> Option<Option<String>> {
+    /// The `s` an edit gave the cell, or a save-plane exception for an inherited format.
+    /// An explicit source format survives unless an authored assignment overrides it.
+    /// Format zero is written as `s="0"` to override an axis default.
+    fn style(&self, row: u32, column: u32, source_explicit: bool) -> Option<Option<String>> {
         self.formats
             .get(&(row, column))
-            .map(|&format| (format != 0).then(|| format.to_string()))
+            .copied()
+            .or_else(|| {
+                self.model
+                    .definitions()
+                    .styles()
+                    .runs
+                    .get(CellKey::new(self.loaded.id(), row, column).unwrap())
+            })
+            .or_else(|| {
+                if source_explicit {
+                    None
+                } else {
+                    self.style_plan.and_then(|p| {
+                        p.cells
+                            .iter()
+                            .find(|r| {
+                                r.area
+                                    .contains(CellKey::new(self.loaded.id(), row, column).unwrap())
+                            })
+                            .map(|r| r.format)
+                    })
+                }
+            })
+            .map(|format| Some(format.to_string()))
     }
 }
 
@@ -411,6 +436,13 @@ impl<'j> Rewrite<'_, 'j> {
                 .entry(column)
                 .or_insert(Change::Restyle);
         }
+        if let Some(plan) = self.job.style_plan {
+            for run in &plan.cells {
+                for row in run.area.first().row()..=run.area.last().row() {
+                    rows.entry(row).or_default();
+                }
+            }
+        }
         let mut pending = rows.into_iter().peekable();
         let tag = RawTag::parse(&self.source()[span.0..span.1]);
         let prefix = tag.prefix().to_vec();
@@ -476,8 +508,9 @@ impl<'j> Rewrite<'_, 'j> {
     /// Appends a row the part did not hold, with the cells set in it; nothing when none of them
     /// is written.
     fn new_row(&mut self, row: u32, cells: &RowChanges<'_>, prefix: &[u8], out: &mut Vec<u8>) {
+        let cells = self.formatted_row(row, cells);
         let mut written = Vec::new();
-        for (&column, change) in cells {
+        for (&column, change) in &cells {
             self.new_cell(None, prefix, row, column, *change, &mut written);
         }
         if written.is_empty() {
@@ -490,9 +523,22 @@ impl<'j> Rewrite<'_, 'j> {
         end_tag(prefix, b"row", out);
     }
 
-    /// Appends an empty cell the part did not hold, when an edit gave it a format other than 0.
+    fn formatted_row<'c>(&self, row: u32, cells: &RowChanges<'c>) -> RowChanges<'c> {
+        let mut cells = cells.clone();
+        if let Some(plan) = self.job.style_plan {
+            for run in &plan.cells {
+                if (run.area.first().row()..=run.area.last().row()).contains(&row) {
+                    for col in run.area.first().column()..=run.area.last().column() {
+                        cells.entry(col).or_insert(Change::Restyle);
+                    }
+                }
+            }
+        }
+        cells
+    }
+    /// Appends an empty cell when its format is an explicit exception, including style zero.
     fn styled_empty(&mut self, prefix: &[u8], row: u32, column: u32, out: &mut Vec<u8>) {
-        if let Some(Some(style)) = self.job.style(row, column) {
+        if let Some(Some(style)) = self.job.style(row, column, false) {
             let at = a1(row, column);
             out.push(b'<');
             out.extend_from_slice(prefix);
@@ -521,7 +567,9 @@ impl<'j> Rewrite<'_, 'j> {
             Change::Spilled => return self.spilled_cell(source, prefix, row, column, out),
         };
         let at = a1(row, column);
-        let style = self.job.style(row, column);
+        let style = self
+            .job
+            .style(row, column, source.is_some_and(|t| t.has("s")));
         let kind = match input {
             CellInput::Number(_) | CellInput::Formula(_) => None,
             CellInput::Text(_) => Some("s"),
@@ -678,7 +726,7 @@ impl<'j> Rewrite<'_, 'j> {
             match source {
                 Some(tag) => {
                     let at = a1(row, column);
-                    let style = self.job.style(row, column);
+                    let style = self.job.style(row, column, tag.has("s"));
                     out.extend(tag.rebuilt(
                         &with_style(
                             &[("r", Some(&at)), ("t", None), ("cm", None), ("vm", None)],
@@ -693,7 +741,9 @@ impl<'j> Rewrite<'_, 'j> {
             return;
         };
         let at = a1(row, column);
-        let style = self.job.style(row, column);
+        let style = self
+            .job
+            .style(row, column, source.is_some_and(|t| t.has("s")));
         let vm = vm.map(|vm| vm.to_string());
         let prefix = source.map_or(prefix, |tag| tag.prefix());
         match source {
@@ -742,6 +792,7 @@ impl<'j> Rewrite<'_, 'j> {
         number: u32,
         cells: &RowChanges<'_>,
     ) -> Result<(), SaveRefusal> {
+        let cells = self.formatted_row(number, cells);
         let prefix = tag.prefix().to_vec();
         let row_text = number.to_string();
         let changes: [(&str, Option<&str>); 2] = [("spans", None), ("r", Some(&row_text))];
@@ -749,7 +800,7 @@ impl<'j> Rewrite<'_, 'j> {
         if tag.is_empty() {
             self.reader.expect()?;
             let mut added = Vec::new();
-            for (&column, change) in cells {
+            for (&column, change) in &cells {
                 self.new_cell(None, &prefix, number, column, *change, &mut added);
             }
             if !added.is_empty() {
@@ -865,7 +916,9 @@ impl<'j> Rewrite<'_, 'j> {
         let at = a1(row, column);
         // A cell whose format alone changed is written as an unchanged one, with its `s`.
         let change = change.filter(|change| !matches!(change, Change::Restyle));
-        let style = self.job.style(row, column);
+        let style = self
+            .job
+            .style(row, column, element.attribute("s").is_some());
         let cleared = change.is_none()
             && self.job.cleared.iter().any(|&(top, left, bottom, right)| {
                 (top..=bottom).contains(&row)
@@ -896,7 +949,13 @@ impl<'j> Rewrite<'_, 'j> {
             Some(Change::Emptied) => {
                 let keeps_style = match &style {
                     Some(style) => style.is_some(),
-                    None => styled(element),
+                    None => {
+                        styled(element)
+                            || (element.attribute("s").is_some()
+                                && (self.job.moves.is_some()
+                                    || self.job.style_plan.is_some()
+                                    || self.job.loaded.default_styles().any(|r| r.format != 0)))
+                    }
                 };
                 let bytes = if keeps_style {
                     self.bounds.add(row, column);

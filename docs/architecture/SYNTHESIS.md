@@ -483,5 +483,18 @@ loaded array definitions continue to select their evaluation and publication for
 Copy and row insertion/deletion use the existing reference-occurrence transforms. This slice
 materializes affected groups and saves individual formulas; untouched eligible groups retain their
 shared file form. It does not yet regroup edited formulas, coalesce unrelated writer output, compact
-fragmentation, extract the parser/binder, or store engine results in block columns. The sparse test
+authored fragmentation or extract the parser/binder. The sparse test
 uses a full-sheet extent (17,179,869,184 coordinates), two members, two runs and two authored pages.
+
+Result columns (dc-hsa5.8, 2026-11-01): the ordinary publication path places results with the
+same interned bound plan in one member-sized column within a sheet and array role. Each row
+retains its own node ID, value and certificate; grouping grants no freshness or shared value.
+Fixed legacy arrays and data tables keep individual rows. This also groups results of separately
+authored copies without changing their spelling or file form. The node-slot directory contains
+row locations, and removed results retain the existing orphan behavior. No allocation follows
+a block's bounding rectangle. Optional `compact_result_storage(max_slots)` first bounds the
+index, anchor, column and row scans, then regroups existing values and removes holes; declining
+the budget changes nothing. Compaction neither evaluates nor publishes. The host test measures
+two members over a full-sheet extent and 20 result rows with 18 holes after edits, reduced to
+two rows with no holes, preserving exact projected provenance and result-view identity. Authored
+source regrouping, edited shared-file groups and block evaluation kernels remain open.

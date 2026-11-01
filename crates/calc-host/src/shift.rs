@@ -97,7 +97,7 @@ pub fn shift_cell_edits(
             .filter_map(|(at, _)| tail.contains(at).then_some(at)),
     );
     if let Some(sheet) = loaded {
-        positions.extend(sheet.styled_cells().filter_map(|(row, col, _)| {
+        positions.extend(sheet.explicit_styles().filter_map(|(row, col, _)| {
             let mut at = CellKey::new(area.sheet(), row, col).ok()?;
             for axis in &host.axis_edits {
                 at = calc_doc_model::moved_cell(*axis, at)?;
@@ -113,17 +113,76 @@ pub fn shift_cell_edits(
             "The insertion would push occupied or styled cells past the worksheet edge".into(),
         );
     }
-    let source_styles: Vec<_> = positions
-        .iter()
-        .copied()
-        .map(|at| (at, host.cell_style(at)))
-        .collect();
-    let mut edits = vec![CellEdit::Clear { area: tail }];
-    let mut styles = BTreeMap::new();
+    // Move the sparse style plane through the same edit as the inputs. Resetting
+    // the tail also shadows imported styles at their old coordinates.
+    let mut table = (**host.styles()).clone();
+    let source = crate::format_regions(host, tail)?;
+    table.runs.assign(calc_doc_model::StyleRun {
+        area: tail,
+        format: 0,
+    });
+    let count = if down {
+        area.last().row() - area.first().row() + 1
+    } else {
+        area.last().column() - area.first().column() + 1
+    };
+    for run in source {
+        let start = if down {
+            run.area.first().row()
+        } else {
+            run.area.first().column()
+        };
+        let end = if down {
+            run.area.last().row()
+        } else {
+            run.area.last().column()
+        };
+        let cut = if down {
+            area.last().row()
+        } else {
+            area.last().column()
+        };
+        let limit = if down { MAX_ROWS } else { MAX_COLUMNS };
+        let (a, b) = if insert {
+            (
+                start.saturating_add(count),
+                end.saturating_add(count).min(limit),
+            )
+        } else {
+            (
+                start.max(cut + 1).saturating_sub(count),
+                end.saturating_sub(count),
+            )
+        };
+        if (!insert && end <= cut) || a > b || a == 0 || a > limit {
+            continue;
+        }
+        let first = CellKey::new(
+            area.sheet(),
+            if down { a } else { run.area.first().row() },
+            if down { run.area.first().column() } else { a },
+        )
+        .unwrap();
+        let last = CellKey::new(
+            area.sheet(),
+            if down { b } else { run.area.last().row() },
+            if down { run.area.last().column() } else { b },
+        )
+        .unwrap();
+        table.runs.assign(calc_doc_model::StyleRun {
+            area: GridArea::new(first, last).unwrap(),
+            format: run.format,
+        });
+    }
+    let mut edits = vec![
+        CellEdit::Styles(std::sync::Arc::new(table)),
+        CellEdit::Clear { area: tail },
+    ];
+    let mut styles: BTreeMap<CellKey, Option<u32>> = BTreeMap::new();
     for at in positions {
-        styles.insert(at, 0);
+        styles.insert(at, None);
         if let Some(to) = edit.cell(at) {
-            styles.entry(to).or_insert(0);
+            styles.entry(to).or_insert(None);
         }
         // Inputs, including formulas outside the stripe, are rewritten together below.
         if model
@@ -136,12 +195,6 @@ pub fn shift_cell_edits(
                     input: model.cell(at).unwrap().clone(),
                 });
             }
-        }
-    }
-    // Clear old styles first, then put the immutable source styles at their new coordinates.
-    for (at, style) in source_styles {
-        if let Some(to) = edit.cell(at) {
-            styles.insert(to, style);
         }
     }
     if insert {
@@ -161,14 +214,15 @@ pub fn shift_cell_edits(
                         .filter(|c| *c > 0)
                         .and_then(|c| CellKey::new(area.sheet(), row, c).ok())
                 };
-                styles.insert(at, source.map_or(0, |at| host.cell_style(at)));
+                styles.insert(at, Some(source.map_or(0, |at| host.cell_style(at))));
             }
         }
     }
-    edits.extend(styles.into_iter().map(|(at, format)| CellEdit::SetFormat {
-        at,
-        format: Some(format),
-    }));
+    edits.extend(
+        styles
+            .into_iter()
+            .map(|(at, format)| CellEdit::SetFormat { at, format }),
+    );
     for sheet in model.sheets() {
         for (at, input) in model.sheet_cells(sheet.id()).into_iter().flatten() {
             let CellInput::Formula(formula) = input else {

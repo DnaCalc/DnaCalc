@@ -4,6 +4,7 @@
 use crate::graph::{BlockHasher, Prerequisite, ReverseIndex};
 use crate::recalc::{ReadersCache, dirty_closure, live_anchor};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
+use crate::results::{ResultGroup, Results};
 use crate::spill::{Spill, SpillIndex};
 use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
 use calc_fml::{CalcEnvironment, CompiledPlan, FormulaInstance, PlanCache};
@@ -101,82 +102,6 @@ pub(crate) enum Binding {
     Refused(NotModeled),
     /// A cell of a what-if data table (L3, dc-m3u), calculated from the table.
     DataTable(calc_doc_model::DataTable),
-}
-
-/// The published results (dc-dxm): each live node's at its slot, and the result a removed node
-/// left at its cell until the next publication, by cell (what [`EngineState::result`] gives
-/// for the cell, unless a node there publishes its own). Formerly one map by cell.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Results {
-    by_slot: Vec<Option<(NodeId, FormulaResult)>>,
-    orphans: HashMap<CellKey, (NodeId, FormulaResult), BuildHasherDefault<BlockHasher>>,
-}
-
-impl Results {
-    pub(crate) fn of_mut(&mut self, node: NodeId) -> Option<&mut FormulaResult> {
-        self.by_slot
-            .get_mut(node.slot() as usize)?
-            .as_mut()
-            .filter(|(held, _)| *held == node)
-            .map(|(_, result)| result)
-    }
-
-    /// The result of the live node `node`.
-    pub(crate) fn of(&self, node: NodeId) -> Option<&FormulaResult> {
-        match self.by_slot.get(node.slot() as usize) {
-            Some(Some((held, result))) if *held == node => Some(result),
-            _ => None,
-        }
-    }
-
-    /// The result a removed node left at `at`.
-    pub(crate) fn orphan(&self, at: CellKey) -> Option<&FormulaResult> {
-        self.orphans.get(&at).map(|(_, result)| result)
-    }
-
-    /// Publishes `result` for the live node `node` anchored at `at`, which replaces any result a
-    /// removed node left there.
-    pub(crate) fn publish(&mut self, node: NodeId, at: CellKey, result: FormulaResult) {
-        let slot = node.slot() as usize;
-        if slot >= self.by_slot.len() {
-            self.by_slot.resize_with(slot + 1, || None);
-        }
-        self.by_slot[slot] = Some((node, result));
-        if !self.orphans.is_empty() {
-            self.orphans.remove(&at);
-        }
-    }
-
-    /// Keeps the result of `node`, which is being removed from `at`, as the cell's until the next
-    /// publication.
-    pub(crate) fn retire(&mut self, node: NodeId, at: CellKey) {
-        if let Some(entry) = self.by_slot.get_mut(node.slot() as usize)
-            && entry.as_ref().is_some_and(|(held, _)| *held == node)
-            && let Some(kept) = entry.take()
-        {
-            self.orphans.insert(at, kept);
-        }
-    }
-
-    /// Takes the result a removed node left at `at`, with the node.
-    pub(crate) fn take_orphan(&mut self, at: CellKey) -> Option<(NodeId, FormulaResult)> {
-        self.orphans.remove(&at)
-    }
-
-    pub(crate) fn clear_orphans(&mut self) {
-        self.orphans.clear();
-    }
-
-    fn live(&self) -> impl Iterator<Item = (NodeId, &FormulaResult)> {
-        self.by_slot
-            .iter()
-            .flatten()
-            .map(|(node, result)| (*node, result))
-    }
-
-    fn orphans(&self) -> impl Iterator<Item = (CellKey, &FormulaResult)> {
-        self.orphans.iter().map(|(at, (_, result))| (*at, result))
-    }
 }
 
 /// The formula nodes by anchor (dc-dxm): for each sheet whose anchors fill enough of the rectangle
@@ -483,6 +408,48 @@ impl Default for ParallelMinimum {
 }
 
 impl EngineState {
+    fn result_group(&self, node: NodeId, at: CellKey) -> Option<ResultGroup> {
+        let Binding::Placed(instance, role) = self.bindings.get(&node)? else {
+            return None;
+        };
+        let role = match role {
+            ArrayRole::Cell => 0,
+            ArrayRole::Spill => 1,
+            ArrayRole::LegacyCell | ArrayRole::LegacyFill(_) => return None,
+        };
+        Some(ResultGroup {
+            sheet: at.sheet(),
+            plan: Arc::as_ptr(instance.plan()) as usize,
+            role,
+        })
+    }
+    pub(crate) fn publish_result(&mut self, node: NodeId, at: CellKey, result: FormulaResult) {
+        let group = self.result_group(node, at);
+        self.results.publish(node, at, result, group);
+    }
+    /// Physical result rows, distinct from calculation coverage or freshness.
+    pub fn result_storage_stats(&self) -> crate::ResultStorageStats {
+        self.results.stats()
+    }
+    /// Regroup retained values by their existing bound plans and remove vacant rows.
+    /// The budget bounds inspected index entries, anchors, columns and rows; an insufficient
+    /// budget declines before mutation. This never evaluates, certifies or publishes a value.
+    pub fn compact_result_storage(
+        &mut self,
+        max_slots: usize,
+    ) -> Option<crate::ResultStorageStats> {
+        if !self.results.can_compact(self.by_anchor.len(), max_slots) {
+            return None;
+        }
+        let assignments = self
+            .by_anchor
+            .iter()
+            .map(|(at, node)| (*node, (*at, self.result_group(*node, *at))))
+            .collect();
+        self.results.compact(assignments);
+        Some(self.results.stats())
+    }
+
     pub(crate) fn node_ids(&mut self) -> &mut IdAllocator<NodeId> {
         self.ids
             .as_mut()
@@ -753,7 +720,7 @@ impl EngineState {
             if let Some(node) = state.node_at(at) {
                 state
                     .results
-                    .publish(node, at, FormulaResult::FileCached(cache));
+                    .publish(node, at, FormulaResult::FileCached(cache), None);
             } else if inputs.cell(at).is_none()
                 && inputs.definitions().unloaded(at).is_none()
                 && inputs.definitions().array_containing(at).is_some()

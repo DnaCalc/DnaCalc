@@ -57,7 +57,7 @@ mod actions;
 mod format;
 mod names;
 pub use facts::alignment as style_alignment;
-pub use format::{BorderPatch, FORMAT_LIMIT, FormatPatch, format_cells, patched_style};
+pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};
 pub use names::NameEdit;
 pub mod chart;
 mod command;
@@ -129,7 +129,7 @@ pub use calc_doc_model::{
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,
-    RecalcFailure, StartError, Unobserved, ValueChange, ValueDelta, WorkBudget,
+    RecalcFailure, ResultStorageStats, StartError, Unobserved, ValueChange, ValueDelta, WorkBudget,
 };
 pub use calc_fml::reference::CellRun;
 pub use calc_fml::{CallableHandle, CallableTable, FormatProfile};
