@@ -7226,6 +7226,13 @@ mod async_contract {
     }
 }
 
+fn shared_block_package() -> Vec<u8> {
+    package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        let data = r#"<sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>10</v></c><c r="C1"><f t="shared" si="2">ignored dependent</f><v>999</v></c></row><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>3</v></c><c r="C3"><f t="shared" ref="C1:C3" si="2">A3+$B$1</f><v>998</v></c></row></sheetData>"#;
+        xml.replace("<sheetData/>", data)
+    })
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_8__sparse_result_columns_compact_without_recalculation() {
@@ -7378,10 +7385,7 @@ fn dc_hsa5_8__sparse_result_columns_compact_without_recalculation() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_7__blocks_bind_without_expansion_and_edit_save_through_host() {
     use calc_doc_model::FormulaSaveMode;
-    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
-        let data = r#"<sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>10</v></c><c r="C1"><f t="shared" si="2">ignored dependent</f><v>999</v></c></row><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>3</v></c><c r="C3"><f t="shared" ref="C1:C3" si="2">A3+$B$1</f><v>998</v></c></row></sheetData>"#;
-        xml.replace("<sheetData/>", data)
-    });
+    let bytes = shared_block_package();
     let mut book = session(&bytes);
     let s = book.host().sheets()[0].id();
     let input =
@@ -8112,4 +8116,95 @@ fn dc_971p__cell_shift_moves_sparse_range_styles_without_point_holes() {
     assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert_eq!(book.host().cell_style(at(s, "B8")), style);
     assert_eq!(book.host().cell_style(at(s, "B11")), 0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_9__master_edits_keep_the_shared_source_through_history_and_save() {
+    let mut book = session(&shared_block_package());
+    let s = book.host().sheets()[0].id();
+    let input =
+        |book: &HostSession, address: &str| match book.host().model().cell(at(s, address)).unwrap()
+        {
+            CellInput::Formula(text) => text.clone(),
+            _ => panic!("formula member"),
+        };
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let original = input(&book, "C1").block().unwrap().clone();
+    assert_eq!(original.source().anchor(), at(s, "C3"));
+    assert!(enter(&mut book, at(s, "C3"), "9").accepted());
+    let survivor = input(&book, "C1");
+    let retained = survivor.block().unwrap();
+    assert_eq!(retained.member_count(), 1);
+    assert!(!retained.contains(at(s, "C3")));
+    assert!(!survivor.materialized());
+    assert!(std::ptr::eq(retained.source(), original.source()));
+    assert_eq!(
+        session_calculated(&book, at(s, "C1")),
+        Some(CalcValue::number(11.0))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    // The existing inverse edit restores the edited formula individually; the survivor's
+    // retained source does not claim that independently restored cell as a member.
+    assert_eq!(input(&book, "C1").block().unwrap().member_count(), 1);
+    assert!(input(&book, "C3").block().is_none());
+    assert_eq!(input(&book, "C3").text().to_string_lossy(), "A3+$B$1");
+    assert!(std::ptr::eq(
+        input(&book, "C1").block().unwrap().source(),
+        original.source()
+    ));
+    assert_eq!(
+        session_calculated(&book, at(s, "C3")),
+        Some(CalcValue::number(13.0))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    // The requested UI projections have now materialized this member's spelling. Its source
+    // remains shared; keeping a cached rendering does not turn it into an individual input.
+    assert_eq!(input(&book, "C1").block().unwrap().member_count(), 1);
+    assert!(input(&book, "C1").materialized());
+    assert_eq!(
+        session_calculated(&book, at(s, "C1")),
+        Some(CalcValue::number(11.0))
+    );
+    assert!(
+        matches!(value(book.host(),at(s,"C3")),ProjectedValue::Literal(value) if value.as_number()==Some(9.0))
+    );
+    // Undoing a sheet command restores the retained model through EngineState::rebuilt. The
+    // original source origin is a literal, yet the survivor binds at its own formula anchor.
+    assert!(
+        book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+            sheet: Some(s),
+            change: calc_host::SheetChange::Rename {
+                name: "Renamed".into()
+            },
+        }))
+        .accepted()
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(input(&book, "C1").block().unwrap().member_count(), 1);
+    assert!(std::ptr::eq(
+        input(&book, "C1").block().unwrap().source(),
+        original.source()
+    ));
+    assert_eq!(
+        session_calculated(&book, at(s, "C1")),
+        Some(CalcValue::number(11.0))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(
+        !xml.contains("t=\"shared\""),
+        "edited shared groups keep the existing safe individual-file fallback"
+    );
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let t = reopened.host().sheets()[0].id();
+    assert_eq!(
+        session_calculated(&reopened, at(t, "C1")),
+        Some(CalcValue::number(11.0))
+    );
+    assert!(
+        matches!(value(reopened.host(),at(t,"C3")),ProjectedValue::Literal(value) if value.as_number()==Some(9.0))
+    );
 }

@@ -541,9 +541,10 @@ impl ModelRoot {
         // A working copy of each page the batch touches, by (sheet position, page row, page
         // column), made from this root's page the first time an operation changes the block.
         let mut touched: Touched = BTreeMap::new();
-        // First edit slice: dissolve a touched shared group as a whole. This scans occupied
-        // members, never the bounding rectangle; unedited groups keep their source and pages.
-        let mut detached = std::collections::BTreeSet::new();
+        // Cell edits prune the actual source members without expanding every survivor's text.
+        // Key by the shared allocation: separately supplied blocks with the same local ID must
+        // not replace each other's source. This is storage identity, never a semantic key.
+        let mut affected = BTreeMap::new();
         for op in &batch.operations {
             let area = match op {
                 WorkbookOp::SetCell { at, .. } => Some(GridArea::cell(*at)),
@@ -552,29 +553,47 @@ impl ModelRoot {
                 _ => None,
             };
             if let Some(area) = area {
-                for (_, input) in self.cells(area).into_iter().flatten() {
+                for (at, input) in self.cells(area).into_iter().flatten() {
                     if let CellInput::Formula(text) = input
                         && let Some(block) = text.block()
                     {
-                        detached.insert(block.id());
+                        let entry = affected
+                            .entry(Arc::as_ptr(block) as usize)
+                            .or_insert_with(|| (block.clone(), std::collections::BTreeSet::new()));
+                        entry.1.insert(at);
                     }
                 }
             }
         }
-        if !detached.is_empty() {
+        if !affected.is_empty() {
+            let mut survivors = BTreeMap::<usize, Vec<(usize, CellKey)>>::new();
             for (position, sheet) in self.sheets.iter().enumerate() {
                 for (at, input) in self.sheet_cells(sheet.id).into_iter().flatten() {
                     if let CellInput::Formula(text) = input
-                        && text
-                            .block()
-                            .is_some_and(|block| detached.contains(&block.id()))
+                        && let Some(block) = text.block()
                     {
-                        self.set_into(
-                            &mut touched,
-                            position,
-                            at,
-                            &CellInput::Formula(text.detached()),
-                        );
+                        let key = Arc::as_ptr(block) as usize;
+                        if let Some((_, removed)) = affected.get(&key)
+                            && !removed.contains(&at)
+                        {
+                            survivors.entry(key).or_default().push((position, at));
+                        }
+                    }
+                }
+            }
+            for (key, members) in survivors {
+                let retained = affected[&key]
+                    .0
+                    .retaining(members.iter().map(|(_, at)| *at));
+                for (position, at) in members {
+                    if let Some(block) = &retained {
+                        let text = crate::FormulaText::member(block.clone(), at)
+                            .expect("retaining validated every member");
+                        self.set_storage_into(&mut touched, position, at, CellInput::Formula(text));
+                    } else if let Some(input) = self.cell(at) {
+                        // A caller-supplied block can disagree with its cell placement. Keep
+                        // the existing individual-text fallback rather than alter its formula.
+                        self.set_into(&mut touched, position, at, input);
                     }
                 }
             }
@@ -853,19 +872,21 @@ impl ModelRoot {
 
     /// Sets `at` (on the sheet at position `sheet`) to `input` in the working copies `touched`.
     fn set_into(&self, touched: &mut Touched, sheet: usize, at: CellKey, input: &CellInput) {
+        let input = match input {
+            CellInput::Formula(text) if text.block().is_some() => {
+                CellInput::Formula(text.detached())
+            }
+            _ => input.clone(),
+        };
+        self.set_storage_into(touched, sheet, at, input);
+    }
+
+    fn set_storage_into(&self, touched: &mut Touched, sheet: usize, at: CellKey, input: CellInput) {
         let (page_row, page_column, place) = locate(at);
         touched
             .entry((sheet, page_row, page_column))
             .or_insert_with(|| self.working_copy(sheet, page_row, page_column))
-            .insert(
-                place,
-                match input {
-                    CellInput::Formula(text) if text.block().is_some() => {
-                        CellInput::Formula(text.detached())
-                    }
-                    _ => input.clone(),
-                },
-            );
+            .insert(place, input);
     }
 
     /// Empties every cell of `area` (on the sheet at position `sheet`) in the working copies
