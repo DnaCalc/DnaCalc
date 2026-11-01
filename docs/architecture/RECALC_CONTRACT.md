@@ -473,8 +473,28 @@ Application.Volatile and demonstrates eight entries versus one for the nonvolati
 Owned save plans pin installed prefix values while another cell remains suspended. Ordinary Manual
 XML Save(false) preserves permitted scalar caches with ca=1 and calcCompleted=0/calcOnSave=0.
 Re-entry never inherits an orphaned cache; dirty array topology remains excluded from this save policy.
-CurrentCalculatedOnly stays an explicit option. Save(true), BeforeSave handlers, domain-peer live
-updates, disabled-sheet/TABLE profiles and pending async saves remain open.
+CurrentCalculatedOnly stays an explicit option.
+
+Calculated-save implementation (dc-hsa5.4, 2026-11-01): `HostSession::prepare_calculated_save`
+pins one workbook model and runs the ordinary engine against a separate `PinnedSave` result
+destination. The snapshot contains no node ID allocator. Live and save calculations share unique
+tick/result-view sequences; admission, completion, async tokens and result stamps name their
+destination. Only the save writer reads that private result view. An existing live invocation is
+waited for rather than copied or entered again; replacement, incomplete coverage or cancellation
+refuses the image. A private save keeps its original model through live edits, holds the callable
+state lane while unfinished, and resumes an accepted async return only on a later budgeted step.
+Its completed return tombstones pass back to the workbook owner. Reload/close/provider replacement
+revokes unfinished work. The worker exposes `SaveCalculated`, `PollSave` and `CancelSave` through
+the existing command journal; successful bytes name the saved model revision, so an older image
+does not clear later live edits. Ordinary application Save remains Save(false).
+
+Tests cover nested async save waits, existing-live waits, duplicate delivery and command replay,
+cancel/reload/close, pinned bytes and Manual reopen as unverified file caches. This implements the
+DNA isolated-workbook save strategy. Excel Save(true)'s BeforeSave handlers, domain-peer live
+updates and disabled-sheet/TABLE profiles remain open; P07 does not yet measure concurrent-save
+pinning or non-canceling Save(true) waits in Excel. Existing stored Range handles resolve from
+their pinned view, but creating a new handle after a live structural edit can refuse with
+`ExpiredView`; that save fails explicitly rather than inventing a calculated cache.
 
 
 Defined-name implementation update (dc-hsa5.5, 2026-11-01): the canonical `NameTable` stores

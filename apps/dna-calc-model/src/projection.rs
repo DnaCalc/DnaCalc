@@ -592,6 +592,14 @@ pub enum Request {
         page: u64,
         active: Option<Key>,
     },
+    /// Calculate a pinned workbook image before saving; poll its token for the bytes.
+    SaveCalculated,
+    PollSave {
+        token: u64,
+    },
+    CancelSave {
+        token: u64,
+    },
 }
 
 impl Request {
@@ -602,6 +610,9 @@ impl Request {
                 | Self::New
                 | Self::Open { .. }
                 | Self::Save
+                | Self::SaveCalculated
+                | Self::PollSave { .. }
+                | Self::CancelSave { .. }
                 | Self::Intent(_)
                 | Self::LoadVbaModule { .. }
         )
@@ -840,6 +851,15 @@ pub enum Reply {
     Keys(Vec<Key>),
     Canvas(Canvas),
     Ledger(Ledger),
+    SavePending {
+        token: u64,
+        waiting: bool,
+    },
+    SaveImage {
+        outcome: Outcome,
+        saved: String,
+        model_revision: u64,
+    },
 }
 
 /// One page of the ledger: how many formula cells its scope holds, how many the filter keeps,

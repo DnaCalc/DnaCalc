@@ -437,7 +437,7 @@ impl Hash for Target {
 /// The plans a caller has compiled, one shared allocation per normal form. [`compile`] returns
 /// the plan already held when a formula's normal form equals it. The cache never evicts; plan
 /// eviction belongs to bead cfml-m2.2.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PlanCache {
     plans: HashSet<Arc<CompiledPlan>>,
 }

@@ -46,6 +46,8 @@ pub struct Server {
     next_clip: u64,
     clipboard_session: String,
     paste_plan: Option<(u64, calc_host::PastePlan)>,
+    pending_save: Option<(u64, calc_host::CalculatingSave)>,
+    next_save: u64,
 }
 
 impl Default for Server {
@@ -75,6 +77,8 @@ impl Server {
             next_clip: 1,
             clipboard_session: crate::services::session_nonce(),
             paste_plan: None,
+            pending_save: None,
+            next_save: 1,
         }
     }
 
@@ -83,10 +87,36 @@ impl Server {
         self.book.set_calculation_budget(budget);
     }
     pub fn has_pending_calculation(&self) -> bool {
-        self.deferred_calculation.len() < wire::MAX_PENDING_REQUESTS - 2
-            && self.book.has_pending_calculation()
+        self.pending_save
+            .as_ref()
+            .is_some_and(|(_, save)| save.needs_advance(self.book.host()))
+            || self.deferred_calculation.len() < wire::MAX_PENDING_REQUESTS - 2
+                && self.book.has_pending_calculation()
     }
     pub fn advance_calculation(&mut self) -> calc_host::HostProgress {
+        if let Some((_, save)) = self.pending_save.as_mut()
+            && save.needs_advance(self.book.host())
+        {
+            let progress = save.advance(self.book.host(), self.calculation_budget);
+            let remaining = save.remaining();
+            self.collect();
+            return match progress {
+                calc_host::CalculatedSaveProgress::Calculating => {
+                    calc_host::HostProgress::Calculating { remaining }
+                }
+                calc_host::CalculatedSaveProgress::Waiting
+                | calc_host::CalculatedSaveProgress::WaitingForLive => {
+                    calc_host::HostProgress::Waiting { remaining }
+                }
+                _ if self.book.has_pending_calculation() => {
+                    calc_host::HostProgress::Calculating { remaining: 0 }
+                }
+                _ if self.book.host().calc_mode() == CalcMode::Manual => {
+                    calc_host::HostProgress::Manual
+                }
+                _ => calc_host::HostProgress::Current,
+            };
+        }
         let progress = self.book.advance_calculation();
         self.collect();
         progress
@@ -111,9 +141,26 @@ impl Server {
         token: &calc_host::AsyncToken,
         value: calc_host::value::CalcValue,
     ) -> calc_host::AsyncDisposition {
-        let disposition = self.book.complete_async(token, value);
+        let disposition = if let calc_host::ResultDestination::PinnedSave { save: id } =
+            token.destination
+            && let Some((_, save)) = self
+                .pending_save
+                .as_mut()
+                .filter(|(_, save)| save.id() == id)
+        {
+            save.complete_async(self.book.host(), token, value)
+        } else {
+            self.book.complete_async(token, value)
+        };
         self.collect();
         disposition
+    }
+    pub fn pending_async(&self) -> Vec<calc_host::AsyncToken> {
+        let mut tokens = self.book.host().pending_async();
+        if let Some((_, save)) = &self.pending_save {
+            tokens.extend(save.pending_async());
+        }
+        tokens
     }
 
     /// Changes whenever this server installs a replacement workbook.
@@ -393,6 +440,62 @@ impl Server {
                         }),
                     }
                 }
+                Request::SaveCalculated => {
+                    if self.pending_save.is_some() {
+                        return Err("Finish or cancel the pending calculated save first".into());
+                    }
+                    let save = self.book.begin_calculated_save()?;
+                    let token = self.next_save;
+                    self.next_save = self
+                        .next_save
+                        .checked_add(1)
+                        .expect("save request identity exhausted");
+                    self.pending_save = Some((token, save));
+                    Ok(Reply::SavePending {
+                        token,
+                        waiting: false,
+                    })
+                }
+                Request::PollSave { token } => {
+                    use calc_host::CalculatedSaveProgress as P;
+                    let (current, save) = self
+                        .pending_save
+                        .as_ref()
+                        .ok_or("No calculated save is pending")?;
+                    if *current != token {
+                        return Err("This calculated save is no longer pending".into());
+                    }
+                    match save.progress() {
+                        P::Ready | P::Failed => {
+                            let (_, save) = self.pending_save.take().expect("checked save");
+                            let model_revision = save.model_revision().get();
+                            let name = self.book.save_name();
+                            let (bytes, _) = self.book.finish_calculated_save(save)?;
+                            out = Some(bytes);
+                            Ok(Reply::SaveImage {
+                                outcome: self.outcome(true, None, 0.0),
+                                saved: name,
+                                model_revision,
+                            })
+                        }
+                        progress => Ok(Reply::SavePending {
+                            token,
+                            waiting: matches!(progress, P::Waiting | P::WaitingForLive),
+                        }),
+                    }
+                }
+                Request::CancelSave { token } => {
+                    if self
+                        .pending_save
+                        .as_ref()
+                        .is_none_or(|(current, _)| *current != token)
+                    {
+                        return Err("This calculated save is no longer pending".into());
+                    }
+                    let (_, save) = self.pending_save.take().expect("checked save");
+                    self.book.cancel_calculated_save(save)?;
+                    Ok(self.done(true, None, 0.0))
+                }
                 Request::Intent(intent) => self.intent(intent),
                 Request::Subscribe {
                     workbook,
@@ -651,6 +754,7 @@ impl Server {
 
     /// A new workbook in place of the open one: the page's subscriptions end with it.
     fn install(&mut self, mut book: Workbook) {
+        self.pending_save = None;
         let interrupted = self.book.has_pending_calculation();
         if interrupted {
             self.book.cancel_calculation();
@@ -3857,6 +3961,43 @@ mod async_contract_tests {
     use super::async_provider::{Counts, Echo};
     use super::*;
     use std::{cell::RefCell, rc::Rc};
+    fn configured(formula: &str) -> (Server, CellKey, Rc<RefCell<Counts>>) {
+        let mut server = Server::new();
+        let s = server.book.host().sheets()[0].id();
+        let b = CellKey::new(s, 1, 2).unwrap();
+        server
+            .execute_current(Request::Intent(Intent::SetCalcMode { manual: true }), None)
+            .reply
+            .unwrap();
+        let counts = Rc::new(RefCell::new(Counts::default()));
+        let mut functions = calc_host::CallableTable::new();
+        functions
+            .register("AsyncEcho", Rc::new(Echo(counts.clone())))
+            .unwrap();
+        server.book_mut().set_user_functions(functions);
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(b),
+                    text: formula.into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
+        (server, b, counts)
+    }
+    fn drain(server: &mut Server) {
+        for _ in 0..1000 {
+            if !server.has_pending_calculation() {
+                return;
+            }
+            server.advance_calculation();
+        }
+        panic!("bounded worker calculation did not park or finish");
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p07_worker_wait_return_and_completion_use_the_existing_server() {
@@ -3865,30 +4006,7 @@ mod async_contract_tests {
             "=LET(x,2,IF(TRUE,AsyncEcho(1)+x,0))",
             "=LAMBDA(x,IF(TRUE,AsyncEcho(1)+x,0))(2)",
         ] {
-            let mut server = Server::new();
-            let s = server.book.host().sheets()[0].id();
-            let b = CellKey::new(s, 1, 2).unwrap();
-            server
-                .execute_current(Request::Intent(Intent::SetCalcMode { manual: true }), None)
-                .reply
-                .unwrap();
-            let counts = Rc::new(RefCell::new(Counts::default()));
-            let mut functions = calc_host::CallableTable::new();
-            functions
-                .register("AsyncEcho", Rc::new(Echo(counts.clone())))
-                .unwrap();
-            server.book_mut().set_user_functions(functions);
-            server
-                .execute_current(
-                    Request::Intent(Intent::EnterCell {
-                        at: Key::of(b),
-                        text: formula.into(),
-                    }),
-                    None,
-                )
-                .reply
-                .unwrap();
-            server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
+            let (mut server, b, counts) = configured(formula);
             server
                 .execute_current(Request::Intent(Intent::Recalculate), None)
                 .reply
@@ -3929,5 +4047,104 @@ mod async_contract_tests {
                 matches!(value.cells()[0].value(),calc_host::ProjectedValue::Calculated{value,..}if value.as_number()==Some(42.0))
             );
         }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_worker_calculated_save_delivers_only_the_pinned_bytes() {
+        let (mut server, b, counts) = configured("=LET(x,2,IF(TRUE,AsyncEcho(1)+x,0))");
+        let a = CellKey::new(b.sheet(), 1, 1).unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(a),
+                    text: "1".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        server.take_events();
+        let revision = server.book.host().revision().get();
+        let request = server.envelope(Request::SaveCalculated);
+        let first = server.handle(request.clone(), None);
+        let retry = server.handle(request, None);
+        assert_eq!(wire::encode(&first.reply), wire::encode(&retry.reply));
+        let token = match first.reply.unwrap() {
+            Reply::SavePending { token, .. } => token,
+            reply => panic!("{reply:?}"),
+        };
+        assert_eq!(counts.borrow().prefix, 0);
+        drain(&mut server);
+        assert!(
+            !server.has_pending_calculation(),
+            "a waiting save posts no polling task"
+        );
+        assert!(server.book.host().pending_async().is_empty());
+        let pending = server.pending_async();
+        assert_eq!(pending.len(), 1);
+        let provider = pending[0].clone();
+        assert!(matches!(
+            provider.destination,
+            calc_host::ResultDestination::PinnedSave { .. }
+        ));
+        assert!(
+            !server.take_events().iter().any(|event| matches!(
+                event,
+                Event::Calculation {
+                    receipt: wire::CalculationEvent::Admitted { .. }
+                        | wire::CalculationEvent::Published { .. }
+                        | wire::CalculationEvent::Completed { .. },
+                    ..
+                }
+            )),
+            "save receipts never enter the live publication stream"
+        );
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(a),
+                    text: "9".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert_eq!(
+            server.complete_async(&provider, calc_value::CalcValue::number(40.0)),
+            calc_host::AsyncDisposition::Accepted
+        );
+        assert_eq!(counts.borrow().suffix, 0);
+        drain(&mut server);
+        let request = server.envelope(Request::PollSave { token });
+        let answer = server.handle(request.clone(), None);
+        assert!(
+            matches!(answer.reply, Ok(Reply::SaveImage { model_revision, .. }) if model_revision == revision)
+        );
+        let retry = server.handle(request, None);
+        assert_eq!(wire::encode(&answer.reply), wire::encode(&retry.reply));
+        assert_eq!(answer.bytes, retry.bytes);
+        assert!(
+            server.book.changed(),
+            "an older image cannot clear later live edits"
+        );
+        assert_eq!(
+            server.complete_async(&provider, calc_value::CalcValue::number(40.0)),
+            calc_host::AsyncDisposition::Duplicate
+        );
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+        let reopened = Workbook::open("pinned.xlsx", answer.bytes.unwrap()).unwrap();
+        let s = reopened.host().sheets()[0].id();
+        assert_eq!(
+            reopened
+                .shown(&reopened.cell(CellKey::new(s, 1, 1).unwrap()).unwrap())
+                .text,
+            "1"
+        );
+        let cell = reopened.cell(CellKey::new(s, 1, 2).unwrap()).unwrap();
+        assert!(
+            matches!(cell.value(), calc_host::ProjectedValue::FileCached(_)),
+            "a reopened cache is never calculated provenance"
+        );
+        assert_eq!(reopened.shown(&cell).text, "42");
     }
 }

@@ -56,9 +56,9 @@
 mod actions;
 mod format;
 mod names;
-pub use names::NameEdit;
 pub use facts::alignment as style_alignment;
 pub use format::{BorderPatch, FORMAT_LIMIT, FormatPatch, format_cells, patched_style};
+pub use names::NameEdit;
 pub mod chart;
 mod command;
 mod envelope;
@@ -75,6 +75,7 @@ mod history;
 mod project;
 mod recalc;
 mod save;
+mod save_calculation;
 mod shift;
 pub use shift::shift_cell_edits;
 mod session;
@@ -95,6 +96,9 @@ pub use recalc::{HostProgress, RecalcFailed, RtdDisposition, calculate, calculat
 pub use save::{
     PreparedSave, SaveCachePolicy, SaveFailed, SavePin, prepare_save,
     prepare_save_with_cache_policy, save,
+};
+pub use save_calculation::{
+    CalculatedSaveError, CalculatedSaveProgress, CalculatingSave, begin_calculated_save,
 };
 pub use session::{
     DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, INTENT_LOG_LIMIT,
@@ -144,4 +148,4 @@ pub use presentation_commands::{
 
 pub use calc_engine::contract::{CompletionOutcome, RangePostState};
 
-pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken};
+pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken, ResultDestination};

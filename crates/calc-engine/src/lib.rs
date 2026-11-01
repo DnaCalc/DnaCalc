@@ -54,7 +54,9 @@ pub mod contract;
 mod data_table;
 mod detached;
 mod edit;
+mod external;
 mod graph;
+mod pinned;
 mod random;
 mod read;
 mod recalc;
@@ -68,7 +70,9 @@ pub use edit::{
     CommitReceipt, InputSeed, NodeChange, PrepareError, PreparedEngineChange, commit_edit,
     prepare_edit,
 };
+pub use external::AsyncReturns;
 pub use graph::{AxisInterval, Prerequisite, SheetSpan};
+pub use pinned::PinnedCalculation;
 pub use read::{
     CachedReadLease, ObservedEvaluation, ReadObserver, Unobserved, resolve_reference_text,
 };

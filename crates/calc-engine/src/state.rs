@@ -95,7 +95,7 @@ impl fmt::Display for PrerequisiteError {
 impl std::error::Error for PrerequisiteError {}
 
 /// A formula node's bound plan: its compiled plan placed at its anchor, or CalcFml's refusal.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Binding {
     Placed(FormulaInstance, ArrayRole),
     Refused(NotModeled),
@@ -106,7 +106,7 @@ pub(crate) enum Binding {
 /// The published results (dc-dxm): each live node's at its slot, and the result a removed node
 /// left at its cell until the next publication, by cell (what [`EngineState::result`] gives
 /// for the cell, unless a node there publishes its own). Formerly one map by cell.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Results {
     by_slot: Vec<Option<(NodeId, FormulaResult)>>,
     orphans: HashMap<CellKey, (NodeId, FormulaResult), BuildHasherDefault<BlockHasher>>,
@@ -297,7 +297,7 @@ impl AnchorIndex {
 
 /// Each bound node's binding, at the node's slot (dc-dxm: every evaluation looked its node's
 /// binding up in a BTreeMap). The methods are the map's that the engine uses.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Bindings {
     slots: Vec<Option<(NodeId, Binding)>>,
 }
@@ -373,7 +373,10 @@ pub struct EngineState {
     pub(crate) contract: crate::contract::ContractState,
     revision: AuthoredRevision,
     pub(crate) callables: calc_fml::CallableBindings,
-    pub(crate) ids: IdAllocator<NodeId>,
+    pub(crate) ids: Option<IdAllocator<NodeId>>,
+    pub(crate) destination: crate::contract::ResultDestination,
+    tick_sequence: Arc<std::sync::atomic::AtomicU64>,
+    view_sequence: Arc<std::sync::atomic::AtomicU64>,
     pub(crate) by_anchor: BTreeMap<CellKey, NodeId>,
     /// The same entries as `by_anchor`, for lookup ([`AnchorIndex`]): [`EngineState::node_at`],
     /// which every read of a formula cell asks, looks here; `by_anchor` keeps them in cell order
@@ -480,6 +483,80 @@ impl Default for ParallelMinimum {
 }
 
 impl EngineState {
+    pub(crate) fn node_ids(&mut self) -> &mut IdAllocator<NodeId> {
+        self.ids
+            .as_mut()
+            .expect("pinned calculations cannot edit formula membership")
+    }
+    pub(crate) fn begin_tick(&mut self) {
+        self.last_tick = self
+            .tick_sequence
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |tick| tick.checked_add(1),
+            )
+            .expect("calculation tick exhausted")
+            + 1;
+    }
+    pub(crate) fn advance_view(&mut self) {
+        self.generation = self
+            .view_sequence
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |view| view.checked_add(1),
+            )
+            .expect("result view identity exhausted")
+            + 1;
+    }
+    // Only PinnedCalculation can own this state. It exposes no authored mutation API,
+    // so the one node allocator stays with the live owner. Immutable plans/values share
+    // their payloads; derived graph/result indexes are copied for this explicit save.
+    pub(crate) fn snapshot_for_save(&self, save: crate::contract::CommandId) -> Self {
+        Self {
+            contract: self.contract.clone(),
+            revision: self.revision,
+            callables: self.callables.clone(),
+            ids: None,
+            destination: crate::contract::ResultDestination::PinnedSave { save },
+            tick_sequence: self.tick_sequence.clone(),
+            view_sequence: self.view_sequence.clone(),
+            by_anchor: self.by_anchor.clone(),
+            anchor_index: AnchorIndex::build(&self.by_anchor),
+            nodes: self.nodes.clone(),
+            index: self.index.clone(),
+            plans: self.plans.clone(),
+            bindings: self.bindings.clone(),
+            results: self.results.clone(),
+            pending: self.pending.clone(),
+            range_redemand: self.range_redemand.clone(),
+            retired: self.retired.clone(),
+            last_tick: self.last_tick,
+            generation: self.generation,
+            published_mode: self.published_mode.clone(),
+            volatile: self.volatile.clone(),
+            subtotal_cells: self.subtotal_cells.clone(),
+            spills: self.spills.clone(),
+            cached_arrays: self.cached_arrays.clone(),
+            blocked_spills: self.blocked_spills.clone(),
+            random_seed: self.random_seed,
+            templates: self.templates.clone(),
+            environment: self.environment,
+            clock: self.clock,
+            volatile_input_version: self.volatile_input_version,
+            workbook_facts: self.workbook_facts.clone(),
+            cycle_members: self.cycle_members.clone(),
+            entered: self.entered.clone(),
+            tables_deferred: self.tables_deferred,
+            spill_epoch: self.spill_epoch,
+            readers_cache: ReadersCache::default(),
+            anchor_epoch: self.anchor_epoch,
+            threads: self.threads,
+            parallel_minimum: self.parallel_minimum,
+        }
+    }
+
     /// Publish binding metadata only. Executable owners remain on the serial host/command.
     /// Positive and negative callable watches rebind only consumers of changed entries.
     pub fn set_callable_bindings(&mut self, inputs: &ModelRoot, next: calc_fml::CallableBindings) {
@@ -575,7 +652,10 @@ impl EngineState {
             contract: crate::contract::ContractState::new(),
             callables: calc_fml::CallableBindings::default(),
             revision: inputs.revision(),
-            ids: IdAllocator::new(),
+            ids: Some(IdAllocator::new()),
+            destination: crate::contract::ResultDestination::Live,
+            tick_sequence: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            view_sequence: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             by_anchor: BTreeMap::new(),
             anchor_index: AnchorIndex::default(),
             nodes: Vec::new(),
@@ -612,7 +692,7 @@ impl EngineState {
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
                 if let CellInput::Formula(_) = input {
-                    let id = issue_node_id(&mut state.ids);
+                    let id = issue_node_id(state.node_ids());
                     state.record_node(id, at);
                     state.pending.insert(id);
                 }
@@ -630,7 +710,7 @@ impl EngineState {
                     {
                         continue;
                     }
-                    let id = issue_node_id(&mut state.ids);
+                    let id = issue_node_id(state.node_ids());
                     state.record_node(id, at);
                     state.pending.insert(id);
                 }
@@ -1011,10 +1091,9 @@ impl EngineState {
         let mut state = EngineState::new(inputs);
         state.callables = self.callables.clone();
         state.last_tick = self.last_tick;
-        state.generation = self
-            .generation
-            .checked_add(1)
-            .expect("result view identity exhausted");
+        state.tick_sequence = self.tick_sequence.clone();
+        state.view_sequence = self.view_sequence.clone();
+        state.advance_view();
         state.environment = self.environment;
         state.clock = self.clock;
         state.volatile_input_version = self.volatile_input_version;
@@ -1272,7 +1351,7 @@ impl EngineState {
             self.results.retire(node, record.anchor);
             self.by_anchor.remove(&record.anchor);
             self.anchor_index.remove(record.anchor);
-            let released = self.ids.release(node);
+            let released = self.node_ids().release(node);
             debug_assert_eq!(
                 released,
                 Ok(()),

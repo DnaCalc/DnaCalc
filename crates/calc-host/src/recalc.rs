@@ -72,6 +72,11 @@ pub fn step(
     budget: WorkBudget,
     observer: &mut dyn ReadObserver,
 ) -> HostProgress {
+    if host.pinned_calculations.get() != 0 {
+        return HostProgress::Waiting {
+            remaining: host.engine.pending().count(),
+        };
+    }
     if host.calculation_cancelled && !host.calculate_requested && host.work.is_none() {
         return HostProgress::Cancelled;
     }
@@ -199,7 +204,7 @@ pub fn step(
     // Interest can promote candidates already computed by age escapes. Publish those before
     // spending another quantum on an unrelated suspended activation.
     if let Some(delta) = calc_engine::publish_ready(&mut host.engine, &host.model, &mut work) {
-        host.calc_events.extend(delta.events().iter().cloned());
+        host.record_calc_events(delta.events().to_vec());
         host.work = Some(work);
         return HostProgress::Published(delta);
     }
@@ -210,7 +215,7 @@ pub fn step(
             let published = calc_engine::publish_ready(&mut host.engine, &host.model, &mut work);
             host.work = Some(work);
             if let Some(delta) = published {
-                host.calc_events.extend(delta.events().iter().cloned());
+                host.record_calc_events(delta.events().to_vec());
                 HostProgress::Published(delta)
             } else if waiting {
                 HostProgress::Waiting { remaining }
@@ -226,14 +231,15 @@ pub fn step(
             );
             match calc_engine::finish(&mut host.engine, &host.model, work) {
                 Ok(delta) => {
-                    host.calc_events.extend(delta.events().iter().cloned());
+                    host.record_calc_events(delta.events().to_vec());
                     host.published = Some(delta.revision());
                     host.last_failure = None;
                     HostProgress::Published(delta)
                 }
                 Err(failure) => {
-                    host.calc_events
-                        .push(calc_engine::CalcEvent::Completed(failure_receipt));
+                    host.record_calc_events(vec![calc_engine::CalcEvent::Completed(
+                        failure_receipt,
+                    )]);
                     failed(host, RecalcFailed::Failed(failure))
                 }
             }
@@ -268,24 +274,12 @@ fn failed(host: &mut HostState, failure: RecalcFailed) -> HostProgress {
     HostProgress::Failed(failure)
 }
 
-/// Tombstones outlive commands, edits and cancellation. Reopening creates a new host/namespace.
-#[derive(Debug)]
-pub(crate) struct AsyncRecord {
-    token: calc_engine::contract::AsyncToken,
-    returned: Option<calc_doc_model::value::CalcValue>,
-    revoked: bool,
-}
 impl HostState {
     pub(crate) fn record_calc_events(&mut self, events: Vec<calc_engine::CalcEvent>) {
+        self.async_records.observe(&events);
         for event in &events {
-            if let calc_engine::CalcEvent::AwaitingAsync(token) = event {
-                self.async_records
-                    .entry(token.id)
-                    .or_insert_with(|| AsyncRecord {
-                        token: token.clone(),
-                        returned: None,
-                        revoked: false,
-                    });
+            if let calc_engine::CalcEvent::Completed(receipt) = event {
+                self.last_calculation_completion = Some(receipt.clone());
             }
         }
         self.calc_events.extend(events);
@@ -303,40 +297,9 @@ impl HostState {
         token: &calc_engine::contract::AsyncToken,
         value: calc_doc_model::value::CalcValue,
     ) -> calc_engine::contract::AsyncDisposition {
-        use calc_engine::contract::{AsyncDisposition as D, AsyncRejection as R};
-        let disposition = match self.async_records.get_mut(&token.id) {
-            None => D::Rejected(R::UnknownToken),
-            Some(record) if record.token != *token => D::Rejected(R::IdentityMismatch),
-            Some(record) if record.returned.is_some() => {
-                if record.returned.as_ref() == Some(&value) {
-                    D::Duplicate
-                } else {
-                    D::Rejected(R::ConflictingDuplicate)
-                }
-            }
-            Some(record) if record.revoked => D::Rejected(R::Revoked),
-            Some(record) => {
-                if let Some(work) = self
-                    .work
-                    .as_mut()
-                    .filter(|w| w.admission().command == token.invocation.pass.command)
-                {
-                    match work.accept_async(&self.engine, &self.model, token, value.clone()) {
-                        Ok(()) => {
-                            record.returned = Some(value);
-                            D::Accepted
-                        }
-                        Err(reason) => {
-                            record.revoked = true;
-                            D::Rejected(reason)
-                        }
-                    }
-                } else {
-                    record.revoked = true;
-                    D::Rejected(R::Revoked)
-                }
-            }
-        };
+        let disposition =
+            self.async_records
+                .deliver(&self.engine, &self.model, self.work.as_mut(), token, value);
         self.calc_events
             .push(calc_engine::CalcEvent::AsyncReturned {
                 token: token.id,

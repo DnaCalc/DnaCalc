@@ -5953,7 +5953,7 @@ mod async_contract {
     fn setup(formula: &str) -> (HostSession, SheetId, Rc<RefCell<Counts>>) {
         setup_with_name(formula, None, 1)
     }
-    fn setup_with_name(
+    fn configured(
         formula: &str,
         name: Option<&str>,
         budget: usize,
@@ -5983,6 +5983,14 @@ mod async_contract {
         enter(&mut book, at(s, "B1"), formula);
         enter(&mut book, at(s, "C1"), "=B1*2");
         book.set_calculation_budget(WorkBudget::evaluations(budget));
+        (book, s, counts)
+    }
+    fn setup_with_name(
+        formula: &str,
+        name: Option<&str>,
+        budget: usize,
+    ) -> (HostSession, SheetId, Rc<RefCell<Counts>>) {
+        let (mut book, s, counts) = configured(formula, name, budget);
         book.dispatch(SkinIntent::Recalculate);
         for _ in 0..100 {
             if !book.host().pending_async().is_empty() {
@@ -6006,6 +6014,263 @@ mod async_contract {
             assert!(!matches!(progress, HostProgress::Failed(_)), "{progress:?}");
         }
         panic!("finite continuation did not finish")
+    }
+
+    fn drive_save(
+        save: &mut calc_host::CalculatingSave,
+        book: &HostSession,
+    ) -> calc_host::CalculatedSaveProgress {
+        for _ in 0..1000 {
+            let progress = save.advance(book.host(), WorkBudget::evaluations(1));
+            if progress != calc_host::CalculatedSaveProgress::Calculating {
+                return progress;
+            }
+        }
+        panic!("bounded save calculation did not finish");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_calculated_save_pins_the_model_and_never_publishes_into_live() {
+        use calc_engine::contract::ResultDestination;
+        use calc_host::CalculatedSaveProgress as P;
+        let (mut book, s, counts) = configured("=LET(x,2,IF(TRUE,AsyncEcho(A1)+x,0))", None, 1);
+        book.take_calculation_events();
+        let revision = book.host().revision();
+        let mut save = book
+            .prepare_calculated_save(&SavePolicy::default())
+            .unwrap();
+        assert_eq!(
+            counts.borrow().prefix,
+            0,
+            "admission does not enter the provider"
+        );
+        assert_eq!(drive_save(&mut save, &book), P::Waiting);
+        assert!(!save.has_pending_calculation());
+        let token = save.pending_async()[0].clone();
+        assert_eq!(
+            token.destination,
+            ResultDestination::PinnedSave { save: save.id() }
+        );
+        assert!(book.host().pending_async().is_empty());
+        for _ in 0..3 {
+            assert_eq!(drive_save(&mut save, &book), P::Waiting);
+        }
+        assert_eq!((counts.borrow().prefix, counts.borrow().resumes), (1, 1));
+        assert!(enter(&mut book, at(s, "A1"), "9").accepted());
+        assert!(enter(&mut book, at(s, "B1"), "99").accepted());
+        assert_eq!(
+            book.complete_async(&token, CalcValue::number(40.0)),
+            D::Rejected(R::UnknownToken)
+        );
+        let mut wrong = token.clone();
+        wrong.destination = ResultDestination::Live;
+        assert_eq!(
+            save.complete_async(book.host(), &wrong, CalcValue::number(40.0)),
+            D::Rejected(R::IdentityMismatch)
+        );
+        assert_eq!(
+            save.complete_async(book.host(), &token, CalcValue::number(40.0)),
+            D::Accepted
+        );
+        assert_eq!(
+            counts.borrow().suffix,
+            0,
+            "delivery does not run the suffix"
+        );
+        assert_eq!(drive_save(&mut save, &book), P::Ready, "{:?}", save.error());
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+        let live_events = book.take_calculation_events();
+        assert_eq!(live_events.len(), 3, "{live_events:?}");
+        assert_eq!(
+            live_events
+                .iter()
+                .filter(|event| matches!(event, calc_engine::CalcEvent::Committed { .. }))
+                .count(),
+            2
+        );
+        assert_eq!(live_events.iter().filter(|event| matches!(event,
+            calc_engine::CalcEvent::AsyncReturned { token: id, disposition: D::Rejected(R::UnknownToken) } if *id == token.id)).count(), 1);
+        assert_eq!(book.host().model().cell(at(s, "B1")), Some(&number(99.0)));
+        let events = save.take_events();
+        assert!(events.iter().any(|event| matches!(event, calc_engine::CalcEvent::Completed(receipt) if receipt.destination == token.destination && receipt.outcome == calc_engine::contract::CompletionOutcome::Complete)));
+        let prepared = book.finish_calculated_save(save).unwrap();
+        assert_eq!(prepared.pin().model, revision);
+        assert_eq!(prepared.pin().destination, token.destination);
+        let saved_view = prepared.pin().results;
+        assert_eq!(prepared.calculation().unwrap().results, saved_view);
+        assert_eq!(prepared.calculation().unwrap().coverage.calculated, 2);
+        assert_ne!(
+            saved_view,
+            book.prepare_save(&SavePolicy::default())
+                .unwrap()
+                .pin()
+                .results
+        );
+        let mut bytes = Vec::new();
+        prepared.write(&mut bytes).unwrap();
+        assert_eq!(
+            book.complete_async(&token, CalcValue::number(40.0)),
+            D::Duplicate,
+            "the owner retains completed save return tombstones"
+        );
+        let xml = part_text(&bytes, "xl/workbook.xml");
+        assert!(xml.contains("calcOnSave=\"1\""));
+        assert!(xml.contains("calcCompleted=\"1\""));
+        let reopened = session(&bytes);
+        let t = reopened.host().sheets()[0].id();
+        assert_eq!(reopened.host().calc_mode(), CalcMode::Manual);
+        assert_eq!(
+            reopened.host().model().cell(at(t, "A1")),
+            Some(&number(1.0))
+        );
+        for (address, expected) in [("B1", 42.0), ("C1", 84.0)] {
+            let ProjectedValue::FileCached(cache) = value(reopened.host(), at(t, address)) else {
+                panic!("reopen imports an unverified cache");
+            };
+            assert_eq!(cache.value(), &cached_of(&CalcValue::number(expected)));
+        }
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        let live = book.prepare_save(&SavePolicy::default()).unwrap();
+        assert_ne!(
+            saved_view,
+            live.pin().results,
+            "result-view identities never alias between destinations"
+        );
+        let live_events = book.take_calculation_events();
+        assert!(live_events.iter().any(|event| matches!(event, calc_engine::CalcEvent::Completed(receipt)
+            if receipt.results == live.pin().results && receipt.destination == ResultDestination::Live)));
+        assert!(live_events.iter().any(|event| matches!(event, calc_engine::CalcEvent::Admitted(receipt) if receipt.destination == ResultDestination::Live && receipt.command != token.invocation.pass.command)));
+        assert_eq!(
+            calculated(book.host(), at(s, "C1")),
+            Some(CalcValue::number(198.0))
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_calculated_save_receipt_survives_a_live_rebuild() {
+        use calc_host::CalculatedSaveProgress as P;
+        let (mut book, s, counts) = configured("=AsyncEcho(A1)+2", None, 1);
+        let mut save = book.prepare_calculated_save(&SavePolicy::default()).unwrap();
+        assert_eq!(drive_save(&mut save, &book), P::Waiting);
+        let token = save.pending_async()[0].clone();
+        assert!(book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 10, 1).unwrap())).accepted());
+        let live_view = book.prepare_save(&SavePolicy::default()).unwrap().pin().results;
+        assert_eq!(save.complete_async(book.host(), &token, CalcValue::number(40.0)), D::Accepted);
+        assert_eq!(drive_save(&mut save, &book), P::Ready, "{:?}", save.error());
+        let prepared = book.finish_calculated_save(save).unwrap();
+        assert_eq!(prepared.calculation().unwrap().results, prepared.pin().results);
+        assert_ne!(prepared.pin().results, live_view);
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_calculated_save_waits_for_one_existing_live_invocation() {
+        use calc_host::CalculatedSaveProgress as P;
+        let (mut book, s, counts) = setup("=AsyncEcho(A1)+2");
+        let first = token(&book);
+        let mut save = book
+            .prepare_calculated_save(&SavePolicy::default())
+            .unwrap();
+        assert_eq!(drive_save(&mut save, &book), P::WaitingForLive);
+        assert!(save.pending_async().is_empty());
+        assert_eq!(counts.borrow().prefix, 1);
+        assert_eq!(
+            book.complete_async(&first, CalcValue::number(40.0)),
+            D::Accepted
+        );
+        drain(&mut book);
+        book.take_calculation_events();
+        assert_eq!(drive_save(&mut save, &book), P::Ready, "{:?}", save.error());
+        let prepared = book.finish_calculated_save(save).unwrap();
+        assert_eq!(
+            prepared.calculation().unwrap().command,
+            first.invocation.pass.command
+        );
+        assert_eq!(
+            prepared.pin().destination,
+            calc_engine::contract::ResultDestination::Live
+        );
+        assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+        let mut bytes = Vec::new();
+        enter(&mut book, at(s, "A1"), "99");
+        prepared.write(&mut bytes).unwrap();
+        let reopened = session(&bytes);
+        let t = reopened.host().sheets()[0].id();
+        assert_eq!(
+            reopened.host().model().cell(at(t, "A1")),
+            Some(&number(1.0))
+        );
+        let ProjectedValue::FileCached(cache) = value(reopened.host(), at(t, "B1")) else {
+            panic!("saved cache");
+        };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(42.0)));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_calculated_save_cancel_reload_and_close_have_no_success_image() {
+        use calc_host::{CalculatedSaveError as E, CalculatedSaveProgress as P};
+        for change in 0..3 {
+            let (mut book, _, counts) = configured("=AsyncEcho(A1)+2", None, 1);
+            let mut save = book
+                .prepare_calculated_save(&SavePolicy::default())
+                .unwrap();
+            assert_eq!(drive_save(&mut save, &book), P::Waiting);
+            let first = save.pending_async()[0].clone();
+            let reason = match change {
+                0 => {
+                    save.cancel();
+                    R::Revoked
+                }
+                1 => {
+                    let mut functions = calc_fml::CallableTable::new();
+                    functions
+                        .register("AsyncEcho", Rc::new(Echo(Rc::default())))
+                        .unwrap();
+                    book.set_user_functions(functions);
+                    R::ProviderChanged
+                }
+                _ => {
+                    book = session(&calc_host::blank_package());
+                    R::TargetChanged
+                }
+            };
+            assert_eq!(
+                save.complete_async(book.host(), &first, CalcValue::number(40.0)),
+                D::Rejected(reason)
+            );
+            assert_eq!(drive_save(&mut save, &book), P::Failed);
+            assert!(matches!(
+                book.finish_calculated_save(save),
+                Err(E::Cancelled | E::ProviderChanged | E::Superseded)
+            ));
+            assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 0));
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_waiting_live_save_cannot_succeed_after_edit_or_cancel() {
+        use calc_host::CalculatedSaveProgress as P;
+        for cancel in [false, true] {
+            let (mut book, s, counts) = setup("=AsyncEcho(A1)+2");
+            let mut save = book
+                .prepare_calculated_save(&SavePolicy::default())
+                .unwrap();
+            if cancel {
+                book.cancel_calculation();
+            } else {
+                enter(&mut book, at(s, "A1"), "9");
+            }
+            assert_eq!(drive_save(&mut save, &book), P::Failed);
+            assert!(book.finish_calculated_save(save).is_err());
+            assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 0));
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

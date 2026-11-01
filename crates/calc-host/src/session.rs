@@ -441,13 +441,13 @@ impl HostSession {
     pub fn cancel_calculation(&mut self) {
         if let Some(mut work) = self.host.work.take() {
             self.host.record_calc_events(work.take_events());
+            let receipt = work.completion(
+                calc_engine::contract::CompletionOutcome::Cancelled,
+                self.host.engine.result_view(),
+                None,
+            );
             self.host
-                .calc_events
-                .push(calc_engine::CalcEvent::Completed(work.completion(
-                    calc_engine::contract::CompletionOutcome::Cancelled,
-                    self.host.engine.result_view(),
-                    None,
-                )));
+                .record_calc_events(vec![calc_engine::CalcEvent::Completed(receipt)]);
         }
         self.host.calculate_requested = false;
         self.host.full_calculate_requested = false;
@@ -504,6 +504,18 @@ impl HostSession {
     }
 
     /// Pins the current model and result view without invoking or draining calculation.
+    pub fn prepare_calculated_save(
+        &mut self,
+        policy: &SavePolicy,
+    ) -> Result<crate::CalculatingSave, crate::CalculatedSaveError> {
+        crate::begin_calculated_save(&mut self.host, policy)
+    }
+    pub fn finish_calculated_save(
+        &mut self,
+        save: crate::CalculatingSave,
+    ) -> Result<crate::PreparedSave, crate::CalculatedSaveError> {
+        save.finish(&mut self.host)
+    }
     pub fn prepare_save(&self, policy: &SavePolicy) -> Result<crate::PreparedSave, SaveFailed> {
         crate::prepare_save(&self.host, policy)
     }

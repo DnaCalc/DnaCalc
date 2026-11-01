@@ -459,6 +459,41 @@ impl Workbook {
     }
 
     /// Saves the current revision as a package's bytes; the workbook is unchanged since.
+    pub fn begin_calculated_save(&mut self) -> Result<calc_host::CalculatingSave, String> {
+        self.session
+            .prepare_calculated_save(&SavePolicy::default())
+            .map_err(|error| error.to_string())
+    }
+    pub fn finish_calculated_save(
+        &mut self,
+        save: calc_host::CalculatingSave,
+    ) -> Result<(Vec<u8>, SaveReceipt), String> {
+        let prepared = self
+            .session
+            .finish_calculated_save(save)
+            .map_err(|error| error.to_string())?;
+        let revision = prepared.pin().model;
+        let mut bytes = Vec::new();
+        let receipt = prepared
+            .write(&mut bytes)
+            .map_err(|error| error.to_string())?;
+        if self.host().revision() == revision {
+            self.changed = false;
+        }
+        Ok((bytes, receipt))
+    }
+    pub fn cancel_calculated_save(
+        &mut self,
+        mut save: calc_host::CalculatingSave,
+    ) -> Result<(), String> {
+        save.cancel();
+        match self.session.finish_calculated_save(save) {
+            Ok(_) | Err(calc_host::CalculatedSaveError::Cancelled) => Ok(()),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    /// Saves the current revision as a package's bytes; the workbook is unchanged since.
     pub fn save(&mut self) -> Result<(Vec<u8>, SaveReceipt), String> {
         let mut bytes = Vec::new();
         let receipt = self

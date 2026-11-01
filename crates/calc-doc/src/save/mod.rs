@@ -54,12 +54,13 @@ pub struct DocumentSnapshot {
     edit: Option<Edited>,
 }
 
-/// Cache metadata for a noncalculating save. Imported caches stay unverified on reopen.
+/// Cache metadata and the selected save-calculation policy. Reopen imports caches unverified.
 #[derive(Clone)]
 pub(crate) struct CalculationCacheState {
     pub(crate) dirty: BTreeSet<CellKey>,
     pub(crate) completed: bool,
     pub(crate) mode: crate::CalcMode,
+    pub(crate) calculate_before_save: bool,
 }
 
 /// A revision of a loaded workbook's model and what the save rewrites it against.
@@ -140,16 +141,27 @@ impl DocumentSnapshot {
     /// Marks retained scalar caches and the calculation settings of a Save(false) profile.
     /// This does not calculate values or assert that imported values are current.
     pub fn with_calculation_cache_state(
+        self,
+        dirty: BTreeSet<CellKey>,
+        completed: bool,
+        mode: crate::CalcMode,
+    ) -> Self {
+        self.with_calculation_save_state(dirty, completed, mode, false)
+    }
+
+    pub fn with_calculation_save_state(
         mut self,
         dirty: BTreeSet<CellKey>,
         completed: bool,
         mode: crate::CalcMode,
+        calculate_before_save: bool,
     ) -> Self {
         if let Some(edit) = self.edit.as_mut() {
             edit.cache_state = Some(CalculationCacheState {
                 dirty,
                 completed,
                 mode,
+                calculate_before_save,
             });
         }
         self

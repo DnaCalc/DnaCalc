@@ -315,7 +315,7 @@ pub enum CalcMode {
 /// A loaded workbook: the model root of its sheets, their cells and its skin layout at the
 /// document's first revision, each sheet's records beside it, and the package they were read
 /// from.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LoadedWorkbook {
     package: Arc<Package>,
     model: Arc<ModelRoot>,

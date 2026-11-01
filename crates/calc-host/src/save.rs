@@ -41,6 +41,7 @@ pub enum SaveCachePolicy {
 /// This is provenance for the save; it makes no workbook-wide freshness claim.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SavePin {
+    pub destination: calc_engine::contract::ResultDestination,
     pub workbook: calc_engine::contract::WorkbookInstanceId,
     pub model: calc_doc_model::AuthoredRevision,
     pub results: calc_engine::contract::ReadViewId,
@@ -53,8 +54,12 @@ pub struct SavePin {
 pub struct PreparedSave {
     pin: SavePin,
     plan: calc_doc::SavePlan,
+    calculation: Option<calc_engine::contract::CompletionReceipt>,
 }
 impl PreparedSave {
+    pub fn calculation(&self) -> Option<&calc_engine::contract::CompletionReceipt> {
+        self.calculation.as_ref()
+    }
     pub fn pin(&self) -> &SavePin {
         &self.pin
     }
@@ -114,31 +119,54 @@ pub fn prepare_save_with_cache_policy(
     cache_policy: SaveCachePolicy,
 ) -> Result<PreparedSave, SaveFailed> {
     let pin = SavePin {
+        destination: calc_engine::contract::ResultDestination::Live,
         cache_policy,
         workbook: host.engine.workbook_instance(),
         model: host.revision(),
         results: host.engine.result_view(),
         active_calculation: host.work.as_ref().map(|work| work.admission().command),
     };
-    let stale = host
-        .engine
-        .stale(&host.model)
+    prepare_image(
+        &host.loaded,
+        &host.model,
+        &host.engine,
+        &host.axis_edits,
+        host.calc_mode(),
+        pin,
+        policy,
+        None,
+    )
+}
+
+pub(crate) fn prepare_image(
+    loaded: &calc_doc::LoadedWorkbook,
+    model: &Arc<calc_doc_model::ModelRoot>,
+    engine: &calc_engine::EngineState,
+    axis_edits: &[calc_doc_model::AxisEdit],
+    mode: calc_doc::CalcMode,
+    pin: SavePin,
+    policy: &SavePolicy,
+    calculation: Option<calc_engine::contract::CompletionReceipt>,
+) -> Result<PreparedSave, SaveFailed> {
+    let cache_policy = pin.cache_policy;
+    let stale = engine
+        .stale(model)
         .expect("the host keeps its authored revision and its engine state at one revision");
     let mut values = BTreeMap::new();
     let mut dirty_caches = BTreeSet::new();
     let mut spills = BTreeMap::new();
-    let definitions = host.model.definitions();
-    for sheet in host.model.sheets() {
-        for (at, input) in host.model.sheet_cells(sheet.id()).into_iter().flatten() {
+    let definitions = model.definitions();
+    for sheet in model.sheets() {
+        for (at, input) in model.sheet_cells(sheet.id()).into_iter().flatten() {
             if !matches!(input, CellInput::Formula(_)) {
                 continue;
             }
             let dirty = stale.binary_search(&at).is_ok();
             if cache_policy == SaveCachePolicy::PreservePermittedCaches
                 && definitions.array(at).is_none()
-                && host.engine.spill(at).is_none()
+                && engine.spill(at).is_none()
             {
-                if let Some(result) = host.engine.permitted_cache(at) {
+                if let Some(result) = engine.permitted_cache(at) {
                     let cache = match result {
                         FormulaResult::Calculated { value, .. } => cached(value.core_ref()),
                         FormulaResult::FileCached(cache) => Some(cache.value().clone()),
@@ -147,7 +175,7 @@ pub fn prepare_save_with_cache_policy(
                     if let Some(cache) = cache {
                         values.insert(at, cache);
                         if dirty
-                            || host.engine.calculation_required_at(at)
+                            || engine.calculation_required_at(at)
                             || matches!(result, FormulaResult::FileCached(_))
                         {
                             dirty_caches.insert(at);
@@ -159,14 +187,14 @@ pub fn prepare_save_with_cache_policy(
             if dirty {
                 continue;
             }
-            let Some(FormulaResult::Calculated { value, .. }) = host.engine.result(at) else {
+            let Some(FormulaResult::Calculated { value, .. }) = engine.result(at) else {
                 continue;
             };
             let Some(cached_value) = cached(value.core_ref()) else {
                 continue;
             };
             values.insert(at, cached_value);
-            if let Some(spill) = host.engine.spill(at) {
+            if let Some(spill) = engine.spill(at) {
                 let area = spill.area();
                 spills.insert(at, area);
                 for row in area.first().row()..=area.last().row() {
@@ -190,11 +218,11 @@ pub fn prepare_save_with_cache_policy(
     // Rows or columns inserted or deleted since the open: the save moves the package's rows,
     // columns and what lies on them, as the model moved them (dc-jhn).
     let cache_complete = dirty_caches.is_empty()
-        && !host.engine.needs_recalc(&host.model)
-        && host.work.is_none()
+        && !engine.needs_recalc(model)
+        && pin.active_calculation.is_none()
         && definitions.unloaded_cells().next().is_none()
-        && host.model.sheets().iter().all(|sheet| {
-            host.model
+        && model.sheets().iter().all(|sheet| {
+            model
                 .sheet_cells(sheet.id())
                 .into_iter()
                 .flatten()
@@ -202,20 +230,29 @@ pub fn prepare_save_with_cache_policy(
                     !matches!(input, CellInput::Formula(_)) || values.contains_key(&at)
                 })
         });
-    let snapshot = host
-        .loaded
-        .snapshot_with_results(&host.model, values, spills)
+    let snapshot = loaded
+        .snapshot_with_results(model, values, spills)
         .with_structural_edits(StructuralEdits::new(
-            host.axis_edits.clone(),
+            axis_edits.to_vec(),
             Arc::new(calc_engine::ReferenceRewriter),
         ));
-    let snapshot = if cache_policy == SaveCachePolicy::PreservePermittedCaches {
-        snapshot.with_calculation_cache_state(dirty_caches, cache_complete, host.calc_mode())
-    } else {
-        snapshot
-    };
+    let snapshot =
+        if cache_policy == SaveCachePolicy::PreservePermittedCaches || calculation.is_some() {
+            snapshot.with_calculation_save_state(
+                dirty_caches,
+                cache_complete,
+                mode,
+                calculation.is_some(),
+            )
+        } else {
+            snapshot
+        };
     let plan = calc_doc::prepare_save(&snapshot, policy).map_err(SaveFailed::Refused)?;
-    Ok(PreparedSave { pin, plan })
+    Ok(PreparedSave {
+        pin,
+        plan,
+        calculation,
+    })
 }
 
 /// Prepare and write one pinned package through the same route as a deferred save request.

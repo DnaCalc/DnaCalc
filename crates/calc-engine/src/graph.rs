@@ -345,7 +345,7 @@ struct SpanEdge {
 /// blocks of their own size, with the nodes reading one rectangle kept together, and checked for
 /// containment (a cell's query looks in one block per level); axis-value edges are kept per sheet and axis;
 /// span edges are kept once each and resolved against the snapshot's sheet order.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ReverseIndex {
     cells: BTreeMap<CellKey, NodeSet>,
     names: BTreeMap<NameId, NodeSet>,

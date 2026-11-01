@@ -487,7 +487,17 @@ pub(super) fn workbook(
             "calcCompleted",
             Some(if state.completed { "1" } else { "0" }.to_owned()),
         ));
-        calc_attributes.push(("calcOnSave", Some("0".to_owned())));
+        calc_attributes.push((
+            "calcOnSave",
+            Some(
+                if state.calculate_before_save {
+                    "1"
+                } else {
+                    "0"
+                }
+                .to_owned(),
+            ),
+        ));
     }
     if full_calc {
         calc_attributes.push(("fullCalcOnLoad", Some("1".to_owned())));

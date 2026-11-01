@@ -167,7 +167,7 @@ impl Drop for PreparedEngineChange<'_, '_> {
         // `commit_edit` empties the list, so only an uncommitted change releases anything.
         for node_change in &self.node_changes {
             if let NodeChange::Added { node, .. } = *node_change {
-                let released = self.state.ids.release(node);
+                let released = self.state.node_ids().release(node);
                 debug_assert_eq!(
                     released,
                     Ok(()),
@@ -447,7 +447,7 @@ pub fn prepare_edit<'s, 'r>(
     let mut node_changes: Vec<NodeChange> = adding
         .into_iter()
         .map(|at| NodeChange::Added {
-            node: issue_node_id(&mut state.ids),
+            node: issue_node_id(state.node_ids()),
             at,
         })
         .chain(kept)

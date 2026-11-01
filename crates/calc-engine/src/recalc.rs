@@ -174,6 +174,7 @@ impl std::error::Error for StartError {}
 /// generation is unchanged.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RecalcFailure {
+    WrongDestination,
     CallableBindingMismatch,
     ExternalInputMismatch,
     /// A read of `area` by the evaluation of the formula at `formula` did not complete, so the
@@ -214,6 +215,9 @@ pub enum RecalcFailure {
 impl fmt::Display for RecalcFailure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            RecalcFailure::WrongDestination => {
+                f.write_str("the result destination differs from its admitted owner")
+            }
             RecalcFailure::ReadFailed { formula, area } => write!(
                 f,
                 "a read of {area:?} by the formula at {formula:?} did not complete"
@@ -337,7 +341,7 @@ pub struct RecalcWork {
     evaluations: BTreeMap<NodeId, (u64, ReevaluationReason)>,
     semantic_waits: BTreeSet<NodeId>,
     functions: Option<calc_fml::CallableTable>,
-    references: Option<std::rc::Rc<calc_fml::reference::ReferenceTracker>>,
+    references: Option<ReferenceSource>,
     callable_bindings: calc_fml::CallableBindings,
     root_reason: ReevaluationReason,
     admission: AdmissionReceipt,
@@ -454,7 +458,22 @@ pub(crate) struct EvalLocal {
 /// uncalculated, the formulas waiting, those on a cycle, and its calculation. Built from the work
 /// for each evaluation of a one-thread recalculation, and for each level of a parallel one, when
 /// all of it is only read.
+#[derive(Debug)]
+enum ReferenceSource {
+    Live(std::rc::Rc<calc_fml::reference::ReferenceTracker>),
+    Pinned(std::rc::Rc<calc_fml::reference::ReferenceView>),
+}
+impl ReferenceSource {
+    fn pin(&self) -> std::rc::Rc<calc_fml::reference::ReferenceView> {
+        match self {
+            Self::Live(tracker) => tracker.pin(),
+            Self::Pinned(view) => view.clone(),
+        }
+    }
+}
+
 pub(crate) struct EvalShared<'a> {
+    destination: ResultDestination,
     pass: CalcPassId,
     root_reason: ReevaluationReason,
     evaluations: &'a BTreeMap<NodeId, (u64, ReevaluationReason)>,
@@ -508,6 +527,7 @@ impl<'a> EvalShared<'a> {
 macro_rules! shared_of {
     ($work:expr) => {
         EvalShared {
+            destination: $work.admission.destination,
             pass: $work.pass,
             root_reason: $work.root_reason,
             evaluations: &$work.evaluations,
@@ -557,7 +577,14 @@ impl RecalcWork {
         mut self,
         references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
     ) -> Self {
-        self.references = Some(references);
+        self.references = Some(ReferenceSource::Live(references));
+        self
+    }
+    pub fn with_reference_view(
+        mut self,
+        references: std::rc::Rc<calc_fml::reference::ReferenceView>,
+    ) -> Self {
+        self.references = Some(ReferenceSource::Pinned(references));
         self
     }
 
@@ -741,6 +768,7 @@ impl RecalcWork {
         after_publication: Option<PublicationUnitId>,
     ) -> CompletionReceipt {
         CompletionReceipt {
+            destination: self.admission.destination,
             command: self.admission.command,
             scope: self.admission.scope.clone(),
             admitted: self.admission.admitted,
@@ -771,7 +799,7 @@ impl RecalcWork {
         self.progress.scheduled()
     }
 
-    fn remaining(&self) -> usize {
+    pub(crate) fn remaining(&self) -> usize {
         (self.order.len() - self.next)
             + self.ready.len()
             + self.waits_on.len()
@@ -1110,10 +1138,7 @@ fn begin_with_scope(
         filled.reserve_slots(slots);
         dynamic.reserve_slots(slots);
     }
-    state.last_tick = state
-        .last_tick
-        .checked_add(1)
-        .expect("fewer than 2^64 recalculations begin in one engine state");
+    state.begin_tick();
     let command = CalcCommandId {
         domain_incarnation: state.contract.workbook.document,
         sequence: state.last_tick,
@@ -1124,6 +1149,7 @@ fn begin_with_scope(
         reason: PassReason::Initial,
     };
     let admission = AdmissionReceipt {
+        destination: state.destination,
         command,
         source: CommandId {
             client_session: command.domain_incarnation,
@@ -1451,6 +1477,9 @@ pub fn step(
     budget: WorkBudget,
     observer: &mut dyn ReadObserver,
 ) -> RecalcProgress {
+    if work.admission.destination != state.destination {
+        work.failure = Some(RecalcFailure::WrongDestination);
+    }
     if work.failure.is_none()
         && (state.revision() != work.revision
             || inputs.revision() != work.revision
@@ -1590,6 +1619,7 @@ fn apply(
                 )
                 .expect("async token identity exhausted");
             let token = AsyncToken {
+                destination: work.admission.destination,
                 id,
                 invocation,
                 runtime,
@@ -2010,6 +2040,10 @@ pub fn publish_ready(
     inputs: &ModelRoot,
     work: &mut RecalcWork,
 ) -> Option<ValueDelta> {
+    if work.admission.destination != state.destination {
+        work.failure = Some(RecalcFailure::WrongDestination);
+        return None;
+    }
     let flush = work.fence_flush;
     if work.failure.is_some()
         || work.preferred.is_empty() && flush.is_none()
@@ -2171,10 +2205,7 @@ pub fn publish_ready(
     if blocked_prefix.is_none() {
         work.fence_flush = None;
     }
-    state.generation = state
-        .generation
-        .checked_add(1)
-        .expect("result view identity exhausted");
+    state.advance_view();
     work.generation = state.generation;
     state.published_mode = Some(work.calculation.mode().clone());
     work.publication_sequence = work
@@ -2206,6 +2237,9 @@ pub fn finish(
     inputs: &ModelRoot,
     mut work: RecalcWork,
 ) -> Result<ValueDelta, RecalcFailure> {
+    if work.admission.destination != state.destination {
+        return Err(RecalcFailure::WrongDestination);
+    }
     if let Some(failure) = work.failure {
         return Err(failure);
     }
@@ -2249,18 +2283,16 @@ pub fn finish(
             .checked_add(1)
             .expect("publication identity exhausted"),
     };
+    // Validation is complete. Reserve the same globally unique view for the installed
+    // results and their receipt, even when another destination advanced the sequence.
+    state.advance_view();
     let completion = work.completion(
         if coverage.refused == 0 && coverage.held == 0 && coverage.uncertified == 0 {
             CompletionOutcome::Complete
         } else {
             CompletionOutcome::Incomplete
         },
-        ReadViewId(
-            state
-                .generation
-                .checked_add(1)
-                .expect("result view identity exhausted"),
-        ),
+        state.result_view(),
         Some(unit),
     );
     // Each change is of a distinct cell: a published node's anchor, or a retired anchor whose
@@ -2380,10 +2412,6 @@ pub fn finish(
         state.pending.extend(work.invalidated_outside);
     }
     state.cycle_members = work.cyclic;
-    state.generation = state
-        .generation
-        .checked_add(1)
-        .expect("result view identity exhausted");
     state.published_mode = Some(work.calculation.mode().clone());
     spill_changes.sort_by_key(|change| change.anchor);
     changes.sort_by_key(|(at, _)| *at);
@@ -4167,7 +4195,7 @@ fn evaluate_with(
     local: &mut EvalLocal,
     node: NodeId,
     functions: Option<&calc_fml::CallableTable>,
-    references: Option<&std::rc::Rc<calc_fml::reference::ReferenceTracker>>,
+    references: Option<&ReferenceSource>,
     observer: &mut dyn ReadObserver,
 ) -> Result<Attempt, RecalcFailure> {
     if !shared.scope.contains(live_anchor(state, node)) {
@@ -4478,6 +4506,7 @@ fn evaluate_with(
         _ => TargetCompletion::EngineRefusal,
     };
     done.result.set_stamp(ResultStamp {
+        destination: shared.destination,
         target: EvaluationTarget {
             workbook: state.contract.workbook,
             origin_revision: shared.calculation.revision(),

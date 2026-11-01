@@ -110,7 +110,9 @@ pub struct HostState {
     pub(crate) options: HostOptions,
     /// The recalculation in progress, between two [`crate::step`] calls.
     pub(crate) work: Option<RecalcWork>,
-    pub(crate) async_records: std::collections::BTreeMap<u64, crate::recalc::AsyncRecord>,
+    pub(crate) async_records: calc_engine::AsyncReturns,
+    pub(crate) last_calculation_completion: Option<calc_engine::CompletionReceipt>,
+    pub(crate) pinned_calculations: std::rc::Rc<std::cell::Cell<usize>>,
     pub(crate) functions: calc_fml::CallableTable,
     pub(crate) rtd_inputs: std::rc::Rc<crate::recalc::RtdSnapshot>,
     pub(crate) retired_rtd: std::collections::BTreeSet<calc_fml::UserInputKey>,
@@ -145,6 +147,16 @@ pub struct HostState {
     pub(crate) file: Option<calc_fml::WorkbookFile>,
     /// The application's facts INFO reads ([`HostState::set_application`]).
     pub(crate) application: Option<calc_fml::ApplicationFacts>,
+}
+
+pub(crate) fn next_command_scope() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_update(
+        std::sync::atomic::Ordering::Relaxed,
+        std::sync::atomic::Ordering::Relaxed,
+        |current| current.checked_add(1),
+    )
+    .expect("host command namespace exhausted")
 }
 
 impl HostState {
@@ -194,15 +206,7 @@ impl HostState {
         let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
         let sheet_identities = model.sheets().iter().map(|s| (s.key(), s.id())).collect();
         let mut host = HostState {
-            command_scope: {
-                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-                NEXT.fetch_update(
-                    std::sync::atomic::Ordering::Relaxed,
-                    std::sync::atomic::Ordering::Relaxed,
-                    |current| current.checked_add(1),
-                )
-                .expect("host session identity exhausted")
-            },
+            command_scope: next_command_scope(),
             sheet_ids,
             sheet_identities,
             loaded,
@@ -211,6 +215,8 @@ impl HostState {
             options,
             work: None,
             async_records: Default::default(),
+            last_calculation_completion: None,
+            pinned_calculations: Default::default(),
             functions: calc_fml::CallableTable::new(),
             rtd_inputs: Default::default(),
             retired_rtd: Default::default(),
@@ -303,6 +309,9 @@ impl HostState {
     /// Whether a worker should schedule another finite task. A fault waits for an explicit
     /// request or edit; it is never retried in a busy loop.
     pub fn has_pending_calculation(&self) -> bool {
+        if self.pinned_calculations.get() != 0 {
+            return false;
+        }
         if let Some(work) = &self.work {
             return work.revision() != self.model.revision()
                 || !work.live_inputs_current(&self.engine)

@@ -10,6 +10,15 @@ pub struct CommandId {
     pub client_session: u64,
     pub sequence: u64,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ResultDestination {
+    #[default]
+    Live,
+    PinnedSave {
+        save: CommandId,
+    },
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CalcCommandId {
     pub domain_incarnation: u64,
@@ -102,6 +111,7 @@ pub enum ReevaluationReason {
 /// cannot authorize a return, including after Undo restores identical formula text.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AsyncToken {
+    pub destination: ResultDestination,
     pub id: u64,
     pub invocation: InvocationId,
     pub runtime: u64,
@@ -268,6 +278,7 @@ pub struct FreshnessClaim {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ResultStamp {
+    pub destination: ResultDestination,
     pub target: EvaluationTarget,
     pub observed: ObservationFrontier,
     pub computed_by: ComputationOrigin,
@@ -277,6 +288,7 @@ pub struct ResultStamp {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdmissionReceipt {
+    pub destination: ResultDestination,
     pub command: CalcCommandId,
     pub source: CommandId,
     pub pass: CalcPassId,
@@ -311,6 +323,7 @@ pub struct PublicationUnitId {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompletionReceipt {
+    pub destination: ResultDestination,
     pub command: CalcCommandId,
     pub scope: CalcScope,
     pub admitted: AdmissionFrontier,
@@ -357,7 +370,7 @@ use crate::state::{ArrayRole, Binding};
 use crate::{EngineState, FormulaResult};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct ContractState {
     pub workbook: WorkbookInstanceId,
     epoch: u64,
