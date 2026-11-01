@@ -260,7 +260,8 @@ CELL/INFO volatility (`state.rs:776-780`), while `set_environment` dirties every
 
 **Publication order** per subscriber stream: `AdmissionReceipt(K) <` each unit K causes; all required units `<`
 successful `CompletionReceipt(K)`, which carries a barrier the mirror applies before exposing completion. A spill is
-one unit including removals. Today everything publishes at `finish` (`recalc.rs:1-5,1001`), one `ValueDelta`.
+one unit including removals. The original path publishes at `finish`; the dc-hsa5.4 update below adds
+nonterminal certified scalar units through that same host/worker projection route.
 
 ## 5. The VBA read view
 
@@ -384,6 +385,15 @@ inside long kernels and VM/JIT code, not only between cells (today the budget co
 interest-preferred quanta the oldest off-interest continuation runs; ties by reference order); promoting a target
 promotes its prerequisite cone, never extra scope. Exact kernels yield only at binary64 store points or with full x87
 state. The browser driver returns to a real worker task between slices (a resolved-promise chain does not).
+
+Implementation update (dc-hsa5.4, 2026-11-01): root instructions and SEQUENCE kernels retain
+continuations across worker tasks. Pure commands can promote subscribed targets and their prerequisite cone in the first scheduling wave,
+with an eighth-quantum escape for other work. Commands containing user calls, volatiles or session units keep
+their whole reference order; reordering within individual mixed-command fence segments remains open.
+Competing spill producers keep their reference order. Interested scalar candidates publish early only when
+their certificates validate against installed operands and contain no absence, imported-cache or boundary-cache
+qualifications. Complete spills and the remaining results still install at finish. This is narrower than the
+full eight demonstrations below; callable/async and VM3/JIT suspension remain open.
 
 ## 10. First slice: the eight demonstrations and their oracles
 

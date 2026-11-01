@@ -8,8 +8,8 @@ use calc_engine::{
 };
 use std::fmt;
 
-/// Why a recalculation published nothing. The committed edits stay, the published generation is
-/// unchanged, and [`crate::project`] labels every calculated result or refusal the recalculation
+/// Why a recalculation stopped before completion. Committed edits and previously installed
+/// publication units stay, and [`crate::project`] labels every calculated result or refusal the recalculation
 /// would have replaced as stale ([`crate::StaleCause::RecalcFailed`] until an edit commits, then
 /// [`crate::StaleCause::AwaitingRecalc`]) until one publishes. A failure does not make a file
 /// cache stale: one stays a file cache while no edit since the workbook was opened has changed
@@ -19,7 +19,7 @@ pub enum RecalcFailed {
     /// The engine refused to begin it ([`calc_engine::begin_recalc`]), such as for a circular
     /// reference among the formulas it would calculate.
     Refused(StartError),
-    /// It began and failed before publishing ([`calc_engine::step`] and
+    /// It began and failed before completing ([`calc_engine::step`] and
     /// [`calc_engine::finish`]), such as when the caller's read observer stopped it.
     Failed(RecalcFailure),
 }
@@ -50,9 +50,9 @@ pub enum HostProgress {
     /// A recalculation of the current revision is in progress with `remaining` formulas to
     /// evaluate; the next step continues it.
     Calculating { remaining: usize },
-    /// A recalculation published a generation: what changed.
+    /// A recalculation installed a publication unit: what changed. More work may remain.
     Published(ValueDelta),
-    /// A recalculation published nothing. The next step begins another.
+    /// A recalculation failed. Another request or authored change permits a new attempt.
     Failed(RecalcFailed),
 }
 
@@ -78,6 +78,8 @@ pub fn step(
         Some(work) if work.revision() != host.model.revision() || force => {
             let facts = host.workbook_facts();
             host.engine.set_workbook_facts(Some(facts));
+            let transformed = host.transformed_calculation_scope.take();
+            let selection = work.admission().selection;
             let started = if force {
                 host.calculate_requested = false;
                 calc_engine::supersede_recalc_scoped(
@@ -87,6 +89,15 @@ pub fn step(
                     host.options.numeric.clone(),
                     calc_engine::CalcScope::Workbook,
                     calc_engine::EvalSelection::ForceAll,
+                )
+            } else if let Some(scope) = transformed {
+                calc_engine::supersede_recalc_scoped(
+                    &mut host.engine,
+                    &host.model,
+                    work,
+                    host.options.numeric.clone(),
+                    scope,
+                    selection,
                 )
             } else {
                 calc_engine::supersede_recalc(
@@ -121,6 +132,7 @@ pub fn step(
             let facts = host.workbook_facts();
             host.engine.set_workbook_facts(Some(facts));
             let started = if let Some((scope, selection)) = host.requested_calculation.take() {
+                let scope = host.transformed_calculation_scope.take().unwrap_or(scope);
                 calc_engine::begin_recalc_scoped(
                     &mut host.engine,
                     &host.model,
@@ -142,16 +154,31 @@ pub fn step(
         }
     };
     if work.admission_pending()
+        && work.admission().predecessor.is_none()
+        && host.calc_mode() == CalcMode::Manual
+        && matches!(work.admission().scope, calc_engine::CalcScope::Range(_))
+        && work.admission().selection == calc_engine::EvalSelection::ForceAll
+    {
+        work = work.with_manual_range_poststate();
+    }
+    if work.admission_pending()
         && let Some(source) = host.calculation_source.take()
     {
         work = work.with_source(source);
     }
+    work.set_interest(&host.engine, &host.model, &host.calculation_interest);
     host.calc_events.extend(work.take_events());
     match calc_engine::step(&host.engine, &host.model, &mut work, budget, observer) {
         RecalcProgress::Pending { remaining } => {
             host.calc_events.extend(work.take_events());
+            let published = calc_engine::publish_ready(&mut host.engine, &host.model, &mut work);
             host.work = Some(work);
-            HostProgress::Calculating { remaining }
+            if let Some(delta) = published {
+                host.calc_events.extend(delta.events().iter().cloned());
+                HostProgress::Published(delta)
+            } else {
+                HostProgress::Calculating { remaining }
+            }
         }
         RecalcProgress::Complete | RecalcProgress::Failed => {
             let failure_receipt = work.completion(

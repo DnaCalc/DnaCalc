@@ -72,6 +72,13 @@ pub enum CalcScope {
     Sheet(SheetId),
     Range(Vec<GridArea>),
 }
+/// The measured Manual Range.Calculate profile keeps its targets required for the next
+/// command. Satisfied is the SliceV1 policy for other admissions, not broad Auto-mode parity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RangePostState {
+    Satisfied,
+    StillRequired,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EvalSelection {
     DirtyAndVolatile,
@@ -110,12 +117,15 @@ pub struct SpanVersions {
     /// invocation proof. Keep that boundary explicit through ordinary dependents.
     pub uncertified: u64,
     pub legacy_tick: u64,
+    pub boundary_cache: u64,
+    pub imported_cache: u64,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ReadSpan {
     pub region: GridArea,
     pub request: ReadRequest,
     pub versions: SpanVersions,
+    pub boundary_caches: Vec<BoundaryReadSpan>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FactStamp {
@@ -138,6 +148,17 @@ pub struct AbsenceProof {
     pub pending_producers: usize,
     pub blanks: Vec<BlankRun>,
 }
+/// A batched read through the command's pinned scalar boundary cache. Imported values have
+/// no producing invocation. Dirty caches remain qualified even if their numeric value matches.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct BoundaryReadSpan {
+    pub region: GridArea,
+    pub view: ReadViewId,
+    pub values: u64,
+    pub dirty: u64,
+    pub imported: u64,
+    pub imported_sources: Vec<std::sync::Arc<calc_doc_model::SourcePart>>,
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ReadCertificate {
     /// The calculation consumed a saved external-link cache without a versioned live input
@@ -146,6 +167,9 @@ pub struct ReadCertificate {
     /// Reads cross an existing session boundary without an invocation certificate. This
     /// records actual calculation provenance, but never provides a FreshFor guarantee.
     pub legacy_boundary: bool,
+    pub uses_boundary_cache: bool,
+    pub uses_imported_cache: bool,
+    pub boundary_caches: Vec<BoundaryReadSpan>,
     pub dependencies: Vec<ReadSpan>,
     pub facts: Vec<FactStamp>,
     pub absences: Vec<AbsenceProof>,
@@ -187,6 +211,7 @@ pub struct AdmissionReceipt {
     pub source: CommandId,
     pub pass: CalcPassId,
     pub scope: CalcScope,
+    pub range_post_state: RangePostState,
     pub selection: EvalSelection,
     pub admitted: AdmissionFrontier,
     pub predecessor: Option<CalcCommandId>,
@@ -206,6 +231,8 @@ pub struct ScopeCoverage {
     pub refused: usize,
     pub held: usize,
     pub uncertified: usize,
+    pub boundary_cached: usize,
+    pub imported_cached: usize,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PublicationUnitId {
@@ -422,31 +449,7 @@ pub(crate) fn span_versions_at(
         authored: state.contract.authored(region),
         ..SpanVersions::default()
     };
-    let mut nodes: BTreeSet<_> = state
-        .by_anchor
-        .range(region.first()..=region.last())
-        .filter(|(at, _)| region.contains(**at))
-        .map(|(_, node)| *node)
-        .collect();
-    for spill in state
-        .spills
-        .iter()
-        .filter(|spill| meets(spill.area(), region))
-    {
-        if let Some(node) = state.node_at(spill.anchor()) {
-            if !progress.is_evaluated(node) {
-                nodes.insert(node);
-            }
-        }
-    }
-    nodes.extend(
-        progress
-            .footprints
-            .iter()
-            .filter(|(_, area)| meets(**area, region))
-            .map(|(node, _)| *node),
-    );
-    for node in nodes {
+    for node in span_nodes_at(state, progress, region) {
         let mut current = cut
             .and_then(|cut| cut.get(&node))
             .copied()
@@ -475,6 +478,8 @@ pub(crate) fn span_versions_at(
                     _ => stamp.certification.pass,
                 });
             }
+            versions.boundary_cache += u64::from(stamp.reads.uses_boundary_cache);
+            versions.imported_cache += u64::from(stamp.reads.uses_imported_cache);
             if stamp.reads.legacy_boundary {
                 versions.uncertified += 1;
             }
@@ -497,6 +502,59 @@ pub(crate) fn span_versions_at(
         versions.satisfied = versions.satisfied.max(current.satisfied);
     }
     versions
+}
+
+fn span_nodes_at(state: &EngineState, progress: &Progress, region: GridArea) -> BTreeSet<NodeId> {
+    let mut nodes: BTreeSet<_> = state
+        .by_anchor
+        .range(region.first()..=region.last())
+        .filter(|(at, _)| region.contains(**at))
+        .map(|(_, node)| *node)
+        .collect();
+    for spill in state
+        .spills
+        .iter()
+        .filter(|spill| meets(spill.area(), region))
+    {
+        if let Some(node) = state.node_at(spill.anchor()) {
+            if !progress.is_evaluated(node) {
+                nodes.insert(node);
+            }
+        }
+    }
+    nodes.extend(
+        progress
+            .footprints
+            .iter()
+            .filter(|(_, area)| meets(**area, region))
+            .map(|(node, _)| *node),
+    );
+    nodes
+}
+
+pub(crate) fn boundary_ancestry_at(
+    state: &EngineState,
+    progress: &Progress,
+    region: GridArea,
+) -> Vec<BoundaryReadSpan> {
+    let mut spans = Vec::new();
+    for node in span_nodes_at(state, progress, region) {
+        let result = if progress.is_evaluated(node) {
+            progress.staged(node)
+        } else if progress.is_scheduled(node) {
+            None
+        } else {
+            state.results.of(node)
+        };
+        if let Some(stamp) = result.and_then(FormulaResult::stamp) {
+            for span in &stamp.reads.boundary_caches {
+                if !spans.contains(span) {
+                    spans.push(span.clone());
+                }
+            }
+        }
+    }
+    spans
 }
 
 pub(crate) fn producer_version_at(
@@ -735,12 +793,73 @@ fn blanks_still_absent(
 }
 
 impl CalcScope {
+    /// Retarget a scope through an accepted structural edit, preserving disjoint pieces.
+    /// A removed sheet or fully deleted range becomes an empty successor, never Workbook.
+    pub fn transformed(&self, edit: &calc_fml::reference::StructuralEdit) -> Self {
+        use calc_fml::reference::StructuralEdit as E;
+        match self {
+            Self::Workbook => Self::Workbook,
+            Self::Sheet(sheet) => match edit {
+                E::RemoveSheet { sheet: removed, .. } if removed == sheet => {
+                    Self::Range(Vec::new())
+                }
+                _ => Self::Sheet(*sheet),
+            },
+            Self::Range(areas) => Self::Range(
+                areas
+                    .iter()
+                    .flat_map(|area| scope_area(*area, edit))
+                    .collect(),
+            ),
+        }
+    }
+
     pub fn contains(&self, at: CellKey) -> bool {
         match self {
             Self::Workbook => true,
             Self::Sheet(sheet) => at.sheet() == *sheet,
             Self::Range(areas) => areas.iter().any(|area| area.contains(at)),
         }
+    }
+}
+
+fn scope_area(area: GridArea, edit: &calc_fml::reference::StructuralEdit) -> Vec<GridArea> {
+    use calc_fml::reference::StructuralEdit as E;
+    match edit {
+        E::RemoveSheet { sheet, .. } if *sheet == area.sheet() => Vec::new(),
+        E::MoveCells { area: source, .. } => {
+            let Some(common) = area.intersection(*source) else {
+                return vec![area];
+            };
+            let mut pieces = area.subtract(common);
+            pieces.extend(edit.area(common));
+            pieces
+        }
+        E::ShiftCells {
+            area: band, down, ..
+        } if band.sheet() == area.sheet() => {
+            let stripe = if *down {
+                GridArea::new(
+                    CellKey::new(band.sheet(), 1, band.first().column()).expect("valid stripe"),
+                    CellKey::new(band.sheet(), calc_value::MAX_ROWS, band.last().column())
+                        .expect("valid stripe"),
+                )
+            } else {
+                GridArea::new(
+                    CellKey::new(band.sheet(), band.first().row(), 1).expect("valid stripe"),
+                    CellKey::new(band.sheet(), band.last().row(), calc_value::MAX_COLUMNS)
+                        .expect("valid stripe"),
+                )
+            }
+            .expect("one sheet");
+            let Some(common) = area.intersection(stripe) else {
+                return vec![area];
+            };
+            let mut pieces = area.subtract(common);
+            pieces.extend(edit.area(common));
+            pieces
+        }
+        _ => edit.area(area).into_iter().collect(),
     }
 }
 
@@ -841,4 +960,78 @@ pub(crate) fn absence_corridor(region: GridArea) -> GridArea {
         region.last(),
     )
     .expect("one sheet")
+}
+
+#[cfg(test)]
+mod scope_transform_tests {
+    use super::*;
+    use calc_fml::reference::StructuralEdit;
+    use calc_value::IdAllocator;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_partial_cut_keeps_its_hole_and_only_adds_the_moved_piece() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let a = ids.issue().unwrap();
+        let b = ids.issue().unwrap();
+        let cell = |s, r, c| CellKey::new(s, r, c).unwrap();
+        let scope = CalcScope::Range(vec![GridArea::new(cell(a, 1, 1), cell(a, 4, 4)).unwrap()]);
+        let moved = scope.transformed(&StructuralEdit::MoveCells {
+            area: GridArea::new(cell(a, 2, 2), cell(a, 3, 3)).unwrap(),
+            to: cell(b, 6, 6),
+            source_name: "A".into(),
+            target_name: "B".into(),
+        });
+        let mut count = 0;
+        for s in [a, b] {
+            for row in 1..=10 {
+                for column in 1..=10 {
+                    let expected = (s == a
+                        && row <= 4
+                        && column <= 4
+                        && !((2..=3).contains(&row) && (2..=3).contains(&column)))
+                        || (s == b && (6..=7).contains(&row) && (6..=7).contains(&column));
+                    assert_eq!(
+                        moved.contains(cell(s, row, column)),
+                        expected,
+                        "{s:?}:{row},{column}"
+                    );
+                    count += usize::from(moved.contains(cell(s, row, column)));
+                }
+            }
+        }
+        assert_eq!(count, 16);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_partial_shift_does_not_widen_its_unaffected_columns() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let s = ids.issue().unwrap();
+        let cell = |r, c| CellKey::new(s, r, c).unwrap();
+        let scope = CalcScope::Range(vec![GridArea::new(cell(1, 1), cell(4, 4)).unwrap()]);
+        let shifted = scope.transformed(&StructuralEdit::ShiftCells {
+            area: GridArea::new(cell(2, 2), cell(2, 3)).unwrap(),
+            down: true,
+            insert: true,
+        });
+        for row in 1..=6 {
+            for column in 1..=5 {
+                let expected = (row <= 4 && (column == 1 || column == 4))
+                    || (row <= 5 && (column == 2 || column == 3));
+                assert_eq!(
+                    shifted.contains(cell(row, column)),
+                    expected,
+                    "{row},{column}"
+                );
+            }
+        }
+        assert_eq!(
+            CalcScope::Sheet(s).transformed(&StructuralEdit::RemoveSheet {
+                sheet: s,
+                order: Vec::new()
+            }),
+            CalcScope::Range(Vec::new())
+        );
+    }
 }

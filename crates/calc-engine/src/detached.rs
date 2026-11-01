@@ -86,6 +86,8 @@ impl DetachedFormula {
             caller: None,
             scope: None,
             boundary: None,
+            boundary_caches: None,
+            boundary_used: None,
             inputs,
             state,
             workbook_facts: state.workbook_facts.as_ref(),

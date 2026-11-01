@@ -72,7 +72,7 @@ pub use graph::{AxisInterval, Prerequisite, SheetSpan};
 pub use read::{ObservedEvaluation, ReadObserver, Unobserved, resolve_reference_text};
 pub use recalc::{
     RecalcFailure, RecalcProgress, RecalcWork, StartError, WorkBudget, begin_recalc,
-    begin_recalc_scoped, finish, step, supersede_recalc, supersede_recalc_scoped,
+    begin_recalc_scoped, finish, publish_ready, step, supersede_recalc, supersede_recalc_scoped,
 };
 pub use result::{
     CacheWithoutFormula, CalcTick, Calculation, FormulaResult, NotModeled, SpillChange,

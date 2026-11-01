@@ -543,6 +543,9 @@ impl Workbook {
             HostProgress::Cancelled => "calculation cancelled".to_owned(),
             HostProgress::Manual => "manual calculation: press Calculate".to_owned(),
             HostProgress::Calculating { .. } => "calculating".to_owned(),
+            HostProgress::Published(delta) if delta.completion().is_none() => {
+                "calculating".to_owned()
+            }
             HostProgress::Published(_) => "recalculated".to_owned(),
             HostProgress::Failed(failure) => format!("the recalculation failed: {failure:?}"),
         }

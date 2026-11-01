@@ -1072,6 +1072,12 @@ pub enum CalculationOutcome {
     Cancelled,
     Failed,
 }
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CalculationRangePostState {
+    #[default]
+    Satisfied,
+    StillRequired,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CalculationEvent {
     Committed {
@@ -1084,6 +1090,8 @@ pub enum CalculationEvent {
         revision: u64,
         scope: CalculationScope,
         selection: CalculationSelection,
+        #[serde(default)]
+        range_post_state: CalculationRangePostState,
         predecessor: Option<u64>,
     },
     Yielded {
@@ -1117,5 +1125,9 @@ pub enum CalculationEvent {
         refused: usize,
         held: usize,
         uncertified: usize,
+        #[serde(default)]
+        boundary_cached: usize,
+        #[serde(default)]
+        imported_cached: usize,
     },
 }

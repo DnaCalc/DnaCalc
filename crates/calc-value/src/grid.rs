@@ -171,6 +171,61 @@ impl GridArea {
         self.row_count() as u64 * self.column_count() as u64
     }
 
+    /// The exact common rectangle; an empty intersection has no area.
+    pub fn intersection(self, other: Self) -> Option<Self> {
+        let (top, left, bottom, right) = (
+            self.top.max(other.top),
+            self.left.max(other.left),
+            self.bottom.min(other.bottom),
+            self.right.min(other.right),
+        );
+        (self.sheet == other.sheet && top <= bottom && left <= right).then_some(Self {
+            sheet: self.sheet,
+            top,
+            left,
+            bottom,
+            right,
+        })
+    }
+
+    /// Remove a rectangle using at most four disjoint rectangles. Shared by selection and
+    /// address-scope transforms; it never fills the holes of a selection's bounding rectangle.
+    pub fn subtract(self, removed: Self) -> Vec<Self> {
+        let Some(common) = self.intersection(removed) else {
+            return vec![self];
+        };
+        let mut result = Vec::new();
+        if self.top < common.top {
+            result.push(Self {
+                bottom: common.top - 1,
+                ..self
+            });
+        }
+        if common.bottom < self.bottom {
+            result.push(Self {
+                top: common.bottom + 1,
+                ..self
+            });
+        }
+        if self.left < common.left {
+            result.push(Self {
+                top: common.top,
+                bottom: common.bottom,
+                right: common.left - 1,
+                ..self
+            });
+        }
+        if common.right < self.right {
+            result.push(Self {
+                top: common.top,
+                bottom: common.bottom,
+                left: common.right + 1,
+                ..self
+            });
+        }
+        result
+    }
+
     /// Whether `key` lies inside this area (on the same sheet).
     pub fn contains(self, key: CellKey) -> bool {
         key.sheet == self.sheet
@@ -219,5 +274,48 @@ impl Selection {
             active: Some(at),
             areas: vec![GridArea::cell(at)],
         }
+    }
+}
+
+#[cfg(test)]
+mod area_subtraction_tests {
+    use super::*;
+    use crate::id::IdAllocator;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn subtraction_matches_cell_membership_without_overlap_for_every_small_rectangle() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let s = ids.issue().unwrap();
+        let cell = |r, c| CellKey::new(s, r, c).unwrap();
+        let area = GridArea::new(cell(2, 2), cell(5, 5)).unwrap();
+        for top in 1..=6 {
+            for left in 1..=6 {
+                for bottom in top..=6 {
+                    for right in left..=6 {
+                        let removed = GridArea::new(cell(top, left), cell(bottom, right)).unwrap();
+                        let pieces = area.subtract(removed);
+                        assert!(pieces.len() <= 4);
+                        let mut expected_count = 0;
+                        for row in 1..=6 {
+                            for column in 1..=6 {
+                                let at = cell(row, column);
+                                let expected = area.contains(at) && !removed.contains(at);
+                                let count =
+                                    pieces.iter().filter(|piece| piece.contains(at)).count();
+                                assert_eq!(count, usize::from(expected));
+                                expected_count += u64::from(expected);
+                            }
+                        }
+                        assert_eq!(
+                            pieces.iter().map(|piece| piece.cell_count()).sum::<u64>(),
+                            expected_count
+                        );
+                    }
+                }
+            }
+        }
+        let other = GridArea::full_sheet(ids.issue().unwrap());
+        assert_eq!(area.subtract(other), vec![area]);
     }
 }

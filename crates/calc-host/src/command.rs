@@ -247,17 +247,34 @@ pub fn dispatch(
             current,
         });
     }
-    if host.scoped_calculation_active()
-        && command
-            .edits
-            .iter()
-            .any(|edit| matches!(edit, CellEdit::Axis(_) | CellEdit::Sheet(_)))
-    {
-        return Err(CommandError::ScopeTransformNotModeled);
-    }
     let batch = OpBatch {
         base: command.base,
         operations: command.edits.into_iter().map(CellEdit::operation).collect(),
+    };
+
+    let transformed_scope = if batch
+        .operations
+        .iter()
+        .any(|op| matches!(op, WorkbookOp::EditAxis(_) | WorkbookOp::EditSheet(_)))
+    {
+        active_scope(host).map(|mut scope| {
+            for op in &batch.operations {
+                match op {
+                    WorkbookOp::EditAxis(edit) => scope = axis_scope(scope, *edit),
+                    WorkbookOp::EditSheet(calc_doc_model::SheetEdit::Remove { sheet }) => {
+                        scope =
+                            scope.transformed(&calc_fml::reference::StructuralEdit::RemoveSheet {
+                                sheet: *sheet,
+                                order: Vec::new(),
+                            })
+                    }
+                    _ => {}
+                }
+            }
+            scope
+        })
+    } else {
+        None
     };
 
     host.loaded
@@ -448,6 +465,9 @@ pub fn dispatch(
 
     let committed = calc_engine::commit_edit(engine);
     host.model = document.into_model();
+    if transformed_scope.is_some() {
+        host.transformed_calculation_scope = transformed_scope;
+    }
     host.calculation_cancelled = false;
     host.calc_events.push(calc_engine::CalcEvent::Committed {
         revision: host.model.revision(),
@@ -488,9 +508,44 @@ pub(crate) fn restore(
     earlier: &Arc<ModelRoot>,
     axis_edits: Vec<AxisEdit>,
 ) -> Result<CommandReceipt, CommandError> {
-    if host.scoped_calculation_active() {
-        return Err(CommandError::ScopeTransformNotModeled);
-    }
+    let transformed_scope = if host.scoped_calculation_active() {
+        let mut before: Vec<_> = host.model.sheets().iter().map(|sheet| sheet.id()).collect();
+        let mut after: Vec<_> = earlier.sheets().iter().map(|sheet| sheet.id()).collect();
+        before.sort();
+        after.sort();
+        if before != after {
+            return Err(CommandError::ScopeTransformNotModeled);
+        }
+        let common = host
+            .axis_edits
+            .iter()
+            .zip(&axis_edits)
+            .take_while(|(a, b)| a == b)
+            .count();
+        active_scope(host).map(|mut scope| {
+            for edit in host.axis_edits[common..].iter().rev() {
+                let change = match edit.change() {
+                    calc_doc_model::AxisChange::Insert => calc_doc_model::AxisChange::Delete,
+                    calc_doc_model::AxisChange::Delete => calc_doc_model::AxisChange::Insert,
+                };
+                let inverse = AxisEdit::new(
+                    edit.sheet(),
+                    edit.axis(),
+                    change,
+                    edit.first(),
+                    edit.count(),
+                )
+                .expect("an inverse of a checked axis edit");
+                scope = axis_scope(scope, inverse);
+            }
+            for &edit in &axis_edits[common..] {
+                scope = axis_scope(scope, edit);
+            }
+            scope
+        })
+    } else {
+        None
+    };
     let base = host.model.revision();
     let model = host
         .model
@@ -498,6 +553,9 @@ pub(crate) fn restore(
         .map_err(|error| CommandError::Document(EditError::Model(error)))?;
     let engine = host.engine.rebuilt(&model);
     host.model = model;
+    if transformed_scope.is_some() {
+        host.transformed_calculation_scope = transformed_scope;
+    }
     host.engine = engine;
     host.calculation_cancelled = false;
     host.calc_events.push(calc_engine::CalcEvent::Committed {
@@ -520,4 +578,43 @@ pub(crate) fn restore(
         pending,
         superseded_recalc,
     })
+}
+
+fn active_scope(host: &HostState) -> Option<calc_engine::CalcScope> {
+    host.transformed_calculation_scope
+        .clone()
+        .or_else(|| {
+            host.work
+                .as_ref()
+                .map(|work| work.admission().scope.clone())
+        })
+        .or_else(|| {
+            host.requested_calculation
+                .as_ref()
+                .map(|(scope, _)| scope.clone())
+        })
+        .filter(|scope| !matches!(scope, calc_engine::CalcScope::Workbook))
+}
+
+fn axis_scope(scope: calc_engine::CalcScope, edit: AxisEdit) -> calc_engine::CalcScope {
+    use calc_fml::reference::{EditAxis, StructuralEdit};
+    let axis = match edit.axis() {
+        calc_doc_model::Axis::Rows => EditAxis::Rows,
+        calc_doc_model::Axis::Columns => EditAxis::Columns,
+    };
+    let transform = match edit.change() {
+        calc_doc_model::AxisChange::Insert => StructuralEdit::Insert {
+            sheet: edit.sheet(),
+            axis,
+            first: edit.first(),
+            count: edit.count(),
+        },
+        calc_doc_model::AxisChange::Delete => StructuralEdit::Delete {
+            sheet: edit.sheet(),
+            axis,
+            first: edit.first(),
+            count: edit.count(),
+        },
+    };
+    scope.transformed(&transform)
 }

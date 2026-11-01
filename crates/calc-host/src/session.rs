@@ -384,6 +384,7 @@ impl HostSession {
         self.host.calculate_requested = false;
         self.host.full_calculate_requested = false;
         self.host.requested_calculation = None;
+        self.host.transformed_calculation_scope = None;
         self.host.calculation_source = None;
         self.host.calculation_cancelled = true;
     }
@@ -432,6 +433,11 @@ impl HostSession {
     /// [`INTENT_LOG_LIMIT`]. A record's `seq` counts every intent the session dispatched.
     pub fn intent_log(&self) -> &[IntentRecord] {
         &self.log
+    }
+
+    /// Pins the current model and result view without invoking or draining calculation.
+    pub fn prepare_save(&self, policy: &SavePolicy) -> Result<crate::PreparedSave, SaveFailed> {
+        crate::prepare_save(&self.host, policy)
     }
 
     /// Writes the current revision ([`crate::save`]).
@@ -827,15 +833,19 @@ impl HostSession {
 
     /// Runs one authorized step and delivers any publication it completed.
     fn recalculate(&mut self, receipt: &mut IntentReceipt) {
+        self.host.calculation_interest = self
+            .subscriptions
+            .values()
+            .flat_map(|subscription| self.areas(&subscription.interest))
+            .collect();
         let progress = step(&mut self.host, self.recalc_budget, &mut Unobserved);
         let cause = match &progress {
             HostProgress::Current | HostProgress::Manual | HostProgress::Cancelled => None,
             HostProgress::Calculating { .. } => None,
             HostProgress::Published(delta) => Some(DeltaCause::Recalculated {
                 publication: delta
-                    .completion()
-                    .and_then(|receipt| receipt.after_publication)
-                    .expect("a published unit has a completion barrier"),
+                    .publication()
+                    .expect("a published delta names its installed unit"),
                 revision: delta.revision(),
                 tick: delta.tick(),
             }),

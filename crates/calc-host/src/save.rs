@@ -30,6 +30,38 @@ impl fmt::Display for SaveFailed {
 
 impl std::error::Error for SaveFailed {}
 
+/// The immutable model and published result view selected before package preparation.
+/// This is provenance for the save; it makes no workbook-wide freshness claim.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavePin {
+    pub workbook: calc_engine::contract::WorkbookInstanceId,
+    pub model: calc_doc_model::AuthoredRevision,
+    pub results: calc_engine::contract::ReadViewId,
+    pub active_calculation: Option<calc_engine::contract::CalcCommandId>,
+}
+
+/// Owns the prepared package bytes and their source pin. Writing consumes only this plan,
+/// so later edits, calculations, cancellation or replacement of the live host cannot mix views.
+pub struct PreparedSave {
+    pin: SavePin,
+    plan: calc_doc::SavePlan,
+}
+impl PreparedSave {
+    pub fn pin(&self) -> &SavePin {
+        &self.pin
+    }
+    pub fn write(self, out: &mut dyn PackageWrite) -> Result<SaveReceipt, SaveFailed> {
+        calc_doc::write(self.plan, out).map_err(SaveFailed::Write)
+    }
+}
+impl fmt::Debug for PreparedSave {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PreparedSave")
+            .field("pin", &self.pin)
+            .finish_non_exhaustive()
+    }
+}
+
 /// The cached value a calculated value is saved as; `None` for a value no cell holds as a cache.
 fn cached(core: CoreRef<'_>) -> Option<CachedValue> {
     match core {
@@ -37,13 +69,11 @@ fn cached(core: CoreRef<'_>) -> Option<CachedValue> {
         CoreRef::Text(text) => CellText::new(text.clone()).map(CachedValue::Text),
         CoreRef::Logical(logical) => Some(CachedValue::Logical(logical)),
         CoreRef::Error(code) => Some(CachedValue::Error(code)),
-        CoreRef::Empty | CoreRef::Missing | CoreRef::Array(_) | CoreRef::Reference(_) => {
-            None
-        }
+        CoreRef::Empty | CoreRef::Missing | CoreRef::Array(_) | CoreRef::Reference(_) => None,
     }
 }
 
-/// Writes the host's current revision to `out` through calc-doc's save
+/// Prepares the host's pinned revision through calc-doc's save
 /// ([`calc_doc::LoadedWorkbook::snapshot_with_results`]). Each formula cell whose value the engine
 /// calculated, and which still stands (no edit since has changed the formula or what it reads),
 /// is saved with that value as its cached value, a newer error (#SPILL!, #CALC!) with its value
@@ -56,11 +86,13 @@ fn cached(core: CoreRef<'_>) -> Option<CachedValue> {
 /// ([`calc_doc::DocumentSnapshot::with_structural_edits`]); what the save does not move is
 /// refused ([`SaveRefusal::StructuralNotMoved`]). A revision that is still the loaded one is
 /// written as the package was opened.
-pub fn save(
-    host: &HostState,
-    policy: &SavePolicy,
-    out: &mut dyn PackageWrite,
-) -> Result<SaveReceipt, SaveFailed> {
+pub fn prepare_save(host: &HostState, policy: &SavePolicy) -> Result<PreparedSave, SaveFailed> {
+    let pin = SavePin {
+        workbook: host.engine.workbook_instance(),
+        model: host.revision(),
+        results: host.engine.result_view(),
+        active_calculation: host.work.as_ref().map(|work| work.admission().command),
+    };
     let stale = host
         .engine
         .stale(&host.model)
@@ -111,5 +143,14 @@ pub fn save(
             Arc::new(calc_engine::ReferenceRewriter),
         ));
     let plan = calc_doc::prepare_save(&snapshot, policy).map_err(SaveFailed::Refused)?;
-    calc_doc::write(plan, out).map_err(SaveFailed::Write)
+    Ok(PreparedSave { pin, plan })
+}
+
+/// Prepare and write one pinned package through the same route as a deferred save request.
+pub fn save(
+    host: &HostState,
+    policy: &SavePolicy,
+    out: &mut dyn PackageWrite,
+) -> Result<SaveReceipt, SaveFailed> {
+    prepare_save(host, policy)?.write(out)
 }

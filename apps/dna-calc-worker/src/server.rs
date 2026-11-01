@@ -1267,6 +1267,14 @@ impl Server {
                     }
                     calc_host::EvalSelection::ForceAll => wire::CalculationSelection::ForceAll,
                 },
+                range_post_state: match r.range_post_state {
+                    calc_host::RangePostState::Satisfied => {
+                        wire::CalculationRangePostState::Satisfied
+                    }
+                    calc_host::RangePostState::StillRequired => {
+                        wire::CalculationRangePostState::StillRequired
+                    }
+                },
                 predecessor: r.predecessor.map(|id| id.sequence),
             },
             E::Yielded { pass, remaining } => wire::CalculationEvent::Yielded {
@@ -1322,6 +1330,8 @@ impl Server {
                 refused: r.coverage.refused,
                 held: r.coverage.held,
                 uncertified: r.coverage.uncertified,
+                boundary_cached: r.coverage.boundary_cached,
+                imported_cached: r.coverage.imported_cached,
             },
         };
         let event = Event::Calculation {

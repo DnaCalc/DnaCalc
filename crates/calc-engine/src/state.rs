@@ -386,6 +386,10 @@ pub struct EngineState {
     pub(crate) results: Results,
     /// The nodes a change reached directly; the roots of the dirty closure.
     pub(crate) pending: BTreeSet<NodeId>,
+    /// P02 Manual range calculation fulfils its own command but asks the next authorized
+    /// calculation that includes these nodes to evaluate them again. This is demand, not an
+    /// assertion that the just-published scoped value was computed from changed inputs.
+    pub(crate) range_redemand: BTreeSet<NodeId>,
     /// The anchors of nodes removed since the last publication, whose results it removes.
     pub(crate) retired: BTreeSet<CellKey>,
     /// The last tick a recalculation began with; 0 before the first.
@@ -483,6 +487,7 @@ impl EngineState {
             bindings: Bindings::default(),
             results: Results::default(),
             pending: BTreeSet::new(),
+            range_redemand: BTreeSet::new(),
             retired: BTreeSet::new(),
             last_tick: 0,
             generation: 0,
@@ -547,7 +552,7 @@ impl EngineState {
     /// Whether a recalculation would calculate anything: a pending node, other than a data
     /// table's cell while tables are deferred ([`EngineState::set_tables_deferred`]).
     pub fn needs_recalc(&self, inputs: &ModelRoot) -> bool {
-        self.pending.iter().any(|node| {
+        self.pending.iter().chain(&self.range_redemand).any(|node| {
             !(self.tables_deferred
                 && self.node(*node).is_some_and(|record| {
                     crate::data_table::is_table_cell(inputs, record.anchor())
@@ -557,7 +562,8 @@ impl EngineState {
 
     /// The state of an opened file's snapshot, as [`EngineState::new`] makes it, with the results
     /// the file cached for its formulas published as [`FormulaResult::FileCached`]. A cache is
-    /// never a calculation input and never counts as calculated: every node stays pending, and
+    /// never counts as calculated: qualified scalar boundary reads can consume it, while every
+    /// node stays pending, and
     /// the first recalculation calculates each and replaces its cache. A cache for a cell that
     /// holds no formula is refused.
     pub fn with_file_caches(
@@ -759,6 +765,21 @@ impl EngineState {
         self.spills.covering(at)
     }
 
+    /// A held cache owned by the current formula node, excluding re-entry and orphaned
+    /// results. It can be stale or imported; this grants no calculation or freshness proof.
+    pub fn permitted_cache(&self, at: CellKey) -> Option<&FormulaResult> {
+        let node = self.node_at(at)?;
+        if self.entered.contains(&node) {
+            return None;
+        }
+        match self.results.of(node)? {
+            result @ (FormulaResult::Calculated { .. } | FormulaResult::FileCached(_)) => {
+                Some(result)
+            }
+            FormulaResult::NotModeled { .. } => None,
+        }
+    }
+
     pub fn result_view(&self) -> crate::contract::ReadViewId {
         crate::contract::ReadViewId(self.generation)
     }
@@ -777,7 +798,11 @@ impl EngineState {
         at: CellKey,
     ) -> Option<&crate::contract::FreshnessClaim> {
         let stamp = self.result(at)?.stamp()?;
-        if stamp.reads.legacy_boundary || stamp.reads.external_cache {
+        if stamp.reads.legacy_boundary
+            || stamp.reads.external_cache
+            || stamp.reads.uses_boundary_cache
+            || stamp.reads.uses_imported_cache
+        {
             return None;
         }
         let current = self.contract.requirement(stamp.target.node);
@@ -1054,6 +1079,7 @@ impl EngineState {
             self.entered.remove(&node);
             self.subtotal_cells.remove(&record.anchor);
             self.pending.remove(&node);
+            self.range_redemand.remove(&node);
             self.retired.insert(record.anchor);
             self.anchor_epoch = self
                 .anchor_epoch
