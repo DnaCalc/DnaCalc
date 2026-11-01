@@ -13,15 +13,22 @@
 namespace {
 constexpr GUID application_iid = {0x000208d5,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID window_iid = {0x00020893,0,0,{0xc0,0,0,0,0,0,0,0x46}};
+constexpr GUID workbook_iid = {0x000208da,0,0,{0xc0,0,0,0,0,0,0,0x46}};
+constexpr GUID workbooks_iid = {0x000208db,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 constexpr GUID events_iid = {0x00024413,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 struct Value { unsigned kind; double number; const wchar_t* text; size_t length; };
 using Run = HRESULT (WINAPI*)(const void*,const wchar_t*,size_t,const Value*,size_t,Value*);
+struct Object;
 struct State {
     HWND hwnd;
     DWORD thread;
     const void* context;
     Run run;
     bool connected = true;
+    bool enable_events = true;
+    Object* workbook = nullptr;
+    Object* workbooks = nullptr;
+    std::wstring workbook_name = L"Book1";
 };
 struct Object {
     void** vtable;
@@ -29,12 +36,18 @@ struct Object {
     std::shared_ptr<State> state;
     Object* application;
     bool is_application;
+    Object* parent = nullptr;
+    bool is_workbook = false;
+    bool is_collection = false;
 };
 ULONG WINAPI add_ref(Object* object) { return InterlockedIncrement(&object->references); }
 ULONG WINAPI release(Object* object) {
     LONG count = InterlockedDecrement(&object->references);
     if (!count) {
-        if (!object->is_application) release(object->application);
+        if (!object->is_application) {
+            if(object->parent && object->parent!=object->application) release(object->parent);
+            release(object->application);
+        }
         delete object;
     }
     return count;
@@ -106,7 +119,7 @@ HRESULT WINAPI query(Object* object, REFIID iid, void** out) {
     if(!out) return E_POINTER;
     *out=nullptr;
     if(iid==IID_IUnknown || iid==IID_IDispatch ||
-       iid==(object->is_application?application_iid:window_iid)) {
+       iid==(object->is_application?application_iid:(object->is_workbook?workbook_iid:(object->is_collection?workbooks_iid:window_iid)))) {
         *out=object; add_ref(object); return S_OK;
     }
     if(object->is_application && iid==IID_IConnectionPointContainer) {
@@ -128,6 +141,13 @@ HRESULT WINAPI names(Object* object,REFIID iid,LPOLESTR* names,UINT count,LCID,D
         else if(!_wcsicmp(names[i],L"Hwnd")) ids[i]=0x79e;
         else if(object->is_application && !_wcsicmp(names[i],L"Version")) ids[i]=0x188;
         else if(object->is_application && !_wcsicmp(names[i],L"Run")) ids[i]=0x103;
+        else if((object->is_application || object->is_workbook) && !_wcsicmp(names[i],L"Path")) ids[i]=0x123;
+        else if(object->is_application && !_wcsicmp(names[i],L"EnableEvents")) ids[i]=0x4bc;
+        else if(object->is_application && !_wcsicmp(names[i],L"Workbooks")) ids[i]=0x23c;
+        else if(object->is_workbook && !_wcsicmp(names[i],L"Name")) ids[i]=0x6e;
+        else if(object->is_workbook && !_wcsicmp(names[i],L"FullName")) ids[i]=0x121;
+        else if(object->is_collection && !_wcsicmp(names[i],L"Count")) ids[i]=0x76;
+        else if(object->is_collection && !_wcsicmp(names[i],L"Item")) ids[i]=0xaa;
         else result=DISP_E_UNKNOWNNAME;
     }
     return result;
@@ -138,6 +158,62 @@ HRESULT get_application(Object* object,IDispatch** out) {
     HRESULT hr=valid(object); if(FAILED(hr)) return hr;
     auto app=object->application; add_ref(app); *out=reinterpret_cast<IDispatch*>(app); return S_OK;
 }
+HRESULT WINAPI get_parent(Object* object,IDispatch** out) {
+    if(!out) return E_POINTER;
+    *out=nullptr; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    auto parent=object->parent?object->parent:object->application;
+    add_ref(parent); *out=reinterpret_cast<IDispatch*>(parent); return S_OK;
+}
+HRESULT WINAPI get_path(Object* object,LONG,BSTR* out) {
+    if(!out) return E_POINTER;
+    *out=nullptr; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    std::wstring path;
+    if(object->is_application) {
+        std::array<wchar_t,32768> buffer{};
+        auto count=GetModuleFileNameW(nullptr,buffer.data(),static_cast<DWORD>(buffer.size()));
+        if(!count || count>=buffer.size()) return HRESULT_FROM_WIN32(GetLastError());
+        path.assign(buffer.data(),count); path.resize(path.find_last_of(L"\\/"));
+    }
+    *out=SysAllocStringLen(path.data(),static_cast<UINT>(path.size()));
+    return *out?S_OK:E_OUTOFMEMORY;
+}
+HRESULT WINAPI get_enable_events(Object* object,VARIANT_BOOL* out) {
+    if(!out) return E_POINTER;
+    HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    *out=object->state->enable_events?VARIANT_TRUE:VARIANT_FALSE; return S_OK;
+}
+HRESULT WINAPI put_enable_events(Object* object,VARIANT_BOOL value) {
+    HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    object->state->enable_events=value!=VARIANT_FALSE; return S_OK;
+}
+HRESULT WINAPI get_workbooks(Object* object,IDispatch** out) {
+    if(!out) return E_POINTER;
+    *out=nullptr; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    add_ref(object->state->workbooks); *out=reinterpret_cast<IDispatch*>(object->state->workbooks); return S_OK;
+}
+HRESULT WINAPI get_count(Object* object,LONG* out) {
+    if(!out) return E_POINTER;
+    *out=0; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    *out=object->state->workbook?1:0; return S_OK;
+}
+HRESULT WINAPI get_item(Object* object,VARIANT index,IDispatch** out) {
+    if(!out) return E_POINTER;
+    *out=nullptr; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    VARIANT value{}; hr=VariantCopyInd(&value,&index); if(FAILED(hr)) return hr;
+    bool found=value.vt==VT_BSTR && value.bstrVal && !_wcsicmp(value.bstrVal,object->state->workbook_name.c_str());
+    if(value.vt!=VT_BSTR) {
+        VARIANT number{}; if(SUCCEEDED(VariantChangeType(&number,&value,0,VT_R8))) found=number.dblVal==1.; VariantClear(&number);
+    }
+    VariantClear(&value);
+    if(!found || !object->state->workbook) return DISP_E_BADINDEX;
+    add_ref(object->state->workbook); *out=reinterpret_cast<IDispatch*>(object->state->workbook); return S_OK;
+}
+HRESULT WINAPI get_name(Object* object,BSTR* out) {
+    if(!out) return E_POINTER;
+    *out=nullptr; HRESULT hr=valid(object); if(FAILED(hr)) return hr;
+    *out=SysAllocString(object->state->workbook_name.c_str()); return *out?S_OK:E_OUTOFMEMORY;
+}
+HRESULT WINAPI get_fullname(Object* object,LONG,BSTR* out) { return get_name(object,out); }
 HRESULT WINAPI get_version(Object* object,LONG,BSTR* out) {
     if(!out) return E_POINTER;
     *out=nullptr;
@@ -197,10 +273,21 @@ HRESULT WINAPI invoke(Object* object,DISPID id,REFIID iid,LCID,WORD flags,DISPPA
     if(!params || (params->cArgs && !params->rgvarg)) return E_POINTER;
     HRESULT hr=valid(object); if(FAILED(hr)) return hr;
     if(object->is_application && id==0x103 && (flags&DISPATCH_METHOD)) return run(object,params,result);
+    if(object->is_collection && (id==0xaa || id==0) && (flags&(DISPATCH_METHOD|DISPATCH_PROPERTYGET))) {
+        if(params->cArgs!=1) return DISP_E_BADPARAMCOUNT;
+        IDispatch* workbook=nullptr; hr=get_item(object,params->rgvarg[0],&workbook);
+        if(SUCCEEDED(hr)) { if(result) { result->vt=VT_DISPATCH; result->pdispVal=workbook; } else workbook->Release(); } return hr;
+    }
+    if(object->is_application && id==0x4bc && (flags&DISPATCH_PROPERTYPUT)) {
+        if(params->cArgs!=1) return DISP_E_BADPARAMCOUNT;
+        VARIANT value{}; hr=VariantChangeType(&value,&params->rgvarg[0],0,VT_BOOL);
+        if(SUCCEEDED(hr)) hr=put_enable_events(object,value.boolVal);
+        VariantClear(&value); return hr;
+    }
     if(!(flags&DISPATCH_PROPERTYGET)) return DISP_E_MEMBERNOTFOUND;
     if(params->cArgs) return DISP_E_BADPARAMCOUNT;
     if(id==0x94 || id==0x96) {
-        IDispatch* app=nullptr; hr=get_application(object,&app);
+        IDispatch* app=nullptr; hr=id==0x96?get_parent(object,&app):get_application(object,&app);
         if(SUCCEEDED(hr)) { if(result) { result->vt=VT_DISPATCH; result->pdispVal=app; } else app->Release(); }
         return hr;
     }
@@ -210,6 +297,21 @@ HRESULT WINAPI invoke(Object* object,DISPID id,REFIID iid,LCID,WORD flags,DISPPA
         return hr;
     }
     if(id==0x79e) { LONG hwnd=0; hr=get_hwnd(object,&hwnd); if(SUCCEEDED(hr) && result) { result->vt=VT_I4; result->lVal=hwnd; } return hr; }
+    if(id==0x123 && (object->is_application || object->is_workbook)) {
+        BSTR path=nullptr; hr=get_path(object,0,&path);
+        if(SUCCEEDED(hr)) { if(result) { result->vt=VT_BSTR; result->bstrVal=path; } else SysFreeString(path); }
+        return hr;
+    }
+    if(id==0x4bc && object->is_application) { VARIANT_BOOL value; hr=get_enable_events(object,&value); if(SUCCEEDED(hr) && result) { result->vt=VT_BOOL; result->boolVal=value; } return hr; }
+    if(id==0x23c && object->is_application) {
+        IDispatch* books=nullptr; hr=get_workbooks(object,&books);
+        if(SUCCEEDED(hr)) { if(result) { result->vt=VT_DISPATCH; result->pdispVal=books; } else books->Release(); } return hr;
+    }
+    if(id==0x76 && object->is_collection) { LONG count; hr=get_count(object,&count); if(SUCCEEDED(hr) && result) { result->vt=VT_I4; result->lVal=count; } return hr; }
+    if((id==0x6e || id==0x121) && object->is_workbook) {
+        BSTR name=nullptr; hr=get_name(object,&name);
+        if(SUCCEEDED(hr)) { if(result) { result->vt=VT_BSTR; result->bstrVal=name; } else SysFreeString(name); } return hr;
+    }
     return DISP_E_MEMBERNOTFOUND;
 }
 // _Application is dual. Measured slots: Application=7, Parent=9, Run=42,
@@ -231,13 +333,27 @@ std::array<void*,474> make_vtable() {
     v[0]=reinterpret_cast<void*>(query); v[1]=reinterpret_cast<void*>(add_ref); v[2]=reinterpret_cast<void*>(release);
     v[3]=reinterpret_cast<void*>(type_count); v[4]=reinterpret_cast<void*>(type_info);
     v[5]=reinterpret_cast<void*>(names); v[6]=reinterpret_cast<void*>(invoke);
-    v[7]=reinterpret_cast<void*>(get_application); v[9]=reinterpret_cast<void*>(get_application);
+    v[7]=reinterpret_cast<void*>(get_application); v[9]=reinterpret_cast<void*>(get_parent);
+    v[223]=reinterpret_cast<void*>(get_path); v[300]=reinterpret_cast<void*>(get_enable_events); v[301]=reinterpret_cast<void*>(put_enable_events);
+    v[52]=reinterpret_cast<void*>(get_workbooks);
     v[42]=reinterpret_cast<void*>(early_run); v[281]=reinterpret_cast<void*>(get_version); v[351]=reinterpret_cast<void*>(get_hwnd);
     return v;
 }
 auto application_vtable=make_vtable();
 std::array<void*,7> window_vtable={application_vtable[0],application_vtable[1],application_vtable[2],application_vtable[3],application_vtable[4],application_vtable[5],application_vtable[6]};
-struct Projection { Object* app; Object* window; };
+std::array<void*,289> make_workbook_vtable() {
+    std::array<void*,289> v; v.fill(reinterpret_cast<void*>(unsupported));
+    for(size_t i=0;i<10;++i) v[i]=application_vtable[i];
+    v[50]=reinterpret_cast<void*>(get_fullname); v[66]=reinterpret_cast<void*>(get_name); v[76]=reinterpret_cast<void*>(get_path); return v;
+}
+auto workbook_vtable=make_workbook_vtable();
+std::array<void*,26> make_workbooks_vtable() {
+    std::array<void*,26> v; v.fill(reinterpret_cast<void*>(unsupported));
+    for(size_t i=0;i<10;++i) v[i]=application_vtable[i];
+    v[12]=reinterpret_cast<void*>(get_count); v[13]=reinterpret_cast<void*>(get_item); return v;
+}
+auto workbooks_vtable=make_workbooks_vtable();
+struct Projection { Object* app; Object* window; Object* workbook; Object* workbooks; };
 }
 
 extern "C" void* dna_com_create(size_t hwnd,const void* context,Run run) noexcept {
@@ -245,10 +361,16 @@ extern "C" void* dna_com_create(size_t hwnd,const void* context,Run run) noexcep
         auto state=std::make_shared<State>(State{reinterpret_cast<HWND>(hwnd),GetCurrentThreadId(),context,run});
         auto app=std::make_unique<Object>(Object{application_vtable.data(),1,state,nullptr,true});
         app->application=app.get();
-        auto window=std::make_unique<Object>(Object{window_vtable.data(),1,state,app.get(),false});
-        auto projection=std::make_unique<Projection>(Projection{app.get(),window.get()});
+        auto workbook=std::make_unique<Object>(Object{workbook_vtable.data(),1,state,app.get(),false,app.get(),true});
+        auto workbooks=std::make_unique<Object>(Object{workbooks_vtable.data(),1,state,app.get(),false,app.get(),false,true});
+        auto window=std::make_unique<Object>(Object{window_vtable.data(),1,state,app.get(),false,workbook.get()});
+        auto projection=std::make_unique<Projection>(Projection{app.get(),window.get(),workbook.get(),workbooks.get()});
+        state->workbook=workbook.get(); state->workbooks=workbooks.get();
         add_ref(app.get()); // Window's Application reference.
-        app.release(); window.release(); return projection.release();
+        add_ref(app.get()); // Workbook's Application reference.
+        add_ref(workbook.get()); // Window's Parent reference.
+        add_ref(app.get()); // Workbooks' Application reference.
+        app.release(); workbook.release(); workbooks.release(); window.release(); return projection.release();
     } catch (...) { return nullptr; }
 }
 extern "C" LRESULT dna_com_getobject(void* pointer,WPARAM wparam,LPARAM object_id) noexcept {
@@ -260,7 +382,7 @@ extern "C" void dna_com_destroy(void* pointer) noexcept {
     auto projection=static_cast<Projection*>(pointer);
     projection->app->state->connected=false;
     projection->app->state->context=nullptr;
-    release(projection->window); release(projection->app); delete projection;
+    release(projection->window); release(projection->workbook); release(projection->workbooks); release(projection->app); delete projection;
 }
 extern "C" HRESULT dna_com_verify(void* pointer) noexcept {
     auto projection=static_cast<Projection*>(pointer);

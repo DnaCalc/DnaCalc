@@ -188,7 +188,7 @@ impl XllFunction {
                 let flags = if ptr.is_null() {
                     0
                 } else {
-                    unsafe { (*ptr).xltype }
+                    unsafe { ptr.read_unaligned().xltype }
                 };
                 let copy = unsafe { from_oper(ptr, &self.state.borrow().sheets, sheet) };
                 if flags & DLL_FREE != 0 {
@@ -207,7 +207,7 @@ impl XllFunction {
                         }
                     }
                 } else if flags & XL_FREE != 0 {
-                    callbacks::free(&self.state, unsafe { &*ptr });
+                    callbacks::free(&self.state, &unsafe { ptr.read_unaligned() });
                 }
                 copy?
             }
@@ -268,14 +268,18 @@ impl XllFunction {
                     sheet,
                 )
             }?,
-            XllType::DoublePointer => CalcValue::number(unsafe { *(pointer as *const f64) }),
-            XllType::BooleanPointer => CalcValue::logical(unsafe { *(pointer as *const i16) } != 0),
-            XllType::ShortPointer => {
-                CalcValue::number(f64::from(unsafe { *(pointer as *const i16) }))
+            XllType::DoublePointer => {
+                CalcValue::number(unsafe { (pointer as *const f64).read_unaligned() })
             }
-            XllType::IntPointer => {
-                CalcValue::number(f64::from(unsafe { *(pointer as *const i32) }))
+            XllType::BooleanPointer => {
+                CalcValue::logical(unsafe { (pointer as *const i16).read_unaligned() } != 0)
             }
+            XllType::ShortPointer => CalcValue::number(f64::from(unsafe {
+                (pointer as *const i16).read_unaligned()
+            })),
+            XllType::IntPointer => CalcValue::number(f64::from(unsafe {
+                (pointer as *const i32).read_unaligned()
+            })),
             XllType::WideCountedString | XllType::WideCountedStringInPlace => {
                 let oper = XlOper12 {
                     value: XlValue12 {
@@ -289,7 +293,7 @@ impl XllFunction {
                 let ptr = pointer as *const u16;
                 let mut units = Vec::new();
                 while units.len() < 32768 {
-                    let c = unsafe { *ptr.add(units.len()) };
+                    let c = unsafe { ptr.add(units.len()).read_unaligned() };
                     if c == 0 {
                         break;
                     }
@@ -302,16 +306,27 @@ impl XllFunction {
             }
             XllType::Fp12 => {
                 let fp = pointer as *const Fp12;
-                let (rows, columns) = unsafe { ((*fp).rows, (*fp).columns) };
+                let (rows, columns) = unsafe {
+                    (
+                        std::ptr::addr_of!((*fp).rows).read_unaligned(),
+                        std::ptr::addr_of!((*fp).columns).read_unaligned(),
+                    )
+                };
                 let rows = usize::try_from(rows).map_err(|_| "negative FP12 rows")?;
                 let cols = usize::try_from(columns).map_err(|_| "negative FP12 columns")?;
                 let count = rows
                     .checked_mul(cols)
                     .filter(|n| *n > 0 && *n <= 1_048_576)
                     .ok_or("oversized FP12 result")?;
-                let data = unsafe {
-                    std::slice::from_raw_parts((pointer as *const u8).add(8).cast::<f64>(), count)
-                };
+                let data: Vec<_> = (0..count)
+                    .map(|i| unsafe {
+                        (pointer as *const u8)
+                            .add(8)
+                            .cast::<f64>()
+                            .add(i)
+                            .read_unaligned()
+                    })
+                    .collect();
                 if data.iter().any(|n| !n.is_finite()) {
                     return Err("nonfinite FP12 result".into());
                 }
@@ -426,6 +441,11 @@ fn marshal(
 }
 
 pub(crate) fn worksheet_name(number: i32) -> Option<&'static str> {
+    // New C API numbers are not serialized Ftab IDs. The original xlOil 0.22.1
+    // dynamic-array probe uses 614 (observed in the paired Excel trace).
+    if number == 614 {
+        return Some("FILTER");
+    }
     let number = u16::try_from(number).ok()?;
     calc_fml::EXCEL_FUNCTION_IDS
         .iter()

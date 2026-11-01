@@ -16,6 +16,7 @@ use std::{
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn LoadLibraryExW(path: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
+    pub(crate) fn GetModuleHandleW(name: *const u16) -> *mut c_void;
     fn GetModuleHandleExW(flags: u32, name: *const u16, module: *mut *mut c_void) -> i32;
     fn GetModuleFileNameW(module: *mut c_void, path: *mut u16, length: u32) -> u32;
     fn GetProcAddress(module: *mut c_void, name: *const u8) -> *mut c_void;

@@ -1,0 +1,7 @@
+[
+  {"formula":"=EchoShort(7)","value":7},
+  {"formula":"=EchoShort(-2)","value":-2},
+  {"formula":"=EchoShort(1.6)","value":1},
+  {"formula":"=EchoShort(\"12\")","value":12},
+  {"formula":"=EchoShort(TRUE)","value":1}
+]

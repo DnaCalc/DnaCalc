@@ -1,0 +1,7 @@
+[
+  {"formula":"=X3.PyAdd(3,4)","value":7},
+  {"formula":"=X3.PyAdd(5)","value":7},
+  {"formula":"=X3.PyHello(\"world\")","value":"Hello, world"},
+  {"formula":"=SUM(X3.PyArray(4))","value":20},
+  {"formula":"=INDEX(X3.PyArray(4),4,2)","value":9}
+]

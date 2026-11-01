@@ -308,16 +308,15 @@ def normalize_x2(value):
     if isinstance(value, str):
         value = re.sub(r"sheet=-?\d+", "sheet=<sheet>", value)
         value = re.sub(r"(SyncMacro|RegistrationInfo)_[a-f0-9]{32}", r"\1_<guid>", value)
+        value = re.sub(r"RegistrationInfo_[a-f0-9]{28,31}(?![a-f0-9])", "RegistrationInfo_<guid>", value)
         if "\\" in value and value.lower().endswith(".xll"):
             value = value.replace("\\", "/").rsplit("/", 1)[-1]
         return value
     return value
 
 
-def x2_invocation(trace, name):
+def invocation_record(trace, entry):
     events, enters, leaves = trace
-    entry = next((x for x in enters.values() if x["entry"].endswith(":" + name)), None)
-    require(entry is not None, "No native invocation for " + name)
     returned = leaves[entry["call"]]
     callbacks = [[x["function"], normalize_x2(x["args"]), leaves[x["call"]]["return_code"],
                   normalize_x2(leaves[x["call"]].get("result"))]
@@ -328,7 +327,88 @@ def x2_invocation(trace, name):
             "result": normalize_x2(returned.get("result")), "callbacks": callbacks}
 
 
-def verify_x2(excel, excel_control, host, host_control, cases_path, publication_path=None):
+def x2_invocation(trace, name):
+    entry = next((x for x in trace[1].values() if x["entry"].endswith(":" + name)), None)
+    require(entry is not None, "No native invocation for " + name)
+    return invocation_record(trace, entry)
+
+
+def all_invocations(trace, name):
+    return [invocation_record(trace, x) for x in trace[1].values() if x["entry"].endswith(":" + name)]
+
+
+def framework_callbacks(trace):
+    """Keep every callback before close; registration IDs and windows are identities.
+
+    xlFree has no defined output operand. Its raw buffer stays in the trace.
+    The close controllers use UNREGISTER(path) in Excel and Remove+Close in DNA
+    Calc, so their teardown calls are counted separately, not compared as one action.
+    """
+    _, enters, leaves = trace
+    close = min((x["seq"] for x in enters.values() if x["entry"].endswith("!xlAutoClose")), default=float("inf"))
+    ids = {}
+    window = event_token = None
+    records = []
+    for entry in enters.values():
+        if not entry["entry"].endswith("!MdCallBack12") or entry["seq"] >= close:
+            continue
+        end = leaves[entry["call"]]
+        fn = entry["function"]
+        args = normalize_x2(entry["args"])
+        result = normalize_x2(end.get("result"))
+        if fn == 149 and end["return_code"] == 0:
+            name = normalize_x2(entry["args"][3]["value"])
+            require(result["type"] == 1 and result["value"] != 0, "Invalid registration ID")
+            ids[result["value"]] = name
+            result["value"] = "<registration:" + name + ">"
+        elif fn == 16392 and end["return_code"] == 0:
+            window = result["value"]
+            require(window != 0, "Missing native window")
+            result["value"] = "<window>"
+        elif fn == 16401 and end["return_code"] == 0:
+            event_token = result["value"]
+        elif fn == 16384:
+            for arg in args:
+                if isinstance(arg.get("value"), (int, float)) and not isinstance(arg["value"], bool):
+                    value = arg["value"]
+                    if value == window:
+                        arg["value"] = "<window>"
+                    elif value == event_token:
+                        arg["value"] = "<event-registration-result>"
+                    elif value in ids:
+                        arg["value"] = "<registration:" + ids[value] + ">"
+            result = None
+        elif fn == 201 and args and args[0].get("value") in ids:
+            args[0]["value"] = "<registration:" + ids[args[0]["value"]] + ">"
+        records.append({"function": fn, "args": args, "return_code": end["return_code"], "result": result})
+    return records
+
+
+def framework_ownership(trace):
+    _, enters, leaves = trace
+    returned = [x for x in leaves.values() if ":" in x["entry"] and isinstance(x.get("result"), dict)
+                and x["result"].get("type", 0) & 0x4000]
+    frees = [x for x in enters.values() if x["entry"].endswith("!xlAutoFree12")]
+    consumed = set()
+    by_module = Counter()
+    for value in sorted(returned, key=lambda x: x["seq"]):
+        module = value["entry"].split("!", 1)[0]
+        matches = [x for x in frees if x["call"] not in consumed and x["seq"] > value["seq"]
+                   and x["oper_address"] == value["rax"] and x["thread"] == value["thread"]]
+        require(matches, "Owned native result has no same-pointer/thread free")
+        free = min(matches, key=lambda x: x["seq"])
+        require(free["entry"].split("!", 1)[0] == module, "Wrong DLL owns xlAutoFree12")
+        next_entry = min((x["seq"] for x in enters.values() if ":" in x["entry"] and x["seq"] > value["seq"]
+                          and x["thread"] == value["thread"] and x["entry"].split("!", 1)[0] == module), default=float("inf"))
+        require(free["seq"] < next_entry, "Owned result survived the next native module entry")
+        consumed.add(free["call"])
+        by_module[module] += 1
+    require(len(consumed) == len(frees), "Unpaired native ownership callback")
+    return {"owned_returns": len(returned), "free_calls": len(frees), "same_pointer_thread_and_module": True,
+            "by_module": dict(by_module)}
+
+
+def verify_x2(excel, excel_control, host, host_control, cases_path, publication_path=None, x3=False):
     directories = (excel, excel_control, host, host_control)
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
@@ -364,6 +444,9 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         require(observations["AutomationSecurity unchanged"] is True, "Security setting changed")
         outcomes.append({k: normalize_x2(v) for k, v in observations.items() if k.startswith("=")})
     for directory in directories[2:]:
+        if x3:
+            status = json.loads((directory / "host.exit.json").read_text(encoding="utf-8-sig"))
+            require(status == {"exit_code": 0, "finished": True}, "Host did not finish and exit successfully")
         output = json.loads((directory / "host.stdout").read_text(encoding="utf-8-sig"))
         require(not (directory / "host.stderr").read_text(encoding="utf-8-sig").strip(), "Host reported diagnostics")
         require(output["live_callback_allocations"] == 0, "Host callback storage leaked")
@@ -389,10 +472,18 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
     fixture_name = environments[0]["fixture_name"]
     measured_names = (["X0.Hello", "X0.Reference", "X0.Caller", "X0.Async", "X0.Big", "X0.ThreadSafe", "X0.NativeOwned"]
                       if fixture_name == "X0" else ["SayHello"])
+    if x3:
+        names = [{x["entry"].rsplit(":", 1)[1] for x in trace[1].values() if ":" in x["entry"]} for trace in traces]
+        require(names[0] == names[1] and names[0], "Native function invocation names differ")
+        registered = {normalize_x2(x["args"][3]["value"]) for x in traces[0][1].values()
+                      if x.get("function") == 149}
+        required = {name for case in cases for name in re.findall(r"([A-Za-z_][\w.]*)\s*\(", case["formula"])} & registered
+        require(required <= names[0], "Formula calls lack native boundary observations: " + str(required - names[0]))
+        measured_names = sorted(names[0])
     call_comparisons = {}
     opaque_storage = []
     for name in measured_names:
-        records = [x2_invocation(trace, name) for trace in traces]
+        records = [(all_invocations(trace, name) if x3 else x2_invocation(trace, name)) for trace in traces]
         raw_equal = records[0] == records[1]
         if name == "X0.Async":
             # Excel-DNA's ObjectParam reads hData only for XlTypeBigData
@@ -404,7 +495,8 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                 opaque_storage.append(handle["value"]["value"].pop("byte_count"))
         require(records[0] == records[1], "Defined native arguments/result/nested callbacks differ for " + name)
         call_comparisons[name] = {"same_defined_arguments_and_result": True, "same_raw_record_after_identity_normalization": raw_equal,
-                                  "same_ordered_callbacks": records[0]["callbacks"]}
+                                  "invocations_each_host": len(records[0]) if x3 else 1,
+                                  "same_ordered_callbacks": [r["callbacks"] for r in records[0]] if x3 else records[0]["callbacks"]}
         if name == "X0.Async":
             call_comparisons[name]["opaque_handle_cbData_excel_and_host"] = opaque_storage
 
@@ -422,9 +514,10 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                 registrations[normalize_x2(args[3]["value"])] = {"procedure": args[1]["value"], "type": args[2]["value"], "macro_type": args[5]["value"] if len(args) > 5 else 1}
         signatures.append(registrations)
         exports = [e for e in events if e["event"] == "xll_exports" and e["module"] == fixture_name + "-AddIn64.xll"]
-        require(exports and exports[0]["numbered_stub_count"] == 10000, "Original Excel-DNA export pool not observed")
+        if not x3:
+            require(exports and exports[0]["numbered_stub_count"] == 10000, "Original Excel-DNA export pool not observed")
         versions = [x for x in enters.values() if x["entry"].endswith("!XLCallVer")]
-        require((versions or fixture_name == "X2Aot") and all(int(leaves[x["call"]]["rax"], 16) & 0xffffffff == 3072 for x in versions), "XLCallVer differs")
+        require((versions or fixture_name == "X2Aot" or x3) and all(int(leaves[x["call"]]["rax"], 16) & 0xffffffff == 3072 for x in versions), "XLCallVer differs")
         codes = Counter((x["function"], x["return_code"]) for x in leaves.values() if "return_code" in x)
         callback_counts.append(codes)
         if fixture_name == "X0":
@@ -462,7 +555,25 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         require(old_codes <= current_codes, "An X0 callback/code pair is absent from the host")
     else:
         old_codes = set()
-    return {"status": "verified X2 measured cases", "fixture": fixture_name,
+    x3_details = {}
+    if x3:
+        callbacks = [framework_callbacks(trace) for trace in traces]
+        require([(r["function"], r["return_code"]) for r in callbacks[0]] ==
+                [(r["function"], r["return_code"]) for r in callbacks[1]], "Pre-close callback sequence/codes differ")
+        differences = [{"index": i, "excel": a, "host": b} for i, (a, b) in enumerate(zip(*callbacks)) if a != b]
+        registrations = [Counter(json.dumps(r, sort_keys=True) for r in rows if r["function"] == 149) for rows in callbacks]
+        require(registrations[0] == registrations[1], "A registration differs beyond its order/opaque identity")
+        # These differences are reported, not counted as raw boundary matches.
+        require(all(d["excel"]["function"] in (149, 614, 16401, 16384) for d in differences), "Unexplained callback difference")
+        ownership = [framework_ownership(trace) for trace in traces]
+        require(ownership[0] == ownership[1], "Native ownership counts/modules differ")
+        dynamic = [[x for x in trace[0] if x["event"] == "registered_entry" and "!xloil_stub:" in x["entry"]] for trace in traces]
+        x3_details = {"pre_close_callbacks_each_host": len(callbacks[0]), "same_ordered_callback_numbers_and_codes": True,
+                      "callbacks_equal_after_identity_normalization": len(callbacks[0]) - len(differences),
+                      "raw_callback_differences": differences, "ownership_excel_and_host": ownership,
+                      "rewritten_export_registrations_each_host": [len(x) for x in dynamic],
+                      "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted."}
+    return {"status": "verified X3 measured cases" if x3 else "verified X2 measured cases", "fixture": fixture_name,
             "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
             "source_revisions": sorted({e["repository_commit"] for e in environments}),
             "source_publication_revisions": [p["revision"] for p in publications],
@@ -473,9 +584,10 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             "reload_checked": bool(host_outputs[0]["reload_results"]),
             "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories only; value/type/ownership bits and nested callback order remain exact.",
             "scope": ("Single-invocation worker dispatch; no simultaneous workbook calculation, RTD, cancellation, delivered host AppEvents or full COM model claim."
-                      if fixture_name == "X0" else "Hello only; no COM, worker, async or reload claim."),
+                      if fixture_name == "X0" else "All observed native UDF invocations, including repetitions; no full COM, event delivery, RTD or reload claim." if x3 else "Hello only; no COM, worker, async or reload claim."),
             "known_difference": ("xlAsyncReturn raw result operand: Excel type zero, host documented Boolean. Raw opaque handle cbData is retained separately; Excel-DNA reads only hData on entry. Codes and published values agree."
                                  if fixture_name == "X0" else None),
+            **x3_details,
             "timing": "Debugger timing is not uninstrumented performance evidence."}
 
 
@@ -532,6 +644,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=Path)
     parser.add_argument("--host-control", type=Path)
     parser.add_argument("--x2-cases", type=Path)
+    parser.add_argument("--x3-cases", type=Path)
     parser.add_argument("--source-publication", type=Path)
     parser.add_argument("--identity", action="store_true")
     parser.add_argument("--pool", action="store_true")
@@ -540,8 +653,8 @@ if __name__ == "__main__":
         result = verify_x2_controls(args.traced, args.control, args.identity)
     elif args.host:
         parser.error("--host requires --host-control") if args.host_control is None else None
-        result = (verify_x2(args.traced, args.control, args.host, args.host_control, args.x2_cases, args.source_publication)
-                  if args.x2_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
+        result = (verify_x2(args.traced, args.control, args.host, args.host_control, args.x3_cases or args.x2_cases, args.source_publication, x3=bool(args.x3_cases))
+                  if args.x2_cases or args.x3_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
     else:
         result = verify(args.traced, args.control)
     rendered = json.dumps(result, indent=2) + "\n"
