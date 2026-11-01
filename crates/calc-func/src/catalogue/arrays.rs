@@ -123,7 +123,7 @@ fn by_area(
 
 /// A kernel's result: its array, or its failure as a worksheet error (a coercion calc-func does
 /// not model is refused).
-fn result(site: &Site<'_>, r: Result<CalcValue, E>) -> Step<CalcValue> {
+fn result<T>(site: &Site<'_>, r: Result<T, E>) -> Step<T> {
     match r {
         Ok(value) => Ok(value),
         Err(E::Preparation(CoercionError::NotModelled)) => Err(site.not_modelled(None)),
@@ -160,7 +160,7 @@ fn sub_area(site: &Site<'_>, a: &[CalcValue], take: bool) -> Step<Option<CalcVal
             Some(value) if value.is_missing() && index == 1 && a.len() > 2 => Ok(full),
             Some(value) => match k::parse_integer(value) {
                 Ok(n) => Ok(n),
-                Err(error) => result(site, Err(error)).map(|_| 0),
+                Err(error) => result::<CalcValue>(site, Err(error)).map(|_| 0),
             },
         }
     };
@@ -179,7 +179,9 @@ fn sub_area(site: &Site<'_>, a: &[CalcValue], take: bool) -> Step<Option<CalcVal
     };
     let ((r0, r1), (c0, c1)) = match (span(rows, row_count), span(cols, col_count)) {
         (Ok(r), Ok(c)) => (r, c),
-        (Err(error), _) | (_, Err(error)) => return result(site, Err(error)).map(|_| None),
+        (Err(error), _) | (_, Err(error)) => {
+            return result::<CalcValue>(site, Err(error)).map(|_| None);
+        }
     };
     let first = area.first();
     let corner = |row: usize, col: usize| {
@@ -583,9 +585,40 @@ fn unique(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     ))
 }
 
+#[derive(Debug)]
+struct SequenceTask(k::SequenceWork);
+impl crate::call::KernelTask for SequenceTask {
+    fn advance(
+        &mut self,
+        elements: usize,
+    ) -> Result<Option<CalcValue>, crate::call::FunctionFault> {
+        match self.0.advance(elements) {
+            None => Ok(None),
+            Some(Ok(value)) => Ok(Some(value)),
+            Some(Err(error)) => Ok(Some(CalcValue::error(
+                k::map_dynamic_array_reshape_error_to_ws(&error),
+            ))),
+        }
+    }
+    fn completed_elements(&self) -> usize {
+        self.0.completed_elements()
+    }
+}
+
+fn sequence_task(
+    site: &Site<'_>,
+    args: &[CalcValue],
+    _: &mut EvalServices<'_>,
+) -> Step<Box<dyn crate::call::KernelTask>> {
+    Ok(Box::new(SequenceTask(result(
+        site,
+        k::SequenceWork::new(args),
+    )?)))
+}
+
 ported_family! {
     code: CODE;
-    1 sequence_fn "SEQUENCE" (1, 4) [V "rows", V "columns", V "start", V "step"] |s, a, sv| {
+    1 sequence_fn "SEQUENCE" (1, 4) [V "rows", V "columns", V "start", V "step"] resume sequence_resume => sequence_task; |s, a, sv| {
         result(s, k::eval_sequence_prepared(a))
     }
     2 filter_fn "FILTER" (2, 3) [R "array", R "include", R "if_empty"] |s, a, sv| {

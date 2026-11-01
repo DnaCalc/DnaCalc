@@ -10,7 +10,9 @@
 //! arithmetic site, so a call under the Exact numeric mode is refused, as for every other kernel.
 
 use super::aggregate::{self, Held, Origin};
-use super::{ArgumentDemand, CatalogueEntry, FunctionId, Kernel, Notation, Parameter, ParameterClass};
+use super::{
+    ArgumentDemand, CatalogueEntry, FunctionId, Kernel, Notation, Parameter, ParameterClass,
+};
 use crate::call::{EagerKernel, EvalServices};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
@@ -53,6 +55,7 @@ macro_rules! ported_family {
         $(
             $member:literal $fname:ident $spelling:literal ($min:literal, $max:literal)
             [$($class:ident $pname:literal),*]
+            $(resume $resumer:ident => $resume:path;)?
             |$s:ident, $a:ident, $sv:ident| $body:block
         )*
     ) => {
@@ -67,11 +70,30 @@ macro_rules! ported_family {
                         $max,
                         &[$(super::Parameter { name: $pname, class: super::kit::$class }),*],
                         $fname,
-                    ),
+                    ).with_continuation(ported_family!(@resume $($resumer)?)),
                 )*
             ],
         };
         $(
+            $(
+                fn $resumer(
+                    arguments: &[crate::value::CalcValue],
+                    services: &mut crate::call::EvalServices<'_>,
+                ) -> Result<Box<dyn crate::call::KernelTask>, crate::call::FunctionFault> {
+                    let site = crate::kernel::Site::new(super::FunctionId::new($code, $member), services);
+                    let outcome = (|| {
+                        let target = crate::catalogue::catalogue().resolve(super::FunctionId::new($code, $member)).expect("a declared entry");
+                        super::kit::scalars(&site, arguments, target.entry.parameters)?;
+                        site.binary64()?;
+                        $resume(&site, arguments, services)
+                    })();
+                    match outcome {
+                        Ok(task) => Ok(task),
+                        Err(crate::kernel::Exit::Error(code)) => Ok(Box::new(crate::call::ReadyTask(Some(crate::value::CalcValue::error(code))))),
+                        Err(crate::kernel::Exit::Fault(fault)) => Err(fault),
+                    }
+                }
+            )?
             fn $fname(
                 arguments: &[crate::value::CalcValue],
                 services: &mut crate::call::EvalServices<'_>,
@@ -93,10 +115,16 @@ macro_rules! ported_family {
             }
         )*
     };
+    (@resume) => { None };
+    (@resume $resumer:ident) => { Some($resumer) };
 }
 
 /// Refuses an array given to a value parameter: the call would lift over its elements.
-pub(super) fn scalars(site: &Site<'_>, arguments: &[CalcValue], parameters: &[Parameter]) -> Step<()> {
+pub(super) fn scalars(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    parameters: &[Parameter],
+) -> Step<()> {
     let last = parameters.len().saturating_sub(1);
     for (index, argument) in arguments.iter().enumerate() {
         if matches!(argument.core_ref(), CoreRef::Array(_))
@@ -115,7 +143,11 @@ pub(super) fn num(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Ste
 
 /// Number coercion for a kernel that implements its own measured subnormal input policy.
 /// Keep the ordinary coercions and refusals for every other kind of value.
-pub(super) fn num_with_subnormal(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<f64> {
+pub(super) fn num_with_subnormal(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    index: usize,
+) -> Step<f64> {
     match arguments[index].core_ref() {
         CoreRef::Number(n) if n.is_subnormal() => Ok(n),
         _ => num(site, arguments, index),
@@ -124,7 +156,12 @@ pub(super) fn num_with_subnormal(site: &Site<'_>, arguments: &[CalcValue], index
 
 /// Argument `index` as a number, or `default` when the call does not reach it. An argument the
 /// call leaves empty (`f(1,)`) is read as 0, as coercion reads it.
-pub(super) fn opt(site: &Site<'_>, arguments: &[CalcValue], index: usize, default: f64) -> Step<f64> {
+pub(super) fn opt(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    index: usize,
+    default: f64,
+) -> Step<f64> {
     if index < arguments.len() {
         num(site, arguments, index)
     } else {
@@ -132,10 +169,11 @@ pub(super) fn opt(site: &Site<'_>, arguments: &[CalcValue], index: usize, defaul
     }
 }
 
-
 /// Whether argument `index` was supplied and not left empty.
 pub(super) fn given(arguments: &[CalcValue], index: usize) -> bool {
-    arguments.get(index).is_some_and(|value| !value.is_missing())
+    arguments
+        .get(index)
+        .is_some_and(|value| !value.is_missing())
 }
 
 /// Argument `index` as a logical, through worksheet logical coercion.
@@ -182,7 +220,10 @@ pub(super) fn out(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> S
 
 /// Publish a kernel's measured subnormal result as a number; other outcomes use `out`.
 /// The caller still runs the family's numeric-mode check before calculating.
-pub(super) fn out_with_subnormal(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+pub(super) fn out_with_subnormal(
+    site: &Site<'_>,
+    result: Result<f64, WorksheetErrorCode>,
+) -> Step<CalcValue> {
     match result {
         Ok(n) if n.is_subnormal() => Ok(CalcValue::number(n)),
         other => out(site, other),
@@ -252,9 +293,12 @@ pub(super) fn values(
     services: &mut EvalServices<'_>,
     visit: &mut dyn FnMut(bool, &CalcValue) -> Step<()>,
 ) -> Step<()> {
-    aggregate::each_value(site, &arguments[from..to], services, &mut |_, origin, value| {
-        visit(origin != Origin::Direct, value)
-    })
+    aggregate::each_value(
+        site,
+        &arguments[from..to],
+        services,
+        &mut |_, origin, value| visit(origin != Origin::Direct, value),
+    )
 }
 
 /// The most cells [`grid`] reads into memory; a larger area is refused as not modelled.
@@ -289,12 +333,18 @@ pub(super) fn grid(
             let first = area.first();
             let mut cells = vec![CalcValue::empty(); rows * cols];
             let cells_reader = aggregate::reader(site, services, index)?;
-            aggregate::read_reference(site, cells_reader, reference, index, &mut |_, key, value| {
-                let at = (key.row() - first.row()) as usize * cols
-                    + (key.column() - first.column()) as usize;
-                cells[at] = value.clone();
-                Ok(())
-            })?;
+            aggregate::read_reference(
+                site,
+                cells_reader,
+                reference,
+                index,
+                &mut |_, key, value| {
+                    let at = (key.row() - first.row()) as usize * cols
+                        + (key.column() - first.column()) as usize;
+                    cells[at] = value.clone();
+                    Ok(())
+                },
+            )?;
             Ok(Grid {
                 rows,
                 cols,

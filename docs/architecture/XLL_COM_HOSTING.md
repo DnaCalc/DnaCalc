@@ -405,7 +405,7 @@ FreeLibrary: Add-in Manager removal has a different route. Full removal/reload s
 ### 9.3 What remains open
 
 The automatic Excel-DNA ribbon/COM-add-in helper is not run because its
-`AutomationSecurityOverride` changes Application.AutomationSecurity, prohibited in this
+`AutomationSecurityOverride` can change Application.AutomationSecurity, prohibited in this
 session. Ribbon activation and DllGetClassObject therefore remain unmeasured. RTD-based async,
 .NET 8/Native AOT, cancellation/late returns, uncalculated-cell retry, the complete permission
 table, early-bound COM vtables, legacy Excel4 and x86 also remain open. xlw and xlOil were not

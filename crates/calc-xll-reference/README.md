@@ -88,7 +88,7 @@ worksheet outcomes and fixture completion. A missing export or an entry with
 zero calls must not be described as an exercised implementation.
 
 The standard Excel-DNA ribbon helper is not exercised: its
-`AutomationSecurityOverride` changes `Application.AutomationSecurity`, contrary
+`AutomationSecurityOverride` can change `Application.AutomationSecurity`, contrary
 to this session's instruction. Ribbon/COM-add-in activation, RTD-based async,
 .NET 8/Native AOT, cancellation/late async returns, uncalculated-cell retry,
 legacy Excel4, x86, and the rest of the study's probes remain open.

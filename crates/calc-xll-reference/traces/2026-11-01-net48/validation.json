@@ -73,23 +73,39 @@
   "limitations": [
     "X0 observations only; no DNA Calc XLL host implemented.",
     "Debugger pauses change latency and scheduling.",
-    "Ribbon loader skipped because its helper changes AutomationSecurity.",
+    "Ribbon loader skipped because its helper can change AutomationSecurity.",
     "xlw/xlOil, RTD, .NET 8/AOT, cancellation, uncalculated retry, full context permissions, early-bound COM, x86 and Excel4 remain open."
   ],
   "read_only_review": "Passed: X0 source, staged source hashes, retained traces, verifier, study, corpus counts and proposed close note checked by one independent read-only agent.",
   "source_and_captures_commit": "8e00362a23827effb713d2a3e96bbff53c44c368",
-  "integration_check": {
-    "command": "cargo xtask check",
-    "status": "passed",
-    "upstream": "04b5fb4fb4fb64e61a9561a4cb1785bd482b31ae",
-    "passed": 531,
-    "failed": 0,
-    "ignored": 0,
-    "not_run": 1,
-    "harnesses": 41,
-    "packages": 11,
-    "build_log_sha256": "7F8C2074D118395AFCF9EA8832E112F7FB3EA3204DC2C88F13ECED6456F15718",
-    "test_log_sha256": "8AAD0D001B035069FB8C901B3F6A9E0A2D899BE1506AE10AAC049DC0C4234BBF",
-    "recorded_utc": "2026-11-01T02:43:15.661101+00:00"
-  }
+  "integration_checks": [
+    {
+      "command": "cargo xtask check",
+      "status": "passed",
+      "upstream": "04b5fb4fb4fb64e61a9561a4cb1785bd482b31ae",
+      "passed": 531,
+      "failed": 0,
+      "ignored": 0,
+      "not_run": 1,
+      "harnesses": 41,
+      "packages": 11,
+      "build_log_sha256": "7F8C2074D118395AFCF9EA8832E112F7FB3EA3204DC2C88F13ECED6456F15718",
+      "test_log_sha256": "8AAD0D001B035069FB8C901B3F6A9E0A2D899BE1506AE10AAC049DC0C4234BBF",
+      "recorded_utc": "2026-11-01T02:43:15.661101+00:00"
+    },
+    {
+      "command": "cargo xtask check",
+      "status": "passed",
+      "upstream": "3d2b770cb3284cbe097d18b8548d3b33a286fbc8",
+      "passed": 1153,
+      "failed": 0,
+      "ignored": 3,
+      "not_run": 1,
+      "harnesses": 61,
+      "packages": 12,
+      "build_log_sha256": "86A116AFD92D9C7822B1116CF1A3068BB63DA48A3D76E7FFC6C8512D09EAED27",
+      "test_log_sha256": "10A1DDB490A73CCB573CDAB287947B044807391B582F05C1C146171372F95D59",
+      "recorded_utc": "2026-11-01T02:55:40.484943+00:00"
+    }
+  ]
 }

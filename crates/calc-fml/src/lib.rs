@@ -37,13 +37,13 @@ pub mod reference;
 pub mod syntax;
 
 pub use eval::{
-    CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
-    EvaluationReport, ExecutedCall, FactInvalidation, FactRead, FactSubject,
-    FormulaEvaluationContext, FormulaForm, FormulaInstance, MAX_CALL_DEPTH, ObservableFacets,
-    PassServices, PlanCache, ReadDenial, ReadPolicy, ReadPurpose, ReadRequest, ResolvedReference,
-    SemanticEnvironment, UserFunctionEffects, UserFunctionSource, compile, compile_loaded,
-    compile_loaded_with, compile_loaded_with_functions, compile_with, compile_with_functions,
-    evaluate, instantiate,
+    CompileError, CompiledPlan, ContinuationProgress, EvalContinuation, EvalFault, EvalFrame,
+    EvalScratch, EvalStep, EvaluationObserver, EvaluationReport, ExecutedCall, FactInvalidation,
+    FactRead, FactSubject, FormulaEvaluationContext, FormulaForm, FormulaInstance, MAX_CALL_DEPTH,
+    ObservableFacets, PassServices, PlanCache, ReadDenial, ReadPolicy, ReadPurpose, ReadRequest,
+    ResolvedReference, SemanticEnvironment, UserFunctionEffects, UserFunctionSource, compile,
+    compile_loaded, compile_loaded_with, compile_loaded_with_functions, compile_with,
+    compile_with_functions, evaluate, instantiate,
 };
 pub use reference::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 pub use syntax::parse_formula;
