@@ -183,6 +183,7 @@ impl Model {
         self.edit = EditSession::default();
         self.editor = crate::EditorState::default();
         self.find = None;
+        self.runtime.tools.reset_workbook();
         self.focus.observe(None);
         self.views.reset();
     }

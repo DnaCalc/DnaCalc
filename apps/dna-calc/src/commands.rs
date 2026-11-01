@@ -3,35 +3,43 @@ use crate::{
     controller::Controller,
     wire::{self, Intent, Reply, Request},
 };
-use leptos::prelude::*;
 use dna_calc_model::{Command, FindMode};
+use leptos::prelude::*;
 use wasm_bindgen::JsCast;
+
+fn find_options(controller: Controller) -> impl IntoView {
+    let scope = controller.tool_field(|s| &s.scope, |s| &mut s.scope);
+    let formulas = controller.tool_field(|s| &s.formulas, |s| &mut s.formulas);
+    let case = controller.tool_field(|s| &s.case, |s| &mut s.case);
+    let whole = controller.tool_field(|s| &s.whole, |s| &mut s.whole);
+    let wildcards = controller.tool_field(|s| &s.wildcards, |s| &mut s.wildcards);
+    view! {
+                <div class="dc-find-options"><label>"Within"<select data-dnacalc="find-scope" prop:value=move ||scope.get() on:change=move |ev|{scope.set(event_target_value(&ev));controller.invalidate_search();}><option value="sheet">"Worksheet"</option><option value="selection">"Original selection"</option><option value="workbook">"Workbook, including hidden sheets"</option></select></label><label>"Look in"<select data-dnacalc="find-look" prop:value=move ||if formulas.get(){"formulas"}else{"values"} on:change=move |ev|{formulas.set(event_target_value(&ev)=="formulas");controller.invalidate_search();}><option value="formulas">"Formulas & entries"</option><option value="values">"Displayed values"</option></select></label></div>
+                <div class="dc-find-toggles"><label><input type="checkbox" data-dnacalc="find-case" prop:checked=move ||case.get() on:change=move |ev|{case.set(event_target_checked(&ev));controller.invalidate_search();}/ >"Match case"</label><label><input type="checkbox" data-dnacalc="find-whole" prop:checked=move ||whole.get() on:change=move |ev|{whole.set(event_target_checked(&ev));controller.invalidate_search();}/ >"Whole cell"</label><label><input type="checkbox" data-dnacalc="find-wildcards" prop:checked=move ||wildcards.get() on:change=move |ev|{wildcards.set(event_target_checked(&ev));controller.invalidate_search();}/ >"Wildcards (* ? ~)"</label></div>
+    }
+}
 
 pub fn controls(controller: Controller) -> impl IntoView {
     let dialog = NodeRef::<leptos::html::Dialog>::new();
     let query_field = NodeRef::<leptos::html::Input>::new();
     let goto_field = NodeRef::<leptos::html::Input>::new();
-    let query = RwSignal::new(String::new());
-    let replacement = RwSignal::new(String::new());
-    let target = RwSignal::new(String::new());
-    let case = RwSignal::new(false);
-    let whole = RwSignal::new(false);
-    let wildcards = RwSignal::new(false);
-    let formulas = RwSignal::new(true);
-    let scope = RwSignal::new("sheet".to_owned());
-    let found = RwSignal::new(None::<wire::Found>);
-    let selected = RwSignal::new(0usize);
-    let found_revision = RwSignal::new(0u64);
+    let query = controller.tool_field(|s| &s.query, |s| &mut s.query);
+    let replacement = controller.tool_field(|s| &s.replacement, |s| &mut s.replacement);
+    let target = controller.tool_field(|s| &s.target, |s| &mut s.target);
+    let case = controller.tool_field(|s| &s.case, |s| &mut s.case);
+    let whole = controller.tool_field(|s| &s.whole, |s| &mut s.whole);
+    let wildcards = controller.tool_field(|s| &s.wildcards, |s| &mut s.wildcards);
+    let formulas = controller.tool_field(|s| &s.formulas, |s| &mut s.formulas);
+    let scope = controller.tool_field(|s| &s.scope, |s| &mut s.scope);
+    let found = controller.tool_field(|s| &s.found, |s| &mut s.found);
+    let selected = controller.tool_field(|s| &s.selected, |s| &mut s.selected);
+    let found_revision = controller.tool_field(|s| &s.found_revision, |s| &mut s.found_revision);
+    let message = controller.tool_field(|s| &s.message, |s| &mut s.message);
+    let epoch = controller.tool_field(|s| &s.epoch, |s| &mut s.epoch);
+    let anchor = controller.tool_field(|s| &s.anchor, |s| &mut s.anchor);
+    let areas = controller.tool_field(|s| &s.areas, |s| &mut s.areas);
     let stale = move || found.get().is_some() && found_revision.get() != controller.revision.get();
-    let message = RwSignal::new(String::new());
-    let epoch = StoredValue::new(0u64);
-    let anchor = StoredValue::new(None::<wire::Key>);
-    let areas = StoredValue::new(Vec::<wire::Area>::new());
-    let invalidate = move || {
-        epoch.update_value(|n| *n += 1);
-        found.set(None);
-        message.set(String::new());
-    };
+    let invalidate = move || controller.invalidate_search();
     Effect::new(move |_| {
         controller.generation.track();
         controller.find_open.set(None);
@@ -128,7 +136,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
             if epoch.get_value()!=request || controller.generation.get_untracked()!=generation{return;}
             if revision!=controller.revision.get_untracked(){message.set("Workbook changed; run Find again".into());return;}
             found_revision.set(revision);
-            if let Reply::Found(result)=reply {match result {Ok(result)=>{message.set(if result.rows.is_empty(){if result.partial {"No match in inspected cells; narrow the scope to complete the search".into()}else{"No matches".into()}}else{format!("{} matches shown · {} occupied cells inspected{}",result.rows.len(),result.scanned,if result.partial {" · search limit reached"}else{""})});selected.set(0);found.set(Some(result));},Err(error)=>message.set(error)}}
+            if let Reply::Found(result)=reply {match result {Ok(result)=>{message.set(if result.rows.is_empty(){if result.partial {"No match in inspected cells; narrow the scope to complete the search".into()}else{"No matches".into()}}else{format!("{} matches shown · {} occupied cells inspected{}",result.rows.len(),result.scanned,if result.partial {" · search limit reached"}else{""})});selected.set(0);found.set(Some(result.into()));},Err(error)=>message.set(error)}}
         });
     };
     let navigate = move |index: usize| {
@@ -188,13 +196,13 @@ pub fn controls(controller: Controller) -> impl IntoView {
         if stale() {
             return None;
         }
-        found.get().map(|f|f.rows.into_iter().enumerate().map(|(index,row)|{
+        found.get().map(|f|f.rows.clone().into_iter().enumerate().map(|(index,row)|{
         let hidden=row.hidden;let label=row.label;let source=row.source;let display=row.display;let provenance=row.provenance.name();
         view!{<li><button type="button" class="dc-find-hit" data-dnacalc="find-hit" aria-pressed=move ||(selected.get()==index).to_string() disabled=hidden title=if hidden {"Unhide this worksheet to navigate"}else{"Go to this cell"} on:click=move |_|navigate(index)><strong>{label}</strong><code>{source}</code><span>{display}" · "{provenance}{if hidden {" · hidden worksheet"}else{""}}</span></button></li>}
     }).collect_view())
     };
     let menu = NodeRef::<leptos::html::Dialog>::new();
-    let permission = RwSignal::new(None::<Result<(), String>>);
+    let permission = controller.tool_field(|s| &s.permission, |s| &mut s.permission);
     Effect::new(move |_| {
         let revision = controller.revision.get();
         let generation = controller.generation.get();
@@ -298,8 +306,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
             })}
             <div hidden=move ||controller.find_open.get()==Some(FindMode::GoTo)>
                 <label>"Find"<input node_ref=query_field data-dnacalc="find-query" prop:value=move ||query.get() on:input=move |ev|{query.set(event_target_value(&ev));invalidate();} on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter"{ev.prevent_default();run();}}/></label>
-                <div class="dc-find-options"><label>"Within"<select data-dnacalc="find-scope" on:change=move |ev|{scope.set(event_target_value(&ev));invalidate();}><option value="sheet">"Worksheet"</option><option value="selection">"Original selection"</option><option value="workbook">"Workbook, including hidden sheets"</option></select></label><label>"Look in"<select data-dnacalc="find-look" on:change=move |ev|{formulas.set(event_target_value(&ev)=="formulas");invalidate();}><option value="formulas">"Formulas & entries"</option><option value="values">"Displayed values"</option></select></label></div>
-                <div class="dc-find-toggles"><label><input type="checkbox" data-dnacalc="find-case" on:change=move |ev|{case.set(event_target_checked(&ev));invalidate();}/ >"Match case"</label><label><input type="checkbox" data-dnacalc="find-whole" on:change=move |ev|{whole.set(event_target_checked(&ev));invalidate();}/ >"Whole cell"</label><label><input type="checkbox" data-dnacalc="find-wildcards" on:change=move |ev|{wildcards.set(event_target_checked(&ev));invalidate();}/ >"Wildcards (* ? ~)"</label></div>
+                {find_options(controller)}
                 <div class="dc-dialog-actions"><button data-dnacalc="find-all" on:click=move |_|run()>"Find all"</button><button data-dnacalc="find-next" disabled=move ||stale()||found.get().is_none_or(|f|f.rows.is_empty()) on:click=move |_|{if let Some(found)=found.get_untracked(){let len=found.rows.len();for step in 1..=len{let next=(selected.get_untracked()+step)%len;if !found.rows[next].hidden{navigate(next);break;}}}}>"Next match"</button><button data-dnacalc="find-replace-mode" on:click=move |_|controller.command(Command::Replace)>"Replace…"</button></div>
                 {move ||(controller.find_open.get()==Some(FindMode::Replace)).then(||view!{
                     <label>"Replace with"<input data-dnacalc="replace-text" prop:value=move ||replacement.get() on:input=move |ev|replacement.set(event_target_value(&ev))/></label>
@@ -320,7 +327,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
 }
 
 pub fn summary(controller: Controller) -> impl IntoView {
-    let data = RwSignal::new(None::<Result<wire::SelectionStats, String>>);
+    let data = controller.tool_field(|s| &s.selection_stats, |s| &mut s.selection_stats);
     Effect::new(move |_| {
         let areas = controller.areas.get();
         let revision = controller.revision.get();
@@ -355,4 +362,80 @@ pub fn summary(controller: Controller) -> impl IntoView {
     })
     };
     view! {<details class="dc-selection-summary" data-dnacalc="selection-summary"><summary data-dnacalc="selection-summary-toggle">{heading}</summary><div class="dc-selection-summary-body">{details}</div></details>}
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod browser_tests {
+    use super::*;
+    use wasm_bindgen::JsValue;
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn retained_find_options_match_controls_after_remount() {
+        let root = Owner::new();
+        let controller = root.with(|| {
+            Controller::with_transport(std::rc::Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ))
+        });
+        let parent = document()
+            .create_element("div")
+            .unwrap()
+            .unchecked_into::<web_sys::HtmlElement>();
+        let mount =
+            root.with(|| leptos::mount::mount_to(parent.clone(), move || find_options(controller)));
+        for (name, property, value) in [
+            ("scope", "value", JsValue::from_str("workbook")),
+            ("look", "value", JsValue::from_str("values")),
+            ("case", "checked", JsValue::TRUE),
+            ("whole", "checked", JsValue::TRUE),
+            ("wildcards", "checked", JsValue::TRUE),
+        ] {
+            let field = parent
+                .query_selector(&format!("[data-dnacalc=find-{name}]"))
+                .unwrap()
+                .unwrap();
+            js_sys::Reflect::set(&field, &JsValue::from_str(property), &value).unwrap();
+            field
+                .dispatch_event(&web_sys::Event::new("change").unwrap())
+                .unwrap();
+        }
+        drop(mount);
+        let mount =
+            root.with(|| leptos::mount::mount_to(parent.clone(), move || find_options(controller)));
+        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&JsValue::UNDEFINED))
+            .await
+            .unwrap();
+        for (name, property, value) in [
+            ("scope", "value", JsValue::from_str("workbook")),
+            ("look", "value", JsValue::from_str("values")),
+            ("case", "checked", JsValue::TRUE),
+            ("whole", "checked", JsValue::TRUE),
+            ("wildcards", "checked", JsValue::TRUE),
+        ] {
+            let field = parent
+                .query_selector(&format!("[data-dnacalc=find-{name}]"))
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                js_sys::Reflect::get(&field, &JsValue::from_str(property)).unwrap(),
+                value,
+                "{name} after remount"
+            );
+        }
+        root.with(|| {
+            assert_eq!(
+                controller
+                    .tool_field(|s| &s.scope, |s| &mut s.scope)
+                    .get_untracked(),
+                "workbook"
+            );
+            assert!(
+                !controller
+                    .tool_field(|s| &s.formulas, |s| &mut s.formulas)
+                    .get_untracked()
+            );
+        });
+        drop(mount);
+        root.cleanup();
+    }
 }

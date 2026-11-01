@@ -2752,6 +2752,25 @@ where
 }
 
 impl Controller {
+    pub(crate) fn tool_field<T>(
+        &self,
+        get: fn(&dna_calc_model::ToolState) -> &T,
+        get_mut: fn(&mut dna_calc_model::ToolState) -> &mut T,
+    ) -> ModelField<T>
+    where
+        T: Clone + PartialEq + Send + Sync + 'static,
+    {
+        Field::new(
+            self.model,
+            move |m| get(&m.runtime.tools),
+            move |m| get_mut(&mut m.runtime.tools),
+        )
+    }
+
+    pub(crate) fn invalidate_search(&self) {
+        self.model.update(|m| m.runtime.tools.invalidate_search());
+    }
+
     /// A skin registers a pure state schema and holds reactive accessors into that state.
     pub fn view_field<S, T>(
         &self,
