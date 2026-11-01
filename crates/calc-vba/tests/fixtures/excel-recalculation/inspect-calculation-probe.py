@@ -2,6 +2,7 @@
 from pathlib import Path
 import argparse
 import collections
+import csv
 import hashlib
 import json
 import re
@@ -17,6 +18,7 @@ def main():
     p.add_argument('probe', type=Path)
     p.add_argument('run_id')
     p.add_argument('--prefix', default='')
+    p.add_argument('--no-archive', action='store_true')
     args = p.parse_args()
     root = args.probe
     result_path = root / 'raw' / args.run_id / 'results.json'
@@ -46,6 +48,7 @@ def main():
     overview = dict(run_id=args.run_id, supervisor_compile=case.get('compile_status'),
                     supervisor_run=case.get('run_status'), supervisor_cleanup=case.get('cleanup_status'),
                     supervisor_passed=case.get('passed'),
+                    supervisor_transport_error=case.get('transport_error'),
                     explanation='Descriptor expected_value is OBSERVATION_ONLY, so passed=false is expected; compile/run/cleanup and fault records must be inspected separately.',
                     raw_sha256=sha(raw.encode('utf-8')), raw_lines=len(raw.splitlines()),
                     artifacts=len(files), faults=faults,unrunnable=unavailable,
@@ -78,10 +81,21 @@ def main():
             outcome_class='fault-recorded' if any(k in ('fault','unrunnable') for _,_,k,_ in rows) else 'captured; no automatic behavioral verdict',
             competing_explanations='README.md',design_decision='README.md'))
     (root/(args.prefix+'observations.json')).write_text(json.dumps(observations,indent=2)+'\n',encoding='utf-8')
-    with zipfile.ZipFile(root / 'supervisor-raw.zip', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        for f in sorted((root / 'raw').rglob('*')):
-            if f.is_file():
-                z.write(f, f.relative_to(root).as_posix())
+    native=[]
+    for f in sorted(root.glob('*-native.tsv')):
+        records=list(csv.DictReader(f.read_text(encoding='utf-8-sig').splitlines(),delimiter='\t'))
+        native.append(dict(file=f.name,sha256=sha(f.read_bytes()),records=len(records),
+            kinds=dict(collections.Counter(r.get('kind') for r in records)),
+            threads=sorted({r.get('thread') for r in records}),
+            handles=sorted({r.get('handle') for r in records if r.get('handle') not in (None,'0000000000000000')}),
+            order=[dict(sequence=r.get('sequence'),kind=r.get('kind'),site=r.get('site'),tick=r.get('tick'),status=r.get('status'),type=r.get('type'),value=r.get('value')) for r in records]))
+    if native:
+        (root/(args.prefix+'native-observations.json')).write_text(json.dumps(native,indent=2)+'\n',encoding='utf-8')
+    if not args.no_archive:
+        with zipfile.ZipFile(root / 'supervisor-raw.zip', 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+            for f in sorted((root / 'raw').rglob('*')):
+                if f.is_file() and not f.name.endswith('.run-claim'):
+                    z.write(f, f.relative_to(root).as_posix())
     print(json.dumps({k: overview[k] for k in ('run_id', 'supervisor_compile', 'supervisor_run', 'supervisor_cleanup', 'artifacts', 'faults')}))
 
 

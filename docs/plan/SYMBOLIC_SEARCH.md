@@ -142,6 +142,32 @@ unanswered questions on the bead. These six skeletons omit ordinary associations
 their count is not coverage of every plausible combine. A survivor remains a scoped
 hypothesis until independent probes distinguish it. Later results follow below.
 
+## Round 10 observation audit, 2026-11-01
+
+The first obligation is to re-read the PMT certificates on the current Excel,
+rather than assume that builds 20131 and 20228 describe build 20527. The frozen
+packet at `/home/ubuntu/codex-runs/fresh-questions-r10/` contains 64 PMT calls:
+24 stratified gap rows, eight passing controls, 16 paired literal transports,
+eight logical-timing controls and eight text-rate controls. Requests have no
+answers; historical and application predictions are separate. No current Excel
+reading has been taken on this Linux host.
+
+The existing `witness read --inputs` route accepts per-row
+`"input_transport": "formula_literals"` for finite numeric arguments. Its default
+remains typed `Value2` cells. Literal audit rows use the same round-trip strings in
+the direct call and argument echo cells. Both routes retain requested, submitted
+and read-back values, the formula, argument types and available workbook settings,
+including failed input-admission obligations. Echo cells expose literal parsing;
+effective callee inputs remain unobserved. A changed input is not a same-input
+build contradiction. Historical transport and Compatibility Version remain unknown.
+
+Normal CDF is the next bounded research unit: 13,716 failures among 21,810 counted
+CDF observations, with one scalar input and published rational regions. Gamma CDF
+has 50,562 failures among 73,225 observations but adds shape, scale and iterative
+structure. Neither count identifies a program. Coefficients, reconstruction
+alternatives and precision regions remain explicit hypotheses in the research
+repository; no function kernel or saved Excel answer changes in this audit.
+
 ## Round 9: independent certificates, 2026-11-01
 
 The separate rational checker in `DnaCalc-Research/checker/` reproduces all **734**

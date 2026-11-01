@@ -1,0 +1,9 @@
+{"event":"started","helper_pid":27788,"utc":"2026-11-01T01:23:38.6550713Z"}
+{"event":"attached","tick":1292259078,"excel_pid":22364}
+{"event":"preflight","tick":1292269015,"excel_pid":22364,"values":[42.0,12233857.0,83.0],"operation":"normal"}
+{"event":"native-entry-observed","tick":1292269078,"excel_pid":22364,"controller_resume_tick":1292269078,"operation":"normal"}
+{"excel_pid":22364,"attempt":1,"tick":1292270156,"calculation_state_before":"not-read-during-pending","operation":"normal","event":"operation-started"}
+{"event":"operation-returned","operation":"normal","tick":1292270156,"attempt":1,"excel_pid":22364,"utc":"2026-11-01T01:24:01.6279322Z","calculation_state_before":"not-read-during-pending","start_tick":1292269093}
+{"event":"latch-release","detail":"Local\\DnaCalcProbe-22364-12233857;opened=True;tick=1292270000;utc=2026-11-01T01:24:01.4656587Z","operation":"normal"}
+{"event":"latch-release","detail":"Local\\DnaCalcProbe-22364-12233858;opened=True;tick=1292270062;utc=2026-11-01T01:24:01.5297345Z","operation":"normal"}
+{"event":"stopped","helper_pid":27788,"utc":"2026-11-01T01:24:07.9437254Z"}

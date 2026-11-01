@@ -1,0 +1,15 @@
+{"helper_pid":1496,"utc":"2026-11-01T00:39:41.4452550Z","event":"started"}
+{"excel_pid":51408,"tick":1289619390,"event":"attached"}
+{"excel_pid":51408,"tick":1289622671,"operation":"normal","event":"native-entry-observed"}
+{"attempt":1,"operation":"normal","excel_pid":51408,"event":"operation-started","calculation_state_before":0,"tick":1289634515}
+{"attempt":1,"utc":"2026-11-01T00:40:05.9804992Z","event":"operation-returned","operation":"normal","tick":1289634515,"calculation_state_before":0,"start_tick":1289622671,"excel_pid":51408}
+{"detail":"Local\\DnaCalcProbe-51408-9592570;opened=True;tick=1289623593;utc=2026-11-01T00:39:55.0541503Z","operation":"normal","event":"latch-release"}
+{"excel_pid":51408,"tick":1289638218,"operation":"normal","event":"native-entry-observed"}
+{"attempt":1,"operation":"normal","excel_pid":51408,"event":"operation-started","calculation_state_before":0,"tick":1289639156}
+{"attempt":1,"utc":"2026-11-01T00:40:10.6234283Z","event":"operation-returned","operation":"normal","tick":1289639156,"calculation_state_before":0,"start_tick":1289638218,"excel_pid":51408}
+{"detail":"Local\\DnaCalcProbe-51408-9608361;opened=True;tick=1289639125;utc=2026-11-01T00:40:10.5870324Z","operation":"normal","event":"latch-release"}
+{"excel_pid":51408,"tick":1289653875,"operation":"overwrite","event":"native-entry-observed"}
+{"attempt":1,"operation":"overwrite","excel_pid":51408,"event":"operation-started","calculation_state_before":0,"tick":1289654812}
+{"attempt":1,"utc":"2026-11-01T00:40:38.5911712Z","event":"operation-returned","operation":"overwrite","tick":1289667125,"calculation_state_before":0,"start_tick":1289653875,"excel_pid":51408}
+{"detail":"Local\\DnaCalcProbe-51408-9623995;opened=True;tick=1289654781;utc=2026-11-01T00:40:26.2522712Z","operation":"overwrite","event":"latch-release"}
+{"helper_pid":1496,"utc":"2026-11-01T00:40:42.9542712Z","event":"stopped"}

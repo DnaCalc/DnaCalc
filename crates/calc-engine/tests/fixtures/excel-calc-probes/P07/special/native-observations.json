@@ -1,0 +1,2415 @@
+[
+  {
+    "file": "measured-duplicate-01-native.tsv",
+    "sha256": "a89ee5a1028f3234b6d8ecc97415d4330878c153f03930f430cdb0c0114689cd",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "34632",
+      "5424"
+    ],
+    "handles": [
+      "0000000000000009"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292321296",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292321312",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "9",
+        "tick": "1292321312",
+        "status": "-12291035",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "9",
+        "tick": "1292321312",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "9",
+        "tick": "1292321312",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "9",
+        "tick": "1292322234",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "9",
+        "tick": "1292322234",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "9",
+        "tick": "1292322234",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292322234",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-02-native.tsv",
+    "sha256": "4b3e5d40f47c0df8384dea1ffcf5bc2537d3f16f9fc2f3162fb7cfcfa0de05db",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "29980",
+      "34632"
+    ],
+    "handles": [
+      "0000000000000012"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292334468",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292334484",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "18",
+        "tick": "1292334484",
+        "status": "-12304344",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "18",
+        "tick": "1292334484",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "18",
+        "tick": "1292334484",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "18",
+        "tick": "1292338921",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "18",
+        "tick": "1292338921",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "18",
+        "tick": "1292338921",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292338921",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-03-native.tsv",
+    "sha256": "4fe17905f7988dd27d95217bcd28ae3646d978efb53ff0e1f8ab4deea5218baa",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "34632",
+      "56480"
+    ],
+    "handles": [
+      "000000000000001B"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292351453",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292351468",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "27",
+        "tick": "1292351468",
+        "status": "-12321129",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "27",
+        "tick": "1292351468",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "27",
+        "tick": "1292351468",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "27",
+        "tick": "1292355875",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "27",
+        "tick": "1292355875",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "27",
+        "tick": "1292355875",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292355875",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-04-native.tsv",
+    "sha256": "1fc4315d9a457160bb457dcae43a7d9172bd164b99a42ab36ee5138283b46529",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "34632",
+      "50248"
+    ],
+    "handles": [
+      "0000000000000024"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292369437",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292369453",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "36",
+        "tick": "1292369453",
+        "status": "-12339251",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "36",
+        "tick": "1292369453",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "36",
+        "tick": "1292369453",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "36",
+        "tick": "1292370390",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "36",
+        "tick": "1292370390",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "36",
+        "tick": "1292370390",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292370390",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-05-native.tsv",
+    "sha256": "5169cd7a33a39b743ee0ad06990c6f00aaab8572086726bdab50ddeb08d22477",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "24392",
+      "34632"
+    ],
+    "handles": [
+      "000000000000002D"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292382109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292382125",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "45",
+        "tick": "1292382125",
+        "status": "-12351937",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "45",
+        "tick": "1292382125",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "45",
+        "tick": "1292382125",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "45",
+        "tick": "1292383046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "45",
+        "tick": "1292383046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "45",
+        "tick": "1292383046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292383046",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-06-native.tsv",
+    "sha256": "164a5f21bd1760a61e83df059d5237144d9b7c78fa2ea883d0660d4f9ee86b1f",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "33940",
+      "34632"
+    ],
+    "handles": [
+      "0000000000000036"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292395578",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292395593",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "54",
+        "tick": "1292395593",
+        "status": "-12365375",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "54",
+        "tick": "1292395593",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "54",
+        "tick": "1292395593",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "54",
+        "tick": "1292396515",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "54",
+        "tick": "1292396515",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "54",
+        "tick": "1292396515",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292396531",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-07-native.tsv",
+    "sha256": "292f68ef769e9f0a2fa2b0b4adbb862a4e2fa55720495662fca77eb5e0a65c1e",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "34632",
+      "6388"
+    ],
+    "handles": [
+      "000000000000003F"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292409484",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292409500",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "63",
+        "tick": "1292409500",
+        "status": "-12379146",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "63",
+        "tick": "1292409500",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "63",
+        "tick": "1292409500",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "63",
+        "tick": "1292410421",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "63",
+        "tick": "1292410421",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "63",
+        "tick": "1292410421",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292410437",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-08-native.tsv",
+    "sha256": "0464707380bc268b840e568b91adb4b82f3794f3efc802c3c5d584d326d923fc",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "34632",
+      "53924"
+    ],
+    "handles": [
+      "0000000000000048"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292422187",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292422187",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "72",
+        "tick": "1292422187",
+        "status": "-12391942",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "72",
+        "tick": "1292422187",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "72",
+        "tick": "1292422187",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "72",
+        "tick": "1292423109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "72",
+        "tick": "1292423109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "72",
+        "tick": "1292423109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292423125",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-09-native.tsv",
+    "sha256": "830606a766d0b575fc12aec79abbd66fa9fc2328d822dd0a35ccb80c05177a45",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "26952",
+      "34632"
+    ],
+    "handles": [
+      "0000000000000051"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292434265",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292434281",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "81",
+        "tick": "1292434281",
+        "status": "-12404015",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "81",
+        "tick": "1292434281",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "81",
+        "tick": "1292434281",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "81",
+        "tick": "1292435203",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "81",
+        "tick": "1292435203",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "81",
+        "tick": "1292435203",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292435203",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-duplicate-10-native.tsv",
+    "sha256": "e141b3b3729292bb173c7f10031a0c4695cf6f6cb19b5a5a5ea7e2efd471238b",
+    "records": 9,
+    "kinds": {
+      "99": 1,
+      "10": 1,
+      "20": 1,
+      "25": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "11": 1
+    },
+    "threads": [
+      "34632",
+      "49236"
+    ],
+    "handles": [
+      "000000000000005A"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292447640",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "10",
+        "site": "10",
+        "tick": "1292447687",
+        "status": "0",
+        "type": "1",
+        "value": "1"
+      },
+      {
+        "sequence": "2",
+        "kind": "20",
+        "site": "90",
+        "tick": "1292447687",
+        "status": "-12417417",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "3",
+        "kind": "25",
+        "site": "90",
+        "tick": "1292447687",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "4",
+        "kind": "21",
+        "site": "90",
+        "tick": "1292447687",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "22",
+        "site": "90",
+        "tick": "1292448625",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "23",
+        "site": "90",
+        "tick": "1292448625",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "24",
+        "site": "90",
+        "tick": "1292448625",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "8",
+        "kind": "11",
+        "site": "11",
+        "tick": "1292448625",
+        "status": "0",
+        "type": "1",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-01-native.tsv",
+    "sha256": "1df51d118d7083d45f4e883ff8468c64ac01b8ca1ac7daf08cb1203d26a9027b",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "33024",
+      "34632",
+      "57640"
+    ],
+    "handles": [
+      "0000000000000005",
+      "0000000000000006"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292316125",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "5",
+        "tick": "1292316125",
+        "status": "12282709",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "5",
+        "tick": "1292316125",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "5",
+        "tick": "1292316125",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "5",
+        "tick": "1292317046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "5",
+        "tick": "1292317046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "6",
+        "tick": "1292317046",
+        "status": "12282710",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "6",
+        "tick": "1292317046",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "6",
+        "tick": "1292317046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "6",
+        "tick": "1292317109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "6",
+        "tick": "1292317109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-02-native.tsv",
+    "sha256": "864ee102a7f0ee7107691a2388a594dce7343c7b97de5fec66cca414511a47fd",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "15928",
+      "34632",
+      "40860"
+    ],
+    "handles": [
+      "000000000000000E",
+      "000000000000000F"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292329156",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "14",
+        "tick": "1292329171",
+        "status": "12296356",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "14",
+        "tick": "1292329171",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "14",
+        "tick": "1292329171",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "14",
+        "tick": "1292330093",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "14",
+        "tick": "1292330093",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "15",
+        "tick": "1292330109",
+        "status": "12296357",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "15",
+        "tick": "1292330109",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "15",
+        "tick": "1292330109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "15",
+        "tick": "1292330156",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "15",
+        "tick": "1292330156",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-03-native.tsv",
+    "sha256": "e2fda43dbe3c08590a3735cd5742e3394ac1526affec7b23ef3821720b804547",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "30868",
+      "32948",
+      "34632"
+    ],
+    "handles": [
+      "0000000000000017",
+      "0000000000000018"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292346187",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "23",
+        "tick": "1292346187",
+        "status": "12313623",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "23",
+        "tick": "1292346187",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "23",
+        "tick": "1292346187",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "23",
+        "tick": "1292347109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "23",
+        "tick": "1292347109",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "24",
+        "tick": "1292347125",
+        "status": "12313624",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "24",
+        "tick": "1292347125",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "24",
+        "tick": "1292347125",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "24",
+        "tick": "1292347171",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "24",
+        "tick": "1292347171",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-04-native.tsv",
+    "sha256": "68a4cb03f73a9fa47faf0f0c7514481e5142013e42d362def9c4e32cf448406a",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "34632",
+      "38308",
+      "43476"
+    ],
+    "handles": [
+      "0000000000000020",
+      "0000000000000021"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292363921",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "32",
+        "tick": "1292363937",
+        "status": "12331290",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "32",
+        "tick": "1292363937",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "32",
+        "tick": "1292363937",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "32",
+        "tick": "1292364859",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "32",
+        "tick": "1292364859",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "33",
+        "tick": "1292364875",
+        "status": "12331291",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "33",
+        "tick": "1292364875",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "33",
+        "tick": "1292364875",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "33",
+        "tick": "1292364921",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "33",
+        "tick": "1292364921",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-05-native.tsv",
+    "sha256": "9c03fdc4200b0a869c346be50e37c00bdbbcc9cd700d12b093508098d4e873ef",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "34632",
+      "35948",
+      "53332"
+    ],
+    "handles": [
+      "0000000000000029",
+      "000000000000002A"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292377046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "41",
+        "tick": "1292377062",
+        "status": "12344323",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "41",
+        "tick": "1292377062",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "41",
+        "tick": "1292377062",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "41",
+        "tick": "1292377984",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "41",
+        "tick": "1292377984",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "42",
+        "tick": "1292377984",
+        "status": "12344324",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "42",
+        "tick": "1292377984",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "42",
+        "tick": "1292377984",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "42",
+        "tick": "1292378046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "42",
+        "tick": "1292378046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-06-native.tsv",
+    "sha256": "0f31cfe87a8089f59a23de34bd7a833ff0014f9a1cef4777330d659fcfa85ac0",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "34632",
+      "37452",
+      "42412"
+    ],
+    "handles": [
+      "0000000000000032",
+      "0000000000000033"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292390218",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "50",
+        "tick": "1292390218",
+        "status": "12357358",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "50",
+        "tick": "1292390218",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "50",
+        "tick": "1292390218",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "50",
+        "tick": "1292391140",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "50",
+        "tick": "1292391140",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "51",
+        "tick": "1292391156",
+        "status": "12357359",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "51",
+        "tick": "1292391156",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "51",
+        "tick": "1292391156",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "51",
+        "tick": "1292391203",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "51",
+        "tick": "1292391203",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-07-native.tsv",
+    "sha256": "1d3e3f74a2e27ef256f76d85f313cad087e4a0dd64c45d8c03b98bed2aaa1a18",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "21292",
+      "31396",
+      "34632"
+    ],
+    "handles": [
+      "000000000000003B",
+      "000000000000003C"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292403531",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "59",
+        "tick": "1292403546",
+        "status": "12370735",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "59",
+        "tick": "1292403546",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "59",
+        "tick": "1292403546",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "59",
+        "tick": "1292404468",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "59",
+        "tick": "1292404468",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "60",
+        "tick": "1292404484",
+        "status": "12370736",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "60",
+        "tick": "1292404484",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "60",
+        "tick": "1292404484",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "60",
+        "tick": "1292404546",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "60",
+        "tick": "1292404546",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-08-native.tsv",
+    "sha256": "bdf72f419495dcaae823a4ffa1dc78460ea83890d8a0b9c50ab72ec32264f3cd",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "12292",
+      "14220",
+      "34632"
+    ],
+    "handles": [
+      "0000000000000044",
+      "0000000000000045"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292416828",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "68",
+        "tick": "1292416843",
+        "status": "12384358",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "68",
+        "tick": "1292416843",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "68",
+        "tick": "1292416843",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "68",
+        "tick": "1292417765",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "68",
+        "tick": "1292417765",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "69",
+        "tick": "1292417765",
+        "status": "12384359",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "69",
+        "tick": "1292417765",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "69",
+        "tick": "1292417765",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "69",
+        "tick": "1292417828",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "69",
+        "tick": "1292417828",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-09-native.tsv",
+    "sha256": "b8d4819c6294f69ef999f808a596365efc1669b63eb36fd45eac8aaa94687cf7",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "14180",
+      "34632",
+      "43416"
+    ],
+    "handles": [
+      "000000000000004D",
+      "000000000000004E"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292429687",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "77",
+        "tick": "1292429703",
+        "status": "12397233",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "77",
+        "tick": "1292429703",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "77",
+        "tick": "1292429703",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "77",
+        "tick": "1292430625",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "77",
+        "tick": "1292430625",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "78",
+        "tick": "1292430625",
+        "status": "12397234",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "78",
+        "tick": "1292430625",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "78",
+        "tick": "1292430625",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "78",
+        "tick": "1292430687",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "78",
+        "tick": "1292430687",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "measured-two-sites-10-native.tsv",
+    "sha256": "89f732533170591fd1b480ef768b47cf361836622aa32c180d0868e777d964f8",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "12860",
+      "34632",
+      "44864"
+    ],
+    "handles": [
+      "0000000000000056",
+      "0000000000000057"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292442296",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "86",
+        "tick": "1292442312",
+        "status": "12409440",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "86",
+        "tick": "1292442312",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "86",
+        "tick": "1292442312",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "86",
+        "tick": "1292443234",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "86",
+        "tick": "1292443234",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "87",
+        "tick": "1292443234",
+        "status": "12409441",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "87",
+        "tick": "1292443234",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "87",
+        "tick": "1292443234",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "87",
+        "tick": "1292443296",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "87",
+        "tick": "1292443296",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  },
+  {
+    "file": "trial-two-sites-01-native.tsv",
+    "sha256": "92245b1362689a9f811609f19ad47181e23f4e85b41126bc11d81d88e99b57b3",
+    "records": 11,
+    "kinds": {
+      "99": 1,
+      "20": 2,
+      "25": 2,
+      "21": 2,
+      "22": 2,
+      "23": 2
+    },
+    "threads": [
+      "10736",
+      "23528",
+      "39000"
+    ],
+    "handles": [
+      "0000000000000005",
+      "0000000000000006"
+    ],
+    "order": [
+      {
+        "sequence": "0",
+        "kind": "99",
+        "site": "1",
+        "tick": "1292269046",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "1",
+        "kind": "20",
+        "site": "5",
+        "tick": "1292269078",
+        "status": "12233857",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "2",
+        "kind": "25",
+        "site": "5",
+        "tick": "1292269078",
+        "status": "0",
+        "type": "1",
+        "value": "42"
+      },
+      {
+        "sequence": "3",
+        "kind": "21",
+        "site": "5",
+        "tick": "1292269078",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "4",
+        "kind": "22",
+        "site": "5",
+        "tick": "1292270000",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "5",
+        "kind": "23",
+        "site": "5",
+        "tick": "1292270000",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "6",
+        "kind": "20",
+        "site": "6",
+        "tick": "1292270000",
+        "status": "12233858",
+        "type": "2050",
+        "value": "0"
+      },
+      {
+        "sequence": "7",
+        "kind": "25",
+        "site": "6",
+        "tick": "1292270000",
+        "status": "0",
+        "type": "1",
+        "value": "43"
+      },
+      {
+        "sequence": "8",
+        "kind": "21",
+        "site": "6",
+        "tick": "1292270000",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "9",
+        "kind": "22",
+        "site": "6",
+        "tick": "1292270062",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      },
+      {
+        "sequence": "10",
+        "kind": "23",
+        "site": "6",
+        "tick": "1292270062",
+        "status": "0",
+        "type": "0",
+        "value": "0"
+      }
+    ]
+  }
+]

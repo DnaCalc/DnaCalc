@@ -1,0 +1,7 @@
+{
+  "seq": 60,
+  "operation": "collect",
+  "delay": 2000,
+  "value": 42.0,
+  "id": "ui-undo-10"
+}

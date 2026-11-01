@@ -1,0 +1,43 @@
+{
+  "run_id": "P07-trial-1-safe",
+  "supervisor_compile": "ok",
+  "supervisor_run": "ok",
+  "supervisor_cleanup": "owned-process-zero",
+  "supervisor_passed": false,
+  "explanation": "Descriptor expected_value is OBSERVATION_ONLY, so passed=false is expected; compile/run/cleanup and fault records must be inspected separately.",
+  "raw_sha256": "5ff18227761f508a19604bb9ac8baae1eba5ef32f7b9602928feed20f86b1bb9",
+  "raw_lines": 147,
+  "artifacts": 9,
+  "faults": [],
+  "unrunnable": [],
+  "external_controller_events": {
+    "started": 1,
+    "controller-fault": 3,
+    "stopped": 1
+  },
+  "external_controller_failures": [
+    {
+      "message": "Owned process start differs",
+      "event": "controller-fault",
+      "tick": 1288921859,
+      "file": "external-control-P07-trial-1-safe-36680-8892182.txt"
+    },
+    {
+      "message": "Owned process start differs",
+      "event": "controller-fault",
+      "tick": 1288929734,
+      "file": "external-control-P07-trial-1-safe-36680-8900175.txt"
+    },
+    {
+      "message": "Owned process start differs",
+      "event": "controller-fault",
+      "tick": 1288937562,
+      "file": "external-control-P07-trial-1-safe-36680-8908023.txt"
+    }
+  ],
+  "rows_by_case": {
+    "normal/1": 49,
+    "nested/1": 49,
+    "overwrite/1": 49
+  }
+}

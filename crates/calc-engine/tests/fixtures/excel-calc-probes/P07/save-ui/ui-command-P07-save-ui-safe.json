@@ -1,0 +1,7 @@
+{
+  "operation": "collect",
+  "value": 42.0,
+  "id": "ui-save-10",
+  "delay": 2000,
+  "seq": 20
+}

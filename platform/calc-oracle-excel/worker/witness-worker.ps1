@@ -64,6 +64,7 @@ $Output = [ordered]@{
     cpu = $null
     automation_security_before = $null
     automation_security_after = $null
+    calculation_settings = $null
     rows = (New-Object System.Collections.ArrayList)
     failures = $Failures
 }
@@ -152,6 +153,12 @@ try {
     $calculation = Get-ComProperty $excel 'Calculation'
     if ([long]$calculation -ne -4135) { throw ('Calculation reads as ' + (Get-Shown $calculation) + ' after it was set to manual (-4135)') }
     $sheet = $workbook.Worksheets.Item(1)
+    $settings = [ordered]@{ calculation = [long]$calculation; compatibility_version = $null; unavailable = @() }
+    foreach ($name in @('PrecisionAsDisplayed', 'Date1904', 'CompatibilityVersion')) {
+        try { $settings[$name] = Get-ComProperty $workbook $name }
+        catch { $settings.unavailable += $name }
+    }
+    $Output.calculation_settings = $settings
 
     for ($start = 0; $start -lt $rows.Count; $start += $ChunkRows) {
         $count = [Math]::Min($ChunkRows, $rows.Count - $start)
@@ -173,6 +180,14 @@ try {
             foreach ($i in $textRows) { $sheet.Cells.Item($i + 1, $c + 2).NumberFormat = '@' }
             $range = $sheet.Range($sheet.Cells.Item(1, $c + 2), $sheet.Cells.Item($count, $c + 2))
             $range.Value2 = $block
+            # Optional transport audit: parse the same literal in a cell as in the
+            # direct call, so the raw result retains its parsed binary64 value.
+            for ($i = 0; $i -lt $count; $i++) {
+                $auditRow = $rows[$start + $i]
+                if ($null -ne $auditRow.PSObject.Properties['argument_literals'] -and $null -ne $auditRow.argument_literals -and $c -lt @($auditRow.argument_literals).Count) {
+                    $sheet.Cells.Item($i + 1, $c + 2).Formula2R1C1 = '=' + [string]$auditRow.argument_literals[$c]
+                }
+            }
         }
         $runStart = 0
         for ($i = 1; $i -le $count; $i++) {
@@ -190,10 +205,23 @@ try {
         }
         for ($i = 0; $i -lt $count; $i++) {
             $kept = $true
+            $submitted = New-Object System.Collections.ArrayList
+            $actualInputs = New-Object System.Collections.ArrayList
             for ($c = 0; $c -lt @($rows[$start + $i].args).Count; $c++) {
+                [void]$submitted.Add((Convert-Value $written["$i|$c"]))
+                [void]$actualInputs.Add((Convert-Value $readBack[$c][$i]))
                 if (-not (Test-Kept $written["$i|$c"] $readBack[$c][$i])) { $kept = $false }
             }
-            [void]$Output.rows.Add([ordered]@{ id = [string]$rows[$start + $i].id; value = (Convert-Value $results[$i]); input_kept = $kept })
+            $row = $rows[$start + $i]
+            $literalInputs = $null
+            if ($null -ne $row.PSObject.Properties['argument_literals']) { $literalInputs = $row.argument_literals }
+            $audit = [ordered]@{
+                requested = @($row.args); submitted_value2 = @($submitted); read_back = @($actualInputs)
+                argument_literals = $literalInputs; formula = [string]$row.formula
+                transport = $(if ($null -eq $literalInputs) { 'cell_value2_bulk' } else { 'formula_literals_with_cell_echo' })
+                effective_callee_inputs = 'not directly observable'
+            }
+            [void]$Output.rows.Add([ordered]@{ id = [string]$row.id; value = (Convert-Value $results[$i]); input_kept = $kept; input_audit = $audit })
         }
         [void]$sheet.Cells.Clear()
     }

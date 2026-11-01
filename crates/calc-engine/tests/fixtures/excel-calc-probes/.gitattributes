@@ -1,4 +1,6 @@
 *.tsv text eol=lf
+P07/**/*-native.tsv -text
+P08/**/*-native.tsv -text
 *.xlsm -text
 *.xlsx -text
 *.xlam -text

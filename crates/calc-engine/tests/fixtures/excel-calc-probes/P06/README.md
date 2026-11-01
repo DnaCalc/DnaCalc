@@ -1,5 +1,9 @@
 # P06 result
 
+Pending-async supplement: [P07/save-ui](../P07/README.md) records ten UI Manual Save(false) trials. Ctrl+S
+canceled the calculation; live Error2051 remained while the file preserved the last successful numeric caches
+41/42 with edited input 201..210. This is not evidence of saving a still-live pending continuation.
+
 Manual Save(false) preserves stale formula caches: choose `PreservePermittedCaches` for that profile.
 Excel 16.0.20527.20088 x64, CalculationVersion 191029, Windows/AMD Ryzen 7 4800H, safe mode.
 440 primary save cases, 30 scope controls and 320 after-controller opens; 1,528 retained packages,

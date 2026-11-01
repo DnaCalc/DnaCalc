@@ -1741,7 +1741,15 @@ fn supplied_inputs(bytes: &[u8], function: &str) -> Result<(Value, Vec<WitnessRo
         if row.get("result_index").is_some() && index.is_none_or(|(r, c)| r == 0 || c == 0) {
             return Err(format!("{id}: result_index needs two positive integers"));
         }
-        if !calls.insert((input_key(&args), index)) {
+        let literal_transport = match row.get("input_transport").and_then(Value::as_str) {
+            None | Some("cell_value2_bulk") if row.get("input_transport").is_none_or(|v| v.is_string()) => false,
+            Some("formula_literals") => true,
+            _ => return Err(format!("{id}: unknown input_transport")),
+        };
+        if literal_transport && args.iter().any(|a| decode_argument(a, id).unwrap().as_number().is_none()) {
+            return Err(format!("{id}: formula_literals requires finite numbers"));
+        }
+        if !calls.insert((input_key(&args), index, literal_transport)) {
             return Err(format!("duplicate input call {id}"));
         }
         out.push(WitnessRow {
@@ -1837,7 +1845,10 @@ fn predict_inputs(
     let metadata = serde_json::json!({"frozen_path": frozen_path.to_string_lossy(),
         "frozen_sha256": calc_oracle_excel::sha256_hex(&frozen_bytes),
         "inputs_path": path.to_string_lossy(), "inputs_sha256": calc_oracle_excel::sha256_hex(&bytes),
-        "selection": doc["selection"], "calc_func_commit": commit.trim(), "novelty": novelty});
+        "selection": doc["selection"], "calc_func_commit": commit.trim(), "novelty": novelty,
+        "formula_literal_ids": doc["witnesses"].as_array().unwrap().iter()
+            .filter(|r| r["input_transport"].as_str() == Some("formula_literals"))
+            .map(|r| r["id"].clone()).collect::<Vec<_>>()});
     println!(
         "xtask witness: {function}: froze {} model predictions before Excel at {}",
         rows.len(),
@@ -1903,6 +1914,10 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
                         id: w.id.clone(),
                         args,
                         result_index: w.result_index,
+                        formula_literals: prediction.as_ref().is_some_and(|p| {
+                            p["formula_literal_ids"].as_array().is_some_and(|ids|
+                                ids.iter().any(|id| id.as_str() == Some(&w.id)))
+                        }),
                     });
                     rows.push(w);
                 }
@@ -1999,6 +2014,10 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
             "function": function,
             "witnesses": witnesses,
             "unread": unread,
+            "input_audits": outcome.readings.iter().map(|r| serde_json::json!({
+                "id": r.id, "audit": r.input_audit,
+                "reading_failure": r.value.as_ref().err()
+            })).collect::<Vec<_>>(),
             "capture_provenance": {
                 "schema_version": "dnacalc-witness-reading/1",
                 "captured_utc": crate::accept::utc_now(),
@@ -2006,6 +2025,7 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
                 "inputs": request.inputs.as_ref().map(|p| p.to_string_lossy().into_owned())
                     .unwrap_or_else(|| format!("the rows of the pinned set crates/calc-func/tests/witnesses/{function}.json")),
                 "frozen_model_predictions": prediction,
+                "calculation_settings": outcome.calculation_settings,
                 "automation_security_before": env.automation_security_before,
                 "automation_security_after": env.automation_security_after,
                 "environment": {
@@ -2016,7 +2036,9 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
                     "platform": env.platform,
                     "excel_operating_system": env.os_version,
                     "cpu_id": env.cpu,
-                    "excel_input_plumbing": "cell_value2_bulk",
+                    "excel_input_plumbing": if calls.iter().any(|c| c.formula_literals) {
+                        "per-row transport in input_audits"
+                    } else { "cell_value2_bulk" },
                 }
             }
         });
@@ -2201,6 +2223,12 @@ mod tests {
         assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("duplicate input id"));
         doc["witnesses"][1]["id"] = json!("b");
         assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("duplicate input call"));
+        doc["witnesses"][1]["input_transport"] = json!("formula_literals");
+        assert_eq!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap().1.len(), 2);
+        doc["witnesses"][1]["args"][0] = json!(true);
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("requires finite numbers"));
+        doc["witnesses"][1]["input_transport"] = json!("unknown");
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("unknown input_transport"));
     }
 
     #[test]

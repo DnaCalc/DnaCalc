@@ -4,8 +4,9 @@
 //! functions), one new Excel instance it reports by PID, and termination only of that worker and
 //! of an Excel this run started. No workbook is opened; the worker adds an empty one.
 //!
-//! Arguments are written as typed cell values (a number as the double of its bits), never as
-//! formula text, and read back: a row whose arguments Excel changed (`input_kept` false) is a
+//! Ordinary arguments are written as typed cell values (a number as the double of its bits).
+//! Explicit literal-audit calls also parse round-trip literals and retain their echo cells.
+//! Arguments are read back: a row whose arguments Excel changed (`input_kept` false) is a
 //! reading of other inputs, and [`WitnessReading::value`] says so instead of giving a value. Each
 //! outcome records the environment it was read in: Excel's version and build, the bitness of its
 //! executable, the OS and the CPU, the fields a witness reading carries.
@@ -41,6 +42,10 @@ pub struct WitnessCall {
     pub id: String,
     pub args: Vec<CalcValue>,
     pub result_index: Option<(usize, usize)>,
+    /// Audit decimal parsing by putting round-trip numeric literals in the call and in
+    /// argument cells. Those cells expose the parser's output; effective callee inputs
+    /// are still not directly observable. Ordinary readings use typed Value2 cells.
+    pub formula_literals: bool,
 }
 
 /// One function's calls to read in one Excel instance.
@@ -60,6 +65,8 @@ pub struct WitnessRequest {
 pub struct WitnessReading {
     pub id: String,
     pub value: Result<CalcValue, String>,
+    /// Requested/submitted/read-back arguments and formula, retained even on refusal.
+    pub input_audit: Value,
 }
 
 /// Where the readings were taken.
@@ -85,6 +92,7 @@ pub struct WitnessOutcome {
     pub environment: WitnessEnvironment,
     pub readings: Vec<WitnessReading>,
     pub run: WorkerRun,
+    pub calculation_settings: Value,
 }
 
 fn setup(message: String) -> CaptureError {
@@ -111,6 +119,51 @@ fn formula(function: &str, count: usize, index: Option<(usize, usize)>) -> Strin
     }
 }
 
+fn request_row(function: &str, call: &WitnessCall) -> Result<Value, CaptureError> {
+    let args = call
+        .args
+        .iter()
+        .map(request_argument)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| setup(format!("call {}: {e}", call.id)))?;
+    let literals = if call.formula_literals {
+        Some(
+            call.args
+                .iter()
+                .map(|a| {
+                    a.as_number()
+                        .filter(|n| n.is_finite())
+                        .map(|n| format!("{n:.17e}"))
+                        .ok_or_else(|| {
+                            setup(format!(
+                                "call {}: formula_literals requires finite numbers",
+                                call.id
+                            ))
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    } else {
+        None
+    };
+    let formula = match &literals {
+        Some(values) => {
+            let direct = format!("{}({})", function, values.join(","));
+            match call.result_index {
+                Some((r, c)) => format!("=INDEX({direct},{r},{c})"),
+                None => format!("={direct}"),
+            }
+        }
+        None => formula(function, call.args.len(), call.result_index),
+    };
+    Ok(json!({
+        "id": call.id,
+        "args": args,
+        "formula": formula,
+        "argument_literals": literals,
+    }))
+}
+
 /// Reads Excel's result of every call of `request` (see the module documentation). The worker
 /// writes the calls in the order given, a run of rows with one formula at a time; sorting calls
 /// by argument count keeps the runs long.
@@ -121,25 +174,23 @@ pub fn read_witnesses(request: &WitnessRequest) -> Result<WitnessOutcome, Captur
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_')
     {
-        return Err(setup(format!("{:?} is not a function name", request.function)));
+        return Err(setup(format!(
+            "{:?} is not a function name",
+            request.function
+        )));
     }
-    let mut rows = Vec::with_capacity(request.calls.len());
-    for call in &request.calls {
-        let args = call
-            .args
-            .iter()
-            .map(request_argument)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| setup(format!("call {}: {e}", call.id)))?;
-        rows.push(json!({
-            "id": call.id,
-            "args": args,
-            "formula": formula(&request.function, call.args.len(), call.result_index),
-        }));
-    }
+    let rows = request
+        .calls
+        .iter()
+        .map(|call| request_row(&request.function, call))
+        .collect::<Result<Vec<_>, _>>()?;
     excel_available().map_err(|reason| CaptureError::Unavailable { reason })?;
-    let work = std::path::absolute(&request.work_dir)
-        .map_err(|e| setup(format!("cannot resolve {}: {e}", request.work_dir.display())))?;
+    let work = std::path::absolute(&request.work_dir).map_err(|e| {
+        setup(format!(
+            "cannot resolve {}: {e}",
+            request.work_dir.display()
+        ))
+    })?;
     if work.exists()
         && fs::read_dir(&work)
             .map(|mut entries| entries.next().is_some())
@@ -150,13 +201,15 @@ pub fn read_witnesses(request: &WitnessRequest) -> Result<WitnessOutcome, Captur
             work.display()
         )));
     }
-    fs::create_dir_all(&work).map_err(|e| setup(format!("cannot create {}: {e}", work.display())))?;
+    fs::create_dir_all(&work)
+        .map_err(|e| setup(format!("cannot create {}: {e}", work.display())))?;
     let script = work.join("witness-worker.ps1");
     for (path, text) in [
         (work.join("capture-worker.ps1"), WORKER_SCRIPT),
         (script.clone(), WITNESS_SCRIPT),
     ] {
-        fs::write(&path, text).map_err(|e| setup(format!("cannot write {}: {e}", path.display())))?;
+        fs::write(&path, text)
+            .map_err(|e| setup(format!("cannot write {}: {e}", path.display())))?;
     }
     let request_file = work.join("request.json");
     let result_file = work.join("result.json");
@@ -207,15 +260,22 @@ pub fn read_witnesses(request: &WitnessRequest) -> Result<WitnessOutcome, Captur
                     ),
                 });
             }
-            let (environment, readings) =
-                convert_result(&result, request.calls.len()).map_err(|message| CaptureError::Result { message })?;
-            if readings.iter().zip(&request.calls).any(|(reading, call)| reading.id != call.id) {
-                return Err(CaptureError::Result { message: "the witness result reordered or renamed input rows".into() });
+            let (environment, readings) = convert_result(&result, request.calls.len())
+                .map_err(|message| CaptureError::Result { message })?;
+            if readings
+                .iter()
+                .zip(&request.calls)
+                .any(|(reading, call)| reading.id != call.id)
+            {
+                return Err(CaptureError::Result {
+                    message: "the witness result reordered or renamed input rows".into(),
+                });
             }
             Ok(WitnessOutcome {
                 environment,
                 readings,
                 run,
+                calculation_settings: result["calculation_settings"].clone(),
             })
         }
         result => Err(CaptureError::Worker {
@@ -251,10 +311,18 @@ fn convert_result(
         "x86" => "32-bit".to_owned(),
         other => other.to_owned(),
     };
-    let security_before = result["automation_security_before"].as_i64().ok_or("missing initial AutomationSecurity reading")?;
-    let security_after = result["automation_security_after"].as_i64().ok_or("missing final AutomationSecurity reading")?;
-    if !(1..=3).contains(&security_before) { return Err("unknown AutomationSecurity reading".into()); }
-    if security_before != security_after { return Err("AutomationSecurity changed during the reading".into()); }
+    let security_before = result["automation_security_before"]
+        .as_i64()
+        .ok_or("missing initial AutomationSecurity reading")?;
+    let security_after = result["automation_security_after"]
+        .as_i64()
+        .ok_or("missing final AutomationSecurity reading")?;
+    if !(1..=3).contains(&security_before) {
+        return Err("unknown AutomationSecurity reading".into());
+    }
+    if security_before != security_after {
+        return Err("AutomationSecurity changed during the reading".into());
+    }
     let environment = WitnessEnvironment {
         excel_version: text("excel_version")?,
         excel_build: text("excel_build")?,
@@ -266,11 +334,12 @@ fn convert_result(
         automation_security_before: security_before,
         automation_security_after: security_after,
     };
-    let rows = result["rows"]
-        .as_array()
-        .ok_or("the result has no rows")?;
+    let rows = result["rows"].as_array().ok_or("the result has no rows")?;
     if rows.len() != calls {
-        return Err(format!("the result holds {} rows for {calls} calls", rows.len()));
+        return Err(format!(
+            "the result holds {} rows for {calls} calls",
+            rows.len()
+        ));
     }
     let readings = rows
         .iter()
@@ -281,7 +350,11 @@ fn convert_result(
             } else {
                 Err("Excel did not keep the arguments as written".to_owned())
             };
-            WitnessReading { id, value }
+            WitnessReading {
+                id,
+                value,
+                input_audit: row["input_audit"].clone(),
+            }
         })
         .collect();
     Ok((environment, readings))
@@ -294,8 +367,14 @@ mod tests {
     #[test]
     fn formulas_refer_to_the_argument_cells_to_their_right() {
         assert_eq!(formula("GAMMALN", 1, None), "=GAMMALN(RC[1])");
-        assert_eq!(formula("NORM.DIST", 4, None), "=NORM.DIST(RC[1],RC[2],RC[3],RC[4])");
-        assert_eq!(formula("MINVERSE", 1, Some((1, 2))), "=INDEX(MINVERSE(RC[1]),1,2)");
+        assert_eq!(
+            formula("NORM.DIST", 4, None),
+            "=NORM.DIST(RC[1],RC[2],RC[3],RC[4])"
+        );
+        assert_eq!(
+            formula("MINVERSE", 1, Some((1, 2))),
+            "=INDEX(MINVERSE(RC[1]),1,2)"
+        );
         assert_eq!(formula("PI", 0, None), "=PI()");
     }
 
@@ -305,9 +384,43 @@ mod tests {
             request_argument(&CalcValue::number(1.0)).unwrap(),
             json!({"number": "3ff0000000000000"})
         );
-        assert_eq!(request_argument(&CalcValue::logical(true)).unwrap(), json!({"logical": true}));
+        assert_eq!(
+            request_argument(&CalcValue::logical(true)).unwrap(),
+            json!({"logical": true})
+        );
         let array = calc_verdict::decode_argument(&json!([["0x3ff0000000000000"]]), "a").unwrap();
         assert!(request_argument(&array).is_err());
+    }
+
+    #[test]
+    fn literal_audits_use_the_same_round_trip_text_in_the_call_and_echo_cells() {
+        let mut call = WitnessCall {
+            id: "audit".into(),
+            args: vec![
+                CalcValue::number(f64::from_bits(0x3ea0c6f7a0b5ed8d)),
+                CalcValue::number(1.0),
+            ],
+            result_index: None,
+            formula_literals: true,
+        };
+        let row = request_row("PMT", &call).unwrap();
+        let literal = row["argument_literals"][0].as_str().unwrap();
+        assert_eq!(
+            literal.parse::<f64>().unwrap().to_bits(),
+            0x3ea0c6f7a0b5ed8d
+        );
+        assert_eq!(
+            row["formula"],
+            format!("=PMT({literal},1.00000000000000000e0)")
+        );
+        call.formula_literals = false;
+        assert_eq!(
+            request_row("PMT", &call).unwrap()["formula"],
+            "=PMT(RC[1],RC[2])"
+        );
+        call.formula_literals = true;
+        call.args[0] = CalcValue::logical(true);
+        assert!(request_row("PMT", &call).is_err());
     }
 
     #[test]
@@ -319,22 +432,39 @@ mod tests {
             "rows": [
                 {"id": "a", "value": {"number": "3ff0000000000000"}, "input_kept": true},
                 {"id": "b", "value": {"error_code": 2036}, "input_kept": true},
-                {"id": "c", "value": {"number": "0000000000000000"}, "input_kept": false}
+                {"id": "c", "value": {"number": "0000000000000000"}, "input_kept": false,
+                 "input_audit": {"requested": [{"number":"0000000000000001"}], "read_back":[{"number":"0000000000000000"}]}}
             ]
         });
         let (env, readings) = convert_result(&result, 3).unwrap();
-        assert_eq!((env.excel_build.as_str(), env.bitness.as_str()), ("20527", "64-bit"));
+        assert_eq!(
+            (env.excel_build.as_str(), env.bitness.as_str()),
+            ("20527", "64-bit")
+        );
         assert_eq!(readings[0].value, Ok(CalcValue::number(1.0)));
         assert_eq!(
             readings[1].value,
-            Ok(CalcValue::error(calc_verdict::value::WorksheetErrorCode::Num))
+            Ok(CalcValue::error(
+                calc_verdict::value::WorksheetErrorCode::Num
+            ))
         );
         assert!(readings[2].value.is_err());
+        assert_eq!(readings[2].input_audit, result["rows"][2]["input_audit"]);
         assert!(convert_result(&result, 2).is_err());
-        assert_eq!((env.automation_security_before, env.automation_security_after), (1, 1));
+        assert_eq!(
+            (
+                env.automation_security_before,
+                env.automation_security_after
+            ),
+            (1, 1)
+        );
         let mut changed = result.clone();
         changed["automation_security_after"] = json!(3);
-        assert!(convert_result(&changed, 3).unwrap_err().contains("AutomationSecurity changed"));
+        assert!(
+            convert_result(&changed, 3)
+                .unwrap_err()
+                .contains("AutomationSecurity changed")
+        );
         changed["automation_security_before"] = Value::Null;
         assert!(convert_result(&changed, 3).is_err());
         assert!(!crate::WITNESS_SCRIPT.contains(".AutomationSecurity ="));
