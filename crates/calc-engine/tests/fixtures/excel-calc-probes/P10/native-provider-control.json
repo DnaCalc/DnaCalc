@@ -1,0 +1,27 @@
+{
+  "status": "unrunnable-as-specified",
+  "canonical_probe": "../P07",
+  "run_id": "P07-measured-safe",
+  "source": "../P07/probe.bas: ReloadAsync; ../P07/native-async.cpp: UnregisterAsync/RegisterAsync",
+  "raw_archive": "../P07/supervisor-raw.zip",
+  "raw_entries": [
+    "raw/P07-measured-safe/windows-scalar-interop/OracleProbe.bas",
+    "raw/P07-measured-safe/results.json",
+    "raw/P07-measured-safe/owned-intervention.json"
+  ],
+  "external_trace": "../P07/external-P07-measured-safe.jsonl",
+  "operation": "Direct COM ReloadAsync request after native async entry; actual xlfRegister ID passed to xlfUnregister",
+  "observed": "The replacement request did not return; no successful unregister/re-register result was recorded.",
+  "owned_recovery": {
+    "pid": 21336,
+    "process_start_utc": "2026-11-01T01:13:21.3332533Z",
+    "stopped_utc": "2026-11-01T01:16:38.5767120Z",
+    "authority": "PID, start and executable checked against this run's owned-process ledger"
+  },
+  "limits": [
+    "This was function-registration replacement, not unloading and replacing DLL code.",
+    "No accepted provider-generation or old-handle outcome follows from the stalled request.",
+    "The DNA suspended-frame code/state lease half cannot execute through this Excel VBA UDF route."
+  ],
+  "needed_for_runnable_isolation": "A supported bounded provider replacement operation, plus independently persisted native records proving replacement finished while the old request was pending; CalcVBA's resumable invocation route for the DNA-only half."
+}
