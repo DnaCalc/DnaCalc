@@ -111,7 +111,10 @@ impl Module {
                         referenced_project_name: "DnaCalc.Application".into(),
                     },
                     sym::ProjectReference::TypeLibrary {
-                        name: "DnaCalcObjects".into(),
+                        // VBA resolves unqualified types in reference order. The source-compatible
+                        // Range must retain Variant Value2, including Empty; the numeric-only
+                        // host interface remains available as DnaCalcObjects.Range.
+                        name: "Excel".into(),
                         guid: None,
                         version_major: None,
                         version_minor: None,
@@ -119,7 +122,7 @@ impl Module {
                         import_lib: None,
                     },
                     sym::ProjectReference::TypeLibrary {
-                        name: "Excel".into(),
+                        name: "DnaCalcObjects".into(),
                         guid: None,
                         version_major: None,
                         version_minor: None,
