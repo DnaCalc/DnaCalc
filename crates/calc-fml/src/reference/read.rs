@@ -22,6 +22,15 @@ pub trait ReferenceReader {
         false
     }
 
+    /// An observer-only cached read may reenter around already admitted independent work.
+    /// It must never wait on its own caller or a producer that depends on that caller.
+    fn provisional_observation_pending(
+        &self,
+        _reference: &calc_func::value::ReferenceLike,
+    ) -> bool {
+        false
+    }
+
     fn read_denial(&self) -> Option<crate::ReadDenial>;
     /// Records a host question without demanding the cell's value. Metadata reads retain their
     /// own facets and invalidation policy through a value overlay.

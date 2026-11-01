@@ -3871,6 +3871,10 @@ impl ReferenceReader for Observed<'_, '_> {
         self.cells.provisional_argument_pending(reference)
     }
 
+    fn provisional_observation_pending(&self, reference: &calc_fml::value::ReferenceLike) -> bool {
+        self.cells.provisional_observation_pending(reference)
+    }
+
     fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
         self.cells.read_denial()
     }
@@ -4645,10 +4649,9 @@ fn evaluate_unstamped(
         };
         let (outcome, cached_stopped) = {
             let mut observation_cells = observation_pin.as_ref().map(|pin| {
-                WorkbookReader::new(
-                    pin.view(state, shared.workbook_facts),
-                    &observation_uncomputed,
-                )
+                let mut view = pin.view(state, shared.workbook_facts);
+                view.caller = Some(node);
+                WorkbookReader::new(view, &observation_uncomputed)
             });
             let mut cached_observed = observation_cells.as_mut().map(|cells| Observed {
                 observer: &observer,

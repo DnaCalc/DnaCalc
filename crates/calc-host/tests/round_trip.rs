@@ -6924,7 +6924,7 @@ fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
     #[cfg(not(target_arch = "wasm32"))]
     backends.push(calc_vba::Backend::Jit);
     for backend in backends {
-        for &(formula, producer, seed, expected, stats, reevaluations) in
+        for &(formula, producer, seed, expected, stats, reevaluations, held_target) in
             seven_cell::P03_RANGE_CASES
         {
             for budget in [1, usize::MAX] {
@@ -6940,6 +6940,27 @@ fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
                     )
                     .unwrap(),
                 );
+                if let Some(target) = held_target {
+                    enter(
+                        &mut book,
+                        at(s, "H1"),
+                        &format!("=HoldRange(INDIRECT(\"{target}\"))"),
+                    );
+                    assert!(
+                        book.dispatch(SkinIntent::CalculateRange {
+                            areas: vec![GridArea::cell(at(s, "H1"))]
+                        })
+                        .accepted()
+                    );
+                    while book.has_pending_calculation() {
+                        book.advance_calculation();
+                    }
+                    assert_eq!(
+                        calculated(book.host(), at(s, "H1")),
+                        Some(CalcValue::number(1.0))
+                    );
+                    book.take_calculation_events();
+                }
                 for (address, text) in [("B1", formula), ("C1", "=B1+1")] {
                     enter(&mut book, at(s, address), text);
                 }
@@ -6988,6 +7009,22 @@ fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
                     calculated(book.host(), at(s, "C1")),
                     Some(CalcValue::number(expected + 1.0))
                 );
+                if held_target.is_some() {
+                    assert_eq!(
+                        book.host().precedents(at(s, "B1")),
+                        Some(Vec::new()),
+                        "a cached observation adds no persistent value edge"
+                    );
+                    let ProjectedValue::Calculated { calculation, .. } =
+                        value(book.host(), at(s, "B1"))
+                    else {
+                        panic!("calculated observer");
+                    };
+                    assert!(
+                        !calculation.held_by_circular_rule(),
+                        "hidden observations do not invent a cycle"
+                    );
+                }
                 let events = book.take_calculation_events();
                 assert_eq!(
                     events

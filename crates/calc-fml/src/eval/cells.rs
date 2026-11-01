@@ -79,6 +79,12 @@ impl<'r> SharedReader<'r> {
         self.reader.borrow().provisional_argument_pending(reference)
     }
 
+    pub(super) fn provisional_observation_pending(&self, reference: &ReferenceLike) -> bool {
+        self.reader
+            .borrow()
+            .provisional_observation_pending(reference)
+    }
+
     pub(super) fn environment(&self) -> Option<CalcEnvironment> {
         self.environment
     }

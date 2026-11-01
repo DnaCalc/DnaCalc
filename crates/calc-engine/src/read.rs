@@ -896,6 +896,125 @@ impl<'a> WorkbookReader<'a> {
         }
     }
 
+    fn provisional_pending(
+        &self,
+        reference: &calc_fml::value::ReferenceLike,
+        observation_only: bool,
+    ) -> bool {
+        if self.view.cached_observation {
+            return false;
+        }
+        let excluded = std::cell::OnceCell::new();
+        let pending = |node| {
+            self.view.progress.is_scheduled(node)
+                && !self.view.progress.is_evaluated(node)
+                && !self
+                    .view
+                    .iterates
+                    .is_some_and(|iterates| iterates.contains_key(&node))
+                && !matches!(
+                    self.view.state.bindings.get(&node),
+                    Some(crate::state::Binding::Refused(_)) | None
+                )
+                && (!observation_only
+                    || self.view.caller.is_some_and(|caller| {
+                        // A cached observation never waits on itself or a known consumer. Such
+                        // a wait would turn an observation into a new dependency cycle.
+                        let closure = excluded.get_or_init(|| {
+                            crate::recalc::dirty_closure(
+                                self.view.state,
+                                self.view.inputs,
+                                [caller].into(),
+                                &|node| {
+                                    crate::recalc::published_areas(
+                                        self.view.state,
+                                        self.view.inputs,
+                                        node,
+                                    )
+                                },
+                            )
+                        });
+                        closure.members().binary_search(&node).is_err()
+                    }))
+        };
+        let mut found = None;
+        for &area in reference.areas() {
+            found = self.view.state.anchors_in(area).find_map(|at| {
+                let node = self.view.state.node_at(at)?;
+                pending(node).then_some((at, node))
+            });
+            if found.is_none() {
+                // Before its first stage a dirty producer still owns its retained published
+                // or complete imported footprint. A child has no anchor of its own.
+                found = self
+                    .view
+                    .state
+                    .spills
+                    .meeting(area)
+                    .into_iter()
+                    .chain(self.view.spills.meeting(area))
+                    .chain(
+                        self.view
+                            .boundary_caches
+                            .into_iter()
+                            .flat_map(|pin| pin.spills.meeting(area)),
+                    )
+                    .find_map(|spill| {
+                        let node = self.view.state.node_at(spill.anchor())?;
+                        pending(node)
+                            .then(|| {
+                                area.intersection(spill.area())
+                                    .map(|part| (part.first(), node))
+                            })
+                            .flatten()
+                    });
+            }
+            if found.is_none() {
+                found = self
+                    .view
+                    .state
+                    .cached_arrays
+                    .iter()
+                    .find_map(|(&node, spill)| {
+                        pending(node)
+                            .then(|| {
+                                area.intersection(spill.area())
+                                    .map(|part| (part.first(), node))
+                            })
+                            .flatten()
+                    });
+            }
+            if found.is_none() {
+                found = self
+                    .view
+                    .progress
+                    .footprints
+                    .iter()
+                    .find_map(|(&node, &footprint)| {
+                        pending(node)
+                            .then(|| {
+                                area.intersection(footprint)
+                                    .map(|part| (part.first(), node))
+                            })
+                            .flatten()
+                    });
+            }
+            if found.is_some() {
+                break;
+            }
+        }
+        if let Some(producer) = found {
+            if self.uncomputed.get().is_none() {
+                self.uncomputed.set(Some(producer));
+            }
+            return self
+                .uncomputed
+                .get()
+                .is_some_and(|(at, _)| self.pending_producer(at));
+        }
+        false
+    }
+
     /// Whether a formula result this reader handed out was calculated from values another
     /// workbook's link caches (dc-ylr).
     pub(crate) fn read_external_links(&self) -> bool {
@@ -1037,6 +1156,11 @@ impl<'a> WorkbookReader<'a> {
             let Some(pin) = self.view.boundary_caches else {
                 return Ok(None);
             };
+            // P01: a cached macro observation of its own executing cell is Empty, even
+            // if the cell has dynamic-array metadata or a prior published result.
+            if self.view.caller == Some(node) {
+                return Ok(Some(&pin.empty));
+            }
             if pin.refused.contains(&at)
                 || (!pin.entries.contains_key(&at)
                     && self.view.inputs.definitions().array(at).is_some())
@@ -1346,97 +1470,10 @@ impl ReferenceReader for WorkbookReader<'_> {
     }
 
     fn provisional_argument_pending(&self, reference: &calc_fml::value::ReferenceLike) -> bool {
-        if self.view.cached_observation {
-            return false;
-        }
-        let pending = |node| {
-            self.view.progress.is_scheduled(node)
-                && !self.view.progress.is_evaluated(node)
-                && !self
-                    .view
-                    .iterates
-                    .is_some_and(|iterates| iterates.contains_key(&node))
-                && !matches!(
-                    self.view.state.bindings.get(&node),
-                    Some(crate::state::Binding::Refused(_)) | None
-                )
-        };
-        let mut found = None;
-        for &area in reference.areas() {
-            found = self.view.state.anchors_in(area).find_map(|at| {
-                let node = self.view.state.node_at(at)?;
-                pending(node).then_some((at, node))
-            });
-            if found.is_none() {
-                // Before its first stage a dirty producer still owns its retained published
-                // or complete imported footprint. A child has no anchor of its own.
-                found = self
-                    .view
-                    .state
-                    .spills
-                    .meeting(area)
-                    .into_iter()
-                    .chain(self.view.spills.meeting(area))
-                    .chain(
-                        self.view
-                            .boundary_caches
-                            .into_iter()
-                            .flat_map(|pin| pin.spills.meeting(area)),
-                    )
-                    .find_map(|spill| {
-                        let node = self.view.state.node_at(spill.anchor())?;
-                        pending(node)
-                            .then(|| {
-                                area.intersection(spill.area())
-                                    .map(|part| (part.first(), node))
-                            })
-                            .flatten()
-                    });
-            }
-            if found.is_none() {
-                found = self
-                    .view
-                    .state
-                    .cached_arrays
-                    .iter()
-                    .find_map(|(&node, spill)| {
-                        pending(node)
-                            .then(|| {
-                                area.intersection(spill.area())
-                                    .map(|part| (part.first(), node))
-                            })
-                            .flatten()
-                    });
-            }
-            if found.is_none() {
-                found = self
-                    .view
-                    .progress
-                    .footprints
-                    .iter()
-                    .find_map(|(&node, &footprint)| {
-                        pending(node)
-                            .then(|| {
-                                area.intersection(footprint)
-                                    .map(|part| (part.first(), node))
-                            })
-                            .flatten()
-                    });
-            }
-            if found.is_some() {
-                break;
-            }
-        }
-        if let Some(producer) = found {
-            if self.uncomputed.get().is_none() {
-                self.uncomputed.set(Some(producer));
-            }
-            return self
-                .uncomputed
-                .get()
-                .is_some_and(|(at, _)| self.pending_producer(at));
-        }
-        false
+        self.provisional_pending(reference, false)
+    }
+    fn provisional_observation_pending(&self, reference: &calc_fml::value::ReferenceLike) -> bool {
+        self.provisional_pending(reference, true)
     }
 
     fn read_denial(&self) -> Option<calc_fml::ReadDenial> {

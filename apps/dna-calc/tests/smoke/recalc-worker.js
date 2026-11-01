@@ -325,11 +325,18 @@ return (async function () {
       completed: vbaComplete, old_cache: "2", entries: "1", reload: output(1, 4)?.text };
     const provisionalRanges = [];
     const rangeSource = $P03_VBA_SOURCE;
-    for (const [formula, producer, seed, expected, stats, reevaluations] of $P03_RANGE_CASES) {
+    for (const [formula, producer, seed, expected, stats, reevaluations, heldTarget] of $P03_RANGE_CASES) {
       const name = "P03 Range " + provisionalRanges.length;
       await intent({ EditSheet: { sheet: null, change: { Add: { name } } } });
       sheet = summary.sheets.find(([, title]) => title === name)[0];
       await command({ LoadVbaModule: { name: "ProvisionalRange", source: rangeSource, max_steps: 100000 } });
+      if (heldTarget != null) {
+        await intent({ EnterCell: { at: key(1, 8), text: "=HoldRange(INDIRECT(" + JSON.stringify(heldTarget) + "))" } });
+        const heldDone = new Promise((resolve, reject) => { completed = resolve; rejected = reject; });
+        heldDone.catch(() => {});
+        await intent({ CalculateRange: { areas: [area(1, 8)] } });
+        require((await heldDone).calculated === 1, "the hidden Range was not captured");
+      }
       for (const [col, text] of [[2, formula], [3, "=B1+1"]]) {
         await intent({ EnterCell: { at: key(1, col), text } });
       }
