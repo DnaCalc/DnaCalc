@@ -451,6 +451,11 @@ impl XllHost {
     pub fn live_callback_allocations(&self) -> usize {
         self.state.borrow().allocations.len()
     }
+    /// Includes canceled tasks until native code acknowledges physical return.
+    pub fn outstanding_native_calls(&self) -> usize {
+        self.reap_cancelled_async();
+        self.state.borrow().pending_async.len()
+    }
     /// Return messages only. The composition must resolve each request to its complete
     /// owner-issued P07 token and call HostSession::complete_async before resuming.
     pub fn take_async_returns(&self) -> Vec<AsyncReturn> {
@@ -536,13 +541,10 @@ impl XllHost {
     }
     fn unload_module(&self, module: &Rc<Module>) -> Result<(), String> {
         self.reap_cancelled_async();
-        if self
-            .state
-            .borrow()
-            .pending_async
-            .values()
-            .any(|pending| pending.registration.origin.handle == module.handle)
-        {
+        if self.state.borrow().pending_async.values().any(|pending| {
+            pending.registration.origin.handle == module.handle
+                || pending.registration.module.handle == module.handle
+        }) {
             return Err("dc-snz.23: XLL removal waits for outstanding native async handles".into());
         }
         if module.measured_xloil {
@@ -579,6 +581,11 @@ impl Drop for XllHost {
             // loaded until process exit when its owner did not drain/cancel it.
             let state = self.state.borrow();
             std::mem::forget(state.modules.clone());
+            if !state.pending_async.is_empty() {
+                // Final teardown cannot join a hung native task or a task
+                // waiting for a callback owner that is being dropped.
+                std::mem::forget(state.workers.clone());
+            }
             for pending in state.pending_async.values() {
                 std::mem::forget(pending.registration.clone());
             }
@@ -598,6 +605,18 @@ impl fmt::Debug for XllFunction {
             .finish()
     }
 }
+pub(crate) fn refuse_native_error(context: &mut dyn UserFunctionContext, why: &str) {
+    for (prefix, owner) in [
+        ("dc-snz.2:", "dc-snz.2"),
+        ("dc-snz.18:", "dc-snz.18"),
+        ("dc-snz.23:", "dc-snz.23"),
+    ] {
+        if why.starts_with(prefix) {
+            context.refuse_by("an XLL invocation capability is not modelled", owner);
+            break;
+        }
+    }
+}
 impl UserFunction for XllFunction {
     fn state_lane(&self) -> Option<u64> {
         (!self.registration.info.signature.thread_safe)
@@ -609,9 +628,24 @@ impl UserFunction for XllFunction {
         _frame: calc_func::UserInvocationFrame,
         context: &mut dyn UserFunctionContext,
     ) -> Result<Option<Box<dyn calc_func::UserFunctionInvocation>>, String> {
-        if !self.registration.info.signature.asynchronous
-            || !self.state.borrow().async_continuations
+        if !self.state.borrow().async_continuations {
+            return Ok(None);
+        }
+        if self.registration.info.signature.thread_safe
+            && !self.registration.info.signature.asynchronous
         {
+            let pool =
+                self.state.borrow().workers.clone().ok_or_else(|| {
+                    context.refuse_by("native calculation pool stopped", "dc-snz.23")
+                })?;
+            let call = crate::worker::submit(self, &pool, arguments, context.caller(), true)
+                .map_err(|why| {
+                    refuse_native_error(context, &why);
+                    why
+                })?;
+            return Ok(Some(Box::new(call)));
+        }
+        if !self.registration.info.signature.asynchronous {
             return Ok(None);
         }
         if self.registration.info.signature.thread_safe {
@@ -640,13 +674,7 @@ impl UserFunction for XllFunction {
     ) -> Result<CalcValue, String> {
         let result = self.invoke(arguments, Some(&mut *context));
         if let Err(why) = &result {
-            if why.starts_with("dc-snz.2:") {
-                context.refuse_by("an XLL invocation ABI is not modelled", "dc-snz.2");
-            } else if why.starts_with("dc-snz.18:") {
-                context.refuse_by("an XLL worker capability is not modelled", "dc-snz.18");
-            } else if why.starts_with("dc-snz.23:") {
-                context.refuse_by("an XLL async capability is not modelled", "dc-snz.23");
-            }
+            refuse_native_error(context, why);
         }
         result
     }
@@ -687,8 +715,11 @@ impl calc_func::UserFunctionInvocation for NativeAsyncInvocation {
         }
         match self
             .function
-            .start_inline(&self.arguments, Some(context), false)?
-        {
+            .start_inline(&self.arguments, Some(&mut *context), false)
+            .map_err(|why| {
+                refuse_native_error(context, &why);
+                why
+            })? {
             crate::invoke::NativeReturn::Value(value, _) => {
                 self.finished = true;
                 Ok(UserFunctionStep::Complete(value))

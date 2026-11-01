@@ -71,6 +71,9 @@ if ($HostExecutable) {
         $arguments = @('--xll',$nativeXll,'--ready',$readyFile,'--wait',$go,'--finished',$done,'--release',$release)
         if ($ExcelDnaDirectory -or $AddInDirectory) {
             $arguments += @('--cases',$Cases,'--sheet','X0')
+            if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X4\.Py') {
+                $arguments += @('--startup-ack',(Join-Path $run 'x4-startup-ready'))
+            }
             if (-not $AddInDirectory -and $AddInName -eq 'X0') {
                 $ownerXll = Join-Path $run 'NativeOwner64.xll'
                 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'build/NativeOwner64.xll') -Destination $ownerXll
@@ -268,13 +271,16 @@ try {
         if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X4\.Py') {
             # The original plugin queues its built-in module import. That import
             # temporarily suppresses Python events, independently of EnableEvents.
-            # Wait for its actual completion rather than racing worksheet edits.
+            # The fixture acknowledges a delivered AfterCalculate after that
+            # import is observed. The log alone precedes event resumption.
             $deadline=[DateTime]::UtcNow.AddSeconds(240)
             $pluginLog=Join-Path $run 'xlOil.log'
             do {
                 [void]$excel.Ready
-                $startupComplete=(Test-Path -LiteralPath $pluginLog) -and
+                $importObserved=(Test-Path -LiteralPath $pluginLog) -and
                     ((Get-Content -LiteralPath $pluginLog -Raw) -match "Loaded python module 'xloil\.excelfuncs'")
+                if ($importObserved) { $excel.Calculate() }
+                $startupComplete=$importObserved -and (Test-Path -LiteralPath (Join-Path $run 'x4-startup-ready'))
                 if (-not $startupComplete) { Start-Sleep -Milliseconds 100 }
             } until ($startupComplete -or [DateTime]::UtcNow -gt $deadline)
             if (-not $startupComplete) { throw 'xlOil built-in Python startup did not complete.' }

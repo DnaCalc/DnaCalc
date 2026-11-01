@@ -986,6 +986,8 @@ mod tests {
     fn cancelled_native_call_keeps_its_module_lease_until_a_late_return() {
         let host = crate::native::XllHost::new(0);
         let module = crate::native::Module::loaded("kernel32.dll").unwrap();
+        let origin = crate::native::Module::loaded("ntdll.dll").unwrap();
+        host.state.borrow_mut().modules.push(module.clone());
         let registration = Rc::new(Registration {
             info: RegistrationInfo {
                 id: 1,
@@ -995,12 +997,12 @@ mod tests {
                 signature: XllSignature::parse(">EX").unwrap(),
                 address: 0,
                 module: module.path.clone(),
-                origin: module.path.clone(),
+                origin: origin.path.clone(),
                 use_count: 1,
                 macro_type: 1,
             },
             module: module.clone(),
-            origin: module,
+            origin,
             uses: std::cell::Cell::new(1),
             cif: None,
         });
@@ -1011,6 +1013,11 @@ mod tests {
         drop(registration);
         drop(pending);
         assert!(lease.upgrade().is_some());
+        assert!(
+            host.unload(&module.path)
+                .unwrap_err()
+                .contains("outstanding native async handles")
+        );
         assert!(
             host.close()
                 .unwrap_err()

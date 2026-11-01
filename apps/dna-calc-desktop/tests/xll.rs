@@ -331,6 +331,99 @@ fn worker_refusals_survive_native_swallowing_and_formula_handlers() {
     );
 }
 
+/// Native-only: two real workbook commands overlap native pool calls while callback reads stay on the owner.
+#[test]
+fn engine_pool_overlaps_workbooks_and_services_borrowed_reads() {
+    let fixture = Fixture::new();
+    let cases = fixture.directory.join("engine-pool.json");
+    std::fs::write(&cases, serde_json::to_vec(&serde_json::json!([
+        {"formula":"=MyOverlap(40)","value":41,"concurrent_formula":"=MyOverlap(80)","concurrent_value":81},
+        {"formula":"=MyOverlapMax()","value":2},
+        {"formula":"=MyWorkerCallbacks(19,23)","value":42},
+        {"formula":"=MyWorkerReference(A1)","value":7},
+        {"formula":"=MyWorkerOwned()","value":"native owned"},
+        {"formula":"=MyFreeCount()","value":1}
+    ])).unwrap()).unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_POOL_TESTS", "1")
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .args(["--engine", "--cases"])
+            .arg(cases)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 41.);
+    assert_eq!(result["results"][0]["concurrent"]["value"], 81.);
+    for proof in [
+        &result["results"][0]["provenance"],
+        &result["results"][0]["concurrent"]["provenance"],
+        &result["results"][2]["provenance"],
+        &result["results"][3]["provenance"],
+    ] {
+        assert_eq!(proof["cooperative_invocations"], 1);
+        assert_eq!(proof["completed_invocations"], 1);
+    }
+    assert_eq!(result["results"][1]["value"], 2.);
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+
+/// Native-only: overwrite revokes the engine token and the delayed XLL return cannot publish or unload early.
+#[test]
+fn overwritten_native_async_call_rejects_its_late_return() {
+    let fixture = Fixture::new();
+    let cases = fixture.directory.join("engine-overwrite.json");
+    std::fs::write(&cases, serde_json::to_vec(&serde_json::json!([
+        {"formula":"=10+MyAsync(28)+3","replace_pending":"=99","value":99,"dependent":"=B3*2","dependent_value":198},
+        {"formula":"=MyAsyncEntries()","value":1},
+        {"formula":"=MyAsyncReturns()","value":1},
+        {"formula":"=MyAsyncLastCode()","value":256}
+    ])).unwrap()).unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_ASYNC_TESTS", "1")
+            .env("DNA_XLL_ASYNC_DELAY_MS", "300")
+            .args(["--engine", "--cases"])
+            .arg(cases)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["revoked_tokens"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        result["revoked_tokens"][0]["disposition"],
+        "Rejected(Revoked)"
+    );
+    assert!(result["async_returns"].as_array().unwrap().is_empty());
+    assert_eq!(result["results"][0]["value"], 99.);
+    assert_eq!(result["results"][0]["dependent"], 198.);
+    assert_eq!(result["results"][3]["value"], 256.);
+}
+
+/// Native-only: preparation failures in cooperative native routes remain counted refusals through IFERROR.
+#[test]
+fn cooperative_native_abi_refusals_cannot_be_swallowed() {
+    for formula in [
+        "=IFERROR(MyPoolUnsupportedAbi(),123)",
+        "=IFERROR(MyAsyncUnsupportedAbi(1),123)",
+    ] {
+        let fixture = Fixture::new();
+        let result = fixture
+            .command()
+            .env("DNA_XLL_ABI_NEGATIVE_TESTS", "1")
+            .args(["--engine", "--formula", formula])
+            .output()
+            .unwrap();
+        assert!(!result.status.success());
+        let error = String::from_utf8_lossy(&result.stderr);
+        assert!(
+            error.contains("NotModelled") && error.contains("dc-snz.2"),
+            "{formula}: {error}"
+        );
+    }
+}
+
 /// Native-only: valid worker event/status requests must not succeed against a discarded snapshot.
 #[test]
 fn worker_state_mutations_remain_typed_refusals() {

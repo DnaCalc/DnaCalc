@@ -555,6 +555,11 @@ on close without recreating it on open. Safe runtime reinitialization remains
 dc-snz.21; the existing measured-runtime refusal is retained and is not a pass.
 Python COM references and completed futures in this fixture are explicitly released
 before normal teardown. The unreleased-future failure is kept outside the repository.
+The built-in Python import runs asynchronously and temporarily suppresses Python
+events. The reference composition waits for a fixture AfterCalculate acknowledgment
+after that import, before measuring edits. Captures that raced startup or teardown
+remain failed observations. Startup context commands are bounded before the first
+SheetChange and their exact built-in registrations are checked separately.
 These cases do not establish general COM, arbitrary Python teardown, RTD or safe reload.
 
 ## 14. X5 native async owner route (dc-snz.23)
@@ -571,5 +576,15 @@ An entered canceled call retains its module lease until a late return attempt is
 observed. A task that never returns keeps removal refused and its code resident
 until process exit. Normal teardown still asks the add-in to drain its own work.
 Thread-safe native async entries and asynchronous Application.Run remain refusals.
-Concurrent pool execution, cancellation/overwrite observations and RTD client
-integration are still being measured under dc-snz.23.
+Synchronous `$` entries can also use an owning cooperative activation. Only owned
+arguments, callback requests and results cross the pool boundary; evaluator reads
+are serviced on the owner. Two workbook commands can interleave these activations.
+The native barrier fixture establishes overlapping entry before either call
+returns, while a single workbook still services a suspended cell first.
+Queued calls retain both originating and executable-module leases. Dropping a
+pool activation cancels and disconnects callback replies before releasing its
+owner. Final host drop retains a pool with outstanding work instead of joining a
+hung task. Unsupported ABI failures remain typed refusals through IFERROR.
+An overwrite case checks P07 token revocation, the delayed native return code256,
+and the replacement cell/dependent values. RTD client integration and the broader
+Excel callback permission matrix are still open under dc-snz.23.

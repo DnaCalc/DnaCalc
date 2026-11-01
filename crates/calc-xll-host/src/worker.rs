@@ -9,7 +9,8 @@ use std::{
     rc::Rc,
     sync::{
         Arc, Mutex,
-        mpsc::{self, Sender},
+        atomic::Ordering,
+        mpsc::{self, Receiver, Sender, TryRecvError},
     },
     thread::JoinHandle,
 };
@@ -125,12 +126,13 @@ impl UserFunctionContext for Reader {
     }
 }
 
-pub(crate) fn invoke(
+pub(crate) fn submit(
     function: &XllFunction,
     pool: &Pool,
     arguments: &[CalcValue],
-    mut context: Option<&mut dyn UserFunctionContext>,
-) -> Result<CalcValue, String> {
+    caller: Option<CellKey>,
+    has_context: bool,
+) -> Result<PoolCall, String> {
     let (sender, receiver) = mpsc::channel();
     let info = function.registration.info.clone();
     let uses = function.registration.uses.get();
@@ -148,14 +150,20 @@ pub(crate) fn invoke(
     if main_thread != unsafe { crate::native::GetCurrentThreadId() } {
         return Err("dc-snz.18: invocation submitted outside owning main lane".into());
     }
-    let caller = context.as_ref().and_then(|c| c.caller());
-    let has_context = context.is_some();
     let arguments = arguments.to_vec();
+    // The owner keeps both native modules resident from enqueue through the
+    // physical return, including when the evaluator drops its activation.
+    let mut pending = crate::callbacks::owned_pending(&function.state, &function.registration)?;
+    pending.completion.forwarded.store(true, Ordering::Release);
+    let completion = pending.completion.clone();
     pool.sender
         .as_ref()
         .unwrap()
         .send(Box::new(move || {
             let run = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if !completion.active.load(Ordering::Acquire) {
+                    return Err("dc-snz.23: canceled before native worker entry".into());
+                }
                 // Acquire separate Windows module leases on this thread. No Rc, RefCell,
                 // arena pointer, libffi interface or evaluator borrow was sent from the STA.
                 let module = Module::loaded(info.module.to_string_lossy().as_ref())?;
@@ -210,11 +218,39 @@ pub(crate) fn invoke(
                 Ok(Err(why)) => (Err(why), Vec::new()),
                 Err(_) => (Err("dc-snz.18: native worker panicked".into()), Vec::new()),
             };
+            completion.physical_returned.store(true, Ordering::Release);
             let _ = sender.send(Request::Done(result, diagnostics));
         }))
         .map_err(|_| "native calculation pool stopped")?;
-    loop {
-        let request = receiver.recv().map_err(|_| "native worker disconnected")?;
+    pending.entered = true;
+    Ok(PoolCall {
+        state: function.state.clone(),
+        receiver,
+        _pending: Some(pending),
+        finished: false,
+    })
+}
+
+pub(crate) struct PoolCall {
+    // Cancel, disconnect replies, then release the owner. Drop order matters.
+    _pending: Option<crate::callbacks::Pending>,
+    receiver: Receiver<Request>,
+    state: crate::native::Shared,
+    finished: bool,
+}
+impl std::fmt::Debug for PoolCall {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PoolCall")
+            .field("finished", &self.finished)
+            .finish()
+    }
+}
+impl PoolCall {
+    fn service(
+        &mut self,
+        request: Request,
+        context: &mut Option<&mut dyn UserFunctionContext>,
+    ) -> Option<Result<CalcValue, String>> {
         match request {
             Request::ArgumentRead(reference, reply) => {
                 let result = context
@@ -238,19 +274,80 @@ pub(crate) fn invoke(
                 let _ = reply.send(result);
             }
             Request::Refuse(reason, owner) => {
-                if let Some(c) = &mut context {
+                if let Some(c) = context {
                     c.refuse_by(reason, owner);
                 }
             }
             Request::Volatile(value) => {
-                if let Some(c) = &mut context {
+                if let Some(c) = context {
                     c.set_volatile(value);
                 }
             }
             Request::Done(result, diagnostics) => {
-                function.state.borrow_mut().diagnostics.extend(diagnostics);
-                return result;
+                self.state.borrow_mut().diagnostics.extend(diagnostics);
+                if let Err(why) = &result
+                    && let Some(context) = context
+                {
+                    crate::native::refuse_native_error(*context, why);
+                }
+                self.finished = true;
+                return Some(result);
             }
+        }
+        None
+    }
+}
+
+impl calc_func::UserFunctionInvocation for PoolCall {
+    fn resume(
+        &mut self,
+        context: &mut dyn UserFunctionContext,
+        quantum: u64,
+    ) -> Result<calc_func::UserFunctionStep, String> {
+        if self.finished {
+            return Err("native pool activation already completed".into());
+        }
+        let mut context = Some(context);
+        for _ in 0..quantum.clamp(1, 64) {
+            match self.receiver.try_recv() {
+                Ok(request) => {
+                    if let Some(result) = self.service(request, &mut context) {
+                        return result.map(calc_func::UserFunctionStep::Complete);
+                    }
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    return Err(context
+                        .as_mut()
+                        .unwrap()
+                        .refuse_by("native worker disconnected", "dc-snz.23"));
+                }
+            }
+        }
+        Ok(calc_func::UserFunctionStep::Suspended)
+    }
+}
+
+pub(crate) fn invoke(
+    function: &XllFunction,
+    pool: &Pool,
+    arguments: &[CalcValue],
+    mut context: Option<&mut dyn UserFunctionContext>,
+) -> Result<CalcValue, String> {
+    let mut call = submit(
+        function,
+        pool,
+        arguments,
+        context.as_ref().and_then(|c| c.caller()),
+        context.is_some(),
+    )?;
+    loop {
+        let request = call
+            .receiver
+            .recv()
+            .map_err(|_| "native worker disconnected")?;
+        if let Some(result) = call.service(request, &mut context) {
+            return result;
         }
     }
 }

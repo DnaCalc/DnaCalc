@@ -537,16 +537,33 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
     call_comparisons = {}
     opaque_storage = []
     initialization_context_commands = [[], []]
+    def startup_context(trace, entry):
+        if not x4 or not entry["entry"].endswith(":xloRunInXLLContext"):
+            return False
+        first_change = min(e["seq"] for e in trace[1].values()
+                           if e["entry"] == "COM!Invoke" and e.get("dispid") == 0x61c
+                           and e.get("object_label", "").startswith("AppEvents sink"))
+        if entry["seq"] >= first_change:
+            return False
+        record = invocation_record(trace, entry)
+        registrations = [c[1][3]["value"] for c in record["callbacks"] if c[0] == 149]
+        if not registrations:
+            return False
+        require(Counter(registrations) == Counter(["xloAttr", "xloAttrObj", "xloImport", "xloPyDebug"]),
+                "Startup context command registered an unexpected function set")
+        require(all(c[0] in (149, 16384) and c[2] == 0 for c in record["callbacks"]), "Unexpected startup command callback")
+        require(record["arguments"] == [] and record["result"] == {"type": 2048, "value": 1}, "Unexpected startup command native boundary")
+        return True
     def measured_records(trace, name, index, defined=True):
-        rows = all_invocations(trace, name, defined)
+        entries = [entry for entry in trace[1].values() if entry["entry"].endswith(":" + name)]
+        rows = [invocation_record(trace, entry, defined) for entry in entries]
         if x4 and name == "xloRunInXLLContext":
-            # Excel queues built-in Python registration through this command;
-            # the host's open path registers it inline. Retain that startup
-            # work separately from the event-driven command under comparison.
-            startup = [row for row in rows if any(c[0] == 149 for c in row["callbacks"])]
+            # Retain built-in registration before the first worksheet edit
+            # separately from the event-driven command under comparison.
+            startup = [row for entry, row in zip(entries, rows) if startup_context(trace, entry)]
             if defined:
                 initialization_context_commands[index] = startup
-            rows = [row for row in rows if row not in startup]
+            rows = [row for entry, row in zip(entries, rows) if not startup_context(trace, entry)]
         return rows
     for name in measured_names:
         records = [(measured_records(trace, name, index) if x3 else x2_invocation(trace, name)) for index, trace in enumerate(traces)]
@@ -668,7 +685,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             for entry in trace[1].values():
                 if ":" in entry["entry"]:
                     name = entry["entry"].rsplit(":", 1)[1]
-                    if name == "xloRunInXLLContext" and any(c[0] == 149 for c in invocation_record(trace, entry)["callbacks"]):
+                    if startup_context(trace, entry):
                         continue
                     by_udf.setdefault(name, []).append(com_calls(trace, entry["seq"], trace[2][entry["call"]]["seq"], entry["thread"], env))
             nested.append(by_udf)

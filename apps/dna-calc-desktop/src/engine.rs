@@ -84,15 +84,36 @@ pub fn run(
     };
     let mut results = Vec::new();
     let mut returns = Vec::new();
+    let mut revoked = Vec::new();
     for case in cases {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
         if let Some(dependent) = case["dependent"].as_str() {
             enter(&mut book, c, dependent)?;
         }
         enter(&mut book, b, formula)?;
+        // Separate workbook commands retain separate read views and activations.
+        // This lets the owner interleave them without moving either evaluator.
+        let mut concurrent = if let Some(formula) = case["concurrent_formula"].as_str() {
+            let mut peer = HostSession::open(
+                Arc::new(MemorySource::new(calc_host::blank_package())),
+                &OpenPolicy::default(),
+                HostOptions::default(),
+            )
+            .map_err(|e| format!("{e:?}"))?;
+            peer.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            peer.set_user_functions(native.functions()?);
+            peer.set_calculation_budget(WorkBudget::evaluations(1));
+            let cell = CellKey::new(peer.host().sheets()[0].id(), 3, 2).unwrap();
+            enter(&mut peer, cell, formula)?;
+            peer.dispatch(SkinIntent::Recalculate);
+            Some((peer, cell))
+        } else {
+            None
+        };
         shell.projection()?.sheet_change(b.row(), b.column())?;
         book.dispatch(SkinIntent::Recalculate);
         let deadline = Instant::now() + Duration::from_secs(20);
+        let mut replaced = false;
         loop {
             // The complete token, including workbook/target/provider generations,
             // comes from CalcHost. A native request number alone never publishes.
@@ -115,7 +136,37 @@ pub fn run(
                     return Err(why.to_string());
                 }
             }
-            if !book.has_pending_calculation() && book.host().pending_async().is_empty() {
+            if let Some((peer, _)) = &mut concurrent {
+                if peer.has_pending_calculation()
+                    && let HostProgress::Failed(why) = peer.advance_calculation()
+                {
+                    return Err(why.to_string());
+                }
+            }
+            if !replaced
+                && let Some(replacement) = case["replace_pending"].as_str()
+                && let Some(token) = book.host().pending_async().first().cloned()
+            {
+                enter(&mut book, b, replacement)?;
+                book.dispatch(SkinIntent::Recalculate);
+                let disposition = book.complete_async(&token, CalcValue::number(-123.));
+                if disposition
+                    != calc_host::AsyncDisposition::Rejected(calc_host::AsyncRejection::Revoked)
+                {
+                    return Err(format!(
+                        "overwritten native token was not revoked: {disposition:?}"
+                    ));
+                }
+                revoked.push(serde_json::json!({"token":format!("{token:?}"),"disposition":format!("{disposition:?}")}));
+                replaced = true;
+            }
+            if !book.has_pending_calculation()
+                && book.host().pending_async().is_empty()
+                && native.outstanding_native_calls() == 0
+                && concurrent.as_ref().is_none_or(|(peer, _)| {
+                    !peer.has_pending_calculation() && peer.host().pending_async().is_empty()
+                })
+            {
                 break;
             }
             if Instant::now() > deadline {
@@ -124,6 +175,9 @@ pub fn run(
             shell.pump_for(Duration::from_millis(2));
         }
         let (calculated, proof) = value(&book, b)?;
+        if case.get("replace_pending").is_some() && !replaced {
+            return Err("native call completed before overwrite was exercised".into());
+        }
         let actual = crate::value_json(&calculated);
         if !case["value"].is_null()
             && actual != case["value"]
@@ -148,7 +202,21 @@ pub fn run(
         } else {
             None
         };
-        results.push(serde_json::json!({"formula":formula,"value":actual,"dependent":dependent,"provenance":proof}));
+        let concurrent = concurrent
+            .as_ref()
+            .map(|(peer, cell)| {
+                let (calculated, proof) = value(peer, *cell)?;
+                let actual = crate::value_json(&calculated);
+                if actual != case["concurrent_value"]
+                    && !(actual.as_f64().is_some()
+                        && actual.as_f64() == case["concurrent_value"].as_f64())
+                {
+                    return Err("concurrent workbook value differs".to_string());
+                }
+                Ok(serde_json::json!({"value":actual,"provenance":proof}))
+            })
+            .transpose()?;
+        results.push(serde_json::json!({"formula":formula,"value":actual,"dependent":dependent,"concurrent":concurrent,"provenance":proof}));
         shell.projection()?.after_calculate()?;
     }
     if !native.diagnostics().is_empty() {
@@ -174,7 +242,7 @@ pub fn run(
         return Err("removed native entry still executes".into());
     }
     Ok(
-        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"results":results,"async_returns":returns,
+        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"results":results,"async_returns":returns,"revoked_tokens":revoked,
         "reload_results":[],"commands":[],"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
     )
 }
