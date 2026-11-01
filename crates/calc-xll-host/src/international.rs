@@ -91,7 +91,7 @@ pub(crate) fn settings() -> Result<CalcValue, String> {
             number(0x23)? != 0,        // 24-hour clock
             false,                     // English worksheet function names
             number(0x0d)? == 0,        // metric
-            matches!(positive, 1 | 3), // currency space before symbol
+            positive == 3,             // postfix currency symbol preceded by a space
             matches!(positive, 0 | 2), // currency before amount
             negative_style != 0,
             true,
@@ -100,7 +100,7 @@ pub(crate) fn settings() -> Result<CalcValue, String> {
             number(0x26)? != 0,
             number(0x24)? != 0,
             date_order == 0,
-            true, // time leading zero (English format tokens)
+            number(0x25)? != 0, // time leading zero
         ]
         .into_iter()
         .map(CalcValue::logical),

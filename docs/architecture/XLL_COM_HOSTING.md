@@ -500,3 +500,29 @@ All original runtime/control comparisons were repeated on the combined source;
 Windows checks pass 1,529 tests and every corpus cell record remains unchanged.
 Distinct live/cached native forwarding is source-reviewed without a dedicated
 two-reader regression. The final evidence is under the X2 `integrated` folder.
+
+## 12. X3 xlw and xlOil host (2026-11-01, dc-snz.20)
+
+The [X3 evidence](../../crates/calc-xll-reference/traces/2026-11-01-x3/) uses the
+original xlw 23.10.12-rc generator/library and xlOil 0.22.1 native/Python binaries.
+The unchanged xlw sample, a separate scalar/matrix/reference fixture, xlOil Utils
+and SQL functions, and three Python functions produce 27 agreeing formula cases
+and 28 matching native UDF invocations. Separate controls agree without debugger
+instrumentation. The comparison checks ordered UDF callbacks and 17 exact-pointer,
+same-thread frees through their owning core/plugin modules before reuse.
+
+The host reads packed XLOPER12 operands and UTF-16 strings without assuming native
+alignment, supplies the actual executable instance handle, and obtains international
+settings from Windows NLS. Lifecycle FILTER calls use the existing CalcFunc path.
+COM adds the observed Window.Parent workbook, its application/name/path properties,
+and the Workbooks collection. This is one Book1 object, not a general workbook
+object model. No Excel registration or security setting is changed.
+
+Initialization callback numbers and codes agree in order. Raw FILTER element types,
+the xlEventRegister result payload and Python registration order differ and remain
+in the summaries. Teardown actions differ between the Excel runner and host and
+are counted separately. An unprotected xlOil reload crashes; the exact measured
+loader now returns a typed refusal after teardown, across host instances in the
+same process. Safe reload remains dc-snz.21; Native AOT remains dc-snz.19.
+Delivered events, RTD, cancellation, workbook concurrency, UI/ribbon behavior,
+general COM, xlwDotNet, Excel4 and x86 have not been established by these cases.

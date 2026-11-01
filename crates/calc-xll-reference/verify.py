@@ -5,6 +5,7 @@ Usage: python verify.py TRACED_DIRECTORY CONTROL_DIRECTORY [--out summary.json]
 """
 import argparse
 from collections import Counter
+from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
@@ -12,6 +13,32 @@ import re
 import subprocess
 import zipfile
 import xml.etree.ElementTree as ET
+
+rewritten_source_bindings = {}
+
+
+def content_matches(expected, content):
+    lf = content.replace(b"\r\n", b"\n")
+    return any(hashlib.sha256(value).hexdigest().upper() == expected
+               for value in (content, lf, lf.replace(b"\n", b"\r\n")))
+
+
+@lru_cache(maxsize=None)
+def revision_exists(root, revision):
+    return subprocess.run(["git", "-C", root, "cat-file", "-e", revision + "^{commit}"],
+                          capture_output=True, check=False).returncode == 0
+
+
+@lru_cache(maxsize=None)
+def rewritten_source(root, relative, expected):
+    # Only the same path, only retained commits, and at most 256 content versions.
+    history = subprocess.run(["git", "-C", root, "log", "--all", "-n", "256", "--format=%H", "--", relative],
+                             capture_output=True, check=True, text=True).stdout.splitlines()
+    for index, candidate in enumerate(history):
+        blob = subprocess.run(["git", "-C", root, "show", candidate + ":" + relative], capture_output=True, check=False)
+        if blob.returncode == 0 and content_matches(expected, blob.stdout):
+            return candidate, index + 1
+    return None
 
 
 def jsonl(path):
@@ -33,12 +60,20 @@ def source_matches(expected, source, revision):
     relative = source.relative_to(root).as_posix()
     old = subprocess.run(["git", "-C", str(root), "show", f"{revision}:{relative}"],
                          capture_output=True, check=False)
-    if old.returncode != 0:
+    if old.returncode == 0:
+        return content_matches(expected, old.stdout)
+    if revision_exists(str(root), revision):
         return False
-    # Git stores LF, while these Windows source hashes can record the checked-out CRLF.
-    lf = old.stdout.replace(b"\r\n", b"\n")
-    return any(hashlib.sha256(content).hexdigest().upper() == expected
-               for content in (old.stdout, lf, lf.replace(b"\n", b"\r\n")))
+    match = rewritten_source(str(root), relative, expected)
+    if match is None:
+        return False
+    replacement, inspected = match
+    rewritten_source_bindings[(relative, expected, revision)] = {
+        "path": relative, "sha256": expected, "recorded_revision": revision,
+        "retained_rewritten_revision": replacement, "same_path_versions_inspected": inspected,
+        "normalization": "LF/CRLF only; exact recorded SHA-256 required",
+    }
+    return True
 
 
 def require(condition, description):
@@ -657,6 +692,8 @@ if __name__ == "__main__":
                   if args.x2_cases or args.x3_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
     else:
         result = verify(args.traced, args.control)
+    if rewritten_source_bindings:
+        result["rewritten_source_bindings"] = sorted(rewritten_source_bindings.values(), key=lambda x: (x["path"], x["recorded_revision"]))
     rendered = json.dumps(result, indent=2) + "\n"
     if args.out:
         args.out.write_text(rendered, encoding="utf-8")
