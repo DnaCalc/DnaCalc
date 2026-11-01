@@ -1,0 +1,24 @@
+{
+  "run_id": "P04-entry-corrected-safe",
+  "supervisor_compile": "ok",
+  "supervisor_run": "ok",
+  "supervisor_cleanup": "owned-process-zero",
+  "supervisor_passed": false,
+  "explanation": "Descriptor expected_value is OBSERVATION_ONLY, so passed=false is expected; compile/run/cleanup and fault records must be inspected separately.",
+  "raw_sha256": "e8257c79d67a97cbbf70bc076fff92e16506c01008e3a71cbf33febb8a18f4f5",
+  "raw_lines": 5323,
+  "artifacts": 560,
+  "faults": [],
+  "rows_by_case": {
+    "draws-entry/1": 231,
+    "draws-entry/2": 526,
+    "draws-entry/3": 100,
+    "draws-entry/4": 1088,
+    "draws-entry/5": 456,
+    "draws-entry/6": 581,
+    "draws-entry/7": 383,
+    "draws-entry/8": 515,
+    "draws-entry/9": 645,
+    "draws-entry/10": 798
+  }
+}

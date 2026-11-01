@@ -1,5 +1,5 @@
 Private Function CaseIds() As String
-    CaseIds = "__CASES__"
+    CaseIds = ""
 End Function
 Private Sub ProbeCase(ByVal ident As String, ByVal output As String)
     Dim p As Variant, wb As Workbook, text As String, line As Variant

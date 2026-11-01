@@ -9,6 +9,9 @@
   "raw_lines": 12438,
   "artifacts": 250,
   "faults": [],
+  "unrunnable": [],
+  "external_controller_events": {},
+  "external_controller_failures": [],
   "rows_by_case": {
     "cold-c1/1": 46,
     "cold-b1-c1/1": 46,

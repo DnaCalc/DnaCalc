@@ -1,0 +1,5 @@
+*.tsv text eol=lf
+*.xlsm -text
+*.xlsx -text
+*.xlam -text
+*.xll -text
