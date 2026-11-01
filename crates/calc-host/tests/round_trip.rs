@@ -4632,22 +4632,43 @@ fn contract_paste_cut_drops_overwritten_scope_locations_before_undo() {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn names_batch_delete_preserves_imported_duplicate_fallback() {
+fn package_with_names(names: &str) -> Vec<u8> {
     use existing_wire_support::{RawEntry, build_zip, parse_zip};
     let blank = calc_host::blank_package();
     let archive = parse_zip(&blank);
-    let entries:Vec<_>=archive.entries.iter().map(|entry| {
-        let payload=entry.payload(&blank);
-        if entry.name=="xl/workbook.xml" {
-            let bytes=if entry.method==0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
-            let xml=String::from_utf8(bytes).unwrap().replace("</sheets>","</sheets><definedNames><definedName name=\"Rate\">2</definedName><definedName name=\"RATE\">7</definedName></definedNames>");
-            RawEntry::stored(&entry.name,xml.as_bytes())
-        } else if entry.method==0 { RawEntry::stored(&entry.name,payload) }
-        else { RawEntry::deflated(&entry.name,payload,entry.size,entry.crc32) }
-    }).collect();
-    let mut book = session(&build_zip(&entries));
+    let entries: Vec<_> = archive
+        .entries
+        .iter()
+        .map(|entry| {
+            let payload = entry.payload(&blank);
+            if entry.name == "xl/workbook.xml" {
+                let bytes = if entry.method == 0 {
+                    payload.to_vec()
+                } else {
+                    miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                };
+                let xml = String::from_utf8(bytes).unwrap().replace(
+                    "</sheets>",
+                    &format!("</sheets><definedNames>{names}</definedNames>"),
+                );
+                RawEntry::stored(&entry.name, xml.as_bytes())
+            } else if entry.method == 0 {
+                RawEntry::stored(&entry.name, payload)
+            } else {
+                RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32)
+            }
+        })
+        .collect();
+    build_zip(&entries)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_batch_delete_preserves_imported_duplicate_fallback() {
+    let mut book = session(&package_with_names(
+        r#"<definedName name="Rate">2</definedName><definedName name="RATE">7</definedName>"#,
+    ));
+    let original = book.host().defined_names().to_vec();
     let sheet = book.host().sheets()[0].id();
     let a1 = CellKey::new(sheet, 1, 1).unwrap();
     assert_eq!(book.host().model().definitions().name_table().len(), 2);
@@ -4676,6 +4697,12 @@ fn names_batch_delete_preserves_imported_duplicate_fallback() {
     };
     assert_eq!(text.text().to_string_lossy(), "Rate+1");
     assert_eq!(book.host().model().definitions().name_table().len(), 1);
+    for _ in 0..2 {
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(book.host().defined_names(), original.as_slice());
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(calculated(book.host(), a1), Some(CalcValue::number(8.0)));
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -5356,5 +5383,337 @@ fn contract_vba_input_edit_starts_a_new_invocation_without_replaying_a_resume() 
             Some(CalcValue::number(2.0)),
             "one entry per admitted command, no resume replay"
         );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_undo_restores_full_imported_records_without_recalculating_unrelated_cells() {
+    let mut book = session(&package_with_names(
+        r#"<definedName name="Rate" hidden="1" comment="book &amp; note" shortcutKey="K">2</definedName><definedName name="RATE" comment="fallback">9</definedName><definedName name="Rate" localSheetId="0" hidden="1" comment="sheet note">7</definedName><definedName name="MacroKept" hidden="1" comment="all flags" function="1" vbProcedure="1" xlm="1">1</definedName><definedName name="Tail">11</definedName>"#,
+    ));
+    let s = book.host().sheets()[0].id();
+    let scope = calc_doc_model::NameScope::Sheet(s);
+    enter(&mut book, at(s, "A1"), "=Rate+1");
+    enter(&mut book, at(s, "B1"), "=SUM(40,2)");
+    assert_eq!(
+        calculated(book.host(), at(s, "A1")),
+        Some(CalcValue::number(8.0))
+    );
+    let original = book.host().defined_names().to_vec();
+    let old = book
+        .host()
+        .model()
+        .definitions()
+        .name_table()
+        .lookup(scope, "Rate")
+        .unwrap()
+        .id();
+    let ProjectedValue::Calculated {
+        calculation: before,
+        ..
+    } = value(book.host(), at(s, "B1"))
+    else {
+        panic!("calculated")
+    };
+    let ProjectedValue::Calculated {
+        calculation: formula_before,
+        ..
+    } = value(book.host(), at(s, "A1"))
+    else {
+        panic!("calculated")
+    };
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::SetName {
+                name: "Rate".into(),
+                scope,
+                formula: Some("7".into())
+            }]
+        })
+        .accepted()
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let ProjectedValue::Calculated {
+        calculation: formula_after,
+        ..
+    } = value(book.host(), at(s, "A1"))
+    else {
+        panic!("calculated")
+    };
+    assert_eq!(
+        formula_before, formula_after,
+        "Undo of an unchanged definition has no evaluation effect"
+    );
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::SetName {
+                name: "rAtE".into(),
+                scope,
+                formula: None
+            }]
+        })
+        .accepted()
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "A1")),
+        Some(CalcValue::number(3.0))
+    );
+    let mut prior = old;
+    for again in 0..2 {
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(book.host().defined_names(), original.as_slice());
+        let restored = book
+            .host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(scope, "Rate")
+            .unwrap()
+            .id();
+        assert_ne!(
+            restored, prior,
+            "Undo creates a new definition identity for a deleted name"
+        );
+        prior = restored;
+        assert_eq!(
+            calculated(book.host(), at(s, "A1")),
+            Some(CalcValue::number(8.0))
+        );
+        let ProjectedValue::Calculated {
+            calculation: after, ..
+        } = value(book.host(), at(s, "B1"))
+        else {
+            panic!("calculated")
+        };
+        assert_eq!(before, after);
+        if again == 0 {
+            assert!(book.dispatch(SkinIntent::Redo).accepted());
+        }
+    }
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::SetName {
+                name: "MacroKept".into(),
+                scope: calc_doc_model::NameScope::Workbook,
+                formula: None
+            }]
+        })
+        .accepted()
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().defined_names(), original.as_slice());
+    let ProjectedValue::Calculated {
+        calculation: after, ..
+    } = value(book.host(), at(s, "B1"))
+    else {
+        panic!("calculated")
+    };
+    assert_eq!(before, after);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![
+                CellEdit::SetName {
+                    name: "MacroKept".into(),
+                    scope: calc_doc_model::NameScope::Workbook,
+                    formula: None
+                },
+                CellEdit::SetName {
+                    name: "Rate".into(),
+                    scope,
+                    formula: None
+                },
+            ]
+        })
+        .accepted()
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        book.host().defined_names(),
+        original.as_slice(),
+        "batch restoration keeps imported record order"
+    );
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::SetName {
+                name: "Rate".into(),
+                scope: calc_doc_model::NameScope::Workbook,
+                formula: Some("3".into())
+            }]
+        })
+        .accepted()
+    );
+    let mut expected = original.clone();
+    expected[0].formula = "3".into();
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    assert_eq!(reopened.host().defined_names(), expected.as_slice());
+    assert!(part_text(&saved, "xl/workbook.xml").contains("shortcutKey=\"K\""));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_history_restores_sequential_same_key_batches_and_saved_duplicate_fallbacks() {
+    use calc_doc_model::NameScope;
+    let records = r#"<definedName name="Rate" hidden="1" comment="primary">2</definedName><definedName name="RATE" comment="fallback">7</definedName><definedName name="Tail">11</definedName>"#;
+    for edits in [
+        vec![Some("3"), None],
+        vec![None, None],
+        vec![None, Some("3")],
+        vec![None, None, Some("4")],
+        vec![Some("3"), None, Some("4"), None, Some("5")],
+    ] {
+        let mut book = session(&package_with_names(records));
+        let original = book.host().defined_names().to_vec();
+        let old = book
+            .host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, "Rate")
+            .unwrap()
+            .id();
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: edits
+                    .into_iter()
+                    .map(|formula| CellEdit::SetName {
+                        name: "rAtE".into(),
+                        scope: NameScope::Workbook,
+                        formula: formula.map(str::to_owned)
+                    })
+                    .collect()
+            })
+            .accepted()
+        );
+        let forward = book.host().defined_names().to_vec();
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert_eq!(session(&saved).host().defined_names(), forward.as_slice());
+        for _ in 0..2 {
+            assert!(book.dispatch(SkinIntent::Undo).accepted());
+            assert_eq!(book.host().defined_names(), original.as_slice());
+            assert_ne!(
+                book.host()
+                    .model()
+                    .definitions()
+                    .name_table()
+                    .lookup(NameScope::Workbook, "Rate")
+                    .unwrap()
+                    .id(),
+                old
+            );
+            assert!(book.dispatch(SkinIntent::Redo).accepted());
+            assert_eq!(book.host().defined_names(), forward.as_slice());
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_history_tracks_a_recreated_definition_through_earlier_undo_and_redo() {
+    use calc_doc_model::NameScope;
+    let mut book = session(&package_with_names(
+        r#"<definedName name="Rate" hidden="1" comment="keep">2</definedName><definedName name="Tail">11</definedName>"#,
+    ));
+    let original = book.host().defined_names().to_vec();
+    let old = book
+        .host()
+        .model()
+        .definitions()
+        .name_table()
+        .lookup(NameScope::Workbook, "Rate")
+        .unwrap()
+        .id();
+    for formula in [Some("3"), None] {
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::SetName {
+                    name: "Rate".into(),
+                    scope: NameScope::Workbook,
+                    formula: formula.map(str::to_owned)
+                }]
+            })
+            .accepted()
+        );
+    }
+    let mut previous = old;
+    for _ in 0..2 {
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        let restored = book
+            .host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, "Rate")
+            .unwrap()
+            .id();
+        assert_ne!(restored, previous);
+        previous = restored;
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(book.host().defined_names(), original.as_slice());
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .name_table()
+                .lookup(NameScope::Workbook, "Rate")
+                .unwrap()
+                .id(),
+            restored
+        );
+        for _ in 0..2 {
+            assert!(book.dispatch(SkinIntent::Redo).accepted());
+        }
+        assert!(
+            book.host()
+                .model()
+                .definitions()
+                .name_table()
+                .lookup(NameScope::Workbook, "Rate")
+                .is_none()
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_saved_equal_duplicate_formulas_keep_their_source_attributes() {
+    let mut book = session(&package_with_names(
+        r#"<definedName name="Rate" shortcutKey="K">2</definedName><definedName name="Rate" shortcutKey="L">7</definedName>"#,
+    ));
+    let edit = |book: &mut HostSession, formula: Option<&str>| {
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::SetName {
+                    name: "Rate".into(),
+                    scope: calc_doc_model::NameScope::Workbook,
+                    formula: formula.map(str::to_owned)
+                }]
+            })
+            .accepted()
+        );
+    };
+    edit(&mut book, Some("7"));
+    for _ in 0..2 {
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let xml = part_text(&saved, "xl/workbook.xml");
+        let first = xml.find("shortcutKey=\"K\"").unwrap();
+        let second = xml.find("shortcutKey=\"L\"").unwrap();
+        assert!(
+            first < second,
+            "equal formulas cannot swap source attributes"
+        );
+        assert_eq!(
+            session(&saved).host().defined_names(),
+            book.host().defined_names()
+        );
+        edit(&mut book, None);
+        edit(&mut book, None);
+        for _ in 0..2 {
+            assert!(book.dispatch(SkinIntent::Undo).accepted());
+        }
     }
 }

@@ -565,7 +565,7 @@ impl WireOp {
             WorkbookOp::SetFormat { .. } => {
                 unreachable!("encode_batch refuses a cell format before it reaches here")
             }
-            WorkbookOp::SetNameFormula { .. } => {
+            WorkbookOp::SetNameFormula { .. } | WorkbookOp::RestoreNames(_) => {
                 unreachable!("encode_batch refuses a name's formula before it reaches here")
             }
             WorkbookOp::SetIteration(_) => {

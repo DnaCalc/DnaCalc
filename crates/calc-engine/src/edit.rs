@@ -303,7 +303,8 @@ pub fn prepare_edit<'s, 'r>(
             // name again in the same batch, which binds them anew.
             WorkbookOp::EditSkinLayout(_)
             | WorkbookOp::SetFormat { .. }
-            | WorkbookOp::SetNameFormula { .. } => {}
+            | WorkbookOp::SetNameFormula { .. }
+            | WorkbookOp::RestoreNames(_) => {}
             // The iteration settings (dc-y2o.2) change no cell; the formulas on a circular
             // reference become pending when the change is committed.
             WorkbookOp::SetIteration(_) => {}
@@ -468,24 +469,38 @@ pub fn prepare_edit<'s, 'r>(
     let mut name_after = BTreeMap::<NameKey, Option<&str>>::new();
     let mut name_keys = BTreeSet::new();
     for op in &change.operations {
-        if let WorkbookOp::SetNameFormula {
-            scope,
-            name,
-            formula,
-        } = op
-        {
-            let key = NameKey::new(*scope, name);
+        let changes: Vec<_> = match op {
+            WorkbookOp::SetNameFormula {
+                scope,
+                name,
+                formula,
+            } => vec![(NameKey::new(*scope, name), formula.as_deref(), false)],
+            WorkbookOp::RestoreNames(names) => names
+                .iter()
+                .map(|name| {
+                    (
+                        name.key.clone(),
+                        name.records
+                            .first()
+                            .map(|record| record.definition.formula.as_str()),
+                        inputs.definitions().name_table().restoration_changes(name),
+                    )
+                })
+                .collect(),
+            _ => continue,
+        };
+        for (key, formula, record_changed) in changes {
             let before = name_after.get(&key).copied().unwrap_or_else(|| {
                 inputs
                     .definitions()
                     .name_table()
                     .lookup_key(&key)
-                    .map(|n| n.definition().formula.as_str())
+                    .map(|node| node.definition().formula.as_str())
             });
-            if before != formula.as_deref() {
+            if record_changed || before != formula {
                 name_keys.insert(key.clone());
             }
-            name_after.insert(key, formula.as_deref());
+            name_after.insert(key, formula);
         }
     }
     let mut names_rebind = BTreeSet::new();
@@ -596,6 +611,7 @@ fn structural_moves(
                 | WorkbookOp::SetArray { .. }
                 | WorkbookOp::SetFormat { .. }
                 | WorkbookOp::SetNameFormula { .. }
+                | WorkbookOp::RestoreNames(_)
                 | WorkbookOp::SetIteration(_)
                 | WorkbookOp::SetAxisFormat(_)
                 | WorkbookOp::SetConditionalRules { .. }
@@ -618,6 +634,7 @@ fn structural_moves(
             | WorkbookOp::SetArray { .. }
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetNameFormula { .. }
+            | WorkbookOp::RestoreNames(_)
             | WorkbookOp::SetIteration(_)
             | WorkbookOp::SetAxisFormat(_)
             | WorkbookOp::SetConditionalRules { .. }

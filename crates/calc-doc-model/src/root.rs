@@ -161,6 +161,8 @@ pub enum ApplyError {
     ForeignRoot,
     /// The operation at this index names a defined name the root does not hold.
     UnknownName { operation: usize },
+    /// Retained records disagree with their scoped key or live order.
+    InvalidNameRestoration { operation: usize },
 }
 
 impl fmt::Display for ApplyError {
@@ -203,6 +205,10 @@ impl fmt::Display for ApplyError {
             ApplyError::ForeignRoot => {
                 f.write_str("the root to restore is not of this root's lineage")
             }
+            ApplyError::InvalidNameRestoration { operation } => write!(
+                f,
+                "operation {operation} has inconsistent retained name records"
+            ),
             ApplyError::UnknownName { operation } => write!(
                 f,
                 "operation {operation} names a defined name the root does not hold"
@@ -412,14 +418,9 @@ impl ModelRoot {
             layout: Arc::clone(&earlier.layout),
             definitions: Arc::new(
                 Definitions::clone(&earlier.definitions).with_name_table(
-                    self.definitions.name_table().replaced(
-                        earlier
-                            .definitions
-                            .name_table()
-                            .definitions()
-                            .cloned()
-                            .collect(),
-                    ),
+                    self.definitions
+                        .name_table()
+                        .restored_from(earlier.definitions.name_table()),
                 ),
             ),
             lineage: earlier.lineage,
@@ -602,6 +603,49 @@ impl ModelRoot {
                         return Err(ApplyError::UnknownName { operation });
                     }
                     all.set_formula(*scope, name, formula.as_deref());
+                }
+                WorkbookOp::RestoreNames(snapshots) => {
+                    let mut keys = std::collections::HashSet::new();
+                    let mut origins = std::collections::HashSet::new();
+                    let mut positions = std::collections::HashSet::new();
+                    for snapshot in snapshots {
+                        if let crate::NameScope::Sheet(sheet) = snapshot.key.scope {
+                            self.position_of(operation, sheet)?;
+                        }
+                        let mut previous = None;
+                        let positioned = snapshot
+                            .records
+                            .first()
+                            .is_some_and(|record| record.position.is_some());
+                        if !keys.insert(&snapshot.key)
+                            || calc_value::NameKey::new(snapshot.key.scope, &snapshot.key.folded)
+                                != snapshot.key
+                        {
+                            return Err(ApplyError::InvalidNameRestoration { operation });
+                        }
+                        for record in &snapshot.records {
+                            if !origins.insert(record.origin)
+                                || calc_value::NameKey::new(
+                                    record.definition.scope,
+                                    &record.definition.name,
+                                ) != snapshot.key
+                                || record.position.is_some() != positioned
+                            {
+                                return Err(ApplyError::InvalidNameRestoration { operation });
+                            }
+                            if let Some(position) = record.position {
+                                if previous.is_some_and(|before| before >= position)
+                                    || !positions.insert(position)
+                                {
+                                    return Err(ApplyError::InvalidNameRestoration { operation });
+                                }
+                                previous = Some(position);
+                            }
+                        }
+                    }
+                    names
+                        .get_or_insert_with(|| self.definitions.name_table().clone())
+                        .restore_records(snapshots);
                 }
                 WorkbookOp::SetIteration(settings) => iteration = Some(*settings),
                 WorkbookOp::SetAxisFormat(edit) => {
