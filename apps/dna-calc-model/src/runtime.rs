@@ -130,6 +130,8 @@ impl ToolState {
 
 pub struct RuntimeState {
     pub tools: ToolState,
+    pub active_calculation: Option<(u64, u64)>,
+    pub calculation_frontier: u64,
     pub selection_focus: Option<crate::FocusTicket>,
     pub callback_focus: Option<crate::FocusTicket>,
     pub context_menu: Option<(f64, f64)>,
@@ -171,6 +173,8 @@ impl Default for RuntimeState {
     fn default() -> Self {
         Self {
             tools: ToolState::default(),
+            active_calculation: None,
+            calculation_frontier: 0,
             selection_focus: None,
             callback_focus: None,
             context_menu: None,

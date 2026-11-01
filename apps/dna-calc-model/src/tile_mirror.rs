@@ -255,6 +255,7 @@ mod tests {
     fn batch(next: u64, reset: bool, cells: Vec<Cell>, removed: Vec<Key>) -> TileBatch {
         TileBatch {
             stamp: TileStamp {
+                calculation_through: None,
                 id: 1,
                 workbook: 7,
                 transaction: next,

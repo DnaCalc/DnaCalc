@@ -50,6 +50,7 @@
 //!   ([`calc_fml::reference::template_key`]) lets the copies of a filled formula share one plan
 //!   without each being parsed.
 
+pub mod contract;
 mod data_table;
 mod detached;
 mod edit;
@@ -70,7 +71,8 @@ pub use edit::{
 pub use graph::{AxisInterval, Prerequisite, SheetSpan};
 pub use read::{ObservedEvaluation, ReadObserver, Unobserved, resolve_reference_text};
 pub use recalc::{
-    RecalcFailure, RecalcProgress, RecalcWork, StartError, WorkBudget, begin_recalc, finish, step,
+    RecalcFailure, RecalcProgress, RecalcWork, StartError, WorkBudget, begin_recalc,
+    begin_recalc_scoped, finish, step, supersede_recalc, supersede_recalc_scoped,
 };
 pub use result::{
     CacheWithoutFormula, CalcTick, Calculation, FormulaResult, NotModeled, SpillChange,
@@ -80,4 +82,9 @@ pub use spill::Spill;
 pub use state::{EngineState, FormulaNode, PrerequisiteError};
 pub use structural::{
     ReferenceRewriter, move_name, move_references, relocate_formula, shift_formula,
+};
+
+pub use contract::{
+    AdmissionReceipt, CalcCommandId, CalcEvent, CalcPassId, CalcScope, CompletionReceipt,
+    EvalSelection, InvocationId, ReadCertificate, ResultStamp,
 };

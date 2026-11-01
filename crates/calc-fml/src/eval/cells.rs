@@ -22,6 +22,7 @@ use std::ops::ControlFlow;
 pub(super) enum ReadRefusal {
     /// The reader reported this cell as missing: an input it cannot supply.
     Missing(CellKey),
+    Denied(crate::ReadDenial),
     /// The reader's runs did not cover the area as its contract requires.
     Contract(ReadContractError),
 }
@@ -29,6 +30,10 @@ pub(super) enum ReadRefusal {
 impl ReadRefusal {
     pub(super) fn fault(self) -> EvalFault {
         match self {
+            ReadRefusal::Denied(denial) => EvalFault::NotModelled {
+                construct: denial.construct,
+                owner: denial.owner,
+            },
             ReadRefusal::Missing(cell) => EvalFault::MissingInput { cell },
             ReadRefusal::Contract(error) => EvalFault::ReadContract(error),
         }
@@ -96,7 +101,13 @@ impl<'r> SharedReader<'r> {
         match read {
             Ok(CellRead::Value(value)) => Ok(value),
             Ok(CellRead::Blank) => Ok(CalcValue::empty()),
-            Ok(CellRead::Missing) => Err(EvalFault::MissingInput { cell: area.first() }),
+            Ok(CellRead::Missing) => Err(match self.reader.borrow().read_denial() {
+                Some(denial) => EvalFault::NotModelled {
+                    construct: denial.construct,
+                    owner: denial.owner,
+                },
+                None => EvalFault::MissingInput { cell: area.first() },
+            }),
             Err(error) => Err(EvalFault::ReadContract(error)),
         }
     }
@@ -145,7 +156,13 @@ impl<'r> SharedReader<'r> {
             return Err(EvalFault::ReadContract(error));
         }
         if let Some(cell) = missing {
-            return Err(EvalFault::MissingInput { cell });
+            return Err(match self.reader.borrow().read_denial() {
+                Some(denial) => EvalFault::NotModelled {
+                    construct: denial.construct,
+                    owner: denial.owner,
+                },
+                None => EvalFault::MissingInput { cell },
+            });
         }
         let shape = ArrayShape {
             rows: area.row_count() as usize,
@@ -220,7 +237,10 @@ impl CellReader for ReaderCells<'_, '_> {
         drop(reader);
         let refusal = match (read, missing) {
             (Err(error), _) => ReadRefusal::Contract(error),
-            (Ok(()), Some(cell)) => ReadRefusal::Missing(cell),
+            (Ok(()), Some(cell)) => match self.shared.reader.borrow().read_denial() {
+                Some(denial) => ReadRefusal::Denied(denial),
+                None => ReadRefusal::Missing(cell),
+            },
             (Ok(()), None) => return Ok(()),
         };
         self.shared.refusal.set(Some(refusal));
@@ -385,6 +405,10 @@ mod tests {
     }
 
     impl ReferenceReader for Replay {
+        fn read_denial(&self) -> Option<crate::ReadDenial> {
+            None
+        }
+
         fn read_fact(&mut self, fact: crate::FactRead) {
             self.facts.push(fact);
         }
@@ -402,7 +426,7 @@ mod tests {
 
         fn read_area(
             &mut self,
-            request: crate::ReadRequest,
+            _request: crate::ReadRequest,
             _: GridArea,
             sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
         ) {

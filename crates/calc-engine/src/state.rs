@@ -2,14 +2,12 @@
 //! workbook graph.
 
 use crate::graph::{BlockHasher, Prerequisite, ReverseIndex};
-use crate::recalc::{ReadersCache, dirty_closure, live_anchor, published_areas};
+use crate::recalc::{ReadersCache, dirty_closure, live_anchor};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
 use crate::spill::{Spill, SpillIndex};
-use calc_doc_model::{ArrayKind, AuthoredRevision, CellInput, FileCached, ModelRoot};
+use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
 use calc_fml::{CalcEnvironment, CompiledPlan, FormulaForm, FormulaInstance, PlanCache};
-use calc_value::{
-    CellKey, GridArea, IdAllocator, MAX_COLUMNS, MAX_ROWS, NodeId, NumericMode, SheetId,
-};
+use calc_value::{CellKey, GridArea, IdAllocator, NodeId, NumericMode, SheetId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::hash::BuildHasherDefault;
@@ -110,6 +108,14 @@ pub(crate) struct Results {
 }
 
 impl Results {
+    pub(crate) fn of_mut(&mut self, node: NodeId) -> Option<&mut FormulaResult> {
+        self.by_slot
+            .get_mut(node.slot() as usize)?
+            .as_mut()
+            .filter(|(held, _)| *held == node)
+            .map(|(_, result)| result)
+    }
+
     /// The result of the live node `node`.
     pub(crate) fn of(&self, node: NodeId) -> Option<&FormulaResult> {
         match self.by_slot.get(node.slot() as usize) {
@@ -292,6 +298,12 @@ pub(crate) struct Bindings {
 }
 
 impl Bindings {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&NodeId, &Binding)> {
+        self.slots
+            .iter()
+            .flatten()
+            .map(|(node, binding)| (node, binding))
+    }
     pub(crate) fn get(&self, node: &NodeId) -> Option<&Binding> {
         match self.slots.get(node.slot() as usize) {
             Some(Some((held, binding))) if held == node => Some(binding),
@@ -353,6 +365,7 @@ pub(crate) enum ArrayRole {
 /// pending and [`EngineState::stale`] still lists every result it left stale.
 #[derive(Debug)]
 pub struct EngineState {
+    pub(crate) contract: crate::contract::ContractState,
     revision: AuthoredRevision,
     pub(crate) ids: IdAllocator<NodeId>,
     pub(crate) by_anchor: BTreeMap<CellKey, NodeId>,
@@ -459,6 +472,7 @@ impl EngineState {
     /// published until the first recalculation, which calculates every node.
     pub fn new(inputs: &ModelRoot) -> Self {
         let mut state = EngineState {
+            contract: crate::contract::ContractState::new(),
             revision: inputs.revision(),
             ids: IdAllocator::new(),
             by_anchor: BTreeMap::new(),
@@ -677,27 +691,36 @@ impl EngineState {
         // A pending dynamic array's next result may spill anywhere below and right of its anchor,
         // past the area it last filled, so every formula reading a cell there may read it: those
         // readers are stale too, until the recalculation settles the spill.
-        let areas = |node| {
-            let mut areas = published_areas(self, inputs, node);
-            let at = live_anchor(self, node);
-            if self.pending.contains(&node)
-                && inputs
-                    .definitions()
-                    .array(at)
-                    .is_some_and(|array| matches!(array.kind(), ArrayKind::Dynamic { .. }))
-                && let Ok(last) = CellKey::new(at.sheet(), MAX_ROWS, MAX_COLUMNS)
-                && let Ok(reach) = GridArea::new(at, last)
-            {
-                areas.push(reach);
-            }
-            areas
-        };
-        let mut cells: Vec<CellKey> = dirty_closure(self, inputs, self.pending.clone(), &areas)
+        let areas = |node| crate::recalc::invalidation_areas(self, inputs, node);
+        let mut pending = self.pending.clone();
+        let progress = crate::read::Progress::new(0);
+        pending.extend(
+            self.nodes()
+                .filter(|node| {
+                    self.results
+                        .of(node.id())
+                        .and_then(FormulaResult::stamp)
+                        .is_some_and(|stamp| {
+                            !crate::contract::certificate_valid(
+                                self,
+                                inputs,
+                                &progress,
+                                stamp,
+                                self.contract.facts,
+                            )
+                        })
+                })
+                .map(|node| node.id()),
+        );
+        let mut cells: Vec<CellKey> = dirty_closure(self, inputs, pending, &areas)
             .members()
             .iter()
             .copied()
             .map(|node| live_anchor(self, node))
             .collect();
+        // Removed anchors still own their previous spill until publication removes it. Their
+        // followers must show stale provenance rather than an orphan's calculated value.
+        cells.extend(self.retired.iter().copied());
         cells.sort();
         Some(cells)
     }
@@ -736,6 +759,39 @@ impl EngineState {
         self.spills.covering(at)
     }
 
+    pub fn result_view(&self) -> crate::contract::ReadViewId {
+        crate::contract::ReadViewId(self.generation)
+    }
+
+    pub fn workbook_instance(&self) -> crate::contract::WorkbookInstanceId {
+        self.contract.workbook
+    }
+
+    pub fn requirement_at(&self, at: CellKey) -> Option<crate::contract::RequirementState> {
+        Some(self.contract.requirement(self.node_at(at)?))
+    }
+
+    pub fn validated_result(
+        &self,
+        inputs: &ModelRoot,
+        at: CellKey,
+    ) -> Option<&crate::contract::FreshnessClaim> {
+        let stamp = self.result(at)?.stamp()?;
+        if stamp.reads.legacy_boundary || stamp.reads.external_cache {
+            return None;
+        }
+        let current = self.contract.requirement(stamp.target.node);
+        (current.required == current.satisfied
+            && crate::contract::certificate_valid(
+                self,
+                inputs,
+                &crate::read::Progress::new(0),
+                stamp,
+                self.contract.facts,
+            ))
+        .then_some(&stamp.certification)
+    }
+
     /// Every published spill, in anchor order.
     pub fn spills(&self) -> impl Iterator<Item = &Spill> {
         self.spills.iter()
@@ -758,6 +814,10 @@ impl EngineState {
                 .checked_add(1)
                 .expect("volatile input version exhausted");
             self.pending.extend(self.volatile.iter().copied());
+            self.contract.invalidate(self.volatile.iter().copied());
+            self.contract
+                .facility_roots
+                .extend(self.volatile.iter().copied());
         }
     }
 
@@ -776,12 +836,18 @@ impl EngineState {
     pub fn rebuilt(&self, inputs: &ModelRoot) -> EngineState {
         let mut state = EngineState::new(inputs);
         state.last_tick = self.last_tick;
+        state.generation = self
+            .generation
+            .checked_add(1)
+            .expect("result view identity exhausted");
         state.environment = self.environment;
         state.clock = self.clock;
         state.volatile_input_version = self.volatile_input_version;
         state.workbook_facts = self.workbook_facts.clone();
         state.random_seed = self.random_seed;
         state.tables_deferred = self.tables_deferred;
+        let nodes = state.by_anchor.values().copied().collect();
+        state.contract.inherit_identity(&self.contract, nodes);
         state
     }
 
@@ -790,6 +856,7 @@ impl EngineState {
     /// so every recalculation calculates them and reads the facts set last.
     pub fn set_workbook_facts(&mut self, facts: Option<Arc<dyn calc_fml::WorkbookFacts>>) {
         self.workbook_facts = facts;
+        self.contract.facts = self.contract.advance();
     }
 
     pub fn set_environment(&mut self, environment: Option<CalcEnvironment>) {
@@ -797,9 +864,15 @@ impl EngineState {
         let clock = environment.and_then(|e| e.now);
         if self.environment != semantics {
             self.environment = semantics;
+            self.contract.environment = self.contract.advance();
+            self.contract.invalidate(self.by_anchor.values().copied());
             self.pending.extend(self.by_anchor.values().copied());
         } else if self.clock != clock {
             self.pending.extend(self.volatile.iter().copied());
+            self.contract.invalidate(self.volatile.iter().copied());
+            self.contract
+                .facility_roots
+                .extend(self.volatile.iter().copied());
         }
         if self.clock != clock {
             self.volatile_input_version = self
@@ -820,6 +893,10 @@ impl EngineState {
                 .checked_add(1)
                 .expect("clock epoch exhausted");
             self.pending.extend(self.volatile.iter().copied());
+            self.contract.invalidate(self.volatile.iter().copied());
+            self.contract
+                .facility_roots
+                .extend(self.volatile.iter().copied());
         }
     }
 
@@ -827,6 +904,8 @@ impl EngineState {
     /// as Excel's full calculation (`CalculateFull`, Ctrl+Alt+F9) does. Each node keeps its bound
     /// plan and its edges: nothing is compiled again and the graph is not rebuilt.
     pub fn mark_all_pending(&mut self) {
+        self.contract.force_all = true;
+        self.contract.invalidate(self.by_anchor.values().copied());
         // Built anew in node order, which builds the set in one pass (dc-dxm), rather than by
         // inserting every node.
         let mut nodes: Vec<NodeId> = self.pending.iter().copied().collect();
@@ -970,12 +1049,16 @@ impl EngineState {
             }
             self.index.remove(node, &record.dynamic);
             self.bindings.remove(&node);
+            self.contract.retire(node);
             self.volatile.remove(&node);
             self.entered.remove(&node);
             self.subtotal_cells.remove(&record.anchor);
             self.pending.remove(&node);
             self.retired.insert(record.anchor);
-            self.anchor_epoch += 1;
+            self.anchor_epoch = self
+                .anchor_epoch
+                .checked_add(1)
+                .expect("anchor index version exhausted");
             self.results.retire(node, record.anchor);
             self.by_anchor.remove(&record.anchor);
             self.anchor_index.remove(record.anchor);
@@ -1005,6 +1088,7 @@ impl EngineState {
             self.volatile.remove(&node);
             self.subtotal_cells.remove(&record.anchor);
             self.pending.insert(node);
+            self.contract.replace(node);
         }
     }
 
@@ -1014,6 +1098,7 @@ impl EngineState {
     /// rewritten formula and calculates it. Published spills, templates and the record of
     /// removed results go: every formula is calculated again. Returns the removed nodes.
     pub(crate) fn apply_moves(&mut self, moves: Vec<(NodeId, Option<CellKey>)>) -> Vec<NodeId> {
+        self.contract.coordinates = self.contract.advance();
         let mut removed = Vec::new();
         let mut anchors = BTreeMap::new();
         for (node, anchor) in moves {
@@ -1045,13 +1130,19 @@ impl EngineState {
             self.by_anchor.insert(at, node);
         }
         self.anchor_index = AnchorIndex::build(&self.by_anchor);
-        self.anchor_epoch += 1;
+        self.anchor_epoch = self
+            .anchor_epoch
+            .checked_add(1)
+            .expect("anchor index version exhausted");
         // The results removed nodes left go with them.
         self.results.clear_orphans();
         self.retired.clear();
         self.spills = SpillIndex::default();
         self.blocked_spills.clear();
-        self.spill_epoch += 1;
+        self.spill_epoch = self
+            .spill_epoch
+            .checked_add(1)
+            .expect("occupancy version exhausted");
         self.templates.clear();
         self.subtotal_cells.clear();
         removed
@@ -1060,7 +1151,10 @@ impl EngineState {
     /// Records a node issued by this state's allocator at `anchor`, unbound. The caller makes it
     /// pending.
     pub(crate) fn add_node(&mut self, id: NodeId, anchor: CellKey) {
-        self.anchor_epoch += 1;
+        self.anchor_epoch = self
+            .anchor_epoch
+            .checked_add(1)
+            .expect("anchor index version exhausted");
         self.record_node(id, anchor);
         self.anchor_index.insert(anchor, id);
     }
@@ -1079,6 +1173,7 @@ impl EngineState {
             dynamic: Vec::new(),
         });
         self.by_anchor.insert(anchor, id);
+        self.contract.replace(id);
     }
 }
 

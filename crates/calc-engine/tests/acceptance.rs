@@ -1391,7 +1391,7 @@ fn recalc_under(
         step(state, inputs, &mut work, WorkBudget::UNLIMITED, observer),
         RecalcProgress::Complete
     );
-    finish(state, work).unwrap()
+    finish(state, inputs, work).unwrap()
 }
 
 /// Recalculates under Fast in one step, shown to `observer`, and publishes.
@@ -1593,7 +1593,7 @@ fn ceng_m1_2__chain_recalculates() {
         0,
         "a result was published before finish"
     );
-    let delta = finish(&mut state, work).unwrap();
+    let delta = finish(&mut state, &root1, work).unwrap();
     assert_eq!((delta.revision(), delta.tick().get()), (rev(1), 1));
 
     // The reads, hand-derived: Report!C1 reads only a literal and is ready first (Report's sheet
@@ -1744,7 +1744,7 @@ fn ceng_m1_2__chain_recalculates() {
             RecalcProgress::Failed => panic!("the recalculation failed"),
         }
     }
-    let delta = finish(&mut state, work).unwrap();
+    let delta = finish(&mut state, &root2, work).unwrap();
     assert_eq!(
         recorder.evaluation_order(),
         [w(1, 1), w(2, 1), r(1, 1), w(1, 3), r(1, 2)]
@@ -2255,7 +2255,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     let work = begin_recalc(&mut state, &root1, NumericMode::Fast).unwrap();
     assert_eq!((work.tick().get(), work.scheduled()), (1, 10));
     assert_eq!(
-        finish(&mut state, work).err(),
+        finish(&mut state, &root1, work).err(),
         Some(RecalcFailure::Incomplete { remaining: 10 })
     );
     let n_c1 = state.node_at(c(1, 3)).unwrap();
@@ -2286,7 +2286,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
         ]
     );
     assert_eq!(
-        finish(&mut state, work).err(),
+        finish(&mut state, &root1, work).err(),
         Some(RecalcFailure::UnscheduledRead {
             formula: c(1, 3),
             cell: c(2, 1)
@@ -2438,7 +2438,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
         "a step after the failure evaluated again"
     );
     assert_eq!(
-        finish(&mut state, work).err(),
+        finish(&mut state, &root2, work).err(),
         Some(RecalcFailure::ReadFailed {
             formula: c(2, 1),
             area: cell_area(c(1, 1))
@@ -2507,7 +2507,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     let before = generation(&state);
     let work = begin_recalc(&mut state, &root5, NumericMode::Fast).unwrap();
     assert_eq!(
-        finish(&mut state, work).err(),
+        finish(&mut state, &root5, work).err(),
         Some(RecalcFailure::Incomplete { remaining: 5 })
     );
     let mut work = begin_recalc(&mut state, &root5, NumericMode::Fast).unwrap();
@@ -2523,7 +2523,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
         RecalcProgress::Failed
     );
     assert_eq!(
-        finish(&mut state, work).err(),
+        finish(&mut state, &root6, work).err(),
         Some(RecalcFailure::Superseded { revision: rev(5) })
     );
     assert_eq!(generation(&state), before);
@@ -2540,7 +2540,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     );
     let root7 = edit(&mut state, &root6, vec![set(d(2, 1), number(8.0))]);
     assert_eq!(
-        finish(&mut state, work).err(),
+        finish(&mut state, &root7, work).err(),
         Some(RecalcFailure::Superseded { revision: rev(6) })
     );
     assert_eq!(generation(&state), before);
@@ -2553,10 +2553,10 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             RecalcProgress::Complete
         );
     }
-    finish(&mut state, second).unwrap();
+    finish(&mut state, &root7, second).unwrap();
     let published = generation(&state);
     assert_eq!(
-        finish(&mut state, first).err(),
+        finish(&mut state, &root7, first).err(),
         Some(RecalcFailure::Superseded { revision: rev(7) })
     );
     assert_eq!(generation(&state), published);
@@ -2606,7 +2606,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
         ),
         RecalcProgress::Complete
     );
-    let delta = finish(&mut state, work).unwrap();
+    let delta = finish(&mut state, &root8, work).unwrap();
     assert_eq!(
         refusal(&state, c(10, 1), 8, 13),
         NotModeled::Evaluation(EvalFault::MissingInput { cell: c(1, 1) }),
@@ -2659,7 +2659,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
         ),
         RecalcProgress::Complete
     );
-    finish(&mut state, work).unwrap();
+    finish(&mut state, &root8, work).unwrap();
     assert_eq!(
         calculated(&state, c(1, 1)),
         (CalcValue::number(40.0), 8, 14)
@@ -2681,7 +2681,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     // Under the published mode, with nothing pending, nothing is calculated.
     let work = begin_recalc(&mut state, &root8, NumericMode::Fast).unwrap();
     assert_eq!(work.scheduled(), 0);
-    assert_eq!(finish(&mut state, work).unwrap().changes(), []);
+    assert_eq!(finish(&mut state, &root8, work).unwrap().changes(), []);
     note!(
         "{CASE}: under Exact after Fast, all {node_count} formula nodes were calculated again and none published as Calculated from a Fast result (Calc!A10 refused, Calc!A11 calculated with its target); back under Fast all {node_count} again"
     );
@@ -3141,7 +3141,7 @@ fn dc_qguw__fault_injection() {
         ),
         RecalcProgress::Complete
     );
-    let delta = finish(&mut book.state, work).unwrap();
+    let delta = finish(&mut book.state, &book.root, work).unwrap();
     assert_eq!(delta.tick().get(), 1);
     // What the evaluator reported, in the order of evaluation: one evaluation per formula, each
     // at revision 1 and tick 1 under Fast. A3's evaluation was refused (calc-func does not compute
@@ -3379,7 +3379,7 @@ fn l1_calculated_with(
         ),
         RecalcProgress::Complete
     );
-    finish(&mut state, work).unwrap();
+    finish(&mut state, &root, work).unwrap();
     state
 }
 
@@ -4792,6 +4792,7 @@ fn dc_m3u__data_tables() {
         (c(11, 1), number(1.0)),
         (c(12, 1), number(2.0)),
         (c(10, 5), formula("SUM(B4:B6)")),
+        (c(11, 5), formula("E10+1")),
     ];
     let tables = vec![
         DataTable::new(area(s, 4, 2, 6, 3), DataTableInputs::Column(c(1, 2))).unwrap(),
@@ -4811,7 +4812,7 @@ fn dc_m3u__data_tables() {
         Definitions::new(vec![], vec![], vec![], []).with_data_tables(tables),
     );
     let mut state = EngineState::new(&root);
-    recalc(&mut state, &root, &mut Unobserved);
+    let delta = recalc(&mut state, &root, &mut Unobserved);
     let n = CalcValue::number;
     for (at, value) in [
         (c(4, 2), 15.0),
@@ -4828,14 +4829,38 @@ fn dc_m3u__data_tables() {
         (c(12, 2), 7002.0),
         (c(12, 3), 8002.0),
         (c(10, 5), 75.0),
+        (c(11, 5), 76.0),
     ] {
         assert_eq!(l1_value(&state, at), n(value), "{at:?}");
+    }
+    assert_eq!(
+        state.stale(&root),
+        Some(vec![]),
+        "published table readers must remain usable"
+    );
+    assert_eq!(delta.completion().unwrap().coverage.uncertified, 15);
+    for at in [c(10, 5), c(11, 5)] {
+        assert!(
+            state
+                .result(at)
+                .unwrap()
+                .stamp()
+                .unwrap()
+                .reads
+                .legacy_boundary
+        );
+        assert!(
+            state.validated_result(&root, at).is_none(),
+            "a table boundary cannot gain a FreshFor guarantee through arithmetic"
+        );
     }
     // C1 = 6, calculated automatically.
     let root = edit(&mut state, &root, vec![set(c(1, 3), number(6.0))]);
     recalc(&mut state, &root, &mut Unobserved);
     assert_eq!(l1_value(&state, c(4, 2)), n(16.0));
     assert_eq!(l1_value(&state, c(10, 5)), n(78.0));
+    assert_eq!(l1_value(&state, c(11, 5)), n(79.0));
+    assert_eq!(state.stale(&root), Some(vec![]));
     assert_eq!(l1_value(&state, c(3, 5)), n(100.0));
     // Tables deferred: C1 = 7 calculates B3 and leaves the table and its reader.
     state.set_tables_deferred(true);
@@ -4851,6 +4876,8 @@ fn dc_m3u__data_tables() {
     recalc(&mut state, &root, &mut Unobserved);
     assert_eq!(l1_value(&state, c(4, 2)), n(17.0));
     assert_eq!(l1_value(&state, c(10, 5)), n(81.0));
+    assert_eq!(l1_value(&state, c(11, 5)), n(82.0));
+    assert_eq!(state.stale(&root), Some(vec![]));
 }
 
 /// The scenario changes values, while caller and workbook questions retain their context.
@@ -4973,7 +5000,7 @@ fn a_pass_pins_its_clock_across_steps() {
         ),
         RecalcProgress::Complete
     );
-    finish(&mut state, work).unwrap();
+    finish(&mut state, &root, work).unwrap();
     assert_eq!(l1_value(&state, c(1)), CalcValue::number(40_000.0));
     assert_eq!(l1_value(&state, c(2)), CalcValue::number(40_000.0));
     assert_eq!(state.stale(&root).unwrap(), vec![c(1), c(2)]);

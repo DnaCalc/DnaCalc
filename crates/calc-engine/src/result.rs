@@ -41,6 +41,7 @@ pub struct Calculation {
     /// a formula on a circular reference, or one that reads such a formula, is not evaluated and
     /// keeps what its cell held, as Excel keeps it. The value is the rule's, not an evaluation's.
     circular_rule: bool,
+    stamp: Option<Arc<crate::contract::ResultStamp>>,
 }
 
 impl Calculation {
@@ -51,7 +52,15 @@ impl Calculation {
             mode: Arc::new(mode),
             external_links: false,
             circular_rule: false,
+            stamp: None,
         }
+    }
+
+    pub fn stamp(&self) -> Option<&crate::contract::ResultStamp> {
+        self.stamp.as_deref()
+    }
+    pub(crate) fn set_stamp(&mut self, stamp: crate::contract::ResultStamp) {
+        self.stamp = Some(Arc::new(stamp));
     }
 
     /// This calculation, marked as the circular-reference rule's (dc-y2o.1).
@@ -126,10 +135,9 @@ impl NotModeled {
             && match value.core_ref() {
                 CoreRef::Number(number) => number.is_finite(),
                 CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => true,
-                CoreRef::Empty
-                | CoreRef::Missing
-                | CoreRef::Array(_)
-                | CoreRef::Reference(_) => false,
+                CoreRef::Empty | CoreRef::Missing | CoreRef::Array(_) | CoreRef::Reference(_) => {
+                    false
+                }
             };
         if held {
             Ok(value)
@@ -172,6 +180,38 @@ pub enum FormulaResult {
 }
 
 impl FormulaResult {
+    pub fn stamp(&self) -> Option<&crate::contract::ResultStamp> {
+        match self {
+            Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
+                calculation.stamp()
+            }
+            Self::FileCached(_) => None,
+        }
+    }
+    pub(crate) fn rebase_occupancy(&mut self, occupancy: impl Fn(GridArea) -> u64) {
+        match self {
+            Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
+                if let Some(stamp) = calculation.stamp.as_mut() {
+                    for proof in &mut Arc::make_mut(stamp).reads.absences {
+                        // Publication has validated every exact blank run against the final
+                        // producer cut. Candidate-time uncertainty is now discharged.
+                        proof.occupancy = occupancy(proof.region);
+                        proof.pending_producers = 0;
+                    }
+                }
+            }
+            Self::FileCached(_) => {}
+        }
+    }
+    pub(crate) fn set_stamp(&mut self, stamp: crate::contract::ResultStamp) {
+        match self {
+            Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
+                calculation.set_stamp(stamp)
+            }
+            Self::FileCached(_) => {}
+        }
+    }
+
     /// The value, when this engine calculated it.
     pub fn calculated(&self) -> Option<(&CalcValue, &Calculation)> {
         match self {
@@ -210,6 +250,8 @@ pub struct ValueDelta {
     tick: CalcTick,
     changes: Vec<ValueChange>,
     spill_changes: Vec<SpillChange>,
+    completion: Option<crate::contract::CompletionReceipt>,
+    events: Vec<crate::contract::CalcEvent>,
 }
 
 impl ValueDelta {
@@ -223,7 +265,28 @@ impl ValueDelta {
             tick,
             changes,
             spill_changes: Vec::new(),
+            completion: None,
+            events: Vec::new(),
         }
+    }
+
+    pub(crate) fn with_events(mut self, events: Vec<crate::contract::CalcEvent>) -> Self {
+        self.events = events;
+        self
+    }
+    pub fn events(&self) -> &[crate::contract::CalcEvent] {
+        &self.events
+    }
+
+    pub(crate) fn with_completion(
+        mut self,
+        completion: crate::contract::CompletionReceipt,
+    ) -> Self {
+        self.completion = Some(completion);
+        self
+    }
+    pub fn completion(&self) -> Option<&crate::contract::CompletionReceipt> {
+        self.completion.as_ref()
     }
 
     pub(crate) fn with_spill_changes(self, spill_changes: Vec<SpillChange>) -> Self {

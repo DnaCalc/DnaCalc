@@ -1,4 +1,4 @@
-//! Tile wire v1: little-endian header and address/index records, preceded by a bounded JSON
+//! Tile wire v2: little-endian header and address/index records, preceded by a bounded JSON
 //! dictionary of presentation atoms and geometry. Controls use the separate JSON envelope.
 //! Dictionaries never reference a previous fragment, so reset does not leave dangling ids.
 use crate::{decode, encode};
@@ -6,8 +6,8 @@ use dna_calc_model::projection::{Cell, Geometry, Key, Sheet};
 pub use dna_calc_model::tiles::*;
 use std::collections::BTreeMap;
 
-pub const TILE_TAG: &str = "dnacalc-tiles-v1";
-const MAGIC: &[u8; 8] = b"DNATILE1";
+pub const TILE_TAG: &str = "dnacalc-tiles-v2";
+const MAGIC: &[u8; 8] = b"DNATILE2";
 
 pub fn encode_tiles(batch: &TileBatch) -> Result<Vec<u8>, String> {
     if batch.cells.len() + batch.removed.len() > MAX_TILE_RECORDS
@@ -29,6 +29,12 @@ pub fn encode_tiles(batch: &TileBatch) -> Result<Vec<u8>, String> {
         s.dictionary,
     ] {
         out.extend_from_slice(&n.to_le_bytes());
+    }
+    out.push(u8::from(s.calculation_through.is_some()));
+    if let Some(unit) = s.calculation_through {
+        for n in [unit.domain, unit.command, unit.sequence] {
+            out.extend_from_slice(&n.to_le_bytes());
+        }
     }
     out.extend_from_slice(&batch.fragment.to_le_bytes());
     out.push(u8::from(s.reset) | (u8::from(batch.final_fragment) << 1));
@@ -121,6 +127,7 @@ pub fn decode_tiles(bytes: &[u8]) -> Result<TileBatch, String> {
         return Err("Unknown tile wire version".into());
     }
     let mut stamp = TileStamp {
+        calculation_through: None,
         id: r.u64()?,
         workbook: r.u64()?,
         transaction: r.u64()?,
@@ -131,6 +138,15 @@ pub fn decode_tiles(bytes: &[u8]) -> Result<TileBatch, String> {
         style_version: r.u64()?,
         dictionary: r.u64()?,
         reset: false,
+    };
+    stamp.calculation_through = match r.take(1)?[0] {
+        0 => None,
+        1 => Some(crate::Publication {
+            domain: r.u64()?,
+            command: r.u64()?,
+            sequence: r.u64()?,
+        }),
+        _ => return Err("Unknown calculation publication marker".into()),
     };
     let fragment = r.u32()?;
     let flags = r.take(1)?[0];
@@ -202,6 +218,7 @@ mod tests {
         second.at.2 = 2;
         TileBatch {
             stamp: TileStamp {
+                calculation_through: None,
                 id: 7,
                 workbook: 8,
                 transaction: u64::MAX,
@@ -233,7 +250,7 @@ mod tests {
         let bytes = encode_tiles(&batch).unwrap();
         assert_eq!(decode_tiles(&bytes), Ok(batch));
         // Fixed header then one dictionary atom shared by the two address records.
-        assert_eq!(u32::from_le_bytes(bytes[85..89].try_into().unwrap()), 1);
+        assert_eq!(u32::from_le_bytes(bytes[86..90].try_into().unwrap()), 1);
         assert!(bytes.starts_with(MAGIC));
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -247,15 +264,15 @@ mod tests {
         bad[0] = 0;
         assert!(decode_tiles(&bad).is_err());
         let mut bad = bytes.clone();
-        bad[84] = 4;
+        bad[85] = 4;
         assert!(decode_tiles(&bad).is_err());
         let mut bad = bytes.clone();
-        bad[85..89].copy_from_slice(&u32::MAX.to_le_bytes());
+        bad[86..90].copy_from_slice(&u32::MAX.to_le_bytes());
         assert!(decode_tiles(&bad).is_err());
         let mut bad = bytes.clone();
         bad.push(0);
         assert!(decode_tiles(&bad).is_err());
-        let mut r = Reader(&bytes[85..]);
+        let mut r = Reader(&bytes[86..]);
         let atoms = r.u32().unwrap();
         for _ in 0..atoms {
             r.text().unwrap();
@@ -268,6 +285,21 @@ mod tests {
         assert!(decode_tiles(&bad).is_err());
         let mut bad = bytes.clone();
         bad[start + 12..start + 16].copy_from_slice(&0u32.to_le_bytes());
+        assert!(decode_tiles(&bad).is_err());
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn calculation_publication_survives_the_binary_tile_route() {
+        let mut batch = sample();
+        batch.stamp.calculation_through = Some(crate::Publication {
+            domain: u64::MAX - 1,
+            command: u64::MAX - 2,
+            sequence: 7,
+        });
+        let bytes = encode_tiles(&batch).unwrap();
+        assert_eq!(decode_tiles(&bytes), Ok(batch));
+        let mut bad = bytes;
+        bad[80] = 2;
         assert!(decode_tiles(&bad).is_err());
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]

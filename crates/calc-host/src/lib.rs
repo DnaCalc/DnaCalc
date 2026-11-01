@@ -125,6 +125,12 @@ pub use calc_fml::reference::CellRun;
 pub use calc_fml::reference::TextReference as ReferenceTarget;
 
 mod presentation_commands;
+pub use calc_engine::{
+    AdmissionReceipt, CalcCommandId, CalcEvent, CalcPassId, CalcScope, CompletionReceipt,
+    EvalSelection, ResultStamp,
+};
 pub use presentation_commands::{
     AUTOFIT_CELLS, autofit_cells, can_edit, prepare_notebook_link, prepare_notebook_order,
 };
+
+pub use calc_engine::contract::CompletionOutcome;

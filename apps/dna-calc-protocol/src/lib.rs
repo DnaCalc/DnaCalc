@@ -48,6 +48,7 @@ mod tests {
             error_meaning: None,
         };
         let stamp = TileStamp {
+            calculation_through: None,
             id: 1,
             workbook: 0,
             transaction: 2,

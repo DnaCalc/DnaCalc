@@ -73,6 +73,7 @@
 //! at OxCalc commit 1bd514ef, rewritten on this engine's one graph; OxCalc's own reference
 //! language and consumer layer are left behind.
 
+use crate::contract::*;
 use crate::graph::{AxisInterval, Prerequisite};
 use crate::random::RandomStream;
 use crate::read::{
@@ -96,7 +97,7 @@ use calc_fml::{
     FormulaEvaluationContext, FormulaForm, FormulaInstance, ResolvedReference, compile_loaded_with,
     evaluate, instantiate, parse_formula,
 };
-use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode};
+use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode, SheetId};
 use std::cell::{Cell, RefCell};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, VecDeque};
@@ -112,6 +113,10 @@ const MAX_WAVES: u32 = 32;
 /// nothing; its pending nodes stay pending.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StartError {
+    /// An exact scope is empty or names a sheet outside the workbook.
+    InvalidScope { sheet: Option<SheetId> },
+    /// The caller must transform the admitted scope after moving worksheet addresses.
+    ScopeTransformRequired,
     /// The input snapshot is not at the engine state's revision.
     StaleInputs {
         engine: AuthoredRevision,
@@ -131,6 +136,15 @@ pub enum StartError {
 impl fmt::Display for StartError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            StartError::ScopeTransformRequired => {
+                f.write_str("the scoped successor needs an address transform (dc-hsa5)")
+            }
+            StartError::InvalidScope { sheet: None } => {
+                f.write_str("the calculation scope contains no areas")
+            }
+            StartError::InvalidScope { sheet: Some(sheet) } => {
+                write!(f, "the calculation scope names an unknown sheet {sheet:?}")
+            }
             StartError::StaleInputs { engine, inputs } => write!(
                 f,
                 "the input snapshot is at revision {}, the engine state at {}",
@@ -161,18 +175,34 @@ pub enum RecalcFailure {
     /// ([`ReadObserver::observe`]), or the reads broke CalcFml's reader contract, which the
     /// engine's own reader keeps. This is a failure of the recalculation, not a result of the
     /// formula.
-    ReadFailed { formula: CellKey, area: GridArea },
+    ReadFailed {
+        formula: CellKey,
+        area: GridArea,
+    },
     /// The evaluation of the formula at `formula` read the formula cell `cell`, which one of
     /// the formula's own placed references names and which this recalculation calculates, had
     /// not yet evaluated and was not waiting for another cell: the order missed an edge of the
     /// graph. Its old value was not handed out. A cell read through a reference the evaluation
     /// computed is waited for instead ([`step`]).
-    UnscheduledRead { formula: CellKey, cell: CellKey },
+    UnscheduledRead {
+        formula: CellKey,
+        cell: CellKey,
+    },
     /// The engine state or the input snapshot is no longer at the revision the recalculation
     /// began on (`revision`), or another recalculation published after it began.
-    Superseded { revision: AuthoredRevision },
+    Superseded {
+        revision: AuthoredRevision,
+    },
     /// [`finish`] was called while `remaining` nodes were still to be evaluated.
-    Incomplete { remaining: usize },
+    Incomplete {
+        remaining: usize,
+    },
+    InvalidCertificate {
+        at: CellKey,
+    },
+    ScopeViolation {
+        at: CellKey,
+    },
 }
 
 impl fmt::Display for RecalcFailure {
@@ -191,6 +221,13 @@ impl fmt::Display for RecalcFailure {
                 "the recalculation began on revision {}, and the state or its inputs have changed since",
                 revision.get()
             ),
+            RecalcFailure::ScopeViolation { at } => write!(
+                f,
+                "the target {at:?} is outside the admitted calculation scope"
+            ),
+            RecalcFailure::InvalidCertificate { at } => {
+                write!(f, "the read certificate for {at:?} no longer validates")
+            }
             RecalcFailure::Incomplete { remaining } => {
                 write!(f, "{remaining} nodes were still to be evaluated")
             }
@@ -278,8 +315,17 @@ impl<T> BySlot<T> {
 /// moved on since [`begin_recalc`].
 #[derive(Debug)]
 pub struct RecalcWork {
+    admission: AdmissionReceipt,
+    pass: CalcPassId,
+    requirements: BTreeMap<NodeId, RequirementState>,
+    facts_version: u64,
+    events: Vec<CalcEvent>,
+    reused: usize,
+    repairing_certificates: bool,
+    invalidated_outside: BTreeSet<NodeId>,
     revision: AuthoredRevision,
     generation: u64,
+    coordinates: u64,
     calculation: Calculation,
     environment: Option<calc_fml::CalcEnvironment>,
     random_seed: u64,
@@ -332,6 +378,10 @@ pub(crate) struct EvalLocal {
     scratch: EvalScratch,
     footprint: Vec<GridArea>,
     fact_reads: Vec<calc_fml::FactRead>,
+    value_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
+    blank_reads: Vec<(GridArea, BlankRun)>,
+    current_node: Cell<Option<NodeId>>,
+    boundary_read: Cell<Option<calc_fml::ReadDenial>>,
     read_batch: Vec<CalcValue>,
     kept_read: Cell<bool>,
 }
@@ -342,6 +392,11 @@ pub(crate) struct EvalLocal {
 /// for each evaluation of a one-thread recalculation, and for each level of a parallel one, when
 /// all of it is only read.
 pub(crate) struct EvalShared<'a> {
+    pass: CalcPassId,
+    requirements: &'a BTreeMap<NodeId, RequirementState>,
+    facts_version: u64,
+    volatile_inputs: u64,
+    scope: &'a CalcScope,
     pub(crate) calculation: &'a Calculation,
     pub(crate) environment: Option<calc_fml::CalcEnvironment>,
     pub(crate) random_seed: u64,
@@ -369,6 +424,9 @@ impl<'a> EvalShared<'a> {
             progress: self.progress,
             spills: self.spills,
             workbook_facts: self.workbook_facts,
+            caller: local.current_node.get(),
+            scope: Some(self.scope),
+            boundary: Some(&local.boundary_read),
             iterates: self.iterates,
             kept: self.kept.map(|kept| (kept, &local.kept_read)),
         }
@@ -380,6 +438,11 @@ impl<'a> EvalShared<'a> {
 macro_rules! shared_of {
     ($work:expr) => {
         EvalShared {
+            pass: $work.pass,
+            requirements: &$work.requirements,
+            facts_version: $work.facts_version,
+            volatile_inputs: $work.volatile_input_version,
+            scope: &$work.admission.scope,
             calculation: &$work.calculation,
             environment: $work.environment,
             random_seed: $work.random_seed,
@@ -396,6 +459,95 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
+    pub fn admission_pending(&self) -> bool {
+        self.events.iter().any(|event|matches!(event,CalcEvent::Admitted(receipt) if receipt.command==self.admission.command))
+    }
+    /// Correlates admission with the accepted host command before it is emitted.
+    pub fn with_source(mut self, source: CommandId) -> Self {
+        assert!(
+            self.admission_pending(),
+            "an emitted admission is immutable"
+        );
+        self.admission.source = source;
+        for event in &mut self.events {
+            if let CalcEvent::Admitted(receipt) = event {
+                if receipt.command == self.admission.command {
+                    receipt.source = source;
+                }
+            }
+        }
+        self
+    }
+    pub fn admission(&self) -> &AdmissionReceipt {
+        &self.admission
+    }
+    pub fn pass(&self) -> CalcPassId {
+        self.pass
+    }
+    pub fn reused(&self) -> usize {
+        self.reused
+    }
+    pub fn take_events(&mut self) -> Vec<CalcEvent> {
+        std::mem::take(&mut self.events)
+    }
+    /// A candidate is unpublished work; reading it does not turn it into an application value.
+    pub fn candidate(&self, node: NodeId) -> Option<&FormulaResult> {
+        self.progress.staged(node)
+    }
+
+    fn open_pass(&mut self, reason: PassReason) {
+        self.pass = CalcPassId {
+            command: self.pass.command,
+            ordinal: self
+                .pass
+                .ordinal
+                .checked_add(1)
+                .expect("pass ordinal exhausted"),
+            reason,
+        };
+    }
+    fn coverage(&self) -> ScopeCoverage {
+        let mut coverage = ScopeCoverage {
+            required: self.progress.scheduled(),
+            ..ScopeCoverage::default()
+        };
+        for (_, result) in self.progress.staged_results() {
+            match result {
+                FormulaResult::Calculated { calculation, .. }
+                    if calculation.held_by_circular_rule() =>
+                {
+                    coverage.held += 1
+                }
+                FormulaResult::Calculated { .. } => {
+                    coverage.calculated += 1;
+                    if result.stamp().is_none_or(|stamp| {
+                        stamp.reads.legacy_boundary || stamp.reads.external_cache
+                    }) {
+                        coverage.uncertified += 1;
+                    }
+                }
+                _ => coverage.refused += 1,
+            }
+        }
+        coverage
+    }
+    pub fn completion(
+        &self,
+        outcome: CompletionOutcome,
+        results: ReadViewId,
+        after_publication: Option<PublicationUnitId>,
+    ) -> CompletionReceipt {
+        CompletionReceipt {
+            command: self.admission.command,
+            scope: self.admission.scope.clone(),
+            admitted: self.admission.admitted,
+            outcome,
+            coverage: self.coverage(),
+            results,
+            after_publication,
+        }
+    }
+
     /// The authored revision the recalculation calculates.
     pub fn revision(&self) -> AuthoredRevision {
         self.revision
@@ -494,6 +646,48 @@ pub fn begin_recalc(
     inputs: &ModelRoot,
     mode: NumericMode,
 ) -> Result<RecalcWork, StartError> {
+    begin_with_scope(
+        state,
+        inputs,
+        mode,
+        CalcScope::Workbook,
+        EvalSelection::DirtyAndVolatile,
+    )
+}
+
+/// Exact SliceV1 scope. Formula caches outside it are a named P02 refusal until the measured
+/// boundary-cache qualifications land. Authored constants outside the scope remain readable.
+pub fn begin_recalc_scoped(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    mode: NumericMode,
+    scope: CalcScope,
+    selection: EvalSelection,
+) -> Result<RecalcWork, StartError> {
+    begin_with_scope(state, inputs, mode, scope, selection)
+}
+
+fn begin_with_scope(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    mode: NumericMode,
+    scope: CalcScope,
+    requested_selection: EvalSelection,
+) -> Result<RecalcWork, StartError> {
+    let sheets: Vec<_> = match &scope {
+        CalcScope::Workbook => Vec::new(),
+        CalcScope::Sheet(sheet) => vec![*sheet],
+        CalcScope::Range(areas) if areas.is_empty() => {
+            return Err(StartError::InvalidScope { sheet: None });
+        }
+        CalcScope::Range(areas) => areas.iter().map(|area| area.sheet()).collect(),
+    };
+    if let Some(sheet) = sheets
+        .into_iter()
+        .find(|sheet| inputs.sheet_by_id(*sheet).is_none())
+    {
+        return Err(StartError::InvalidScope { sheet: Some(sheet) });
+    }
     let revision = state.revision();
     if inputs.revision() != revision {
         return Err(StartError::StaleInputs {
@@ -501,6 +695,36 @@ pub fn begin_recalc(
             inputs: inputs.revision(),
         });
     }
+    // Required versions are authoritative demand, including transitive invalidation that
+    // arrived before the next scheduler cut. A stale producer cannot remain unscheduled.
+    let empty = Progress::new(0);
+    let invalid: Vec<_> = state
+        .nodes()
+        .filter(|node| {
+            let requirement = state.contract.requirement(node.id());
+            requirement.required == requirement.satisfied
+                && state
+                    .results
+                    .of(node.id())
+                    .and_then(FormulaResult::stamp)
+                    .is_some_and(|stamp| {
+                        !certificate_valid(state, inputs, &empty, stamp, state.contract.facts)
+                    })
+        })
+        .map(|node| node.id())
+        .collect();
+    if !invalid.is_empty() {
+        state.contract.invalidate(invalid);
+    }
+    let required: Vec<_> = state
+        .nodes()
+        .filter(|node| {
+            let requirement = state.contract.requirement(node.id());
+            requirement.required != requirement.satisfied
+        })
+        .map(|node| node.id())
+        .collect();
+    let demanded: BTreeSet<_> = required.into_iter().collect();
     let mut unbound: Vec<(NodeId, CellKey, Option<&FormulaText>)> = Vec::new();
     for &node in &state.pending {
         if state.bindings.contains_key(&node) {
@@ -519,12 +743,69 @@ pub fn begin_recalc(
             None => bind_table_cell(state, inputs, node, at),
         }
     }
+    let facility_roots = std::mem::take(&mut state.contract.facility_roots);
+    for root in facility_roots {
+        let version = state.contract.requirement(root).required;
+        let members = dirty_closure(state, inputs, BTreeSet::from([root]), &|node| {
+            invalidation_areas(state, inputs, node)
+        })
+        .members()
+        .to_vec();
+        state.contract.require_at(members, version);
+    }
+    let volatile_roots: BTreeSet<_> = state
+        .volatile
+        .iter()
+        .copied()
+        .filter(|node| scope.contains(live_anchor(state, *node)))
+        .collect();
+    if !volatile_roots.is_empty() {
+        let members = dirty_closure(state, inputs, volatile_roots.clone(), &|node| {
+            invalidation_areas(state, inputs, node)
+        })
+        .members()
+        .to_vec();
+        state.contract.invalidate(members.iter().copied());
+        state.pending.extend(members);
+    }
+    if state
+        .published_mode
+        .as_ref()
+        .is_some_and(|published| *published != mode)
+    {
+        state.contract.invalidate(state.by_anchor.values().copied());
+        state.pending.extend(state.by_anchor.values().copied());
+    }
+    let selection = if std::mem::take(&mut state.contract.force_all) {
+        EvalSelection::ForceAll
+    } else {
+        requested_selection
+    };
+    let force_roots: BTreeSet<NodeId> = if selection == EvalSelection::ForceAll {
+        state
+            .nodes()
+            .filter(|node| scope.contains(node.anchor()))
+            .map(|node| node.id())
+            .collect()
+    } else {
+        BTreeSet::new()
+    };
+    if !force_roots.is_empty() {
+        let affected = dirty_closure(state, inputs, force_roots.clone(), &|node| {
+            invalidation_areas(state, inputs, node)
+        })
+        .members()
+        .to_vec();
+        state.contract.invalidate(affected.iter().copied());
+        state.pending.extend(affected);
+    }
     let iteration = inputs.definitions().iteration();
-    let roots = match &state.published_mode {
+    let mut roots = match &state.published_mode {
         Some(published) if *published != mode => state.by_anchor.values().copied().collect(),
         _ => {
             let mut roots = state.pending.clone();
-            roots.extend(state.volatile.iter().copied());
+            roots.extend(demanded.iter().copied());
+            roots.extend(volatile_roots.iter().copied());
             if state.tables_deferred {
                 // The table cells the recalculation would reach stay pending, for the
                 // recalculation that calculates tables.
@@ -555,12 +836,25 @@ pub fn begin_recalc(
             roots
         }
     };
+    roots.extend(force_roots);
+    roots = dirty_closure(state, inputs, roots, &|node| {
+        invalidation_areas(state, inputs, node)
+    })
+    .members()
+    .iter()
+    .copied()
+    .collect();
     let mut cache = std::mem::take(&mut state.readers_cache);
     cache.validate(state, inputs);
-    let Scheduled { order, cyclic } = schedule(state, inputs, roots, Some(&mut cache), &|node| {
+    let Scheduled {
+        mut order,
+        mut cyclic,
+    } = schedule(state, inputs, roots, Some(&mut cache), &|node| {
         published_areas(state, inputs, node)
     });
     state.readers_cache = cache;
+    order.retain(|node| scope.contains(live_anchor(state, *node)));
+    cyclic.retain(|node| scope.contains(live_anchor(state, *node)));
     let mut progress = Progress::new(state.nodes.len());
     for node in &order {
         progress.schedule(*node);
@@ -578,9 +872,42 @@ pub fn begin_recalc(
         .last_tick
         .checked_add(1)
         .expect("fewer than 2^64 recalculations begin in one engine state");
+    let command = CalcCommandId {
+        domain_incarnation: state.contract.workbook.document,
+        sequence: state.last_tick,
+    };
+    let pass = CalcPassId {
+        command,
+        ordinal: 0,
+        reason: PassReason::Initial,
+    };
+    let admission = AdmissionReceipt {
+        command,
+        source: CommandId {
+            client_session: command.domain_incarnation,
+            sequence: command.sequence,
+        },
+        pass,
+        scope,
+        selection,
+        admitted: AdmissionFrontier {
+            model: revision,
+            external_through: state.volatile_input_version,
+        },
+        predecessor: None,
+    };
     Ok(RecalcWork {
+        admission: admission.clone(),
+        pass,
+        requirements: state.contract.snapshot(),
+        facts_version: state.contract.facts,
+        events: vec![CalcEvent::Admitted(admission)],
+        reused: 0,
+        repairing_certificates: false,
+        invalidated_outside: BTreeSet::new(),
         revision,
         generation: state.generation,
+        coordinates: state.contract.coordinates,
         calculation: Calculation::new(revision, CalcTick::new(state.last_tick), mode),
         environment: state.environment(),
         random_seed: state.random_seed,
@@ -611,6 +938,168 @@ pub fn begin_recalc(
         work.add_cyclic(state, cyclic);
         work
     })
+}
+
+/// An edit opens a successor. Candidate reads are checked against the new requirements, not
+/// merely against cached values. Effects, volatiles and the legacy session boundaries are not
+/// eligible for this pure-result reuse path.
+///
+/// This entry keeps an exact scope's coordinates only across ordinary cell edits. After an
+/// address move, use `supersede_recalc_scoped` with the explicitly transformed scope. A caller
+/// expressing cut/move as replacement cell edits must also supply that transformed scope.
+pub fn supersede_recalc(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    previous: RecalcWork,
+    mode: NumericMode,
+) -> Result<RecalcWork, StartError> {
+    if !matches!(previous.admission.scope, CalcScope::Workbook)
+        && previous.coordinates != state.contract.coordinates
+    {
+        return Err(StartError::ScopeTransformRequired);
+    }
+    let scope = previous.admission.scope.clone();
+    let selection = previous.admission.selection;
+    supersede_recalc_scoped(state, inputs, previous, mode, scope, selection)
+}
+
+/// Replaces work with an explicitly requested scope/selection. SliceV1 salvages only dirty
+/// successors: an inherited or newly requested ForceAll evaluates its pure targets again.
+pub fn supersede_recalc_scoped(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    mut previous: RecalcWork,
+    mode: NumericMode,
+    scope: CalcScope,
+    selection: EvalSelection,
+) -> Result<RecalcWork, StartError> {
+    let predecessor = previous.admission.command;
+    let mut events = previous.take_events();
+    // A newly discovered dynamic read may not have been published into the graph yet.
+    // Its certificate still invalidates that candidate and the graph's existing readers.
+    let changed: BTreeSet<NodeId> = previous
+        .progress
+        .staged_results()
+        .filter_map(|(node, result)| {
+            let stamp = result.stamp()?;
+            (!certificate_valid(
+                state,
+                inputs,
+                &previous.progress,
+                stamp,
+                state.contract.facts,
+            ))
+            .then_some(node)
+        })
+        .filter(|node| state.node(*node).is_some())
+        .collect();
+    if !changed.is_empty() {
+        let affected = dirty_closure(state, inputs, changed, &|node| {
+            invalidation_areas(state, inputs, node)
+        })
+        .members()
+        .to_vec();
+        state.contract.invalidate(affected);
+    }
+    let mut next = begin_with_scope(state, inputs, mode, scope, selection)?;
+    next.admission.predecessor = Some(predecessor);
+    let terminal = previous.completion(
+        CompletionOutcome::Superseded {
+            by: next.admission.command,
+        },
+        ReadViewId(state.generation),
+        None,
+    );
+    events.push(CalcEvent::Superseded(terminal));
+    events.push(CalcEvent::Admitted(next.admission.clone()));
+    next.events = events;
+    let force = next.admission.selection == EvalSelection::ForceAll;
+    let mut candidates: BTreeMap<NodeId, FormulaResult> = std::mem::take(&mut previous.progress)
+        .into_staged()
+        .collect();
+    let mut ordered = previous.order.clone();
+    ordered.extend(
+        candidates
+            .keys()
+            .filter(|node| !previous.order.contains(node))
+            .copied(),
+    );
+    for node in ordered {
+        let Some(mut result) = candidates.remove(&node) else {
+            continue;
+        };
+        let Some(stamp) = result.stamp().cloned() else {
+            continue;
+        };
+        let at = stamp.target.locus;
+        let eligible = !force
+            && previous.failure.is_none()
+            && !previous.cyclic.contains(&node)
+            && next.progress.is_scheduled(node)
+            && !state.volatile.contains(&node)
+            && !stamp.reads.legacy_boundary
+            && result.calculated().is_some_and(|(_, calculation)| {
+                !calculation.held_by_circular_rule()
+                    && !calculation.reads_external_links()
+                    && calculation.mode() == next.calculation.mode()
+            })
+            && matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _)) if !instance.plan().has_user_calls());
+        let output_region = previous
+            .spills
+            .get(at)
+            .map(Spill::area)
+            .or_else(|| previous.blocked_spills.get(&at).copied());
+        let output_ok = output_region.is_none_or(|region| {
+            // Reuse does not choose a winner against another unresolved spill producer.
+            !state.bindings.iter().any(|(&other, binding)| {
+                other != node
+                    && next.progress.is_scheduled(other)
+                    && !next.progress.is_evaluated(other)
+                    && matches!(binding, Binding::Placed(_, ArrayRole::Spill))
+                    && state.node(other).is_some_and(|record| {
+                        record.anchor().sheet() == region.sheet()
+                            && record.anchor().row() <= region.last().row()
+                            && record.anchor().column() <= region.last().column()
+                    })
+            })
+        });
+        if !eligible
+            || !output_ok
+            || !certificate_valid(state, inputs, &next.progress, &stamp, next.facts_version)
+        {
+            next.events.push(CalcEvent::Rejected { at });
+            continue;
+        }
+        let computed_by = match &stamp.computed_by {
+            ComputationOrigin::Evaluated { root } => root.pass.command,
+            _ => {
+                next.events.push(CalcEvent::Rejected { at });
+                continue;
+            }
+        };
+        let mut certified = stamp;
+        certified.certification = FreshnessClaim {
+            command: next.admission.command,
+            pass: next.pass,
+            frontier: next.admission.admitted,
+            required: state.contract.requirement(node).required,
+        };
+        result.set_stamp(certified);
+        let done = Done {
+            result,
+            spill: previous.spills.get(at).cloned(),
+            blocked: previous.blocked_spills.get(&at).copied(),
+            dynamic: previous.dynamic.get(node).cloned().unwrap_or_default(),
+        };
+        stage(state, inputs, &mut next, node, done);
+        next.reused += 1;
+        next.events.push(CalcEvent::Reused {
+            at,
+            computed_by,
+            certified_for: next.admission.command,
+        });
+    }
+    Ok(next)
 }
 
 /// Evaluates up to `budget` of the recalculation's remaining nodes, each through CalcFml's
@@ -664,12 +1153,25 @@ pub fn step(
     let mut evaluations = 0;
     while work.failure.is_none() && evaluations < budget.evaluations {
         let Some(node) = next_node(state, inputs, work) else {
+            if queue_certificate_repairs(state, inputs, work) {
+                continue;
+            }
             break;
         };
         evaluations += 1;
         process(state, inputs, work, node, &mut *observer);
     }
-    work.progress()
+    if work.failure.is_none() && work.remaining() == 0 {
+        queue_certificate_repairs(state, inputs, work);
+    }
+    let progress = work.progress();
+    if let RecalcProgress::Pending { remaining } = progress {
+        work.events.push(CalcEvent::Yielded {
+            pass: work.pass,
+            remaining,
+        });
+    }
+    progress
 }
 
 /// Evaluates `node` on this thread and stages what it gives: a result, a formula a cycle leaves
@@ -1015,7 +1517,11 @@ mod parallel {
 /// since the last publication are removed, the evaluated nodes are no longer pending, and the
 /// published generation's numeric mode is the recalculation's. Returns what changed. A
 /// recalculation that failed, is incomplete, or was superseded publishes nothing.
-pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelta, RecalcFailure> {
+pub fn finish(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    mut work: RecalcWork,
+) -> Result<ValueDelta, RecalcFailure> {
     if let Some(failure) = work.failure {
         return Err(failure);
     }
@@ -1024,6 +1530,7 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         return Err(RecalcFailure::Incomplete { remaining });
     }
     if state.revision() != work.revision
+        || inputs.revision() != work.revision
         || state.generation != work.generation
         || state.environment != work.environment.map(Into::into)
     {
@@ -1031,10 +1538,47 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
             revision: work.revision,
         });
     }
+    for (_, result) in work.progress.staged_results() {
+        if let Some(stamp) = result.stamp() {
+            if !certificate_valid_at(
+                state,
+                inputs,
+                &work.progress,
+                stamp,
+                work.facts_version,
+                Some(&work.requirements),
+                work.volatile_input_version,
+            ) {
+                return Err(RecalcFailure::InvalidCertificate {
+                    at: stamp.target.locus,
+                });
+            }
+        }
+    }
+    let coverage = work.coverage();
+    let unit = PublicationUnitId {
+        command: work.admission.command,
+        sequence: 1,
+    };
+    let completion = work.completion(
+        if coverage.refused == 0 && coverage.held == 0 && coverage.uncertified == 0 {
+            CompletionOutcome::Complete
+        } else {
+            CompletionOutcome::Incomplete
+        },
+        ReadViewId(
+            state
+                .generation
+                .checked_add(1)
+                .expect("result view identity exhausted"),
+        ),
+        Some(unit),
+    );
     // Each change is of a distinct cell: a published node's anchor, or a retired anchor whose
     // published result no live node there replaced. They are sorted by cell at the end.
     let mut changes: Vec<(CellKey, ValueChange)> = Vec::with_capacity(work.progress.scheduled());
     let mut spill_changes = Vec::new();
+    let mut installed = Vec::new();
     let mut published = vec![false; state.nodes.len()];
     for (node, result) in std::mem::take(&mut work.progress).into_staged() {
         published[node.slot() as usize] = true;
@@ -1056,6 +1600,8 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         if let Some(extent) = work.blocked_spills.get(&at) {
             state.blocked_spills.insert(at, *extent);
         }
+        installed.push(node);
+        state.contract.satisfy(node, result.stamp(), work.pass);
         state.results.publish(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
     }
@@ -1063,10 +1609,11 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
     // is built anew from the nodes that stay, in node order, which builds it in one pass (dc-dxm),
     // rather than by removing the published nodes one at a time.
     let stays = |node: &NodeId| {
-        !published
-            .get(node.slot() as usize)
-            .copied()
-            .unwrap_or(false)
+        state.contract.requirement(*node).required != state.contract.requirement(*node).satisfied
+            || !published
+                .get(node.slot() as usize)
+                .copied()
+                .unwrap_or(false)
     };
     state.pending = std::mem::take(&mut state.pending)
         .into_iter()
@@ -1096,10 +1643,32 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         }
     }
     if !spill_changes.is_empty() {
-        state.spill_epoch += 1;
+        state.spill_epoch = state
+            .spill_epoch
+            .checked_add(1)
+            .expect("occupancy version exhausted");
+    }
+    for change in &spill_changes {
+        for area in change.before.iter().chain(change.after.iter()) {
+            state.contract.record_occupancy(*area, state.spill_epoch);
+        }
+    }
+    for node in installed {
+        if let Some(result) = state.results.of_mut(node) {
+            result.rebase_occupancy(|region| state.contract.occupancy(region));
+        }
+    }
+    if !work.invalidated_outside.is_empty() {
+        state
+            .contract
+            .invalidate(work.invalidated_outside.iter().copied());
+        state.pending.extend(work.invalidated_outside);
     }
     state.cycle_members = work.cyclic;
-    state.generation += 1;
+    state.generation = state
+        .generation
+        .checked_add(1)
+        .expect("result view identity exhausted");
     state.published_mode = Some(work.calculation.mode().clone());
     spill_changes.sort_by_key(|change| change.anchor);
     changes.sort_by_key(|(at, _)| *at);
@@ -1107,12 +1676,16 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         changes.windows(2).all(|pair| pair[0].0 != pair[1].0),
         "one change per cell"
     );
+    work.events.push(CalcEvent::Published(unit));
+    work.events.push(CalcEvent::Completed(completion.clone()));
     Ok(ValueDelta::new(
         work.revision,
         work.calculation.tick(),
         changes.into_iter().map(|(_, change)| change).collect(),
     )
-    .with_spill_changes(spill_changes))
+    .with_spill_changes(spill_changes)
+    .with_completion(completion)
+    .with_events(work.events))
 }
 
 pub(crate) fn live_anchor(state: &EngineState, node: NodeId) -> CellKey {
@@ -1353,6 +1926,30 @@ impl Closure {
 /// The dirty closure of `roots`: the roots and every node that reads the anchor of one, or a cell
 /// of one of the areas `areas` gives for it, directly or through other nodes, each with the
 /// nodes that read it. `inputs` is the snapshot at the state's revision.
+/// Unknown dynamic-array shapes may reach any currently blank cell southeast of the anchor.
+/// This widens invalidation/demand only; dependency ordering still uses actual graph edges.
+pub(crate) fn invalidation_areas(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    node: NodeId,
+) -> Vec<GridArea> {
+    let mut areas = published_areas(state, inputs, node);
+    let at = live_anchor(state, node);
+    if inputs
+        .definitions()
+        .array(at)
+        .is_some_and(|array| matches!(array.kind(), ArrayKind::Dynamic { .. }))
+    {
+        let end = CellKey::new(at.sheet(), calc_value::MAX_ROWS, calc_value::MAX_COLUMNS)
+            .expect("the grid corner");
+        let reach = GridArea::new(at, end).expect("a southeast area");
+        if !areas.contains(&reach) {
+            areas.push(reach);
+        }
+    }
+    areas
+}
+
 pub(crate) fn dirty_closure(
     state: &EngineState,
     inputs: &ModelRoot,
@@ -1943,6 +2540,7 @@ fn next_pass(work: &mut RecalcWork) -> bool {
     if work.passes >= work.iteration.max_iterations() || change < work.iteration.max_change() {
         return false;
     }
+    work.open_pass(PassReason::IterationSweep(work.passes));
     work.pass_start = work.iterates.clone();
     for node in &work.order {
         work.progress.schedule(*node);
@@ -1970,6 +2568,12 @@ fn change_between(before: Option<&CalcValue>, after: Option<&CalcValue>) -> f64 
 fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     let roots = std::mem::take(&mut work.rewave);
     work.waves += 1;
+    let reason = if std::mem::take(&mut work.repairing_certificates) {
+        PassReason::DependencyRepair
+    } else {
+        PassReason::SpillShape
+    };
+    work.open_pass(reason);
     let areas = |node: NodeId| -> Vec<GridArea> {
         match work.filled.get(node) {
             Some(filled) => filled.iter().copied().collect(),
@@ -1982,7 +2586,18 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
         Ok(schedule(state, inputs, roots.clone(), None, &areas))
     };
     match ordered {
-        Ok(Scheduled { order, cyclic }) => {
+        Ok(Scheduled {
+            mut order,
+            mut cyclic,
+        }) => {
+            work.invalidated_outside.extend(
+                order
+                    .iter()
+                    .copied()
+                    .filter(|node| !work.admission.scope.contains(live_anchor(state, *node))),
+            );
+            order.retain(|node| work.admission.scope.contains(live_anchor(state, *node)));
+            cyclic.retain(|node| work.admission.scope.contains(live_anchor(state, *node)));
             work.add_cyclic(state, cyclic);
             for node in &order {
                 let evaluated = work.progress.is_evaluated(*node);
@@ -2174,6 +2789,10 @@ fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
         work.spills.insert(spill);
     }
     work.filled.insert(node, after);
+    work.progress.footprints.remove(&node);
+    if let Some(area) = after {
+        work.progress.footprints.insert(node, area);
+    }
     if work.iteration.enabled() && work.cyclic.contains(&node) {
         let value = done.result.calculated().map(|(value, _)| value.clone());
         work.iterates.insert(node, value);
@@ -2186,7 +2805,22 @@ fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
             state.index.dependents_of_area(inputs, *area, &mut readers);
         }
         readers.remove(&node);
+        let outside: BTreeSet<_> = readers
+            .iter()
+            .copied()
+            .filter(|reader| !work.admission.scope.contains(live_anchor(state, *reader)))
+            .collect();
+        if !outside.is_empty() {
+            let affected = dirty_closure(state, inputs, outside, &|node| {
+                published_areas(state, inputs, node)
+            });
+            work.invalidated_outside
+                .extend(affected.members().iter().copied());
+        }
         for reader in readers {
+            if !work.admission.scope.contains(live_anchor(state, reader)) {
+                continue;
+            }
             if work.progress.is_evaluated(reader) || !work.progress.is_scheduled(reader) {
                 work.rewave.insert(reader);
             }
@@ -2218,11 +2852,17 @@ struct Observed<'l, 'o> {
     cells: &'l mut dyn ReferenceReader,
     footprint: &'l RefCell<Vec<GridArea>>,
     facts: &'l RefCell<Vec<calc_fml::FactRead>>,
+    value_reads: &'l RefCell<Vec<(calc_fml::ReadRequest, GridArea)>>,
+    blanks: &'l RefCell<Vec<(GridArea, BlankRun)>>,
     /// The area of the read the observer stopped.
     stopped: Option<GridArea>,
 }
 
 impl ReferenceReader for Observed<'_, '_> {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        self.cells.read_denial()
+    }
+
     fn read_fact(&mut self, fact: calc_fml::FactRead) {
         if let calc_fml::FactSubject::Cell(at) = fact.subject {
             self.footprint.borrow_mut().push(GridArea::cell(at));
@@ -2238,7 +2878,16 @@ impl ReferenceReader for Observed<'_, '_> {
     ) -> Result<calc_fml::reference::CellRead, calc_fml::reference::ReadContractError> {
         if self.silent && self.stopped.is_none() {
             self.footprint.borrow_mut().push(GridArea::cell(at));
-            return self.cells.read_cell(request, at);
+            self.value_reads
+                .borrow_mut()
+                .push((request, GridArea::cell(at)));
+            let read = self.cells.read_cell(request, at);
+            if matches!(read, Ok(calc_fml::reference::CellRead::Blank)) {
+                self.blanks
+                    .borrow_mut()
+                    .push((GridArea::cell(at), BlankRun { offset: 0, len: 1 }));
+            }
+            return read;
         }
         calc_fml::reference::read_cell_by_area(self, request, at)
     }
@@ -2255,8 +2904,23 @@ impl ReferenceReader for Observed<'_, '_> {
             return;
         }
         self.footprint.borrow_mut().push(area);
+        self.value_reads.borrow_mut().push((request, area));
         if self.silent {
-            self.cells.read_area(request, area, sink);
+            let blanks = &self.blanks;
+            let mut offset = 0;
+            self.cells.read_area(request, area, &mut |run| {
+                if matches!(run, CellRun::Blank(_)) {
+                    blanks.borrow_mut().push((
+                        area,
+                        BlankRun {
+                            offset,
+                            len: run.len(),
+                        },
+                    ));
+                }
+                offset += run.len();
+                sink(run)
+            });
             return;
         }
         let mut observer = self.observer.borrow_mut();
@@ -2264,6 +2928,15 @@ impl ReferenceReader for Observed<'_, '_> {
         let mut offset = 0u64;
         let mut stopped = false;
         self.cells.read_area(request, area, &mut |run| {
+            if matches!(run, CellRun::Blank(_)) {
+                self.blanks.borrow_mut().push((
+                    area,
+                    BlankRun {
+                        offset,
+                        len: run.len(),
+                    },
+                ));
+            }
             if observer.observe(formula, area, offset, run).is_break() {
                 stopped = true;
                 return ControlFlow::Break(());
@@ -2352,6 +3025,58 @@ struct Done {
     dynamic: Vec<Prerequisite>,
 }
 
+/// Only pure candidates may be semantically evaluated again after a producer/footprint
+/// changes. An effectful cone needs a continuation; it never re-enters through this path.
+fn queue_certificate_repairs(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    work: &mut RecalcWork,
+) -> bool {
+    if work.failure.is_some() {
+        return false;
+    }
+    let invalid: Vec<_> = work
+        .progress
+        .staged_results()
+        .filter_map(|(node, result)| {
+            let stamp = result.stamp()?;
+            (!certificate_valid_at(
+                state,
+                inputs,
+                &work.progress,
+                stamp,
+                work.facts_version,
+                Some(&work.requirements),
+                work.volatile_input_version,
+            ))
+            .then_some(node)
+        })
+        .collect();
+    if invalid.is_empty() {
+        return false;
+    }
+    let pure = invalid.iter().all(|node| {
+        matches!(state.bindings.get(node),
+        Some(Binding::Placed(instance, _)) if !instance.plan().has_user_calls())
+    });
+    if !pure || work.waves >= MAX_WAVES {
+        // A bounded unsupported topology is local to its targets. It cannot publish a
+        // provisional value, and cannot erase independently certified results in the command.
+        let refusal = NotModeled::Evaluation(EvalFault::NotModelled {
+            construct: "dependency or occupancy certificates that did not stabilize within the bounded recalculation",
+            owner: "dc-hsa5",
+        });
+        for node in invalid {
+            let done = refused(work, refusal.clone());
+            stage(state, inputs, work, node, done);
+        }
+        return !work.rewave.is_empty();
+    }
+    work.repairing_certificates = true;
+    work.rewave.extend(invalid);
+    true
+}
+
 /// Evaluates one scheduled node and gives what to stage, or the failure that stops the
 /// recalculation.
 fn evaluate_node(
@@ -2369,6 +3094,200 @@ fn evaluate_node(
 /// evaluation route, whether one thread runs the recalculation or several (dc-2m0). It writes
 /// nothing but `local`; staging what it gives is the caller's, in order.
 fn evaluate_with(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    shared: &EvalShared<'_>,
+    local: &mut EvalLocal,
+    node: NodeId,
+    observer: &mut dyn ReadObserver,
+) -> Result<Attempt, RecalcFailure> {
+    if !shared.scope.contains(live_anchor(state, node)) {
+        return Err(RecalcFailure::ScopeViolation {
+            at: live_anchor(state, node),
+        });
+    }
+    local.fact_reads.clear();
+    local.value_reads.clear();
+    local.blank_reads.clear();
+    local.boundary_read.set(None);
+    local.current_node.set(Some(node));
+    let attempt = evaluate_unstamped(state, inputs, shared, local, node, observer)?;
+    let Attempt::Done(mut done) = attempt else {
+        return Ok(attempt);
+    };
+    // Existing iteration and data-table execution keeps its own bounded legacy boundary.
+    // P14/P15 decide the remaining session certificates; no FreshFor claim is attached here.
+    if shared.iterates.is_some() || matches!(state.bindings.get(&node), Some(Binding::DataTable(_)))
+    {
+        return Ok(Attempt::Done(done));
+    }
+    let at = live_anchor(state, node);
+    let required = shared.requirements.get(&node).map_or(1, |r| r.required);
+    let mut reads = ReadCertificate {
+        external_cache: match &done.result {
+            FormulaResult::Calculated { calculation, .. }
+            | FormulaResult::NotModeled { calculation, .. } => calculation.reads_external_links(),
+            FormulaResult::FileCached(_) => false,
+        },
+        semantic_environment: state.contract.environment,
+        bindings: state.contract.bindings,
+        ..ReadCertificate::default()
+    };
+    for &(request, region) in &local.value_reads {
+        if reads
+            .dependencies
+            .iter()
+            .any(|read| read.region == region && read.request == request)
+        {
+            continue;
+        }
+        reads.dependencies.push(ReadSpan {
+            region,
+            request,
+            versions: span_versions_at(state, shared.progress, region, Some(shared.requirements)),
+        });
+    }
+    reads.legacy_boundary = reads
+        .dependencies
+        .iter()
+        .any(|read| read.versions.uncertified > 0);
+    for &read in &local.fact_reads {
+        reads.facts.push(FactStamp {
+            read,
+            version: fact_version(state, read, shared.facts_version),
+        });
+    }
+    if done.spill.as_ref().is_some_and(|spill| {
+        local
+            .blank_reads
+            .iter()
+            .any(|(read, blank)| blank.first_intersection(*read, spill.area()).is_some())
+    }) {
+        // Shape is now known: this output would occupy a blank its own evaluation consumed.
+        // P05 decides the Excel outcome; do not turn a prospective self-spill into a cached cycle.
+        if let FormulaResult::Calculated { calculation, .. } = &done.result {
+            done.result = FormulaResult::NotModeled {
+                calculation: calculation.clone(),
+                refusal: NotModeled::Evaluation(EvalFault::NotModelled {
+                    construct: "a spill occupying a blank it read (waiting for Excel P05)",
+                    owner: "dc-hsa5",
+                }),
+            };
+            done.spill = None;
+        }
+    }
+    for &(region, blank) in local
+        .blank_reads
+        .iter()
+        .filter(|_| matches!(done.result, FormulaResult::Calculated { .. }))
+    {
+        if let Some(proof) = reads
+            .absences
+            .iter_mut()
+            .find(|proof| proof.region == region && proof.kind == AbsenceKind::ReadBlank)
+        {
+            if !proof.blanks.contains(&blank) {
+                proof.blanks.push(blank);
+            }
+            continue;
+        }
+        reads.absences.push(AbsenceProof {
+            region,
+            kind: AbsenceKind::ReadBlank,
+            authored: state.contract.authored(region),
+            occupancy: state.contract.occupancy(region),
+            corridor: if producer_version_at(state, region, node, Some(shared.requirements)) == 0 {
+                0
+            } else {
+                state.contract.authored(absence_corridor(region))
+            },
+            producers: producer_version_at(state, region, node, Some(shared.requirements)),
+            pending_producers: producer_pending_at(
+                state,
+                inputs,
+                shared.progress,
+                region,
+                &[blank],
+                node,
+                Some(shared.requirements),
+            ),
+            blanks: vec![blank],
+        });
+    }
+    if let Some(region) = done.spill.as_ref().map(Spill::area).or(done.blocked) {
+        reads.absences.push(AbsenceProof {
+            region,
+            kind: AbsenceKind::SpillReservation,
+            authored: state.contract.authored(region),
+            occupancy: state.contract.occupancy(region),
+            corridor: state.contract.authored(region),
+            producers: producer_version_at(state, region, node, Some(shared.requirements)),
+            pending_producers: 0,
+            blanks: Vec::new(),
+        });
+    }
+    let binding = state.bindings.get(&node);
+    let origin = if matches!(binding, Some(Binding::Refused(_))) {
+        ComputationOrigin::EngineRefusal
+    } else {
+        ComputationOrigin::Evaluated {
+            root: InvocationId {
+                pass: shared.pass,
+                workbook: state.contract.workbook,
+                locus: at,
+                evaluation: 0,
+                call_site: 0,
+                occurrence: Vec::new(),
+                reason: match shared.pass.reason {
+                    PassReason::SpillShape => ReevaluationReason::SpillShapePass,
+                    PassReason::IterationSweep(_) => ReevaluationReason::IterationSweep,
+                    PassReason::Scenario(_) => ReevaluationReason::TableScenario,
+                    PassReason::DependencyRepair => ReevaluationReason::DependencyRepair,
+                    _ => ReevaluationReason::NewCommandDemand,
+                },
+            },
+        }
+    };
+    if state.volatile.contains(&node) {
+        reads.volatile_inputs = Some(shared.volatile_inputs);
+    }
+    let completion = match &done.result {
+        FormulaResult::Calculated { value, .. } if value.as_error().is_some() => {
+            TargetCompletion::WorksheetError
+        }
+        FormulaResult::Calculated { .. } => TargetCompletion::Value,
+        _ => TargetCompletion::EngineRefusal,
+    };
+    done.result.set_stamp(ResultStamp {
+        target: EvaluationTarget {
+            workbook: state.contract.workbook,
+            origin_revision: shared.calculation.revision(),
+            formula_generation: state.contract.generation(node),
+            node,
+            locus: at,
+        },
+        observed: ObservationFrontier {
+            model: shared.calculation.revision(),
+            results: ReadViewId(state.generation),
+            inputs: shared.volatile_inputs,
+        },
+        computed_by: origin,
+        reads,
+        certification: FreshnessClaim {
+            command: shared.pass.command,
+            pass: shared.pass,
+            frontier: AdmissionFrontier {
+                model: shared.calculation.revision(),
+                external_through: shared.volatile_inputs,
+            },
+            required,
+        },
+        completion,
+    });
+    Ok(Attempt::Done(done))
+}
+
+fn evaluate_unstamped(
     state: &EngineState,
     inputs: &ModelRoot,
     shared: &EvalShared<'_>,
@@ -2429,6 +3348,10 @@ fn evaluate_with(
     let uncomputed = Cell::new(None);
     let footprint = RefCell::new(std::mem::take(&mut local.footprint));
     let facts = RefCell::new(std::mem::take(&mut local.fact_reads));
+    let value_reads = RefCell::new(std::mem::take(&mut local.value_reads));
+    let blanks = RefCell::new(std::mem::take(&mut local.blank_reads));
+    value_reads.borrow_mut().clear();
+    blanks.borrow_mut().clear();
     facts.borrow_mut().clear();
     local.kept_read.set(false);
     let batch = std::mem::take(&mut local.read_batch);
@@ -2436,7 +3359,11 @@ fn evaluate_with(
     let view = shared.view(state, inputs, &*local);
     let mut cells = WorkbookReader::new(view, &uncomputed).with_batch(batch);
     let catalog = SnapshotCatalog(inputs);
-    let mut random = RandomStream::new(shared.random_seed, calculation.tick().get(), formula);
+    let mut random = RandomStream::new(
+        shared.random_seed ^ (u64::from(shared.pass.ordinal) << 32),
+        calculation.tick().get(),
+        formula,
+    );
     let silent = observer.is_silent();
     let observer = RefCell::new(observer);
     let (outcome, stopped) = {
@@ -2447,6 +3374,8 @@ fn evaluate_with(
             cells: &mut cells,
             footprint: &footprint,
             facts: &facts,
+            value_reads: &value_reads,
+            blanks: &blanks,
             stopped: None,
         };
         let instrument: &mut dyn EvaluationObserver = &mut Instrument {
@@ -2481,6 +3410,8 @@ fn evaluate_with(
     };
     local.read_batch = cells.into_batch();
     local.fact_reads = facts.into_inner();
+    local.value_reads = value_reads.into_inner();
+    local.blank_reads = blanks.into_inner();
     local.scratch = scratch;
     let kept_read = local.kept_read.get();
     if let Some(area) = stopped {
@@ -2491,7 +3422,9 @@ fn evaluate_with(
     if kept_read {
         return Ok(Attempt::Kept);
     }
-    if let Some((cell, on)) = uncomputed.get() {
+    if local.boundary_read.get().is_none()
+        && let Some((cell, on)) = uncomputed.get()
+    {
         // A formula cell one of the formula's own placed references names was ordered before it,
         // unless it waits itself or is on a cycle: the graph missed an edge.
         let named = instance

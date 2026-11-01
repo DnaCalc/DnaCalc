@@ -11,8 +11,161 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
+mod contract_support;
 #[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
 mod existing_wire_support;
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_scoped_address_moves_return_a_bounded_refusal() {
+    let mut book = session(&fixture());
+    let calc = sheet(book.host(), "Calc");
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    for (address, text) in [("Z1", "=1+1"), ("Z2", "=2+2"), ("Z3", "=3+3")] {
+        assert!(
+            book.dispatch(SkinIntent::EnterCell {
+                at: at(calc, address),
+                text: text.into()
+            })
+            .accepted()
+        );
+    }
+    let source = GridArea::new(at(calc, "Z1"), at(calc, "Z3")).unwrap();
+    book.set_calculation_budget(WorkBudget::evaluations(1));
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![source]
+        })
+        .accepted()
+    );
+    assert!(book.has_pending_calculation());
+    let revision = book.host().revision();
+    let depth = book.history_depth();
+    let edit = AxisEdit::new(calc, Axis::Rows, AxisChange::Insert, 1, 1).unwrap();
+    assert!(matches!(
+        book.dispatch(SkinIntent::EditAxis(edit)).error,
+        Some(IntentError::Command(
+            calc_host::CommandError::ScopeTransformNotModeled
+        ))
+    ));
+    assert!(matches!(
+        book.dispatch(SkinIntent::Copy {
+            from: source,
+            to: GridArea::cell(at(calc, "AA1")),
+            cut: true
+        })
+        .error,
+        Some(IntentError::Copy(
+            calc_host::CopyRefusal::ScopeTransformNotModeled
+        ))
+    ));
+    assert!(matches!(
+        book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::ShiftCells {
+                area: source,
+                down: true,
+                insert: true
+            }
+        ))
+        .error,
+        Some(IntentError::Command(
+            calc_host::CommandError::ScopeTransformNotModeled
+        ))
+    ));
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), depth);
+    for _ in 0..16 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
+    assert!(!book.has_pending_calculation());
+    for (address, value) in [("Z1", 2.0), ("Z2", 4.0), ("Z3", 6.0)] {
+        assert_eq!(
+            calculated(book.host(), at(calc, address)),
+            Some(CalcValue::number(value))
+        );
+    }
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(edit)).accepted(),
+        "the bound ends with the scoped calculation"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_cancel_is_terminal_and_advance_creates_no_history() {
+    use calc_engine::contract::{CalcEvent, CompletionOutcome};
+    let mut book = session(&fixture());
+    let calc = sheet(book.host(), "Calc");
+    book.take_calculation_events();
+    book.set_calculation_budget(WorkBudget::evaluations(1));
+    let receipt = book.dispatch(SkinIntent::Edit {
+        edits: vec![
+            CellEdit::Set {
+                at: at(calc, "Z1"),
+                input: formula("2+1"),
+            },
+            CellEdit::Set {
+                at: at(calc, "Z2"),
+                input: formula("Z1*2"),
+            },
+            CellEdit::Set {
+                at: at(calc, "Z3"),
+                input: formula("Z2*2"),
+            },
+        ],
+    });
+    assert!(receipt.accepted());
+    assert!(book.has_pending_calculation());
+    let events = book.take_calculation_events();
+    let admission = events
+        .iter()
+        .find_map(|event| {
+            if let CalcEvent::Admitted(receipt) = event {
+                Some(receipt)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(admission.source.sequence, receipt.seq);
+    let source = admission.source;
+    let command = admission.command;
+    let history = book.intent_log().len();
+    let revision = book.host().revision();
+    book.cancel_calculation();
+    assert!(!book.has_pending_calculation());
+    let terminal = book.take_calculation_events();
+    assert_eq!(terminal.iter().filter(|event| matches!(event,CalcEvent::Completed(receipt)
+        if receipt.command==command && receipt.outcome==CompletionOutcome::Cancelled && receipt.after_publication.is_none())).count(),1);
+    assert_eq!(book.advance_calculation(), HostProgress::Cancelled);
+    assert_eq!(book.advance_calculation(), HostProgress::Cancelled);
+    assert!(book.take_calculation_events().is_empty());
+    assert_eq!(book.intent_log().len(), history);
+    assert_eq!(book.host().revision(), revision);
+    book.dispatch(SkinIntent::Recalculate);
+    for _ in 0..256 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
+    assert!(!book.has_pending_calculation());
+    assert_eq!(
+        calculated(book.host(), at(calc, "Z3")),
+        Some(CalcValue::number(12.0))
+    );
+    assert!(
+        !book
+            .take_calculation_events()
+            .iter()
+            .any(|event| matches!(event,CalcEvent::Completed(receipt)
+        if receipt.command==command && receipt.outcome==CompletionOutcome::Complete))
+    );
+    assert_ne!(source.sequence, 0);
+}
 
 use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea, SheetId};
 use calc_host::{
@@ -33,33 +186,54 @@ use std::sync::Arc;
 fn dc_snz_14__host_save_preserves_unchanged_xlsb_and_refuses_edits() {
     let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/collision.xlsb");
     let mut host = open(bytes);
-    let policy = SavePolicy { format: calc_host::SaveFormat::Xlsb, ..Default::default() };
+    let policy = SavePolicy {
+        format: calc_host::SaveFormat::Xlsb,
+        ..Default::default()
+    };
     let mut saved = Vec::new();
     let receipt = save(&host, &policy, &mut saved).unwrap();
     let archive = existing_wire_support::parse_zip(&saved);
-    assert!(archive.entries.iter().any(|entry| entry.name == "xl/workbook.bin"));
+    assert!(
+        archive
+            .entries
+            .iter()
+            .any(|entry| entry.name == "xl/workbook.bin")
+    );
     assert_eq!(receipt.parts_written, 0);
     assert_eq!(receipt.values_written, 0);
     let id = sheet(&host, "Cases");
-    edit(&mut host, vec![CellEdit::Set {
-        at: CellKey::new(id, 50, 4).unwrap(), input: number(7.0),
-    }]);
+    edit(
+        &mut host,
+        vec![CellEdit::Set {
+            at: CellKey::new(id, 50, 4).unwrap(),
+            input: number(7.0),
+        }],
+    );
     let mut rejected = Vec::new();
-    assert!(matches!(save(&host, &policy, &mut rejected), Err(calc_host::SaveFailed::Refused(
-        calc_host::SaveRefusal::BinaryChangesNotModelled { owner: "dc-snz.14" }))));
+    assert!(matches!(
+        save(&host, &policy, &mut rejected),
+        Err(calc_host::SaveFailed::Refused(
+            calc_host::SaveRefusal::BinaryChangesNotModelled { owner: "dc-snz.14" }
+        ))
+    ));
     assert!(rejected.is_empty());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_snz_15__project_reading_leaves_host_file_caches_unexecuted() {
-    let source = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/disabled-resaved.xlsm");
+    let source =
+        include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/disabled-resaved.xlsm");
     let host = open(source);
     let id = host.sheets()[0].id();
     let call = at(id, "B1");
     let before = value(&host, call);
     assert!(matches!(before, ProjectedValue::FileCached(_)));
-    let project = host.loaded().read_vba_project(&calc_host::VbaReadPolicy::default()).unwrap().unwrap();
+    let project = host
+        .loaded()
+        .read_vba_project(&calc_host::VbaReadPolicy::default())
+        .unwrap()
+        .unwrap();
     assert_eq!(project.code_page, 1252);
     assert_eq!(project.modules.len(), 4);
     assert_eq!(value(&host, call), before);
@@ -324,38 +498,127 @@ fn dc_971p_22__typed_workbook_commands_keep_history_and_replay() {
         receipt
     };
     assert!(enter(&mut book, at, "42").accepted());
-    apply(&mut book, C::Sheet { sheet: None, change: SheetChange::Add { name: "Second".into() } });
+    apply(
+        &mut book,
+        C::Sheet {
+            sheet: None,
+            change: SheetChange::Add {
+                name: "Second".into(),
+            },
+        },
+    );
     let allocated = book.host().sheets()[1].key();
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    apply(&mut book, C::Sheet { sheet: None, change: SheetChange::Add { name: "Third".into() } });
-    assert_ne!(book.host().sheets()[1].key(), allocated, "undo must not recycle a sheet key");
-    apply(&mut book, C::AxisFormat { sheet, rows: true, first: 1, count: 2, size_bits: Some(30f64.to_bits()), hidden: None });
-    assert_eq!(book.host().model().definitions().axis_layouts().get(sheet, Axis::Rows, 2).size(), Some(30.0));
-    apply(&mut book, C::FreezePanes { sheet, rows: 2, columns: 1 });
-    assert_eq!(book.host().model().definitions().frozen_panes(sheet), calc_host::FrozenPanes::new(2, 1));
+    apply(
+        &mut book,
+        C::Sheet {
+            sheet: None,
+            change: SheetChange::Add {
+                name: "Third".into(),
+            },
+        },
+    );
+    assert_ne!(
+        book.host().sheets()[1].key(),
+        allocated,
+        "undo must not recycle a sheet key"
+    );
+    apply(
+        &mut book,
+        C::AxisFormat {
+            sheet,
+            rows: true,
+            first: 1,
+            count: 2,
+            size_bits: Some(30f64.to_bits()),
+            hidden: None,
+        },
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(sheet, Axis::Rows, 2)
+            .size(),
+        Some(30.0)
+    );
+    apply(
+        &mut book,
+        C::FreezePanes {
+            sheet,
+            rows: 2,
+            columns: 1,
+        },
+    );
+    assert_eq!(
+        book.host().model().definitions().frozen_panes(sheet),
+        calc_host::FrozenPanes::new(2, 1)
+    );
     let revision = book.host().revision().get();
-    apply(&mut book, C::Conditional { sheet, revision, index: None, change: ConditionalChange::Add { kind: "colorScale".into(), applies: "A1:A2".into(), color: "#FF0000".into() } });
-    assert_eq!(book.host().model().definitions().conditional_rules(sheet).len(), 1);
+    apply(
+        &mut book,
+        C::Conditional {
+            sheet,
+            revision,
+            index: None,
+            change: ConditionalChange::Add {
+                kind: "colorScale".into(),
+                applies: "A1:A2".into(),
+                color: "#FF0000".into(),
+            },
+        },
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .conditional_rules(sheet)
+            .len(),
+        1
+    );
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    assert!(book.host().model().definitions().conditional_rules(sheet).is_empty());
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .conditional_rules(sheet)
+            .is_empty()
+    );
     assert!(book.dispatch(SkinIntent::Redo).accepted());
     let before = (book.host().revision(), book.history_depth());
-    let refused = book.dispatch(SkinIntent::Command(C::FitContents { sheet, rows: true, revision: before.0.get(), sizes: vec![(1, 25f64.to_bits()), (2, f64::NAN.to_bits())] }));
+    let refused = book.dispatch(SkinIntent::Command(C::FitContents {
+        sheet,
+        rows: true,
+        revision: before.0.get(),
+        sizes: vec![(1, 25f64.to_bits()), (2, f64::NAN.to_bits())],
+    }));
     assert!(!refused.accepted());
     assert_eq!((book.host().revision(), book.history_depth()), before);
-    assert_eq!(book.host().model().definitions().axis_layouts().get(sheet, Axis::Rows, 1).size(), Some(30.0));
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(sheet, Axis::Rows, 1)
+            .size(),
+        Some(30.0)
+    );
     let mut twin = session(&bytes);
     let replayed = replay(book.intent_log(), &mut twin);
     assert!(replayed.mismatches.is_empty(), "{replayed:?}");
     assert_eq!(book.host().sheets(), twin.host().sheets());
-    assert_eq!(book.host().model().definitions().conditional_rules(sheet), twin.host().model().definitions().conditional_rules(sheet));
+    assert_eq!(
+        book.host().model().definitions().conditional_rules(sheet),
+        twin.host().model().definitions().conditional_rules(sheet)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_22__paste_and_replace_are_atomic_revision_bound_host_commands() {
-    use calc_host::{PasteMode, PasteSource, WorkbookCommand as C, prepare_paste};
     use calc_host::search::{SearchOptions, SearchScope};
+    use calc_host::{PasteMode, PasteSource, WorkbookCommand as C, prepare_paste};
     let bytes = calc_host::blank_package();
     let mut book = session(&bytes);
     let sheet = book.host().sheets()[0].id();
@@ -365,27 +628,59 @@ fn dc_971p_22__paste_and_replace_are_atomic_revision_bound_host_commands() {
     let stale = prepare_paste(book.host(), source(), GridArea::cell(a1), PasteMode::All).unwrap();
     let mut other = session(&bytes);
     assert_eq!(other.host().revision(), book.host().revision());
-    assert!(!other.dispatch(SkinIntent::Command(C::Paste(stale.clone()))).accepted());
+    assert!(
+        !other
+            .dispatch(SkinIntent::Command(C::Paste(stale.clone())))
+            .accepted()
+    );
     assert_eq!(other.history_depth(), (0, 0));
     assert_eq!(other.host().model().cell(a1), None);
     let mut refused_twin = session(&bytes);
-    assert!(replay(other.intent_log(), &mut refused_twin).mismatches.is_empty());
+    assert!(
+        replay(other.intent_log(), &mut refused_twin)
+            .mismatches
+            .is_empty()
+    );
     assert_eq!(refused_twin.host().model().cell(a1), None);
     assert!(replay(other.intent_log(), &mut book).mismatches.is_empty());
     assert_eq!(book.host().model().cell(a1), None);
     assert!(enter(&mut book, a1, "2").accepted());
     let before = (book.host().revision(), book.history_depth());
-    assert!(!book.dispatch(SkinIntent::Command(C::Paste(stale))).accepted());
+    assert!(
+        !book
+            .dispatch(SkinIntent::Command(C::Paste(stale)))
+            .accepted()
+    );
     assert_eq!((book.host().revision(), book.history_depth()), before);
     let plan = prepare_paste(book.host(), source(), GridArea::cell(a1), PasteMode::All).unwrap();
     assert_eq!(plan.target(), GridArea::new(a1, a2).unwrap());
     assert_eq!(plan.replaces(), 1);
-    assert!(book.dispatch(SkinIntent::Command(C::Paste(plan))).accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(plan)))
+            .accepted()
+    );
     assert_eq!(session_calculated(&book, a2), Some(CalcValue::number(5.0)));
-    let options = SearchOptions { sheet, areas: vec![GridArea::new(a1, a2).unwrap()], text: "A1".into(), case_sensitive: false, whole: false, wildcards: false, formulas: true, scope: SearchScope::Sheet };
+    let options = SearchOptions {
+        sheet,
+        areas: vec![GridArea::new(a1, a2).unwrap()],
+        text: "A1".into(),
+        case_sensitive: false,
+        whole: false,
+        wildcards: false,
+        formulas: true,
+        scope: SearchScope::Sheet,
+    };
     let revision = book.host().revision().get();
-    let replace = C::Replace { options, revision, only: None, replacement: "A1*2".into() };
-    assert!(book.dispatch(SkinIntent::Command(replace.clone())).accepted());
+    let replace = C::Replace {
+        options,
+        revision,
+        only: None,
+        replacement: "A1*2".into(),
+    };
+    assert!(
+        book.dispatch(SkinIntent::Command(replace.clone()))
+            .accepted()
+    );
     assert_eq!(session_calculated(&book, a2), Some(CalcValue::number(9.0)));
     let before = (book.host().revision(), book.history_depth());
     assert!(!book.dispatch(SkinIntent::Command(replace)).accepted());
@@ -832,7 +1127,12 @@ fn d2_session__the_intent_log_replays() {
             .unwrap()
             .cells()
             .iter()
-            .map(|cell| (cell.input().cloned(), format!("{:?}", cell.value())))
+            .map(|cell| {
+                (
+                    cell.input().cloned(),
+                    contract_support::comparable(cell.value()),
+                )
+            })
             .collect()
     };
     assert_eq!(values(replayed.host()), values(recorded.host()));
@@ -1501,7 +1801,13 @@ fn differential_run(
                     receipt.error
                 );
             }
-            oracle.dispatch(SkinIntent::Recalculate);
+            let fresh_receipt = oracle.dispatch(SkinIntent::Recalculate);
+            if let Some(HostProgress::Failed(failure)) = &fresh_receipt.recalc {
+                println!(
+                    "reference calculation failed for seed {seed} step {step}: {failure:?}; inputs {:?}",
+                    shown(&after)
+                );
+            }
             let expected = fresh_cells(oracle.host(), region);
             // Two dynamic arrays whose results would cover the same cells: the one that filled
             // them first keeps them and the other shows #SPILL! (the engine's rule, as Excel's,

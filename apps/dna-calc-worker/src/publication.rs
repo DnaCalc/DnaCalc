@@ -7,11 +7,13 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Default)]
 pub(crate) struct TileStream {
     pub revision: u64,
+    calculation_through: Option<crate::wire::Publication>,
     cells: BTreeMap<Key, Cell>,
     geometry: Vec<(Sheet, Geometry)>,
     pending: Option<Changes>,
     in_flight: Option<TileBarrier>,
     sequence: u64,
+    failed: bool,
 }
 struct Changes {
     reset: bool,
@@ -26,8 +28,13 @@ impl TileStream {
         removed: Vec<Key>,
         revision: u64,
         geometry: Vec<(Sheet, Geometry)>,
+        calculation: Option<crate::wire::Publication>,
     ) -> Result<(), String> {
+        if self.failed && !reset {
+            return Err("This projection needs a narrower subscription".into());
+        }
         if reset {
+            self.failed = false;
             self.cells.clear();
         }
         for at in &removed {
@@ -35,6 +42,9 @@ impl TileStream {
         }
         for cell in &cells {
             self.cells.insert(cell.at, cell.clone());
+        }
+        if calculation.is_some() {
+            self.calculation_through = calculation;
         }
         self.geometry = geometry;
         self.revision = revision;
@@ -52,6 +62,7 @@ impl TileStream {
             self.cells.clear();
             self.geometry.clear();
             self.pending = None;
+            self.failed = true;
             return Err("This projection exceeds the tile budget; narrow its visible area".into());
         }
         self.pending = Some(
@@ -90,12 +101,21 @@ impl TileStream {
         );
         Ok(())
     }
+    pub fn failed(&self) -> bool {
+        self.failed
+    }
+    pub fn has_pending(&self) -> bool {
+        self.pending.is_some()
+    }
     pub fn acknowledge(&mut self, barrier: TileBarrier) {
         if self.in_flight == Some(barrier) {
             self.in_flight = None;
         }
     }
     pub fn reset(&mut self) {
+        if self.failed {
+            return;
+        }
         self.in_flight = None;
         self.pending = Some(Changes {
             reset: true,
@@ -109,89 +129,100 @@ impl TileStream {
         workbook: u64,
         transaction: u64,
     ) -> Result<Vec<Event>, String> {
-        if self.in_flight.is_some() || self.pending.is_none() {
-            return Ok(Vec::new());
-        }
-        let changes = self.pending.take().unwrap();
-        let cells = if changes.reset {
-            self.cells.values().cloned().collect()
-        } else {
-            changes.cells
-        };
-        let stamp = TileStamp {
-            id,
-            workbook,
-            transaction,
-            base: self.sequence,
-            next: self
-                .sequence
-                .checked_add(1)
-                .ok_or("Tile sequence exhausted")?,
-            revision: self.revision,
-            geometry_version: self.revision,
-            style_version: self.revision,
-            dictionary: transaction,
-            reset: changes.reset,
-        };
-        let mut batch = TileBatch {
-            stamp,
-            fragment: 0,
-            final_fragment: false,
-            geometry: self.geometry.clone(),
-            cells: Vec::new(),
-            removed: Vec::new(),
-        };
-        let mut batches = Vec::new();
-        for (cell, removed) in cells
-            .into_iter()
-            .map(|c| (Some(c), None))
-            .chain(changes.removed.into_iter().map(|at| (None, Some(at))))
-        {
-            let cost = cell.as_ref().map_or(16, Cell::retained_bytes);
-            if batch.cells.len() + batch.removed.len() >= MAX_TILE_RECORDS
-                || batch.retained_bytes().saturating_add(cost) > MAX_TILE_BYTES
+        let result = (|| {
+            if self.in_flight.is_some() || self.pending.is_none() {
+                return Ok(Vec::new());
+            }
+            let changes = self.pending.take().unwrap();
+            let cells = if changes.reset {
+                self.cells.values().cloned().collect()
+            } else {
+                changes.cells
+            };
+            let stamp = TileStamp {
+                calculation_through: self.calculation_through,
+                id,
+                workbook,
+                transaction,
+                base: self.sequence,
+                next: self
+                    .sequence
+                    .checked_add(1)
+                    .ok_or("Tile sequence exhausted")?,
+                revision: self.revision,
+                geometry_version: self.revision,
+                style_version: self.revision,
+                dictionary: transaction,
+                reset: changes.reset,
+            };
+            let mut batch = TileBatch {
+                stamp,
+                fragment: 0,
+                final_fragment: false,
+                geometry: self.geometry.clone(),
+                cells: Vec::new(),
+                removed: Vec::new(),
+            };
+            let mut batches = Vec::new();
+            for (cell, removed) in cells
+                .into_iter()
+                .map(|c| (Some(c), None))
+                .chain(changes.removed.into_iter().map(|at| (None, Some(at))))
             {
-                if batch.cells.is_empty() && batch.removed.is_empty() && batch.geometry.is_empty() {
+                let cost = cell.as_ref().map_or(16, Cell::retained_bytes);
+                if batch.cells.len() + batch.removed.len() >= MAX_TILE_RECORDS
+                    || batch.retained_bytes().saturating_add(cost) > MAX_TILE_BYTES
+                {
+                    if batch.cells.is_empty()
+                        && batch.removed.is_empty()
+                        && batch.geometry.is_empty()
+                    {
+                        return Err("A cell exceeds the tile fragment budget".into());
+                    }
+                    let next_fragment = batch
+                        .fragment
+                        .checked_add(1)
+                        .ok_or("Tile fragment count exhausted")?;
+                    batches.push(batch);
+                    batch = TileBatch {
+                        stamp,
+                        fragment: next_fragment,
+                        final_fragment: false,
+                        geometry: Vec::new(),
+                        cells: Vec::new(),
+                        removed: Vec::new(),
+                    };
+                }
+                if let Some(cell) = cell {
+                    batch.cells.push(cell);
+                }
+                if let Some(at) = removed {
+                    batch.removed.push(at);
+                }
+                if batch.retained_bytes() > MAX_TILE_BYTES {
                     return Err("A cell exceeds the tile fragment budget".into());
                 }
-                let next_fragment = batch
-                    .fragment
-                    .checked_add(1)
-                    .ok_or("Tile fragment count exhausted")?;
-                batches.push(batch);
-                batch = TileBatch {
-                    stamp,
-                    fragment: next_fragment,
-                    final_fragment: false,
-                    geometry: Vec::new(),
-                    cells: Vec::new(),
-                    removed: Vec::new(),
-                };
-            }
-            if let Some(cell) = cell {
-                batch.cells.push(cell);
-            }
-            if let Some(at) = removed {
-                batch.removed.push(at);
             }
             if batch.retained_bytes() > MAX_TILE_BYTES {
-                return Err("A cell exceeds the tile fragment budget".into());
+                return Err("Sheet geometry exceeds the tile fragment budget".into());
             }
+            batch.final_fragment = true;
+            batches.push(batch);
+            // Validate every fragment before admitting any part of the transaction.
+            for batch in &batches {
+                crate::wire::encode_tiles(batch)?;
+            }
+            let mut events = vec![Event::TileAdmission(stamp)];
+            events.extend(batches.into_iter().map(Event::Tiles));
+            events.push(Event::TileCompletion(stamp.barrier()));
+            self.sequence = stamp.next;
+            self.in_flight = Some(stamp.barrier());
+            Ok(events)
+        })();
+        if result.is_err() {
+            self.failed = true;
+            self.pending = None;
         }
-        if batch.retained_bytes() > MAX_TILE_BYTES {
-            return Err("Sheet geometry exceeds the tile fragment budget".into());
-        }
-        batch.final_fragment = true;
-        batches.push(batch);
-        // Validate every fragment before admitting any part of the transaction.
-        for batch in &batches {
-            crate::wire::encode_tiles(batch)?;
-        }
-        let mut events = vec![Event::TileAdmission(stamp)];
-        events.extend(batches.into_iter().map(Event::Tiles));
-        events.push(Event::TileCompletion(stamp.barrier()));
-        self.sequence = stamp.next;
-        self.in_flight = Some(stamp.barrier());
-        Ok(events)
+        result
     }
 }

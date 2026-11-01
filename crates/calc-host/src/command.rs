@@ -116,7 +116,7 @@ pub struct CommandReceipt {
     changed_cells: Vec<CellKey>,
     cleared_areas: Vec<GridArea>,
     pending: Vec<CellKey>,
-    cancelled_recalc: Option<CalcTick>,
+    superseded_recalc: Option<CalcTick>,
 }
 
 impl CommandReceipt {
@@ -151,10 +151,10 @@ impl CommandReceipt {
         &self.pending
     }
 
-    /// The tick of the recalculation in progress that the commit cancelled: it was calculating
-    /// the revision before, so nothing it staged is published.
-    pub fn cancelled_recalc(&self) -> Option<CalcTick> {
-        self.cancelled_recalc
+    /// The predecessor calculation. Its pure candidates are checked by the successor; only
+    /// candidates whose read proofs still hold may be reused.
+    pub fn superseded_recalc(&self) -> Option<CalcTick> {
+        self.superseded_recalc
     }
 }
 
@@ -162,6 +162,8 @@ impl CommandReceipt {
 /// as they were before the command.
 #[derive(Debug, PartialEq, Eq)]
 pub enum CommandError {
+    /// Moving addresses of an active scoped command needs the scope transform (dc-hsa5).
+    ScopeTransformNotModeled,
     /// The command holds no edit, so it would make no change to commit.
     NoEdits,
     /// The command was prepared against another revision than the current one.
@@ -185,6 +187,9 @@ pub enum CommandError {
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            CommandError::ScopeTransformNotModeled => f.write_str(
+                "finish or cancel the scoped calculation before moving worksheet cells (dc-hsa5)",
+            ),
             CommandError::NoEdits => f.write_str("the command holds no edit"),
             CommandError::StaleBase { command, current } => write!(
                 f,
@@ -241,6 +246,14 @@ pub fn dispatch(
             command: command.base,
             current,
         });
+    }
+    if host.scoped_calculation_active()
+        && command
+            .edits
+            .iter()
+            .any(|edit| matches!(edit, CellEdit::Axis(_) | CellEdit::Sheet(_)))
+    {
+        return Err(CommandError::ScopeTransformNotModeled);
     }
     let batch = OpBatch {
         base: command.base,
@@ -435,7 +448,11 @@ pub fn dispatch(
 
     let committed = calc_engine::commit_edit(engine);
     host.model = document.into_model();
-    let cancelled_recalc = host.work.take().map(|work| work.tick());
+    host.calculation_cancelled = false;
+    host.calc_events.push(calc_engine::CalcEvent::Committed {
+        revision: host.model.revision(),
+    });
+    let superseded_recalc = host.work.as_ref().map(|work| work.tick());
     if changes_inputs
         || !axis_edits.is_empty()
         || sheet_edit
@@ -457,7 +474,7 @@ pub fn dispatch(
         changed_cells,
         cleared_areas,
         pending,
-        cancelled_recalc,
+        superseded_recalc,
     })
 }
 
@@ -465,12 +482,15 @@ pub fn dispatch(
 /// ([`calc_doc_model::ModelRoot::restored`]), with the engine state built afresh for it
 /// ([`calc_engine::EngineState::rebuilt`]: every formula pending, nothing published) and
 /// `axis_edits` as the axis edits since the workbook was opened that lead to it. This undoes an
-/// edit no batch inverts, a structural one. A recalculation in progress is cancelled.
+/// edit no batch inverts, a structural one. A recalculation in progress is superseded on its next step.
 pub(crate) fn restore(
     host: &mut HostState,
     earlier: &Arc<ModelRoot>,
     axis_edits: Vec<AxisEdit>,
 ) -> Result<CommandReceipt, CommandError> {
+    if host.scoped_calculation_active() {
+        return Err(CommandError::ScopeTransformNotModeled);
+    }
     let base = host.model.revision();
     let model = host
         .model
@@ -479,7 +499,11 @@ pub(crate) fn restore(
     let engine = host.engine.rebuilt(&model);
     host.model = model;
     host.engine = engine;
-    let cancelled_recalc = host.work.take().map(|work| work.tick());
+    host.calculation_cancelled = false;
+    host.calc_events.push(calc_engine::CalcEvent::Committed {
+        revision: host.model.revision(),
+    });
+    let superseded_recalc = host.work.as_ref().map(|work| work.tick());
     host.inputs_changed_since_open = true;
     host.axis_edits = axis_edits;
     let mut pending: Vec<CellKey> = host
@@ -494,6 +518,6 @@ pub(crate) fn restore(
         changed_cells: Vec::new(),
         cleared_areas: Vec::new(),
         pending,
-        cancelled_recalc,
+        superseded_recalc,
     })
 }

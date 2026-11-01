@@ -114,6 +114,9 @@ impl std::error::Error for PrepareError {}
 #[derive(Debug)]
 pub struct PreparedEngineChange<'s, 'r> {
     state: &'s mut EngineState,
+    invalidated: Vec<NodeId>,
+    regions: Vec<GridArea>,
+    schema_changed: bool,
     base: AuthoredRevision,
     next: AuthoredRevision,
     node_changes: Vec<NodeChange>,
@@ -215,7 +218,11 @@ pub fn prepare_edit<'s, 'r>(
         .ok_or(PrepareError::RevisionExhausted)?;
 
     if let Some(moves) = structural_moves(state, inputs, change)? {
+        let invalidated = state.nodes().map(|n| n.id()).collect();
         return Ok(PreparedEngineChange {
+            invalidated,
+            regions: Vec::new(),
+            schema_changed: true,
             state,
             base: change.base,
             next,
@@ -450,7 +457,55 @@ pub fn prepare_edit<'s, 'r>(
         .iter()
         .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_)))
         .then(|| state.nodes().map(|node| node.id()).collect());
+    let schema_changed = change.operations.iter().any(|op| {
+        matches!(
+            op,
+            WorkbookOp::SetNameFormula { .. } | WorkbookOp::SetIteration(_)
+        )
+    });
+    let regions = change
+        .operations
+        .iter()
+        .filter_map(|op| match op {
+            WorkbookOp::SetCell { at, .. } | WorkbookOp::SetFormat { at, .. } => {
+                Some(GridArea::cell(*at))
+            }
+            WorkbookOp::Clear { area } => Some(*area),
+            WorkbookOp::SetArray { array, .. } => Some(array.area()),
+            _ => None,
+        })
+        .collect();
+    let mut roots: std::collections::BTreeSet<NodeId> = seeds
+        .iter()
+        .flat_map(|seed| match seed {
+            InputSeed::Cell { dependents, .. }
+            | InputSeed::Area { dependents, .. }
+            | InputSeed::Spill { dependents, .. } => dependents.iter().copied(),
+        })
+        .collect();
+    roots.extend(node_changes.iter().filter_map(|change| match change {
+        NodeChange::Replaced { node, .. } | NodeChange::Removed { node, .. } => Some(*node),
+        _ => None,
+    }));
+    if schema_changed || dimensions_pending.is_some() {
+        roots.extend(state.nodes().map(|n| n.id()));
+    }
+    let mut invalidated = crate::recalc::dirty_closure(state, inputs, roots, &|node| {
+        crate::recalc::invalidation_areas(state, inputs, node)
+    })
+    .members()
+    .to_vec();
+    invalidated.extend(node_changes.iter().filter_map(|change| {
+        if let NodeChange::Added { node, .. } = change {
+            Some(*node)
+        } else {
+            None
+        }
+    }));
     Ok(PreparedEngineChange {
+        invalidated,
+        regions,
+        schema_changed,
         state,
         base: change.base,
         next,
@@ -601,6 +656,17 @@ impl CommitReceipt {
 pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     let node_changes = std::mem::take(&mut change.node_changes);
     let state = &mut *change.state;
+    let epoch = state.contract.advance();
+    state
+        .contract
+        .require_at(std::mem::take(&mut change.invalidated), epoch);
+    for region in std::mem::take(&mut change.regions) {
+        state.contract.write(region, epoch);
+    }
+    if change.schema_changed {
+        state.contract.bindings = epoch;
+    }
+
     // Physical widths and hidden rows affect CELL, SUBTOTAL and AGGREGATE.
     if let Some(pending) = change.dimensions_pending.take() {
         state.pending = pending;

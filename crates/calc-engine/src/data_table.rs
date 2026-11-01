@@ -334,6 +334,10 @@ struct WhatIfReader<'w, 'a> {
 }
 
 impl ReferenceReader for WhatIfReader<'_, '_> {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        WorkbookReader::new(self.what_if.view, self.what_if.uncomputed).read_denial()
+    }
+
     fn read_fact(&mut self, fact: calc_fml::FactRead) {
         WorkbookReader::new(self.what_if.view, self.what_if.uncomputed).read_fact(fact);
     }

@@ -10,6 +10,8 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
+mod contract_support;
+
 use calc_host::value::CellKey;
 use calc_host::{
     CalcMode, HostOptions, HostProgress, HostState, MemorySource, OpenPolicy, PackageRead,
@@ -64,14 +66,17 @@ fn shown(host: &HostState, cells: &[CellKey]) -> Vec<String> {
     .expect("the projection")
     .cells()
     .iter()
-    .map(|cell| format!("{:?}", cell.value()))
+    .map(|cell| contract_support::comparable(cell.value()))
     .collect()
 }
 
 fn oracle_workbooks() -> Vec<PathBuf> {
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut found = Vec::new();
-    for krate in std::fs::read_dir(&crates).expect("the crates folder").flatten() {
+    for krate in std::fs::read_dir(&crates)
+        .expect("the crates folder")
+        .flatten()
+    {
         let fixtures = krate.path().join("tests").join("fixtures");
         let Ok(cases) = std::fs::read_dir(&fixtures) else {
             continue;
@@ -104,10 +109,18 @@ fn dc_2m0__oracle_workbooks_recalculate_alike_on_one_thread_and_several() {
             let mut several = open(&bytes, threads).expect("the workbook opens again");
             let at = format!("{} on {threads} threads", path.display());
             assert_eq!(recalculate(&mut several), published, "{at}");
-            assert_eq!(shown(&several, &published), first, "{at}, the first recalculation");
+            assert_eq!(
+                shown(&several, &published),
+                first,
+                "{at}, the first recalculation"
+            );
             calculate_full(&mut several);
             recalculate(&mut several);
-            assert_eq!(shown(&several, &published), full, "{at}, a full recalculation");
+            assert_eq!(
+                shown(&several, &published),
+                full,
+                "{at}, a full recalculation"
+            );
         }
         compared += 1;
         cells += published.len();
@@ -161,7 +174,10 @@ fn dc_dxm__competing_spills_recalculate_alike_on_one_thread_and_four() {
         },
     };
     let array = |cell: CellKey, text: &str| CellEdit::SetArray {
-        array: ArrayFormula::new(GridArea::cell(cell), ArrayKind::Dynamic { collapsed: false }),
+        array: ArrayFormula::new(
+            GridArea::cell(cell),
+            ArrayKind::Dynamic { collapsed: false },
+        ),
         formula: formula(text),
     };
     let shown = |host: &HostState, cells: &[CellKey]| -> Vec<String> {
@@ -206,7 +222,10 @@ fn dc_dxm__competing_spills_recalculate_alike_on_one_thread_and_four() {
                 row % 12 + 1
             ),
         ));
-        setup.push(set(at(row, 8), &format!("=G{row}+COUNT($D$1:$D$12)+B{}", row % 5 + 1)));
+        setup.push(set(
+            at(row, 8),
+            &format!("=G{row}+COUNT($D$1:$D$12)+B{}", row % 5 + 1),
+        ));
         setup.push(set(at(row, 9), &format!("=H{row}*2+D{}", row % 9 + 1)));
         setup.push(set(at(row, 10), &format!("=I{row}+E{}+F6", row % 9 + 1)));
     }
@@ -264,7 +283,11 @@ fn dc_dxm__competing_spills_recalculate_alike_on_one_thread_and_four() {
             apply(&mut b, edit);
             recalculate(&mut a);
             recalculate(&mut b);
-            assert_eq!(shown(&a, &cells), shown(&b, &cells), "round {round}, {edit:?}");
+            assert_eq!(
+                shown(&a, &cells),
+                shown(&b, &cells),
+                "round {round}, {edit:?}"
+            );
         }
         if round % 10 == 0 {
             calculate_full(&mut a);

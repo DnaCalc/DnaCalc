@@ -38,6 +38,8 @@ impl std::error::Error for RecalcFailed {}
 /// Where the workbook's calculation stands after a [`step`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum HostProgress {
+    /// The authorized calculation was cancelled; automatic demand waits for a new edit or request.
+    Cancelled,
     /// The published generation calculated the current revision and no formula is pending:
     /// nothing was done.
     Current,
@@ -68,7 +70,37 @@ pub fn step(
     budget: WorkBudget,
     observer: &mut dyn ReadObserver,
 ) -> HostProgress {
+    if host.calculation_cancelled && !host.calculate_requested && host.work.is_none() {
+        return HostProgress::Cancelled;
+    }
+    let force = std::mem::take(&mut host.full_calculate_requested);
     let mut work = match host.work.take() {
+        Some(work) if work.revision() != host.model.revision() || force => {
+            let facts = host.workbook_facts();
+            host.engine.set_workbook_facts(Some(facts));
+            let started = if force {
+                host.calculate_requested = false;
+                calc_engine::supersede_recalc_scoped(
+                    &mut host.engine,
+                    &host.model,
+                    work,
+                    host.options.numeric.clone(),
+                    calc_engine::CalcScope::Workbook,
+                    calc_engine::EvalSelection::ForceAll,
+                )
+            } else {
+                calc_engine::supersede_recalc(
+                    &mut host.engine,
+                    &host.model,
+                    work,
+                    host.options.numeric.clone(),
+                )
+            };
+            match started {
+                Ok(work) => work,
+                Err(error) => return failed(host, RecalcFailed::Refused(error)),
+            }
+        }
         Some(work) => work,
         None => {
             let current = host.model.revision();
@@ -88,29 +120,57 @@ pub fn step(
             // dc-uar: the facts CELL and INFO read, as of this revision.
             let facts = host.workbook_facts();
             host.engine.set_workbook_facts(Some(facts));
-            match calc_engine::begin_recalc(
-                &mut host.engine,
-                &host.model,
-                host.options.numeric.clone(),
-            ) {
+            let started = if let Some((scope, selection)) = host.requested_calculation.take() {
+                calc_engine::begin_recalc_scoped(
+                    &mut host.engine,
+                    &host.model,
+                    host.options.numeric.clone(),
+                    scope,
+                    selection,
+                )
+            } else {
+                calc_engine::begin_recalc(
+                    &mut host.engine,
+                    &host.model,
+                    host.options.numeric.clone(),
+                )
+            };
+            match started {
                 Ok(work) => work,
                 Err(error) => return failed(host, RecalcFailed::Refused(error)),
             }
         }
     };
+    if work.admission_pending()
+        && let Some(source) = host.calculation_source.take()
+    {
+        work = work.with_source(source);
+    }
+    host.calc_events.extend(work.take_events());
     match calc_engine::step(&host.engine, &host.model, &mut work, budget, observer) {
         RecalcProgress::Pending { remaining } => {
+            host.calc_events.extend(work.take_events());
             host.work = Some(work);
             HostProgress::Calculating { remaining }
         }
         RecalcProgress::Complete | RecalcProgress::Failed => {
-            match calc_engine::finish(&mut host.engine, work) {
+            let failure_receipt = work.completion(
+                calc_engine::contract::CompletionOutcome::Failed,
+                host.engine.result_view(),
+                None,
+            );
+            match calc_engine::finish(&mut host.engine, &host.model, work) {
                 Ok(delta) => {
+                    host.calc_events.extend(delta.events().iter().cloned());
                     host.published = Some(delta.revision());
                     host.last_failure = None;
                     HostProgress::Published(delta)
                 }
-                Err(failure) => failed(host, RecalcFailed::Failed(failure)),
+                Err(failure) => {
+                    host.calc_events
+                        .push(calc_engine::CalcEvent::Completed(failure_receipt));
+                    failed(host, RecalcFailed::Failed(failure))
+                }
             }
         }
     }
@@ -121,6 +181,7 @@ pub fn step(
 /// pending formulas, the formulas that call a volatile function and every formula that reads
 /// them. A recalculation already in progress continues; the one asked for begins after it.
 pub fn calculate(host: &mut HostState) {
+    host.calculation_cancelled = false;
     host.calculate_requested = true;
 }
 
@@ -130,13 +191,14 @@ pub fn calculate(host: &mut HostState) {
 /// nothing is compiled again. A recalculation in progress is cancelled, since it would clear the
 /// nodes it calculates from pending when it published; the full one replaces it.
 pub fn calculate_full(host: &mut HostState) {
-    host.work = None;
+    host.calculation_cancelled = false;
+    host.full_calculate_requested = true;
     host.engine.mark_all_pending();
     host.calculate_requested = true;
 }
 
 fn failed(host: &mut HostState, failure: RecalcFailed) -> HostProgress {
-    // A recalculation in progress is always of the current revision: a commit cancels it.
+    // A failed command keeps its terminal receipt. New work requires an edit or a request.
     host.last_failure = Some((host.model.revision(), failure.clone()));
     HostProgress::Failed(failure)
 }

@@ -414,6 +414,9 @@ fn table_info(table: &calc_doc_model::Table) -> TableInfo {
 /// generation.
 #[derive(Clone, Copy)]
 pub(crate) struct RecalcView<'a> {
+    pub(crate) caller: Option<NodeId>,
+    pub(crate) scope: Option<&'a crate::contract::CalcScope>,
+    pub(crate) boundary: Option<&'a Cell<Option<calc_fml::ReadDenial>>>,
     pub(crate) workbook_facts: Option<&'a std::sync::Arc<dyn calc_fml::WorkbookFacts>>,
     pub(crate) inputs: &'a ModelRoot,
     pub(crate) state: &'a EngineState,
@@ -440,6 +443,7 @@ pub(crate) struct Progress {
     status: Vec<u8>,
     staged: Vec<Option<(NodeId, FormulaResult)>>,
     scheduled: usize,
+    pub(crate) footprints: BTreeMap<NodeId, GridArea>,
 }
 
 const SCHEDULED: u8 = 1;
@@ -451,6 +455,7 @@ impl Progress {
             status: vec![0; slots],
             staged: Vec::new(),
             scheduled: 0,
+            footprints: BTreeMap::new(),
         }
     }
 
@@ -517,6 +522,13 @@ impl Progress {
         self.scheduled
     }
 
+    pub(crate) fn staged_results(&self) -> impl Iterator<Item = (NodeId, &FormulaResult)> {
+        self.staged
+            .iter()
+            .flatten()
+            .map(|(node, result)| (*node, result))
+    }
+
     /// Every staged result, with its node, in slot order.
     pub(crate) fn into_staged(self) -> impl Iterator<Item = (NodeId, FormulaResult)> {
         self.staged.into_iter().flatten()
@@ -578,6 +590,14 @@ impl<'a> RecalcView<'a> {
         }
         if let Some(spill) = self.state.spills.covering(at) {
             let anchor = spill.anchor();
+            if self.scope.is_some_and(|scope| !scope.contains(anchor)) {
+                if let Some(boundary) = self.boundary {
+                    boundary.set(Some(scope_denial()));
+                }
+                if let Some(node) = self.state.node_at(anchor) {
+                    return Err((node, anchor));
+                }
+            }
             if let Some(node) = self.state.node_at(anchor) {
                 match self.standing(node) {
                     NodeStanding::Pending => return Err((node, anchor)),
@@ -782,6 +802,12 @@ impl<'a> WorkbookReader<'a> {
 
     /// [`WorkbookReader::formula_lookup`] of the formula cell `at`, whose node is `node`.
     fn node_lookup(&self, node: NodeId, at: CellKey) -> Result<Option<&'a CalcValue>, Unread> {
+        if self.view.scope.is_some_and(|scope| !scope.contains(at)) {
+            if let Some(boundary) = self.view.boundary {
+                boundary.set(Some(scope_denial()));
+            }
+            return Ok(None);
+        }
         let result = match self.view.standing_at(node, at) {
             NodeStanding::Pending => {
                 if let Some(value) = self.view.iterates.and_then(|iterates| iterates.get(&node)) {
@@ -1021,7 +1047,18 @@ impl<'a> WorkbookReader<'a> {
     }
 }
 
+fn scope_denial() -> calc_fml::ReadDenial {
+    calc_fml::ReadDenial {
+        construct: "an out-of-scope formula cache (waiting for Excel P02)",
+        owner: "dc-hsa5",
+    }
+}
+
 impl ReferenceReader for WorkbookReader<'_> {
+    fn read_denial(&self) -> Option<calc_fml::ReadDenial> {
+        self.view.boundary.and_then(Cell::get)
+    }
+
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
     fn read_cell(
@@ -1042,7 +1079,7 @@ impl ReferenceReader for WorkbookReader<'_> {
 
     fn read_area(
         &mut self,
-        request: calc_fml::ReadRequest,
+        _request: calc_fml::ReadRequest,
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {
@@ -1067,6 +1104,100 @@ impl ReferenceReader for WorkbookReader<'_> {
             };
             return;
         }
+        let pending: Vec<(NodeId, CellKey, Option<calc_fml::ReadDenial>)> =
+            if self.view.iterates.is_some() {
+                Vec::new()
+            } else {
+                self.view
+                    .state
+                    .bindings
+                    .iter()
+                    .filter_map(|(&node, binding)| {
+                        if Some(node) == self.view.caller
+                            || !matches!(
+                                binding,
+                                crate::state::Binding::Placed(_, crate::state::ArrayRole::Spill)
+                            )
+                        {
+                            return None;
+                        }
+                        let anchor = self.view.state.node(node)?.anchor();
+                        let outside = self.view.scope.is_some_and(|scope| !scope.contains(anchor));
+                        let result = if self.view.progress.is_evaluated(node) {
+                            self.view.progress.staged(node)
+                        } else if self.view.progress.is_scheduled(node) {
+                            None
+                        } else {
+                            self.view.state.results.of(node)
+                        };
+                        let unknown = matches!(result, Some(FormulaResult::NotModeled { .. }));
+                        // Pure in-scope candidates may consume a provisional blank. Their absence
+                        // proof remains invalid until all producers finish, and publication repairs
+                        // the candidate if an actual footprint reaches it. This avoids inventing a
+                        // circular dependency from a merely possible southeast footprint.
+                        let unresolved = unknown
+                            || outside
+                                && (self.view.state.pending.contains(&node) || {
+                                    let requirement = self.view.state.contract.requirement(node);
+                                    requirement.required != requirement.satisfied
+                                });
+                        (unresolved
+                            && anchor.sheet() == area.sheet()
+                            && anchor.row() <= area.last().row()
+                            && anchor.column() <= area.last().column())
+                        .then_some((
+                            node,
+                            anchor,
+                            if outside {
+                                Some(scope_denial())
+                            } else if unknown {
+                                Some(calc_fml::ReadDenial {
+                                    construct: "a blank beside an unmodelled spill producer",
+                                    owner: "dc-hsa5",
+                                })
+                            } else {
+                                None
+                            },
+                        ))
+                    })
+                    .collect()
+            };
+        let uncomputed = self.uncomputed;
+        let boundary = self.view.boundary;
+        let mut offset = 0;
+        let mut guarded = |run: CellRun<'_>| {
+            let len = run.len();
+            let waiting = if matches!(run, CellRun::Blank(_)) {
+                pending.iter().find_map(|&(node, anchor, outside)| {
+                    crate::contract::potential_blank(
+                        inputs,
+                        anchor,
+                        area,
+                        crate::contract::BlankRun { offset, len },
+                    )
+                    .map(|at| (node, at, outside))
+                })
+            } else {
+                None
+            };
+            offset += len;
+            match waiting {
+                Some((_node, _at, Some(denial))) => {
+                    if let Some(boundary) = boundary {
+                        boundary.set(Some(denial));
+                    }
+                    sink(CellRun::Missing(len))
+                }
+                Some((node, at, None)) => {
+                    if uncomputed.get().is_none() {
+                        uncomputed.set(Some((at, node)));
+                    }
+                    sink(CellRun::Missing(len))
+                }
+                None => sink(run),
+            }
+        };
+        let sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()> = &mut guarded;
         let Some(occupied) = inputs.cells(area) else {
             let _ = sink(CellRun::Missing(total));
             return;

@@ -555,12 +555,116 @@ impl Controller {
     /// Projection controls bracket binary fragments. Only a closed transaction and its
     /// completion barrier replace the root a skin can read.
     fn receive(&self, event: Event) {
+        if let Event::Calculation {
+            workbook,
+            receipt,
+            summary,
+            failed_projections,
+        } = event
+        {
+            if self.summary.with_untracked(|current| current.workbook) != workbook {
+                return;
+            }
+            let frontier = self
+                .model
+                .with_untracked(|m| m.runtime.calculation_frontier);
+            match &receipt {
+                wire::CalculationEvent::Committed { revision } => {
+                    if *revision < frontier {
+                        return;
+                    }
+                    self.model.update(|m| {
+                        m.runtime.calculation_frontier = *revision;
+                        m.runtime.active_calculation = None;
+                    });
+                }
+                wire::CalculationEvent::Admitted {
+                    domain,
+                    command,
+                    revision,
+                    ..
+                } => {
+                    if *revision < frontier {
+                        return;
+                    }
+                    self.model.update(|m| {
+                        m.runtime.calculation_frontier = *revision;
+                        m.runtime.active_calculation = Some((*domain, *command));
+                    });
+                }
+                wire::CalculationEvent::Published(unit) => {
+                    if self.model.with_untracked(|m| m.runtime.active_calculation)
+                        != Some((unit.domain, unit.command))
+                    {
+                        return;
+                    }
+                }
+                wire::CalculationEvent::Completed {
+                    domain,
+                    command,
+                    revision,
+                    ..
+                } => {
+                    if *revision != frontier
+                        || self.model.with_untracked(|m| m.runtime.active_calculation)
+                            != Some((*domain, *command))
+                    {
+                        return;
+                    }
+                }
+                wire::CalculationEvent::Yielded {
+                    domain, command, ..
+                } => {
+                    if self.model.with_untracked(|m| m.runtime.active_calculation)
+                        != Some((*domain, *command))
+                    {
+                        return;
+                    }
+                }
+                _ => {}
+            }
+            if let Some(summary) = summary {
+                if summary.revision
+                    < self
+                        .model
+                        .with_untracked(|m| m.runtime.calculation_frontier)
+                    || summary.revision < self.summary.with_untracked(|s| s.revision)
+                {
+                    return;
+                }
+                self.summary.set(summary.into());
+            }
+            match receipt {
+                wire::CalculationEvent::Yielded { remaining, .. } => {
+                    self.say(format!("Calculating {remaining} formulas"), false)
+                }
+                wire::CalculationEvent::Completed { .. } if !failed_projections.is_empty() => {
+                    if !self.status.with_untracked(|s| s.refused) {
+                        self.say(
+                            "Calculation finished; a displayed area could not be updated",
+                            true,
+                        );
+                    }
+                }
+                wire::CalculationEvent::Completed {
+                    outcome: wire::CalculationOutcome::Complete,
+                    ..
+                } => self.say("Recalculated", false),
+                wire::CalculationEvent::Completed {
+                    outcome: wire::CalculationOutcome::Incomplete,
+                    ..
+                } => self.say("Calculation finished with unresolved results", true),
+                _ => {}
+            }
+            return;
+        }
         use dna_calc_model::TileApply;
         let id = match &event {
             Event::TileAdmission(s) => s.id,
             Event::Tiles(b) => b.stamp.id,
             Event::TileCompletion(b) => b.id,
             Event::ProjectionFailed { id, .. } => *id,
+            Event::Calculation { .. } => unreachable!("calculation controls are handled above"),
         };
         let Some(mirror) = self.mirrors.with_value(|m| m.get(&id).copied()) else {
             return;
@@ -572,6 +676,7 @@ impl Controller {
             Event::TileAdmission(stamp) => mirror.admit(*stamp),
             Event::Tiles(batch) => mirror.stage(batch),
             Event::TileCompletion(barrier) => mirror.complete(*barrier),
+            Event::Calculation { .. } => unreachable!("calculation controls are handled above"),
             Event::ProjectionFailed { .. } => {
                 mirror.invalidate();
                 Ok(TileApply::Ignored)
@@ -602,7 +707,11 @@ impl Controller {
             .captured_command_focus()
             .is_none_or(|ticket| self.model.with_untracked(|m| m.focus.accepts(ticket)));
         let prior_focus = self.model.with_untracked(|m| m.runtime.callback_focus);
-        self.model.update(Model::reset_workbook);
+        self.model.update(|m| {
+            m.reset_workbook();
+            m.runtime.active_calculation = None;
+            m.runtime.calculation_frontier = summary.revision;
+        });
         if restore_focus {
             let fresh = self.model.with_untracked(|m| m.focus.snapshot());
             self.model
@@ -2966,6 +3075,7 @@ mod projection_lifetime_tests {
             assert!(mirror.try_get_untracked().is_none());
             assert!(mirror.try_update(|_| ()).is_none());
             let stamp = wire::TileStamp {
+                calculation_through: None,
                 id,
                 workbook: 0,
                 transaction: 1,
@@ -2993,6 +3103,120 @@ mod projection_lifetime_tests {
                     .with_untracked(|m| m.runtime.projected_views.is_empty())
             );
             controller.unsubscribe(id);
+        });
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn delayed_calculation_controls_cannot_undo_a_newer_manual_edit() {
+        let root = Owner::new();
+        root.with(|| {
+            let controller = Controller::with_transport(std::rc::Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ));
+            let original = controller.summary.get_untracked();
+            let workbook = original.workbook;
+            let send = |receipt, summary| {
+                controller.receive(Event::Calculation {
+                    workbook,
+                    receipt,
+                    summary,
+                    failed_projections: Vec::new(),
+                })
+            };
+            send(
+                wire::CalculationEvent::Admitted {
+                    domain: 7,
+                    command: 11,
+                    pass: 0,
+                    revision: original.revision,
+                    scope: wire::CalculationScope::Workbook,
+                    selection: wire::CalculationSelection::ForceAll,
+                    predecessor: None,
+                },
+                None,
+            );
+            send(
+                wire::CalculationEvent::Committed {
+                    revision: original.revision + 1,
+                },
+                None,
+            );
+            let mut current = (*original).clone();
+            current.revision += 1;
+            current.changed = true;
+            controller.summary.set(current.clone().into());
+            controller.say("Entered", false);
+            send(
+                wire::CalculationEvent::Published(wire::Publication {
+                    domain: 7,
+                    command: 11,
+                    sequence: 1,
+                }),
+                Some((*original).clone()),
+            );
+            send(
+                wire::CalculationEvent::Completed {
+                    domain: 7,
+                    command: 11,
+                    revision: original.revision,
+                    outcome: wire::CalculationOutcome::Complete,
+                    required: 1,
+                    calculated: 1,
+                    refused: 0,
+                    held: 0,
+                    uncertified: 0,
+                },
+                Some((*original).clone()),
+            );
+            assert_eq!(*controller.summary.get_untracked(), current);
+            assert_eq!(controller.status.get_untracked().text, "Entered");
+        });
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn calculation_completion_preserves_a_failed_projection_message() {
+        let root = Owner::new();
+        root.with(|| {
+            let controller = Controller::with_transport(std::rc::Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ));
+            let summary = controller.summary.get_untracked();
+            controller.receive(Event::Calculation {
+                workbook: summary.workbook,
+                receipt: wire::CalculationEvent::Admitted {
+                    domain: 7,
+                    command: 11,
+                    pass: 0,
+                    revision: summary.revision,
+                    scope: wire::CalculationScope::Workbook,
+                    selection: wire::CalculationSelection::ForceAll,
+                    predecessor: None,
+                },
+                summary: None,
+                failed_projections: Vec::new(),
+            });
+            controller.say("The displayed area exceeds its tile budget", true);
+            controller.receive(Event::Calculation {
+                workbook: summary.workbook,
+                receipt: wire::CalculationEvent::Completed {
+                    domain: 7,
+                    command: 11,
+                    revision: summary.revision,
+                    outcome: wire::CalculationOutcome::Complete,
+                    required: 1,
+                    calculated: 1,
+                    refused: 0,
+                    held: 0,
+                    uncertified: 0,
+                },
+                summary: Some((*summary).clone()),
+                failed_projections: vec![11],
+            });
+            assert!(controller.status.get_untracked().refused);
+            assert_eq!(
+                controller.status.get_untracked().text,
+                "The displayed area exceeds its tile budget"
+            );
         });
     }
 }

@@ -17,6 +17,10 @@ pub const MAX_PENDING_REQUESTS: usize = 256;
 /// publications for this subscription, independently of host deltas coalesced under pressure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TileStamp {
+    /// Latest engine publication incorporated by this root, possibly followed by authored
+    /// edits. This correlates delivery; cell provenance still determines freshness.
+    #[serde(default)]
+    pub calculation_through: Option<crate::projection::Publication>,
     pub id: u64,
     pub workbook: u64,
     pub transaction: u64,
