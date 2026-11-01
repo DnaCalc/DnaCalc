@@ -42,3 +42,4 @@ redirect
 # br 0.7.x local database side files and recovery scratch
 *.db-*
 .br_recovery/
+*.db.fsqlite-*
