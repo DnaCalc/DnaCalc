@@ -42,6 +42,7 @@ use calc_func::value::{
 use calc_func::{
     CallAbandoned, CallableInvoker, EvalServices, FunctionCallScratch, FunctionFault,
     ParameterClass, PreparedArguments, RandomSource, ReferenceText, TextReference, invoke,
+    invoke_slice,
 };
 use std::cell::RefCell;
 
@@ -151,6 +152,92 @@ const RECURSION_BUDGET: usize = 16_383;
 const CALL_COST: usize = 3;
 const CALLABLE_ARGUMENT_COST: usize = 1;
 
+/// A bounded handoff from the root instruction stream or a cooperative eager kernel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContinuationProgress {
+    pub next_instruction: usize,
+    pub completed_elements: usize,
+}
+
+#[derive(Debug)]
+pub enum EvalStep {
+    Suspended(ContinuationProgress),
+    Complete(Result<CalcValue, EvalFault>),
+}
+
+#[derive(Debug, Default)]
+struct BlockCursor {
+    at: usize,
+    base: Option<usize>,
+    pending: Option<PendingCall>,
+}
+
+#[derive(Debug)]
+struct PendingCall {
+    target: Target,
+    arguments: Vec<CalcValue>,
+    scratch: FunctionCallScratch,
+    synthetic: bool,
+    retain: bool,
+    start: usize,
+}
+
+/// One owned activation. Nested lazy calls, names, LAMBDAs and kernels without resumable
+/// metadata run to completion at their instruction boundary. They do not promise safepoints.
+#[derive(Debug)]
+pub struct EvalContinuation {
+    instance: FormulaInstance,
+    scratch: super::EvalScratch,
+    cursor: BlockCursor,
+    finished: bool,
+}
+
+impl EvalContinuation {
+    pub fn new(instance: &FormulaInstance, mut scratch: super::EvalScratch) -> Self {
+        scratch.stack.clear();
+        scratch.locals.clear();
+        Self {
+            instance: instance.clone(),
+            scratch,
+            cursor: BlockCursor::default(),
+            finished: false,
+        }
+    }
+    pub fn progress(&self) -> ContinuationProgress {
+        ContinuationProgress {
+            next_instruction: self.cursor.at,
+            completed_elements: self
+                .cursor
+                .pending
+                .as_ref()
+                .map_or(0, |call| call.scratch.completed_elements()),
+        }
+    }
+    /// Continue with the same semantic services and random stream. A completed activation must
+    /// be consumed, never started again; callers obtain its reusable storage with into_scratch.
+    pub fn advance(
+        &mut self,
+        services: &mut FormulaEvaluationContext<'_>,
+        quantum: usize,
+    ) -> EvalStep {
+        assert!(!self.finished, "a completed activation cannot resume");
+        let step = evaluate_slice(
+            EvalFrame {
+                instance: &self.instance,
+                scratch: &mut self.scratch,
+            },
+            services,
+            &mut self.cursor,
+            quantum.max(1),
+        );
+        self.finished = matches!(step, EvalStep::Complete(_));
+        step
+    }
+    pub fn into_scratch(self) -> super::EvalScratch {
+        self.scratch
+    }
+}
+
 /// Runs `frame` to its value: the formula's result, or the fault that stopped it.
 ///
 /// A legacy formula's result is one value: a reference to one cell is the cell's value, a larger
@@ -171,8 +258,22 @@ pub fn evaluate(
     frame: EvalFrame<'_>,
     services: &mut FormulaEvaluationContext<'_>,
 ) -> Result<CalcValue, EvalFault> {
+    match evaluate_slice(frame, services, &mut BlockCursor::default(), usize::MAX) {
+        EvalStep::Complete(outcome) => outcome,
+        EvalStep::Suspended(_) => unreachable!("an unlimited activation completes"),
+    }
+}
+
+fn evaluate_slice(
+    frame: EvalFrame<'_>,
+    services: &mut FormulaEvaluationContext<'_>,
+    cursor: &mut BlockCursor,
+    quantum: usize,
+) -> EvalStep {
     let EvalFrame { instance, scratch } = frame;
-    if let Some(effects) = services.user_function_effects.as_deref_mut() {
+    if cursor.base.is_none()
+        && let Some(effects) = services.user_function_effects.as_deref_mut()
+    {
         *effects = super::UserFunctionEffects::default();
     }
     if !matches!(
@@ -190,7 +291,7 @@ pub fn evaluate(
                 outcome: Err(&fault),
             });
         }
-        return Err(fault);
+        return EvalStep::Complete(Err(fault));
     }
     let environment = services.environment.map(|e| e.at(services.pass.clock));
     let host = services
@@ -235,7 +336,20 @@ pub fn evaluate(
         },
     };
     let at = instance.anchor.cell();
-    let outcome = run.block(0).and_then(|value| {
+    let value = match run.block_slice(0, cursor, quantum) {
+        Ok(Some(value)) => Ok(value),
+        Err(fault) => Err(fault),
+        Ok(None) => {
+            return EvalStep::Suspended(ContinuationProgress {
+                next_instruction: cursor.at,
+                completed_elements: cursor
+                    .pending
+                    .as_ref()
+                    .map_or(0, |call| call.scratch.completed_elements()),
+            });
+        }
+    };
+    let outcome = value.and_then(|value| {
         let value = match (instance.plan.form, value.core_ref()) {
             (FormulaForm::Legacy, CoreRef::Reference(reference)) => {
                 match refops::intersect_cell(reference, at) {
@@ -260,7 +374,7 @@ pub fn evaluate(
             outcome: outcome.as_ref(),
         });
     }
-    outcome
+    EvalStep::Complete(outcome)
 }
 
 struct Run<'a, 'r> {
@@ -382,12 +496,30 @@ impl Run<'_, '_> {
 
     /// Runs block `index` and gives the one value it leaves.
     fn block(&mut self, index: usize) -> Result<CalcValue, EvalFault> {
-        let base = self.stack.len();
+        match self.block_slice(index, &mut BlockCursor::default(), usize::MAX)? {
+            Some(value) => Ok(value),
+            None => unreachable!("nested blocks are non-preemptible"),
+        }
+    }
+
+    fn block_slice(
+        &mut self,
+        index: usize,
+        cursor: &mut BlockCursor,
+        quantum: usize,
+    ) -> Result<Option<CalcValue>, EvalFault> {
+        let base = *cursor.base.get_or_insert(self.stack.len());
         let instance = self.instance;
         let block = &instance.plan.blocks[index];
-        let mut at = 0;
+        let mut at = cursor.at;
+        let mut instructions = 0usize;
         while let Some(instruction) = block.get(at) {
+            if instructions >= quantum {
+                cursor.at = at;
+                return Ok(None);
+            }
             at += 1;
+            instructions += 1;
             let step = match instruction {
                 Instruction::Literal(literal) => {
                     self.stack.push(literal.value());
@@ -414,7 +546,36 @@ impl Run<'_, '_> {
                     retain,
                     synthetic,
                     admission,
-                } => self.call(*target, *argc, *retain, *synthetic, *admission),
+                } => {
+                    match self.call_slice(
+                        *target,
+                        *argc,
+                        *retain,
+                        *synthetic,
+                        *admission,
+                        &mut cursor.pending,
+                        if quantum == usize::MAX {
+                            usize::MAX
+                        } else {
+                            quantum.saturating_sub(instructions).max(1)
+                        },
+                    ) {
+                        Ok(false) => {
+                            cursor.at = at - 1;
+                            return Ok(None);
+                        }
+                        Ok(true) => {
+                            if target.0.is_resumable() && quantum != usize::MAX {
+                                instructions = quantum;
+                            }
+                        }
+                        Err(fault) => {
+                            self.stack.truncate(base);
+                            return Err(fault);
+                        }
+                    }
+                    Ok(())
+                }
                 Instruction::LazyCall {
                     target,
                     first_block,
@@ -520,7 +681,8 @@ impl Run<'_, '_> {
         // Compile lowers every expression to instructions that leave exactly one value.
         let value = self.stack.pop().expect("a block leaves one value");
         debug_assert_eq!(self.stack.len(), base);
-        Ok(value)
+        cursor.at = at;
+        Ok(Some(value))
     }
 
     /// The argument `value` as parameter `index` of `target` receives it. A parameter that takes
@@ -591,6 +753,32 @@ impl Run<'_, '_> {
         synthetic: bool,
         admission: Admission,
     ) -> Result<(), EvalFault> {
+        let complete = self.call_slice(
+            target,
+            argc,
+            retain,
+            synthetic,
+            admission,
+            &mut None,
+            usize::MAX,
+        )?;
+        debug_assert!(complete);
+        Ok(())
+    }
+
+    fn call_slice(
+        &mut self,
+        target: Target,
+        argc: usize,
+        retain: bool,
+        synthetic: bool,
+        admission: Admission,
+        pending: &mut Option<PendingCall>,
+        quantum: usize,
+    ) -> Result<bool, EvalFault> {
+        if let Some(call) = pending.take() {
+            return self.advance_call(call, pending, quantum);
+        }
         let start = self.stack.len() - argc;
         let mut lifted = false;
         let form = self.instance.plan.form;
@@ -635,6 +823,17 @@ impl Run<'_, '_> {
         } else {
             arguments.extend(self.stack.drain(start..));
         }
+        if !lifted && target.0.is_resumable() {
+            let call = PendingCall {
+                target,
+                arguments,
+                scratch: self.calls.pop().unwrap_or_default(),
+                synthetic,
+                retain,
+                start,
+            };
+            return self.advance_call(call, pending, quantum);
+        }
         let value = if lifted {
             self.lifted(target, &arguments, synthetic)
         } else {
@@ -647,7 +846,35 @@ impl Run<'_, '_> {
             self.stack.truncate(start);
         }
         self.stack.push(value);
-        Ok(())
+        Ok(true)
+    }
+
+    fn advance_call(
+        &mut self,
+        mut call: PendingCall,
+        pending: &mut Option<PendingCall>,
+        quantum: usize,
+    ) -> Result<bool, EvalFault> {
+        let result = self.eager_chunk(
+            call.target,
+            &call.arguments,
+            call.synthetic,
+            &mut call.scratch,
+            quantum,
+        );
+        if matches!(result, Ok(None)) {
+            *pending = Some(call);
+            return Ok(false);
+        }
+        call.arguments.clear();
+        *self.arguments = call.arguments;
+        self.calls.push(call.scratch);
+        let value = result?.expect("terminal call has a result");
+        if !call.retain {
+            self.stack.truncate(call.start);
+        }
+        self.stack.push(value);
+        Ok(true)
     }
 
     /// Runs the eager entry `target` on `arguments` once.
@@ -657,6 +884,20 @@ impl Run<'_, '_> {
         arguments: &[CalcValue],
         synthetic: bool,
     ) -> Result<CalcValue, EvalFault> {
+        let mut scratch = self.calls.pop().unwrap_or_default();
+        let result = self.eager_chunk(target, arguments, synthetic, &mut scratch, usize::MAX);
+        self.calls.push(scratch);
+        result.map(|value| value.expect("unlimited eager call completes"))
+    }
+
+    fn eager_chunk(
+        &mut self,
+        target: Target,
+        arguments: &[CalcValue],
+        synthetic: bool,
+        scratch: &mut FunctionCallScratch,
+        quantum: usize,
+    ) -> Result<Option<CalcValue>, EvalFault> {
         // A LAMBDA or function value, or an array of them (`HSTACK(SUM,MAX)`, dc-h9u).
         let callable = |value: &CalcValue| {
             value.callable_value().is_some()
@@ -664,9 +905,10 @@ impl Run<'_, '_> {
                     if array.iter_row_major().any(|element| element.callable_value().is_some()))
         };
         if arguments.iter().any(callable) {
-            return self.eager_with_callables(target, arguments, synthetic);
+            return self
+                .eager_with_callables(target, arguments, synthetic)
+                .map(Some);
         }
-        let mut scratch = self.calls.pop().unwrap_or_default();
         self.reader.clear_refusal();
         let mut text = self.catalog.map(|catalog| TextBinding {
             catalog,
@@ -690,18 +932,20 @@ impl Run<'_, '_> {
             if let Some(text) = text.as_mut() {
                 services = services.with_reference_text(text);
             }
-            invoke(
+            invoke_slice(
                 target.0,
                 &mut Evaluated(arguments),
                 &mut services,
-                &mut scratch,
+                scratch,
+                quantum,
             )
         };
-        self.calls.push(scratch);
         for area in text.map(|text| text.resolved).unwrap_or_default() {
             self.show_resolved(target, area);
         }
-        self.show_call(target, synthetic);
+        if !matches!(result, Ok(None)) {
+            self.show_call(target, synthetic);
+        }
         result.map_err(|fault| self.function_fault(fault))
     }
 
@@ -2190,6 +2434,223 @@ mod tests {
         );
         assert_eq!(evaluated("=COLUMN(B3:D3)", blank.clone()), n(2.0));
         assert_eq!(evaluated("=SUM(COLUMN(B3:D3))", blank), n(2.0));
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn suspended_sequence_keeps_prefix_effects_operands_and_one_terminal_report() {
+        #[derive(Debug)]
+        struct Counting(std::cell::Cell<usize>);
+        impl calc_func::UserFunction for Counting {
+            fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+                self.0.set(self.0.get() + 1);
+                Ok(CalcValue::number(42.0))
+            }
+        }
+        for (formula, expected_calls) in [
+            ("=CounterUdf()+SUM(SEQUENCE(10000))+CounterUdf()", 2),
+            ("=LET(x,CounterUdf(),x+SUM(SEQUENCE(10000))+x)", 1),
+        ] {
+            for quantum in [1, 7, 512] {
+                let counter = std::rc::Rc::new(Counting(std::cell::Cell::new(0)));
+                let mut functions = calc_func::UserFunctions::new();
+                functions.register("CounterUdf", counter.clone()).unwrap();
+                let anchor = observed_anchor();
+                let plan = crate::compile_with_functions(
+                    &parse_formula(formula),
+                    ReferenceNotation::A1,
+                    anchor,
+                    &NoSheets,
+                    &mut PlanCache::new(),
+                    FormulaForm::Dynamic,
+                    &functions,
+                )
+                .unwrap();
+                let instance = instantiate(&plan, anchor);
+                let mut activation = EvalContinuation::new(&instance, EvalScratch::new());
+                let mut reader = Everywhere(CalcValue::empty(), 0);
+                let mut shown = Shown::default();
+                let mut effects = super::super::UserFunctionEffects::default();
+                let mut last = None;
+                let mut slices = 0;
+                let outcome = loop {
+                    slices += 1;
+                    assert!(slices < 20000, "bounded SEQUENCE must finish");
+                    let step = activation.advance(
+                        &mut FormulaEvaluationContext::new(
+                            &NumericMode::Fast,
+                            &mut reader,
+                            None,
+                            None,
+                            crate::ReadRequest::DEPENDENCY,
+                        )
+                        .with_functions(&functions)
+                        .with_user_function_effects(&mut effects)
+                        .observed_by(&mut shown),
+                        quantum,
+                    );
+                    match step {
+                        EvalStep::Suspended(progress) => {
+                            assert!(shown.outcomes.is_empty());
+                            assert!(counter.0.get() <= expected_calls);
+                            if progress.completed_elements > 0 {
+                                assert_eq!(counter.0.get(), 1, "the prefix runs exactly once");
+                                if let Some(previous) = last {
+                                    let previous: ContinuationProgress = previous;
+                                    assert_eq!(
+                                        progress.next_instruction,
+                                        previous.next_instruction
+                                    );
+                                    assert!(
+                                        progress.completed_elements > previous.completed_elements
+                                    );
+                                }
+                                last = Some(progress);
+                            }
+                        }
+                        EvalStep::Complete(outcome) => break outcome,
+                    }
+                };
+                assert!(
+                    slices > 2 && last.is_some(),
+                    "the kernel must actually suspend"
+                );
+                assert_eq!(outcome, Ok(CalcValue::number(50_005_084.0)));
+                assert_eq!(counter.0.get(), expected_calls);
+                assert_eq!(effects.calls(), expected_calls);
+                assert_eq!(shown.outcomes, vec![outcome]);
+                assert_eq!(
+                    shown
+                        .calls
+                        .iter()
+                        .filter(|call| call.as_str() == "Call SEQUENCE")
+                        .count(),
+                    1
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn sequence_slices_preserve_admission_errors_and_exact_refusals() {
+        for formula in [
+            "=SEQUENCE(0)",
+            "=SEQUENCE(-1)",
+            "=SEQUENCE(3,2,7,0.25)",
+            "=SUM(SEQUENCE(3))+1",
+        ] {
+            for mode in [
+                NumericMode::Fast,
+                NumericMode::Exact(
+                    calc_func::value::NumericTargetId::new("test", "test", "test", "test").unwrap(),
+                ),
+            ] {
+                let anchor = observed_anchor();
+                let plan = crate::compile_with(
+                    &parse_formula(formula),
+                    ReferenceNotation::A1,
+                    anchor,
+                    &NoSheets,
+                    &mut PlanCache::new(),
+                    FormulaForm::Dynamic,
+                )
+                .unwrap();
+                let instance = instantiate(&plan, anchor);
+                let mut reader = Everywhere(CalcValue::empty(), 0);
+                let expected = evaluate(
+                    EvalFrame::new(&instance, &mut EvalScratch::new()),
+                    &mut FormulaEvaluationContext::new(
+                        &mode,
+                        &mut reader,
+                        None,
+                        None,
+                        crate::ReadRequest::DEPENDENCY,
+                    ),
+                );
+                let mut activation = EvalContinuation::new(&instance, EvalScratch::new());
+                let actual = loop {
+                    match activation.advance(
+                        &mut FormulaEvaluationContext::new(
+                            &mode,
+                            &mut reader,
+                            None,
+                            None,
+                            crate::ReadRequest::DEPENDENCY,
+                        ),
+                        1,
+                    ) {
+                        EvalStep::Suspended(_) => {}
+                        EvalStep::Complete(outcome) => break outcome,
+                    }
+                };
+                assert_eq!(actual, expected, "{formula} under {mode:?}");
+            }
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn kernel_suspension_preserves_random_occurrences_and_let_reuse() {
+        struct Draws(usize);
+        impl RandomSource for Draws {
+            fn next_unit(&mut self) -> f64 {
+                self.0 += 1;
+                self.0 as f64 * 0.125
+            }
+        }
+        for (formula, calls) in [
+            ("=RAND()+SUM(SEQUENCE(10000))+RAND()", 2),
+            ("=LET(r,RAND(),r+SUM(SEQUENCE(10000))+r)", 1),
+        ] {
+            let anchor = observed_anchor();
+            let plan = crate::compile_with(
+                &parse_formula(formula),
+                ReferenceNotation::A1,
+                anchor,
+                &NoSheets,
+                &mut PlanCache::new(),
+                FormulaForm::Dynamic,
+            )
+            .unwrap();
+            let instance = instantiate(&plan, anchor);
+            let mut reader = Everywhere(CalcValue::empty(), 0);
+            let mut direct = Draws(0);
+            let expected = evaluate(
+                EvalFrame::new(&instance, &mut EvalScratch::new()),
+                &mut FormulaEvaluationContext::new(
+                    &NumericMode::Fast,
+                    &mut reader,
+                    None,
+                    None,
+                    crate::ReadRequest::DEPENDENCY,
+                )
+                .with_random(&mut direct),
+            );
+            assert_eq!(direct.0, calls);
+            let mut sliced = Draws(0);
+            let mut activation = EvalContinuation::new(&instance, EvalScratch::new());
+            let actual = loop {
+                match activation.advance(
+                    &mut FormulaEvaluationContext::new(
+                        &NumericMode::Fast,
+                        &mut reader,
+                        None,
+                        None,
+                        crate::ReadRequest::DEPENDENCY,
+                    )
+                    .with_random(&mut sliced),
+                    17,
+                ) {
+                    EvalStep::Suspended(progress) => {
+                        if progress.completed_elements > 0 {
+                            assert_eq!(sliced.0, 1);
+                        }
+                    }
+                    EvalStep::Complete(outcome) => break outcome,
+                }
+            };
+            assert_eq!(sliced.0, calls);
+            assert_eq!(actual, expected, "{formula}");
+        }
     }
 }
 

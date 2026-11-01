@@ -11,6 +11,7 @@ use calc_fml::RandomSource;
 use calc_value::CellKey;
 
 /// One formula's stream of uniform numbers in [0, 1) for one recalculation.
+#[derive(Debug)]
 pub(crate) struct RandomStream {
     state: u64,
 }

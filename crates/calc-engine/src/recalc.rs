@@ -93,9 +93,9 @@ use calc_fml::reference::{
     template_key_of_chars,
 };
 use calc_fml::{
-    EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, ExecutedCall,
+    EvalFault, EvalScratch, EvaluationObserver, EvaluationReport, ExecutedCall,
     FormulaEvaluationContext, FormulaForm, FormulaInstance, ResolvedReference, compile_loaded_with,
-    evaluate, instantiate, parse_formula,
+    instantiate, parse_formula,
 };
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode, SheetId};
 use std::cell::{Cell, RefCell};
@@ -248,7 +248,8 @@ pub enum RecalcProgress {
     Failed,
 }
 
-/// How many nodes one [`step`] may evaluate.
+/// How many activation quanta one [`step`] may evaluate. Finite steps retain the root instruction
+/// stream and cooperative kernel state inside a cell. Other nested calls remain non-preemptible.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WorkBudget {
     evaluations: usize,
@@ -376,6 +377,10 @@ pub struct RecalcWork {
 #[derive(Debug, Default)]
 pub(crate) struct EvalLocal {
     scratch: EvalScratch,
+    activation: Option<calc_fml::EvalContinuation>,
+    random: Option<RandomStream>,
+    quantum: usize,
+    read_stamps: Vec<ReadSpan>,
     footprint: Vec<GridArea>,
     fact_reads: Vec<calc_fml::FactRead>,
     value_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
@@ -459,6 +464,13 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
+    pub fn continuation_progress(&self) -> Option<calc_fml::ContinuationProgress> {
+        self.local
+            .activation
+            .as_ref()
+            .map(calc_fml::EvalContinuation::progress)
+    }
+
     pub fn admission_pending(&self) -> bool {
         self.events.iter().any(|event|matches!(event,CalcEvent::Admitted(receipt) if receipt.command==self.admission.command))
     }
@@ -1146,6 +1158,11 @@ pub fn step(
             revision: work.revision,
         });
     }
+    work.local.quantum = if budget == WorkBudget::UNLIMITED {
+        usize::MAX
+    } else {
+        1024
+    };
     #[cfg(not(target_arch = "wasm32"))]
     if budget == WorkBudget::UNLIMITED && parallel::eligible(state, inputs, work, &*observer) {
         parallel::evaluate_levels(state, inputs, work, &mut *observer);
@@ -1197,6 +1214,7 @@ fn apply(
     observer: &mut dyn ReadObserver,
 ) {
     match attempt {
+        Ok(Attempt::Suspended) => work.ready.push_front(node),
         Ok(Attempt::Done(done)) => stage(state, inputs, work, node, done),
         Ok(Attempt::Kept) => keep(state, inputs, work, node),
         Ok(Attempt::Waits { on, cell }) => {
@@ -3006,6 +3024,8 @@ impl EvaluationObserver for Instrument<'_, '_> {
 
 /// What one evaluation of a node gives.
 enum Attempt {
+    /// The same semantic activation retains its stack, instruction pointer and kernel buffer.
+    Suspended,
     /// The result to stage.
     Done(Done),
     /// The evaluation read `cell`, which `on` calculates and this recalculation has yet to
@@ -3106,12 +3126,39 @@ fn evaluate_with(
             at: live_anchor(state, node),
         });
     }
-    local.fact_reads.clear();
-    local.value_reads.clear();
-    local.blank_reads.clear();
-    local.boundary_read.set(None);
-    local.current_node.set(Some(node));
+    if local.activation.is_none() {
+        local.fact_reads.clear();
+        local.value_reads.clear();
+        local.read_stamps.clear();
+        local.blank_reads.clear();
+        local.footprint.clear();
+        local.boundary_read.set(None);
+        local.kept_read.set(false);
+        local.current_node.set(Some(node));
+    } else {
+        debug_assert_eq!(local.current_node.get(), Some(node));
+    }
     let attempt = evaluate_unstamped(state, inputs, shared, local, node, observer)?;
+    // Stamp at the slice that actually performed the read. A later slice must never certify
+    // an old operand against a newer staged value after the activation resumes.
+    for &(request, region) in &local.value_reads {
+        if !local
+            .read_stamps
+            .iter()
+            .any(|read| read.region == region && read.request == request)
+        {
+            local.read_stamps.push(ReadSpan {
+                region,
+                request,
+                versions: span_versions_at(
+                    state,
+                    shared.progress,
+                    region,
+                    Some(shared.requirements),
+                ),
+            });
+        }
+    }
     let Attempt::Done(mut done) = attempt else {
         return Ok(attempt);
     };
@@ -3133,20 +3180,7 @@ fn evaluate_with(
         bindings: state.contract.bindings,
         ..ReadCertificate::default()
     };
-    for &(request, region) in &local.value_reads {
-        if reads
-            .dependencies
-            .iter()
-            .any(|read| read.region == region && read.request == request)
-        {
-            continue;
-        }
-        reads.dependencies.push(ReadSpan {
-            region,
-            request,
-            versions: span_versions_at(state, shared.progress, region, Some(shared.requirements)),
-        });
-    }
+    reads.dependencies = local.read_stamps.clone();
     reads.legacy_boundary = reads
         .dependencies
         .iter()
@@ -3350,20 +3384,20 @@ fn evaluate_unstamped(
     let facts = RefCell::new(std::mem::take(&mut local.fact_reads));
     let value_reads = RefCell::new(std::mem::take(&mut local.value_reads));
     let blanks = RefCell::new(std::mem::take(&mut local.blank_reads));
-    value_reads.borrow_mut().clear();
-    blanks.borrow_mut().clear();
-    facts.borrow_mut().clear();
-    local.kept_read.set(false);
     let batch = std::mem::take(&mut local.read_batch);
-    let mut scratch = std::mem::take(&mut local.scratch);
+    let mut activation = local.activation.take().unwrap_or_else(|| {
+        calc_fml::EvalContinuation::new(instance, std::mem::take(&mut local.scratch))
+    });
+    let mut random = local.random.take().unwrap_or_else(|| {
+        RandomStream::new(
+            shared.random_seed ^ (u64::from(shared.pass.ordinal) << 32),
+            calculation.tick().get(),
+            formula,
+        )
+    });
     let view = shared.view(state, inputs, &*local);
     let mut cells = WorkbookReader::new(view, &uncomputed).with_batch(batch);
     let catalog = SnapshotCatalog(inputs);
-    let mut random = RandomStream::new(
-        shared.random_seed ^ (u64::from(shared.pass.ordinal) << 32),
-        calculation.tick().get(),
-        formula,
-    );
     let silent = observer.is_silent();
     let observer = RefCell::new(observer);
     let (outcome, stopped) = {
@@ -3399,7 +3433,14 @@ fn evaluate_unstamped(
             .with_catalog(&catalog)
             .with_random(&mut random)
             .observed_by(instrument);
-            evaluate(EvalFrame::new(instance, &mut scratch), &mut services)
+            activation.advance(
+                &mut services,
+                if local.quantum == 0 {
+                    usize::MAX
+                } else {
+                    local.quantum
+                },
+            )
         };
         (outcome, observed.stopped)
     };
@@ -3412,7 +3453,6 @@ fn evaluate_unstamped(
     local.fact_reads = facts.into_inner();
     local.value_reads = value_reads.into_inner();
     local.blank_reads = blanks.into_inner();
-    local.scratch = scratch;
     let kept_read = local.kept_read.get();
     if let Some(area) = stopped {
         return Err(RecalcFailure::ReadFailed { formula, area });
@@ -3441,6 +3481,18 @@ fn evaluate_unstamped(
         }
         return Ok(Attempt::Waits { on, cell });
     }
+    let outcome = match outcome {
+        calc_fml::EvalStep::Suspended(_) => {
+            local.footprint = footprint.into_inner();
+            local.activation = Some(activation);
+            local.random = Some(random);
+            return Ok(Attempt::Suspended);
+        }
+        calc_fml::EvalStep::Complete(outcome) => {
+            local.scratch = activation.into_scratch();
+            outcome
+        }
+    };
     let mut areas = footprint.into_inner();
     let mut dynamic = dynamic_prerequisites(state, node, instance, &areas);
     areas.clear();

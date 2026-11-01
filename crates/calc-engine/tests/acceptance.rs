@@ -5576,3 +5576,149 @@ fn contract_bounded_integer_reference_model_matches_every_step_budget() {
         }
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_one_long_cell_retains_its_instruction_and_kernel_buffer() {
+    #[derive(Default)]
+    struct Seen {
+        sequence: usize,
+        reports: usize,
+    }
+    impl calc_engine::ReadObserver for Seen {
+        fn observe(
+            &mut self,
+            _: CellKey,
+            _: GridArea,
+            _: u64,
+            _: calc_fml::reference::CellRun<'_>,
+        ) -> std::ops::ControlFlow<()> {
+            std::ops::ControlFlow::Continue(())
+        }
+        fn called(&mut self, _: CellKey, call: calc_fml::ExecutedCall) {
+            if call.target().spelling() == "SEQUENCE" {
+                self.sequence += 1;
+            }
+        }
+        fn evaluated(&mut self, _: calc_engine::ObservedEvaluation<'_>) {
+            self.reports += 1;
+        }
+    }
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = ids.issue().unwrap();
+    let a = key(sheet, 1, 1);
+    let b = key(sheet, 1, 2);
+    let root = l3_root(
+        &[(sheet, "Continuation")],
+        vec![
+            (a, number(8192.0)),
+            (b, formula("SUM(_xlfn.SEQUENCE(A1))+3")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    let mut seen = Seen::default();
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut seen
+        ),
+        RecalcProgress::Pending { remaining: 1 }
+    );
+    let first = work
+        .continuation_progress()
+        .expect("the single cell retains its activation");
+    assert!(first.completed_elements > 0 && first.completed_elements < 8192);
+    assert_eq!(seen.reports, 0);
+    assert!(state.result(b).is_none());
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut seen
+        ),
+        RecalcProgress::Pending { remaining: 1 }
+    );
+    let second = work.continuation_progress().unwrap();
+    assert_eq!(second.next_instruction, first.next_instruction);
+    assert!(second.completed_elements > first.completed_elements);
+    let mut completed = false;
+    for _ in 0..32 {
+        match step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut seen,
+        ) {
+            RecalcProgress::Pending { remaining } => assert_eq!(remaining, 1),
+            RecalcProgress::Complete => {
+                completed = true;
+                break;
+            }
+            RecalcProgress::Failed => panic!("long-cell activation failed"),
+        }
+    }
+    assert!(completed);
+    assert_eq!((seen.sequence, seen.reports), (1, 1));
+    assert!(state.result(b).is_none(), "publication remains atomic");
+    let delta = finish(&mut state, &root, work).unwrap();
+    assert_eq!(delta.completion().unwrap().coverage.calculated, 1);
+    assert_eq!(l1_value(&state, b), CalcValue::number(33_558_531.0));
+    assert!(state.validated_result(&root, b).is_some());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_edit_abandons_a_partial_kernel_before_starting_the_successor() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = ids.issue().unwrap();
+    let a = key(sheet, 1, 1);
+    let b = key(sheet, 1, 2);
+    let root = l3_root(
+        &[(sheet, "Continuation")],
+        vec![
+            (a, number(8192.0)),
+            (b, formula("SUM(_xlfn.SEQUENCE(A1))+3")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    assert!(matches!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut Unobserved
+        ),
+        RecalcProgress::Pending { .. }
+    ));
+    assert!(work.continuation_progress().is_some());
+    let predecessor = work.admission().command;
+    let root = edit(&mut state, &root, vec![set(a, number(16.0))]);
+    let mut work =
+        calc_engine::supersede_recalc(&mut state, &root, work, NumericMode::Fast).unwrap();
+    assert_ne!(work.admission().command, predecessor);
+    assert!(work.continuation_progress().is_none());
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, &root, work).unwrap();
+    assert_eq!(l1_value(&state, b), CalcValue::number(139.0));
+    assert!(state.validated_result(&root, b).is_some());
+}

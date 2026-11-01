@@ -48,7 +48,9 @@ pub use compile::{
     CompileError, compile, compile_loaded, compile_loaded_with, compile_loaded_with_functions,
     compile_with, compile_with_functions,
 };
-pub use run::{EvalFault, MAX_CALL_DEPTH, evaluate};
+pub use run::{
+    ContinuationProgress, EvalContinuation, EvalFault, EvalStep, MAX_CALL_DEPTH, evaluate,
+};
 
 use crate::reference::{ExternalOperand, FormulaAnchor, PlacementError, ReferenceOperand};
 use calc_func::value::{

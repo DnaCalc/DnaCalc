@@ -10,7 +10,7 @@
 //! rendered from the same declarations. The catalogue is immutable data built by the compiler:
 //! nothing is assembled at run time and no table is mutable.
 
-use crate::call::{EagerKernel, LazyKernel};
+use crate::call::{EagerKernel, LazyKernel, StartKernel};
 use crate::value::CallableArityShape;
 use std::cmp::Ordering;
 use std::fmt;
@@ -41,8 +41,8 @@ mod logical_more;
 mod lookup;
 mod math;
 mod offset;
-mod reference_text;
 mod random;
+mod reference_text;
 mod rounding;
 mod rounding_more;
 mod statistics;
@@ -253,11 +253,25 @@ pub(crate) struct CatalogueEntry {
 pub(crate) enum Kernel {
     /// Receives every argument evaluated and admitted.
     Eager(EagerKernel),
+    Resumable {
+        run: EagerKernel,
+        start: StartKernel,
+    },
     /// Asks for the arguments it selects, so an argument it does not select is never evaluated.
     Lazy(LazyKernel),
 }
 
 impl CatalogueEntry {
+    pub(crate) const fn with_continuation(mut self, start: Option<StartKernel>) -> Self {
+        if let Some(start) = start {
+            if let Kernel::Eager(run) = self.kernel {
+                self.kernel = Kernel::Resumable { run, start };
+            } else {
+                panic!("only eager entries carry kernel continuations");
+            }
+        }
+        self
+    }
     /// An eager operator, whose arity is its parameter count.
     pub(crate) const fn operator(
         id: FunctionId,
@@ -402,13 +416,13 @@ const fn check_declaration(family: u16, entry: &CatalogueEntry) {
         panic!("a lazy entry's discriminator is not a required argument");
     }
     match entry.kernel {
-        Kernel::Eager(_) if entry.demand.is_lazy() => panic!(
+        Kernel::Eager(_) | Kernel::Resumable { .. } if entry.demand.is_lazy() => panic!(
             "a lazy entry has an eager kernel, which would receive its held-back arguments evaluated"
         ),
         Kernel::Lazy(_) if !entry.demand.is_lazy() => {
             panic!("an eager entry has a lazy kernel, against its declared argument demand")
         }
-        Kernel::Eager(_) | Kernel::Lazy(_) => {}
+        Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_) => {}
     }
 }
 
@@ -550,6 +564,9 @@ pub struct HelpParameter {
 }
 
 impl<'c> FunctionCallTarget<'c> {
+    pub fn is_resumable(self) -> bool {
+        matches!(self.entry.kernel, Kernel::Resumable { .. })
+    }
     pub fn id(self) -> FunctionId {
         self.entry.id
     }

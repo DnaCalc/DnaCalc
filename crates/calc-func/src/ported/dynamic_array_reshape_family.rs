@@ -1001,39 +1001,86 @@ pub fn map_dynamic_array_reshape_error_to_ws(
 /// SEQUENCE (sequence.rs): `rows` by `columns` numbers from `start` by `step`, row by row. A
 /// dimension of 0 is #CALC!; a negative or fractional one #VALUE!; an omitted or blank argument
 /// takes its default.
-pub fn eval_sequence_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    fn dimension(arg: Option<&CalcValue>) -> Result<usize, DynamicArrayReshapeEvalError> {
-        let raw = match arg {
-            None => return Ok(1),
-            Some(value) if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) => return Ok(1),
-            Some(value) => coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation)?,
-        };
-        if raw == 0.0 {
-            return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
+#[derive(Debug)]
+pub(crate) struct SequenceWork {
+    rows: usize,
+    cols: usize,
+    start: f64,
+    step: f64,
+    count: usize,
+    cells: Vec<CalcValue>,
+}
+
+impl SequenceWork {
+    pub(crate) fn new(args: &[CalcValue]) -> Result<Self, DynamicArrayReshapeEvalError> {
+        fn dimension(arg: Option<&CalcValue>) -> Result<usize, DynamicArrayReshapeEvalError> {
+            let raw = match arg {
+                None => return Ok(1),
+                Some(value) if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) => {
+                    return Ok(1);
+                }
+                Some(value) => coerce_prepared_to_number(value)
+                    .map_err(DynamicArrayReshapeEvalError::Preparation)?,
+            };
+            if raw == 0.0 {
+                return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
+            }
+            if !raw.is_finite() || raw < 0.0 || raw.fract() != 0.0 {
+                return Err(DynamicArrayReshapeEvalError::InvalidCount);
+            }
+            Ok(raw as usize)
         }
-        if !raw.is_finite() || raw < 0.0 || raw.fract() != 0.0 {
-            return Err(DynamicArrayReshapeEvalError::InvalidCount);
+        fn scalar(arg: Option<&CalcValue>) -> Result<f64, DynamicArrayReshapeEvalError> {
+            match arg {
+                None => Ok(1.0),
+                Some(value) if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) => {
+                    Ok(1.0)
+                }
+                Some(value) => coerce_prepared_to_number(value)
+                    .map_err(DynamicArrayReshapeEvalError::Preparation),
+            }
         }
-        Ok(raw as usize)
+        let rows = dimension(args.first())?;
+        let cols = dimension(args.get(1))?;
+        let start = scalar(args.get(2))?;
+        let step = scalar(args.get(3))?;
+        let count = ArrayShape { rows, cols }
+            .cell_count()
+            .ok_or(DynamicArrayReshapeEvalError::InvalidCount)?;
+        Ok(Self {
+            rows,
+            cols,
+            start,
+            step,
+            count,
+            cells: Vec::new(),
+        })
     }
-    fn scalar(arg: Option<&CalcValue>) -> Result<f64, DynamicArrayReshapeEvalError> {
-        match arg {
-            None => Ok(1.0),
-            Some(value) if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) => Ok(1.0),
-            Some(value) => coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation),
+
+    pub(crate) fn completed_elements(&self) -> usize {
+        self.cells.len()
+    }
+
+    pub(crate) fn advance(
+        &mut self,
+        elements: usize,
+    ) -> Option<Result<CalcValue, DynamicArrayReshapeEvalError>> {
+        let end = self.cells.len().saturating_add(elements).min(self.count);
+        for idx in self.cells.len()..end {
+            self.cells
+                .push(CalcValue::number(self.start + (idx as f64) * self.step));
         }
+        (end == self.count)
+            .then(|| build_array(self.rows, self.cols, std::mem::take(&mut self.cells)))
     }
-    let rows = dimension(args.first())?;
-    let cols = dimension(args.get(1))?;
-    let start = scalar(args.get(2))?;
-    let step = scalar(args.get(3))?;
-    let shape = ArrayShape { rows, cols };
-    let count = shape.cell_count().ok_or(DynamicArrayReshapeEvalError::InvalidCount)?;
-    let mut cells = Vec::with_capacity(count);
-    for idx in 0..count {
-        cells.push(CalcValue::number(start + (idx as f64) * step));
-    }
-    build_array(rows, cols, cells)
+}
+
+pub fn eval_sequence_prepared(
+    args: &[CalcValue],
+) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
+    SequenceWork::new(args)?
+        .advance(usize::MAX)
+        .expect("unlimited sequence completes")
 }
 
 /// HSTACK (hstack.rs): the arguments side by side, each padded with #N/A below to the tallest.

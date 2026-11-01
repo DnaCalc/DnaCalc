@@ -374,6 +374,8 @@ impl fmt::Debug for EvalServices<'_> {
 #[derive(Debug, Default)]
 pub struct FunctionCallScratch {
     arguments: Vec<CalcValue>,
+    task: Option<Box<dyn KernelTask>>,
+    task_target: Option<FunctionId>,
 }
 
 impl FunctionCallScratch {
@@ -386,6 +388,12 @@ impl FunctionCallScratch {
 /// a kernel computes. A caller reports a call that ends in a fault as not calculated.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FunctionFault {
+    /// Scratch still owns an activation of another catalogue entry. It is preserved for the
+    /// original caller rather than silently replaced or executed twice.
+    ContinuationTarget {
+        expected: FunctionId,
+        received: FunctionId,
+    },
     /// The call supplies a number of arguments that the entry's arity does not admit.
     ArityMismatch { id: FunctionId, supplied: usize },
     /// A value parameter received a reference; the caller dereferences before the call.
@@ -412,6 +420,35 @@ pub enum FunctionFault {
 /// The kernel of an eager entry: its arguments, all evaluated and admitted, and the services.
 pub(crate) type EagerKernel =
     fn(&[CalcValue], &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault>;
+
+/// An eager kernel's owned state at a binary64 store boundary. It borrows no caller service.
+pub(crate) trait KernelTask: std::fmt::Debug + Send {
+    fn advance(&mut self, elements: usize) -> Result<Option<CalcValue>, FunctionFault>;
+    fn completed_elements(&self) -> usize;
+}
+
+pub(crate) type StartKernel =
+    fn(&[CalcValue], &mut EvalServices<'_>) -> Result<Box<dyn KernelTask>, FunctionFault>;
+
+#[derive(Debug)]
+pub(crate) struct ReadyTask(pub Option<CalcValue>);
+
+impl KernelTask for ReadyTask {
+    fn advance(&mut self, _: usize) -> Result<Option<CalcValue>, FunctionFault> {
+        Ok(self.0.take())
+    }
+    fn completed_elements(&self) -> usize {
+        0
+    }
+}
+
+impl FunctionCallScratch {
+    pub fn completed_elements(&self) -> usize {
+        self.task
+            .as_ref()
+            .map_or(0, |task| task.completed_elements())
+    }
+}
 
 /// The kernel of a lazy entry: the arguments it selects from, and the services.
 pub(crate) type LazyKernel =
@@ -446,6 +483,16 @@ pub fn invoke(
     services: &mut EvalServices<'_>,
     scratch: &mut FunctionCallScratch,
 ) -> Result<CalcValue, FunctionFault> {
+    if let Some(expected) = scratch.task_target.filter(|id| *id != target.entry.id) {
+        return Err(FunctionFault::ContinuationTarget {
+            expected,
+            received: target.entry.id,
+        });
+    }
+    if target.is_resumable() {
+        return invoke_slice(target, arguments, services, scratch, usize::MAX)
+            .map(|value| value.expect("unlimited cooperative kernel completes"));
+    }
     let entry = target.entry;
     let supplied = arguments.count();
     if !entry.arity.accepts(supplied) {
@@ -463,13 +510,60 @@ pub fn invoke(
             };
             admit_return(entry.id, kernel(&mut selectable, services)?)
         }
-        Kernel::Eager(kernel) => {
+        Kernel::Eager(kernel) | Kernel::Resumable { run: kernel, .. } => {
             scratch.arguments.clear();
             let result = run_eager(entry, kernel, arguments, services, &mut scratch.arguments);
             scratch.arguments.clear();
             result
         }
     }
+}
+
+/// Advances an eager kernel, retaining its arguments and owned state between calls. Entries
+/// without a continuation run to completion and are explicitly non-preemptible here.
+pub fn invoke_slice(
+    target: FunctionCallTarget<'_>,
+    arguments: &mut dyn PreparedArguments,
+    services: &mut EvalServices<'_>,
+    scratch: &mut FunctionCallScratch,
+    elements: usize,
+) -> Result<Option<CalcValue>, FunctionFault> {
+    let Kernel::Resumable { start, .. } = target.entry.kernel else {
+        return invoke(target, arguments, services, scratch).map(Some);
+    };
+    if let Some(expected) = scratch.task_target.filter(|id| *id != target.entry.id) {
+        return Err(FunctionFault::ContinuationTarget {
+            expected,
+            received: target.entry.id,
+        });
+    }
+    if scratch.task.is_none() {
+        if !target.entry.arity.accepts(arguments.count()) {
+            return Err(FunctionFault::ArityMismatch {
+                id: target.entry.id,
+                supplied: arguments.count(),
+            });
+        }
+        scratch.arguments.clear();
+        if let Some(value) = prepare_eager(target.entry, arguments, &mut scratch.arguments)? {
+            return Ok(Some(value));
+        }
+        scratch.task = Some(start(&scratch.arguments, services)?);
+        scratch.task_target = Some(target.entry.id);
+        scratch.arguments.clear();
+    }
+    let result = scratch
+        .task
+        .as_mut()
+        .expect("started above")
+        .advance(elements);
+    if !matches!(result, Ok(None)) {
+        scratch.task = None;
+        scratch.task_target = None;
+    }
+    result?
+        .map(|value| admit_return(target.entry.id, value))
+        .transpose()
 }
 
 fn run_eager(
@@ -479,6 +573,17 @@ fn run_eager(
     services: &mut EvalServices<'_>,
     evaluated: &mut Vec<CalcValue>,
 ) -> Result<CalcValue, FunctionFault> {
+    if let Some(value) = prepare_eager(entry, arguments, evaluated)? {
+        return Ok(value);
+    }
+    admit_return(entry.id, kernel(evaluated, services)?)
+}
+
+fn prepare_eager(
+    entry: &CatalogueEntry,
+    arguments: &mut dyn PreparedArguments,
+    evaluated: &mut Vec<CalcValue>,
+) -> Result<Option<CalcValue>, FunctionFault> {
     for index in 0..arguments.count() {
         let value = arguments.argument(index);
         // #REF! given to a parameter that takes only a reference is the call's result (dc-ifc,
@@ -488,12 +593,12 @@ fn run_eager(
         if entry.parameter_class(index) == ParameterClass::Reference
             && matches!(value.core_ref(), CoreRef::Error(WorksheetErrorCode::Ref))
         {
-            return Ok(CalcValue::error(WorksheetErrorCode::Ref));
+            return Ok(Some(CalcValue::error(WorksheetErrorCode::Ref)));
         }
         admit_argument(entry, index, &value)?;
         evaluated.push(value);
     }
-    admit_return(entry.id, kernel(evaluated, services)?)
+    Ok(None)
 }
 
 fn admit_argument(
@@ -650,5 +755,52 @@ mod tests {
             );
         }
         assert_eq!(call(&reference_only, a_reference()), Ok(CalcValue::empty()));
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_kernel_continuation_keeps_its_arguments_and_cannot_be_repurposed() {
+        let catalogue = crate::catalogue();
+        let sequence = catalogue
+            .resolve_surface(Notation::Call, "SEQUENCE")
+            .unwrap();
+        let sum = catalogue.resolve_surface(Notation::Call, "SUM").unwrap();
+        let mut scratch = FunctionCallScratch::new();
+        let mode = NumericMode::Fast;
+        let mut services = EvalServices::new(&mode);
+        assert_eq!(
+            invoke_slice(
+                sequence,
+                &mut Given(vec![CalcValue::number(5.0)]),
+                &mut services,
+                &mut scratch,
+                2
+            ),
+            Ok(None)
+        );
+        assert_eq!(scratch.completed_elements(), 2);
+        assert_eq!(
+            invoke(
+                sum,
+                &mut Given(vec![CalcValue::number(99.0)]),
+                &mut services,
+                &mut scratch
+            ),
+            Err(FunctionFault::ContinuationTarget {
+                expected: sequence.id(),
+                received: sum.id()
+            })
+        );
+        assert_eq!(scratch.completed_elements(), 2);
+        // Resuming uses the admitted arguments, even if a caller's source now has another value.
+        let value = invoke(
+            sequence,
+            &mut Given(vec![CalcValue::number(100.0)]),
+            &mut services,
+            &mut scratch,
+        )
+        .unwrap();
+        let array = value.as_array().unwrap();
+        assert_eq!(array.shape().rows, 5);
+        assert_eq!(array.get(4, 0), Some(&CalcValue::number(5.0)));
     }
 }
