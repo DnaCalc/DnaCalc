@@ -117,10 +117,31 @@ impl ParsedComplex {
                 (self.im * ratio - self.re) / denominator,
             )
         };
+        Ok(Self::quotient(re, im))
+    }
+    /// The reciprocal functions form one reciprocal of the scaled denominator
+    /// and multiply the other component by it. Generic complex division forms
+    /// two quotients instead; those are observably different after rounding.
+    pub(crate) fn reciprocal(self) -> Result<Self, WorksheetErrorCode> {
+        if self.re == 0.0 && self.im == 0.0 { // ubs:ignore — exact zero denominator, not approximate comparison
+            return Err(WorksheetErrorCode::Num);
+        }
+        let (re, im) = if self.re.abs() >= self.im.abs() {
+            let ratio = self.im / self.re;
+            let reciprocal = 1.0 / (self.re + self.im * ratio);
+            (reciprocal, -ratio * reciprocal)
+        } else {
+            let ratio = self.re / self.im;
+            let reciprocal = 1.0 / (self.im + self.re * ratio);
+            (ratio * reciprocal, -reciprocal)
+        };
+        Ok(Self::quotient(re, im))
+    }
+    fn quotient(re: f64, im: f64) -> Self {
         // Arithmetic underflow is a zero component before text assembly. This differs
         // from formatting a nonzero normal input whose 15-digit decimal falls below MIN.
         let normal_or_zero = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
-        Ok(Self::new(normal_or_zero(re), normal_or_zero(im), None))
+        Self::new(normal_or_zero(re), normal_or_zero(im), None)
     }
     pub(crate) fn conj(self) -> Self {
         Self::new(self.re, -self.im, None)
@@ -246,16 +267,16 @@ impl ParsedComplex {
         ))
     }
     pub(crate) fn sec(self) -> Result<Self, WorksheetErrorCode> {
-        ParsedComplex::new(1.0, 0.0, None).div(self.cos())
+        self.cos().reciprocal()
     }
     pub(crate) fn csc(self) -> Result<Self, WorksheetErrorCode> {
-        ParsedComplex::new(1.0, 0.0, None).div(self.sin())
+        self.sin().reciprocal()
     }
     pub(crate) fn sech(self) -> Result<Self, WorksheetErrorCode> {
-        ParsedComplex::new(1.0, 0.0, None).div(self.cosh())
+        self.cosh().reciprocal()
     }
     pub(crate) fn csch(self) -> Result<Self, WorksheetErrorCode> {
-        ParsedComplex::new(1.0, 0.0, None).div(self.sinh())
+        self.sinh().reciprocal()
     }
     pub(crate) fn power(self, exponent: f64) -> Result<Self, WorksheetErrorCode> {
         if self.re == 0.0 && self.im == 0.0 {

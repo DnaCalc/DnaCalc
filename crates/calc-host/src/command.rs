@@ -162,8 +162,6 @@ impl CommandReceipt {
 /// as they were before the command.
 #[derive(Debug, PartialEq, Eq)]
 pub enum CommandError {
-    /// Moving addresses of an active scoped command needs the scope transform (dc-hsa5).
-    ScopeTransformNotModeled,
     /// The command holds no edit, so it would make no change to commit.
     NoEdits,
     /// The command was prepared against another revision than the current one.
@@ -187,9 +185,6 @@ pub enum CommandError {
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CommandError::ScopeTransformNotModeled => f.write_str(
-                "finish or cancel the scoped calculation before moving worksheet cells (dc-hsa5)",
-            ),
             CommandError::NoEdits => f.write_str("the command holds no edit"),
             CommandError::StaleBase { command, current } => write!(
                 f,
@@ -594,7 +589,7 @@ pub(crate) fn restore(
     })
 }
 
-fn active_scope(host: &HostState) -> Option<calc_engine::CalcScope> {
+pub(crate) fn active_scope(host: &HostState) -> Option<calc_engine::CalcScope> {
     host.transformed_calculation_scope
         .clone()
         .or_else(|| {

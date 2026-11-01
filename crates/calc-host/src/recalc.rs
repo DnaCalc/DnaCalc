@@ -166,6 +166,7 @@ pub fn step(
     {
         work = work.with_source(source);
     }
+    work.enable_publication_fences();
     work.set_interest(&host.engine, &host.model, &host.calculation_interest);
     host.calc_events.extend(work.take_events());
     // Interest can promote candidates already computed by age escapes. Publish those before

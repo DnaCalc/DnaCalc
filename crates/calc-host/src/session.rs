@@ -502,12 +502,18 @@ impl HostSession {
             });
         }
         let outcome = match intent.clone() {
-            SkinIntent::Command(crate::WorkbookCommand::ShiftCells { .. })
-                if self.host.scoped_calculation_active() =>
-            {
-                Err(IntentError::Command(CommandError::ScopeTransformNotModeled))
-            }
             SkinIntent::Command(command) => {
+                let coordinates = match &command {
+                    crate::WorkbookCommand::ShiftCells { area, down, insert } => {
+                        Some(calc_fml::reference::StructuralEdit::ShiftCells {
+                            area: *area,
+                            down: *down,
+                            insert: *insert,
+                        })
+                    }
+                    crate::WorkbookCommand::Paste(plan) => plan.coordinates(),
+                    _ => None,
+                };
                 crate::actions::prepare(&self.host, &mut self.sheet_keys, command)
                     .map_err(IntentError::Workbook)
                     .and_then(|edits| {
@@ -515,7 +521,7 @@ impl HostSession {
                             return Ok(());
                         }
                         let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
-                        self.edit(edits, &mut receipt)
+                        self.edit_coordinates(edits, coordinates, &mut receipt)
                     })
             }
             SkinIntent::EnterCell { at, text } => self
@@ -542,7 +548,9 @@ impl HostSession {
                 match crate::copy::copy_edits(&self.host, from, to, cut) {
                     Ok(edits) => {
                         let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
-                        self.edit(edits, &mut receipt)
+                        let coordinates = cut
+                            .then(|| crate::copy::move_coordinates(&self.host, from, to.first()));
+                        self.edit_coordinates(edits, coordinates, &mut receipt)
                     }
                     Err(refusal) => Err(IntentError::Copy(refusal)),
                 }
@@ -747,10 +755,20 @@ impl HostSession {
         edits: Vec<CellEdit>,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
+        self.edit_coordinates(edits, None, receipt)
+    }
+
+    fn edit_coordinates(
+        &mut self,
+        edits: Vec<CellEdit>,
+        coordinates: Option<calc_fml::reference::StructuralEdit>,
+        receipt: &mut IntentReceipt,
+    ) -> Result<(), IntentError> {
         let inverse = inverse(&self.host.model, &self.host.axis_edits, &edits);
-        self.commit(edits.clone(), receipt)?;
+        self.commit_coordinates(edits.clone(), coordinates.as_ref(), receipt)?;
         self.history.record(Step {
             forward: edits,
+            coordinates,
             inverse,
             before: self.selection.clone(),
             after: self.selection.clone(),
@@ -759,17 +777,24 @@ impl HostSession {
         Ok(())
     }
 
-    fn commit(
+    fn commit_coordinates(
         &mut self,
         edits: Vec<CellEdit>,
+        coordinates: Option<&calc_fml::reference::StructuralEdit>,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
+        let scope = coordinates.and_then(|edit| {
+            crate::command::active_scope(&self.host).map(|scope| scope.transformed(edit))
+        });
         let refresh_rules = edits
             .iter()
             .any(|edit| matches!(edit, CellEdit::ConditionalRules { .. }));
         let base = self.host.revision();
         let committed =
             dispatch(&mut self.host, HostCommand { base, edits }).map_err(IntentError::Command)?;
+        if let Some(scope) = scope {
+            self.host.transformed_calculation_scope = Some(scope);
+        }
         let revision = committed.revision();
         receipt.committed = Some(committed);
         receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision }, refresh_rules);
@@ -793,7 +818,14 @@ impl HostSession {
             }
         };
         let undone = match inverse {
-            Inverse::Edits(edits) => self.commit(edits, receipt),
+            Inverse::Edits(edits) => self.commit_coordinates(
+                edits,
+                step.coordinates
+                    .as_ref()
+                    .map(crate::history::inverse_coordinates)
+                    .as_ref(),
+                receipt,
+            ),
             Inverse::Restore { model, axis_edits } => {
                 match crate::command::restore(&mut self.host, &model, axis_edits) {
                     Ok(committed) => {
@@ -820,7 +852,9 @@ impl HostSession {
 
     fn redo(&mut self, receipt: &mut IntentReceipt) -> Result<(), IntentError> {
         let step = self.history.pop_redo().ok_or(IntentError::NothingToRedo)?;
-        if let Err(error) = self.commit(step.forward.clone(), receipt) {
+        if let Err(error) =
+            self.commit_coordinates(step.forward.clone(), step.coordinates.as_ref(), receipt)
+        {
             self.history.restore_redo(step);
             return Err(error);
         }

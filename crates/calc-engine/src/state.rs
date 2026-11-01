@@ -407,6 +407,9 @@ pub struct EngineState {
     pub(crate) subtotal_cells: BTreeSet<CellKey>,
     /// The published spills: each array formula's filled cells, by anchor.
     pub(crate) spills: SpillIndex,
+    /// Complete imported array images, keyed by the original formula instance.
+    /// They are never calculated spills or producing invocations.
+    pub(crate) cached_arrays: BTreeMap<NodeId, Spill>,
     pub(crate) blocked_spills: BTreeMap<CellKey, GridArea>,
     /// The seed RAND, RANDBETWEEN and RANDARRAY draw from, mixed with each recalculation's tick.
     pub(crate) random_seed: u64,
@@ -496,6 +499,7 @@ impl EngineState {
             volatile: BTreeSet::new(),
             subtotal_cells: BTreeSet::new(),
             spills: SpillIndex::default(),
+            cached_arrays: BTreeMap::new(),
             blocked_spills: BTreeMap::new(),
             random_seed: 0,
             templates: HashMap::new(),
@@ -562,20 +566,60 @@ impl EngineState {
 
     /// The state of an opened file's snapshot, as [`EngineState::new`] makes it, with the results
     /// the file cached for its formulas published as [`FormulaResult::FileCached`]. A cache is
-    /// never counts as calculated: qualified scalar boundary reads can consume it, while every
-    /// node stays pending, and
-    /// the first recalculation calculates each and replaces its cache. A cache for a cell that
-    /// holds no formula is refused.
+    /// never counts as calculated: qualified boundary reads can consume it while every node
+    /// stays pending. Array-child caches are accepted only inside their declared array; only
+    /// complete images can supply boundary reads. Other caches without a formula are refused.
     pub fn with_file_caches(
         inputs: &ModelRoot,
         caches: impl IntoIterator<Item = (CellKey, FileCached)>,
     ) -> Result<Self, CacheWithoutFormula> {
         let mut state = EngineState::new(inputs);
+        let mut children = BTreeMap::new();
         for (at, cache) in caches {
-            let node = state.node_at(at).ok_or(CacheWithoutFormula { at })?;
-            state
-                .results
-                .publish(node, at, FormulaResult::FileCached(cache));
+            if let Some(node) = state.node_at(at) {
+                state
+                    .results
+                    .publish(node, at, FormulaResult::FileCached(cache));
+            } else if inputs.cell(at).is_none()
+                && inputs.definitions().unloaded(at).is_none()
+                && inputs.definitions().array_containing(at).is_some()
+            {
+                children.insert(at, cache);
+            } else {
+                return Err(CacheWithoutFormula { at });
+            }
+        }
+        for array in inputs.definitions().arrays() {
+            let at = array.anchor();
+            let Some(node) = state.node_at(at) else {
+                continue;
+            };
+            let Some(FormulaResult::FileCached(anchor)) = state.results.of(node) else {
+                continue;
+            };
+            let mut values = BTreeMap::new();
+            values.insert(at, anchor.value().to_value());
+            for (&cell, cache) in children.range(array.area().first()..=array.area().last()) {
+                if array.area().contains(cell) && cache.source() == anchor.source() {
+                    values.insert(cell, cache.value().to_value());
+                }
+            }
+            if values.len() as u64 == array.area().cell_count() {
+                let shape = calc_value::ArrayShape {
+                    rows: array.area().row_count() as usize,
+                    cols: array.area().column_count() as usize,
+                };
+                let values = calc_value::CalcArray::new(shape, values.into_values().collect())
+                    .expect("one cached value per array cell");
+                state.cached_arrays.insert(
+                    node,
+                    crate::spill::cached_spill(
+                        array.area(),
+                        values,
+                        matches!(array.kind(), calc_doc_model::ArrayKind::Legacy),
+                    ),
+                );
+            }
         }
         Ok(state)
     }
@@ -1085,6 +1129,7 @@ impl EngineState {
             }
             self.index.remove(node, &record.dynamic);
             self.bindings.remove(&node);
+            self.cached_arrays.remove(&node);
             self.contract.retire(node);
             self.volatile.remove(&node);
             self.entered.remove(&node);
@@ -1175,6 +1220,7 @@ impl EngineState {
         self.results.clear_orphans();
         self.retired.clear();
         self.spills = SpillIndex::default();
+        self.cached_arrays.clear();
         self.blocked_spills.clear();
         self.spill_epoch = self
             .spill_epoch

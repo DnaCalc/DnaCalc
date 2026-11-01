@@ -146,9 +146,12 @@ pub struct AbsenceProof {
     pub corridor: u64,
     pub producers: u64,
     pub pending_producers: usize,
+    /// An exact scoped command may use the pinned absence of excluded producers.
+    /// This never establishes workbook-wide absence or freshness.
+    pub cached: Option<ReadViewId>,
     pub blanks: Vec<BlankRun>,
 }
-/// A batched read through the command's pinned scalar boundary cache. Imported values have
+/// A batched read through the command's pinned boundary cache. Imported values have
 /// no producing invocation. Dirty caches remain qualified even if their numeric value matches.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BoundaryReadSpan {
@@ -523,6 +526,17 @@ fn span_nodes_at(state: &EngineState, progress: &Progress, region: GridArea) -> 
         }
     }
     nodes.extend(
+        state
+            .cached_arrays
+            .iter()
+            .filter(|(node, spill)| {
+                !progress.is_evaluated(**node)
+                    && meets(spill.area(), region)
+                    && matches!(state.results.of(**node), Some(FormulaResult::FileCached(_)))
+            })
+            .map(|(node, _)| *node),
+    );
+    nodes.extend(
         progress
             .footprints
             .iter()
@@ -599,6 +613,28 @@ pub(crate) fn producer_pending_at(
     except: NodeId,
     cut: Option<&BTreeMap<NodeId, RequirementState>>,
 ) -> usize {
+    producer_pending_in(
+        state,
+        inputs,
+        progress,
+        region,
+        blanks,
+        except,
+        cut,
+        &|_| true,
+    )
+}
+
+pub(crate) fn producer_pending_in(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    progress: &Progress,
+    region: GridArea,
+    blanks: &[BlankRun],
+    except: NodeId,
+    cut: Option<&BTreeMap<NodeId, RequirementState>>,
+    includes: &dyn Fn(CellKey) -> bool,
+) -> usize {
     state
         .bindings
         .iter()
@@ -607,7 +643,8 @@ pub(crate) fn producer_pending_at(
         })
         .filter(|(node, _)| {
             state.node(**node).is_some_and(|record| {
-                record.anchor().sheet() == region.sheet()
+                includes(record.anchor())
+                    && record.anchor().sheet() == region.sheet()
                     && record.anchor().row() <= region.last().row()
                     && record.anchor().column() <= region.last().column()
                     && blanks.iter().any(|blank| {
@@ -763,8 +800,11 @@ pub(crate) fn certificate_valid_at(
                         &proof.blanks,
                         target.node,
                         cut,
-                    ) == 0
-                        && blanks_still_absent(state, progress, proof, target.node))
+                    ) == if proof.cached.is_some() {
+                        proof.pending_producers
+                    } else {
+                        0
+                    } && blanks_still_absent(state, progress, proof, target.node))
         })
 }
 
@@ -828,11 +868,19 @@ fn scope_area(area: GridArea, edit: &calc_fml::reference::StructuralEdit) -> Vec
     match edit {
         E::RemoveSheet { sheet, .. } if *sheet == area.sheet() => Vec::new(),
         E::MoveCells { area: source, .. } => {
-            let Some(common) = area.intersection(*source) else {
-                return vec![area];
-            };
-            let mut pieces = area.subtract(common);
-            pieces.extend(edit.area(common));
+            let destination = edit
+                .area(*source)
+                .expect("a validated cut fits on the grid");
+            // Destination locations replaced by a cut cease to belong to the old
+            // command. Undo must not mistake them for moved source locations.
+            let mut pieces: Vec<_> = area
+                .subtract(*source)
+                .into_iter()
+                .flat_map(|piece| piece.subtract(destination))
+                .collect();
+            if let Some(common) = area.intersection(*source) {
+                pieces.extend(edit.area(common));
+            }
             pieces
         }
         E::ShiftCells {

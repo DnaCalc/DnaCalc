@@ -66,9 +66,36 @@ pub(crate) enum Inverse {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Step {
     pub(crate) forward: Vec<CellEdit>,
+    pub(crate) coordinates: Option<calc_fml::reference::StructuralEdit>,
     pub(crate) inverse: Result<Inverse, Irreversible>,
     pub(crate) before: Selection,
     pub(crate) after: Selection,
+}
+
+/// Undo follows the surviving locations back; it never restores a deleted scope.
+pub(crate) fn inverse_coordinates(
+    edit: &calc_fml::reference::StructuralEdit,
+) -> calc_fml::reference::StructuralEdit {
+    use calc_fml::reference::StructuralEdit as E;
+    match edit {
+        E::ShiftCells { area, down, insert } => E::ShiftCells {
+            area: *area,
+            down: *down,
+            insert: !insert,
+        },
+        E::MoveCells {
+            area,
+            to: _,
+            source_name,
+            target_name,
+        } => E::MoveCells {
+            area: edit.area(*area).expect("a validated cut fits on the grid"),
+            to: area.first(),
+            source_name: target_name.clone(),
+            target_name: source_name.clone(),
+        },
+        _ => unreachable!("axis and sheet transforms use snapshot history"),
+    }
 }
 
 /// The areas each edit touches, in order.

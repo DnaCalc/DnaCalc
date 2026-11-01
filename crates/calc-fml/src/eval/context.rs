@@ -54,6 +54,7 @@ pub enum ReadPurpose {
     FormulaValue,
     FormulaText,
     FormulaKind,
+    ReferenceShape,
     SheetMetadata,
     Diagnostic,
 }
@@ -64,6 +65,7 @@ pub enum ObservableFacets {
     Value,
     FormulaText,
     FormulaKind,
+    Shape,
     SheetMetadata,
     Occupancy,
 }

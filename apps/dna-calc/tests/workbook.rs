@@ -644,6 +644,18 @@ fn dc_rif__an_excel_workbook_opens_calculated_and_counts_its_formulas() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k__imsec_corpus_text() {
+    let mut book = Workbook::new_blank();
+    let first = CellKey::new(book.sheets()[0].id, 1, 1).unwrap();
+    assert!(book.enter(first, "=IMSEC(\"4+3i\")").accepted());
+    let result = shown(&book, first);
+    assert_eq!(result.provenance, Provenance::Calculated);
+    // Catalogue prefix_metadata!A128, original Excel capture.
+    assert_eq!(result.text, "-0.0652940278579471-0.0752249603027732i");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
     let owner = Owner::new();
     owner.with(|| {

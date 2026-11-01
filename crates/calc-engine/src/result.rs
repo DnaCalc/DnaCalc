@@ -196,7 +196,9 @@ impl FormulaResult {
                         // Publication has validated every exact blank run against the final
                         // producer cut. Candidate-time uncertainty is now discharged.
                         proof.occupancy = occupancy(proof.region);
-                        proof.pending_producers = 0;
+                        if proof.cached.is_none() {
+                            proof.pending_producers = 0;
+                        }
                     }
                 }
             }

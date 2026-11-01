@@ -18,7 +18,7 @@ pub enum PasteSource<'a> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PastePlan {
-    moves_cells: bool,
+    coordinates: Option<calc_fml::reference::StructuralEdit>,
     scope: Option<u64>,
     revision: u64,
     target: GridArea,
@@ -33,15 +33,14 @@ impl PastePlan {
         self.replaces
     }
     pub(crate) fn into_edits(self, host: &HostState) -> Result<Vec<CellEdit>, String> {
-        if self.moves_cells && host.scoped_calculation_active() {
-            return Err(
-                "Finish or cancel the scoped calculation before moving cells (dc-hsa5)".into(),
-            );
-        }
         if self.scope != Some(host.command_scope) || self.revision != host.revision().get() {
             return Err("The workbook changed after the preview; paste again".into());
         }
         Ok(self.edits)
+    }
+
+    pub(crate) fn coordinates(&self) -> Option<calc_fml::reference::StructuralEdit> {
+        self.coordinates.clone()
     }
 
     /// Replay deliberately applies a recorded command to another open host. Only that route
@@ -58,7 +57,17 @@ pub fn prepare_paste(
     to: GridArea,
     mode: PasteMode,
 ) -> Result<PastePlan, String> {
-    let moves_cells = matches!(&source, PasteSource::Snapshot { cut: true, .. });
+    let coordinates = match &source {
+        PasteSource::Snapshot {
+            snapshot,
+            cut: true,
+        } => Some(crate::copy::move_coordinates(
+            host,
+            snapshot.area(),
+            to.first(),
+        )),
+        _ => None,
+    };
     let (edits, target) = match source {
         PasteSource::Snapshot { snapshot, cut } => {
             if cut && mode != PasteMode::All {
@@ -147,7 +156,7 @@ pub fn prepare_paste(
         host.model().cells(target).into_iter().flatten().count() as u64
     };
     Ok(PastePlan {
-        moves_cells,
+        coordinates,
         scope: Some(host.command_scope),
         revision: host.revision().get(),
         target,
