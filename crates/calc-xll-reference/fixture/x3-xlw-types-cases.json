@@ -1,0 +1,7 @@
+[
+  {"formula":"=X3XlwAdd(1.25,2.5)","value":3.75},
+  {"formula":"=X3XlwAdd(-8,3)","value":-5},
+  {"formula":"=SUM(X3XlwMatrix({1,2;3,4}))","value":20},
+  {"formula":"=INDEX(X3XlwMatrix({1,2;3,4}),2,1)","value":6},
+  {"formula":"=X3XlwReference(A1)","value":7}
+]

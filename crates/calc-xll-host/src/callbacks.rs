@@ -302,7 +302,7 @@ unsafe fn publish(
                 _ => false,
             }
         });
-    if function == XL_STACK || integer_coercion {
+    if function == XL_STACK || function == 16401 || integer_coercion {
         unsafe {
             result.write_unaligned(XlOper12::integer(value.as_number().unwrap_or(0.) as i32));
         }

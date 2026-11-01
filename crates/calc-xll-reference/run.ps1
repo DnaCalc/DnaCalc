@@ -1,11 +1,13 @@
 param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))), [switch]$NoTrace, [string]$X1Xll, [string]$HostExecutable,
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
     [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
-    [string]$AddInDirectory, [string]$XllFileName)
+    [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal)
 $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Run with pwsh -Sta -File run.ps1.' }
 if ($ReloadNewHost) { $Reload=$true }
 if ($ExpectAotReloadRefusal -and ((-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectAotReloadRefusal requires a reload/alias attempt and -HostExecutable.' }
+if ($ExpectXloilReloadRefusal -and ($ExpectAotReloadRefusal -or (-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectXloilReloadRefusal requires a host reload/alias attempt without the AOT expectation.' }
+$expectedRefusal=if($ExpectAotReloadRefusal){'dc-snz.18: reinitializing a packed Native AOT runtime already attempted'}elseif($ExpectXloilReloadRefusal){'dc-snz.21: reopening the measured xlOil 0.22.1 runtime after teardown is not modelled'}else{$null}
 $run = [IO.Path]::GetFullPath($RunDirectory)
 if (Test-Path -LiteralPath $run) { throw 'Use a new run directory; earlier evidence is never overwritten.' }
 New-Item -ItemType Directory -Path $run -Force | Out-Null
@@ -134,7 +136,7 @@ if ($HostExecutable) {
         Set-Content -LiteralPath $go -Value 'go'
         $deadline = [DateTime]::UtcNow.AddSeconds(600)
         while (-not (Test-Path -LiteralPath $done)) {
-            if ($ExpectAotReloadRefusal -and $hostProcess.HasExited) { break }
+            if ($expectedRefusal -and $hostProcess.HasExited) { break }
             if ($hostProcess.HasExited -or [DateTime]::UtcNow -gt $deadline) { throw 'Native host did not finish; inspect host.stderr.' }
             Start-Sleep -Milliseconds 100
         }
@@ -156,9 +158,9 @@ if ($HostExecutable) {
         }
     }
     if (-not $detached) { throw 'Tracer did not detach; owned host left running for inspection.' }
-    if ($ExpectAotReloadRefusal) {
+    if ($expectedRefusal) {
         $message=Get-Content -LiteralPath (Join-Path $run 'host.stderr') -Raw
-        if ($hostProcess.ExitCode -ne 1 -or $message -notmatch 'dc-snz.18: reinitializing a packed Native AOT runtime already attempted' -or $message -match 'Unhandled exception') { throw 'Expected a typed AOT reload refusal; inspect host.stderr.' }
+        if ($hostProcess.ExitCode -ne 1 -or -not $message.Contains($expectedRefusal) -or $message -match 'Unhandled exception') { throw 'Expected a typed runtime reload refusal; inspect host.stderr.' }
         [ordered]@{status='typed refusal, not a compatibility pass';exit_code=$hostProcess.ExitCode;message=$message.Trim()} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'refusal.json') -Encoding utf8NoBOM
     } elseif ($hostProcess.ExitCode -ne 0) { throw 'Native host returned failure; inspect host.stderr.' }
     if ($debugger -and $debugger.ExitCode -ne 0) { throw 'Native host tracer reported an incomplete capture.' }

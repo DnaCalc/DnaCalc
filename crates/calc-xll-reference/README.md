@@ -262,3 +262,46 @@ dependency reader, including worker requests; macro-equivalent callbacks use
 the cached-read policy. Nested registered calls that change that policy return
 a typed refusal. A dedicated native test with distinct live/cached readers has
 not been run; that forwarding was reviewed in source.
+
+## X3: original xlw and xlOil (dc-snz.20)
+
+The [X3 captures](traces/2026-11-01-x3/) compare identical add-in files in Excel
+16.0.20527.20088 and the desktop host, using the X0 debugger method plus separate
+controls without the debugger. The original xlw 23.10.12-rc generator and library
+build its unchanged upstream EchoShort sample. A separate MIT fixture adds scalar,
+matrix and reference cases. Original xlOil 0.22.1 binaries run its native Utils
+and SQL plugins, and its Python 3.12 plugin with a small MIT Python fixture.
+The framework binaries are unchanged; source commits, release URLs, licences and
+SHA-256 values are recorded in [the manifest](fixture/x3-upstream.json).
+
+All 27 formulas agree in the traced and control runs. The verifier compares all
+28 native UDF invocations, including repetitions, and their ordered nested
+callbacks. Seventeen DLLFree returns are released exactly once through the
+owning module, on the calling thread, before the next module entry. The four
+profiles preserve callback number/code order before teardown. Raw initialization
+records still differ: FILTER returns integer versus numeric array elements,
+xlEventRegister's result payload differs, and Python registration order differs.
+These records remain visible and are not counted as raw matches. Excel unregisters
+by path; the host calls Remove then Close, so teardown is reported separately.
+
+Build the pinned inputs outside the repository, then use the existing runner:
+
+```powershell
+./build.ps1 -X3 -UpstreamDirectory C:/Work/DnaCalc/codex-runs/x3-upstream
+pwsh -NoProfile -Sta -File ./run.ps1 -AddInDirectory C:/Work/DnaCalc/codex-runs/x3-upstream/xloil-runtime -XllFileName xlOil.xll -Cases fixture/x3-xloil-cases.json -HostExecutable ../../target/debug/dna-calc-desktop.exe -RunDirectory runs/example-x3
+```
+
+Repeat without `-HostExecutable` for Excel and with `-NoTrace` for each control.
+Use `verify.py` with the four directories and `--x3-cases`. The Python profile
+requires an existing x64 Python 3.12 and NumPy; the builder installs neither.
+Keep the same tracer binary for both traced runs. Following the history rewrite,
+the verifier can recover a missing revision only from the exact recorded SHA at
+the same path in retained history; recovered bindings are listed in the summary.
+
+An unprotected xlOil reload crashes with C0000005. The host now refuses reopening
+the exact measured 0.22.1 loader after teardown, including through a fresh host in
+the same process. The refusal is a failure, not a compatibility pass. dc-snz.21
+owns safe reinitialization and comparison of the same lifecycle in Excel.
+Native AOT reinitialization remains dc-snz.19. RTD, event delivery, cancellation,
+concurrent workbook calculation, ribbon/UI integration, the general COM model,
+xlwDotNet, legacy Excel4 and x86 remain unverified.

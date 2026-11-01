@@ -62,6 +62,21 @@ cl /nologo /std:c++17 /EHsc /O2 /MD /DNDEBUG /LD /I"$xlwPackage/native/include" 
     $xlwRuntime=Join-Path $upstream 'xlw-runtime'
     $null=New-Item -ItemType Directory -Force -Path $xlwRuntime
     Copy-Item -LiteralPath (Join-Path $sample 'xlwSample.xll') -Destination $xlwRuntime
+    # Broader ABI coverage uses our own declarations with the same untouched
+    # generator and released library. The upstream EchoShort sample stays separate.
+    $types=Join-Path $upstream 'xlw-types'
+    $null=New-Item -ItemType Directory -Force -Path (Join-Path $types 'generated')
+    foreach ($file in 'x3-xlw-types.h','x3-xlw-types.cpp') { Copy-Item -LiteralPath (Join-Path $root "fixture/$file") -Destination $types }
+    & (Join-Path $xlwPackage 'native/lib/InterfaceGenerator.exe') (Join-Path $types 'x3-xlw-types.h') (Join-Path $types 'generated/types.cpp')
+    if ($LASTEXITCODE -ne 0) { throw 'Original xlw type-fixture generation failed.' }
+    $typesCommand=(Get-Content -LiteralPath $sampleBuild -Raw).Replace("$sample/source.cpp","$types/x3-xlw-types.cpp").Replace("$sample/generated/xlw-sample.cpp","$types/generated/types.cpp").Replace($sample,$types).Replace('xlwSample.xll','xlwTypes.xll')
+    $typesBuild=Join-Path $types 'build.cmd'
+    $typesCommand | Set-Content -LiteralPath $typesBuild -Encoding ascii
+    & cmd.exe /d /c $typesBuild
+    if ($LASTEXITCODE -ne 0) { throw 'xlw type fixture build failed.' }
+    $typesRuntime=Join-Path $upstream 'xlw-types-runtime'
+    $null=New-Item -ItemType Directory -Force -Path $typesRuntime
+    Copy-Item -LiteralPath (Join-Path $types 'xlwTypes.xll') -Destination $typesRuntime
     foreach ($wheel in $manifest.xloil.wheels) {
         $file=Join-Path $upstream $wheel.file
         Fetch $wheel.url $file $wheel.sha256
