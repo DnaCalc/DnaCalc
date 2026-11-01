@@ -1,0 +1,32 @@
+[
+  {
+    "case_id": "first-open-controller/1",
+    "fixture_hash": "sha256:bce82f6a52f225051c9d2e6beefeb33f27adfa25a98b6585c1364d96aa2fcfcf",
+    "fixture_reference": "supervisor-raw.zip: raw/P06-first-auto-10-safe/windows-scalar-interop/OracleProbe.bas",
+    "platform_profile": "machine.json and per-case profile/settings rows",
+    "setup_operations": {
+      "source": "probe.bas or recorded injected source",
+      "raw_lines": [
+        1,
+        24
+      ]
+    },
+    "accepted_initial_observations": [],
+    "tested_operation": [],
+    "live_observations": [],
+    "callback_trace": [],
+    "event_trace": [
+      25,
+      26
+    ],
+    "saved_artifact_hashes": [
+      {
+        "file": "first-auto-10-first-open-controller-01.xlsm",
+        "sha256": "992ef692c843e947d74ae5d2e495c9e9385a12a0178b4bb5bf80e4c976391e82"
+      }
+    ],
+    "outcome_class": "captured; no automatic behavioral verdict",
+    "competing_explanations": "README.md",
+    "design_decision": "README.md"
+  }
+]

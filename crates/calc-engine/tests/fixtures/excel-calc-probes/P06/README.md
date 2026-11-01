@@ -5,6 +5,9 @@ canceled the calculation; live Error2051 remained while the file preserved the l
 41/42 with edited input 201..210. This is not evidence of saving a still-live pending continuation.
 
 Manual Save(false) preserves stale formula caches: choose `PreservePermittedCaches` for that profile.
+The later first-workbook supplement confirms the ordinary Manual/Automatic distinction in fresh processes;
+the total retained package count is now 1551 (1528 in the original save/reopen runs, one synthetic mode variant,
+two startup controls and twenty repeated startup controllers).
 Excel 16.0.20527.20088 x64, CalculationVersion 191029, Windows/AMD Ryzen 7 4800H, safe mode.
 440 primary save cases, 30 scope controls and 320 after-controller opens; 1,528 retained packages,
 including eight explicitly synthetic flag variants. No recorded probe faults; owned-process-zero cleanup.
@@ -44,6 +47,27 @@ flags-raw-results.tsv, disabled-raw-results.tsv. Their manifests retain exact XM
 reopen; the archive retains all injected sources and rejected or earlier trials. Synthetic changes
 are recorded by make-synthetic.py and synthetic-manifest.json; formula/cache values were not edited.
 
-Not yet measured: opening the tested file as the first workbook. The reusable supervisor opens a
-controlled macro-free bootstrap first; a startup-source extension with the same ownership and hash
-checks is needed for that condition. Pending-async saves belong to P07's separate latch experiment.
+First-workbook supplement: `run-first-workbooks.ps1` uses the same supervisor with FirstWorkbook. Its process
+argv opens the measured source, before any controller. After exact PID/start/HWND ownership and guardian setup,
+COM records A1:C1, mode and CalculationState before any diagnostic macro. The source's ReadAfterOpen records
+typed values and counters; the source closes without saving. Only then does the worker open the original
+controlled macro-free bootstrap, whose five-part/hash/compile checks remain unchanged.
+
+`first-open-summary.json` and first-manual/auto-NN-trace.tsv retain twenty accepted fresh-process observations.
+All ten Manual starts selected mode -4135, state 2, A1/B1/C1=5/2/3 and no PlainProbe entries. All ten Automatic
+starts selected mode -4105, state 0, values 5/10/11 and exactly one call each to IDs 32/33; B3/C3=5. Every source
+hash before/after matched. The Manual source is a genuine current-version Save(false) file; Automatic uses
+synthetic-first-open-auto.xlsm, made by changing only its calcMode to auto. The source/change hashes are in
+first-open-synthetic-manifest.json. This controls startup mode while holding formulas/caches fixed; it is not
+represented as an Excel-authored stale Automatic save.
+
+The Manual/Automatic startup controls were each tried once before the repeated runs. Automatic repetition 5
+initially failed before durable ownership because a transient startup window could not be captured by UIA;
+there was no measurement from that attempt. Resume retained the failed raw directory and ran a fresh retry ID.
+The successful twenty runs have compile/run ok and worker cleanup owned-process-zero. The parent sealed
+expected-value mismatch and occasional exited-process identity race are retained, not represented as behavioral
+test failures or as proof of a live leftover process. The original source hashes and the worker cleanup records
+are the measurement authorities. first-owned-process-audit.json also confirms all twenty accepted process IDs
+were no longer running. first-saved-caches.json covers all 1551 packages; supervisor-raw.zip includes
+the original runs plus startup evidence. Disabled-sheet first-open and genuine older-version packages remain
+outside this ordinary startup control. Pending-async saves are recorded by P07's separate latch experiment.

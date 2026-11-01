@@ -3,6 +3,7 @@
 These are synthetic flag experiments, not files authored by an older Excel build.
 """
 from pathlib import Path
+import argparse
 import copy
 import hashlib
 import json
@@ -10,6 +11,9 @@ import re
 import zipfile
 
 root=Path(__file__).parent
+parser=argparse.ArgumentParser()
+parser.add_argument('--first-open',action='store_true',help='Only create the explicitly synthetic Automatic first-workbook input')
+args=parser.parse_args()
 source=root/'manual-false-save-log-01-tested.xlsm'
 def attribute(tag,key,value):
     pattern=r'\s'+re.escape(key)+r'="[^"]*"'
@@ -27,6 +31,8 @@ variants={
     'ca-zero':{'ca':'0'},
     'sheet-full-on-load':{'sheetFull':'1'},
 }
+if args.first_open:
+    variants={'first-open-auto':{'calcMode':'auto'}}
 manifest=[]
 with zipfile.ZipFile(source) as z:
     original={name:z.read(name) for name in z.namelist()}
@@ -52,5 +58,5 @@ for label,changes in variants.items():
     manifest.append(dict(file=file.name,sha256=hashlib.sha256(file.read_bytes()).hexdigest(),
                          source=source.name,source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
                          changes=changes,label='synthetic flags; current-version cache'))
-(root/'synthetic-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
-print('Created eight explicitly synthetic flag variants; no formula or cache value changed.')
+(root/('first-open-synthetic-manifest.json' if args.first_open else 'synthetic-manifest.json')).write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
+print(f'Created {len(manifest)} explicitly synthetic variants; no formula or cache value changed.')

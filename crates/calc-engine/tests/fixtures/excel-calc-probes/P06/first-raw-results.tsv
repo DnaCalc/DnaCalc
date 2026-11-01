@@ -1,0 +1,27 @@
+first-open-controller/1	profile	stage	profile
+first-open-controller/1	profile	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+first-open-controller/1	profile	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=True;precisionAsDisplayed=False;date1904=False;mtc=True;threads=16;automationSecurity=1
+first-open-controller/1	profile	force-full-setting	False
+first-open-controller/1	profile	addin	ANALYS32.XLL;installed=False
+first-open-controller/1	profile	addin	ATPVBAEN.XLAM;installed=False
+first-open-controller/1	profile	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+first-open-controller/1	profile	addin	EUROTOOL.XLAM;installed=False
+first-open-controller/1	profile	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+first-open-controller/1	profile	addin	ExcelDna.IntelliSense64.xll;installed=False
+first-open-controller/1	profile	addin	ExcelDna64.xll;installed=False
+first-open-controller/1	profile	addin	GENERIC.xll;installed=False
+first-open-controller/1	profile	addin	McpExcel-AddIn64.xll;installed=True
+first-open-controller/1	profile	addin	RibbonTest-AddIn64.xll;installed=False
+first-open-controller/1	profile	addin	SOLVER.XLAM;installed=False
+first-open-controller/1	profile	addin	Test160rc1Local-AddIn64.xll;installed=False
+first-open-controller/1	profile	addin	TestCrashGuard-AddIn64.xll;installed=True
+first-open-controller/1	profile	addin	TestCs170rc2-AddIn64.xll;installed=False
+first-open-controller/1	profile	addin	TestDoc170-AddIn64.xll;installed=False
+first-open-controller/1	profile	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+first-open-controller/1	profile	addin	TestOpen16-AddIn64-packed.xll;installed=False
+first-open-controller/1	profile	profile-unavailable	COMAddIns;error=1004;Method 'COMAddIns' of object '_Application' failed
+first-open-controller/1	profile	first-open-controller	The first workbook was observed and closed before this controlled bootstrap was opened and compiled. See first-open-observation.json.
+first-open-controller/1	artifact-save	stage	artifact-save
+first-open-controller/1	artifact-save	event	BeforeSave;saveAsUI=False
+first-open-controller/1	artifact-save	event	AfterSave;success=True
+first-open-controller/1	artifact-save	artifact	C:\Work\DnaCalc\DnaCalc-cfml\crates\calc-engine\tests\fixtures\excel-calc-probes\P06\first-auto-10-first-open-controller-01.xlsm
