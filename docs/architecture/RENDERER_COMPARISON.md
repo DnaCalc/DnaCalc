@@ -78,7 +78,7 @@ the committed RenderPlan and actual raster, requiring matching publication and p
 epochs; erased transparent pixels cannot satisfy the ink check. The alignment fixture opens
 at 1440 by 1200 so its asserted bottom-row glyphs are visible. DOM remains the default.
 This is plan and paint evidence, without an Excel pixel comparison. Logs:
-`~/codex-runs/ui-r12-canvas-core-second.log` and `ui-r12-canvas-probe-final.log`.
+`~/codex-runs/ui-r12-latest-core-canvas.log` and `ui-r12-canvas-probe-final.log`.
 Run `cargo xtask app smoke calc --workbook @renderer-grid --edit Data!A1=42
 --renderer-report <directory>` on one shell line; repeat with formats/features fixture paths.
 Use `--renderer canvas` for ordinary runs. Raw JSON, plans, screenshots and summaries:

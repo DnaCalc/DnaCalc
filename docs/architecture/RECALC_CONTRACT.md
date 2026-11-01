@@ -431,7 +431,14 @@ producer is discovered late: the VBA Range remains an object, observes Empty the
 twice; the unused Range and scalar-expression controls enter once. A retained spill-child control
 observes 2 then 21 after its producer's input changes; the query includes published and complete
 imported array footprints before the producer stages again. This establishes those routes,
-not parity for every area ordering. Hidden stored-Range reads retain P01's observer-only policy.
+not parity for every area ordering. Hidden stored-Range reads keep P01's observer-only policy:
+they add no persistent value edge and admit no new producer. A successful read can request a
+fresh entry around an already admitted independent producer; the existing graph closure excludes
+the caller and its known consumers, preventing artificial cycles. The cached view explicitly
+carries its executing caller, whose self observation is Empty even with array metadata or a prior
+published value. Seven shared controls cover these rules through VM/JIT and both budgets, with
+explicit Excel.Range types. Unqualified stored Range.Value2 conversion remains dc-hsa5.4.2;
+request-area ordering and warm initial-cache visibility still need their measured profiles.
 Nested waits, the remaining Range-order profiles and nested CalcFml continuations remain bounded
 refusals or later work. P07's owner boundary is in 3.4.
 RTD events use a separate provider/subscription sequence and immutable input snapshot. They mark

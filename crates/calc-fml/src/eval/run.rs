@@ -3233,16 +3233,22 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
                 if self.cached
                     && self.reevaluation
                         == Some(calc_func::UserReevaluationReason::ProvisionalArguments)
-                    && reference.areas().iter().all(|read| {
+                {
+                    let explicit = reference.areas().iter().all(|read| {
                         self.provisional_arguments.iter().any(|argument| {
                             argument.contains(read.first()) && argument.contains(read.last())
                         })
-                    })
-                    && self.run.reader.provisional_argument_pending(reference)
-                {
-                    self.request_reevaluation(
-                        calc_func::UserReevaluationReason::ProvisionalArguments,
-                    )?;
+                    });
+                    let pending = if explicit {
+                        self.run.reader.provisional_argument_pending(reference)
+                    } else {
+                        self.run.reader.provisional_observation_pending(reference)
+                    };
+                    if pending {
+                        self.request_reevaluation(
+                            calc_func::UserReevaluationReason::ProvisionalArguments,
+                        )?;
+                    }
                 }
                 Ok(value)
             }

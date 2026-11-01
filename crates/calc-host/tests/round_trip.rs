@@ -112,6 +112,114 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() {
+    use calc_host::{
+        CopySnapshot, FormatPatch, PasteMode, PasteSource, WorkbookCommand, prepare_paste,
+    };
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    let source = GridArea::cell(at(sheet, "A1"));
+    let target = GridArea::cell(at(sheet, "B1"));
+    assert!(enter(&mut book, source.first(), "17").accepted());
+    let format = |book: &mut HostSession, area, fill: &str| {
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                areas: vec![area],
+                patch: FormatPatch {
+                    fill: Some(fill.into()),
+                    ..Default::default()
+                },
+            }))
+            .accepted()
+        );
+    };
+    format(&mut book, source, "#ff0000");
+    let copied_style = book.host().cell_style(source.first());
+    let snapshot = CopySnapshot::capture(book.host(), source).unwrap();
+    let mut foreign = session(&calc_host::blank_package());
+    let foreign_sheet = foreign.host().sheets()[0].id();
+    assert_eq!(foreign_sheet, sheet);
+    format(
+        &mut foreign,
+        GridArea::cell(at(foreign_sheet, "A1")),
+        "#ff0000",
+    );
+    assert_eq!(foreign.host().styles(), book.host().styles());
+    assert!(
+        prepare_paste(
+            foreign.host(),
+            PasteSource::Snapshot {
+                snapshot: &snapshot,
+                cut: false
+            },
+            GridArea::cell(at(foreign_sheet, "B1")),
+            PasteMode::Formats
+        )
+        .is_err(),
+        "equal parsed styles cannot establish another workbook's raw-source lineage"
+    );
+    format(&mut book, GridArea::cell(at(sheet, "C1")), "#00ff00");
+    let prepare = |book: &HostSession, mode| {
+        prepare_paste(
+            book.host(),
+            PasteSource::Snapshot {
+                snapshot: &snapshot,
+                cut: false,
+            },
+            target,
+            mode,
+        )
+    };
+    assert!(
+        prepare(&book, PasteMode::Formats).is_ok(),
+        "appending styles retains captured indices"
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(
+        prepare(&book, PasteMode::Formats).is_err(),
+        "removed captured styles must not be applied"
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(
+        prepare(&book, PasteMode::Formats).is_ok(),
+        "Redo restores captured definitions"
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    format(&mut book, source, "#0000ff");
+    assert_eq!(
+        book.host().cell_style(source.first()),
+        copied_style,
+        "the new history branch reuses the old index"
+    );
+    let revision = book.host().revision();
+    for mode in [PasteMode::All, PasteMode::Formats] {
+        let error = prepare(&book, mode)
+            .expect_err("a reused index must not paste the new blue format for the copied red one");
+        assert!(error.to_string().contains("dc-971p.6"), "{error}");
+    }
+    assert!(
+        snapshot
+            .fill_edits(book.host(), target, false, false)
+            .is_err()
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert!(book.host().model().cell(target.first()).is_none());
+    assert!(prepare(&book, PasteMode::Formulas).is_ok());
+    let values = prepare(&book, PasteMode::Values).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::Paste(values)))
+            .accepted()
+    );
+    assert_eq!(
+        book.host().model().cell(target.first()),
+        Some(&number(17.0))
+    );
+    assert_eq!(book.host().cell_style(target.first()), 0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_scoped_cut_and_cell_shifts_follow_survivors_through_undo_redo() {
     use calc_engine::contract::{CalcEvent, CalcScope};
     let mut book = session(&calc_host::blank_package());
@@ -7015,7 +7123,7 @@ fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
     #[cfg(not(target_arch = "wasm32"))]
     backends.push(calc_vba::Backend::Jit);
     for backend in backends {
-        for &(formula, producer, seed, expected, stats, reevaluations) in
+        for &(formula, producer, seed, expected, stats, reevaluations, held_target) in
             seven_cell::P03_RANGE_CASES
         {
             for budget in [1, usize::MAX] {
@@ -7031,6 +7139,27 @@ fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
                     )
                     .unwrap(),
                 );
+                if let Some(target) = held_target {
+                    enter(
+                        &mut book,
+                        at(s, "H1"),
+                        &format!("=HoldRange(INDIRECT(\"{target}\"))"),
+                    );
+                    assert!(
+                        book.dispatch(SkinIntent::CalculateRange {
+                            areas: vec![GridArea::cell(at(s, "H1"))]
+                        })
+                        .accepted()
+                    );
+                    while book.has_pending_calculation() {
+                        book.advance_calculation();
+                    }
+                    assert_eq!(
+                        calculated(book.host(), at(s, "H1")),
+                        Some(CalcValue::number(1.0))
+                    );
+                    book.take_calculation_events();
+                }
                 for (address, text) in [("B1", formula), ("C1", "=B1+1")] {
                     enter(&mut book, at(s, address), text);
                 }
@@ -7079,6 +7208,22 @@ fn contract_p03_vba_range_value_reads_reenter_but_unused_ranges_do_not() {
                     calculated(book.host(), at(s, "C1")),
                     Some(CalcValue::number(expected + 1.0))
                 );
+                if held_target.is_some() {
+                    assert_eq!(
+                        book.host().precedents(at(s, "B1")),
+                        Some(Vec::new()),
+                        "a cached observation adds no persistent value edge"
+                    );
+                    let ProjectedValue::Calculated { calculation, .. } =
+                        value(book.host(), at(s, "B1"))
+                    else {
+                        panic!("calculated observer");
+                    };
+                    assert!(
+                        !calculation.held_by_circular_rule(),
+                        "hidden observations do not invent a cycle"
+                    );
+                }
                 let events = book.take_calculation_events();
                 assert_eq!(
                     events

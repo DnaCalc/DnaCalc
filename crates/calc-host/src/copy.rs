@@ -65,6 +65,8 @@ pub enum CopyRefusal {
         anchor: CellKey,
     },
     SourceChanged,
+    /// History removed or reused the format definitions captured by a clipboard snapshot.
+    StyleDefinitionsChanged,
     UnavailableValue {
         at: CellKey,
     },
@@ -85,6 +87,9 @@ impl fmt::Display for CopyRefusal {
             Self::SourceChanged => {
                 f.write_str("the cut source changed; cut it again before moving it")
             }
+            Self::StyleDefinitionsChanged => f.write_str(
+                "the copied style definitions changed or belong to another workbook; remapping them is not modelled (dc-971p.6); copy the source again",
+            ),
             Self::UnavailableValue { at } => write!(
                 f,
                 "row {} column {} has no current calculated value; calculate before copying values",
@@ -397,6 +402,41 @@ pub(crate) fn move_coordinates(
     }
 }
 
+// Captured format indices remain valid while their definitions and raw-source lineage
+// remain a prefix. History can remove appended records and reuse their indices on a branch.
+fn style_prefix_retained(
+    before: &calc_doc_model::StyleTable,
+    after: &calc_doc_model::StyleTable,
+) -> bool {
+    after.number_formats.starts_with(&before.number_formats)
+        && after.fonts.starts_with(&before.fonts)
+        && after.fills.starts_with(&before.fills)
+        && after.borders.starts_with(&before.borders)
+        && after
+            .cell_style_formats
+            .starts_with(&before.cell_style_formats)
+        && after.cell_formats.starts_with(&before.cell_formats)
+        && after.cell_styles.starts_with(&before.cell_styles)
+        && after
+            .differential_formats
+            .starts_with(&before.differential_formats)
+        && after.table_styles == before.table_styles
+        && after.colors == before.colors
+        && after.unmodelled == before.unmodelled
+        && [
+            (&before.sources.fonts, &after.sources.fonts),
+            (&before.sources.fills, &after.sources.fills),
+            (&before.sources.borders, &after.sources.borders),
+            (&before.sources.cell_formats, &after.sources.cell_formats),
+        ]
+        .into_iter()
+        .all(|(before, after)| {
+            before
+                .iter()
+                .all(|(id, source)| after.get(id) == Some(source))
+        })
+}
+
 /// The edits a copy (or cut) makes over the current revision of `host`.
 pub(crate) fn copy_edits(
     host: &HostState,
@@ -417,6 +457,14 @@ fn copy_edits_from(
     series: Option<bool>,
     partial: bool,
 ) -> Result<Vec<CellEdit>, CopyRefusal> {
+    if matches!(mode, PasteMode::All | PasteMode::Formats)
+        && let Some(snapshot) = snapshot
+        && (!snapshot.model.same_lineage(&host.model)
+            || (!Arc::ptr_eq(snapshot.model.definitions().styles(), host.styles())
+                && !style_prefix_retained(snapshot.model.definitions().styles(), host.styles())))
+    {
+        return Err(CopyRefusal::StyleDefinitionsChanged);
+    }
     let source_model = snapshot.map_or(&host.model, |s| &s.model);
     let source_style = |at| {
         snapshot
