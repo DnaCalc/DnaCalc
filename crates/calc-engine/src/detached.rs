@@ -14,16 +14,13 @@ use crate::result::NotModeled;
 use crate::spill::SpillIndex;
 use crate::state::EngineState;
 use calc_doc_model::ModelRoot;
-use calc_fml::reference::{CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent};
 use calc_fml::reference::{FormulaAnchor, ReferenceNotation};
-use calc_fml::{CalcEnvironment, HostFacts, SubtotalExclusions};
 use calc_fml::{
-    CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationServices, FormulaForm, PlanCache,
-    compile_loaded_with, evaluate, instantiate, parse_formula,
+    CompiledPlan, EvalFault, EvalFrame, EvalScratch, FormulaEvaluationContext, FormulaForm,
+    PlanCache, compile_loaded_with, evaluate, instantiate, parse_formula,
 };
-use calc_value::{CalcValue, CellKey, GridArea, NumericMode, SheetId};
+use calc_value::{CalcValue, CellKey, NumericMode};
 use std::cell::Cell;
-use std::ops::ControlFlow;
 use std::sync::Arc;
 
 /// A formula compiled for detached evaluation: its text read in A1 notation for a formula at
@@ -88,21 +85,27 @@ impl DetachedFormula {
         let view = RecalcView {
             inputs,
             state,
+            workbook_facts: state.workbook_facts.as_ref(),
             progress: &progress,
             spills: &spills,
             iterates: None,
             kept: None,
         };
         let uncomputed = Cell::new(None);
-        let mut reader = Placed {
-            cells: WorkbookReader::new(view, &uncomputed),
-            at,
-        };
+        let mut reader = WorkbookReader::new(view, &uncomputed);
+        let mut host = WorkbookReader::new(view, &uncomputed);
         let catalog = SnapshotCatalog(inputs);
         let mode = state.published_mode.clone().unwrap_or(NumericMode::Fast);
         let mut scratch = EvalScratch::new();
         let outcome = {
-            let mut services = EvaluationServices::new(&mode, &mut reader).with_catalog(&catalog);
+            let mut services = FormulaEvaluationContext::new(
+                &mode,
+                &mut reader,
+                state.environment(),
+                Some(&mut host),
+                calc_fml::ReadRequest::DIAGNOSTIC,
+            )
+            .with_catalog(&catalog);
             evaluate(EvalFrame::new(&instance, &mut scratch), &mut services)
         };
         if uncomputed.get().is_some() {
@@ -112,76 +115,5 @@ impl DetachedFormula {
             }));
         }
         outcome.map_err(NotModeled::Evaluation)
-    }
-}
-
-/// The engine's reader, with the cell the formula is placed at as its caller (ROW(), COLUMN() and
-/// CELL without a reference read it).
-struct Placed<'a> {
-    cells: WorkbookReader<'a>,
-    at: CellKey,
-}
-
-impl ReferenceReader for Placed<'_> {
-    fn read_cell(&mut self, at: CellKey) -> Result<CellRead, ReadContractError> {
-        self.cells.read_cell(at)
-    }
-
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
-        self.cells.read_area(area, sink);
-    }
-
-    fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
-        self.cells.spill_extent(anchor)
-    }
-
-    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
-        self.cells.subtotal_exclusions(area)
-    }
-
-    fn environment(&self) -> Option<CalcEnvironment> {
-        self.cells.environment()
-    }
-
-    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
-        Some(self)
-    }
-}
-
-impl HostFacts for Placed<'_> {
-    fn caller(&mut self) -> Option<CellKey> {
-        Some(self.at)
-    }
-
-    fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
-        self.cells.host_facts().is_some_and(|host| host.is_external_sheet(sheet))
-    }
-
-    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
-        self.cells.host_facts()?.is_formula(cell)
-    }
-
-    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
-        self.cells.host_facts()?.formula_text(cell)
-    }
-
-    fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
-        self.cells.host_facts()?.sheet_index(sheet)
-    }
-
-    fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
-        self.cells.host_facts()?.sheet_named(name)
-    }
-
-    fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
-        self.cells.host_facts()?.sheet_name(sheet)
-    }
-
-    fn sheet_count(&mut self) -> Option<u32> {
-        self.cells.host_facts()?.sheet_count()
-    }
-
-    fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_fml::WorkbookFacts>> {
-        self.cells.host_facts()?.workbook_facts()
     }
 }

@@ -21,7 +21,7 @@
 //!
 //! Evaluation does not compile: [`evaluate`] receives no formula text, syntax tree or catalogue.
 //!
-//! A caller may attach an [`EvaluationObserver`] to the services ([`EvaluationServices::observed_by`]):
+//! A caller may attach an [`EvaluationObserver`] to the services ([`FormulaEvaluationContext::observed_by`]):
 //! the evaluator itself shows it each catalogue call it runs ([`ExecutedCall`], marked when compile
 //! inserted the call), each reference it resolved from text as it ran ([`ResolvedReference`]) and
 //! the outcome it returns ([`EvaluationReport`]), so what the observer records comes from the
@@ -30,7 +30,7 @@
 //!
 //! INDIRECT's text is bound to a reference as the call runs, in the formula's workbook context:
 //! the sheets of the [`ReferenceCatalog`] the caller gives the services
-//! ([`EvaluationServices::with_catalog`]) and the instance's anchor. Without a catalogue, calc-func
+//! ([`FormulaEvaluationContext::with_catalog`]) and the instance's anchor. Without a catalogue, calc-func
 //! refuses the call as not modelled.
 
 mod builtins;
@@ -499,92 +499,11 @@ pub fn instantiate(plan: &Arc<CompiledPlan>, anchor: FormulaAnchor) -> FormulaIn
     }
 }
 
-/// What an evaluation runs with, owned by the caller: the numeric policy, which every arithmetic
-/// site reads, the reader that supplies every cell the formula reads, and, when the caller gives
-/// them, the catalogue that INDIRECT's text is bound against and the observer the evaluator
-/// reports the evaluation to.
-pub struct EvaluationServices<'s> {
-    numeric: &'s NumericMode,
-    reader: &'s mut dyn ReferenceReader,
-    observer: Option<&'s mut dyn EvaluationObserver>,
-    catalog: Option<&'s dyn ReferenceCatalog>,
-    random: Option<&'s mut dyn RandomSource>,
-    functions: Option<&'s calc_func::UserFunctions>,
-    function_diagnostics: Option<&'s mut Vec<String>>,
-    user_function_effects: Option<&'s mut UserFunctionEffects>,
-}
-
-impl<'s> EvaluationServices<'s> {
-    pub fn new(numeric: &'s NumericMode, reader: &'s mut dyn ReferenceReader) -> Self {
-        EvaluationServices {
-            numeric,
-            reader,
-            observer: None,
-            catalog: None,
-            random: None,
-            functions: None,
-            function_diagnostics: None,
-            user_function_effects: None,
-        }
-    }
-
-    /// Current user functions and optional execution diagnostics. Runtime failures produce
-    /// #VALUE!; a returned worksheet error retains its code.
-    pub fn with_functions(mut self, functions: &'s calc_func::UserFunctions) -> Self {
-        self.functions = Some(functions);
-        self
-    }
-
-    pub fn with_function_diagnostics(mut self, diagnostics: &'s mut Vec<String>) -> Self {
-        self.function_diagnostics = Some(diagnostics);
-        self
-    }
-
-    /// Observe actual UDF calls and volatility requests in this evaluation, including a call
-    /// that returns a worksheet error. Reusing the output starts a fresh observation each time.
-    pub fn with_user_function_effects(mut self, effects: &'s mut UserFunctionEffects) -> Self {
-        self.user_function_effects = Some(effects);
-        self
-    }
-
-    /// These services, with `random` the source of RAND, RANDBETWEEN and RANDARRAY. Without one
-    /// those functions are refused as not modelled.
-    pub fn with_random(self, random: &'s mut dyn RandomSource) -> Self {
-        EvaluationServices {
-            random: Some(random),
-            ..self
-        }
-    }
-
-    /// These services, with reference text (INDIRECT's) bound against `catalog`'s sheets, the
-    /// formula's workbook context. Without a catalogue such a call is refused as not modelled.
-    pub fn with_catalog(self, catalog: &'s dyn ReferenceCatalog) -> Self {
-        EvaluationServices {
-            catalog: Some(catalog),
-            ..self
-        }
-    }
-
-    /// These services, with `observer` shown each call the evaluation runs and the outcome it
-    /// returns (see [`EvaluationObserver`]).
-    pub fn observed_by(self, observer: &'s mut dyn EvaluationObserver) -> Self {
-        EvaluationServices {
-            observer: Some(observer),
-            ..self
-        }
-    }
-}
-
-impl fmt::Debug for EvaluationServices<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EvaluationServices")
-            .field("numeric", self.numeric)
-            .field("observed", &self.observer.is_some())
-            .field("catalog", &self.catalog.is_some())
-            .field("random", &self.random.is_some())
-            .finish_non_exhaustive()
-    }
-}
+mod context;
+pub use context::{
+    FactInvalidation, FactRead, FactSubject, FormulaEvaluationContext, ObservableFacets,
+    PassServices, ReadPolicy, ReadPurpose, ReadRequest, SemanticEnvironment,
+};
 
 /// Observes one evaluation from inside the evaluator (plan sections 6.5 and 10.1). [`evaluate`]
 /// shows it each catalogue call the evaluation runs, as the call returns, and then the outcome

@@ -201,6 +201,49 @@ fn dc_snz_13__binary_conversion_keeps_categories_and_argument_help() {
 
 struct FunctionCatalog;
 impl calc_fml::ReferenceCatalog for FunctionCatalog {
+    fn table(&self, name: &str) -> calc_fml::reference::TableLookup {
+        let _ = name;
+        calc_fml::reference::TableLookup::NotModelled
+    }
+
+    fn table_containing(
+        &self,
+        cell: calc_func::value::CellKey,
+    ) -> calc_fml::reference::TableLookup {
+        let _ = cell;
+        calc_fml::reference::TableLookup::NotModelled
+    }
+
+    fn sheet_span(
+        &self,
+        first: calc_func::value::SheetId,
+        last: calc_func::value::SheetId,
+    ) -> Option<Vec<calc_func::value::SheetId>> {
+        let _ = (first, last);
+        None
+    }
+
+    fn unknown_calls_are_names(&self) -> bool {
+        false
+    }
+
+    fn external_sheet(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+        sheet: &str,
+    ) -> Option<calc_func::value::SheetId> {
+        let _ = (book, sheet);
+        None
+    }
+
+    fn external_function_target(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+    ) -> Option<String> {
+        let _ = book;
+        None
+    }
+
     fn workbook_name(&self) -> Option<&str> {
         Some("local.xlsm")
     }
@@ -218,6 +261,45 @@ impl calc_fml::ReferenceCatalog for FunctionCatalog {
 
 struct LinkedCatalog<'a>(&'a calc_doc::model::Definitions);
 impl calc_fml::ReferenceCatalog for LinkedCatalog<'_> {
+    fn table(&self, name: &str) -> calc_fml::reference::TableLookup {
+        let _ = name;
+        calc_fml::reference::TableLookup::NotModelled
+    }
+
+    fn table_containing(
+        &self,
+        cell: calc_func::value::CellKey,
+    ) -> calc_fml::reference::TableLookup {
+        let _ = cell;
+        calc_fml::reference::TableLookup::NotModelled
+    }
+
+    fn sheet_span(
+        &self,
+        first: calc_func::value::SheetId,
+        last: calc_func::value::SheetId,
+    ) -> Option<Vec<calc_func::value::SheetId>> {
+        let _ = (first, last);
+        None
+    }
+
+    fn unknown_calls_are_names(&self) -> bool {
+        false
+    }
+
+    fn workbook_name(&self) -> Option<&str> {
+        None
+    }
+
+    fn external_sheet(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+        sheet: &str,
+    ) -> Option<calc_func::value::SheetId> {
+        let _ = (book, sheet);
+        None
+    }
+
     fn sheet_named(&self, _: &str) -> Option<calc_doc::model::value::SheetId> {
         None
     }
@@ -242,8 +324,22 @@ impl calc_fml::ReferenceCatalog for LinkedCatalog<'_> {
 
 struct NoReads;
 impl calc_fml::reference::ReferenceReader for NoReads {
+    fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
+
+    fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
+        calc_fml::reference::SpillExtent::NotModelled
+    }
+
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
     fn read_area(
         &mut self,
+        request: calc_fml::ReadRequest,
         _: calc_func::value::GridArea,
         _: &mut dyn FnMut(calc_fml::reference::CellRun<'_>) -> std::ops::ControlFlow<()>,
     ) {
@@ -269,16 +365,36 @@ fn evaluate_with_reader(
     let mut scratch = calc_fml::EvalScratch::new();
     calc_fml::evaluate(
         calc_fml::EvalFrame::new(&instance, &mut scratch),
-        &mut calc_fml::EvaluationServices::new(&calc_func::value::NumericMode::Fast, reader)
-            .with_functions(functions),
+        &mut calc_fml::FormulaEvaluationContext::new(
+            &calc_func::value::NumericMode::Fast,
+            reader,
+            None,
+            None,
+            calc_fml::ReadRequest::DEPENDENCY,
+        )
+        .with_functions(functions),
     )
     .unwrap()
 }
 
 struct WorkbookLiteral<'a>(&'a calc_doc::model::ModelRoot);
 impl calc_fml::reference::ReferenceReader for WorkbookLiteral<'_> {
+    fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
+
+    fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
+        calc_fml::reference::SpillExtent::NotModelled
+    }
+
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
     fn read_area(
         &mut self,
+        request: calc_fml::ReadRequest,
         area: calc_func::value::GridArea,
         sink: &mut dyn FnMut(calc_fml::reference::CellRun<'_>) -> std::ops::ControlFlow<()>,
     ) {

@@ -2125,7 +2125,10 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(2, 1), formula("A1+Data!A1")),
             set(c(3, 1), formula("IF(A2>10,\"big\",\"small\")")),
             // A difference below the normal range, which calc-func refuses as not modelled.
-            set(c(4, 1), formula("2.2250738585075E-308-2.2250738585073E-308")),
+            set(
+                c(4, 1),
+                formula("2.2250738585075E-308-2.2250738585073E-308"),
+            ),
             set(c(5, 1), formula("A4+1")),
             // A reference to another workbook (L3 binds 3-D references, which this row held
             // before; external references stay refused).
@@ -2483,7 +2486,11 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     let delta = recalc(&mut state, &root3, &mut Unobserved);
     assert_eq!(delta.tick().get(), 6);
     for at in [c(1, 2), c(2, 2), c(3, 2)] {
-        assert_eq!(calculated(&state, at), (CalcValue::number(0.0), 3, 6), "{at:?}");
+        assert_eq!(
+            calculated(&state, at),
+            (CalcValue::number(0.0), 3, 6),
+            "{at:?}"
+        );
     }
     assert_eq!(state.pending().count(), 0);
     let root4 = edit(&mut state, &root3, vec![set(c(2, 2), number(1.0))]);
@@ -4036,7 +4043,10 @@ fn dc_m3u__tables_and_3d_through_the_engine() {
     let root = edit(
         &mut state,
         &root,
-        vec![set(at(fe, 1, 1), number(20.0)), set(at(tab, 3, 2), number(7.0))],
+        vec![
+            set(at(fe, 1, 1), number(20.0)),
+            set(at(tab, 3, 2), number(7.0)),
+        ],
     );
     let delta = recalc(&mut state, &root, &mut Unobserved);
     // ROWS(Sales) and both rows of the calculated column read areas holding Tab!B3 (the data
@@ -4133,7 +4143,15 @@ fn dc_m3u__iteration() {
         calc,
         calc_doc_model::IterationSettings::EXCEL_DEFAULT,
     );
-    for at in [c(1, 1), c(1, 2), c(1, 3), c(1, 4), c(1, 5), c(1, 6), c(1, 7)] {
+    for at in [
+        c(1, 1),
+        c(1, 2),
+        c(1, 3),
+        c(1, 4),
+        c(1, 5),
+        c(1, 6),
+        c(1, 7),
+    ] {
         assert_eq!(held_by_circular_rule(&state, at), excel_text(""), "{at:?}");
     }
     assert_eq!(l1_value(&state, c(1, 8)), n(6.0));
@@ -4164,7 +4182,11 @@ fn dc_10y__cycles_with_stored_values() {
         (c(1, 4), formula("D1+1")),
         (c(1, 5), formula("E1+1")),
     ];
-    let caches = [(c(1, 3), stored(100.0)), (c(1, 4), stored(100.0)), (c(1, 5), stored(100.0))];
+    let caches = [
+        (c(1, 3), stored(100.0)),
+        (c(1, 4), stored(100.0)),
+        (c(1, 5), stored(100.0)),
+    ];
     let root = l3_root(
         &[(calc, "Calc")],
         cells.clone(),
@@ -4265,7 +4287,12 @@ fn dc_y2o__iteration_off_holds_what_the_cells_stored() {
                 CellText::new(ExcelText::from_interop_assignment("abc")).unwrap(),
             )),
         ),
-        (c(1, 6), stored(CachedValue::Error(calc_doc_model::value::WorksheetErrorCode::NA))),
+        (
+            c(1, 6),
+            stored(CachedValue::Error(
+                calc_doc_model::value::WorksheetErrorCode::NA,
+            )),
+        ),
         (c(1, 8), stored(number_cache(3.0))),
         (c(1, 9), stored(number_cache(1.0))),
     ];
@@ -4292,7 +4319,16 @@ fn dc_y2o__iteration_off_holds_what_the_cells_stored() {
     // evaluation does not meet itself.
     assert_eq!(
         state.circular_cells(),
-        vec![c(1, 1), c(1, 2), c(1, 4), c(1, 5), c(1, 6), c(1, 7), c(1, 9), c(2, 4)]
+        vec![
+            c(1, 1),
+            c(1, 2),
+            c(1, 4),
+            c(1, 5),
+            c(1, 6),
+            c(1, 7),
+            c(1, 9),
+            c(2, 4)
+        ]
     );
     // An edit elsewhere: the cycle's cells hold what they held.
     let root = edit(&mut state, &root, vec![set(c(1, 3), number(2.0))]);
@@ -4393,9 +4429,8 @@ fn dc_10y__data_table_reading_a_cycle() {
     let mut state = EngineState::new(&root);
     recalc(&mut state, &root, &mut Unobserved);
     let n = CalcValue::number;
-    let table_values = |state: &EngineState| {
-        [c(3, 5), c(4, 5), c(5, 5)].map(|at| l1_value(state, at))
-    };
+    let table_values =
+        |state: &EngineState| [c(3, 5), c(4, 5), c(5, 5)].map(|at| l1_value(state, at));
     assert_eq!(table_values(&state), [n(7.0), n(8.0), n(9.0)]);
     let root = edit(&mut state, &root, vec![set(c(1, 2), formula("A1+1"))]);
     recalc(&mut state, &root, &mut Unobserved);
@@ -4441,7 +4476,13 @@ fn dc_10y__circular_references_with_iteration_off() {
     };
     values(
         &state,
-        &[(c(1, 1), 3.0), (c(1, 7), 30.0), (c(2, 7), 4.0), (c(3, 7), 8.0), (c(1, 8), 100.0)],
+        &[
+            (c(1, 1), 3.0),
+            (c(1, 7), 30.0),
+            (c(2, 7), 4.0),
+            (c(3, 7), 8.0),
+            (c(1, 8), 100.0),
+        ],
     );
     let step = |state: &mut EngineState, root: &Arc<ModelRoot>, op: WorkbookOp| {
         let root = edit(state, root, vec![op]);
@@ -4479,14 +4520,36 @@ fn dc_10y__circular_references_with_iteration_off() {
     let root = step(&mut state, &root, set(c(1, 2), number(3.0)));
     values(
         &state,
-        &[(c(1, 1), 4.0), (c(1, 7), 40.0), (c(2, 7), 9.0), (c(3, 7), 18.0), (c(1, 8), 500.0)],
+        &[
+            (c(1, 1), 4.0),
+            (c(1, 7), 40.0),
+            (c(2, 7), 9.0),
+            (c(3, 7), 18.0),
+            (c(1, 8), 500.0),
+        ],
     );
-    let root = step(&mut state, &root, set(c(1, 4), formula("INDIRECT(\"E1\")+1")));
+    let root = step(
+        &mut state,
+        &root,
+        set(c(1, 4), formula("INDIRECT(\"E1\")+1")),
+    );
     values(&state, &[(c(1, 4), 1.0)]);
-    let root = step(&mut state, &root, set(c(1, 5), formula("INDIRECT(\"D1\")+1")));
+    let root = step(
+        &mut state,
+        &root,
+        set(c(1, 5), formula("INDIRECT(\"D1\")+1")),
+    );
     values(&state, &[(c(1, 4), 1.0), (c(1, 5), 0.0)]);
-    let root = step(&mut state, &root, set(c(5, 6), formula("IF(TRUE,\"x\",F5)")));
-    let _ = step(&mut state, &root, set(c(6, 6), formula("IF(FALSE,F6,\"y\")")));
+    let root = step(
+        &mut state,
+        &root,
+        set(c(5, 6), formula("IF(TRUE,\"x\",F5)")),
+    );
+    let _ = step(
+        &mut state,
+        &root,
+        set(c(6, 6), formula("IF(FALSE,F6,\"y\")")),
+    );
     assert_eq!(l1_value(&state, c(5, 6)), excel_text("x"));
     assert_eq!(l1_value(&state, c(6, 6)), excel_text("y"));
 }
@@ -4549,7 +4612,9 @@ fn l3_structural(
 /// The text of the formula in `at`.
 fn l3_text(root: &ModelRoot, at: CellKey) -> String {
     match root.cell(at) {
-        Some(CellInput::Formula(text)) => String::from_utf16(text.text().utf16_code_units()).unwrap(),
+        Some(CellInput::Formula(text)) => {
+            String::from_utf16(text.text().utf16_code_units()).unwrap()
+        }
         other => panic!("{at:?} holds {other:?}"),
     }
 }
@@ -4591,7 +4656,12 @@ fn dc_m3u__structural_edits() {
 
     // A row inserted at Data!2.
     let insert = AxisEdit::new(data, Axis::Rows, AxisChange::Insert, 2, 1).unwrap();
-    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditAxis(insert)], &mut ids);
+    let root = l3_structural(
+        &mut state,
+        &root,
+        vec![WorkbookOp::EditAxis(insert)],
+        &mut ids,
+    );
     assert_eq!(l3_text(&root, c(1, 1)), "SUM(Data!A1:A4)");
     assert_eq!(l3_text(&root, c(2, 1)), "Data!A3*10");
     assert_eq!(l3_text(&root, c(1, 2)), "Data!$A$4");
@@ -4599,15 +4669,30 @@ fn dc_m3u__structural_edits() {
     assert_eq!(root.cell(d(4, 1)), Some(&number(3.0)));
     assert_eq!(root.cell(d(2, 1)), None);
     recalc(&mut state, &root, &mut Unobserved);
-    for (at, value) in [(c(1, 1), 6.0), (c(2, 1), 20.0), (c(3, 1), 26.0), (c(1, 2), 3.0), (c(1, 3), 6.0)] {
+    for (at, value) in [
+        (c(1, 1), 6.0),
+        (c(2, 1), 20.0),
+        (c(3, 1), 26.0),
+        (c(1, 2), 3.0),
+        (c(1, 3), 6.0),
+    ] {
         assert_eq!(l1_value(&state, at), n(value), "{at:?}");
     }
 
     // Calc's row 1 deleted: its formulas go; Calc!A2 and A3 move up, and A3's reference to the
     // deleted A1 is #REF!.
     let delete = AxisEdit::new(calc, Axis::Rows, AxisChange::Delete, 1, 1).unwrap();
-    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditAxis(delete)], &mut ids);
-    assert_eq!(state.node_at(c(1, 1)), Some(a2), "the node keeps its ID as it moves");
+    let root = l3_structural(
+        &mut state,
+        &root,
+        vec![WorkbookOp::EditAxis(delete)],
+        &mut ids,
+    );
+    assert_eq!(
+        state.node_at(c(1, 1)),
+        Some(a2),
+        "the node keeps its ID as it moves"
+    );
     assert_eq!(l3_text(&root, c(1, 1)), "Data!A3*10");
     assert_eq!(l3_text(&root, c(2, 1)), "#REF!+A1");
     recalc(&mut state, &root, &mut Unobserved);
@@ -4623,7 +4708,12 @@ fn dc_m3u__structural_edits() {
         sheet: data,
         name: SheetName::new(ExcelText::from_interop_assignment("Q Data")).unwrap(),
     };
-    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditSheet(rename)], &mut ids);
+    let root = l3_structural(
+        &mut state,
+        &root,
+        vec![WorkbookOp::EditSheet(rename)],
+        &mut ids,
+    );
     assert_eq!(l3_text(&root, c(1, 1)), "'Q Data'!A3*10");
     assert_eq!(root.definitions().names()[0].formula, "'Q Data'!$A$1:$A$4");
     recalc(&mut state, &root, &mut Unobserved);
@@ -4635,7 +4725,12 @@ fn dc_m3u__structural_edits() {
         name: SheetName::new(ExcelText::from_interop_assignment("More")).unwrap(),
         position: NonZeroU32::new(2).unwrap(),
     };
-    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditSheet(insert_sheet)], &mut ids);
+    let root = l3_structural(
+        &mut state,
+        &root,
+        vec![WorkbookOp::EditSheet(insert_sheet)],
+        &mut ids,
+    );
     let more = root.sheets()[1].id();
     let root = edit(
         &mut state,
@@ -4650,7 +4745,12 @@ fn dc_m3u__structural_edits() {
 
     // Q Data removed: its references are #REF!, and the run of sheets keeps More alone.
     let remove = SheetEdit::Remove { sheet: data };
-    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditSheet(remove)], &mut ids);
+    let root = l3_structural(
+        &mut state,
+        &root,
+        vec![WorkbookOp::EditSheet(remove)],
+        &mut ids,
+    );
     assert_eq!(l3_text(&root, c(1, 1)), "#REF!A3*10");
     assert_eq!(l3_text(&root, c(5, 1)), "SUM(More:More!A3)");
     assert_eq!(root.definitions().names()[0].formula, "#REF!$A$1:$A$4");
@@ -4753,3 +4853,133 @@ fn dc_m3u__data_tables() {
     assert_eq!(l1_value(&state, c(10, 5)), n(81.0));
 }
 
+/// The scenario changes values, while caller and workbook questions retain their context.
+/// Expectations follow the fixture's coordinates and formula text; this is no new Excel probe.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn data_tables_retain_formula_context() {
+    use calc_doc_model::{DataTable, DataTableInputs};
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(s, row, column).unwrap();
+    let root = l3_root(
+        &[(s, "Scenario")],
+        vec![
+            (c(1, 2), number(10.0)),
+            (c(1, 4), formula("1+1")),
+            (c(3, 2), formula("ROW()+B1")),
+            (c(3, 3), formula("CELL(\"row\",$D$1)+B1")),
+            (c(3, 4), formula("_xlfn.SHEET()+B1")),
+            (c(3, 5), formula("LEN(_xlfn.FORMULATEXT($D$1))+B1")),
+            (c(4, 1), number(20.0)),
+            (c(5, 1), number(30.0)),
+        ],
+        Definitions::new(vec![], vec![], vec![], []).with_data_tables(vec![
+            DataTable::new(area(s, 4, 2, 5, 5), DataTableInputs::Column(c(1, 2))).unwrap(),
+        ]),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    for (row, input) in [(4, 20.0), (5, 30.0)] {
+        for (column, offset) in [(2, 3.0), (3, 1.0), (4, 1.0), (5, 4.0)] {
+            assert_eq!(
+                l1_value(&state, c(row, column)),
+                CalcValue::number(input + offset),
+                "table row {row} column {column}"
+            );
+        }
+    }
+    assert_eq!(l1_value(&state, c(3, 2)), CalcValue::number(13.0));
+    assert_eq!(root.cell(c(1, 2)), Some(&number(10.0)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn clock_advances_only_volatile_requirements() {
+    use calc_fml::{CalcEnvironment, DateSystem};
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |column| CellKey::new(s, 1, column).unwrap();
+    let root = l3_root(
+        &[(s, "Clock")],
+        vec![
+            (c(1), formula("40+2")),
+            (c(2), formula("NOW()")),
+            (c(3), formula("B1+1")),
+            (c(4), formula("A1+1")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    let mut environment = CalcEnvironment::dates(DateSystem::System1900);
+    environment.now = Some(40_000.0);
+    state.set_environment(Some(environment));
+    recalc(&mut state, &root, &mut Unobserved);
+    let pure_tick = calculated(&state, c(1)).2;
+    let dependent_tick = calculated(&state, c(4)).2;
+    environment.now = Some(40_001.0);
+    state.set_environment(Some(environment));
+    assert_eq!(state.stale(&root).unwrap(), vec![c(2), c(3)]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(calculated(&state, c(1)).2, pure_tick);
+    assert_eq!(calculated(&state, c(4)).2, dependent_tick);
+    assert_eq!(l1_value(&state, c(3)), CalcValue::number(40_002.0));
+    state.set_clock(Some(40_002.0));
+    assert_eq!(state.stale(&root).unwrap(), vec![c(2), c(3)]);
+    environment.date_system = DateSystem::System1904;
+    state.set_environment(Some(environment));
+    assert_eq!(state.stale(&root).unwrap().len(), 4);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_pass_pins_its_clock_across_steps() {
+    use calc_fml::{CalcEnvironment, DateSystem};
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |column| CellKey::new(s, 1, column).unwrap();
+    let root = l3_root(
+        &[(s, "Clock")],
+        vec![
+            (c(1), formula("NOW()")),
+            (c(2), formula("NOW()")),
+            (c(3), formula("42")),
+        ],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    let mut environment = CalcEnvironment::dates(DateSystem::System1900);
+    environment.now = Some(40_000.0);
+    state.set_environment(Some(environment));
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    assert!(matches!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut Unobserved
+        ),
+        RecalcProgress::Pending { .. }
+    ));
+    state.set_clock(Some(40_001.0));
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, work).unwrap();
+    assert_eq!(l1_value(&state, c(1)), CalcValue::number(40_000.0));
+    assert_eq!(l1_value(&state, c(2)), CalcValue::number(40_000.0));
+    assert_eq!(state.stale(&root).unwrap(), vec![c(1), c(2)]);
+    let pure_tick = calculated(&state, c(3)).2;
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(1)), CalcValue::number(40_001.0));
+    assert_eq!(l1_value(&state, c(2)), CalcValue::number(40_001.0));
+    assert_eq!(calculated(&state, c(3)).2, pure_tick);
+}

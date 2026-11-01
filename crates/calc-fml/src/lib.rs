@@ -19,7 +19,7 @@
 //! each call the evaluation runs, each area INDIRECT resolved from text ([`ResolvedReference`])
 //! and the outcome it returns, by the evaluator itself, the outcome in an [`EvaluationReport`]
 //! that only the evaluator can make. INDIRECT's text is bound against the [`ReferenceCatalog`] the
-//! caller gives the services ([`EvaluationServices::with_catalog`]).
+//! caller gives the services ([`FormulaEvaluationContext::with_catalog`]).
 //!
 //! [`assist`] is editor assistance over formula text: token roles for highlighting, completion of
 //! calc-func's function names, and the call the caret is in for signature help.
@@ -38,16 +38,18 @@ pub mod syntax;
 
 pub use eval::{
     CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
-    EvaluationReport, EvaluationServices, ExecutedCall, FormulaForm, FormulaInstance,
-    MAX_CALL_DEPTH, PlanCache, ResolvedReference, UserFunctionEffects, UserFunctionSource, compile,
-    compile_loaded, compile_loaded_with, compile_loaded_with_functions, compile_with,
-    compile_with_functions, evaluate, instantiate,
+    EvaluationReport, ExecutedCall, FactInvalidation, FactRead, FactSubject,
+    FormulaEvaluationContext, FormulaForm, FormulaInstance, MAX_CALL_DEPTH, ObservableFacets,
+    PassServices, PlanCache, ReadPolicy, ReadPurpose, ReadRequest, ResolvedReference,
+    SemanticEnvironment, UserFunctionEffects, UserFunctionSource, compile, compile_loaded,
+    compile_loaded_with, compile_loaded_with_functions, compile_with, compile_with_functions,
+    evaluate, instantiate,
 };
 pub use reference::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 pub use syntax::parse_formula;
 
 /// calc-func's random source and SUBTOTAL exclusions, which a caller of [`evaluate`] supplies
-/// through [`EvaluationServices::with_random`] and [`ReferenceReader::subtotal_exclusions`].
+/// through [`FormulaEvaluationContext::with_random`] and [`ReferenceReader::subtotal_exclusions`].
 pub use calc_func::locale::{CalcEnvironment, DateSystem, FormatProfile};
 pub use calc_func::read_number_text;
 /// The host's workbook facts CELL and INFO read ([`HostFacts::workbook_facts`], dc-uar).

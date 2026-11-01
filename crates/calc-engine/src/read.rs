@@ -17,8 +17,8 @@ use calc_fml::reference::{
     ReadContractError, ReferenceReader, SpillExtent, TableInfo, TableLookup,
 };
 use calc_fml::{
-    CalcEnvironment, EvalFault, EvaluationReport, ExecutedCall, HostFacts, ReferenceCatalog,
-    ResolvedReference, SubtotalExclusions,
+    EvalFault, EvaluationReport, ExecutedCall, HostFacts, ReferenceCatalog, ResolvedReference,
+    SubtotalExclusions,
 };
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId, WorksheetErrorCode};
 use std::cell::Cell;
@@ -414,6 +414,7 @@ fn table_info(table: &calc_doc_model::Table) -> TableInfo {
 /// generation.
 #[derive(Clone, Copy)]
 pub(crate) struct RecalcView<'a> {
+    pub(crate) workbook_facts: Option<&'a std::sync::Arc<dyn calc_fml::WorkbookFacts>>,
     pub(crate) inputs: &'a ModelRoot,
     pub(crate) state: &'a EngineState,
     /// Which nodes this recalculation calculates and has evaluated, and what it staged.
@@ -1021,19 +1022,30 @@ impl<'a> WorkbookReader<'a> {
 }
 
 impl ReferenceReader for WorkbookReader<'_> {
-    fn read_cell(&mut self, at: CellKey) -> Result<CellRead, ReadContractError> {
+    fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
+
+    fn read_cell(
+        &mut self,
+        request: calc_fml::ReadRequest,
+        at: CellKey,
+    ) -> Result<CellRead, ReadContractError> {
         if self.external_sheet(at.sheet()).is_some() {
-            return calc_fml::reference::read_cell_by_area(self, at);
+            return calc_fml::reference::read_cell_by_area(self, request, at);
         }
         Ok(match self.single(at) {
             Some(Single::Formula(value)) => CellRead::Value(value.clone()),
             Some(Single::Literal(value)) => CellRead::Value(value),
             Some(Single::Missing) => CellRead::Missing,
-            None => return calc_fml::reference::read_cell_by_area(self, at),
+            None => return calc_fml::reference::read_cell_by_area(self, request, at),
         })
     }
 
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+    fn read_area(
+        &mut self,
+        request: calc_fml::ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
         if let Some(held) = self.external_sheet(area.sheet()) {
             return self.read_external(held, area, sink);
         }
@@ -1128,19 +1140,14 @@ impl ReferenceReader for WorkbookReader<'_> {
             _ => SpillExtent::NotModelled,
         }
     }
-
-    fn environment(&self) -> Option<CalcEnvironment> {
-        self.view.state.environment
-    }
-
-    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
-        Some(self)
-    }
 }
 
 /// The workbook's facts an evaluation may ask about (calc-func's HostFacts): which cells hold
 /// formulas and their text, and the sheets. The formula being evaluated is the caller's to say.
 impl HostFacts for WorkbookReader<'_> {
+    fn caller(&mut self) -> Option<CellKey> {
+        None
+    }
     fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
         self.external_sheet(sheet).is_some()
     }
@@ -1214,7 +1221,7 @@ impl HostFacts for WorkbookReader<'_> {
     }
 
     fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_fml::WorkbookFacts>> {
-        self.view.state.workbook_facts.clone()
+        self.view.workbook_facts.cloned()
     }
 }
 

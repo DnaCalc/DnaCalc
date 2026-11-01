@@ -92,9 +92,9 @@ use calc_fml::reference::{
     template_key_of_chars,
 };
 use calc_fml::{
-    EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
-    ExecutedCall, FormulaForm, FormulaInstance, ResolvedReference, compile_loaded_with, evaluate,
-    instantiate, parse_formula,
+    EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, ExecutedCall,
+    FormulaEvaluationContext, FormulaForm, FormulaInstance, ResolvedReference, compile_loaded_with,
+    evaluate, instantiate, parse_formula,
 };
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode};
 use std::cell::{Cell, RefCell};
@@ -281,6 +281,10 @@ pub struct RecalcWork {
     revision: AuthoredRevision,
     generation: u64,
     calculation: Calculation,
+    environment: Option<calc_fml::CalcEnvironment>,
+    random_seed: u64,
+    workbook_facts: Option<Arc<dyn calc_fml::WorkbookFacts>>,
+    volatile_input_version: u64,
     /// The current wave's nodes in their order, and the next to take.
     order: Vec<NodeId>,
     next: usize,
@@ -327,6 +331,7 @@ pub struct RecalcWork {
 pub(crate) struct EvalLocal {
     scratch: EvalScratch,
     footprint: Vec<GridArea>,
+    fact_reads: Vec<calc_fml::FactRead>,
     read_batch: Vec<CalcValue>,
     kept_read: Cell<bool>,
 }
@@ -338,6 +343,9 @@ pub(crate) struct EvalLocal {
 /// all of it is only read.
 pub(crate) struct EvalShared<'a> {
     pub(crate) calculation: &'a Calculation,
+    pub(crate) environment: Option<calc_fml::CalcEnvironment>,
+    pub(crate) random_seed: u64,
+    pub(crate) workbook_facts: Option<&'a Arc<dyn calc_fml::WorkbookFacts>>,
     pub(crate) progress: &'a Progress,
     pub(crate) spills: &'a SpillIndex,
     pub(crate) iterates: Option<&'a BTreeMap<NodeId, Option<CalcValue>>>,
@@ -360,6 +368,7 @@ impl<'a> EvalShared<'a> {
             state,
             progress: self.progress,
             spills: self.spills,
+            workbook_facts: self.workbook_facts,
             iterates: self.iterates,
             kept: self.kept.map(|kept| (kept, &local.kept_read)),
         }
@@ -372,6 +381,9 @@ macro_rules! shared_of {
     ($work:expr) => {
         EvalShared {
             calculation: &$work.calculation,
+            environment: $work.environment,
+            random_seed: $work.random_seed,
+            workbook_facts: $work.workbook_facts.as_ref(),
             progress: &$work.progress,
             spills: &$work.spills,
             iterates: ($work.iteration.enabled() && !$work.cyclic.is_empty())
@@ -570,6 +582,10 @@ pub fn begin_recalc(
         revision,
         generation: state.generation,
         calculation: Calculation::new(revision, CalcTick::new(state.last_tick), mode),
+        environment: state.environment(),
+        random_seed: state.random_seed,
+        workbook_facts: state.workbook_facts.clone(),
+        volatile_input_version: state.volatile_input_version,
         progress,
         order,
         next: 0,
@@ -634,7 +650,8 @@ pub fn step(
     if work.failure.is_none()
         && (state.revision() != work.revision
             || inputs.revision() != work.revision
-            || state.generation != work.generation)
+            || state.generation != work.generation
+            || state.environment != work.environment.map(Into::into))
     {
         work.failure = Some(RecalcFailure::Superseded {
             revision: work.revision,
@@ -1006,7 +1023,10 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
     if remaining > 0 {
         return Err(RecalcFailure::Incomplete { remaining });
     }
-    if state.revision() != work.revision || state.generation != work.generation {
+    if state.revision() != work.revision
+        || state.generation != work.generation
+        || state.environment != work.environment.map(Into::into)
+    {
         return Err(RecalcFailure::Superseded {
             revision: work.revision,
         });
@@ -1052,6 +1072,9 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         .into_iter()
         .filter(stays)
         .collect();
+    if state.volatile_input_version != work.volatile_input_version {
+        state.pending.extend(state.volatile.iter().copied());
+    }
     state.entered = std::mem::take(&mut state.entered)
         .into_iter()
         .filter(stays)
@@ -2194,23 +2217,38 @@ struct Observed<'l, 'o> {
     formula: CellKey,
     cells: &'l mut dyn ReferenceReader,
     footprint: &'l RefCell<Vec<GridArea>>,
+    facts: &'l RefCell<Vec<calc_fml::FactRead>>,
     /// The area of the read the observer stopped.
     stopped: Option<GridArea>,
 }
 
 impl ReferenceReader for Observed<'_, '_> {
+    fn read_fact(&mut self, fact: calc_fml::FactRead) {
+        if let calc_fml::FactSubject::Cell(at) = fact.subject {
+            self.footprint.borrow_mut().push(GridArea::cell(at));
+        }
+        self.facts.borrow_mut().push(fact);
+        self.cells.read_fact(fact);
+    }
+
     fn read_cell(
         &mut self,
+        request: calc_fml::ReadRequest,
         at: CellKey,
     ) -> Result<calc_fml::reference::CellRead, calc_fml::reference::ReadContractError> {
         if self.silent && self.stopped.is_none() {
             self.footprint.borrow_mut().push(GridArea::cell(at));
-            return self.cells.read_cell(at);
+            return self.cells.read_cell(request, at);
         }
-        calc_fml::reference::read_cell_by_area(self, at)
+        calc_fml::reference::read_cell_by_area(self, request, at)
     }
 
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+    fn read_area(
+        &mut self,
+        request: calc_fml::ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
         let total = area.cell_count();
         if self.stopped.is_some() {
             let _ = sink(CellRun::Missing(total));
@@ -2218,14 +2256,14 @@ impl ReferenceReader for Observed<'_, '_> {
         }
         self.footprint.borrow_mut().push(area);
         if self.silent {
-            self.cells.read_area(area, sink);
+            self.cells.read_area(request, area, sink);
             return;
         }
         let mut observer = self.observer.borrow_mut();
         let formula = self.formula;
         let mut offset = 0u64;
         let mut stopped = false;
-        self.cells.read_area(area, &mut |run| {
+        self.cells.read_area(request, area, &mut |run| {
             if observer.observe(formula, area, offset, run).is_break() {
                 stopped = true;
                 return ControlFlow::Break(());
@@ -2249,55 +2287,6 @@ impl ReferenceReader for Observed<'_, '_> {
 
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<calc_fml::SubtotalExclusions> {
         self.cells.subtotal_exclusions(area)
-    }
-
-    fn environment(&self) -> Option<calc_fml::CalcEnvironment> {
-        self.cells.environment()
-    }
-
-    fn host_facts(&mut self) -> Option<&mut dyn calc_fml::HostFacts> {
-        Some(self)
-    }
-}
-
-/// The engine reader's host facts, with the formula being evaluated as the caller.
-impl calc_fml::HostFacts for Observed<'_, '_> {
-    fn caller(&mut self) -> Option<CellKey> {
-        Some(self.formula)
-    }
-
-    fn is_external_sheet(&mut self, sheet: calc_value::SheetId) -> bool {
-        self.cells
-            .host_facts()
-            .is_some_and(|host| host.is_external_sheet(sheet))
-    }
-
-    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
-        self.cells.host_facts()?.is_formula(cell)
-    }
-
-    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
-        self.cells.host_facts()?.formula_text(cell)
-    }
-
-    fn sheet_index(&mut self, sheet: calc_value::SheetId) -> Option<u32> {
-        self.cells.host_facts()?.sheet_index(sheet)
-    }
-
-    fn sheet_named(&mut self, name: &str) -> Option<calc_value::SheetId> {
-        self.cells.host_facts()?.sheet_named(name)
-    }
-
-    fn sheet_name(&mut self, sheet: calc_value::SheetId) -> Option<String> {
-        self.cells.host_facts()?.sheet_name(sheet)
-    }
-
-    fn sheet_count(&mut self) -> Option<u32> {
-        self.cells.host_facts()?.sheet_count()
-    }
-
-    fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_fml::WorkbookFacts>> {
-        self.cells.host_facts()?.workbook_facts()
     }
 }
 
@@ -2410,6 +2399,7 @@ fn evaluate_with(
                 inputs,
                 view,
                 calculation.mode(),
+                shared.environment,
                 table,
                 formula,
                 Some((&calculation, &mut *observer)),
@@ -2438,13 +2428,15 @@ fn evaluate_with(
     };
     let uncomputed = Cell::new(None);
     let footprint = RefCell::new(std::mem::take(&mut local.footprint));
+    let facts = RefCell::new(std::mem::take(&mut local.fact_reads));
+    facts.borrow_mut().clear();
     local.kept_read.set(false);
     let batch = std::mem::take(&mut local.read_batch);
     let mut scratch = std::mem::take(&mut local.scratch);
     let view = shared.view(state, inputs, &*local);
     let mut cells = WorkbookReader::new(view, &uncomputed).with_batch(batch);
     let catalog = SnapshotCatalog(inputs);
-    let mut random = RandomStream::new(state.random_seed, calculation.tick().get(), formula);
+    let mut random = RandomStream::new(shared.random_seed, calculation.tick().get(), formula);
     let silent = observer.is_silent();
     let observer = RefCell::new(observer);
     let (outcome, stopped) = {
@@ -2454,6 +2446,7 @@ fn evaluate_with(
             formula,
             cells: &mut cells,
             footprint: &footprint,
+            facts: &facts,
             stopped: None,
         };
         let instrument: &mut dyn EvaluationObserver = &mut Instrument {
@@ -2466,10 +2459,17 @@ fn evaluate_with(
             kept_read: &local.kept_read,
         };
         let outcome = {
-            let mut services = EvaluationServices::new(calculation.mode(), &mut observed)
-                .with_catalog(&catalog)
-                .with_random(&mut random)
-                .observed_by(instrument);
+            let mut host = WorkbookReader::new(view, &uncomputed);
+            let mut services = FormulaEvaluationContext::new(
+                calculation.mode(),
+                &mut observed,
+                shared.environment,
+                Some(&mut host),
+                calc_fml::ReadRequest::DEPENDENCY,
+            )
+            .with_catalog(&catalog)
+            .with_random(&mut random)
+            .observed_by(instrument);
             evaluate(EvalFrame::new(instance, &mut scratch), &mut services)
         };
         (outcome, observed.stopped)
@@ -2480,6 +2480,7 @@ fn evaluate_with(
         calculation
     };
     local.read_batch = cells.into_batch();
+    local.fact_reads = facts.into_inner();
     local.scratch = scratch;
     let kept_read = local.kept_read.get();
     if let Some(area) = stopped {

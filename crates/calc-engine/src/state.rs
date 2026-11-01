@@ -399,10 +399,11 @@ pub struct EngineState {
     /// sheet edits are refused (dc-m3u), and an edit that sets a defined name's formula (dc-gf0)
     /// empties them when it commits.
     pub(crate) templates: HashMap<(SheetId, FormulaForm, String), Arc<CompiledPlan>>,
-    /// The environment every evaluation runs in: the workbook's date system, the host's locale
-    /// profile and clock (calc-func's CalcEnvironment). `None` refuses the date, time and
+    /// Stable date and locale semantics, apart from the pass clock. `None` refuses the date, time and
     /// number-format functions.
-    pub(crate) environment: Option<CalcEnvironment>,
+    pub(crate) environment: Option<calc_fml::SemanticEnvironment>,
+    pub(crate) clock: Option<f64>,
+    pub(crate) volatile_input_version: u64,
     /// The host's facts about the workbook's file, formats and views and the application, which
     /// CELL and INFO read (dc-uar): one snapshot the host gives before each recalculation
     /// ([`EngineState::set_workbook_facts`]). `None` refuses what they would supply.
@@ -480,6 +481,8 @@ impl EngineState {
             random_seed: 0,
             templates: HashMap::new(),
             environment: None,
+            clock: None,
+            volatile_input_version: 0,
             workbook_facts: None,
             cycle_members: BTreeSet::new(),
             tables_deferred: false,
@@ -748,17 +751,24 @@ impl EngineState {
     /// Sets the seed RAND, RANDBETWEEN and RANDARRAY draw from (see
     /// [`EngineState::random_seed`]).
     pub fn set_random_seed(&mut self, seed: u64) {
-        self.random_seed = seed;
+        if self.random_seed != seed {
+            self.random_seed = seed;
+            self.volatile_input_version = self
+                .volatile_input_version
+                .checked_add(1)
+                .expect("volatile input version exhausted");
+            self.pending.extend(self.volatile.iter().copied());
+        }
     }
 
     /// The environment every evaluation runs in (see [`EngineState::set_environment`]).
-    pub fn environment(&self) -> Option<&CalcEnvironment> {
-        self.environment.as_ref()
+    pub fn environment(&self) -> Option<CalcEnvironment> {
+        self.environment.map(|e| e.at(self.clock))
     }
 
     /// Sets the environment every evaluation runs in: the workbook's date system, the host's
-    /// locale profile and clock. A change makes every formula node pending, since any result may
-    /// read it.
+    /// locale profile and clock. Date or locale changes invalidate every formula; clock changes
+    /// invalidate volatile formulas and their dependents.
     /// The state of `inputs` built afresh ([`EngineState::new`]: every formula a node, every node
     /// pending, nothing published), keeping this state's tick counter, environment and random
     /// seed, so the next recalculation's tick follows this state's last. A host commits it for an
@@ -766,7 +776,9 @@ impl EngineState {
     pub fn rebuilt(&self, inputs: &ModelRoot) -> EngineState {
         let mut state = EngineState::new(inputs);
         state.last_tick = self.last_tick;
-        state.environment = self.environment.clone();
+        state.environment = self.environment;
+        state.clock = self.clock;
+        state.volatile_input_version = self.volatile_input_version;
         state.workbook_facts = self.workbook_facts.clone();
         state.random_seed = self.random_seed;
         state.tables_deferred = self.tables_deferred;
@@ -781,10 +793,33 @@ impl EngineState {
     }
 
     pub fn set_environment(&mut self, environment: Option<CalcEnvironment>) {
-        if self.environment != environment {
-            self.environment = environment;
-            let nodes: Vec<NodeId> = self.by_anchor.values().copied().collect();
-            self.pending.extend(nodes);
+        let semantics = environment.map(Into::into);
+        let clock = environment.and_then(|e| e.now);
+        if self.environment != semantics {
+            self.environment = semantics;
+            self.pending.extend(self.by_anchor.values().copied());
+        } else if self.clock != clock {
+            self.pending.extend(self.volatile.iter().copied());
+        }
+        if self.clock != clock {
+            self.volatile_input_version = self
+                .volatile_input_version
+                .checked_add(1)
+                .expect("clock epoch exhausted");
+        }
+        self.clock = clock;
+    }
+
+    /// Advances only the pass clock. Its readers are volatile; date and locale semantics stay
+    /// unchanged, so unrelated formulas keep their calculated results.
+    pub fn set_clock(&mut self, clock: Option<f64>) {
+        if self.clock != clock {
+            self.clock = clock;
+            self.volatile_input_version = self
+                .volatile_input_version
+                .checked_add(1)
+                .expect("clock epoch exhausted");
+            self.pending.extend(self.volatile.iter().copied());
         }
     }
 

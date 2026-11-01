@@ -21,8 +21,8 @@ use crate::state::{ArrayRole, Binding, EngineState};
 use calc_doc_model::{CellInput, DataTable, ModelRoot};
 use calc_fml::reference::{CellRun, ReferenceReader, SpillExtent};
 use calc_fml::{
-    EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
-    evaluate,
+    EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport,
+    FormulaEvaluationContext, evaluate,
 };
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode};
 use std::cell::{Cell, RefCell};
@@ -54,6 +54,7 @@ pub(crate) fn evaluate_cell(
     inputs: &ModelRoot,
     view: RecalcView<'_>,
     mode: &NumericMode,
+    environment: Option<calc_fml::CalcEnvironment>,
     table: &DataTable,
     at: CellKey,
     observe: Option<(&Calculation, &mut dyn ReadObserver)>,
@@ -66,14 +67,18 @@ pub(crate) fn evaluate_cell(
     let mut overrides = BTreeMap::new();
     for (input, from) in pairs {
         let mut value = None;
-        WorkbookReader::new(view, &uncomputed).read_area(GridArea::cell(from), &mut |run| {
-            value = Some(match run {
-                CellRun::Values(values) => Some(values[0].clone()),
-                CellRun::Blank(_) => Some(CalcValue::empty()),
-                CellRun::Missing(_) => None,
-            });
-            ControlFlow::Continue(())
-        });
+        WorkbookReader::new(view, &uncomputed).read_area(
+            calc_fml::ReadRequest::DEPENDENCY,
+            GridArea::cell(from),
+            &mut |run| {
+                value = Some(match run {
+                    CellRun::Values(values) => Some(values[0].clone()),
+                    CellRun::Blank(_) => Some(CalcValue::empty()),
+                    CellRun::Missing(_) => None,
+                });
+                ControlFlow::Continue(())
+            },
+        );
         if let Some((cell, on)) = uncomputed.get() {
             return TableOutcome::Waits { on, cell };
         }
@@ -103,6 +108,7 @@ pub(crate) fn evaluate_cell(
         inputs,
         view,
         mode,
+        environment,
         overrides,
         affected,
         memo: RefCell::new(BTreeMap::new()),
@@ -141,6 +147,7 @@ struct WhatIf<'a> {
     inputs: &'a ModelRoot,
     view: RecalcView<'a>,
     mode: &'a NumericMode,
+    environment: Option<calc_fml::CalcEnvironment>,
     overrides: BTreeMap<CellKey, CalcValue>,
     affected: BTreeSet<NodeId>,
     /// Each affected formula's value under the substitution: `None` while it is being evaluated.
@@ -189,14 +196,18 @@ impl WhatIf<'_> {
     /// The value of the cell `at` as the recalculation stands, without the substitution.
     fn base_value(&self, at: CellKey) -> Option<CalcValue> {
         let mut value = None;
-        WorkbookReader::new(self.view, self.uncomputed).read_area(GridArea::cell(at), &mut |run| {
-            value = match run {
-                CellRun::Values(values) => Some(values[0].clone()),
-                CellRun::Blank(_) => Some(CalcValue::empty()),
-                CellRun::Missing(_) => None,
-            };
-            ControlFlow::Continue(())
-        });
+        WorkbookReader::new(self.view, self.uncomputed).read_area(
+            calc_fml::ReadRequest::DEPENDENCY,
+            GridArea::cell(at),
+            &mut |run| {
+                value = match run {
+                    CellRun::Values(values) => Some(values[0].clone()),
+                    CellRun::Blank(_) => Some(CalcValue::empty()),
+                    CellRun::Missing(_) => None,
+                };
+                ControlFlow::Continue(())
+            },
+        );
         value
     }
 
@@ -237,16 +248,33 @@ impl WhatIf<'_> {
         let catalog = SnapshotCatalog(self.inputs);
         // The observer is taken out while the table's formula is evaluated, so the evaluations
         // of the formulas it reads under the substitution are not shown as the cell's.
-        let top = self.observe.borrow().as_ref().and_then(|observe| observe.formula) == Some(node);
-        let mut taken = if top { self.observe.borrow_mut().take() } else { None };
+        let top = self
+            .observe
+            .borrow()
+            .as_ref()
+            .and_then(|observe| observe.formula)
+            == Some(node);
+        let mut taken = if top {
+            self.observe.borrow_mut().take()
+        } else {
+            None
+        };
         let evaluated = {
             let mut instrument = taken.as_mut().map(|observe| TableInstrument {
                 observe,
                 uncomputed: self.uncomputed,
                 kept_read: self.view.kept.map(|(_, read)| read),
             });
-            let mut services =
-                EvaluationServices::new(self.mode, &mut reader).with_catalog(&catalog);
+            let mut host = WorkbookReader::new(self.view, self.uncomputed);
+            let mut services = FormulaEvaluationContext::new(
+                self.mode,
+                &mut reader,
+                self.environment,
+                Some(&mut host),
+                calc_fml::ReadRequest::DEPENDENCY,
+            )
+            .with_catalog(&catalog);
+            // Scenario draw identity awaits P04/P15. A random kernel remains a typed refusal.
             if let Some(instrument) = instrument.as_mut() {
                 services = services.observed_by(instrument);
             }
@@ -306,12 +334,21 @@ struct WhatIfReader<'w, 'a> {
 }
 
 impl ReferenceReader for WhatIfReader<'_, '_> {
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+    fn read_fact(&mut self, fact: calc_fml::FactRead) {
+        WorkbookReader::new(self.what_if.view, self.what_if.uncomputed).read_fact(fact);
+    }
+
+    fn read_area(
+        &mut self,
+        request: calc_fml::ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
         let what_if = self.what_if;
         let changed = what_if.changed_in(area);
         let mut base = WorkbookReader::new(what_if.view, what_if.uncomputed);
         if changed.is_empty() {
-            base.read_area(area, sink);
+            base.read_area(request, area, sink);
             return;
         }
         let width = u64::from(area.column_count());
@@ -340,7 +377,7 @@ impl ReferenceReader for WhatIfReader<'_, '_> {
                     )
                     .expect("one row of the area");
                     let mut stopped = false;
-                    base.read_area(segment, &mut |run| {
+                    base.read_area(request, segment, &mut |run| {
                         let flow = sink(run);
                         stopped |= flow.is_break();
                         flow
@@ -379,10 +416,6 @@ impl ReferenceReader for WhatIfReader<'_, '_> {
 
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<calc_fml::SubtotalExclusions> {
         WorkbookReader::new(self.what_if.view, self.what_if.uncomputed).subtotal_exclusions(area)
-    }
-
-    fn environment(&self) -> Option<calc_fml::CalcEnvironment> {
-        self.what_if.state.environment
     }
 }
 

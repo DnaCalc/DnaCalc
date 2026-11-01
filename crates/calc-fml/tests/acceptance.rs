@@ -83,7 +83,7 @@
 //!
 //! The dc-51ka cases (`acceptance/dc_51ka.rs`) run INDIRECT through the same public route, with the
 //! catalogue of the oracle workbook's sheets given to the evaluation
-//! (`EvaluationServices::with_catalog`) and an observer that records the areas INDIRECT resolved;
+//! (`FormulaEvaluationContext::with_catalog`) and an observer that records the areas INDIRECT resolved;
 //! each row is labelled documented (Microsoft's INDIRECT page) or measured (Excel's value), and
 //! `tests/fixtures/dc_51ka/oracle.xlsx`, from the committed generator, and its capture
 //! `tests/captures/dc_51ka/oracle.capture.json` are judged through calc_verdict::judge.
@@ -102,7 +102,7 @@ use calc_fml::syntax::{
 };
 use calc_fml::{
     CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
-    EvaluationReport, EvaluationServices, ExecutedCall, FormulaInstance, PlanCache, compile,
+    EvaluationReport, ExecutedCall, FormulaEvaluationContext, FormulaInstance, PlanCache, compile,
     compile_loaded, evaluate, instantiate,
 };
 use calc_fml::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
@@ -422,9 +422,18 @@ fn record_kinds(
 /// Excel trim references (dc-h9u): the formula and the expression shape it parses to, a trim
 /// range node between its two operands. Each reprints exactly with no diagnostic.
 const TRIM_REFERENCES: &[(&str, &str)] = &[
-    ("=SUM(A1.:B10)", "Call(SUM Args(( TrimRange(Id(A1) . : Id(B10)) )))"),
-    ("=SUM(A1:.B10)", "Call(SUM Args(( TrimRange(Id(A1) : . Id(B10)) )))"),
-    ("=SUM(A1.:.B10)", "Call(SUM Args(( TrimRange(Id(A1) . : . Id(B10)) )))"),
+    (
+        "=SUM(A1.:B10)",
+        "Call(SUM Args(( TrimRange(Id(A1) . : Id(B10)) )))",
+    ),
+    (
+        "=SUM(A1:.B10)",
+        "Call(SUM Args(( TrimRange(Id(A1) : . Id(B10)) )))",
+    ),
+    (
+        "=SUM(A1.:.B10)",
+        "Call(SUM Args(( TrimRange(Id(A1) . : . Id(B10)) )))",
+    ),
 ];
 
 /// Well-formed formulas: each reprints exactly, parses without diagnostics and has the expression
@@ -590,7 +599,11 @@ fn cfml_m1_1__lossless_roundtrip() {
     for (source, expected) in TRIM_REFERENCES {
         let tree = parse_formula(source);
         check_lossless(source, &tree);
-        assert!(tree.diagnostics().is_empty(), "{source:?}: {:?}", tree.diagnostics());
+        assert!(
+            tree.diagnostics().is_empty(),
+            "{source:?}: {:?}",
+            tree.diagnostics()
+        );
         assert_eq!(expression_shape(&tree), *expected, "{source:?}");
     }
 
@@ -937,6 +950,27 @@ impl LoggingCatalog {
 }
 
 impl ReferenceCatalog for LoggingCatalog {
+    fn workbook_name(&self) -> Option<&str> {
+        None
+    }
+
+    fn external_sheet(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+        sheet: &str,
+    ) -> Option<calc_func::value::SheetId> {
+        let _ = (book, sheet);
+        None
+    }
+
+    fn external_function_target(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+    ) -> Option<String> {
+        let _ = book;
+        None
+    }
+
     fn sheet_named(&self, name: &str) -> Option<SheetId> {
         self.requests.borrow_mut().push(name.to_owned());
         self.sheets
@@ -1551,7 +1585,25 @@ impl LoggingReader {
 }
 
 impl ReferenceReader for LoggingReader {
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+    fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
+
+    fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
+        calc_fml::reference::SpillExtent::NotModelled
+    }
+
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
+    fn read_area(
+        &mut self,
+        request: calc_fml::ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
         self.requests.push(area);
         let first = area.first();
         let width = u64::from(area.column_count());
@@ -1603,7 +1655,25 @@ struct BlockReader {
 }
 
 impl ReferenceReader for BlockReader {
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+    fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
+
+    fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
+        calc_fml::reference::SpillExtent::NotModelled
+    }
+
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
+    fn read_area(
+        &mut self,
+        request: calc_fml::ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
         self.requests.push(area);
         let start = area.first();
         assert_eq!(
@@ -1872,22 +1942,27 @@ fn cfml_m1_2__provider_reads() {
             .instantiate(anchor)
             .unwrap_or_else(|refused| panic!("{text}: {refused:?}"));
         let mut runs = Vec::new();
-        read_cells(&mut reader, area, &mut |start, run| {
-            runs.push((
-                start,
-                match run {
-                    CellRun::Values(values) => Seen::Values(
-                        values
-                            .iter()
-                            .map(|value| (value as *const CalcValue as usize, value.clone()))
-                            .collect(),
-                    ),
-                    CellRun::Blank(count) => Seen::Blank(count),
-                    CellRun::Missing(count) => Seen::Missing(count),
-                },
-            ));
-            ControlFlow::Continue(())
-        })
+        read_cells(
+            &mut reader,
+            calc_fml::ReadRequest::DEPENDENCY,
+            area,
+            &mut |start, run| {
+                runs.push((
+                    start,
+                    match run {
+                        CellRun::Values(values) => Seen::Values(
+                            values
+                                .iter()
+                                .map(|value| (value as *const CalcValue as usize, value.clone()))
+                                .collect(),
+                        ),
+                        CellRun::Blank(count) => Seen::Blank(count),
+                        CellRun::Missing(count) => Seen::Missing(count),
+                    },
+                ));
+                ControlFlow::Continue(())
+            },
+        )
         .unwrap_or_else(|broken| panic!("{text}: {broken:?}"));
         reads.push(runs);
     }
@@ -1983,21 +2058,26 @@ fn cfml_m1_2__provider_reads() {
         let first = area.first();
         let mut starts = Vec::new();
         let mut cells = Vec::new();
-        read_cells(&mut block, area, &mut |start, run| {
-            let CellRun::Values(values) = run else {
-                panic!("the block reader lends values only: {run:?}");
-            };
-            starts.push((start, values.len()));
-            let offset = (start.row() - first.row()) * 3 + (start.column() - first.column());
-            for (index, value) in values.iter().enumerate() {
-                let at = offset + index as u32;
-                let cell =
-                    CellKey::new(first.sheet(), first.row() + at / 3, first.column() + at % 3)
-                        .expect("a cell of the area");
-                cells.push((cell, value as *const CalcValue as usize, value.clone()));
-            }
-            ControlFlow::Continue(())
-        })
+        read_cells(
+            &mut block,
+            calc_fml::ReadRequest::DEPENDENCY,
+            area,
+            &mut |start, run| {
+                let CellRun::Values(values) = run else {
+                    panic!("the block reader lends values only: {run:?}");
+                };
+                starts.push((start, values.len()));
+                let offset = (start.row() - first.row()) * 3 + (start.column() - first.column());
+                for (index, value) in values.iter().enumerate() {
+                    let at = offset + index as u32;
+                    let cell =
+                        CellKey::new(first.sheet(), first.row() + at / 3, first.column() + at % 3)
+                            .expect("a cell of the area");
+                    cells.push((cell, value as *const CalcValue as usize, value.clone()));
+                }
+                ControlFlow::Continue(())
+            },
+        )
         .unwrap_or_else(|broken| panic!("{operand:?}: {broken:?}"));
         wrapped_reads.push((starts, cells));
     }
@@ -2107,6 +2187,15 @@ impl RunReader {
 }
 
 impl ReferenceReader for RunReader {
+    fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
+
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
     /// L1 (dc-mzk): the spill a case recorded at `anchor`.
     fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
         match &self.spills {
@@ -2117,7 +2206,12 @@ impl ReferenceReader for RunReader {
         }
     }
 
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+    fn read_area(
+        &mut self,
+        request: calc_fml::ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
         self.requests.push(area);
         let first = area.first();
         let width = u64::from(area.column_count());
@@ -2191,7 +2285,13 @@ fn evaluated(
     let mode = NumericMode::Fast;
     let result = evaluate(
         EvalFrame::new(instance, scratch),
-        &mut EvaluationServices::new(&mode, reader),
+        &mut FormulaEvaluationContext::new(
+            &mode,
+            reader,
+            None,
+            None,
+            calc_fml::ReadRequest::DEPENDENCY,
+        ),
     );
     (result, std::mem::take(&mut reader.requests))
 }
@@ -2411,7 +2511,10 @@ fn cfml_m1_3__reuse_plan() {
     let number = |n: f64| Ok(CalcValue::number(n));
     let near_zero_rows: [(&str, Expected); 7] = [
         ("=0.5-0.4-0.1", (number(0.0), vec![])),
-        ("=1*(0.5-0.4-0.1)", (number(-2.7755575615628914e-17), vec![])),
+        (
+            "=1*(0.5-0.4-0.1)",
+            (number(-2.7755575615628914e-17), vec![]),
+        ),
         ("=1.333+1.225-1.333-1.225", (number(0.0), vec![])),
         ("=1E15+1-1E15", (number(1.0), vec![])),
         ("=0.1+0.2-0.3", (number(0.0), vec![])),
@@ -3621,7 +3724,14 @@ impl FallbackBook {
         let mut log = CallLog::default();
         let outcome = evaluate(
             EvalFrame::new(instance, &mut self.scratch),
-            &mut EvaluationServices::new(&mode, &mut self.reader).observed_by(&mut log),
+            &mut FormulaEvaluationContext::new(
+                &mode,
+                &mut self.reader,
+                None,
+                None,
+                calc_fml::ReadRequest::DEPENDENCY,
+            )
+            .observed_by(&mut log),
         );
         Shown {
             outcome,
@@ -4248,7 +4358,11 @@ fn dc_ibp2__error_fallback() {
     // error the reader holds for each. FIELDVALUE's own value, evaluated, is the #FIELD! held.
     let sources = source_refusals(&mut book);
     for (source, reason) in &sources {
-        assert!(reason.starts_with("it compiles"), "{}: {reason}", source.formula);
+        assert!(
+            reason.starts_with("it compiles"),
+            "{}: {reason}",
+            source.formula
+        );
     }
     let fieldvalue = sources
         .iter()
@@ -5498,7 +5612,14 @@ impl OracleBook {
         let mut log = CallLog::default();
         let outcome = evaluate(
             EvalFrame::new(&instance, &mut self.scratch),
-            &mut EvaluationServices::new(&mode, &mut self.reader).observed_by(&mut log),
+            &mut FormulaEvaluationContext::new(
+                &mode,
+                &mut self.reader,
+                None,
+                None,
+                calc_fml::ReadRequest::DEPENDENCY,
+            )
+            .observed_by(&mut log),
         );
         Ok(Shown {
             outcome,

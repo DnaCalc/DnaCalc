@@ -5,7 +5,7 @@ use crate::fixture::{Fixture, Read, TracingReader};
 use calc_fml::reference::{BindError, FormulaAnchor, ReferenceNotation, ReferenceShape};
 use calc_fml::syntax::SyntaxDiagnostic;
 use calc_fml::{
-    CalcEnvironment, CompileError, EvalFault, EvalFrame, EvalScratch, EvaluationServices,
+    CalcEnvironment, CompileError, EvalFault, EvalFrame, EvalScratch, FormulaEvaluationContext,
     FormulaForm, PlanCache, ReferenceCatalog, bind_references, compile_with_functions, evaluate,
     instantiate, parse_formula,
 };
@@ -389,15 +389,21 @@ impl Session {
             }
         };
         let instance = instantiate(&plan, anchor);
-        let mut reader = TracingReader::new(&self.fixture, self.environment);
+        let mut reader = TracingReader::new(&self.fixture);
         // The session's sheets are the workbook context INDIRECT's text is bound in.
         let mut function_diagnostics = Vec::new();
         let outcome = evaluate(
             EvalFrame::new(&instance, &mut self.scratch),
-            &mut EvaluationServices::new(&self.numeric, &mut reader)
-                .with_catalog(&self.fixture)
-                .with_functions(&self.functions)
-                .with_function_diagnostics(&mut function_diagnostics),
+            &mut FormulaEvaluationContext::new(
+                &self.numeric,
+                &mut reader,
+                self.environment,
+                None,
+                calc_fml::ReadRequest::DEPENDENCY,
+            )
+            .with_catalog(&self.fixture)
+            .with_functions(&self.functions)
+            .with_function_diagnostics(&mut function_diagnostics),
         );
         let reads = reader.into_reads();
         match outcome {
@@ -410,10 +416,17 @@ impl Session {
                 reads,
             },
             Err(fault) => {
-                let mut diagnostics: Vec<_> = function_diagnostics.into_iter().map(Diagnostic::UserFunction).collect();
+                let mut diagnostics: Vec<_> = function_diagnostics
+                    .into_iter()
+                    .map(Diagnostic::UserFunction)
+                    .collect();
                 diagnostics.push(Diagnostic::Eval(fault));
-                Calculation { result: None, diagnostics, reads }
-            },
+                Calculation {
+                    result: None,
+                    diagnostics,
+                    reads,
+                }
+            }
         }
     }
 }

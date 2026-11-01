@@ -10,10 +10,12 @@
 
 use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, ParameterClass};
 use crate::locale::CalcEnvironment;
-use crate::value::{CalcValue, CellKey, CoreRef, GridArea, NumericMode, SheetId, WorksheetErrorCode};
+use crate::value::{
+    CalcValue, CellKey, CoreRef, GridArea, NumericMode, SheetId, WorksheetErrorCode,
+};
 use std::fmt;
-use std::sync::Arc;
 use std::ops::ControlFlow;
+use std::sync::Arc;
 
 /// The arguments of one call. The caller produces each value when the call interface asks for
 /// it, so a lazy entry's held-back arguments are never evaluated by the interface.
@@ -40,26 +42,10 @@ pub trait CellReader {
     ) -> Result<(), Unreadable>;
 
     /// What SUBTOTAL and AGGREGATE leave out of `area`: the cells holding a SUBTOTAL or
-    /// AGGREGATE formula, and the rows that are hidden or filtered out. `None`, the default, when
+    /// AGGREGATE formula, and the rows that are hidden or filtered out. An explicit `None` when
     /// the reader cannot say; those functions then refuse a reference argument as not modelled
     /// rather than count cells Excel would leave out.
-    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
-        let _ = area;
-        None
-    }
-
-    /// The calculation environment of the workbook the reader reads (its date system, the
-    /// host's locale profile and clock), for services given none of their own. `None`, the
-    /// default, when the reader cannot say.
-    fn environment(&self) -> Option<CalcEnvironment> {
-        None
-    }
-
-    /// The host facts of the workbook the reader reads, for services given none of their own.
-    /// `None`, the default, when the reader has none.
-    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
-        None
-    }
+    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions>;
 }
 
 /// The cells of an area that SUBTOTAL and AGGREGATE leave out, as a [`CellReader`] reports them.
@@ -108,111 +94,67 @@ pub enum TextReference {
 
 /// Facts about the workbook and its cells that only the host holds, which CELL, INFO, ISFORMULA,
 /// FORMULATEXT, SHEET and SHEETS read (ported from OxFunc's `host_info.rs` HostInfoProvider, at
-/// 6fca3518). Every method has a default that supplies nothing, and a call that needs a fact the
-/// host does not supply is refused as not modelled.
+/// 6fca3518). Every question is required. An explicit `None` refuses a fact the host cannot supply.
 pub trait HostFacts {
     /// Whether `sheet` is a sheet of another workbook, read from the workbook's link to it
     /// (dc-ylr): Excel 16.0.20527 (2026-10-30, the other book closed) gives SUMIF, COUNTIF,
     /// SUMIFS, COUNTIFS, AVERAGEIF and OFFSET #VALUE! for a reference to it, and CELL, ISFORMULA
     /// and FORMULATEXT #N/A. The default says no sheet is.
-    fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
-        let _ = sheet;
-        false
-    }
+    fn is_external_sheet(&mut self, sheet: SheetId) -> bool;
 
     /// The cell whose formula is being evaluated.
-    fn caller(&mut self) -> Option<CellKey> {
-        None
-    }
+    fn caller(&mut self) -> Option<CellKey>;
 
     /// Whether `cell` holds a formula.
-    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
-        let _ = cell;
-        None
-    }
+    fn is_formula(&mut self, cell: CellKey) -> Option<bool>;
 
     /// The formula `cell` holds, as Excel shows it (with its leading `=`), `Some(None)` when it
     /// holds none.
-    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
-        let _ = cell;
-        None
-    }
+    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>>;
 
     /// The one-based position of `sheet` among the workbook's sheets.
-    fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
-        let _ = sheet;
-        None
-    }
+    fn sheet_index(&mut self, sheet: SheetId) -> Option<u32>;
 
     /// The sheet named `name` (any case).
-    fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
-        let _ = name;
-        None
-    }
+    fn sheet_named(&mut self, name: &str) -> Option<SheetId>;
 
     /// The name of `sheet`.
-    fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
-        let _ = sheet;
-        None
-    }
+    fn sheet_name(&mut self, sheet: SheetId) -> Option<String>;
 
     /// How many sheets the workbook holds.
-    fn sheet_count(&mut self) -> Option<u32> {
-        None
-    }
+    fn sheet_count(&mut self) -> Option<u32>;
 
     /// The host's facts about the workbook's file, formats and views and about the application
     /// ([`WorkbookFacts`]), which CELL and INFO read (dc-uar).
-    fn workbook_facts(&mut self) -> Option<Arc<dyn WorkbookFacts>> {
-        None
-    }
+    fn workbook_facts(&mut self) -> Option<Arc<dyn WorkbookFacts>>;
 }
 
 /// Facts about the workbook that only its host holds, beyond the cells' values: the file it was
 /// opened from, each cell's format, the columns' widths, the sheets' views, the calculation mode
-/// and the application (dc-uar). CELL reads the first four, INFO the rest. Every method has a
-/// default that supplies nothing, and a call that needs a fact the host does not supply is refused
-/// as not modelled. The host gives one snapshot per recalculation, shared by the threads that
+/// and the application (dc-uar). CELL reads the first four, INFO the rest. Every question is required; an explicit `None` refuses an unavailable fact. The host gives one snapshot per recalculation, shared by the threads that
 /// evaluate it.
 pub trait WorkbookFacts: Send + Sync + fmt::Debug {
     /// The format of `cell`: its number format code, horizontal alignment and whether it is
     /// locked.
-    fn cell_format(&self, cell: CellKey) -> Option<CellFormatFacts> {
-        let _ = cell;
-        None
-    }
+    fn cell_format(&self, cell: CellKey) -> Option<CellFormatFacts>;
 
     /// The width of `column` (1-based) of `sheet` as Excel shows it.
-    fn column_width(&self, sheet: SheetId, column: u32) -> Option<ColumnWidth> {
-        let _ = (sheet, column);
-        None
-    }
+    fn column_width(&self, sheet: SheetId, column: u32) -> Option<ColumnWidth>;
 
     /// The workbook's file: its folder and file name.
-    fn file(&self) -> Option<WorkbookFile> {
-        None
-    }
+    fn file(&self) -> Option<WorkbookFile>;
 
     /// The active cell of the workbook's active sheet, which CELL without a reference reads.
-    fn active_cell(&self) -> Option<CellKey> {
-        None
-    }
+    fn active_cell(&self) -> Option<CellKey>;
 
     /// The top left cell of `sheet`'s window, which INFO("origin") reads.
-    fn top_left_cell(&self, sheet: SheetId) -> Option<CellKey> {
-        let _ = sheet;
-        None
-    }
+    fn top_left_cell(&self, sheet: SheetId) -> Option<CellKey>;
 
     /// The calculation mode, which INFO("recalc") reads.
-    fn calculation_mode(&self) -> Option<CalculationMode> {
-        None
-    }
+    fn calculation_mode(&self) -> Option<CalculationMode>;
 
     /// The facts about the application and its platform that INFO reads.
-    fn application(&self) -> Option<ApplicationFacts> {
-        None
-    }
+    fn application(&self) -> Option<ApplicationFacts>;
 }
 
 /// A cell's format as CELL reads it.
@@ -295,7 +237,11 @@ pub trait CallableInvoker {
     /// call of the wrong number of arguments) is the worksheet error Excel gives it. When the
     /// evaluation of the call stops with a fault, the invoker keeps the fault for its caller and
     /// returns [`CallAbandoned`]; the kernel then stops, and the caller reports the kept fault.
-    fn call(&mut self, callable: &CalcValue, arguments: &[CalcValue]) -> Result<CalcValue, CallAbandoned>;
+    fn call(
+        &mut self,
+        callable: &CalcValue,
+        arguments: &[CalcValue],
+    ) -> Result<CalcValue, CallAbandoned>;
 }
 
 /// A [`CallableInvoker`]'s report that a call stopped with a fault it keeps.
@@ -382,19 +328,14 @@ impl<'s> EvalServices<'s> {
         self
     }
 
-    /// The environment the services were given, or else the one the cell reader reports.
+    /// The explicit environment for this invocation.
     pub(crate) fn environment(&self) -> Option<CalcEnvironment> {
-        self.environment
-            .copied()
-            .or_else(|| self.cells.as_ref().and_then(|cells| cells.environment()))
+        self.environment.copied()
     }
 
-    /// The host facts the services were given, or else the cell reader's.
-    pub(crate) fn host(&mut self) -> Option<&mut dyn HostFacts> {
-        if let Some(host) = self.host.as_deref_mut() {
-            return Some(host);
-        }
-        self.cells.as_deref_mut().and_then(|cells| cells.host_facts())
+    /// The explicit host questions for this invocation.
+    pub(crate) fn host(&mut self) -> Option<&mut (dyn HostFacts + 's)> {
+        self.host.as_deref_mut()
     }
 
     pub fn numeric_mode(&self) -> &'s NumericMode {
@@ -688,7 +629,10 @@ mod tests {
         let reference_only = entry(ParameterClass::Reference, returns_empty);
         // #REF! there is the call's result (see run_eager).
         assert_eq!(
-            call(&reference_only, CalcValue::error(crate::value::WorksheetErrorCode::Ref)),
+            call(
+                &reference_only,
+                CalcValue::error(crate::value::WorksheetErrorCode::Ref)
+            ),
             Ok(CalcValue::error(crate::value::WorksheetErrorCode::Ref))
         );
         for refused in [

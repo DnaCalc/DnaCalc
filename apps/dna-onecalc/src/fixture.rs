@@ -3,7 +3,7 @@
 
 use crate::session::InputValue;
 use calc_fml::reference::CellRun;
-use calc_fml::{CalcEnvironment, ReferenceCatalog, ReferenceReader};
+use calc_fml::{ReferenceCatalog, ReferenceReader};
 use calc_func::value::{CalcValue, CellKey, GridArea, IdAllocator, SheetId};
 use std::collections::BTreeMap;
 use std::ops::ControlFlow;
@@ -50,6 +50,53 @@ impl Fixture {
 }
 
 impl ReferenceCatalog for Fixture {
+    fn table(&self, name: &str) -> calc_fml::reference::TableLookup {
+        let _ = name;
+        calc_fml::reference::TableLookup::NotModelled
+    }
+
+    fn table_containing(
+        &self,
+        cell: calc_func::value::CellKey,
+    ) -> calc_fml::reference::TableLookup {
+        let _ = cell;
+        calc_fml::reference::TableLookup::NotModelled
+    }
+
+    fn sheet_span(
+        &self,
+        first: calc_func::value::SheetId,
+        last: calc_func::value::SheetId,
+    ) -> Option<Vec<calc_func::value::SheetId>> {
+        let _ = (first, last);
+        None
+    }
+
+    fn unknown_calls_are_names(&self) -> bool {
+        false
+    }
+
+    fn workbook_name(&self) -> Option<&str> {
+        None
+    }
+
+    fn external_sheet(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+        sheet: &str,
+    ) -> Option<calc_func::value::SheetId> {
+        let _ = (book, sheet);
+        None
+    }
+
+    fn external_function_target(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+    ) -> Option<String> {
+        let _ = book;
+        None
+    }
+
     // OneCalc carries inputs and user functions, and has no workbook defined names.
     fn defined_name(
         &self,
@@ -101,17 +148,15 @@ pub enum RunCells {
 /// and each run it returns.
 pub(crate) struct TracingReader<'f> {
     fixture: &'f Fixture,
-    environment: Option<CalcEnvironment>,
     reads: Vec<Read>,
 }
 
 impl<'f> TracingReader<'f> {
     /// A reader over `fixture` whose calculation environment is `environment`: without one, the
     /// date, time and number-format functions are refused.
-    pub(crate) fn new(fixture: &'f Fixture, environment: Option<CalcEnvironment>) -> Self {
+    pub(crate) fn new(fixture: &'f Fixture) -> Self {
         TracingReader {
             fixture,
-            environment,
             reads: Vec::new(),
         }
     }
@@ -128,11 +173,25 @@ enum Stored<'a> {
 }
 
 impl ReferenceReader for TracingReader<'_> {
-    fn environment(&self) -> Option<CalcEnvironment> {
-        self.environment
+    fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
+
+    fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
+        calc_fml::reference::SpillExtent::NotModelled
     }
 
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
+    fn read_area(
+        &mut self,
+        _request: calc_fml::ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
         let first = area.first();
         let last = area.last();
         let width = u64::from(area.column_count());

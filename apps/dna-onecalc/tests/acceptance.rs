@@ -33,6 +33,29 @@ use dna_onecalc::{
     display,
 };
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn caller_comes_from_the_formula_instance() {
+    let mut session = Session::new("Inputs").unwrap();
+    for (at, row, column) in [("D7", 7.0, 4.0), ("B12", 12.0, 2.0)] {
+        session.set_formula_cell(at).unwrap();
+        for (formula, expected) in [
+            ("=ROW()", row),
+            ("=COLUMN()", column),
+            ("=LET(f,LAMBDA(ROW()),f())", row),
+        ] {
+            session.set_formula(formula);
+            let calculated = session.calculate();
+            assert_eq!(
+                calculated.result,
+                Some(CalcValue::number(expected)),
+                "{formula} at {at}: {:?}",
+                calculated.diagnostics
+            );
+        }
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;
 

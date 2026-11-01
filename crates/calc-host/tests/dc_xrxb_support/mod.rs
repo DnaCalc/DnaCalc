@@ -13,7 +13,9 @@
 
 use calc_engine::ObservedEvaluation;
 use calc_fml::reference::{FormulaAnchor, ReferenceNotation, ReferenceReader};
-use calc_fml::{EvalFrame, EvalScratch, EvaluationServices, PlanCache, evaluate, instantiate};
+use calc_fml::{
+    EvalFrame, EvalScratch, FormulaEvaluationContext, PlanCache, evaluate, instantiate,
+};
 use calc_host::value::{
     CalcValue, CellKey, CoreValue, GridArea, IdAllocator, NumericMode, SheetId, WorksheetErrorCode,
 };
@@ -90,7 +92,25 @@ struct DataReader {
 }
 
 impl ReferenceReader for DataReader {
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+    fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
+
+    fn spill_extent(&mut self, _: calc_host::value::CellKey) -> calc_fml::reference::SpillExtent {
+        calc_fml::reference::SpillExtent::NotModelled
+    }
+
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_host::value::GridArea,
+    ) -> Option<calc_fml::SubtotalExclusions> {
+        None
+    }
+
+    fn read_area(
+        &mut self,
+        request: calc_fml::ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
         let (first, last) = (area.first(), area.last());
         for row in first.row()..=last.row() {
             for column in first.column()..=last.column() {
@@ -110,6 +130,61 @@ impl ReferenceReader for DataReader {
 struct DataCatalog(SheetId);
 
 impl calc_fml::ReferenceCatalog for DataCatalog {
+    fn defined_name(
+        &self,
+        _: &str,
+        _: calc_fml::reference::NameScope,
+    ) -> calc_fml::reference::NameDefinition {
+        calc_fml::reference::NameDefinition::NotModelled
+    }
+
+    fn table(&self, name: &str) -> calc_fml::reference::TableLookup {
+        let _ = name;
+        calc_fml::reference::TableLookup::NotModelled
+    }
+
+    fn table_containing(
+        &self,
+        cell: calc_host::value::CellKey,
+    ) -> calc_fml::reference::TableLookup {
+        let _ = cell;
+        calc_fml::reference::TableLookup::NotModelled
+    }
+
+    fn sheet_span(
+        &self,
+        first: calc_host::value::SheetId,
+        last: calc_host::value::SheetId,
+    ) -> Option<Vec<calc_host::value::SheetId>> {
+        let _ = (first, last);
+        None
+    }
+
+    fn unknown_calls_are_names(&self) -> bool {
+        false
+    }
+
+    fn workbook_name(&self) -> Option<&str> {
+        None
+    }
+
+    fn external_sheet(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+        sheet: &str,
+    ) -> Option<calc_host::value::SheetId> {
+        let _ = (book, sheet);
+        None
+    }
+
+    fn external_function_target(
+        &self,
+        book: &calc_fml::reference::ExternalBookRef,
+    ) -> Option<String> {
+        let _ = book;
+        None
+    }
+
     fn sheet_named(&self, name: &str) -> Option<SheetId> {
         name.eq_ignore_ascii_case("Data").then_some(self.0)
     }
@@ -158,7 +233,13 @@ fn typed_value(text: &str, compile: Compile) -> CalcValue {
     let mut scratch = EvalScratch::new();
     evaluate(
         EvalFrame::new(&instance, &mut scratch),
-        &mut EvaluationServices::new(&NumericMode::Fast, &mut reader),
+        &mut FormulaEvaluationContext::new(
+            &NumericMode::Fast,
+            &mut reader,
+            None,
+            None,
+            calc_fml::ReadRequest::DEPENDENCY,
+        ),
     )
     .unwrap_or_else(|fault| panic!("{text}: {fault:?}"))
 }

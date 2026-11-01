@@ -15,8 +15,8 @@
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CellKey, CoreRef,
     CoreValue, ExcelText, GridArea, GridError, IdAllocator, IdError, MAX_COLUMNS, MAX_ROWS, NameId,
-    NodeId, NumericMode, NumericTargetId, OpaqueCallable, ReferenceError, ReferenceLike, Selection, SheetId,
-    TableId, WorkbookId, WorksheetErrorCode,
+    NodeId, NumericMode, NumericTargetId, OpaqueCallable, ReferenceError, ReferenceLike, Selection,
+    SheetId, TableId, WorkbookId, WorksheetErrorCode,
 };
 use calc_func::{
     ArgumentDemand, CellReader, EvalServices, FunctionCallScratch, FunctionCallTarget,
@@ -382,10 +382,16 @@ send_sync_types![
 /// set equals the modules the root declares and that no other file declares a module.
 const CALC_VALUE_SOURCES: [(&str, &str); 7] = [
     ("lib", include_str!("../../calc-value/src/lib.rs")),
-    ("case_folding", include_str!("../../calc-value/src/case_folding.rs")),
+    (
+        "case_folding",
+        include_str!("../../calc-value/src/case_folding.rs"),
+    ),
     ("grid", include_str!("../../calc-value/src/grid.rs")),
     ("id", include_str!("../../calc-value/src/id.rs")),
-    ("name_case", include_str!("../../calc-value/src/name_case.rs")),
+    (
+        "name_case",
+        include_str!("../../calc-value/src/name_case.rs"),
+    ),
     ("numeric", include_str!("../../calc-value/src/numeric.rs")),
     ("value", include_str!("../../calc-value/src/value.rs")),
 ];
@@ -1665,6 +1671,13 @@ impl TestSheet {
 }
 
 impl CellReader for TestSheet {
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
     fn read_area(
         &mut self,
         area: GridArea,
@@ -3104,7 +3117,13 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     row!(r, s, POWER, [logical(true), num("2")], N(1.0));
     row!(r, s, POWER, [num("2"), num("3")], N(8.0));
     row!(r, s, POWER, [num("10"), num("-2")], N(0.01));
-    row!(r, s, POWER, [num("2"), num("0.5")], N(std::f64::consts::SQRT_2));
+    row!(
+        r,
+        s,
+        POWER,
+        [num("2"), num("0.5")],
+        N(std::f64::consts::SQRT_2)
+    );
     row!(r, s, POWER, [num("3"), num("1")], N(3.0));
     // Written -(0): Excel loads the formula -0 from a file as the literal 0, with no negation.
     row!(
@@ -3648,8 +3667,8 @@ fn cfunc_m1_2__mixed_operands() {
     // result whose LAMBDA returns arrays adds their elements); a reference held in an array is
     // refused.
     let nested = CalcValue::array(CalcArray::from_scalar(CalcValue::number(1.0)));
-    let held = CalcArray::from_rows(vec![vec![CalcValue::number(1.0), nested]])
-        .expect("a 1-by-2 array");
+    let held =
+        CalcArray::from_rows(vec![vec![CalcValue::number(1.0), nested]]).expect("a 1-by-2 array");
     let mut given = Recorded::new(vec![CalcValue::number(1.0), CalcValue::array(held)]);
     assert_eq!(
         run(sum, &mut given, &fast),
@@ -4710,6 +4729,13 @@ fn array_arg(excel: &str, rows: Vec<Vec<CalcValue>>) -> Arg {
 struct DenseReader<'s>(&'s TestSheet);
 
 impl CellReader for DenseReader<'_> {
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
     fn read_area(
         &mut self,
         area: GridArea,
@@ -4752,6 +4778,13 @@ struct BreachingReader<'s> {
 }
 
 impl CellReader for BreachingReader<'_> {
+    fn subtotal_exclusions(
+        &mut self,
+        _: calc_func::value::GridArea,
+    ) -> Option<calc_func::SubtotalExclusions> {
+        None
+    }
+
     fn read_area(
         &mut self,
         area: GridArea,
@@ -4994,7 +5027,9 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         "PRODUCT",
         [num("2"), omitted()],
         N(2.0),
-        Measured("dc-bd5: PRODUCT passes over an omitted argument; PRODUCT(2,) is 2 (Excel 16.0.20430, cfunc_m3_4's capture)")
+        Measured(
+            "dc-bd5: PRODUCT passes over an omitted argument; PRODUCT(2,) is 2 (Excel 16.0.20430, cfunc_m3_4's capture)"
+        )
     );
     agg!(
         r,
@@ -5002,7 +5037,9 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         "PRODUCT",
         [num("1E-200"), num("1E-200")],
         N(0.0),
-        Measured("dc-bd5: a product below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)")
+        Measured(
+            "dc-bd5: a product below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)"
+        )
     );
 
     // SUMSQ.
@@ -5067,7 +5104,9 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         "SUMSQ",
         [num("1E-200")],
         N(0.0),
-        Measured("dc-bd5: a square below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)")
+        Measured(
+            "dc-bd5: a square below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)"
+        )
     );
 
     // SUMPRODUCT.
@@ -5212,7 +5251,9 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         "SUMPRODUCT",
         [reference(s, &["A1", "A7"])],
         E(Value),
-        Measured("dc-bd5: a reference of several areas is #VALUE! (Excel 16.0.20430, cfunc_m3_4's capture)")
+        Measured(
+            "dc-bd5: a reference of several areas is #VALUE! (Excel 16.0.20430, cfunc_m3_4's capture)"
+        )
     );
     agg!(
         r,
@@ -5256,7 +5297,9 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         "SUMPRODUCT",
         [num("1E-200"), num("1E-200")],
         N(0.0),
-        Measured("dc-bd5: a product below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)")
+        Measured(
+            "dc-bd5: a product below the normal range is 0 (Excel 16.0.20430, cfunc_m3_4's capture)"
+        )
     );
 
     // COUNT.
@@ -5420,7 +5463,9 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         "COUNTBLANK",
         [reference(s, &["A5", "A6"])],
         E(Value),
-        Measured("dc-bd5: a reference of several areas is #VALUE! (Excel 16.0.20430, cfunc_m3_4's capture)")
+        Measured(
+            "dc-bd5: a reference of several areas is #VALUE! (Excel 16.0.20430, cfunc_m3_4's capture)"
+        )
     );
     agg!(
         r,
@@ -11736,7 +11781,8 @@ fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
         [cell(s, "A77"), empty()],
         "521310271410497",
         "521310271410498",
-        TIE_AWAY);
+        TIE_AWAY
+    );
     departs!(
         r,
         s,
@@ -15822,7 +15868,11 @@ fn cfunc_m3_6__lookup_edges() {
         &mut EvalServices::new(&fast),
         &mut FunctionCallScratch::new(),
     );
-    assert_eq!(field, Ok(CalcValue::error(WorksheetErrorCode::Field)), "FIELDVALUE(1,\"x\")");
+    assert_eq!(
+        field,
+        Ok(CalcValue::error(WorksheetErrorCode::Field)),
+        "FIELDVALUE(1,\"x\")"
+    );
     let sources = lookup_sources("lookup_edges");
     let conditional: Vec<u32> = rows
         .oracle
@@ -15891,7 +15941,11 @@ fn cfunc_m3_6__lookup_edges() {
     // up to a whole row's 16,384 columns; a whole column's rows are refused, not built.
     let positions = |spelling: &str, area: &str| {
         let value = reference(s, &[area]).value;
-        run(surface(Notation::Call, spelling), &mut Recorded::new(vec![value]), &fast)
+        run(
+            surface(Notation::Call, spelling),
+            &mut Recorded::new(vec![value]),
+            &fast,
+        )
     };
     let numbers = |rows: Vec<Vec<f64>>| {
         Ok(CalcValue::array(
@@ -15903,7 +15957,10 @@ fn cfunc_m3_6__lookup_edges() {
             .expect("an array"),
         ))
     };
-    assert_eq!(positions("ROW", "B2:C3"), numbers(vec![vec![2.0], vec![3.0]]));
+    assert_eq!(
+        positions("ROW", "B2:C3"),
+        numbers(vec![vec![2.0], vec![3.0]])
+    );
     assert_eq!(positions("COLUMN", "B2:C3"), numbers(vec![vec![2.0, 3.0]]));
     assert_eq!(
         positions("COLUMN", "A1:XFD1"),
@@ -19834,7 +19891,8 @@ fn loaded_first(excel: &str, first: CalcValue) -> Arg {
 }
 
 /// Why a legacy formula's row over an array constant gives the first element's value.
-const LEGACY_FIRST: &str = "Excel loads the legacy formula with @ before the array, its first element (dc-b1l)";
+const LEGACY_FIRST: &str =
+    "Excel loads the legacy formula with @ before the array, its first element (dc-b1l)";
 
 /// The behaviours refused rows of dc-nzpw show, by the bead that owns each.
 const ARRAY_ARGUMENT: Owner = Owner {
@@ -20902,7 +20960,9 @@ fn information_rows(s: &mut TestSheet, quiet: bool) -> InfoRows {
         "TYPE",
         [arg("A1:A2", CalcValue::error(W::Value))],
         N(16.0),
-        Meas("dc-b1l: the legacy formula in row 111 below A1:A2 intersects the range before the call (Excel writes TYPE(@A1:A2), calc-fml's legacy places), giving TYPE #VALUE!, of type 16; a range itself is of type 64, as the reader test below checks")
+        Meas(
+            "dc-b1l: the legacy formula in row 111 below A1:A2 intersects the range before the call (Excel writes TYPE(@A1:A2), calc-fml's legacy places), giving TYPE #VALUE!, of type 16; a range itself is of type 64, as the reader test below checks"
+        )
     );
     info!(r, s, "TYPE", [txt("")], N(2.0), Doc(TYPE_TABLE));
     info!(r, s, "TYPE", [err(W::NA)], N(16.0), Doc(TYPE_TABLE));
@@ -21782,11 +21842,21 @@ fn dc_nzpw__information_functions() {
         );
     }
     assert_eq!(
-        information_call("ERROR.TYPE", vec![CalcValue::error(W::Blocked)], &fast, None),
+        information_call(
+            "ERROR.TYPE",
+            vec![CalcValue::error(W::Blocked)],
+            &fast,
+            None
+        ),
         Ok(CalcValue::number(11.0))
     );
     assert_eq!(
-        information_call("ERROR.TYPE", vec![CalcValue::error(W::Connect)], &fast, None),
+        information_call(
+            "ERROR.TYPE",
+            vec![CalcValue::error(W::Connect)],
+            &fast,
+            None
+        ),
         Ok(CalcValue::number(10.0))
     );
     for (address, code) in [("B1", W::Blocked), ("B2", W::Connect)] {
@@ -21862,7 +21932,9 @@ fn dc_nzpw__information_functions() {
     // =TYPE(A101:A103) and =TYPE(A101:B101) in a dynamic-array formula and
     // =SUMPRODUCT(TYPE(A101:A103)) in a legacy one (a legacy formula intersects it elsewhere).
     for area in ["A1:A2", "A3:B3"] {
-        let given = CalcValue::reference(ReferenceLike::from_areas(vec![sheet.area(area)]).expect("one area"));
+        let given = CalcValue::reference(
+            ReferenceLike::from_areas(vec![sheet.area(area)]).expect("one area"),
+        );
         assert_eq!(
             information_call("TYPE", vec![given], &fast, Some(&mut DenseReader(&sheet))),
             Ok(CalcValue::number(64.0)),

@@ -2,57 +2,51 @@
 //! [`CellRun`]s, and [`read_cells`] asks it for one area and checks that the runs account for
 //! every cell exactly once.
 
-use calc_func::locale::CalcEnvironment;
-use calc_func::{HostFacts, SubtotalExclusions};
+use crate::ReadRequest;
+use calc_func::SubtotalExclusions;
 use calc_func::value::{CalcValue, CellKey, GridArea};
 use std::ops::ControlFlow;
 
 /// Supplies the cells of grid areas.
 pub trait ReferenceReader {
+    /// Records a host question without demanding the cell's value. Metadata reads retain their
+    /// own facets and invalidation policy through a value overlay.
+    fn read_fact(&mut self, fact: crate::FactRead);
+
     /// Reports the cells of `area` to `sink` as runs in row-major order (each row left to right,
     /// rows top to bottom), starting at the area's first cell and continuing from the end of the
     /// previous run; a run may continue from the end of one row of the area to the start of the
     /// next. The runs cover every cell of the area exactly once, so blank and unsupplied cells
     /// are counted, not skipped. Once `sink` returns [`ControlFlow::Break`] the reader stops.
-    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>);
+    fn read_area(
+        &mut self,
+        request: ReadRequest,
+        area: GridArea,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    );
 
     /// The one cell `at`: what [`ReferenceReader::read_area`] of that cell's area reports, as
     /// one value (dc-dxm: a single-cell reference, the most common read, then passes through no
     /// run and no sink). The default reads it through `read_area` ([`read_cell_by_area`]); a
     /// reader that answers it itself must give what `read_area` would.
-    fn read_cell(&mut self, at: CellKey) -> Result<CellRead, ReadContractError> {
-        read_cell_by_area(self, at)
+    fn read_cell(
+        &mut self,
+        request: ReadRequest,
+        at: CellKey,
+    ) -> Result<CellRead, ReadContractError> {
+        read_cell_by_area(self, request, at)
     }
 
     /// The range spilled from the dynamic-array formula at `anchor`, which a spill reference
-    /// (`A1#`) names. The default is [`SpillExtent::NotModelled`]: a reader that does not know
-    /// spills says so, and the reference is refused.
-    fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
-        let _ = anchor;
-        SpillExtent::NotModelled
-    }
+    /// (`A1#`) names. A reader that does not know
+    /// spills returns [`SpillExtent::NotModelled`], and the reference is refused.
+    fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent;
 
     /// What SUBTOTAL and AGGREGATE leave out of `area` (calc-func's
     /// [`calc_func::CellReader::subtotal_exclusions`]): the cells holding a SUBTOTAL or AGGREGATE
-    /// formula and the hidden and filtered rows. The default, `None`, says the reader cannot
+    /// formula and the hidden and filtered rows. An explicit `None` says the reader cannot
     /// tell, and those functions refuse a reference rather than count cells Excel leaves out.
-    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
-        let _ = area;
-        None
-    }
-
-    /// The calculation environment of the workbook (calc-func's
-    /// [`calc_func::CellReader::environment`]): its date system and the host's locale profile and
-    /// clock. The default, `None`, refuses the date, time and number-format functions.
-    fn environment(&self) -> Option<CalcEnvironment> {
-        None
-    }
-
-    /// The workbook's host facts (calc-func's [`calc_func::HostFacts`]) for the formula being
-    /// evaluated. The default, `None`, refuses ISFORMULA, FORMULATEXT, SHEET and the like.
-    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
-        None
-    }
+    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions>;
 }
 
 /// What a [`ReferenceReader`] knows of the range spilled from a cell.
@@ -108,12 +102,13 @@ pub enum CellRead {
 /// cell's area, which must cover the one cell and no more.
 pub fn read_cell_by_area<R: ReferenceReader + ?Sized>(
     reader: &mut R,
+    request: ReadRequest,
     at: CellKey,
 ) -> Result<CellRead, ReadContractError> {
     let area = GridArea::cell(at);
     let mut read = None;
     let mut overrun = false;
-    reader.read_area(area, &mut |run| {
+    reader.read_area(request, area, &mut |run| {
         if run.is_empty() {
             return ControlFlow::Continue(());
         }
@@ -149,6 +144,7 @@ pub struct ReadContractError {
 /// until the runs end or `visit` returns [`ControlFlow::Break`].
 pub fn read_cells(
     reader: &mut dyn ReferenceReader,
+    request: ReadRequest,
     area: GridArea,
     visit: &mut dyn FnMut(CellKey, CellRun<'_>) -> ControlFlow<()>,
 ) -> Result<(), ReadContractError> {
@@ -158,7 +154,7 @@ pub fn read_cells(
     let mut covered = 0u64;
     let mut overrun = false;
     let mut stopped = false;
-    reader.read_area(area, &mut |run| {
+    reader.read_area(request, area, &mut |run| {
         if stopped || overrun {
             return ControlFlow::Break(());
         }
@@ -200,7 +196,25 @@ mod tests {
     struct Replay(Vec<CellRun<'static>>);
 
     impl ReferenceReader for Replay {
-        fn read_area(&mut self, _: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+        fn read_fact(&mut self, _fact: crate::FactRead) {}
+
+        fn spill_extent(&mut self, _: calc_func::value::CellKey) -> crate::reference::SpillExtent {
+            crate::reference::SpillExtent::NotModelled
+        }
+
+        fn subtotal_exclusions(
+            &mut self,
+            _: calc_func::value::GridArea,
+        ) -> Option<calc_func::SubtotalExclusions> {
+            None
+        }
+
+        fn read_area(
+            &mut self,
+            request: crate::ReadRequest,
+            _: GridArea,
+            sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+        ) {
             for run in &self.0 {
                 if sink(*run).is_break() {
                     return;
@@ -224,10 +238,15 @@ mod tests {
 
     fn starts(runs: Vec<CellRun<'static>>) -> (Result<(), ReadContractError>, Starts) {
         let mut seen = Vec::new();
-        let result = read_cells(&mut Replay(runs), area_b2_c3(), &mut |start, run| {
-            seen.push((start.row(), start.column(), run.len()));
-            ControlFlow::Continue(())
-        });
+        let result = read_cells(
+            &mut Replay(runs),
+            crate::ReadRequest::DEPENDENCY,
+            area_b2_c3(),
+            &mut |start, run| {
+                seen.push((start.row(), start.column(), run.len()));
+                ControlFlow::Continue(())
+            },
+        );
         (result, seen)
     }
 
@@ -270,6 +289,7 @@ mod tests {
                 CellRun::Blank(1),
                 CellRun::Blank(2),
             ]),
+            crate::ReadRequest::DEPENDENCY,
             area_b2_c3(),
             &mut |_, _| {
                 visits += 1;

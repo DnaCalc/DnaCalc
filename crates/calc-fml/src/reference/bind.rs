@@ -33,67 +33,45 @@ pub trait ReferenceCatalog {
     fn sheet_named(&self, name: &str) -> Option<SheetId>;
 
     /// The defined name `name` (as written, matched regardless of case as Excel matches names)
-    /// seen from `scope`. The default is [`NameDefinition::NotModelled`]: a catalogue that does
-    /// not carry the workbook's defined names says so, and a formula that uses a name is then
+    /// seen from `scope`. Return [`NameDefinition::NotModelled`] when the catalogue does
+    /// not carry the workbook's defined names; a formula that uses a name is then
     /// refused rather than given #NAME?.
-    fn defined_name(&self, name: &str, scope: NameScope) -> NameDefinition {
-        let _ = (name, scope);
-        NameDefinition::NotModelled
-    }
+    fn defined_name(&self, name: &str, scope: NameScope) -> NameDefinition;
 
     /// The table (ListObject) whose name is `name`, matched regardless of case (L3, dc-m3u). The
-    /// default is [`TableLookup::NotModelled`]: a structured reference is then refused.
-    fn table(&self, name: &str) -> TableLookup {
-        let _ = name;
-        TableLookup::NotModelled
-    }
+    /// result [`TableLookup::NotModelled`] explicitly refuses a structured reference.
+    fn table(&self, name: &str) -> TableLookup;
 
     /// The table whose area holds `cell`, which an unqualified structured reference (`[@Qty]`)
-    /// in a formula there names (L3, dc-m3u). The default is [`TableLookup::NotModelled`].
-    fn table_containing(&self, cell: CellKey) -> TableLookup {
-        let _ = cell;
-        TableLookup::NotModelled
-    }
+    /// in a formula there names (L3, dc-m3u). Return [`TableLookup::NotModelled`] when tables are unavailable.
+    fn table_containing(&self, cell: CellKey) -> TableLookup;
 
     /// The sheets a 3-D reference from `first` to `last` names, in the workbook's sheet order,
     /// both included, whichever comes first (L3, dc-m3u). `None` when the catalogue does not
     /// know the sheets' order: a 3-D reference is then refused ([`BindError::SheetSpan`]).
-    fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>> {
-        let _ = (first, last);
-        None
-    }
+    fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>>;
 
     /// Whether a call of a name that neither a function nor a defined name holds is the error
     /// #NAME?: true when the workbook can hold no function of its own (no VBA project, no macro
-    /// sheet). The default, `false`, refuses such a call: a VBA or add-in function might hold
+    /// sheet). An explicit `false` refuses such a call: a VBA or add-in function might hold
     /// the name. Excel 16.0 (2026-10-23) gives `=FOO(1)` #NAME? in a workbook without macros and
     /// stores it as `FOO(1)`.
-    fn unknown_calls_are_names(&self) -> bool {
-        false
-    }
+    fn unknown_calls_are_names(&self) -> bool;
 
     /// The file name of the formula's workbook (`Book1.xlsx`), which reference text may name
-    /// (`[Book1.xlsx]Sheet1!A1`, dc-10y). The default, `None`, refuses text that names a workbook:
+    /// (`[Book1.xlsx]Sheet1!A1`, dc-10y). An explicit `None` refuses text that names a workbook:
     /// it might name this one.
-    fn workbook_name(&self) -> Option<&str> {
-        None
-    }
+    fn workbook_name(&self) -> Option<&str>;
 
     /// The sheet `sheet` (the name as written, matched as Excel matches sheet names) of the book
     /// `book` names, as the workbook's link to that book caches it (dc-ylr): the sheet ID by which
     /// a reference to its cells names them, which the reader of the workbook's cells reads from
-    /// the link's cache. The default, `None`, refuses every external reference as not modelled.
-    fn external_sheet(&self, book: &ExternalBookRef, sheet: &str) -> Option<SheetId> {
-        let _ = (book, sheet);
-        None
-    }
+    /// the link's cache. An explicit `None` refuses every external reference as not modelled.
+    fn external_sheet(&self, book: &ExternalBookRef, sheet: &str) -> Option<SheetId>;
 
     /// The exact provider target of a workbook-qualified user call. Return the absolute
     /// target when retained by the file; never guess a provider from a procedure's name.
-    fn external_function_target(&self, book: &ExternalBookRef) -> Option<String> {
-        let _ = book;
-        None
-    }
+    fn external_function_target(&self, book: &ExternalBookRef) -> Option<String>;
 }
 
 /// How a formula names another workbook (dc-ylr).
@@ -897,6 +875,61 @@ mod tests {
     struct Sheets(Vec<(&'static str, SheetId)>);
 
     impl ReferenceCatalog for Sheets {
+        fn defined_name(
+            &self,
+            _: &str,
+            _: crate::reference::NameScope,
+        ) -> crate::reference::NameDefinition {
+            crate::reference::NameDefinition::NotModelled
+        }
+
+        fn table(&self, name: &str) -> crate::reference::TableLookup {
+            let _ = name;
+            crate::reference::TableLookup::NotModelled
+        }
+
+        fn table_containing(
+            &self,
+            cell: calc_func::value::CellKey,
+        ) -> crate::reference::TableLookup {
+            let _ = cell;
+            crate::reference::TableLookup::NotModelled
+        }
+
+        fn sheet_span(
+            &self,
+            first: calc_func::value::SheetId,
+            last: calc_func::value::SheetId,
+        ) -> Option<Vec<calc_func::value::SheetId>> {
+            let _ = (first, last);
+            None
+        }
+
+        fn unknown_calls_are_names(&self) -> bool {
+            false
+        }
+
+        fn workbook_name(&self) -> Option<&str> {
+            None
+        }
+
+        fn external_sheet(
+            &self,
+            book: &crate::reference::ExternalBookRef,
+            sheet: &str,
+        ) -> Option<calc_func::value::SheetId> {
+            let _ = (book, sheet);
+            None
+        }
+
+        fn external_function_target(
+            &self,
+            book: &crate::reference::ExternalBookRef,
+        ) -> Option<String> {
+            let _ = book;
+            None
+        }
+
         fn sheet_named(&self, name: &str) -> Option<SheetId> {
             self.0
                 .iter()

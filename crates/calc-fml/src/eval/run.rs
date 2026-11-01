@@ -24,11 +24,12 @@
 //! nest at most [`MAX_CALL_DEPTH`] deep; a deeper evaluation is refused. The explicit evaluation
 //! stack that removes the recursion is bead dc-m3u's.
 
-use super::cells::{ReaderCells, SharedReader};
+use super::cells::{ReaderCells, ReaderHost, SharedReader};
 use super::closure::Closure;
 use super::{
-    Admission, EvalFrame, EvaluationObserver, EvaluationReport, EvaluationServices, ExecutedCall,
-    FormulaForm, FormulaInstance, Instruction, ResolvedReference, Target, lift, refops,
+    Admission, EvalFrame, EvaluationObserver, EvaluationReport, ExecutedCall,
+    FormulaEvaluationContext, FormulaForm, FormulaInstance, Instruction, ResolvedReference, Target,
+    lift, refops,
 };
 use crate::reference::{
     FormulaAnchor, ReadContractError, ReferenceCatalog, ReferenceNotation, ReferenceOperand,
@@ -66,8 +67,14 @@ fn call_services<'s>(
     numeric: &'s NumericMode,
     cells: &'s mut ReaderCells<'_, '_>,
     random: Option<&'s mut RandomDraws<'_, '_>>,
+    host: &'s mut ReaderHost<'_, '_>,
+    environment: Option<&'s crate::CalcEnvironment>,
 ) -> EvalServices<'s> {
-    let services = EvalServices::with_cells(numeric, cells);
+    let services = EvalServices::with_cells(numeric, cells).with_host(host);
+    let services = match environment {
+        Some(e) => services.with_environment(e),
+        None => services,
+    };
     match random {
         Some(random) => services.with_random(random),
         None => services,
@@ -162,14 +169,42 @@ const CALLABLE_ARGUMENT_COST: usize = 1;
 /// and then this outcome, before it is returned.
 pub fn evaluate(
     frame: EvalFrame<'_>,
-    services: &mut EvaluationServices<'_>,
+    services: &mut FormulaEvaluationContext<'_>,
 ) -> Result<CalcValue, EvalFault> {
     let EvalFrame { instance, scratch } = frame;
     if let Some(effects) = services.user_function_effects.as_deref_mut() {
         *effects = super::UserFunctionEffects::default();
     }
-    let reader = SharedReader::new(&mut *services.reader);
-    let random = match services.random.as_mut() {
+    if !matches!(
+        services.request.policy,
+        crate::ReadPolicy::DependencyWithinCommand | crate::ReadPolicy::DiagnosticSnapshot
+    ) {
+        let fault = EvalFault::NotModelled {
+            construct: "an observation or registered callback without an invocation read view",
+            owner: "dc-hsa5",
+        };
+        if let Some(observer) = services.observer.as_deref_mut() {
+            observer.returned(EvaluationReport {
+                anchor: instance.anchor,
+                numeric: services.numeric,
+                outcome: Err(&fault),
+            });
+        }
+        return Err(fault);
+    }
+    let environment = services.environment.map(|e| e.at(services.pass.clock));
+    let host = services
+        .host
+        .as_mut()
+        .map(|host| &mut **host as &mut dyn calc_func::HostFacts);
+    let reader = SharedReader::new(
+        &mut *services.reader,
+        host,
+        instance.anchor.cell(),
+        environment,
+        services.request,
+    );
+    let random = match services.pass.random.as_mut() {
         Some(source) => Some(SharedRandom {
             source: RefCell::new(&mut **source),
         }),
@@ -186,6 +221,7 @@ pub fn evaluate(
         budget: 0,
         arguments: &mut scratch.arguments,
         numeric: services.numeric,
+        read_policy: services.request.policy,
         reader: &reader,
         catalog: services.catalog,
         functions: services.functions,
@@ -228,6 +264,7 @@ pub fn evaluate(
 }
 
 struct Run<'a, 'r> {
+    read_policy: crate::ReadPolicy,
     instance: &'a FormulaInstance,
     stack: &'a mut Vec<CalcValue>,
     /// Call scratch not in use; a lazy call's arguments take their own while it holds one.
@@ -268,6 +305,12 @@ impl Run<'_, '_> {
         source: Option<&super::UserFunctionSource>,
         argc: usize,
     ) -> Result<(), EvalFault> {
+        if self.read_policy == crate::ReadPolicy::DiagnosticSnapshot {
+            return Err(EvalFault::NotModelled {
+                construct: "a diagnostic snapshot calling a user function without an effect-free capability",
+                owner: "dc-hsa5",
+            });
+        }
         let provider = source.and_then(|source| source.target.as_deref());
         let start = self.stack.len() - argc;
         let arguments = self.stack.split_off(start);
@@ -632,8 +675,18 @@ impl Run<'_, '_> {
         });
         let result = {
             let mut cells = ReaderCells::new(self.reader);
+            let mut host = ReaderHost {
+                shared: self.reader,
+            };
+            let environment = self.reader.environment();
             let mut draws = self.random.map(RandomDraws);
-            let mut services = call_services(self.numeric, &mut cells, draws.as_mut());
+            let mut services = call_services(
+                self.numeric,
+                &mut cells,
+                draws.as_mut(),
+                &mut host,
+                environment.as_ref(),
+            );
             if let Some(text) = text.as_mut() {
                 services = services.with_reference_text(text);
             }
@@ -674,9 +727,17 @@ impl Run<'_, '_> {
         };
         let result = {
             let mut cells = ReaderCells::new(reader);
+            let mut host = ReaderHost { shared: reader };
+            let environment = reader.environment();
             let mut draws = random.map(RandomDraws);
-            let mut services =
-                call_services(numeric, &mut cells, draws.as_mut()).with_callables(&mut callables);
+            let mut services = call_services(
+                numeric,
+                &mut cells,
+                draws.as_mut(),
+                &mut host,
+                environment.as_ref(),
+            )
+            .with_callables(&mut callables);
             invoke(
                 target.0,
                 &mut Evaluated(arguments),
@@ -787,8 +848,18 @@ impl Run<'_, '_> {
         self.reader.clear_refusal();
         let result = {
             let mut cells = ReaderCells::new(self.reader);
+            let mut host = ReaderHost {
+                shared: self.reader,
+            };
+            let environment = self.reader.environment();
             let mut draws = self.random.map(RandomDraws);
-            let mut services = call_services(self.numeric, &mut cells, draws.as_mut());
+            let mut services = call_services(
+                self.numeric,
+                &mut cells,
+                draws.as_mut(),
+                &mut host,
+                environment.as_ref(),
+            );
             invoke(
                 target.0,
                 &mut Evaluated(arguments),
@@ -843,8 +914,16 @@ impl Run<'_, '_> {
         };
         let result = {
             let mut cells = ReaderCells::new(reader);
+            let mut host = ReaderHost { shared: reader };
+            let environment = reader.environment();
             let mut draws = random.map(RandomDraws);
-            let mut services = call_services(numeric, &mut cells, draws.as_mut());
+            let mut services = call_services(
+                numeric,
+                &mut cells,
+                draws.as_mut(),
+                &mut host,
+                environment.as_ref(),
+            );
             invoke(target.0, &mut arguments, &mut services, &mut scratch)
         };
         let fault = arguments.fault.take();
@@ -1371,20 +1450,90 @@ mod tests {
     struct NoSheets;
 
     impl ReferenceCatalog for NoSheets {
+        fn defined_name(
+            &self,
+            _: &str,
+            _: crate::reference::NameScope,
+        ) -> crate::reference::NameDefinition {
+            crate::reference::NameDefinition::Unknown
+        }
+
+        fn table(&self, name: &str) -> crate::reference::TableLookup {
+            let _ = name;
+            crate::reference::TableLookup::NotModelled
+        }
+
+        fn table_containing(
+            &self,
+            cell: calc_func::value::CellKey,
+        ) -> crate::reference::TableLookup {
+            let _ = cell;
+            crate::reference::TableLookup::NotModelled
+        }
+
+        fn sheet_span(
+            &self,
+            first: calc_func::value::SheetId,
+            last: calc_func::value::SheetId,
+        ) -> Option<Vec<calc_func::value::SheetId>> {
+            let _ = (first, last);
+            None
+        }
+
+        fn unknown_calls_are_names(&self) -> bool {
+            false
+        }
+
+        fn workbook_name(&self) -> Option<&str> {
+            None
+        }
+
+        fn external_sheet(
+            &self,
+            book: &crate::reference::ExternalBookRef,
+            sheet: &str,
+        ) -> Option<calc_func::value::SheetId> {
+            let _ = (book, sheet);
+            None
+        }
+
+        fn external_function_target(
+            &self,
+            book: &crate::reference::ExternalBookRef,
+        ) -> Option<String> {
+            let _ = book;
+            None
+        }
+
         fn sheet_named(&self, _: &str) -> Option<SheetId> {
             None
         }
     }
 
     /// Every cell holds the same value.
-    struct Everywhere(CalcValue);
+    struct Everywhere(CalcValue, usize);
 
     impl ReferenceReader for Everywhere {
+        fn read_fact(&mut self, _fact: crate::FactRead) {}
+
+        fn spill_extent(&mut self, _: calc_func::value::CellKey) -> crate::reference::SpillExtent {
+            crate::reference::SpillExtent::NotModelled
+        }
+
+        fn subtotal_exclusions(
+            &mut self,
+            _: calc_func::value::GridArea,
+        ) -> Option<calc_func::SubtotalExclusions> {
+            None
+        }
+
         fn read_area(
             &mut self,
+            request: crate::ReadRequest,
             area: GridArea,
             sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
         ) {
+            self.1 += 1;
             for _ in 0..area.cell_count() {
                 if sink(CellRun::Values(std::slice::from_ref(&self.0))).is_break() {
                     return;
@@ -1413,11 +1562,17 @@ mod tests {
         )
         .unwrap();
         let instance = instantiate(&plan, anchor);
-        let mut reader = Everywhere(cells);
+        let mut reader = Everywhere(cells, 0);
         let mut scratch = EvalScratch::new();
         evaluate(
             EvalFrame::new(&instance, &mut scratch),
-            &mut EvaluationServices::new(mode, &mut reader),
+            &mut FormulaEvaluationContext::new(
+                mode,
+                &mut reader,
+                None,
+                None,
+                crate::ReadRequest::DEPENDENCY,
+            ),
         )
     }
 
@@ -1433,6 +1588,53 @@ mod tests {
 
         struct UserCatalog;
         impl ReferenceCatalog for UserCatalog {
+            fn table(&self, name: &str) -> crate::reference::TableLookup {
+                let _ = name;
+                crate::reference::TableLookup::NotModelled
+            }
+
+            fn table_containing(
+                &self,
+                cell: calc_func::value::CellKey,
+            ) -> crate::reference::TableLookup {
+                let _ = cell;
+                crate::reference::TableLookup::NotModelled
+            }
+
+            fn sheet_span(
+                &self,
+                first: calc_func::value::SheetId,
+                last: calc_func::value::SheetId,
+            ) -> Option<Vec<calc_func::value::SheetId>> {
+                let _ = (first, last);
+                None
+            }
+
+            fn unknown_calls_are_names(&self) -> bool {
+                false
+            }
+
+            fn workbook_name(&self) -> Option<&str> {
+                None
+            }
+
+            fn external_sheet(
+                &self,
+                book: &crate::reference::ExternalBookRef,
+                sheet: &str,
+            ) -> Option<calc_func::value::SheetId> {
+                let _ = (book, sheet);
+                None
+            }
+
+            fn external_function_target(
+                &self,
+                book: &crate::reference::ExternalBookRef,
+            ) -> Option<String> {
+                let _ = book;
+                None
+            }
+
             fn sheet_named(&self, _: &str) -> Option<SheetId> {
                 None
             }
@@ -1507,12 +1709,18 @@ mod tests {
             .unwrap();
             assert_eq!(plan.volatile(), builtin, "{formula}");
             let instance = instantiate(&plan, anchor);
-            let mut reader = Everywhere(CalcValue::empty());
+            let mut reader = Everywhere(CalcValue::empty(), 0);
             let value = evaluate(
                 EvalFrame::new(&instance, &mut scratch),
-                &mut EvaluationServices::new(&NumericMode::Fast, &mut reader)
-                    .with_functions(&functions)
-                    .with_user_function_effects(&mut effects),
+                &mut FormulaEvaluationContext::new(
+                    &NumericMode::Fast,
+                    &mut reader,
+                    None,
+                    None,
+                    crate::ReadRequest::DEPENDENCY,
+                )
+                .with_functions(&functions)
+                .with_user_function_effects(&mut effects),
             )
             .unwrap();
             assert!(value.as_number().is_some(), "{formula}");
@@ -1556,6 +1764,112 @@ mod tests {
         FormulaAnchor::new(CellKey::new(ids.issue().unwrap(), 5, 5).unwrap())
     }
 
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn unavailable_read_policy_reports_one_refusal_without_executing() {
+        let anchor = observed_anchor();
+        let plan = compile(
+            &parse_formula("=A1+1"),
+            ReferenceNotation::A1,
+            anchor,
+            &NoSheets,
+            &mut PlanCache::new(),
+        )
+        .unwrap();
+        let instance = instantiate(&plan, anchor);
+        let mut scratch = EvalScratch::new();
+        let mut reader = Everywhere(CalcValue::number(9.0), 0);
+        let mut shown = Shown::default();
+        let request = crate::ReadRequest {
+            policy: crate::ReadPolicy::CachedMacroObservation,
+            ..crate::ReadRequest::DEPENDENCY
+        };
+        let result = evaluate(
+            EvalFrame::new(&instance, &mut scratch),
+            &mut FormulaEvaluationContext::new(
+                &NumericMode::Fast,
+                &mut reader,
+                None,
+                None,
+                request,
+            )
+            .observed_by(&mut shown),
+        );
+        assert!(matches!(
+            result,
+            Err(EvalFault::NotModelled {
+                owner: "dc-hsa5",
+                ..
+            })
+        ));
+        assert!(shown.calls.is_empty());
+        assert_eq!(reader.1, 0);
+        assert_eq!(shown.outcomes, vec![result]);
+        assert_eq!(shown.reports, vec![(anchor, NumericMode::Fast)]);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn diagnostic_snapshot_never_enters_a_user_function() {
+        #[derive(Debug)]
+        struct Counting(std::cell::Cell<usize>);
+        impl calc_func::UserFunction for Counting {
+            fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+                self.0.set(self.0.get() + 1);
+                Ok(CalcValue::number(42.0))
+            }
+        }
+        let function = std::rc::Rc::new(Counting(std::cell::Cell::new(0)));
+        let mut functions = calc_func::UserFunctions::new();
+        functions.register("CounterUdf", function.clone()).unwrap();
+        let anchor = observed_anchor();
+        let plan = crate::compile_with_functions(
+            &parse_formula("=CounterUdf()"),
+            ReferenceNotation::A1,
+            anchor,
+            &NoSheets,
+            &mut PlanCache::new(),
+            FormulaForm::Legacy,
+            &functions,
+        )
+        .unwrap();
+        let instance = instantiate(&plan, anchor);
+        let mut scratch = EvalScratch::new();
+        let mut reader = Everywhere(CalcValue::empty(), 0);
+        let refused = evaluate(
+            EvalFrame::new(&instance, &mut scratch),
+            &mut FormulaEvaluationContext::new(
+                &NumericMode::Fast,
+                &mut reader,
+                None,
+                None,
+                crate::ReadRequest::DIAGNOSTIC,
+            )
+            .with_functions(&functions),
+        );
+        assert!(matches!(
+            refused,
+            Err(EvalFault::NotModelled {
+                owner: "dc-hsa5",
+                ..
+            })
+        ));
+        assert_eq!(function.0.get(), 0);
+        let calculated = evaluate(
+            EvalFrame::new(&instance, &mut scratch),
+            &mut FormulaEvaluationContext::new(
+                &NumericMode::Fast,
+                &mut reader,
+                None,
+                None,
+                crate::ReadRequest::DEPENDENCY,
+            )
+            .with_functions(&functions),
+        );
+        assert_eq!(calculated, Ok(CalcValue::number(42.0)));
+        assert_eq!(function.0.get(), 1);
+    }
+
     /// Evaluates `formula` under Fast, every cell holding `cells`, with an observer attached.
     fn observed(formula: &str, cells: CalcValue) -> (Result<CalcValue, EvalFault>, Shown) {
         let anchor = observed_anchor();
@@ -1568,12 +1882,19 @@ mod tests {
         )
         .unwrap();
         let instance = instantiate(&plan, anchor);
-        let mut reader = Everywhere(cells);
+        let mut reader = Everywhere(cells, 0);
         let mut scratch = EvalScratch::new();
         let mut shown = Shown::default();
         let outcome = evaluate(
             EvalFrame::new(&instance, &mut scratch),
-            &mut EvaluationServices::new(&NumericMode::Fast, &mut reader).observed_by(&mut shown),
+            &mut FormulaEvaluationContext::new(
+                &NumericMode::Fast,
+                &mut reader,
+                None,
+                None,
+                crate::ReadRequest::DEPENDENCY,
+            )
+            .observed_by(&mut shown),
         );
         (outcome, shown)
     }

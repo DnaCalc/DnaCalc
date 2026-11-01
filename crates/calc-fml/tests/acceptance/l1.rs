@@ -11,8 +11,8 @@ use super::{LoggingCatalog, RunReader, cell_at};
 
 use calc_fml::reference::{FormulaAnchor, ReferenceNotation};
 use calc_fml::{
-    CompileError, EvalFault, EvalFrame, EvalScratch, EvaluationServices, FormulaForm, PlanCache,
-    compile_with, evaluate, instantiate, parse_formula,
+    CompileError, EvalFault, EvalFrame, EvalScratch, FormulaEvaluationContext, FormulaForm,
+    PlanCache, compile_with, evaluate, instantiate, parse_formula,
 };
 use calc_func::value::{
     CalcArray, CalcValue, CellKey, ExcelText, GridArea, NumericMode, WorksheetErrorCode as W,
@@ -96,8 +96,14 @@ impl Book {
         )?;
         let instance = instantiate(&plan, anchor);
         let mut scratch = EvalScratch::new();
-        let mut services = EvaluationServices::new(&NumericMode::Fast, &mut self.reader)
-            .with_catalog(&self.catalog);
+        let mut services = FormulaEvaluationContext::new(
+            &NumericMode::Fast,
+            &mut self.reader,
+            None,
+            None,
+            calc_fml::ReadRequest::DEPENDENCY,
+        )
+        .with_catalog(&self.catalog);
         Ok(evaluate(
             EvalFrame::new(&instance, &mut scratch),
             &mut services,
@@ -637,8 +643,11 @@ mod names {
         // (Excel 16.0, 2026-10-23: LeftCell, `RC[-1]` stored as `Nm!XFD1`, is B3 in C3 and XFD1 in
         // A1).
         let mut book = Book::new();
-        book.number("Y100", 7.0).number("XFD1", 9.0).number("B3", 5.0);
-        book.name("Here", "Sheet1!A1").name("LeftCell", "Sheet1!XFD1");
+        book.number("Y100", 7.0)
+            .number("XFD1", 9.0)
+            .number("B3", 5.0);
+        book.name("Here", "Sheet1!A1")
+            .name("LeftCell", "Sheet1!XFD1");
         assert_eq!(book.dynamic_at("=Here", "Y100"), n(7.0));
         assert_eq!(book.dynamic_at("=LeftCell", "C3"), n(5.0));
         assert_eq!(book.dynamic_at("=LeftCell", "A1"), n(9.0));

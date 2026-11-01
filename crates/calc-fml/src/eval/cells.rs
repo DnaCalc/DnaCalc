@@ -9,10 +9,10 @@ use super::run::EvalFault;
 use crate::reference::{
     CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells,
 };
+use calc_func::locale::CalcEnvironment;
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, CellKey, GridArea, ReferenceLike, SheetId, WorksheetErrorCode,
 };
-use calc_func::locale::CalcEnvironment;
 use calc_func::{CellReader, HostFacts, SubtotalExclusions, Unreadable};
 use std::cell::{Cell, RefCell};
 use std::ops::ControlFlow;
@@ -41,15 +41,33 @@ impl ReadRefusal {
 /// another (a kernel's visit only consumes values).
 pub(super) struct SharedReader<'r> {
     reader: RefCell<&'r mut dyn ReferenceReader>,
+    host: RefCell<Option<&'r mut dyn HostFacts>>,
+    caller: CellKey,
+    environment: Option<CalcEnvironment>,
+    request: crate::ReadRequest,
     refusal: Cell<Option<ReadRefusal>>,
 }
 
 impl<'r> SharedReader<'r> {
-    pub(super) fn new(reader: &'r mut dyn ReferenceReader) -> Self {
+    pub(super) fn new(
+        reader: &'r mut dyn ReferenceReader,
+        host: Option<&'r mut dyn HostFacts>,
+        caller: CellKey,
+        environment: Option<CalcEnvironment>,
+        request: crate::ReadRequest,
+    ) -> Self {
         SharedReader {
             reader: RefCell::new(reader),
+            host: RefCell::new(host),
+            caller,
+            environment,
+            request,
             refusal: Cell::new(None),
         }
+    }
+
+    pub(super) fn environment(&self) -> Option<CalcEnvironment> {
+        self.environment
     }
 
     /// Forgets any refusal, before a call whose refusal must be told apart.
@@ -71,7 +89,10 @@ impl<'r> SharedReader<'r> {
             [area] if area.cell_count() == 1 => *area,
             areas => return Err(EvalFault::AreaAsValue { area: areas[0] }),
         };
-        let read = self.reader.borrow_mut().read_cell(area.first());
+        let read = self
+            .reader
+            .borrow_mut()
+            .read_cell(self.request, area.first());
         match read {
             Ok(CellRead::Value(value)) => Ok(value),
             Ok(CellRead::Blank) => Ok(CalcValue::empty()),
@@ -102,7 +123,7 @@ impl<'r> SharedReader<'r> {
         let first = area.first();
         let mut missing = None;
         let mut reader = self.reader.borrow_mut();
-        let read = read_cells(&mut **reader, area, &mut |start, run| {
+        let read = read_cells(&mut **reader, self.request, area, &mut |start, run| {
             let offset = u64::from(start.row() - first.row()) * width
                 + u64::from(start.column() - first.column());
             match run {
@@ -165,32 +186,37 @@ impl CellReader for ReaderCells<'_, '_> {
         let last = area.last();
         let mut missing = None;
         let mut reader = self.shared.reader.borrow_mut();
-        let read = read_cells(&mut **reader, area, &mut |start, run| {
-            match run {
-                CellRun::Values(values) => {
-                    // `read_cells` has checked that the run lies inside the area, so each value's
-                    // cell is the next one of the area in row-major order.
-                    let (mut row, mut column) = (start.row(), start.column());
-                    for value in values {
-                        let cell = CellKey::new(first.sheet(), row, column)
-                            .expect("read_cells keeps every run inside the area");
-                        visit(cell, value)?;
-                        if column == last.column() {
-                            column = first.column();
-                            row += 1;
-                        } else {
-                            column += 1;
+        let read = read_cells(
+            &mut **reader,
+            self.shared.request,
+            area,
+            &mut |start, run| {
+                match run {
+                    CellRun::Values(values) => {
+                        // `read_cells` has checked that the run lies inside the area, so each value's
+                        // cell is the next one of the area in row-major order.
+                        let (mut row, mut column) = (start.row(), start.column());
+                        for value in values {
+                            let cell = CellKey::new(first.sheet(), row, column)
+                                .expect("read_cells keeps every run inside the area");
+                            visit(cell, value)?;
+                            if column == last.column() {
+                                column = first.column();
+                                row += 1;
+                            } else {
+                                column += 1;
+                            }
                         }
+                        ControlFlow::Continue(())
                     }
-                    ControlFlow::Continue(())
+                    CellRun::Blank(_) => ControlFlow::Continue(()),
+                    CellRun::Missing(_) => {
+                        missing = Some(start);
+                        ControlFlow::Break(())
+                    }
                 }
-                CellRun::Blank(_) => ControlFlow::Continue(()),
-                CellRun::Missing(_) => {
-                    missing = Some(start);
-                    ControlFlow::Break(())
-                }
-            }
-        });
+            },
+        );
         drop(reader);
         let refusal = match (read, missing) {
             (Err(error), _) => ReadRefusal::Contract(error),
@@ -204,53 +230,145 @@ impl CellReader for ReaderCells<'_, '_> {
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
         self.shared.reader.borrow_mut().subtotal_exclusions(area)
     }
-
-    fn environment(&self) -> Option<CalcEnvironment> {
-        self.shared.reader.borrow().environment()
-    }
-
-    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
-        Some(self)
-    }
 }
 
 /// The caller's host facts, each asked of its reader while the shared reader is borrowed for that
 /// one question.
-impl HostFacts for ReaderCells<'_, '_> {
+pub(super) struct ReaderHost<'a, 'r> {
+    pub(super) shared: &'a SharedReader<'r>,
+}
+
+impl ReaderHost<'_, '_> {
+    fn fact(
+        &self,
+        subject: crate::FactSubject,
+        purpose: crate::ReadPurpose,
+        facets: crate::ObservableFacets,
+        invalidation: crate::FactInvalidation,
+    ) {
+        self.shared.reader.borrow_mut().read_fact(crate::FactRead {
+            request: crate::ReadRequest {
+                policy: self.shared.request.policy,
+                purpose,
+                facets,
+            },
+            subject,
+            invalidation,
+        });
+    }
+}
+
+impl HostFacts for ReaderHost<'_, '_> {
     fn caller(&mut self) -> Option<CellKey> {
-        self.shared.reader.borrow_mut().host_facts()?.caller()
+        Some(self.shared.caller)
     }
 
     fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
-        self.shared.reader.borrow_mut().host_facts().is_some_and(|host| host.is_external_sheet(sheet))
+        self.fact(
+            crate::FactSubject::Sheet(sheet),
+            crate::ReadPurpose::SheetMetadata,
+            crate::ObservableFacets::SheetMetadata,
+            crate::FactInvalidation::OnChange,
+        );
+        self.shared
+            .host
+            .borrow_mut()
+            .as_deref_mut()
+            .is_some_and(|host| host.is_external_sheet(sheet))
     }
 
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
-        self.shared.reader.borrow_mut().host_facts()?.is_formula(cell)
+        self.fact(
+            crate::FactSubject::Cell(cell),
+            crate::ReadPurpose::FormulaKind,
+            crate::ObservableFacets::FormulaKind,
+            crate::FactInvalidation::OnChange,
+        );
+        self.shared
+            .host
+            .borrow_mut()
+            .as_deref_mut()?
+            .is_formula(cell)
     }
 
     fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
-        self.shared.reader.borrow_mut().host_facts()?.formula_text(cell)
+        self.fact(
+            crate::FactSubject::Cell(cell),
+            crate::ReadPurpose::FormulaText,
+            crate::ObservableFacets::FormulaText,
+            crate::FactInvalidation::OnChange,
+        );
+        self.shared
+            .host
+            .borrow_mut()
+            .as_deref_mut()?
+            .formula_text(cell)
     }
 
     fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
-        self.shared.reader.borrow_mut().host_facts()?.sheet_index(sheet)
+        self.fact(
+            crate::FactSubject::Sheet(sheet),
+            crate::ReadPurpose::SheetMetadata,
+            crate::ObservableFacets::SheetMetadata,
+            crate::FactInvalidation::OnChange,
+        );
+        self.shared
+            .host
+            .borrow_mut()
+            .as_deref_mut()?
+            .sheet_index(sheet)
     }
 
     fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
-        self.shared.reader.borrow_mut().host_facts()?.sheet_named(name)
+        self.fact(
+            crate::FactSubject::Workbook,
+            crate::ReadPurpose::SheetMetadata,
+            crate::ObservableFacets::SheetMetadata,
+            crate::FactInvalidation::OnChange,
+        );
+        self.shared
+            .host
+            .borrow_mut()
+            .as_deref_mut()?
+            .sheet_named(name)
     }
 
     fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
-        self.shared.reader.borrow_mut().host_facts()?.sheet_name(sheet)
+        self.fact(
+            crate::FactSubject::Sheet(sheet),
+            crate::ReadPurpose::SheetMetadata,
+            crate::ObservableFacets::SheetMetadata,
+            crate::FactInvalidation::OnChange,
+        );
+        self.shared
+            .host
+            .borrow_mut()
+            .as_deref_mut()?
+            .sheet_name(sheet)
     }
 
     fn sheet_count(&mut self) -> Option<u32> {
-        self.shared.reader.borrow_mut().host_facts()?.sheet_count()
+        self.fact(
+            crate::FactSubject::Workbook,
+            crate::ReadPurpose::SheetMetadata,
+            crate::ObservableFacets::SheetMetadata,
+            crate::FactInvalidation::OnChange,
+        );
+        self.shared.host.borrow_mut().as_deref_mut()?.sheet_count()
     }
 
     fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_func::WorkbookFacts>> {
-        self.shared.reader.borrow_mut().host_facts()?.workbook_facts()
+        self.fact(
+            crate::FactSubject::Workbook,
+            crate::ReadPurpose::SheetMetadata,
+            crate::ObservableFacets::SheetMetadata,
+            crate::FactInvalidation::OnNextAuthorizedCalculation,
+        );
+        self.shared
+            .host
+            .borrow_mut()
+            .as_deref_mut()?
+            .workbook_facts()
     }
 }
 
@@ -263,10 +381,31 @@ mod tests {
     struct Replay {
         runs: Vec<CellRun<'static>>,
         asked: usize,
+        facts: Vec<crate::FactRead>,
     }
 
     impl ReferenceReader for Replay {
-        fn read_area(&mut self, _: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+        fn read_fact(&mut self, fact: crate::FactRead) {
+            self.facts.push(fact);
+        }
+
+        fn spill_extent(&mut self, _: calc_func::value::CellKey) -> crate::reference::SpillExtent {
+            crate::reference::SpillExtent::NotModelled
+        }
+
+        fn subtotal_exclusions(
+            &mut self,
+            _: calc_func::value::GridArea,
+        ) -> Option<calc_func::SubtotalExclusions> {
+            None
+        }
+
+        fn read_area(
+            &mut self,
+            request: crate::ReadRequest,
+            _: GridArea,
+            sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+        ) {
             self.asked += 1;
             for run in &self.runs {
                 if sink(*run).is_break() {
@@ -305,8 +444,15 @@ mod tests {
                 CellRun::Values(&TWO),
             ],
             asked: 0,
+            facts: Vec::new(),
         };
-        let shared = SharedReader::new(&mut reader);
+        let shared = SharedReader::new(
+            &mut reader,
+            None,
+            area.first(),
+            None,
+            crate::ReadRequest::DEPENDENCY,
+        );
         let mut seen = Vec::new();
         let read = ReaderCells::new(&shared).read_area(area, &mut |cell, value| {
             seen.push((cell.row(), cell.column(), value.as_logical()));
@@ -338,8 +484,15 @@ mod tests {
                 CellRun::Blank(3),
             ],
             asked: 0,
+            facts: Vec::new(),
         };
-        let shared = SharedReader::new(&mut reader);
+        let shared = SharedReader::new(
+            &mut reader,
+            None,
+            area.first(),
+            None,
+            crate::ReadRequest::DEPENDENCY,
+        );
         let mut visits = 0;
         let read = ReaderCells::new(&shared).read_area(area, &mut |_, _| {
             visits += 1;
@@ -366,8 +519,15 @@ mod tests {
         let mut reader = Replay {
             runs: vec![CellRun::Blank(5)],
             asked: 0,
+            facts: Vec::new(),
         };
-        let shared = SharedReader::new(&mut reader);
+        let shared = SharedReader::new(
+            &mut reader,
+            None,
+            area.first(),
+            None,
+            crate::ReadRequest::DEPENDENCY,
+        );
         let read = ReaderCells::new(&shared).read_area(area, &mut |_, _| ControlFlow::Continue(()));
         assert_eq!(read, Err(Unreadable));
         assert_eq!(
@@ -376,6 +536,39 @@ mod tests {
                 area,
                 covered: 5
             }))
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn metadata_questions_keep_their_facets_without_reading_values() {
+        let at = b2_c4().first();
+        let mut reader = Replay {
+            runs: Vec::new(),
+            asked: 0,
+            facts: Vec::new(),
+        };
+        {
+            let shared =
+                SharedReader::new(&mut reader, None, at, None, crate::ReadRequest::DEPENDENCY);
+            let mut host = ReaderHost { shared: &shared };
+            assert_eq!(host.formula_text(at), None);
+            assert_eq!(host.is_formula(at), None);
+            assert_eq!(host.caller(), Some(at));
+        }
+        assert_eq!(reader.asked, 0);
+        assert_eq!(reader.facts.len(), 2);
+        assert_eq!(reader.facts[0].subject, crate::FactSubject::Cell(at));
+        assert_eq!(
+            reader.facts[0].request.facets,
+            crate::ObservableFacets::FormulaText
+        );
+        assert_eq!(
+            reader.facts[1].request.facets,
+            crate::ObservableFacets::FormulaKind
+        );
+        assert_eq!(
+            reader.facts[0].invalidation,
+            crate::FactInvalidation::OnChange
         );
     }
 }

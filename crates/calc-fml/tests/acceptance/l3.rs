@@ -14,8 +14,8 @@ use super::{LoggingCatalog, RunReader, cell_at};
 
 use calc_fml::reference::{BindError, FormulaAnchor, ReferenceNotation, TableInfo};
 use calc_fml::{
-    CompileError, EvalFault, EvalFrame, EvalScratch, EvaluationServices, FormulaForm, PlanCache,
-    compile_with, evaluate, instantiate, parse_formula,
+    CompileError, EvalFault, EvalFrame, EvalScratch, FormulaEvaluationContext, FormulaForm,
+    PlanCache, compile_with, evaluate, instantiate, parse_formula,
 };
 use calc_func::value::{
     CalcValue, CellKey, ExcelText, GridArea, NumericMode, WorksheetErrorCode as W,
@@ -136,8 +136,14 @@ impl Book {
         )?;
         let instance = instantiate(&plan, anchor);
         let mut scratch = EvalScratch::new();
-        let mut services = EvaluationServices::new(&NumericMode::Fast, &mut self.reader)
-            .with_catalog(&self.catalog);
+        let mut services = FormulaEvaluationContext::new(
+            &NumericMode::Fast,
+            &mut self.reader,
+            None,
+            None,
+            calc_fml::ReadRequest::DEPENDENCY,
+        )
+        .with_catalog(&self.catalog);
         Ok(evaluate(
             EvalFrame::new(&instance, &mut scratch),
             &mut services,

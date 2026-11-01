@@ -4,7 +4,7 @@
 //! `tests/fixtures/dc_51ka/oracle.xlsx`, which the committed generator
 //! `tests/fixtures/make-fixtures.ps1` writes, and runs through the production route
 //! (parse_formula, compile, instantiate, evaluate) with the case's own catalogue of the workbook's
-//! 42 sheets (`EvaluationServices::with_catalog`; the workbook's two defined names are not bound),
+//! 42 sheets (`FormulaEvaluationContext::with_catalog`; the workbook's two defined names are not bound),
 //! a reader holding the workbook's constant cells and an observer that records the calls, the
 //! areas INDIRECT resolved and the outcome. Each row's expected value is labelled `documented`
 //! when Microsoft's INDIRECT page gives it, for it or for an analogue of one of the page's
@@ -526,7 +526,13 @@ impl Book {
         let mode = NumericMode::Fast;
         let mut watch = Watch::default();
         let outcome = {
-            let services = EvaluationServices::new(&mode, &mut self.reader);
+            let services = FormulaEvaluationContext::new(
+                &mode,
+                &mut self.reader,
+                None,
+                None,
+                calc_fml::ReadRequest::DEPENDENCY,
+            );
             let services = if without_catalog {
                 services
             } else {
@@ -807,7 +813,7 @@ pub(super) fn indirect_text_references() {
         Some(calc_func::ParameterClass::Value)
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: without EvaluationServices::with_catalog, =INDIRECT(\"A1\")+1 is refused (NotImplemented of INDIRECT, argument 0) once INDIRECT's call runs, and nothing is resolved"
+        "ACCEPT-NOTE: {CASE}: without FormulaEvaluationContext::with_catalog, =INDIRECT(\"A1\")+1 is refused (NotImplemented of INDIRECT, argument 0) once INDIRECT's call runs, and nothing is resolved"
     );
 
     // The oracle workbook holds exactly the rows' formulas in column D, in row order, and the

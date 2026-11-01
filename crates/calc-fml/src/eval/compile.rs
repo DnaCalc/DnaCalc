@@ -2540,6 +2540,61 @@ mod tests {
     struct Sheets(SheetId);
 
     impl ReferenceCatalog for Sheets {
+        fn defined_name(
+            &self,
+            _: &str,
+            _: crate::reference::NameScope,
+        ) -> crate::reference::NameDefinition {
+            crate::reference::NameDefinition::NotModelled
+        }
+
+        fn table(&self, name: &str) -> crate::reference::TableLookup {
+            let _ = name;
+            crate::reference::TableLookup::NotModelled
+        }
+
+        fn table_containing(
+            &self,
+            cell: calc_func::value::CellKey,
+        ) -> crate::reference::TableLookup {
+            let _ = cell;
+            crate::reference::TableLookup::NotModelled
+        }
+
+        fn sheet_span(
+            &self,
+            first: calc_func::value::SheetId,
+            last: calc_func::value::SheetId,
+        ) -> Option<Vec<calc_func::value::SheetId>> {
+            let _ = (first, last);
+            None
+        }
+
+        fn unknown_calls_are_names(&self) -> bool {
+            false
+        }
+
+        fn workbook_name(&self) -> Option<&str> {
+            None
+        }
+
+        fn external_sheet(
+            &self,
+            book: &crate::reference::ExternalBookRef,
+            sheet: &str,
+        ) -> Option<calc_func::value::SheetId> {
+            let _ = (book, sheet);
+            None
+        }
+
+        fn external_function_target(
+            &self,
+            book: &crate::reference::ExternalBookRef,
+        ) -> Option<String> {
+            let _ = book;
+            None
+        }
+
         fn sheet_named(&self, name: &str) -> Option<SheetId> {
             name.eq_ignore_ascii_case("Sheet2").then_some(self.0)
         }
