@@ -1,0 +1,61 @@
+2026-11-01T07:25:53.2954417Z	53324	AutoOpen	C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-reference\runs\x2-net48-excel-traced-1\X0-AddIn64.xll
+2026-11-01T07:25:53.2987677Z	53324	Runtime	v4.0.30319
+2026-11-01T07:25:53.2997912Z	53324	Integration assembly	ExcelDna.Integration, Version=1.1.0.0, Culture=neutral, PublicKeyToken=f225e9659857edbe
+2026-11-01T07:25:58.4196045Z	53324	COM Application.Version get	16.0
+2026-11-01T07:25:59.1322887Z	53324	COM Application.Hwnd get	154928000
+2026-11-01T07:26:01.2632058Z	53324	COM AppEvents Advise	1
+2026-11-01T07:26:03.4438497Z	53324	QueueAsMacro enter	startup
+2026-11-01T07:26:03.8042885Z	53324	QueueAsMacro xlfCaller rc	XlReturnSuccess
+2026-11-01T07:26:03.8074310Z	53324	QueueAsMacro xlfCaller value	ExcelError:ExcelErrorRef
+2026-11-01T07:26:03.8074310Z	53324	QueueAsMacro exit	startup
+2026-11-01T07:26:09.9609331Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:26:16.9433415Z	53324	AppEvents SheetChange	sheet=X0;target=$A$1
+2026-11-01T07:26:26.3924973Z	53324	AppEvents SheetChange	received
+2026-11-01T07:26:26.7177124Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:26:34.9552475Z	53324	Hello	world
+2026-11-01T07:26:35.5315734Z	53324	AppEvents SheetCalculate	sheet
+2026-11-01T07:26:35.8106977Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:26:37.1661607Z	53324	AppEvents SheetChange	received
+2026-11-01T07:26:54.2287344Z	53324	AppEvents SheetChange	received
+2026-11-01T07:26:54.5439719Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:27:03.4509471Z	53324	Reference argument	ExcelReference sheet=1686924870992 rows=0:0 cols=0:0
+2026-11-01T07:27:04.3179554Z	53324	AppEvents SheetCalculate	sheet
+2026-11-01T07:27:04.6481345Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:27:06.0291116Z	53324	AppEvents SheetChange	received
+2026-11-01T07:27:24.5666039Z	53324	AppEvents SheetChange	received
+2026-11-01T07:27:24.9306891Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:27:34.1716707Z	53324	Caller	ExcelReference sheet=1686924870992 rows=2:2 cols=1:1
+2026-11-01T07:27:37.1604288Z	53324	AppEvents SheetCalculate	sheet
+2026-11-01T07:27:37.4947442Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:27:39.6875783Z	53324	AppEvents SheetChange	received
+2026-11-01T07:27:55.7594788Z	53324	AppEvents SheetChange	received
+2026-11-01T07:27:56.0452594Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:28:03.3916628Z	53324	Async enter	41
+2026-11-01T07:28:03.9187431Z	27824	Async SetResult	True
+2026-11-01T07:28:04.3718401Z	53324	AppEvents SheetCalculate	sheet
+2026-11-01T07:28:04.6752057Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:28:05.9272647Z	53324	AppEvents SheetChange	received
+2026-11-01T07:28:29.2147158Z	53324	AppEvents SheetChange	received
+2026-11-01T07:28:29.5481593Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:28:37.3689997Z	53324	AppEvents SheetCalculate	sheet
+2026-11-01T07:28:37.6785971Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:28:38.9375530Z	53324	AppEvents SheetChange	received
+2026-11-01T07:28:55.9332512Z	53324	AppEvents SheetChange	received
+2026-11-01T07:28:56.2707002Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:29:04.6793546Z	43428	ThreadSafe	21
+2026-11-01T07:29:05.2586342Z	53324	AppEvents SheetCalculate	sheet
+2026-11-01T07:29:05.5993831Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:29:07.1252488Z	53324	AppEvents SheetChange	received
+2026-11-01T07:29:24.3679628Z	53324	AppEvents SheetChange	received
+2026-11-01T07:29:24.6770541Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:29:34.0491743Z	53324	AppEvents SheetCalculate	sheet
+2026-11-01T07:29:34.4487332Z	53324	AppEvents AfterCalculate	called
+2026-11-01T07:29:35.9292385Z	53324	AppEvents SheetChange	received
+2026-11-01T07:29:45.9254003Z	53324	Queue request	command
+2026-11-01T07:29:48.3605203Z	53324	Queue executed	C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-reference\runs\x2-net48-excel-traced-1\X0-AddIn64.xll
+2026-11-01T07:29:49.2507724Z	53324	Context 16393	XlReturnSuccess String:C:\Work\DnaCalc\DnaCalc-cdoc\crates\calc-xll-reference\runs\x2-net48-excel-traced-1\X0-AddIn64.xll
+2026-11-01T07:29:49.6064189Z	53324	Context 16385	XlReturnSuccess Double:907553
+2026-11-01T07:29:49.9439068Z	53324	Context 89	XlReturnSuccess ExcelError:ExcelErrorRef
+2026-11-01T07:29:50.5657496Z	27824	Outside 16393	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-01T07:29:51.0701419Z	27824	Outside 16385	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty
+2026-11-01T07:29:51.6778380Z	27824	Outside 89	XlReturnFailed ExcelEmpty:ExcelDna.Integration.ExcelEmpty

@@ -170,7 +170,9 @@ struct BlockCursor {
     at: usize,
     base: Option<usize>,
     pending: Option<PendingCall>,
-    pending_user: Option<PendingUserCall>,
+    // Nested lazy/name blocks also carry a cursor. Keep cooperative UDF state off
+    // those recursive frames; ordinary formulas do not allocate it.
+    pending_user: Option<Box<PendingUserCall>>,
 }
 
 #[derive(Debug)]
@@ -507,7 +509,7 @@ impl Run<'_, '_> {
         binding: Option<crate::CallableHandle>,
         argc: usize,
         site: usize,
-        pending: &mut Option<PendingUserCall>,
+        pending: &mut Option<Box<PendingUserCall>>,
         quantum: usize,
     ) -> Result<bool, EvalFault> {
         if self.read_policy == crate::ReadPolicy::DiagnosticSnapshot {
@@ -561,12 +563,12 @@ impl Run<'_, '_> {
             }
             match started {
                 Ok(Some(activation)) => {
-                    *pending = Some(PendingUserCall {
+                    *pending = Some(Box::new(PendingUserCall {
                         cached,
                         activation,
                         frame,
                         record,
-                    });
+                    }));
                 }
                 other => {
                     if let Some(index) = record {
@@ -640,7 +642,10 @@ impl Run<'_, '_> {
         }
     }
     fn block(&mut self, index: usize) -> Result<CalcValue, EvalFault> {
-        match self.block_slice(index, &mut BlockCursor::default(), usize::MAX)? {
+        // Lazy calls and names can nest on a 1 MB native stack. Their cursors own
+        // kernel/activation storage, so retain that storage on the heap per block.
+        let mut cursor = Box::<BlockCursor>::default();
+        match self.block_slice(index, &mut cursor, usize::MAX)? {
             Some(value) => Ok(value),
             None => unreachable!("nested blocks are non-preemptible"),
         }

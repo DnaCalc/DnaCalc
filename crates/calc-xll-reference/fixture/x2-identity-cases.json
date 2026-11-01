@@ -1,0 +1,4 @@
+[
+  {"formula":"=SayHello(\"x\")", "value":"Hello, x"},
+  {"formula":"=X2.Identity()", "value":null}
+]

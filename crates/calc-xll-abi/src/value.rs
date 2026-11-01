@@ -6,7 +6,7 @@ use calc_value::{
 use std::collections::BTreeMap;
 
 /// Opaque nonzero C API sheet identities. Generational DNA identities never become pointers.
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct SheetMap {
     sheets: BTreeMap<SheetId, usize>,
 }

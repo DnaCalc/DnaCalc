@@ -15,3 +15,4 @@ calc-func = { path = "../calc-func" }
 calc-fml = { path = "../calc-fml" }
 calc-xll-abi = { path = "../calc-xll-abi" }
 libffi = "=5.2.0"
+sha2 = "=0.10.9"

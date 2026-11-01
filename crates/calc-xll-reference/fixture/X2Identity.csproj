@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0-windows</TargetFrameworks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ExcelDnaCreate32BitAddIn>false</ExcelDnaCreate32BitAddIn>
+    <ExcelDnaCreate64BitAddIn>true</ExcelDnaCreate64BitAddIn>
+    <ExcelDnaPackExcelDnaConfig>false</ExcelDnaPackExcelDnaConfig>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Hello.cs" />
+    <Compile Include="Identity.cs" />
+    <PackageReference Include="ExcelDna.AddIn" Version="1.10.0-preview6" />
+    <PackageReference Include="ExcelDna.Interop" Version="15.0.1" />
+  </ItemGroup>
+</Project>

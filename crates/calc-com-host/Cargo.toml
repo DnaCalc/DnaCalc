@@ -1,0 +1,17 @@
+[package]
+name = "calc-com-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Process-local Excel COM projection for the native add-in host."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+[target.'cfg(windows)'.dependencies]
+calc-xll-host = { path = "../calc-xll-host" }
+calc-value = { path = "../calc-value" }
+
+[build-dependencies]
+cc = "=1.8.0"

@@ -439,3 +439,55 @@ COM objects, command integration, worker scheduling and complete async lifetime
 behavior remain open. The raw xlAsyncReturn result operand differs from this
 Excel build; the documented Boolean is returned by DNA Calc, while callback
 codes and published values match. See the reference folder's discrepancy note.
+
+## 11. X2 Excel-DNA host (2026-11-01, dc-snz.18)
+
+The [retained X2 evidence](../../crates/calc-xll-reference/traces/2026-11-01-x2/)
+runs original ExcelDna.AddIn 1.9.0 packages under net48 and net8.0-windows.
+Each runtime matches six Excel-DNA UDF cases and the native DLLFree control
+(7/7). Original NativeAOT 1.10.0-preview5 on net10.0-windows matches hello (1/1).
+Separate controls without the debugger agree. Source and binary hashes are
+retained; publication records identify code captured before its commit existed.
+
+The host keeps its executable name, carries version 16.x and sets
+`EXCELDNA_ASSUME_EXCEL_PROCESS=1` before creating threads. A separate original
+1.10.0-preview6 loader/PIA fixture confirms process identity, Framework AppDomain
+isolation and ExcelDna.Interop 15.0.1 calls through Excel's Application IID and
+vtable. Version, Hwnd and Run work. Window is a seven-slot dispatch interface;
+Application's dual interface has 474 slots on the measured Excel build.
+No COM activation mechanism is adopted; no Excel registrations or HKLM settings
+are written. Application comes from the host's own EXCEL7 window.
+
+The complete original 10,000-export pool registers; f0 and f9999 execute their
+different delegates in Excel and the host. Empty-type commands read the native
+Boolean return (TRUE for these Framework wrappers, FALSE for these net8 wrappers).
+SyncMacro's `>B` returns R8 zero. QueueAsMacro executes on the main STA through
+Application.Run, with its own XLL context after another XLL loads. Caller and
+reference descriptors/coercion, sheet names/IDs and outside-call code 32 follow
+the X0 observations. Thread-safe UDFs run on calculation workers; the evaluator's
+reader remains on its owner thread. This does not establish overlapping formula
+execution. Unimplemented worker mutations/registered calls are typed refusals.
+
+Two raw async differences remain visible: xlAsyncReturn's result operand is
+type zero in Excel and the documented Boolean in the host; net8's incoming
+opaque handle cbData also differs. Excel-DNA's marshaler reads hData only on
+that entry path. Defined values and ordered nested UDF callbacks agree; this
+is not a claim that all raw bytes agree. Native async publishes its result from
+a background thread; cancellation, overwrite and late-return integration remain X5.
+
+Framework and net8 remove/close/reload work. The Native AOT preview aborts when
+its still-loaded runtime installs an import resolver a second time. The host
+refuses repeat packed-runtime initialization across hosts and XLL aliases;
+dc-snz.19 owns safe reinitialization. The local AppEvents connection point supports
+subscription/removal only. Delivered host events, RTD, the complete permissions
+table, general COM objects, Excel4 and x86 remain open. The merged callable-table
+integration keeps the existing 1 MB LAMBDA stack test by retaining block cursor
+storage on the heap, without changing the test's limit or assertions.
+
+The corpus remains 18,812/20,030 matched (93.9191%), with 1,131 failures
+(1,124 mismatches, six refusals and one not run), 73 external-link cells and
+14 circular-rule cells. All cell verdict records are unchanged. The structural
+run passes layering, OS imports, native wasm refusals, provenance and dependency
+ceilings; its token scan flags the merged VBA adapter's external HAL type name
+(dc-hsa5.4.1). This is a partial sweep: browser, app-smoke and acceptance were
+skipped, and the failed scan is retained.

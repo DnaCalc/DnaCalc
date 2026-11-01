@@ -132,6 +132,9 @@ pub unsafe fn dispatch(
                 return FAILED;
             }
             let frame = &mut *ptr;
+            if matches!(function, 16388 | 16389) {
+                return sheet_callback(frame, function, args, result);
+            }
             match run(frame, function, args) {
                 Ok(Some(value)) => {
                     if result.is_null() {
@@ -158,12 +161,86 @@ pub unsafe fn dispatch(
 
 fn refuse(frame: &mut Frame<'_>, why: &str) {
     if let Some(context) = &mut frame.context {
-        context.refuse_by("an XLL callback is not modelled", "dc-snz.2");
+        context.refuse_by(
+            "an XLL callback is not modelled",
+            if why.starts_with("dc-snz.18:") {
+                "dc-snz.18"
+            } else {
+                "dc-snz.2"
+            },
+        );
     }
     frame.state.borrow_mut().refusal(why);
 }
 fn err(why: impl Into<String>) -> (i32, String) {
     (FAILED, why.into())
+}
+unsafe fn sheet_callback(
+    frame: &mut Frame<'_>,
+    function: i32,
+    args: &[*mut XlOper12],
+    result: *mut XlOper12,
+) -> i32 {
+    if args.len() > 1 || (function == 16389 && args.len() != 1) {
+        return INVALID_COUNT;
+    }
+    let selected = current_sheet(&frame.context).or(frame.state.borrow().active_sheet);
+    let sheet = if let Some(arg) = args.first() {
+        let oper = unsafe { &**arg };
+        match oper.xltype & TYPE_MASK {
+            XL_SREF => selected,
+            XL_REF => frame
+                .state
+                .borrow()
+                .sheets
+                .decode(unsafe { oper.value.reference.sheet }),
+            XL_STR if function == 16388 => {
+                let value = unsafe { from_oper(*arg, &frame.state.borrow().sheets, selected) };
+                let Ok(name) = value.and_then(|v| text(&v).map_err(|(_, why)| why)) else {
+                    return INVALID_OPER;
+                };
+                frame
+                    .state
+                    .borrow()
+                    .sheet_names
+                    .iter()
+                    .find_map(|(s, n)| n.eq_ignore_ascii_case(&name).then_some(*s))
+            }
+            _ => return INVALID_OPER,
+        }
+    } else {
+        selected
+    };
+    let Some(sheet) = sheet else {
+        return FAILED;
+    };
+    if result.is_null() {
+        return SUCCESS;
+    }
+    if function == 16388 {
+        let id = frame.state.borrow_mut().sheets.encode(sheet);
+        unsafe {
+            *result = XlOper12 {
+                value: XlValue12 {
+                    reference: XlReference12 {
+                        table: std::ptr::null_mut(),
+                        sheet: id,
+                    },
+                },
+                xltype: XL_REF,
+            };
+        }
+    } else {
+        let name = frame.state.borrow().sheet_names.get(&sheet).cloned();
+        let Some(name) = name else {
+            return FAILED;
+        };
+        let value = CalcValue::text(ExcelText::from_interop_assignment(&name));
+        if unsafe { publish(frame, function, &value, result) }.is_err() {
+            return FAILED;
+        }
+    }
+    SUCCESS
 }
 fn text(value: &CalcValue) -> Result<String, (i32, String)> {
     match value.core_ref() {
@@ -188,6 +265,23 @@ unsafe fn publish(
     value: &CalcValue,
     result: *mut XlOper12,
 ) -> Result<(), String> {
+    if function == 16392 {
+        unsafe {
+            *result = XlOper12 {
+                value: XlValue12 {
+                    integer: frame.state.borrow().hwnd as i32,
+                },
+                xltype: XL_INT,
+            };
+        }
+        return Ok(());
+    }
+    if function == XL_STACK {
+        unsafe {
+            *result = XlOper12::integer(value.as_number().unwrap_or(0.) as i32);
+        }
+        return Ok(());
+    }
     if function == XLF_CALLER {
         if let Some(cell) = frame.context.as_ref().and_then(|c| c.caller()) {
             unsafe {
@@ -273,6 +367,26 @@ fn run(
         }
         return Ok(None);
     }
+    if frame.signature.is_some() && function & 0x8000 != 0 {
+        return Err((
+            INVALID_FUNCTION,
+            "dc-snz.18: worksheet functions cannot call commands".into(),
+        ));
+    }
+    if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == 16401 {
+        return Err((
+            NOT_THREAD_SAFE,
+            "dc-snz.18: event registration from calculation workers is not modelled".into(),
+        ));
+    }
+    if frame.signature.as_ref().is_some_and(|s| s.thread_safe)
+        && matches!(function, XL_UDF | XLF_EVALUATE)
+    {
+        return Err((
+            NOT_THREAD_SAFE,
+            "dc-snz.18: nested registered calls from calculation workers are not modelled".into(),
+        ));
+    }
     if frame.signature.as_ref().is_some_and(|s| s.thread_safe)
         && matches!(function, XLF_REGISTER | XLF_UNREGISTER | XLF_SET_NAME | 186)
     {
@@ -300,6 +414,13 @@ fn run(
         }
     };
     let value = match function {
+        32890 => {
+            if !(1..=2).contains(&args.len()) {
+                return Err((INVALID_COUNT, "MESSAGE expects one or two arguments".into()));
+            }
+            frame.state.borrow_mut().status_message = values.get(1).map(text).transpose()?;
+            CalcValue::logical(true)
+        }
         XL_GET_NAME => {
             require(0)?;
             CalcValue::text(ExcelText::from_interop_assignment(
@@ -314,10 +435,16 @@ fn run(
         }
         XL_STACK => {
             require(0)?;
-            return Err((
-                INVALID_FUNCTION,
-                "dc-snz.2: stack headroom is not measured".into(),
-            ));
+            let mut low = 0usize;
+            let mut high = 0usize;
+            unsafe {
+                crate::native::GetCurrentThreadStackLimits(&mut low, &mut high);
+            }
+            let current = &low as *const usize as usize;
+            if !(low..high).contains(&current) {
+                return Err(err("cannot establish current stack bounds"));
+            }
+            CalcValue::number(current.saturating_sub(low).min(i32::MAX as usize) as f64)
         }
         XLF_CALLER => {
             require(0)?;
@@ -388,6 +515,23 @@ fn run(
             CalcValue::logical(true)
         }
         XLF_REGISTER => return register(frame, &values).map(Some),
+        16401 => {
+            require(2)?;
+            let event = values[1]
+                .as_number()
+                .ok_or_else(|| err("event ID requires a number"))? as i32;
+            if !matches!(event, 1 | 2) {
+                return Err((INVALID_OPER, "unknown XLL event".into()));
+            }
+            let key = (frame.origin.handle as usize, event);
+            if values[0].is_empty() || values[0].is_missing() {
+                frame.state.borrow_mut().events.remove(&key);
+            } else {
+                let address = frame.module.address(&text(&values[0])?).map_err(err)?;
+                frame.state.borrow_mut().events.insert(key, address);
+            }
+            CalcValue::number(1.)
+        }
         XLF_UNREGISTER => {
             require(1)?;
             let id = values[0]
@@ -452,6 +596,22 @@ fn run(
             let Some(registration) = registration else {
                 return Ok(Some(CalcValue::error(WorksheetErrorCode::Name)));
             };
+            if registration.uses.get() == 0 {
+                return Ok(Some(CalcValue::error(WorksheetErrorCode::Name)));
+            }
+            if registration.info.macro_type == 2 && frame.signature.is_some() {
+                return Err((
+                    INVALID_FUNCTION,
+                    "dc-snz.18: worksheet functions cannot invoke registered commands".into(),
+                ));
+            }
+            if frame.context.is_some()
+                && frame.signature.as_ref().is_some_and(|s| s.macro_equivalent)
+                    != registration.info.signature.macro_equivalent
+            {
+                return Err((INVALID_FUNCTION,
+                    "dc-snz.18: nested registered calls that change cached-read mode are not modelled".into()));
+            }
             let adapter = crate::native::XllFunction {
                 state: frame.state.clone(),
                 registration,
@@ -535,9 +695,17 @@ fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i
     }
     .map_err(err)?;
     let type_text = text(&values[2])?;
-    let signature = XllSignature::parse(&type_text).map_err(err)?;
     let name = text(&values[3])?;
     let macro_type = values.get(5).and_then(CalcValue::as_number).unwrap_or(1.) as i32;
+    // Excel-DNA registers its zero-argument commands with an empty type string.
+    // This form is only valid for commands. Excel reads its native Boolean return,
+    // including a zero value from the .NET 8 wrappers; it is not unconditional success.
+    let signature = XllSignature::parse(if type_text.is_empty() && macro_type == 2 {
+        "A"
+    } else {
+        &type_text
+    })
+    .map_err(err)?;
     if !matches!(macro_type, 0..=2) || (macro_type == 2 && signature.thread_safe) {
         return Ok(CalcValue::error(WorksheetErrorCode::Value));
     }

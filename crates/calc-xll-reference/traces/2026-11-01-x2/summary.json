@@ -1,0 +1,91 @@
+{
+  "status": "verified measured X2 profiles",
+  "formula_cases": {
+    "net48": {
+      "matched": 7,
+      "cases": 7
+    },
+    "net8": {
+      "matched": 7,
+      "cases": 7
+    },
+    "aot": {
+      "matched": 1,
+      "cases": 1
+    }
+  },
+  "host_binary_sha256": "233CB92C961DB45ABDA4CE9C7727775ABD579074B02B2D59411623C5DD5FCF45",
+  "registered_excel_dna_exports": 10000,
+  "pool_endpoints_tested": [
+    "f0",
+    "f9999"
+  ],
+  "original_pia_checks": {
+    "net48": "verified process identity and original PIA calls",
+    "net8": "verified process identity and original PIA calls"
+  },
+  "aot_repeat_initialization": {
+    "same-host": {
+      "status": "typed refusal, not a compatibility pass",
+      "exit_code": 1,
+      "message": "dna-calc-desktop: dc-snz.18: reinitializing a packed Native AOT runtime already attempted in this process is not modelled; restart the host"
+    },
+    "new-host": {
+      "status": "typed refusal, not a compatibility pass",
+      "exit_code": 1,
+      "message": "dna-calc-desktop: dc-snz.18: reinitializing a packed Native AOT runtime already attempted in this process is not modelled; restart the host"
+    },
+    "alias": {
+      "status": "typed refusal, not a compatibility pass",
+      "exit_code": 1,
+      "message": "dna-calc-desktop: dc-snz.18: reinitializing a packed Native AOT runtime already attempted in this process is not modelled; restart the host; after rollback: 3 active registrations, 2 callable names, 0 callback allocations"
+    }
+  },
+  "scope": "Boundary profiles; not corpus scores, simultaneous workbook MTR, full async lifetime, RTD, delivered host events or general COM compatibility.",
+  "read_only_review": {
+    "reviewer": "/root/x2_review",
+    "status": "passes for measured X2 scope",
+    "checked": [
+      "reproduced three runtime profile verifiers",
+      "reproduced both PIA controls and original export pool control",
+      "325 publication source bindings against Git blobs",
+      "published runner hash and all three AOT launch argument sets",
+      "exact-pointer same-thread frees with no unmatched/double frees",
+      "AOT refusal launch arguments and identical alias payload",
+      "21 corpus report pairs and 20030 unchanged cell records"
+    ],
+    "limits": "Six Excel-DNA UDFs plus one native ownership control per managed runtime; raw async differences retained; PIA preview6/Interop15.0.1 controls additional; no general compatibility claim."
+  },
+  "corpus": {
+    "formula_cells": 20030,
+    "matched": 18812,
+    "fail": 1131,
+    "mismatched": 1124,
+    "refused": 6,
+    "not_run": 1,
+    "external_links": 73,
+    "circular_rule": 14,
+    "pass_rate": 0.9391912131802297,
+    "changed_cell_records": 0,
+    "comparison": "corpus-comparison.json"
+  },
+  "structural_sweep": {
+    "result": "failed",
+    "passed": [
+      "dependencies",
+      "os-imports",
+      "wasm-refusal",
+      "provenance",
+      "ceiling"
+    ],
+    "failed": {
+      "tree-reference-tokens": "Four external HalProfileId identifiers in merged calc-vba adapter; dc-hsa5.4.1"
+    },
+    "skipped": [
+      "wasm browser tests",
+      "app-smoke",
+      "acceptance"
+    ],
+    "log": "sweep-structural.log"
+  }
+}
