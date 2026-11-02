@@ -152,7 +152,6 @@ static std::map<Address,std::string> objects;
 static std::map<Address,std::string> interfaces;
 static std::map<Address,Address> objectTables;
 static std::map<std::pair<Address,int32_t>,std::string> members;
-static bool inspectedEventArguments=false;
 static void arm(Address p,const Entry* entry);
 static void forgetObject(Address p) {
     objects.erase(p);interfaces.erase(p);objectTables.erase(p);
@@ -307,6 +306,7 @@ static void addModule(Address base, const std::wstring& path) {
     }
     for (auto& [name,addr]:m.exports) {
         bool watch = name=="MdCallBack12" || name=="xlAutoFree12" || (lower=="xlcall32.dll" && (name=="XLCallVer" || name=="LPenHelper")) ||
+            ((lower=="ole32.dll" || lower=="combase.dll") && (name=="CoRegisterClassObject" || name=="CoCreateInstance")) ||
             (lower=="oleacc.dll" && name=="AccessibleObjectFromWindow") || (lower=="xloil.dll"&&name=="DllGetClassObject") ||
             (xll && (name=="xlAutoOpen" || name=="xlAutoClose" || name=="xlAutoRemove" || name=="xlAutoAdd" ||
                 name=="xlAutoFree12" || name=="xlAutoRegister12" || name=="xlAddInManagerInfo12" ||
@@ -387,7 +387,15 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
     Call c{++nextCall,thread,entry,ctx.Rsp,read<Address>(ctx.Rsp),ctx.R9,ctx.R8,ticks()};
     for(int i=0;i<9;++i)c.raw[i]=argument(ctx,i);
     std::string fields="\"event\":\"enter\",\"call\":"+std::to_string(c.id)+",\"thread\":"+std::to_string(thread)+",\"entry\":"+quote(entry.name)+",\"from\":"+location(c.ret);
-    if(entry.name.rfind("COM!",0)==0) {
+    if(entry.name.find("!CoCreateInstance")!=std::string::npos) {
+        // The RTD client requests this interface explicitly. Other activations
+        // are outside this observation, including unrelated Office classes.
+        if(guid(ctx.R9)!="ec0e6191-db51-11d3-8f3e-00c04f3651b8")return;
+        fields+=",\"clsid\":"+quote(guid(ctx.Rcx))+",\"iid\":"+quote(guid(ctx.R9));
+    }else if(entry.name.find("!CoRegisterClassObject")!=std::string::npos) {
+        fields+=",\"clsid\":"+quote(guid(ctx.Rcx))+",\"class_context\":"+std::to_string((uint32_t)ctx.R8)+",\"flags\":"+std::to_string((uint32_t)ctx.R9);
+        watchObject(ctx.Rdx,"registered COM class factory","classfactory");
+    }else if(entry.name.rfind("COM!",0)==0) {
         if(!objects.count(ctx.Rcx))return; // Shared vtable code: observe only discovered objects.
         if(read<Address>(ctx.Rcx)!=objectTables[ctx.Rcx])watchObject(ctx.Rcx,"reused COM pointer","dispatch");
         if(entry.name.rfind("COM!early.",0)==0 && entry.name.rfind("COM!early."+interfaces[ctx.Rcx]+".",0)!=0)return;
@@ -433,14 +441,19 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
             fields+=",\"rgvarg\":[";
             for(unsigned i=0;i<count&&i<256;++i){
                 if(i)fields+=",";fields+=variant(values+i*24);
-                if(!inspectedEventArguments&&objects[ctx.Rcx].rfind("AppEvents sink",0)==0&&(int32_t)ctx.Rdx==0x61c){
+                // Every delivery can contain a fresh Range, even when its vtable
+                // matches an earlier object. Release may have retired the old
+                // pointer, so discovering only the first delivery loses calls.
+                if(objects[ctx.Rcx].rfind("AppEvents sink",0)==0&&(int32_t)ctx.Rdx==0x61c){
                     Address v=values+i*24;uint16_t vt=read<uint16_t>(v);
-                    if(vt==9)watchObject(read<Address>(v+8),"AppEvents rgvarg["+std::to_string(i)+"]");
-                    else if(vt==0x4009)watchObject(read<Address>(read<Address>(v+8)),"AppEvents rgvarg["+std::to_string(i)+"]");
+                    // xlOil casts the declared SheetChange worksheet directly
+                    // to _Worksheet, without necessarily querying its IID first.
+                    auto kind=i==0?"worksheet":"range";
+                    if(vt==9)watchObject(read<Address>(v+8),"AppEvents rgvarg["+std::to_string(i)+"]",kind);
+                    else if(vt==0x4009)watchObject(read<Address>(read<Address>(v+8)),"AppEvents rgvarg["+std::to_string(i)+"]",kind);
                 }
                 if(i==0&&objects[ctx.Rcx]=="RTD server"&&(int32_t)ctx.Rdx==10){Address v=values;auto vt=read<uint16_t>(v);if(vt==9||vt==13)watchObject(read<Address>(v+8),"RTD update callback","unknown");}
             }
-            if(objects[ctx.Rcx].rfind("AppEvents sink",0)==0&&(int32_t)ctx.Rdx==0x61c)inspectedEventArguments=true;
             fields+="],\"named_dispids\":[";
             Address named=read<Address>(params+8);uint32_t countNamed=read<uint32_t>(params+20);
             for(unsigned i=0;i<countNamed&&i<256;++i){if(i)fields+=",";fields+=std::to_string(read<int32_t>(named+i*4));}
@@ -468,7 +481,12 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
 }
 static void leave(const Call& c,const CONTEXT& ctx) {
     std::string fields="\"event\":\"leave\",\"call\":"+std::to_string(c.id)+",\"thread\":"+std::to_string(c.thread)+",\"entry\":"+quote(c.entry.name)+",\"elapsed_qpc\":"+std::to_string(ticks()-c.started)+",\"rax\":"+hex(ctx.Rax);
-    if(c.entry.name.find("!DllGetClassObject")!=std::string::npos){fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);if((int32_t)ctx.Rax>=0)watchObject(read<Address>(c.raw[2]),"RTD class factory","classfactory");
+    if(c.entry.name.find("!CoCreateInstance")!=std::string::npos){
+        fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);
+        if((int32_t)ctx.Rax>=0){auto value=read<Address>(c.raw[4]);fields+=",\"object\":"+hex(value);watchObject(value,"RTD server","rtdserver");}
+    }else if(c.entry.name.find("!CoRegisterClassObject")!=std::string::npos){
+        fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);
+    }else if(c.entry.name.find("!DllGetClassObject")!=std::string::npos){fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);if((int32_t)ctx.Rax>=0)watchObject(read<Address>(c.raw[2]),"RTD class factory","classfactory");
     }else if(c.entry.name.find("!AccessibleObjectFromWindow")!=std::string::npos) {
         fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax)+",\"object\":"+hex(read<Address>(c.raw[3]));
         if((int32_t)ctx.Rax>=0)watchObject(read<Address>(c.raw[3]),"AccessibleObjectFromWindow");
@@ -487,6 +505,7 @@ static void leave(const Call& c,const CONTEXT& ctx) {
                     std::string target="dispatch";
                     if(kind=="COM!early.application.Workbooks")target="workbooks";
                     else if(kind=="COM!early.application.ActiveWorkbook" || kind=="COM!early.workbooks.Item")target="workbook";
+                    else if(kind=="COM!early.application.ActiveSheet" || kind=="COM!early.workbook.ActiveSheet")target="worksheet";
                     else if(kind.size()>=12 && kind.substr(kind.size()-12)==".Application")target="application";
                     watchObject(value,kind,target);
                 } else if(abi.rfind("bstr",0)==0) {
