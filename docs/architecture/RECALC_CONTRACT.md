@@ -461,7 +461,14 @@ Expression arguments retain dependency order. In the measured reversed scalar ca
 unfinished independent producer exposes Empty, even with a warm held cache; its later installation
 precedes a new semantic entry observing 11. Observer-only scope retains the old dirty cache 2.
 Complete array images retain their P05 child values. Warm, contiguous and reversed controls run
-through HostSession. Broader chain-history and multithreaded order claims remain outside this profile.
+through HostSession.
+P08's seeded Full profile orders independent pure work before cached-read callbacks, while keeping
+the callbacks' reference order and retaining other callback barriers. Iteration and TABLE sessions
+keep their existing order. Two 1000-cell chains, seeded-cold and warm, produce the recorded
+1010/1200/1010 observations once per observer with finite and unlimited budgets. H1 is a pure
+formula mirror in this control; it establishes no native XPure capability. Rebuild has no separate
+public normalization yet. Broader chain-history and multithreaded order claims remain outside
+this profile; callbacks are never declared interchangeable.
 P07's owner boundary is in 3.4.
 RTD events use a separate provider/subscription sequence and immutable input snapshot. They mark
 provider consumers required for later demand, never supply a formula result or resume an async
@@ -508,11 +515,32 @@ cancel/reload/close, pinned bytes and Manual reopen as unverified file caches. A
 does not enter an already admitted save: the retained async suffix reads the save's original
 input cut, while the live workbook's next command reads the newer input. Provider identity
 matches the admitted callable generation, including after replacement. This implements the
-DNA isolated-workbook save strategy. Excel Save(true)'s BeforeSave handlers, domain-peer live
-updates and disabled-sheet/TABLE profiles remain open; P07 does not yet measure concurrent-save
-pinning or non-canceling Save(true) waits in Excel. Existing stored Range handles resolve from
+DNA isolated-workbook save strategy. P07 does not yet measure concurrent-save pinning or
+non-canceling Save(true) waits in Excel. Existing stored Range handles resolve from
 their pinned view, but creating a new handle after a live structural edit can refuse with
 `ExpiredView`; that save fails explicitly rather than inventing a calculated cache.
+
+P06 command profiles (dc-hsa5.4, 2026-11-03): `HostSession::prepare_save_with_context` accepts
+the operation, CalculateBeforeSave, active sheet, disabled sheets and an optional registered
+BeforeSave owner. Save/SaveAs commit its returned authored batch before the serialization pin;
+SaveCopyAs skips that owner. Cancel retains any committed handler edit and produces no image.
+With a disabled active sheet calculation is suppressed; with an enabled active sheet only the
+enabled sheets calculate. Disabled scalar caches retain their historical origins and conservative
+dirty flags. This does not reproduce the absent ca/calcCompleted flags in every Excel disabled
+file. Loading a VBA project does not register an event owner automatically.
+
+Ordinary application Save(false) now follows the semiautomatic TABLE exception: it admits the
+TABLE outputs and their existing dependent cone through the live calculation route before pinning.
+Unrelated volatile callbacks stay outside that command. The same writer updates the TABLE master and child caches,
+retaining the formula/attributes and adding a cache cell the source omitted. Save/reopen controls
+retain 20/30 as file caches, never as calculated provenance. TABLE sessions still lack SliceV1
+certificates: their attached receipt remains Incomplete with its uncertified count, and the file
+does not claim calcCompleted. An admitted refusal, held circular value, missing result, provider wait or
+failed calculation prevents this command from producing an image. The existing isolated
+calculated-save operation continues to require its stronger completion and async protocol.
+Cross-workbook Save(true) coordination, automatic VBA event registration and cooperative ordinary
+save calculations remain open. When new save calculation is required, the ordinary synchronous
+save API refuses an existing active calculation rather than copying its effects.
 
 
 Defined-name implementation update (dc-hsa5.5, 2026-11-01): the canonical `NameTable` stores

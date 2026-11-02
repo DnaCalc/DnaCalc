@@ -94,8 +94,8 @@ pub use project::{
 };
 pub use recalc::{HostProgress, RecalcFailed, RtdDisposition, calculate, calculate_full, step};
 pub use save::{
-    PreparedSave, SaveCachePolicy, SaveFailed, SavePin, prepare_save,
-    prepare_save_with_cache_policy, save,
+    BeforeSaveHandler, BeforeSaveOutcome, ExcelSaveContext, PreparedSave, SaveCachePolicy,
+    SaveFailed, SaveOperation, SavePin, prepare_save, prepare_save_with_cache_policy, save,
 };
 pub use save_calculation::{
     CalculatedSaveError, CalculatedSaveProgress, CalculatingSave, begin_calculated_save,

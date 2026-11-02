@@ -12,6 +12,7 @@ pub use calc_func::UserCallableIdentity as CallableHandle;
 pub struct CallableBindings {
     entries: BTreeMap<(Option<String>, String), CallableHandle>,
     provisional: Vec<CallableHandle>,
+    cached_readers: Vec<CallableHandle>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CallableBindingProof {
@@ -20,6 +21,9 @@ pub struct CallableBindingProof {
     pub bound: Option<CallableHandle>,
 }
 impl CallableBindings {
+    pub fn uses_cached_reads(&self, handle: CallableHandle) -> bool {
+        self.cached_readers.contains(&handle)
+    }
     pub fn permits_provisional(&self, handle: CallableHandle) -> bool {
         self.provisional.contains(&handle)
     }
@@ -82,6 +86,15 @@ impl CallableTable {
 
     pub fn bindings(&self) -> CallableBindings {
         CallableBindings {
+            cached_readers: self
+                .entries
+                .values()
+                .filter_map(|entry| {
+                    self.resolve(entry.handle)?
+                        .cached_reads()
+                        .then_some(entry.handle)
+                })
+                .collect(),
             entries: self
                 .entries
                 .iter()

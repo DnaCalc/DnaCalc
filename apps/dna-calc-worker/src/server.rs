@@ -4000,6 +4000,124 @@ mod async_contract_tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p06_worker_save_writes_live_table_results_and_journals_the_bytes() {
+        let mut server = Server::new();
+        server
+            .execute_current(
+                Request::Open {
+                    name: "oracle.xlsx".into(),
+                },
+                Some(
+                    include_bytes!("../../../crates/calc-engine/tests/fixtures/dc_10y/oracle.xlsx")
+                        .to_vec(),
+                ),
+            )
+            .reply
+            .unwrap();
+        drain(&mut server);
+        let s = server
+            .book
+            .host()
+            .sheets()
+            .iter()
+            .find(|sheet| String::from_utf16_lossy(sheet.name().text().utf16_code_units()) == "DT")
+            .unwrap()
+            .id();
+        let cell = |r, c| CellKey::new(s, r, c).unwrap();
+        server
+            .book_mut()
+            .dispatch(SkinIntent::SetCalcMode(CalcMode::AutomaticExceptTables));
+        for (at, text) in [
+            (cell(1, 26), "1"),
+            (cell(3, 2), "=B1*Z1"),
+            (cell(4, 1), "2"),
+            (cell(5, 1), "3"),
+        ] {
+            server.book_mut().dispatch(SkinIntent::EnterCell {
+                at,
+                text: text.into(),
+            });
+            drain(&mut server);
+        }
+        server.book_mut().dispatch(SkinIntent::Recalculate);
+        drain(&mut server);
+        assert!(
+            matches!(server.book.cell(cell(4,2)).unwrap().value(),ProjectedValue::Calculated {value,..} if value.as_number()==Some(2.0))
+        );
+        server.book_mut().dispatch(SkinIntent::EnterCell {
+            at: cell(1, 26),
+            text: "10".into(),
+        });
+        drain(&mut server);
+        assert!(matches!(
+            server.book.cell(cell(4, 2)).unwrap().value(),
+            ProjectedValue::Stale(_)
+        ));
+        let unrelated = CellKey::new(server.book.host().sheets()[0].id(), 6, 4).unwrap();
+        let before_unrelated = server.book.cell(unrelated).unwrap().value().clone();
+        assert!(matches!(
+            before_unrelated,
+            ProjectedValue::NotModeled { .. }
+        ));
+        let request = server.envelope(Request::Save);
+        let answer = server.handle(request.clone(), None);
+        let retry = server.handle(request, None);
+        assert_eq!(wire::encode(&answer.reply), wire::encode(&retry.reply));
+        assert_eq!(answer.bytes, retry.bytes);
+        assert!(
+            matches!(&answer.reply, Ok(Reply::Done { outcome, saved:Some(_), .. }) if outcome.accepted),
+            "{:?}",
+            answer.reply
+        );
+        assert_eq!(
+            server.book.cell(unrelated).unwrap().value(),
+            &before_unrelated
+        );
+        for (r, expected) in [(4, 20.0), (5, 30.0)] {
+            assert!(
+                matches!(server.book.cell(cell(r,2)).unwrap().value(),ProjectedValue::Calculated {value,..} if value.as_number()==Some(expected))
+            );
+        }
+        let bytes = answer
+            .bytes
+            .expect("the ordinary Save returned its actual package");
+        let reopened = calc_host::HostState::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(bytes)),
+            &calc_host::OpenPolicy::default(),
+            calc_host::HostOptions {
+                calc_mode: Some(CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let s = reopened
+            .sheets()
+            .iter()
+            .find(|sheet| String::from_utf16_lossy(sheet.name().text().utf16_code_units()) == "DT")
+            .unwrap()
+            .id();
+        let page = calc_host::project(
+            &reopened,
+            &calc_host::ProjectionRequest {
+                cells: vec![
+                    CellKey::new(s, 4, 2).unwrap(),
+                    CellKey::new(s, 5, 2).unwrap(),
+                ],
+            },
+        )
+        .unwrap();
+        for (cell, expected) in page.cells().iter().zip([20.0, 30.0]) {
+            let ProjectedValue::FileCached(cache) = cell.value() else {
+                panic!("saved file provenance");
+            };
+            assert!(
+                matches!(cache.value(),calc_host::CachedValue::Number(number) if number.get()==expected)
+            );
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p07_worker_wait_return_and_completion_use_the_existing_server() {
         for formula in [
             "=AsyncEcho(1)+2",

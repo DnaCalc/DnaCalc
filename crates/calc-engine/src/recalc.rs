@@ -474,6 +474,7 @@ impl ReferenceSource {
 }
 
 pub(crate) struct EvalShared<'a> {
+    selection: EvalSelection,
     destination: ResultDestination,
     pass: CalcPassId,
     root_reason: ReevaluationReason,
@@ -528,6 +529,7 @@ impl<'a> EvalShared<'a> {
 macro_rules! shared_of {
     ($work:expr) => {
         EvalShared {
+            selection: $work.admission.selection,
             destination: $work.admission.destination,
             pass: $work.pass,
             root_reason: $work.root_reason,
@@ -1187,9 +1189,18 @@ fn begin_with_scope(
     order.retain(|node| scope.contains(live_anchor(state, *node)));
     cyclic.retain(|node| scope.contains(live_anchor(state, *node)));
     if cyclic.is_empty()
+        && selection == EvalSelection::ForceAll
         && let CalcScope::Range(areas) = &scope
     {
         order = range_reference_order(state, inputs, order, areas);
+    }
+    if cyclic.is_empty()
+        && selection == EvalSelection::ForceAll
+        && scope == CalcScope::Workbook
+        && !inputs.definitions().iteration().enabled()
+        && inputs.definitions().data_tables().is_empty()
+    {
+        order = full_observation_order(state, inputs, order);
     }
     let mut progress = Progress::new(state.nodes.len());
     for node in &order {
@@ -3251,6 +3262,54 @@ fn tarjan(edges: &[Vec<usize>]) -> Vec<usize> {
     component
 }
 
+/// P08's seeded Full profile: independent pure work precedes cached observers.
+/// Callback order stays fixed; other callbacks remain barriers to moving pure work.
+fn full_observation_order(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    previous: Vec<NodeId>,
+) -> Vec<NodeId> {
+    let mut segment = 0usize;
+    let mut observers = false;
+    let keys: BTreeMap<_, _> = previous
+        .iter()
+        .enumerate()
+        .map(|(rank, node)| {
+            let (observer, barrier) = match state.bindings.get(node) {
+                Some(Binding::Placed(instance, _)) => {
+                    let observer = instance.plan().only_cached_user_calls(&state.callables);
+                    (observer, instance.plan().has_user_calls() && !observer)
+                }
+                Some(Binding::Refused(NotModeled::Compile(
+                    calc_fml::CompileError::UnknownFunction { .. },
+                ))) => (false, inputs.definitions().macro_enabled()),
+                _ => (false, false),
+            };
+            observers |= observer;
+            if barrier {
+                segment += 1;
+            }
+            let key = (segment, observer, rank);
+            if barrier {
+                segment += 1;
+            }
+            (*node, key)
+        })
+        .collect();
+    if !observers {
+        return previous;
+    }
+    let closure = dirty_closure(state, inputs, previous.iter().copied().collect(), &|node| {
+        published_areas(state, inputs, node)
+    });
+    order(
+        &closure,
+        |node| keys[&node],
+        |node| live_anchor(state, node),
+    )
+    .unwrap_or(previous)
+}
+
 /// P01/P03: requested areas order independent work and eligible provisional callbacks.
 /// Pure dependencies and expression arguments still precede their consumers.
 fn range_reference_order(
@@ -4810,6 +4869,7 @@ fn evaluate_unstamped(
             shared.spills,
             shared.volatile_inputs,
             (matches!(shared.scope, CalcScope::Range(_))
+                && shared.selection == EvalSelection::ForceAll
                 && functions
                     .is_some_and(|functions| instance.plan().has_provisional_calls(functions)))
             .then_some(node),

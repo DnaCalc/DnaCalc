@@ -34,7 +34,7 @@ use crate::entry::{EntryRefusal, interpret_entry_in};
 use crate::history::{History, Inverse, Irreversible, Selection, Step, inverse};
 use crate::project::{ProjectedCell, ProjectedValue, ProjectionRequest, project};
 use crate::recalc::{HostProgress, calculate, step};
-use crate::save::{SaveFailed, save};
+use crate::save::SaveFailed;
 use crate::state::{HostOptions, HostState, OpenFailure};
 use calc_doc::{CalcMode, OpenPolicy, PackageRead, PackageWrite, SavePolicy, SaveReceipt};
 use calc_doc_model::value::ExcelText;
@@ -528,13 +528,205 @@ impl HostSession {
         crate::prepare_save(&self.host, policy)
     }
 
-    /// Writes the current revision ([`crate::save`]).
+    /// Ordinary Save(false), including P06's semiautomatic TABLE calculation.
     pub fn save(
-        &self,
+        &mut self,
         policy: &SavePolicy,
         out: &mut dyn PackageWrite,
     ) -> Result<SaveReceipt, SaveFailed> {
-        save(&self.host, policy, out)
+        let active_sheet = self
+            .selection
+            .active
+            .map(|at| at.sheet())
+            .filter(|sheet| self.host.model.sheet_by_id(*sheet).is_some())
+            .or_else(|| {
+                self.host
+                    .loaded
+                    .active_sheet()
+                    .filter(|sheet| self.host.model.sheet_by_id(*sheet).is_some())
+            })
+            .or_else(|| self.host.model.sheets().first().map(|sheet| sheet.id()))
+            .ok_or_else(|| crate::save::operation_failed("The save has no active worksheet"))?;
+        self.prepare_save_with_context(
+            policy,
+            crate::ExcelSaveContext {
+                operation: crate::SaveOperation::Save,
+                calculate_before_save: false,
+                active_sheet,
+                disabled_sheets: &[],
+                before_save: None,
+            },
+        )?
+        .write(out)
+    }
+
+    /// P06 command normalization followed by the existing evaluator and owned save writer.
+    /// Event edits commit before the pin. A waiting or failed calculation writes no package.
+    pub fn prepare_save_with_context(
+        &mut self,
+        policy: &SavePolicy,
+        mut context: crate::ExcelSaveContext<'_>,
+    ) -> Result<crate::PreparedSave, SaveFailed> {
+        use crate::save::operation_failed;
+        if self.host.model.sheet_by_id(context.active_sheet).is_none()
+            || context
+                .disabled_sheets
+                .iter()
+                .any(|sheet| self.host.model.sheet_by_id(*sheet).is_none())
+        {
+            return Err(operation_failed(
+                "The save context names an unavailable worksheet",
+            ));
+        }
+        if context.operation != crate::SaveOperation::SaveCopyAs
+            && let Some(handler) = context.before_save.as_mut()
+        {
+            let outcome = handler
+                .before_save(&self.host, context.operation)
+                .map_err(operation_failed)?;
+            if !outcome.edits.is_empty() {
+                let receipt = self.dispatch(SkinIntent::Edit {
+                    edits: outcome.edits,
+                });
+                if let Some(error) = receipt.error {
+                    return Err(operation_failed(error.to_string()));
+                }
+            }
+            if outcome.cancel {
+                return Err(SaveFailed::Cancelled);
+            }
+        }
+        if self.host.model.sheet_by_id(context.active_sheet).is_none() {
+            return Err(operation_failed(
+                "The BeforeSave handler removed the active worksheet",
+            ));
+        }
+        let enabled = |sheet| !context.disabled_sheets.contains(&sheet);
+        let scope = if !enabled(context.active_sheet) {
+            None
+        } else if context.calculate_before_save {
+            Some(if context.disabled_sheets.is_empty() {
+                calc_engine::CalcScope::Workbook
+            } else {
+                calc_engine::CalcScope::Range(
+                    self.host
+                        .model
+                        .sheets()
+                        .iter()
+                        .filter(|sheet| enabled(sheet.id()))
+                        .map(|sheet| GridArea::full_sheet(sheet.id()))
+                        .collect(),
+                )
+            })
+        } else if self.calc_mode() == CalcMode::AutomaticExceptTables {
+            // Ordinary formulas have already had their automatic demand. Save(false)
+            // admits the TABLE outputs and their existing dependent cone, not unrelated
+            // volatile callbacks. This is the P06 exception to a noncalculating save.
+            let mut cells: BTreeSet<_> = self
+                .host
+                .engine
+                .nodes()
+                .map(|node| node.anchor())
+                .filter(|at| {
+                    enabled(at.sheet())
+                        && self
+                            .host
+                            .model
+                            .definitions()
+                            .data_table_containing(*at)
+                            .is_some()
+                })
+                .collect();
+            let mut stack: Vec<_> = cells.iter().copied().collect();
+            while let Some(at) = stack.pop() {
+                for next in self.host.engine.dependents_at(&self.host.model, at) {
+                    if enabled(next.sheet()) && cells.insert(next) {
+                        stack.push(next);
+                    }
+                }
+            }
+            (!cells.is_empty()).then(|| {
+                calc_engine::CalcScope::Range(cells.into_iter().map(GridArea::cell).collect())
+            })
+        } else {
+            None
+        };
+        let mut completion = None;
+        if let Some(scope) = scope {
+            // Never copy, restart or silently save around an already parked live effect.
+            if self.host.work.is_some() {
+                return Err(operation_failed(
+                    "Finish or cancel the active calculation before this save",
+                ));
+            }
+            let receipt = self.dispatch(SkinIntent::Calculate {
+                scope,
+                selection: calc_engine::EvalSelection::DirtyAndVolatile,
+            });
+            if let Some(error) = receipt.error {
+                return Err(operation_failed(error.to_string()));
+            }
+            loop {
+                if self.host.work.is_none() {
+                    break;
+                }
+                match self.advance_calculation() {
+                    HostProgress::Waiting { .. } => {
+                        return Err(operation_failed(
+                            "The save calculation awaits a provider return",
+                        ));
+                    }
+                    HostProgress::Failed(error) => return Err(operation_failed(error.to_string())),
+                    HostProgress::Cancelled => {
+                        return Err(operation_failed("The save calculation was cancelled"));
+                    }
+                    _ => {}
+                }
+            }
+            let receipt = self
+                .host
+                .last_calculation_completion
+                .as_ref()
+                .filter(|receipt| {
+                    receipt.admitted.model == self.host.revision()
+                        && receipt.results == self.host.engine.result_view()
+                })
+                .ok_or_else(|| {
+                    operation_failed("The save calculation has no matching completion")
+                })?;
+            // TABLE sessions calculate real values without a SliceV1 certificate.
+            // Their Incomplete receipt stays attached to the image; a save may retain
+            // those values, but never converts them into a Complete freshness claim.
+            let covered = matches!(
+                receipt.outcome,
+                crate::CompletionOutcome::Complete | crate::CompletionOutcome::Incomplete
+            ) && receipt.coverage.calculated == receipt.coverage.required
+                && receipt.coverage.refused == 0
+                && receipt.coverage.held == 0;
+            if !covered {
+                return Err(operation_failed(format!(
+                    "The save calculation is incomplete: {} of {} calculated, {} refused, {} held",
+                    receipt.coverage.calculated,
+                    receipt.coverage.required,
+                    receipt.coverage.refused,
+                    receipt.coverage.held
+                )));
+            }
+            completion = Some(receipt.clone());
+        }
+        let caches = if self.calc_mode() == CalcMode::Manual || !context.disabled_sheets.is_empty()
+        {
+            crate::SaveCachePolicy::PreservePermittedCaches
+        } else {
+            crate::SaveCachePolicy::CurrentCalculatedOnly
+        };
+        crate::save::prepare_save_operation(
+            &self.host,
+            policy,
+            caches,
+            context.calculate_before_save,
+            completion,
+        )
     }
 
     /// Registers `sink` for the cells of `interest` and delivers them as they stand.

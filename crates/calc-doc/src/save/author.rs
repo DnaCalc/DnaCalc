@@ -496,7 +496,11 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                             },
                         )
                 };
-                if !matches!(model.cell(at), Some(CellInput::Formula(_))) && !in_spill() {
+                if !matches!(model.cell(at), Some(CellInput::Formula(_)))
+                    && !in_spill()
+                    && !(model.cell(at).is_none()
+                        && model.definitions().data_table_containing(at).is_some())
+                {
                     return Err(SaveRefusal::ValueWithoutFormula {
                         part: sheets[position].part().name().to_owned(),
                         row: at.row(),
@@ -744,10 +748,12 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     // array-no-value). So a save asks for a full calculation only when it writes an array formula
     // without a value, or when the workbook keeps cached results it did not recalculate, a data
     // table's; a save without the caller's values asks for one only for the same reasons.
-    let data_tables = model
-        .definitions()
-        .unloaded_cells()
-        .any(|(_, why)| matches!(why, calc_doc_model::UnloadedCell::DataTable));
+    let data_tables = model.definitions().unloaded_cells().any(|(at, why)| {
+        matches!(why, calc_doc_model::UnloadedCell::DataTable)
+            && !values
+                .as_ref()
+                .is_some_and(|values| values.contains_key(&at))
+    });
     let full_calc = cells_changed && (data_tables || array_without_value);
     let mut names = layout
         .as_mut()

@@ -220,6 +220,9 @@ enum Change<'c> {
     /// Only the cell's format changed (dc-09v): it keeps what it holds, with the `s` an edit gave
     /// it.
     Restyle,
+    /// A calculated TABLE output; retain the existing master/attributes, or add its cache
+    /// when the source omitted that child cell entirely.
+    TableCache,
 }
 
 /// A cell's changes, by column, of one row.
@@ -415,6 +418,22 @@ impl<'j> Rewrite<'_, 'j> {
         }
         // The cells beside each written anchor that the caller gives a value.
         if let Some(values) = self.job.values {
+            for &(row, column) in values.keys() {
+                let at = CellKey::new(self.job.loaded.id(), row, column)
+                    .expect("a result cell is in the grid");
+                if self
+                    .job
+                    .model
+                    .definitions()
+                    .data_table_containing(at)
+                    .is_some()
+                {
+                    rows.entry(row)
+                        .or_default()
+                        .entry(column)
+                        .or_insert(Change::TableCache);
+                }
+            }
             for (&anchor, &(top, left, bottom, right)) in self.job.spills {
                 for (&(row, column), _) in values.range((top, left)..=(bottom, right)) {
                     if (left..=right).contains(&column)
@@ -564,7 +583,9 @@ impl<'j> Rewrite<'_, 'j> {
             Change::Emptied | Change::Restyle => {
                 return self.styled_empty(prefix, row, column, out);
             }
-            Change::Spilled => return self.spilled_cell(source, prefix, row, column, out),
+            Change::Spilled | Change::TableCache => {
+                return self.spilled_cell(source, prefix, row, column, out);
+            }
         };
         let at = a1(row, column);
         let style = self
@@ -915,7 +936,8 @@ impl<'j> Rewrite<'_, 'j> {
         let shared_string = element.attribute("t") == Some("s");
         let at = a1(row, column);
         // A cell whose format alone changed is written as an unchanged one, with its `s`.
-        let change = change.filter(|change| !matches!(change, Change::Restyle));
+        let change =
+            change.filter(|change| !matches!(change, Change::Restyle | Change::TableCache));
         let style = self
             .job
             .style(row, column, element.attribute("s").is_some());
@@ -938,7 +960,9 @@ impl<'j> Rewrite<'_, 'j> {
             change
         };
         match change {
-            Some(change @ (Change::Set(_) | Change::Spilled | Change::Restyle)) => {
+            Some(
+                change @ (Change::Set(_) | Change::Spilled | Change::Restyle | Change::TableCache),
+            ) => {
                 let mut bytes = Vec::new();
                 self.new_cell(Some(tag), b"", row, column, change, &mut bytes);
                 self.splice.replace((span.0, end), &bytes);
@@ -976,6 +1000,54 @@ impl<'j> Rewrite<'_, 'j> {
             }
             None => {
                 self.bounds.add(row, column);
+                let at_key = CellKey::new(self.job.loaded.id(), row, column)
+                    .expect("a parsed worksheet cell is inside the grid");
+                if self
+                    .job
+                    .model
+                    .definitions()
+                    .data_table_containing(at_key)
+                    .is_some()
+                    && self
+                        .job
+                        .values
+                        .is_some_and(|values| values.contains_key(&(row, column)))
+                    && let Some((kind, text, vm)) = self.formula_cache(row, column)
+                {
+                    // Change only the cache. The TABLE master, its r1/r2/ref attributes,
+                    // child membership and every other cell attribute stay in the source.
+                    let vm = vm.map(|vm| vm.to_string());
+                    let mut cache = Vec::new();
+                    start_tag(tag.prefix(), b"v", &mut cache);
+                    cache.extend_from_slice(&text);
+                    end_tag(tag.prefix(), b"v", &mut cache);
+                    let rebuilt = tag.rebuilt(
+                        &with_style(
+                            &[("r", Some(&at)), ("t", kind), ("vm", vm.as_deref())],
+                            &style,
+                        ),
+                        false,
+                    );
+                    if tag.is_empty() {
+                        let mut bytes = rebuilt;
+                        bytes.extend_from_slice(&cache);
+                        end_tag(tag.prefix(), b"c", &mut bytes);
+                        self.splice.replace(span, &bytes);
+                    } else {
+                        self.splice.replace(span, &rebuilt);
+                        if let Some(value) = value {
+                            self.splice.replace(value, &cache);
+                        } else {
+                            let closing = self.source()[span.1..end]
+                                .iter()
+                                .rposition(|b| *b == b'<')
+                                .map(|offset| span.1 + offset)
+                                .expect("a parsed nonempty cell has a closing tag");
+                            self.splice.replace((closing, closing), &cache);
+                        }
+                    }
+                    return Ok(());
+                }
                 let Some(FormulaChild {
                     read: formula_read,
                     tag: formula_tag,
@@ -990,8 +1062,8 @@ impl<'j> Rewrite<'_, 'j> {
                     }
                     return Ok(());
                 };
-                // A data table's cells are kept as the part wrote them, but for a format an edit
-                // gave them.
+                // Without new calculated TABLE caches, keep the source cells and formula,
+                // apart from a format an edit gave them.
                 if formula_read.attribute("t") == Some("dataTable") {
                     if element.attribute("r").is_none() || style.is_some() {
                         self.splice.replace(
