@@ -18,8 +18,7 @@
 //! calls and defined names own child cursors with retained operands, locals and activations.
 //! A physical yield unwinds Rust frames while keeping those cursors; resumption restores
 //! the same lexical frames. LAMBDA/name descent is bounded by [`MAX_CALL_DEPTH`]. Kernels
-//! invoking helper LAMBDAs still use their declared synchronous boundary and refuse an
-//! external wait they cannot retain.
+//! invoking helper LAMBDAs retain the helper's item cursor and the same child frame.
 
 use super::cells::{ReaderCells, ReaderHost, SharedReader};
 use super::closure::Closure;
@@ -171,6 +170,8 @@ struct BlockCursor {
     pending_user: Option<Box<PendingUserCall>>,
     child: Option<Box<PendingBlock>>,
     lazy: Option<Box<PendingLazy>>,
+    result: Option<CalcValue>,
+    waiting_input: Option<CellKey>,
 }
 
 #[derive(Debug)]
@@ -194,6 +195,19 @@ enum ClosureCall {
 }
 
 impl BlockCursor {
+    fn waiting_input(&self) -> Option<CellKey> {
+        self.waiting_input
+            .or_else(|| {
+                self.pending
+                    .as_ref()?
+                    .child
+                    .as_ref()?
+                    .cursor
+                    .waiting_input()
+            })
+            .or_else(|| self.child.as_ref()?.cursor.waiting_input())
+            .or_else(|| self.lazy.as_ref()?.cursor.waiting_input())
+    }
     fn completed_elements(&self) -> usize {
         self.pending
             .as_ref()
@@ -205,6 +219,7 @@ impl BlockCursor {
     fn active_user(&self) -> Option<&PendingUserCall> {
         self.pending_user
             .as_deref()
+            .or_else(|| self.pending.as_ref()?.child.as_ref()?.cursor.active_user())
             .or_else(|| self.child.as_ref()?.cursor.active_user())
             .or_else(|| self.lazy.as_ref()?.cursor.active_user())
     }
@@ -212,6 +227,8 @@ impl BlockCursor {
     fn active_user_mut(&mut self) -> Option<&mut PendingUserCall> {
         if self.pending_user.is_some() {
             self.pending_user.as_deref_mut()
+        } else if let Some(child) = self.pending.as_mut().and_then(|call| call.child.as_mut()) {
+            child.cursor.active_user_mut()
         } else if let Some(child) = &mut self.child {
             child.cursor.active_user_mut()
         } else {
@@ -225,6 +242,7 @@ struct PendingCall {
     target: Target,
     arguments: Vec<CalcValue>,
     scratch: FunctionCallScratch,
+    child: Option<Box<PendingBlock>>,
     synthetic: bool,
     retain: bool,
     start: usize,
@@ -268,6 +286,11 @@ impl EvalContinuation {
         let call = self.cursor.active_user()?;
         let (request, value) = call.external.as_ref()?;
         value.is_none().then_some((call.frame.id, *request))
+    }
+    /// A retained dependency instruction names the input it could not consume. The
+    /// engine decides whether an admitted producer can supply it or it is unavailable.
+    pub fn waiting_input(&self) -> Option<CellKey> {
+        self.cursor.waiting_input()
     }
     /// Owner identity/certificate checks precede this operation. Delivery never runs user code.
     pub fn accept_external(&mut self, invocation: u64, request: u64, value: CalcValue) -> bool {
@@ -337,8 +360,16 @@ pub fn evaluate(
     frame: EvalFrame<'_>,
     services: &mut FormulaEvaluationContext<'_>,
 ) -> Result<CalcValue, EvalFault> {
-    match evaluate_slice(frame, services, &mut BlockCursor::default(), usize::MAX) {
+    let mut cursor = BlockCursor::default();
+    match evaluate_slice(frame, services, &mut cursor, usize::MAX) {
         EvalStep::Complete(outcome) => outcome,
+        EvalStep::Suspended(_) if cursor.waiting_input().is_some() => {
+            Err(EvalFault::MissingInput {
+                cell: cursor
+                    .waiting_input()
+                    .expect("the retained read names its missing input"),
+            })
+        }
         EvalStep::Suspended(_) => Err(not_modelled_by(
             "an external wait without a continuation owner",
             "dc-hsa5.4",
@@ -467,6 +498,15 @@ fn evaluate_slice(
             value
         })
     });
+    if let Err(EvalFault::MissingInput { cell }) = &outcome
+        && reader.pending_producer(*cell)
+    {
+        cursor.waiting_input = Some(*cell);
+        return EvalStep::Suspended(ContinuationProgress {
+            next_instruction: cursor.at,
+            completed_elements: cursor.completed_elements(),
+        });
+    }
     if let Some(observer) = run.observer {
         observer.returned(EvaluationReport {
             anchor: instance.anchor,
@@ -800,6 +840,10 @@ impl Run<'_, '_> {
         cursor: &mut BlockCursor,
         remaining: &mut usize,
     ) -> Result<Option<CalcValue>, EvalFault> {
+        cursor.waiting_input = None;
+        if let Some(value) = &cursor.result {
+            return Ok(Some(value.clone()));
+        }
         let base = *cursor.base.get_or_insert(self.stack.len());
         let instance = self.instance;
         let block = &instance.plan.blocks[index];
@@ -817,214 +861,248 @@ impl Run<'_, '_> {
                 *remaining -= 1;
             }
             at += 1;
-            let step = match instruction {
-                Instruction::Literal(literal) => {
-                    self.stack.push(literal.value());
-                    Ok(())
-                }
-                Instruction::Omitted => {
-                    self.stack.push(CalcValue::missing());
-                    Ok(())
-                }
-                Instruction::Reference(reference) => {
-                    self.stack.push(instance.reference(*reference));
-                    Ok(())
-                }
-                Instruction::Reference3D { first, count } => {
-                    self.stack.push(instance.reference_3d(*first, *count));
-                    Ok(())
-                }
-                Instruction::UserCall {
-                    name,
-                    binding,
-                    source: _,
-                    argc,
-                } => {
-                    if !self.user_call_slice(
+            // Only a pure read instruction may be retried. Its operands stay intact;
+            // completed calls and child frames remain behind this instruction cursor.
+            let operands = matches!(
+                instruction,
+                Instruction::Call { .. }
+                    | Instruction::Spill
+                    | Instruction::LazyCall { .. }
+                    | Instruction::Invoke { .. }
+            )
+            .then(|| self.stack.clone());
+            let effects_before = self
+                .user_function_effects
+                .as_ref()
+                .map_or(0, |effects| effects.calls);
+            let step = (|| {
+                match instruction {
+                    Instruction::Literal(literal) => {
+                        self.stack.push(literal.value());
+                        Ok(())
+                    }
+                    Instruction::Omitted => {
+                        self.stack.push(CalcValue::missing());
+                        Ok(())
+                    }
+                    Instruction::Reference(reference) => {
+                        self.stack.push(instance.reference(*reference));
+                        Ok(())
+                    }
+                    Instruction::Reference3D { first, count } => {
+                        self.stack.push(instance.reference_3d(*first, *count));
+                        Ok(())
+                    }
+                    Instruction::UserCall {
                         name,
-                        *binding,
-                        *argc,
-                        instance.plan.blocks[..index]
-                            .iter()
-                            .map(|block| block.len())
-                            .sum::<usize>()
-                            + at
-                            - 1,
-                        &mut cursor.pending_user,
-                        (*remaining).max(1),
-                    )? {
-                        cursor.at = at - 1;
-                        return Ok(None);
-                    }
-                    if *remaining != usize::MAX {
-                        *remaining = 0;
-                    }
-                    Ok(())
-                }
-                Instruction::Call {
-                    target,
-                    argc,
-                    retain,
-                    synthetic,
-                    admission,
-                } => {
-                    match self.call_slice(
-                        *target,
-                        *argc,
-                        *retain,
-                        *synthetic,
-                        *admission,
-                        &mut cursor.pending,
-                        (*remaining).max(1),
-                    ) {
-                        Ok(false) => {
+                        binding,
+                        source: _,
+                        argc,
+                    } => {
+                        if !self.user_call_slice(
+                            name,
+                            *binding,
+                            *argc,
+                            instance.plan.blocks[..index]
+                                .iter()
+                                .map(|block| block.len())
+                                .sum::<usize>()
+                                + at
+                                - 1,
+                            &mut cursor.pending_user,
+                            (*remaining).max(1),
+                        )? {
                             cursor.at = at - 1;
-                            return Ok(None);
+                            return Ok(false);
                         }
-                        Ok(true) => {
-                            if target.0.is_resumable() && *remaining != usize::MAX {
-                                *remaining = 0;
+                        if *remaining != usize::MAX {
+                            *remaining = 0;
+                        }
+                        Ok(())
+                    }
+                    Instruction::Call {
+                        target,
+                        argc,
+                        retain,
+                        synthetic,
+                        admission,
+                    } => {
+                        match self.call_slice(
+                            *target,
+                            *argc,
+                            *retain,
+                            *synthetic,
+                            *admission,
+                            &mut cursor.pending,
+                            (*remaining).max(1),
+                        ) {
+                            Ok(false) => {
+                                cursor.at = at - 1;
+                                return Ok(false);
+                            }
+                            Ok(true) => {
+                                if target.0.is_resumable() && *remaining != usize::MAX {
+                                    *remaining = 0;
+                                }
+                            }
+                            Err(fault) => {
+                                self.stack.truncate(base);
+                                return Err(fault);
                             }
                         }
-                        Err(fault) => {
-                            self.stack.truncate(base);
-                            return Err(fault);
+                        Ok(())
+                    }
+                    Instruction::LazyCall {
+                        target,
+                        first_block,
+                        argc,
+                        admission,
+                    } => {
+                        if !self.lazy_call_slice(
+                            *target,
+                            *first_block,
+                            *argc,
+                            *admission,
+                            &mut cursor.lazy,
+                            remaining,
+                        )? {
+                            cursor.at = at - 1;
+                            return Ok(false);
                         }
+                        Ok(())
                     }
-                    Ok(())
-                }
-                Instruction::LazyCall {
-                    target,
-                    first_block,
-                    argc,
-                    admission,
-                } => {
-                    if !self.lazy_call_slice(
-                        *target,
-                        *first_block,
-                        *argc,
-                        *admission,
-                        &mut cursor.lazy,
-                        remaining,
-                    )? {
-                        cursor.at = at - 1;
-                        return Ok(None);
+                    Instruction::Copy(depth) => {
+                        let value = self.stack[self.stack.len() - 1 - depth].clone();
+                        self.stack.push(value);
+                        Ok(())
                     }
-                    Ok(())
-                }
-                Instruction::Copy(depth) => {
-                    let value = self.stack[self.stack.len() - 1 - depth].clone();
-                    self.stack.push(value);
-                    Ok(())
-                }
-                Instruction::NearZeroGuard { skip } => {
-                    // Stack: left, right, result.
-                    let top = self.stack.len() - 1;
-                    if !matches!(self.stack[top].as_number(), Some(n) if n != 0.0) {
-                        let result = self.stack.pop().expect("the operation's result");
-                        self.stack.truncate(top - 2);
-                        self.stack.push(result);
-                        at += skip;
-                    }
-                    Ok(())
-                }
-                Instruction::NearZeroCheck => self.near_zero_check(),
-                Instruction::Range => {
-                    let right = self.stack.pop().expect("an operand");
-                    let left = self.stack.pop().expect("an operand");
-                    self.stack.push(refops::range(&left, &right));
-                    Ok(())
-                }
-                Instruction::Intersect => {
-                    let right = self.stack.pop().expect("an operand");
-                    let left = self.stack.pop().expect("an operand");
-                    self.stack.push(refops::intersect(&left, &right));
-                    Ok(())
-                }
-                Instruction::Union(count) => {
-                    let start = self.stack.len() - count;
-                    let value = refops::union(&self.stack[start..]);
-                    self.stack.truncate(start);
-                    self.stack.push(value);
-                    Ok(())
-                }
-                Instruction::Implicit => {
-                    let value = self.stack.pop().expect("an operand");
-                    self.stack
-                        .push(refops::implicit(&value, instance.anchor.cell()));
-                    Ok(())
-                }
-                Instruction::ImplicitReference => {
-                    let value = self.stack.pop().expect("an operand");
-                    let value = match value.core_ref() {
-                        CoreRef::Reference(reference) if reference.areas().len() == 1 => {
-                            refops::implicit(&value, instance.anchor.cell())
+                    Instruction::NearZeroGuard { skip } => {
+                        // Stack: left, right, result.
+                        let top = self.stack.len() - 1;
+                        if !matches!(self.stack[top].as_number(), Some(n) if n != 0.0) {
+                            let result = self.stack.pop().expect("the operation's result");
+                            self.stack.truncate(top - 2);
+                            self.stack.push(result);
+                            at += skip;
                         }
-                        _ => value,
-                    };
-                    self.stack.push(value);
-                    Ok(())
-                }
-                Instruction::Spill => self.spill(),
-                Instruction::Local(slot) => {
-                    let value = self.locals[self.base + *slot as usize].clone();
-                    self.stack.push(value);
-                    Ok(())
-                }
-                Instruction::Store(slot) => {
-                    let value = self.stack.pop().expect("a value to store");
-                    self.locals.truncate(self.base + *slot as usize);
-                    self.locals.push(value);
-                    Ok(())
-                }
-                Instruction::Lambda {
-                    block,
-                    params,
-                    required,
-                    captured,
-                } => {
-                    let from = self.base;
-                    let closure = Closure {
-                        plan: plan_address(instance),
-                        block: *block,
-                        params: *params as usize,
-                        required: *required as usize,
-                        captured: self.locals[from..from + *captured as usize].into(),
-                    };
-                    self.stack.push(closure.into_value());
-                    Ok(())
-                }
-                Instruction::Invoke { argc } => {
-                    if !self.invoke_slice(*argc, &mut cursor.child, remaining)? {
-                        cursor.at = at - 1;
-                        return Ok(None);
+                        Ok(())
                     }
-                    Ok(())
-                }
-                Instruction::Function(target) => {
-                    self.stack
-                        .push(super::closure::FunctionValue { target: *target }.into_value());
-                    Ok(())
-                }
-                Instruction::Name(target) => {
-                    if cursor.child.is_none() {
-                        self.check_depth()?;
-                        cursor.child = Some(Box::new(PendingBlock {
-                            block: target.block,
-                            frame: self.locals.len(),
-                            cost: 0,
-                            cursor: BlockCursor::default(),
-                        }));
+                    Instruction::NearZeroCheck => self.near_zero_check(),
+                    Instruction::Range => {
+                        let right = self.stack.pop().expect("an operand");
+                        let left = self.stack.pop().expect("an operand");
+                        self.stack.push(refops::range(&left, &right));
+                        Ok(())
                     }
-                    if !self.child_slice(&mut cursor.child, remaining)? {
-                        cursor.at = at - 1;
-                        return Ok(None);
+                    Instruction::Intersect => {
+                        let right = self.stack.pop().expect("an operand");
+                        let left = self.stack.pop().expect("an operand");
+                        self.stack.push(refops::intersect(&left, &right));
+                        Ok(())
                     }
-                    Ok(())
-                }
-                Instruction::External(index) => self.external(*index),
-            };
+                    Instruction::Union(count) => {
+                        let start = self.stack.len() - count;
+                        let value = refops::union(&self.stack[start..]);
+                        self.stack.truncate(start);
+                        self.stack.push(value);
+                        Ok(())
+                    }
+                    Instruction::Implicit => {
+                        let value = self.stack.pop().expect("an operand");
+                        self.stack
+                            .push(refops::implicit(&value, instance.anchor.cell()));
+                        Ok(())
+                    }
+                    Instruction::ImplicitReference => {
+                        let value = self.stack.pop().expect("an operand");
+                        let value = match value.core_ref() {
+                            CoreRef::Reference(reference) if reference.areas().len() == 1 => {
+                                refops::implicit(&value, instance.anchor.cell())
+                            }
+                            _ => value,
+                        };
+                        self.stack.push(value);
+                        Ok(())
+                    }
+                    Instruction::Spill => self.spill(),
+                    Instruction::Local(slot) => {
+                        let value = self.locals[self.base + *slot as usize].clone();
+                        self.stack.push(value);
+                        Ok(())
+                    }
+                    Instruction::Store(slot) => {
+                        let value = self.stack.pop().expect("a value to store");
+                        self.locals.truncate(self.base + *slot as usize);
+                        self.locals.push(value);
+                        Ok(())
+                    }
+                    Instruction::Lambda {
+                        block,
+                        params,
+                        required,
+                        captured,
+                    } => {
+                        let from = self.base;
+                        let closure = Closure {
+                            plan: plan_address(instance),
+                            block: *block,
+                            params: *params as usize,
+                            required: *required as usize,
+                            captured: self.locals[from..from + *captured as usize].into(),
+                        };
+                        self.stack.push(closure.into_value());
+                        Ok(())
+                    }
+                    Instruction::Invoke { argc } => {
+                        if !self.invoke_slice(*argc, &mut cursor.child, remaining)? {
+                            cursor.at = at - 1;
+                            return Ok(false);
+                        }
+                        Ok(())
+                    }
+                    Instruction::Function(target) => {
+                        self.stack
+                            .push(super::closure::FunctionValue { target: *target }.into_value());
+                        Ok(())
+                    }
+                    Instruction::Name(target) => {
+                        if cursor.child.is_none() {
+                            self.check_depth()?;
+                            cursor.child = Some(Box::new(PendingBlock {
+                                block: target.block,
+                                frame: self.locals.len(),
+                                cost: 0,
+                                cursor: BlockCursor::default(),
+                            }));
+                        }
+                        if !self.child_slice(&mut cursor.child, remaining, false)? {
+                            cursor.at = at - 1;
+                            return Ok(false);
+                        }
+                        Ok(())
+                    }
+                    Instruction::External(index) => self.external(*index),
+                }?;
+                Ok(true)
+            })();
+            if matches!(step, Ok(false)) {
+                return Ok(None);
+            }
             if let Err(fault) = step {
+                if let EvalFault::MissingInput { cell } = fault
+                    && self.reader.pending_producer(cell)
+                    && self
+                        .user_function_effects
+                        .as_ref()
+                        .map_or(0, |effects| effects.calls)
+                        == effects_before
+                    && let Some(operands) = operands
+                {
+                    *self.stack = operands;
+                    cursor.waiting_input = Some(cell);
+                    cursor.at = at - 1;
+                    return Ok(None);
+                }
                 self.stack.truncate(base);
                 return Err(fault);
             }
@@ -1033,6 +1111,7 @@ impl Run<'_, '_> {
         let value = self.stack.pop().expect("a block leaves one value");
         debug_assert_eq!(self.stack.len(), base);
         cursor.at = at;
+        cursor.result = Some(value.clone());
         Ok(Some(value))
     }
 
@@ -1179,6 +1258,7 @@ impl Run<'_, '_> {
                 target,
                 arguments,
                 scratch: self.calls.pop().unwrap_or_default(),
+                child: None,
                 synthetic,
                 retain,
                 start,
@@ -1211,6 +1291,7 @@ impl Run<'_, '_> {
             &call.arguments,
             call.synthetic,
             &mut call.scratch,
+            &mut call.child,
             quantum,
         );
         if matches!(result, Ok(None)) {
@@ -1236,9 +1317,21 @@ impl Run<'_, '_> {
         synthetic: bool,
     ) -> Result<CalcValue, EvalFault> {
         let mut scratch = self.calls.pop().unwrap_or_default();
-        let result = self.eager_chunk(target, arguments, synthetic, &mut scratch, usize::MAX);
+        let result = self.eager_chunk(
+            target,
+            arguments,
+            synthetic,
+            &mut scratch,
+            &mut None,
+            usize::MAX,
+        );
         self.calls.push(scratch);
-        result.map(|value| value.expect("unlimited eager call completes"))
+        result?.ok_or_else(|| {
+            not_modelled_by(
+                "a synchronous callback without a retained caller continuation",
+                "dc-hsa5.4",
+            )
+        })
     }
 
     fn eager_chunk(
@@ -1247,6 +1340,7 @@ impl Run<'_, '_> {
         arguments: &[CalcValue],
         synthetic: bool,
         scratch: &mut FunctionCallScratch,
+        child: &mut Option<Box<PendingBlock>>,
         quantum: usize,
     ) -> Result<Option<CalcValue>, EvalFault> {
         // A LAMBDA or function value, or an array of them (`HSTACK(SUM,MAX)`, dc-h9u).
@@ -1257,8 +1351,7 @@ impl Run<'_, '_> {
         };
         if arguments.iter().any(callable) {
             return self
-                .eager_with_callables(target, arguments, synthetic)
-                .map(Some);
+                .eager_with_callables(target, arguments, synthetic, scratch, child, quantum);
         }
         self.reader.clear_refusal();
         let mut text = self.catalog.map(|catalog| TextBinding {
@@ -1310,8 +1403,10 @@ impl Run<'_, '_> {
         target: Target,
         arguments: &[CalcValue],
         synthetic: bool,
-    ) -> Result<CalcValue, EvalFault> {
-        let mut scratch = self.calls.pop().unwrap_or_default();
+        scratch: &mut FunctionCallScratch,
+        child: &mut Option<Box<PendingBlock>>,
+        quantum: usize,
+    ) -> Result<Option<CalcValue>, EvalFault> {
         let reader = self.reader;
         let numeric = self.numeric;
         let random = self.random;
@@ -1319,6 +1414,8 @@ impl Run<'_, '_> {
         let mut callables = Callables {
             run: &mut *self,
             fault: None,
+            pending: child,
+            remaining: quantum,
         };
         let result = {
             let mut cells = ReaderCells::new(reader);
@@ -1333,16 +1430,18 @@ impl Run<'_, '_> {
                 environment.as_ref(),
             )
             .with_callables(&mut callables);
-            invoke(
+            invoke_slice(
                 target.0,
                 &mut Evaluated(arguments),
                 &mut services,
-                &mut scratch,
+                scratch,
+                quantum,
             )
         };
         let fault = callables.fault.take();
-        self.calls.push(scratch);
-        self.show_call(target, synthetic);
+        if !matches!(result, Ok(None)) {
+            self.show_call(target, synthetic);
+        }
         if let Some(fault) = fault {
             return Err(fault);
         }
@@ -1663,7 +1762,7 @@ impl Run<'_, '_> {
                 ClosureCall::Block(call) => *pending = Some(call),
             }
         }
-        self.child_slice(pending, remaining)
+        self.child_slice(pending, remaining, false)
     }
 
     fn check_depth(&self) -> Result<(), EvalFault> {
@@ -1680,12 +1779,29 @@ impl Run<'_, '_> {
         &mut self,
         pending: &mut Option<Box<PendingBlock>>,
         remaining: &mut usize,
+        value_result: bool,
     ) -> Result<bool, EvalFault> {
         let call = pending.as_mut().expect("retained block frame");
         let caller = std::mem::replace(&mut self.base, call.frame);
         self.depth += 1;
         self.budget += call.cost;
-        let result = self.block_slice(call.block, &mut call.cursor, remaining);
+        let result = self
+            .block_slice(call.block, &mut call.cursor, remaining)
+            .and_then(|value| match value {
+                Some(value) if value_result => match value.core_ref() {
+                    CoreRef::Reference(reference) => match self.reader.values_of(reference) {
+                        Err(EvalFault::MissingInput { cell })
+                            if self.reader.pending_producer(cell) =>
+                        {
+                            call.cursor.waiting_input = Some(cell);
+                            Ok(None)
+                        }
+                        result => result.map(Some),
+                    },
+                    _ => Ok(Some(value)),
+                },
+                other => Ok(other),
+            });
         self.budget -= call.cost;
         self.depth -= 1;
         self.base = caller;
@@ -1710,7 +1826,7 @@ impl Run<'_, '_> {
             ClosureCall::Block(call) => {
                 let frame = call.frame;
                 let mut remaining = usize::MAX;
-                if self.child_slice(&mut Some(call), &mut remaining)? {
+                if self.child_slice(&mut Some(call), &mut remaining, false)? {
                     Ok(self.stack.pop().expect("closure result"))
                 } else {
                     self.locals.truncate(frame);
@@ -2033,9 +2149,44 @@ fn names_another_workbook(text: &[u16]) -> bool {
 struct Callables<'b, 'a, 'r> {
     run: &'b mut Run<'a, 'r>,
     fault: Option<EvalFault>,
+    pending: &'b mut Option<Box<PendingBlock>>,
+    remaining: usize,
 }
 
 impl CallableInvoker for Callables<'_, '_, '_> {
+    fn call_slice(
+        &mut self,
+        callable: &CalcValue,
+        arguments: &[CalcValue],
+    ) -> Result<Option<CalcValue>, CallAbandoned> {
+        if self.fault.is_some() {
+            return Err(CallAbandoned);
+        }
+        let result = (|| {
+            if self.pending.is_none() {
+                if self.remaining == 0 {
+                    return Ok(None);
+                }
+                match self.run.prepare_closure(callable, arguments.to_vec())? {
+                    ClosureCall::Value(value) => return Ok(Some(value)),
+                    ClosureCall::Block(call) => *self.pending = Some(call),
+                }
+            }
+            if !self
+                .run
+                .child_slice(self.pending, &mut self.remaining, true)?
+            {
+                return Ok(None);
+            }
+            let value = self.run.stack.pop().expect("helper child result");
+            Ok(Some(value))
+        })();
+        result.map_err(|fault| {
+            self.fault = Some(fault);
+            CallAbandoned
+        })
+    }
+
     fn call(
         &mut self,
         callable: &CalcValue,

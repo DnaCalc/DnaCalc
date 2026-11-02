@@ -88,7 +88,7 @@ impl fmt::Display for CopyRefusal {
                 f.write_str("the cut source changed; cut it again before moving it")
             }
             Self::StyleDefinitionsChanged => f.write_str(
-                "the copied style definitions changed or belong to another workbook; remapping them is not modelled (dc-971p.6); copy the source again",
+                "the copied styles belong to another workbook or have unsupported source changes (dc-971p.6); copy the source again",
             ),
             Self::UnavailableValue { at } => write!(
                 f,
@@ -402,39 +402,141 @@ pub(crate) fn move_coordinates(
     }
 }
 
-// Captured format indices remain valid while their definitions and raw-source lineage
-// remain a prefix. History can remove appended records and reuse their indices on a branch.
-fn style_prefix_retained(
+// Keep the immutable clipboard's definitions when Undo removes them or a history branch
+// reuses their indices. Only a shared workbook lineage establishes the raw XML source.
+fn restore_styles(
     before: &calc_doc_model::StyleTable,
     after: &calc_doc_model::StyleTable,
-) -> bool {
-    after.number_formats.starts_with(&before.number_formats)
-        && after.fonts.starts_with(&before.fonts)
-        && after.fills.starts_with(&before.fills)
-        && after.borders.starts_with(&before.borders)
-        && after
-            .cell_style_formats
-            .starts_with(&before.cell_style_formats)
-        && after.cell_formats.starts_with(&before.cell_formats)
-        && after.cell_styles.starts_with(&before.cell_styles)
-        && after
-            .differential_formats
-            .starts_with(&before.differential_formats)
-        && after.table_styles == before.table_styles
-        && after.colors == before.colors
-        && after.unmodelled == before.unmodelled
-        && [
-            (&before.sources.fonts, &after.sources.fonts),
-            (&before.sources.fills, &after.sources.fills),
-            (&before.sources.borders, &after.sources.borders),
-            (&before.sources.cell_formats, &after.sources.cell_formats),
-        ]
-        .into_iter()
-        .all(|(before, after)| {
-            before
-                .iter()
-                .all(|(id, source)| after.get(id) == Some(source))
+) -> Result<(calc_doc_model::StyleTable, Vec<u32>), CopyRefusal> {
+    use calc_doc_model::StyleTable;
+    if before.cell_style_formats != after.cell_style_formats
+        || before.cell_styles != after.cell_styles
+        || before.differential_formats != after.differential_formats
+        || before.table_styles != after.table_styles
+        || before.colors != after.colors
+        || before.unmodelled != after.unmodelled
+    {
+        return Err(CopyRefusal::StyleDefinitionsChanged);
+    }
+    fn records<T: Clone + Eq>(
+        before: &[T],
+        sources: &BTreeMap<u32, u32>,
+        after: &mut Vec<T>,
+        after_sources: &mut BTreeMap<u32, u32>,
+    ) -> Result<Vec<u32>, CopyRefusal> {
+        let mut ids = Vec::with_capacity(before.len());
+        for (index, record) in before.iter().enumerate() {
+            let source = sources
+                .get(&(index as u32))
+                .map(|&old| {
+                    ids.get(old as usize)
+                        .copied()
+                        .ok_or(CopyRefusal::StyleDefinitionsChanged)
+                })
+                .transpose()?;
+            let matching = |i: usize, value: &T| {
+                value == record && after_sources.get(&(i as u32)).copied() == source
+                    // Imported records can carry distinct unknown XML even when parsed equal.
+                    && (source.is_some() || i == index)
+            };
+            let existing = if after.get(index).is_some_and(|v| matching(index, v)) {
+                Some(index as u32)
+            } else {
+                after
+                    .iter()
+                    .enumerate()
+                    .find(|(i, value)| matching(*i, value))
+                    .map(|(i, _)| i as u32)
+            };
+            let id = if let Some(id) = existing {
+                id
+            } else {
+                // Non-derived records belong to the shared imported prefix. An empty source
+                // table can also have new default records with no raw XML to preserve.
+                if source.is_none() && index < after.len() {
+                    return Err(CopyRefusal::StyleDefinitionsChanged);
+                }
+                let id =
+                    u32::try_from(after.len()).map_err(|_| CopyRefusal::StyleDefinitionsChanged)?;
+                after.push(record.clone());
+                if let Some(source) = source {
+                    after_sources.insert(id, source);
+                }
+                id
+            };
+            ids.push(id);
+        }
+        Ok(ids)
+    }
+    let mut table: StyleTable = after.clone();
+    let fonts = records(
+        &before.fonts,
+        &before.sources.fonts,
+        &mut table.fonts,
+        &mut table.sources.fonts,
+    )?;
+    let fills = records(
+        &before.fills,
+        &before.sources.fills,
+        &mut table.fills,
+        &mut table.sources.fills,
+    )?;
+    let borders = records(
+        &before.borders,
+        &before.sources.borders,
+        &mut table.borders,
+        &mut table.sources.borders,
+    )?;
+    let mut numbers = BTreeMap::new();
+    for format in &before.number_formats {
+        let id = if let Some(found) = table.number_formats.iter().find(|n| *n == format) {
+            // Imported equal-code records can carry different unknown XML by ID.
+            found.id
+        } else if let Some(found) = table.number_formats.iter().find(|n| n.code == format.code) {
+            found.id
+        } else {
+            let mut next = format.clone();
+            if table.number_formats.iter().any(|n| n.id == next.id) {
+                next.id = table
+                    .number_formats
+                    .iter()
+                    .map(|n| n.id)
+                    .max()
+                    .unwrap_or(163)
+                    .max(163)
+                    .checked_add(1)
+                    .ok_or(CopyRefusal::StyleDefinitionsChanged)?;
+            }
+            let id = next.id;
+            table.number_formats.push(next);
+            id
+        };
+        numbers.insert(format.id, id);
+    }
+    let remap = |id: Option<u32>, ids: &[u32]| -> Result<Option<u32>, CopyRefusal> {
+        id.map(|i| {
+            ids.get(i as usize)
+                .copied()
+                .ok_or(CopyRefusal::StyleDefinitionsChanged)
         })
+        .transpose()
+    };
+    let mut formats = before.cell_formats.clone();
+    for xf in &mut formats {
+        xf.font_id = remap(xf.font_id, &fonts)?;
+        xf.fill_id = remap(xf.fill_id, &fills)?;
+        xf.border_id = remap(xf.border_id, &borders)?;
+        xf.number_format_id = xf
+            .number_format_id
+            .map(|id| numbers.get(&id).copied().unwrap_or(id));
+    }
+    let ids = records(
+        &formats,
+        &before.sources.cell_formats,
+        &mut table.cell_formats,
+        &mut table.sources.cell_formats,
+    )?;
+    Ok((table, ids))
 }
 
 /// The edits a copy (or cut) makes over the current revision of `host`.
@@ -457,19 +559,31 @@ fn copy_edits_from(
     series: Option<bool>,
     partial: bool,
 ) -> Result<Vec<CellEdit>, CopyRefusal> {
-    if matches!(mode, PasteMode::All | PasteMode::Formats)
-        && let Some(snapshot) = snapshot
-        && (!snapshot.model.same_lineage(&host.model)
-            || (!Arc::ptr_eq(snapshot.model.definitions().styles(), host.styles())
-                && !style_prefix_retained(snapshot.model.definitions().styles(), host.styles())))
-    {
-        return Err(CopyRefusal::StyleDefinitionsChanged);
-    }
+    let restored = if matches!(mode, PasteMode::All | PasteMode::Formats) {
+        if let Some(snapshot) = snapshot {
+            if !snapshot.model.same_lineage(&host.model) {
+                return Err(CopyRefusal::StyleDefinitionsChanged);
+            }
+            let before = snapshot.model.definitions().styles();
+            if Arc::ptr_eq(before, host.styles()) {
+                None
+            } else {
+                Some(restore_styles(before, host.styles())?)
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let source_model = snapshot.map_or(&host.model, |s| &s.model);
     let source_style = |at| {
-        snapshot
+        let id = snapshot
             .and_then(|s| s.styles.get(&at).copied())
-            .unwrap_or_else(|| host.cell_style(at))
+            .unwrap_or_else(|| host.cell_style(at));
+        restored
+            .as_ref()
+            .map_or(id, |(_, ids)| ids.get(id as usize).copied().unwrap_or(id))
     };
     let model = &host.model;
     if model.sheet_by_id(from.sheet()).is_none() || model.sheet_by_id(to.sheet()).is_none() {
@@ -528,6 +642,11 @@ fn copy_edits_from(
     let in_legacy = |at: CellKey| legacy.iter().any(|array| array.area().contains(at));
 
     let mut edits = Vec::with_capacity(to.cell_count() as usize);
+    if let Some((table, _)) = &restored {
+        if table != host.styles().as_ref() {
+            edits.push(CellEdit::Styles(Arc::new(table.clone())));
+        }
+    }
     let (top, left) = (to.first().row(), to.first().column());
     // A cell's format, set only where it changes.
     let restyle = |edits: &mut Vec<CellEdit>, at: CellKey, style: u32| {

@@ -112,7 +112,7 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() {
+fn dc_971p__copied_formats_restore_definitions_after_history_branches() {
     use calc_host::{
         CopySnapshot, FormatPatch, PasteMode, PasteSource, WorkbookCommand, prepare_paste,
     };
@@ -127,6 +127,9 @@ fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() 
                 areas: vec![area],
                 patch: FormatPatch {
                     fill: Some(fill.into()),
+                    number_format: Some(format!("0.00 \"{fill}\"")),
+                    font_name: Some("monospace".into()),
+                    font_size: Some(if fill == "#ff0000" { "18" } else { "12" }.into()),
                     ..Default::default()
                 },
             }))
@@ -177,8 +180,8 @@ fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() 
     assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert!(
-        prepare(&book, PasteMode::Formats).is_err(),
-        "removed captured styles must not be applied"
+        prepare(&book, PasteMode::Formats).is_ok(),
+        "captured styles are restored after Undo"
     );
     assert!(book.dispatch(SkinIntent::Redo).accepted());
     assert!(
@@ -192,19 +195,64 @@ fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() 
         copied_style,
         "the new history branch reuses the old index"
     );
-    let revision = book.host().revision();
+    let blue = book.host().styles().clone();
+    let fill = |host: &calc_host::HostState, cell| {
+        let table = host.styles();
+        let xf = &table.cell_formats[host.cell_style(cell) as usize];
+        table.fills[xf.fill_id.unwrap() as usize]
+            .fg_color
+            .as_ref()
+            .unwrap()
+            .rgb
+            .clone()
+    };
     for mode in [PasteMode::All, PasteMode::Formats] {
-        let error = prepare(&book, mode)
-            .expect_err("a reused index must not paste the new blue format for the copied red one");
-        assert!(error.to_string().contains("dc-971p.6"), "{error}");
+        let plan = prepare(&book, mode).unwrap();
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::Paste(plan)))
+                .accepted()
+        );
+        assert_eq!(
+            fill(book.host(), source.first()).as_deref(),
+            Some("FF0000FF")
+        );
+        assert_eq!(
+            fill(book.host(), target.first()).as_deref(),
+            Some("FFFF0000")
+        );
+        assert_ne!(
+            book.host().cell_style(source.first()),
+            book.host().cell_style(target.first())
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = session(&saved);
+        let sheet = reopened.host().sheets()[0].id();
+        assert_eq!(
+            fill(reopened.host(), at(sheet, "A1")).as_deref(),
+            Some("FF0000FF")
+        );
+        assert_eq!(
+            fill(reopened.host(), at(sheet, "B1")).as_deref(),
+            Some("FFFF0000")
+        );
+        let styles = book.host().styles().clone();
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(book.host().styles(), &blue);
+        assert!(book.host().model().cell(target.first()).is_none());
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(book.host().styles(), &styles);
+        assert_eq!(
+            fill(book.host(), target.first()).as_deref(),
+            Some("FFFF0000")
+        );
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
     }
     assert!(
         snapshot
             .fill_edits(book.host(), target, false, false)
-            .is_err()
+            .is_ok()
     );
-    assert_eq!(book.host().revision(), revision);
-    assert!(book.host().model().cell(target.first()).is_none());
     assert!(prepare(&book, PasteMode::Formulas).is_ok());
     let values = prepare(&book, PasteMode::Values).unwrap();
     assert!(
@@ -216,6 +264,79 @@ fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() 
         Some(&number(17.0))
     );
     assert_eq!(book.host().cell_style(target.first()), 0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__clipboard_restoration_preserves_distinct_imported_style_sources() {
+    use calc_host::{
+        CopySnapshot, FormatPatch, PasteMode, PasteSource, WorkbookCommand as C, prepare_paste,
+    };
+    let bytes = package_with_part("xl/styles.xml", |xml| {
+        xml.replacen("<styleSheet ", "<styleSheet xmlns:v=\"urn:clipboard\" ",1)
+            .replacen("<fonts", r#"<numFmts count="2"><numFmt numFmtId="164" formatCode="0.00" v:keep="first"/><numFmt numFmtId="165" formatCode="0.00" v:keep="second"/></numFmts><fonts"#,1)
+            .replacen("<name val=\"Calibri\"", "<name v:keep=\"font\" val=\"Calibri\"",1)
+            .replacen("<cellXfs count=\"1\"", "<cellXfs count=\"2\"",1)
+            .replacen("</cellXfs>", r#"<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" v:keep="xf"/></cellXfs>"#,1)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "<sheetData/>",
+            r#"<sheetData><row r="1"><c r="A1" s="1"><v>3</v></c></row></sheetData>"#,
+        )
+    });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let source = GridArea::cell(at(sheet, "A1"));
+    let target = GridArea::cell(at(sheet, "B1"));
+    let style = |book: &mut HostSession, bold| {
+        assert!(
+            book.dispatch(SkinIntent::Command(C::FormatCells {
+                areas: vec![source],
+                patch: FormatPatch {
+                    bold: Some(bold),
+                    italic: (!bold).then_some(true),
+                    ..Default::default()
+                }
+            }))
+            .accepted()
+        )
+    };
+    style(&mut book, true);
+    let snapshot = CopySnapshot::capture(book.host(), source).unwrap();
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    style(&mut book, false);
+    let plan = prepare_paste(
+        book.host(),
+        PasteSource::Snapshot {
+            snapshot: &snapshot,
+            cut: false,
+        },
+        target,
+        PasteMode::Formats,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(plan)))
+            .accepted()
+    );
+    let table = book.host().styles();
+    let xf = &table.cell_formats[book.host().cell_style(target.first()) as usize];
+    assert_eq!(xf.number_format_id, Some(165));
+    assert!(table.fonts[xf.font_id.unwrap() as usize].bold);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/styles.xml");
+    assert!(xml.contains(r#"v:keep="first""#));
+    assert!(xml.contains(r#"v:keep="second""#));
+    assert!(xml.matches(r#"v:keep="xf""#).count() >= 3, "{xml}");
+    assert!(xml.matches(r#"v:keep="font""#).count() >= 2, "{xml}");
+    let reopened = session(&saved);
+    let s = reopened.host().sheets()[0].id();
+    let table = reopened.host().styles();
+    let xf = &table.cell_formats[reopened.host().cell_style(at(s, "B1")) as usize];
+    assert_eq!(xf.number_format_id, Some(165));
+    assert!(table.fonts[xf.font_id.unwrap() as usize].bold);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -5319,6 +5440,132 @@ fn contract_vba_reload_revokes_live_publication_and_keeps_old_prefix_effects_onc
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p01_warm_scalar_cache_and_requested_area_order_match_recorded_probes() {
+    #[derive(Debug)]
+    struct Peek {
+        at: CellKey,
+        reads: Rc<RefCell<Vec<CalcValue>>>,
+    }
+    impl calc_fml::UserFunction for Peek {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("context required") // ubs:ignore -- this fixture must fail if its pinned context is bypassed.
+        }
+        fn cached_reads(&self) -> bool {
+            true
+        }
+        fn reevaluation_policy(&self) -> Option<calc_fml::UserReevaluationReason> {
+            Some(calc_fml::UserReevaluationReason::ProvisionalArguments)
+        }
+        fn call_with_context(
+            &self,
+            args: &[CalcValue],
+            context: &mut dyn calc_fml::UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            let reference = args
+                .first()
+                .and_then(CalcValue::as_reference)
+                .cloned()
+                .unwrap_or_else(|| calc_host::value::ReferenceLike::cell(self.at));
+            let value = context.values_of(&reference)?;
+            self.reads.borrow_mut().push(value.clone());
+            Ok(value)
+        }
+    }
+    for explicit in [false, true] {
+        for warm in [false, true] {
+            for reversed in [None, Some(false), Some(true)] {
+                for budget in [1, usize::MAX] {
+                    let mut book = session(&calc_host::blank_package());
+                    let s = book.host().sheets()[0].id();
+                    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+                    let reads = Rc::new(RefCell::new(Vec::new()));
+                    let mut functions = calc_fml::CallableTable::new();
+                    functions
+                        .register(
+                            "Peek",
+                            Rc::new(Peek {
+                                at: at(s, "B1"),
+                                reads: reads.clone(),
+                            }),
+                        )
+                        .unwrap();
+                    book.set_user_functions(functions);
+                    for (address, text) in [
+                        ("A1", "1"),
+                        ("B1", "=A1+1"),
+                        ("C1", if explicit { "=Peek(B1)" } else { "=Peek()" }),
+                    ] {
+                        enter(&mut book, at(s, address), text);
+                    }
+                    book.set_calculation_budget(WorkBudget::evaluations(budget));
+                    for address in ["B1", "C1"] {
+                        book.dispatch(SkinIntent::CalculateRange {
+                            areas: vec![GridArea::cell(at(s, address))],
+                        });
+                        while book.has_pending_calculation() {
+                            book.advance_calculation();
+                        }
+                    }
+                    if warm {
+                        for _ in 0..2 {
+                            book.dispatch(SkinIntent::Recalculate);
+                            while book.has_pending_calculation() {
+                                book.advance_calculation();
+                            }
+                        }
+                    }
+                    reads.borrow_mut().clear();
+                    enter(&mut book, at(s, "A1"), "10");
+                    let areas = match reversed {
+                        None => vec![GridArea::cell(at(s, "C1"))],
+                        Some(false) => vec![GridArea::new(at(s, "B1"), at(s, "C1")).unwrap()],
+                        Some(true) => {
+                            vec![GridArea::cell(at(s, "C1")), GridArea::cell(at(s, "B1"))]
+                        }
+                    };
+                    book.dispatch(SkinIntent::CalculateRange { areas });
+                    for _ in 0..500 {
+                        if !book.has_pending_calculation() {
+                            break;
+                        }
+                        assert!(!matches!(
+                            book.advance_calculation(),
+                            HostProgress::Failed(_)
+                        ));
+                    }
+                    assert!(!book.has_pending_calculation());
+                    let expected = match reversed {
+                        None => vec![CalcValue::number(2.0)],
+                        Some(false) => vec![CalcValue::number(11.0)],
+                        Some(true) => vec![CalcValue::empty(), CalcValue::number(11.0)],
+                    };
+                    assert_eq!(
+                        *reads.borrow(),
+                        expected,
+                        "explicit={explicit} warm={warm} reversed={reversed:?} budget={budget}"
+                    );
+                    let shown = value(book.host(), at(s, "C1"));
+                    let actual = match shown {
+                        ProjectedValue::Calculated { value, .. } => Some(value),
+                        ProjectedValue::Stale(held) => held.last_value().cloned(),
+                        _ => None,
+                    };
+                    assert_eq!(
+                        actual,
+                        Some(CalcValue::number(if reversed.is_none() {
+                            2.0
+                        } else {
+                            11.0
+                        }))
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_vba_typed_range_survives_variant_inspection_and_materialization() {
     let mut backends = vec![calc_vba::Backend::Interpreter];
     #[cfg(not(target_arch = "wasm32"))]
@@ -5446,43 +5693,59 @@ fn contract_vba_volatile_spill_sizing_and_skipped_calls_use_executed_effects() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn contract_vba_spill_placement_wait_refuses_without_repeating_the_effect() {
-    let mut book = session(&calc_host::blank_package());
-    let s = book.host().sheets()[0].id();
-    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
-    book.set_user_functions(calc_vba::load_module_with_backend("Placement","Private entries As Long\nPublic Function Counted() As Long\n entries=entries+1\n Counted=entries\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n",100_000,calc_vba::Backend::Interpreter).unwrap());
-    let force = |book: &mut HostSession, addresses: &[&str]| {
-        book.dispatch(SkinIntent::CalculateRange {
-            areas: addresses
-                .iter()
-                .map(|address| GridArea::cell(at(s, address)))
-                .collect(),
-        });
-        while book.has_pending_calculation() {
-            book.advance_calculation();
+fn contract_vba_spill_placement_wait_retains_the_array_without_repeating_the_effect() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    for backend in backends {
+        for budget in [1, usize::MAX] {
+            let mut book = session(&calc_host::blank_package());
+            let s = book.host().sheets()[0].id();
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            book.set_user_functions(calc_vba::load_module_with_backend("Placement","Private entries As Long\nPublic Function Counted() As Long\n entries=entries+1\n Counted=entries\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount=entries\nEnd Function\n",100_000,backend).unwrap());
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let force = |book: &mut HostSession, addresses: &[&str]| {
+                book.dispatch(SkinIntent::CalculateRange {
+                    areas: addresses
+                        .iter()
+                        .map(|address| GridArea::cell(at(s, address)))
+                        .collect(),
+                });
+                while book.has_pending_calculation() {
+                    book.advance_calculation();
+                }
+            };
+            enter(&mut book, at(s, "C1"), "3");
+            enter(
+                &mut book,
+                at(s, "B1"),
+                "=IF(TRUE,SEQUENCE(C1+RANDBETWEEN(0,0)),A2)",
+            );
+            force(&mut book, &["B1"]);
+            enter(&mut book, at(s, "A2"), "=SEQUENCE(1,2,Counted())");
+            enter(&mut book, at(s, "C1"), "1");
+            force(&mut book, &["A2", "B1"]);
+            let result = value(book.host(), at(s, "A2"));
+            let ProjectedValue::Calculated { value, calculation } = result else {
+                panic!("{result:?}");
+            };
+            assert_eq!(value, CalcValue::number(1.0));
+            assert_eq!(
+                calculated(book.host(), at(s, "B2")),
+                Some(CalcValue::number(2.0))
+            );
+            let calls = &calculation.stamp().unwrap().reads.invocations;
+            assert_eq!(calls.len(), 1);
+            assert!(calls[0].completed);
+            assert_eq!(calls[0].identity.evaluation, 0);
+            enter(&mut book, at(s, "H1"), "=EntryCount()");
+            force(&mut book, &["H1"]);
+            assert_eq!(
+                calculated(book.host(), at(s, "H1")),
+                Some(CalcValue::number(1.0))
+            );
         }
-    };
-    enter(&mut book, at(s, "C1"), "3");
-    enter(
-        &mut book,
-        at(s, "B1"),
-        "=IF(TRUE,SEQUENCE(C1+RANDBETWEEN(0,0)),A2)",
-    );
-    force(&mut book, &["B1"]);
-    enter(&mut book, at(s, "A2"), "=SEQUENCE(1,2,Counted())");
-    enter(&mut book, at(s, "C1"), "1");
-    force(&mut book, &["A2", "B1"]);
-    let result = value(book.host(), at(s, "A2"));
-    assert!(
-        matches!(result, ProjectedValue::NotModeled { .. }),
-        "{result:?}"
-    );
-    enter(&mut book, at(s, "H1"), "=EntryCount()");
-    force(&mut book, &["H1"]);
-    assert_eq!(
-        calculated(book.host(), at(s, "H1")),
-        Some(CalcValue::number(1.0))
-    );
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -6413,6 +6676,144 @@ mod async_contract {
                     (counts.borrow().prefix, counts.borrow().suffix),
                     (1, 1),
                     "{formula}"
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_helpers_retain_items_accumulators_and_nested_async_frames() {
+        for (formula, calls, expected) in [
+            ("=SUM(MAP({1;2},LAMBDA(x,AsyncEcho(x)+x)))", 2, 83.0),
+            (
+                "=REDUCE(10,{1;2},LAMBDA(acc,x,acc+AsyncEcho(x)+x))",
+                2,
+                93.0,
+            ),
+            (
+                "=SUM(SCAN(10,{1;2},LAMBDA(acc,x,acc+AsyncEcho(x)+x)))",
+                2,
+                144.0,
+            ),
+            (
+                "=SUM(BYROW({1,2;3,4},LAMBDA(row,SUM(row)+AsyncEcho(SUM(row)))))",
+                2,
+                90.0,
+            ),
+            (
+                "=SUM(BYCOL({1,2;3,4},LAMBDA(col,SUM(col)+AsyncEcho(SUM(col)))))",
+                2,
+                90.0,
+            ),
+            ("=SUM(MAKEARRAY(2,1,LAMBDA(r,c,AsyncEcho(r)+r+c)))", 2, 85.0),
+            (
+                "=SUM(MAP({1;2},LAMBDA(x,SUM(MAP({3;4},LAMBDA(y,AsyncEcho(x+y)+x+y))))))",
+                4,
+                180.0,
+            ),
+        ] {
+            for budget in [1, usize::MAX] {
+                let (mut book, s, counts) = setup_with_name(formula, None, budget);
+                let mut tokens = Vec::new();
+                for ordinal in 0..calls {
+                    let current = token(&book);
+                    assert!(
+                        tokens
+                            .iter()
+                            .all(|old: &AsyncToken| old.invocation != current.invocation)
+                    );
+                    tokens.push(current.clone());
+                    let resumes = counts.borrow().resumes;
+                    for _ in 0..3 {
+                        assert!(matches!(
+                            book.advance_calculation(),
+                            HostProgress::Waiting { .. }
+                        ));
+                    }
+                    assert_eq!(counts.borrow().resumes, resumes, "no polling {formula}");
+                    assert_eq!(counts.borrow().prefix, ordinal + 1, "{formula}");
+                    assert_eq!(counts.borrow().suffix, ordinal, "{formula}");
+                    assert_eq!(
+                        book.complete_async(&current, CalcValue::number(40.0)),
+                        D::Accepted
+                    );
+                    for _ in 0..200 {
+                        if !book.host().pending_async().is_empty()
+                            || !book.has_pending_calculation()
+                        {
+                            break;
+                        }
+                        assert!(!matches!(
+                            book.advance_calculation(),
+                            HostProgress::Failed(_)
+                        ));
+                    }
+                }
+                drain(&mut book);
+                assert_eq!(
+                    calculated(book.host(), at(s, "B1")),
+                    Some(CalcValue::number(expected)),
+                    "{formula}"
+                );
+                assert_eq!(
+                    calculated(book.host(), at(s, "C1")),
+                    Some(CalcValue::number(expected * 2.0)),
+                    "{formula}"
+                );
+                assert_eq!(
+                    (counts.borrow().prefix, counts.borrow().suffix),
+                    (calls, calls),
+                    "{formula}"
+                );
+                assert_eq!(
+                    book.complete_async(&tokens[0], CalcValue::number(40.0)),
+                    D::Duplicate
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p07_post_effect_dependency_wait_retains_operands_and_invocation() {
+        for formula in [
+            "=AsyncEcho(A1)+INDIRECT(\"D1\")",
+            "=SUM(MAP({1;2},LAMBDA(x,IF(x=1,AsyncEcho(A1),0)+INDIRECT(\"D1\"))))",
+        ] {
+            for budget in [1, usize::MAX] {
+                let (mut book, s, counts) = configured(formula, None, budget);
+                enter(&mut book, at(s, "D1"), "=A1*10");
+                book.dispatch(SkinIntent::Recalculate);
+                for _ in 0..200 {
+                    if !book.host().pending_async().is_empty() {
+                        break;
+                    }
+                    assert!(book.has_pending_calculation());
+                    book.advance_calculation();
+                }
+                let current = token(&book);
+                assert_eq!(
+                    book.complete_async(&current, CalcValue::number(40.0)),
+                    D::Accepted
+                );
+                drain(&mut book);
+                let expected = if formula.contains("MAP") { 60.0 } else { 50.0 };
+                assert_eq!(
+                    calculated(book.host(), at(s, "B1")),
+                    Some(CalcValue::number(expected)),
+                    "{formula}"
+                );
+                assert_eq!(
+                    calculated(book.host(), at(s, "C1")),
+                    Some(CalcValue::number(expected * 2.0)),
+                    "{formula}"
+                );
+                assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+                let value = value(book.host(), at(s, "B1"));
+                assert!(
+                    matches!(value, ProjectedValue::Calculated { .. }),
+                    "{value:?}"
                 );
             }
         }

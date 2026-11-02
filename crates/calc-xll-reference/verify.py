@@ -686,6 +686,14 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         nested = []
         changes = []
         delivered = []
+        expected_event_cells = ["A1"]
+        events_enabled = True
+        for case in cases:
+            events_enabled = case.get("enable_events", events_enabled)
+            if events_enabled:
+                if "edit" in case:
+                    expected_event_cells.append(case["edit"]["cell"])
+                expected_event_cells.append("B3")
         for trace, env in zip(traces, (environments[0], environments[2])):
             by_udf = {}
             for entry in trace[1].values():
@@ -715,6 +723,11 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                                       "early_bound_calls": com_calls(trace, entry["seq"], end, entry["thread"], env)})
             changes.append(sheet_changes)
             delivered.append(dict(sorted(event_counts.items())))
+            require(len(sheet_changes) == len(expected_event_cells), "Missing or additional SheetChange deliveries")
+            for change, cell in zip(sheet_changes, expected_event_cells):
+                names = [r for r in change["early_bound_calls"] if r["entry"] == "COM!early.worksheet.Name"]
+                require(names == [{"entry": "COM!early.worksheet.Name", "hresult": 0, "value": "X0"}], "Worksheet.Name was not observed once in every SheetChange")
+                require(change["addresses"] == [{"vt": 8, "value": "[<workbook>]X0!" + cell}, {"vt": 8, "value": cell}], "Both Range.Address calls were not observed in every SheetChange")
             unadvise = [entry for entry in trace[1].values() if entry["entry"] == "COM!Unadvise"]
             require(unadvise and all(trace[2][e["call"]]["hresult"] == 0 for e in unadvise), "Event disconnection was not successful")
         require(nested[0] == nested[1], "Early-bound calls inside a measured UDF differ")

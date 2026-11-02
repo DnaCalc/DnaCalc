@@ -22,8 +22,10 @@ use crate::controller::{Controller, EditOrigin};
 use crate::grid::GridSkin;
 use crate::ledger::LedgerSkin;
 use crate::notebook::NotebookSkin;
+use crate::skin::SkinId;
 use crate::skin::{SkinContext, SkinRegistry, SkinResolution, resolve_active_skin, switch_skin};
 use crate::tree::TreeSkin;
+use crate::wire;
 
 use leptos::prelude::*;
 use std::sync::Arc;
@@ -116,8 +118,10 @@ pub fn app_with_transport(
     let active_skin = controller.active_skin;
     let grid_speech = {
         let registry = registry.clone();
-        Memo::new(move |_| matches!(resolve_active_skin(&registry, active_skin.get().as_deref()),
-            SkinResolution::Mount(skin) if skin.id() == dna_calc_model::SkinId::Grid))
+        Memo::new(move |_| {
+            matches!(resolve_active_skin(&registry, active_skin.get().as_deref()),
+            SkinResolution::Mount(skin) if skin.id() == dna_calc_model::SkinId::Grid)
+        })
     };
     let assist = controller.assist;
     let file_input = NodeRef::<leptos::html::Input>::new();
@@ -195,6 +199,47 @@ pub fn app_with_transport(
             key
         },
     );
+
+    // Array details come from the existing worker projection, just as Notebook's do.
+    // A new selection, authored revision or committed value publication dismisses old details.
+    let array_detail = RwSignal::new(None::<wire::BlockDetail>);
+    let array_failure = RwSignal::new(String::new());
+    let detail_epoch = StoredValue::new(0u64);
+    Effect::new(move |_| {
+        let generation = controller.generation.get();
+        let revision = controller.revision.get();
+        controller.selection.track();
+        let at = controller.active_key();
+        let open = result_open.get();
+        detail_epoch.update_value(|n| *n += 1);
+        let asked = detail_epoch.get_value();
+        array_detail.set(None);
+        array_failure.set(String::new());
+        let Some(at) = at.filter(|_| open) else {
+            return;
+        };
+        controller.ask_result(
+            wire::Request::BlockDetail(wire::Area::of(calc_value::GridArea::cell(at))),
+            move |reply| {
+                if detail_epoch.try_get_value() != Some(asked)
+                    || controller.generation.try_get_untracked() != Some(generation)
+                    || controller.revision.try_get_untracked() != Some(revision)
+                    || controller.active_key_untracked() != Some(at)
+                {
+                    return;
+                }
+                match reply {
+                    Ok(wire::Reply::BlockDetail(detail)) => {
+                        array_detail.try_set(Some(detail));
+                    }
+                    Err(reason) => {
+                        array_failure.try_set(format!("Array details unavailable: {reason}"));
+                    }
+                    _ => {}
+                }
+            },
+        );
+    });
 
     // While nothing is edited, the formula bar shows the active cell's input.
     Effect::new(move |_| {
@@ -506,7 +551,7 @@ pub fn app_with_transport(
         <div class="dc-app" data-dnacalc="app" inert=move || controller.replacing.get().then_some("") on:keydown=on_app_key>
             <header class="dc-mast">
                 <strong>"DNA Calc"</strong>
-                <span class="dc-doc" data-dnacalc="document">{document_line}</span>
+                <span class="dc-doc" data-dnacalc="document" data-changed=move ||controller.summary.with(|s|s.changed.to_string()) title=document_line aria-label=document_line tabindex="0">{document_line}</span>
                 <button type="button" data-dnacalc="new" disabled=move || assist.readonly.get() on:click=move |_| request_replace.run(Replacement::New)>"New"</button>
                 <button type="button" data-dnacalc="open" disabled=move || assist.readonly.get() on:click=move |_| { if let Some(input) = file_input.get() { input.click(); } }>"Open"</button>
                     <input
@@ -675,6 +720,19 @@ pub fn app_with_transport(
                     <span class="dc-result-value" data-dnacalc="selected-value">{move || controller.active_cell().map(|cell| cell.text).unwrap_or_default()}</span>
                 </summary>
                 <div class="dc-result-body">
+                    <p role="status" data-dnacalc="array-detail-failure">{move || array_failure.get()}</p>
+                    {move || array_detail.get().filter(|d| d.anchor.is_some() || !d.blockers.is_empty()).map(|detail| view! {
+                        <div data-dnacalc="array-detail">
+                            <p data-dnacalc="array-detail-summary">{detail.summary}</p>
+                            {detail.anchor.and_then(|key|key.cell()).filter(|owner|Some(*owner)!=controller.active_key_untracked()).map(|owner|view!{
+                                <button type="button" data-dnacalc="array-owner" on:click=move |_| controller.reveal(owner,SkinId::Grid)>"Open array anchor"</button>
+                            })}
+                            {detail.blockers.into_iter().filter_map(|area|area.area()).map(|area| {
+                                let label=if area.cell_count()==1 {controller.cell_label(area.first())} else {format!("{}:{}",controller.cell_label(area.first()),cells::address(area.last().row(),area.last().column()))};
+                                view!{<button type="button" data-dnacalc="array-blocker" on:click=move |_| controller.reveal(area.first(),SkinId::Grid)>{format!("Open blocker {label}")}</button>}
+                            }).collect_view()}
+                        </div>
+                    })}
                     <p data-dnacalc="state-explanation">{move || controller.value_state().explanation()}</p>
                     <p data-dnacalc="cell-provenance">{provenance}</p>
                     {move || controller.active_cell().and_then(|cell| cell.error_meaning).map(|meaning| view! { <p data-dnacalc="error-meaning">{meaning}</p> })}

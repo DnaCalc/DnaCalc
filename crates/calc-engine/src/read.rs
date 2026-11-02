@@ -1891,6 +1891,7 @@ impl CachedReadLease {
         progress: &Progress,
         spills: &SpillIndex,
         inputs_cut: u64,
+        range_caller: Option<NodeId>,
     ) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let id = NEXT
@@ -1954,6 +1955,21 @@ impl CachedReadLease {
             }
         }
         cache.refused = refused.clone();
+        if let Some(caller) = range_caller {
+            let excluded = crate::recalc::dirty_closure(state, inputs, [caller].into(), &|node| {
+                crate::recalc::published_areas(state, inputs, node)
+            });
+            // P01's reversed scalar areas expose Empty even with a warm held cache.
+            // Array images retain their measured child values (P05), and excluded
+            // producers in a narrow command retain their ordinary boundary caches.
+            cache.entries.retain(|at, value| {
+                let pending =
+                    progress.is_scheduled(value.node) && !progress.is_evaluated(value.node);
+                let scalar = value.extent.is_none_or(|extent| extent.cell_count() == 1)
+                    && inputs.definitions().array(*at).is_none();
+                !pending || !scalar || excluded.members().binary_search(&value.node).is_ok()
+            });
+        }
         let provisional = state
             .nodes()
             .map(|node| node.anchor())

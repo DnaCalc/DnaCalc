@@ -1080,6 +1080,8 @@ pub enum Action {
     Wait(Check),
     /// Chooses this file (relative to the workspace root) in the file input.
     Upload(&'static str, &'static str),
+    /// Reuse a retained fixture with a different test-owned file identity.
+    UploadAs(&'static str, &'static str, &'static str),
     /// Sets the browser window's size (WebDriver's Set Window Rect): a narrow screen (dc-xib).
     Window(u32, u32),
 }
@@ -1091,6 +1093,7 @@ pub enum Check {
     PlanAbsent(&'static str),
     PlanReady,
     PainterStable,
+    HeaderHeightRetained,
     CanvasInk(&'static str),
     MergedCell(&'static str, u32, u32),
     Editability(&'static str, bool),
@@ -1208,6 +1211,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         );
     }
     let script = match check {
+        Check::HeaderHeightRetained => "var h=document.querySelector('.dc-mast')?.getBoundingClientRect().height,b=window.__dcHeaderHeight;return typeof h==='number'&&typeof b==='number'&&Math.abs(h-b)<1;".to_owned(),
         Check::PainterStable => format!("{READ_PLANS}return JSON.stringify(window.__dcPresentation)===JSON.stringify(plans[0]);"),
         Check::HashMask(address) => {
             let address = serde_json::to_string(address).unwrap();
@@ -1408,6 +1412,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::PlanAbsent(_)
         | Check::PlanReady
         | Check::PainterStable
+        | Check::HeaderHeightRetained
         | Check::CanvasInk(_)
         | Check::ActiveSemantic(_)
         | Check::HashMask(_)
@@ -1482,6 +1487,7 @@ fn describe(check: &Check) -> String {
         Check::Spill(name, first, last) => {
             format!("{name} text clips between columns {first} and {last}")
         }
+        Check::HeaderHeightRetained => "the workbook title retains the header's measured height".to_owned(),
         Check::Before(first, last) => format!("{first} precedes {last} in the rendered layout"),
         Check::Text(name, expected) => format!("{name} is {expected:?}"),
         Check::Starts(name, prefix) => format!("{name} starts with {prefix:?}"),
@@ -2011,7 +2017,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 return Err(reason);
             }
             session.script(&format!(
-                "{READ_PLANS}window.__dcPresentation=plans[0];window.__dcTextBounds=Object.fromEntries(Array.from(document.querySelectorAll('[data-dnacalc=cell]')).map(e=>[e.dataset.cell,e.querySelector('.dc-cell-text')?.getBoundingClientRect().width]));return null;"
+                "{READ_PLANS}window.__dcPresentation=plans[0];window.__dcHeaderHeight=document.querySelector('.dc-mast')?.getBoundingClientRect().height;window.__dcTextBounds=Object.fromEntries(Array.from(document.querySelectorAll('[data-dnacalc=cell]')).map(e=>[e.dataset.cell,e.querySelector('.dc-cell-text')?.getBoundingClientRect().width]));return null;"
             ))?;
             Ok(())
         }
@@ -2059,6 +2065,14 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::Upload(name, path) => {
             let path = ws.root.join(path);
             upload(app, session, name, &path)
+        }
+        Action::UploadAs(name, path, filename) => {
+            if Path::new(filename).file_name().and_then(|n|n.to_str()) != Some(filename) {
+                return Err("Use one test filename".into());
+            }
+            let target = session.downloads.join(filename);
+            fs::copy(ws.root.join(path), &target).map_err(|e|e.to_string())?;
+            upload(app, session, name, &target)
         }
         Action::Window(width, height) => {
             // Chrome keeps a desktop window at least about 500 pixels wide, so its viewport is
@@ -2878,8 +2892,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 73,
-            "the two applications have 73 core cases including formatting, merge, editability and applied-font reflow"
+            total, 86,
+            "the two applications have 86 core cases including clipboard history, array recovery and phone layouts"
         );
     }
 
