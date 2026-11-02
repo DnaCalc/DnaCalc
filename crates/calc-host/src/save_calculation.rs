@@ -339,6 +339,7 @@ impl CalculatingSave {
             pin,
             &self.policy,
             Some(receipt.clone()),
+            true,
         )
         .map_err(CalculatedSaveError::Save)
     }

@@ -108,6 +108,21 @@ impl CompiledPlan {
         })
     }
 
+    /// Every callback in this plan uses the cached observation boundary. This does not
+    /// declare callbacks pure or allow their invocation order to be interchanged.
+    pub fn only_cached_user_calls(&self, bindings: &crate::CallableBindings) -> bool {
+        let mut found = false;
+        for instruction in self.blocks.iter().flatten() {
+            if let Instruction::UserCall { binding, .. } = instruction {
+                found = true;
+                if !binding.is_some_and(|binding| bindings.uses_cached_reads(binding)) {
+                    return false;
+                }
+            }
+        }
+        found
+    }
+
     /// References used only as direct arguments of callbacks which explicitly admit
     /// provisional entries. They remain invalidation edges, but a measured range order
     /// may enter that callback before its producer. Expression arguments keep their order.

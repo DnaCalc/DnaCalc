@@ -17,6 +17,11 @@ pub enum SaveFailed {
     Refused(SaveRefusal),
     /// The write failed.
     Write(WriteError),
+    Cancelled,
+    Operation {
+        owner: &'static str,
+        reason: String,
+    },
 }
 
 impl fmt::Display for SaveFailed {
@@ -24,11 +29,53 @@ impl fmt::Display for SaveFailed {
         match self {
             SaveFailed::Refused(refusal) => write!(f, "the save was refused: {refusal}"),
             SaveFailed::Write(error) => write!(f, "the write failed: {error}"),
+            SaveFailed::Cancelled => f.write_str("the BeforeSave handler cancelled the save"),
+            SaveFailed::Operation { owner, reason } => write!(f, "{reason} ({owner})"),
         }
     }
 }
 
 impl std::error::Error for SaveFailed {}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SaveOperation {
+    Save,
+    SaveAs,
+    SaveCopyAs,
+}
+
+/// A registered event owner returns one authored batch before the serialization pin.
+/// Loading a VBA project does not by itself register an event owner.
+pub trait BeforeSaveHandler {
+    fn before_save(
+        &mut self,
+        host: &HostState,
+        operation: SaveOperation,
+    ) -> Result<BeforeSaveOutcome, String>;
+}
+
+#[derive(Debug, Default)]
+pub struct BeforeSaveOutcome {
+    pub edits: Vec<crate::CellEdit>,
+    pub cancel: bool,
+}
+
+/// P06's measured command settings, supplied by the application/automation owner.
+/// Disabled worksheets are session policy; Excel restores them enabled on reopen.
+pub struct ExcelSaveContext<'a> {
+    pub operation: SaveOperation,
+    pub calculate_before_save: bool,
+    pub active_sheet: calc_value::SheetId,
+    pub disabled_sheets: &'a [calc_value::SheetId],
+    pub before_save: Option<&'a mut dyn BeforeSaveHandler>,
+}
+
+pub(crate) fn operation_failed(reason: impl Into<String>) -> SaveFailed {
+    SaveFailed::Operation {
+        owner: "dc-hsa5.4",
+        reason: reason.into(),
+    }
+}
 
 /// What a noncalculating save may retain. Dirty array topology is not yet permitted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -118,6 +165,16 @@ pub fn prepare_save_with_cache_policy(
     policy: &SavePolicy,
     cache_policy: SaveCachePolicy,
 ) -> Result<PreparedSave, SaveFailed> {
+    prepare_save_operation(host, policy, cache_policy, false, None)
+}
+
+pub(crate) fn prepare_save_operation(
+    host: &HostState,
+    policy: &SavePolicy,
+    cache_policy: SaveCachePolicy,
+    calculate_before_save: bool,
+    calculation: Option<calc_engine::CompletionReceipt>,
+) -> Result<PreparedSave, SaveFailed> {
     let pin = SavePin {
         destination: calc_engine::contract::ResultDestination::Live,
         cache_policy,
@@ -134,7 +191,8 @@ pub fn prepare_save_with_cache_policy(
         host.calc_mode(),
         pin,
         policy,
-        None,
+        calculation,
+        calculate_before_save,
     )
 }
 
@@ -147,6 +205,7 @@ pub(crate) fn prepare_image(
     pin: SavePin,
     policy: &SavePolicy,
     calculation: Option<calc_engine::contract::CompletionReceipt>,
+    calculate_before_save: bool,
 ) -> Result<PreparedSave, SaveFailed> {
     let cache_policy = pin.cache_policy;
     let stale = engine
@@ -215,12 +274,31 @@ pub(crate) fn prepare_image(
             }
         }
     }
+    // TABLE cells have graph nodes and actual calculated results, while their authored
+    // definition remains in the codec rather than in CellInput::Formula.
+    for node in engine.nodes() {
+        let at = node.anchor();
+        if definitions.data_table_containing(at).is_none() || stale.binary_search(&at).is_ok() {
+            continue;
+        }
+        if let Some(FormulaResult::Calculated { value, calculation }) = engine.result(at)
+            && !calculation.held_by_circular_rule()
+            && let Some(value) = cached(value.core_ref())
+        {
+            values.insert(at, value);
+        }
+    }
     // Rows or columns inserted or deleted since the open: the save moves the package's rows,
     // columns and what lies on them, as the model moved them (dc-jhn).
     let cache_complete = dirty_caches.is_empty()
+        && calculation.as_ref().is_none_or(|receipt| {
+            receipt.outcome == calc_engine::contract::CompletionOutcome::Complete
+        })
         && !engine.needs_recalc(model)
         && pin.active_calculation.is_none()
-        && definitions.unloaded_cells().next().is_none()
+        && definitions.unloaded_cells().all(|(at, why)| {
+            matches!(why, calc_doc_model::UnloadedCell::DataTable) && values.contains_key(&at)
+        })
         && model.sheets().iter().all(|sheet| {
             model
                 .sheet_cells(sheet.id())
@@ -242,7 +320,7 @@ pub(crate) fn prepare_image(
                 dirty_caches,
                 cache_complete,
                 mode,
-                calculation.is_some(),
+                calculate_before_save,
             )
         } else {
             snapshot
