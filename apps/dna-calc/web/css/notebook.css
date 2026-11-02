@@ -31,6 +31,9 @@
 .dc-block-editor textarea{font:13px ui-monospace,Consolas,monospace}
 .dc-block-source{display:block;margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dna-ink-2)}
 .dc-block .dc-value{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+.dc-block-menu{margin-top:6px;color:var(--dna-ink-2)}
+.dc-block-menu summary{cursor:pointer;width:fit-content;padding:4px 0}
+.dc-block-menu summary:focus-visible{outline:2px solid var(--dna-accent);outline-offset:2px}
 .dc-block-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .dc-block-detail{border-top:1px solid var(--dna-line);margin-top:8px;padding-top:4px;color:var(--dna-ink-2);overflow-wrap:anywhere}
 .dc-array-preview{display:flex;gap:8px;flex-wrap:wrap;font:12px ui-monospace,Consolas,monospace;margin:8px 0}

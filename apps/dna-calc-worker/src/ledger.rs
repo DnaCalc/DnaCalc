@@ -16,7 +16,7 @@ pub fn entry(cell: &ProjectedCell, label: String) -> Entry {
     Entry {
         at: cell.at(),
         label,
-        formula: cells::input_text(cell.input()),
+        formula: cells::display_input(cell.input()),
         value: if shown.provenance == Provenance::Refused {
             "refused".to_owned()
         } else {

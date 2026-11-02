@@ -43,7 +43,7 @@ mod refops;
 mod run;
 
 /// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.
-pub(crate) use compile::file_unprefixed;
+pub(crate) use compile::{binding_call, file_unprefixed};
 pub use compile::{
     CompileError, compile, compile_loaded, compile_loaded_with, compile_loaded_with_bindings,
     compile_loaded_with_functions, compile_with, compile_with_functions,

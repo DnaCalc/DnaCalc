@@ -1,6 +1,7 @@
-//! Text for people: values, cells, areas and calc-fml's refusals as both apps show them.
+//! Text for people: formulas, values, cells, areas and calc-fml's refusals in both apps.
 //!
-//! These are inspection labels, never parsed back. A number is shown as the shortest decimal
+//! Value and location labels are never parsed back. Formula display keeps syntax roles and its
+//! callers retain the original stored text until a real edit. A number uses the shortest decimal
 //! that round-trips its binary64, not in Excel's General format: number formats are calc-fml's
 //! (bead dc-m3u) and reach OneCalc through bead onecalc-m2.1. A cell is labelled `Sheet2!B3`,
 //! with the sheet name quoted when reference text needs it. The names come through
@@ -11,6 +12,9 @@ use calc_fml::syntax::TextSpan;
 use calc_fml::{CompileError, EvalFault};
 use calc_func::value::{CalcValue, CoreValue, WorksheetErrorCode};
 use calc_func::{FunctionFault, FunctionId, Notation, catalogue};
+
+/// Recognized function calls use their entry spelling; stored text is unchanged.
+pub use calc_fml::assist::display_formula as formula;
 
 /// A value with its type: `number 7`, `text "ax"`, `logical TRUE`, `error #N/A`, `blank`.
 pub fn value(value: &CalcValue) -> String {

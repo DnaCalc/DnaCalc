@@ -559,6 +559,29 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Starts("provenance", "calculated in Sheet1!C7"),
         ],
     },
+    Case {
+        name: "friendly functions: imported session keeps saved call spelling while showing the entry spelling",
+        actions: &[
+            Action::Click("fixture-tools"),
+            Action::Into("fixture-json", "{\"version\": 1, \"formula\": \"=_xlfn.SEQUENCE(2,2)\", \"formula_cell\": \"H1\", \"effective_anchor\": \"Sheet1!H1\", \"sheets\": [\"Sheet1\"], \"grid\": [\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"], \"inputs\": [], \"legacy\": false, \"locale\": \"en-US\", \"number_format\": \"General\", \"vba_draft\": \"\", \"vba_loaded\": null}"),
+            Action::Click("fixture-restore"),
+        ],
+        checks: &[Check::Value("formula","=SEQUENCE(2,2)"),Check::Array(&[&["1","2"],&["3","4"]]),Check::Text("fixture-state","Unchanged snapshot")],
+    },
+    Case {
+        name: "friendly functions: an unchanged field exports the original authored session text",
+        actions: &[Action::Click("formula"),Action::Click("fixture-status"),Action::ClearDownloads,Action::Click("fixture-export")],
+        checks: &[Check::DownloadedJson("onecalc-session.json","/formula","=_xlfn.SEQUENCE(2,2)"),Check::Value("formula","=SEQUENCE(2,2)"),Check::Text("fixture-state","Unchanged snapshot")],
+    },
+    Case {
+        name: "friendly functions: editing and sharing retains the new entry and actual calculation",
+        actions: &[
+            Action::Formula("=SEQUENCE(1,3)"),Action::ClearDownloads,Action::Click("fixture-export"),
+            Action::Click("fixture-share"),Action::OpenFieldLink("share-link"),
+        ],
+        checks: &[Check::DownloadedJson("onecalc-session.json","/formula","=SEQUENCE(1,3)"),Check::Value("formula","=SEQUENCE(1,3)"),Check::Array(&[&["1","2","3"]]),Check::Text("fixture-state","Unchanged snapshot")],
+    },
+
 ];
 
 pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
@@ -590,4 +613,5 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         core: 1,
         setup: &[],
     },
+    CaseGroup {name:"friendly-functions",start:52,end:55,core:3,setup:&[]},
 ];

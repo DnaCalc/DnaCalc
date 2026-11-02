@@ -44,7 +44,7 @@ pub fn find(book: &Workbook, options: &wire::FindOptions) -> Result<wire::Found,
             wire::FoundRow {
                 at: wire::Key::of(at),
                 label: dna_formula_ui::display::cell(&cells::WorkbookNames(host), at),
-                source: cells::input_text(cell.input()),
+                source: cells::display_input(cell.input()),
                 display: shown.text,
                 provenance: shown.provenance,
                 hidden: host
