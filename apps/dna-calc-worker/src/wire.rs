@@ -54,7 +54,11 @@ pub fn cell_of(
         format: shown.format,
         color: shown.color.clone(),
         conditional: shown.conditional.clone(),
-        input,
+        input: if shown.formula {
+            dna_formula_ui::display::formula(&input)
+        } else {
+            input
+        },
         why,
         owner: crate::cells::refusal_owner(projected),
         error_meaning: crate::cells::error_meaning(projected),

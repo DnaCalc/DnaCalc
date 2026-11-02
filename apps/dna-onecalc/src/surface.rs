@@ -414,9 +414,19 @@ fn surface() -> impl IntoView {
     };
     let initial = from_link.ok().flatten().unwrap_or_default();
     let session = StoredValue::new_local(initial.session().expect("a validated initial fixture"));
-    let formula = RwSignal::new(initial.formula.clone());
+    let retained_formula = RwSignal::new(initial.formula.clone());
+    let formula = RwSignal::new(display::formula(&initial.formula));
     let assist = FormulaAssist::new(formula);
-    assist.start_edit(initial.formula.clone());
+    assist.start_edit(formula.get_untracked());
+    let authored_formula = Memo::new(move |_| {
+        let draft = formula.get();
+        let retained = retained_formula.get();
+        if draft == display::formula(&retained) {
+            retained
+        } else {
+            draft
+        }
+    });
     let formula_cell = RwSignal::new(initial.formula_cell.clone());
     let form_choice = RwSignal::new(if initial.legacy {
         FormulaForm::Legacy
@@ -515,7 +525,7 @@ fn surface() -> impl IntoView {
         shown.with(|_| ());
         FormulaFixture {
             version: 1,
-            formula: formula.get(),
+            formula: authored_formula.get(),
             formula_cell: formula_cell.get(),
             effective_anchor: session.with_value(|s| display::cell(s, s.formula_cell())),
             sheets: sheets.get(),
@@ -574,8 +584,10 @@ fn surface() -> impl IntoView {
                         "No VBA module loaded.".into()
                     });
                     vba_generation.update(|n| *n += 1);
-                    formula.set(next.formula.clone());
-                    assist.start_edit(next.formula);
+                    retained_formula.set(next.formula.clone());
+                    let friendly = display::formula(&next.formula);
+                    formula.set(friendly.clone());
+                    assist.start_edit(friendly);
                     sheet_entry.set(String::new());
                     sheet_status.set(String::new());
                     share_link.set(String::new());

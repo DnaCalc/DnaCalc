@@ -864,11 +864,14 @@ impl<'c> Lowering<'c> {
         let argc = arguments.len();
         let spelling = file_unprefixed(name.text());
         let prefixed = spelling.len() != name.text().len();
-        if spelling.eq_ignore_ascii_case("LET") {
-            return self.let_call(span, &arguments, tail, block, place, tasks);
-        }
-        if spelling.eq_ignore_ascii_case("LAMBDA") {
-            return self.lambda(span, &arguments, block, place, tasks);
+        match binding_call(spelling) {
+            Some(BindingCall::Let) => {
+                return self.let_call(span, &arguments, tail, block, place, tasks);
+            }
+            Some(BindingCall::Lambda) => {
+                return self.lambda(span, &arguments, block, place, tasks);
+            }
+            None => {}
         }
         if prefixed
             && (spelling.eq_ignore_ascii_case("SINGLE")
@@ -2514,6 +2517,22 @@ fn file_function(spelling: &str) -> &str {
         "FIELDVALUE"
     } else {
         file_unprefixed(spelling)
+    }
+}
+
+pub(crate) enum BindingCall {
+    Let,
+    Lambda,
+}
+
+/// Calls which introduce local bindings rather than dispatching through the catalogue.
+pub(crate) fn binding_call(spelling: &str) -> Option<BindingCall> {
+    if spelling.eq_ignore_ascii_case("LET") {
+        Some(BindingCall::Let)
+    } else if spelling.eq_ignore_ascii_case("LAMBDA") {
+        Some(BindingCall::Lambda)
+    } else {
+        None
     }
 }
 

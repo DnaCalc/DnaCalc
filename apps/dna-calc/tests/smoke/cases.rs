@@ -5363,7 +5363,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Text("canvas-inspector-value", "#SPILL!"),
             Check::TextContains("canvas-reason", "cannot spill"),
             Check::Text("result-state", "Worksheet error"),
-            Check::Value(BAR, "=_xlfn.SEQUENCE(3,2)"),
+            Check::Value(BAR, "=SEQUENCE(3,2)"),
         ],
     },
     Case {
@@ -5911,9 +5911,10 @@ pub(crate) const CALC_CASES: &[Case] = &[
     },
     Case {
         name: "Notebook: source navigation shares selection and source with Grid",
-        actions: &[Action::Click(
-            "[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-grid]",
-        )],
+        actions: &[
+            Action::OpenDetails("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-actions]"),
+            Action::Click("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-grid]"),
+        ],
         checks: &[
             Check::Value("name-box", "A1"),
             Check::Value(BAR, "'=visible prose"),
@@ -5928,6 +5929,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("name-box", "C1\u{E007}"),
             Action::Into(BAR, "=SEQUENCE(3,2)\u{E007}"),
             Action::Click("skin-notebook"),
+            Action::OpenDetails("[data-dnacalc=block][data-cell=C1] [data-dnacalc=block-actions]"),
             Action::Click("[data-dnacalc=block][data-cell=C1] [data-dnacalc=block-details]"),
         ],
         checks: &[
@@ -6953,6 +6955,107 @@ pub(crate) const CALC_CASES: &[Case] = &[
         actions:&[Action::Into(BAR,"18\u{E007}")],
         checks:&[Check::Fits,Check::HeaderHeightRetained,Check::Name("document","November forecast with a very long descriptive workbook name and review notes.xlsx (changed)"),Check::Attr("document","data-changed","true"),Check::Reachable("document"),Check::Reachable("save"),Check::Reachable("redo")],
     },
+    Case {
+        name: "friendly functions: imported modern calls use entry spelling without changing their values",
+        actions: &[
+            Action::Into(BAR, "=_xlfn.SEQUENCE(2,2)\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("Book1.xlsx"),
+            Action::DiscardReplacement,
+        ],
+        checks: &[Check::Value(BAR, "=SEQUENCE(2,2)"), Check::Text(cell!("B2"), "4"), Check::PlanCell("A1", "provenance", "calculated")],
+    },
+    Case {
+        name: "friendly functions: every formula skin uses the same display source",
+        actions: &[
+            Action::Click("skin-ledger"),
+            Action::Wait(Check::Text("[data-dnacalc=ledger-row] [data-field=formula]", "=SEQUENCE(2,2)")),
+            Action::Click("skin-canvas"),
+            Action::Wait(Check::Text("canvas-formula", "=SEQUENCE(2,2)")),
+            Action::Click("skin-notebook"),
+            Action::Click("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-select]"),
+        ],
+        checks: &[Check::Value("[data-dnacalc=block][data-cell=A1] textarea", "=SEQUENCE(2,2)"), Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]", "1")],
+    },
+    Case {
+        name: "friendly functions: accepting an unchanged displayed formula preserves the saved document",
+        actions: &[
+            Action::Keys("[data-dnacalc=block][data-cell=A1] textarea", "\u{E007}"),
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys(BAR, "\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[Check::Text("document", "Book1.xlsx"), Check::Value(BAR, "=SEQUENCE(2,2)"), Check::Text(cell!("B2"), "4")],
+    },
+    Case {
+        name: "friendly functions: strings retain their spelling through editing and history",
+        actions: &[
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Into(BAR, "=\"_xlfn.SEQUENCE(\"&_xlfn.SUM(1,2)\u{E007}"),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Click("undo"),
+            Action::Wait(Check::PlanAbsent("D1")),
+            Action::Click("redo"),
+            Action::Into("name-box", "D1\u{E007}"),
+        ],
+        checks: &[Check::Value(BAR, "=\"_xlfn.SEQUENCE(\"&SUM(1,2)"), Check::Text(cell!("D1"), "_xlfn.SEQUENCE(3")],
+    },
+    Case {
+        name: "Notebook actions: inactive blocks retain visible source results and provenance with folded controls",
+        actions: &[
+            Action::Window(390,844),
+            Action::Into(BAR, "=2+3\u{E007}"),
+            Action::Into(BAR, "=NoSheet!A1\u{E007}"),
+            Action::Click("skin-notebook"),
+            Action::Click("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-select]"),
+        ],
+        checks: &[
+            Check::Attr("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-actions]","open",""),
+            Check::Absent("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-actions][open]"),
+            Check::Count("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-details]",1),
+            Check::Rendered("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-details]",false),
+            Check::Rendered("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-details]",true),
+            Check::Rendered("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-value]",true),
+            Check::Text("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-source]","=NoSheet!A1"),
+            Check::Text("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-value]","5"),
+            Check::Attr("[data-dnacalc=block][data-cell=A2]","data-provenance","refused"),
+            Check::Fits,
+        ],
+    },
+    Case {
+        name: "Notebook actions: inactive controls open by keyboard and selection unfolds the chosen block",
+        actions: &[
+            Action::Keys("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-actions] summary","\u{E007}"),
+            Action::Wait(Check::Rendered("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-details]",true)),
+            Action::Wait(Check::Reachable("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-details]")),
+            Action::Click("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-select]"),
+            Action::Window(1024,768),
+        ],
+        checks: &[
+            Check::Attr("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-actions]","open",""),
+            Check::Absent("[data-dnacalc=block][data-cell=A1] [data-dnacalc=block-actions][open]"),
+            Check::Value("[data-dnacalc=block][data-cell=A2] textarea","=NoSheet!A1"),
+            Check::Fits,
+        ],
+    },
+    Case {
+        name: "Notebook actions: shared edit Escape retains the selected block focus and source",
+        actions: &[
+            Action::Into("[data-dnacalc=block][data-cell=A2] textarea","=17"),
+            Action::Keys("[data-dnacalc=block][data-cell=A2] textarea",ESCAPE),
+            Action::Window(1440,1000),
+        ],
+        checks: &[
+            Check::Focused("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-select]"),
+            Check::Value(BAR,"=NoSheet!A1"),
+            Check::Attr("[data-dnacalc=block][data-cell=A2]","data-provenance","refused"),
+            Check::Reachable("[data-dnacalc=block][data-cell=A2] [data-dnacalc=block-details]"),
+        ],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -7635,4 +7738,6 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"array-recovery",start:490,end:495,core:5,setup:&[]},
     CaseGroup {name:"phone-ledger",start:495,end:498,core:3,setup:&[]},
     CaseGroup {name:"phone-title",start:498,end:500,core:2,setup:&[]},
+    CaseGroup {name:"friendly-functions",start:500,end:504,core:4,setup:&[]},
+    CaseGroup {name:"notebook-actions",start:504,end:507,core:3,setup:&[]},
 ];

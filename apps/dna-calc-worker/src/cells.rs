@@ -159,6 +159,16 @@ pub fn shown(
 /// otherwise read it as something else), `TRUE`/`FALSE`, an error by its spelling.
 pub use calc_host::search::entry_text as input_text;
 
+/// Presentation source only. Clipboard, search and saved inputs retain canonical text.
+pub fn display_input(input: Option<&calc_host::CellInput>) -> String {
+    let text = input_text(input);
+    if matches!(input, Some(calc_host::CellInput::Formula(_))) {
+        display::formula(&text)
+    } else {
+        text
+    }
+}
+
 /// Why the engine refused a formula, in words.
 pub fn refusal_text(host: &HostState, refusal: &NotModeled) -> String {
     match refusal {

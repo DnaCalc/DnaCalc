@@ -37,7 +37,7 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
                             } else {
                                 shown.text
                             };
-                            (cells::input_text(cell.input()), value, shown.provenance)
+                            (cells::display_input(cell.input()), value, shown.provenance)
                         }
                         None => (String::new(), String::new(), Provenance::Empty),
                     };
@@ -90,7 +90,7 @@ pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wi
         Some(cell) => {
             let shown = cells::shown(cell, profile.as_ref(), book.cell_format(center));
             (
-                cells::input_text(cell.input()),
+                cells::display_input(cell.input()),
                 shown.text,
                 match cells::error_meaning(cell) {
                     Some(meaning) => format!("{}; {meaning}", cells::provenance_text(host, cell)),

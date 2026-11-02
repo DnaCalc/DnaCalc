@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (73 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (96 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1088,6 +1088,10 @@ pub enum Action {
 
 /// What a case expects the page to show. A name is a role or a selector ([`select`]).
 pub enum Check {
+    /// Browser visibility, including closed native disclosure contents (not viewport clipping).
+    Rendered(&'static str, bool),
+    /// Read an actual session-owned JSON download.
+    DownloadedJson(&'static str, &'static str, &'static str),
     /// Exact semantic field from the renderer's live RenderPlan.
     PlanCell(&'static str, &'static str, &'static str),
     PlanAbsent(&'static str),
@@ -1210,7 +1214,14 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             None,
         );
     }
+    if let Check::DownloadedJson(name, pointer, _) = check {
+        let bytes = fs::read(session.downloads.join(name)).map_err(|e| e.to_string())?;
+        let value: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        return Ok(value.pointer(pointer).cloned().unwrap_or(Value::Null));
+    }
     let script = match check {
+        Check::Rendered(name, _) => format!("var e={};return e?e.checkVisibility():false;",q(name)),
+        Check::DownloadedJson(..) => unreachable!(),
         Check::HeaderHeightRetained => "var h=document.querySelector('.dc-mast')?.getBoundingClientRect().height,b=window.__dcHeaderHeight;return typeof h==='number'&&typeof b==='number'&&Math.abs(h-b)<1;".to_owned(),
         Check::PainterStable => format!("{READ_PLANS}return JSON.stringify(window.__dcPresentation)===JSON.stringify(plans[0]);"),
         Check::HashMask(address) => {
@@ -1356,6 +1367,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
 
 fn satisfied(check: &Check, seen: &Value) -> bool {
     match check {
+        Check::Rendered(_, expected) => seen.as_bool() == Some(*expected),
         Check::PinnedCell
         | Check::ViewRetained
         | Check::PresentationChanged(_)
@@ -1367,7 +1379,8 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .zip(v[1].as_f64())
                 .is_some_and(|(need, have)| need <= have + 1.0)
         }),
-        Check::Text(_, expected)
+        Check::DownloadedJson(_, _, expected)
+        | Check::Text(_, expected)
         | Check::PlanCell(_, _, expected)
         | Check::Value(_, expected)
         | Check::Attr(_, _, expected)
@@ -1452,6 +1465,8 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
 
 fn describe(check: &Check) -> String {
     match check {
+        Check::Rendered(name, expected) => format!("the browser reports {name} rendered: {expected}"),
+        Check::DownloadedJson(name, pointer, expected) => format!("download {name} {pointer} is {expected:?}"),
         Check::PlanCell(address, field, expected) => {
             format!("RenderPlan {address}.{field} is {expected:?}")
         }
@@ -2892,8 +2907,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 86,
-            "the two applications have 86 core cases including clipboard history, array recovery and phone layouts"
+            total, 96,
+            "the two applications have 96 core cases including friendly formulas and folded Notebook actions"
         );
     }
 

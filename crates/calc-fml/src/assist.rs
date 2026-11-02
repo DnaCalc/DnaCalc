@@ -14,6 +14,97 @@
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, TokenKind, lex};
 use calc_func::{FunctionCallTarget, Notation, catalogue};
 
+/// Friendly spelling of recognized function calls, without changing stored formula text.
+/// Tokens keep their syntax roles: strings, sheet/table names and defined names are retained.
+/// Incomplete or unsupported syntax stays exactly as authored.
+pub fn display_formula(text: &str) -> String {
+    if !text.trim_start().starts_with('=')
+        || !text
+            .as_bytes()
+            .windows(6)
+            .any(|v| v.eq_ignore_ascii_case(b"_xlfn."))
+    {
+        return text.to_owned();
+    }
+    let tree = crate::parse_formula(text);
+    if !tree.diagnostics().is_empty() {
+        return text.to_owned();
+    }
+    let mut changes = std::collections::BTreeMap::new();
+    let mut pending = vec![tree.root()];
+    while let Some(node) = pending.pop() {
+        if node.kind() == SyntaxKind::CallExpr
+            && let Some(SyntaxChild::Token(token)) = node.children().first()
+        {
+            let spelling = token.text();
+            let friendly = crate::eval::file_unprefixed(spelling);
+            if friendly != spelling
+                && (function_named(spelling).is_some()
+                    || crate::eval::binding_call(friendly).is_some())
+            {
+                changes.insert(token.span().start, friendly.to_owned());
+            }
+        }
+        pending.extend(node.child_nodes());
+    }
+    let mut shown = String::with_capacity(text.len());
+    for token in tree.tokens() {
+        for trivia in token.leading_trivia() {
+            shown.push_str(trivia.text());
+        }
+        shown.push_str(
+            changes
+                .get(&token.span().start)
+                .map_or(token.text(), String::as_str),
+        );
+    }
+    shown
+}
+
+#[cfg(test)]
+mod formula_display_tests {
+    use super::display_formula;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn display_changes_only_known_call_tokens_and_preserves_lossless_source() {
+        for (source, expected) in [
+            ("=_xlfn.SEQUENCE(3,2)", "=SEQUENCE(3,2)"),
+            (
+                "= _XLFN._XLWS.FILTER( A1:A3 , A1:A3>0 ) ",
+                "= FILTER( A1:A3 , A1:A3>0 ) ",
+            ),
+            (
+                "=\"😀 _xlfn.SEQUENCE(\"&_xlfn.SUM(A1)+_xlfn.foo+'_xlfn.SUM'!A2",
+                "=\"😀 _xlfn.SEQUENCE(\"&SUM(A1)+_xlfn.foo+'_xlfn.SUM'!A2",
+            ),
+            (
+                "=_xlfn.LET(_xlpm.x,2,_xlpm.x+_xlfn.SEQUENCE(2))",
+                "=LET(_xlpm.x,2,_xlpm.x+SEQUENCE(2))",
+            ),
+            (
+                "=_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1)(2)",
+                "=LAMBDA(_xlpm.x,_xlpm.x+1)(2)",
+            ),
+            ("=_xlfn.SUM+_xlfn.SEQUENCE", "=_xlfn.SUM+_xlfn.SEQUENCE"),
+            ("=SUM(_xlfn.Table[_xlfn.SEQUENCE])", "=SUM(_xlfn.Table[_xlfn.SEQUENCE])"),
+            ("=_xlfn.UNKNOWN(1)", "=_xlfn.UNKNOWN(1)"),
+            ("=_xlfn.SEQUENCE(", "=_xlfn.SEQUENCE("),
+            ("_xlfn.SEQUENCE(3)", "_xlfn.SEQUENCE(3)"),
+            (
+                "='_xlfn.SEQUENCE'!A1+_xlfn._xlws.FILTER(A1:A3,A1:A3)",
+                "='_xlfn.SEQUENCE'!A1+FILTER(A1:A3,A1:A3)",
+            ),
+        ] {
+            let stored = source.to_owned();
+            let shown = display_formula(&stored);
+            assert_eq!(shown, expected, "{source}");
+            assert_eq!(stored, source);
+            assert_eq!(display_formula(&shown), shown);
+        }
+    }
+}
+
 /// What a run of formula text is, for highlighting.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TokenRole {

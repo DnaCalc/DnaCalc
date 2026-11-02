@@ -4154,3 +4154,189 @@ mod async_contract_tests {
         assert_eq!(reopened.shown(&cell).text, "42");
     }
 }
+#[cfg(test)]
+mod friendly_formula_tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn friendly_sources_share_worker_projections_and_preserve_xlsx_syntax() {
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let at = CellKey::new(sheet, 1, 1).unwrap();
+        let raw = "=_xlfn.SEQUENCE(2,2)";
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(at),
+                    text: raw.into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        for _ in 0..100 {
+            if !server.has_pending_calculation() {
+                break;
+            }
+            server.advance_calculation();
+        }
+        let projected = server.book().cell(at).unwrap();
+        assert_eq!(cells::input_text(projected.input()), raw);
+        assert_eq!(calc_host::search::entry_text(projected.input()), raw);
+        let captured = match server
+            .execute_current(
+                Request::Capture {
+                    area: Area::of(GridArea::cell(at)),
+                    keep: None,
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        {
+            Reply::Clipboard(c) => {
+                assert_eq!(c.text, "1");
+                c
+            }
+            other => panic!("{other:?}"),
+        };
+        let pasted = CellKey::new(sheet, 1, 5).unwrap();
+        let preview = match server
+            .execute_current(
+                Request::PreparePaste {
+                    source: wire::PasteSource::Internal {
+                        token: captured.token,
+                        cut: false,
+                    },
+                    to: Area::of(GridArea::cell(pasted)),
+                    mode: wire::PasteMode::Formulas,
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        {
+            Reply::PastePreview(p) => p,
+            other => panic!("{other:?}"),
+        };
+        server
+            .execute_current(Request::Intent(Intent::ApplyPaste { id: preview.id }), None)
+            .reply
+            .unwrap();
+        assert_eq!(
+            cells::input_text(server.book().host().model().cell(pasted)),
+            raw
+        );
+        match server
+            .execute_current(
+                Request::Find(wire::FindOptions {
+                    sheet: Sheet::of(sheet),
+                    areas: Vec::new(),
+                    text: "_xlfn.SEQUENCE".into(),
+                    case_sensitive: true,
+                    whole: false,
+                    wildcards: false,
+                    formulas: true,
+                    scope: wire::FindScope::Sheet,
+                }),
+                None,
+            )
+            .reply
+            .unwrap()
+        {
+            Reply::Found(Ok(found)) => {
+                assert_eq!(found.rows.len(), 2);
+                assert!(found.rows.iter().all(|r| r.source == "=SEQUENCE(2,2)"));
+            }
+            other => panic!("{other:?}"),
+        }
+        let shown = wire::cell_of(
+            &server.book().shown(&projected),
+            cells::input_text(projected.input()),
+            cells::provenance_text(server.book().host(), &projected),
+            &projected,
+        );
+        assert_eq!(shown.input, "=SEQUENCE(2,2)");
+        assert_eq!(shown.text, "1");
+        assert_eq!(shown.provenance, cells::Provenance::Calculated);
+        match server
+            .execute_current(
+                Request::Notebook {
+                    sheet: Sheet::of(sheet),
+                    page: 0,
+                    reveal: Some(Key::of(at)),
+                    placement: None,
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        {
+            Reply::Notebook(n) => assert_eq!(n.blocks[0].cell.as_ref().unwrap().input, shown.input),
+            other => panic!("{other:?}"),
+        }
+        match server
+            .execute_current(
+                Request::Canvas {
+                    center: Key::of(at),
+                    back: 1,
+                    forward: 1,
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        {
+            Reply::Canvas(c) => {
+                assert_eq!(c.inspector.input, shown.input);
+                let center = c.chips.iter().find(|chip| chip.cell == Some(Key::of(at)))
+                    .expect("the trace includes its selected center cell");
+                assert_eq!(center.input, shown.input);
+            }
+            other => panic!("{other:?}"),
+        }
+        match server
+            .execute_current(
+                Request::Ledger {
+                    sheet: Some(Sheet::of(sheet)),
+                    filter: "all".into(),
+                    text: String::new(),
+                    sort: "address".into(),
+                    page: 0,
+                    active: Some(Key::of(at)),
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        {
+            Reply::Ledger(l) => assert_eq!(l.page[0].formula, shown.input),
+            other => panic!("{other:?}"),
+        }
+        let saved = server
+            .execute_current(Request::Save, None)
+            .bytes
+            .expect("actual xlsx bytes");
+        let mut reopened = Server::new();
+        reopened
+            .execute_current(
+                Request::Open {
+                    name: "Book1.xlsx".into(),
+                },
+                Some(saved),
+            )
+            .reply
+            .unwrap();
+        let sheet = reopened.book().sheets()[0].id;
+        let at = CellKey::new(sheet, 1, 1).unwrap();
+        assert_eq!(
+            cells::input_text(reopened.book().host().model().cell(at)),
+            raw
+        );
+        assert_eq!(
+            cells::display_input(reopened.book().host().model().cell(at)),
+            shown.input
+        );
+    }
+}

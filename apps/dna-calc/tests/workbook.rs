@@ -2553,7 +2553,11 @@ fn dc_971p_13__canvas_projects_cross_sheet_ranges_cycles_omissions_and_blocked_s
     assert!(book.enter(at(1, 3), "=SEQUENCE(3,2)").accepted());
     let blocked = view_model(&book, at(1, 3), 1, 1);
     assert_eq!(blocked.inspector.value, "#SPILL!");
-    assert_eq!(blocked.inspector.input, "=_xlfn.SEQUENCE(3,2)");
+    assert_eq!(blocked.inspector.input, "=SEQUENCE(3,2)");
+    assert_eq!(
+        calc_host::search::entry_text(book.host().model().cell(at(1, 3))),
+        "=_xlfn.SEQUENCE(3,2)"
+    );
     assert!(blocked.inspector.why.contains("cannot spill"));
     // A cycle is followed once per node rather than recursively expanding forever.
     assert!(book.enter(at(10, 1), "=B10").accepted());
