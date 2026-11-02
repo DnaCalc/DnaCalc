@@ -108,6 +108,59 @@ impl CompiledPlan {
         })
     }
 
+    /// References used only as direct arguments of callbacks which explicitly admit
+    /// provisional entries. They remain invalidation edges, but a measured range order
+    /// may enter that callback before its producer. Expression arguments keep their order.
+    pub fn provisional_references(&self, functions: &crate::CallableBindings) -> Vec<usize> {
+        let mut direct = vec![false; self.references.len()];
+        let mut ordinary = vec![false; self.references.len()];
+        for block in &self.blocks {
+            let mut admitted = vec![false; block.len()];
+            for (at, instruction) in block.iter().enumerate() {
+                if let Instruction::UserCall {
+                    binding: Some(binding),
+                    argc,
+                    ..
+                } = instruction
+                    && functions.permits_provisional(*binding)
+                    && let Some(first) = at.checked_sub(*argc)
+                    && block[first..at].iter().all(|argument| {
+                        matches!(
+                            argument,
+                            Instruction::Reference(_)
+                                | Instruction::Literal(_)
+                                | Instruction::Omitted
+                        )
+                    })
+                {
+                    admitted[first..at].fill(true);
+                }
+            }
+            for (at, instruction) in block.iter().enumerate() {
+                if let Instruction::Reference(index) = instruction {
+                    if admitted[at] {
+                        direct[*index] = true;
+                    } else {
+                        ordinary[*index] = true;
+                    }
+                }
+            }
+        }
+        direct
+            .iter()
+            .zip(ordinary)
+            .enumerate()
+            .filter_map(|(index, (direct, ordinary))| (*direct && !ordinary).then_some(index))
+            .collect()
+    }
+
+    pub fn has_provisional_calls(&self, functions: &crate::CallableTable) -> bool {
+        self.blocks.iter().flatten().any(|instruction| matches!(instruction,
+            Instruction::UserCall { binding: Some(binding), .. }
+                if functions.resolve(*binding).is_some_and(|function| function.reevaluation_policy().is_some())
+        ))
+    }
+
     /// The plan's references in the order compile met them, those in arguments a lazy function
     /// may never ask for included.
     pub fn references(&self) -> &[ReferenceOperand] {

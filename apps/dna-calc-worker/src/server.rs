@@ -4005,6 +4005,12 @@ mod async_contract_tests {
             "=AsyncEcho(1)+2",
             "=LET(x,2,IF(TRUE,AsyncEcho(1)+x,0))",
             "=LAMBDA(x,IF(TRUE,AsyncEcho(1)+x,0))(2)",
+            "=SUM(MAP({1},LAMBDA(x,AsyncEcho(x)+2)))",
+            "=REDUCE(2,{1},LAMBDA(acc,x,AsyncEcho(x)+acc))",
+            "=SUM(SCAN(2,{1},LAMBDA(acc,x,AsyncEcho(x)+acc)))",
+            "=SUM(BYROW({1},LAMBDA(row,AsyncEcho(SUM(row))+2)))",
+            "=SUM(BYCOL({1},LAMBDA(col,AsyncEcho(SUM(col))+2)))",
+            "=SUM(MAKEARRAY(1,1,LAMBDA(r,c,AsyncEcho(r)+c+1)))",
         ] {
             let (mut server, b, counts) = configured(formula);
             server

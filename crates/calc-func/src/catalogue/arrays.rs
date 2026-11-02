@@ -591,6 +591,7 @@ impl crate::call::KernelTask for SequenceTask {
     fn advance(
         &mut self,
         elements: usize,
+        _: &mut EvalServices<'_>,
     ) -> Result<Option<CalcValue>, crate::call::FunctionFault> {
         match self.0.advance(elements) {
             None => Ok(None),

@@ -242,6 +242,16 @@ pub trait CallableInvoker {
         callable: &CalcValue,
         arguments: &[CalcValue],
     ) -> Result<CalcValue, CallAbandoned>;
+
+    /// Advances the same helper invocation. `None` retains its arguments and activation;
+    /// the helper must not move to another item until it receives a value.
+    fn call_slice(
+        &mut self,
+        callable: &CalcValue,
+        arguments: &[CalcValue],
+    ) -> Result<Option<CalcValue>, CallAbandoned> {
+        self.call(callable, arguments).map(Some)
+    }
 }
 
 /// A [`CallableInvoker`]'s report that a call stopped with a fault it keeps.
@@ -423,7 +433,11 @@ pub(crate) type EagerKernel =
 
 /// An eager kernel's owned state at a binary64 store boundary. It borrows no caller service.
 pub(crate) trait KernelTask: std::fmt::Debug + Send {
-    fn advance(&mut self, elements: usize) -> Result<Option<CalcValue>, FunctionFault>;
+    fn advance(
+        &mut self,
+        elements: usize,
+        services: &mut EvalServices<'_>,
+    ) -> Result<Option<CalcValue>, FunctionFault>;
     fn completed_elements(&self) -> usize;
 }
 
@@ -434,7 +448,11 @@ pub(crate) type StartKernel =
 pub(crate) struct ReadyTask(pub Option<CalcValue>);
 
 impl KernelTask for ReadyTask {
-    fn advance(&mut self, _: usize) -> Result<Option<CalcValue>, FunctionFault> {
+    fn advance(
+        &mut self,
+        _: usize,
+        _: &mut EvalServices<'_>,
+    ) -> Result<Option<CalcValue>, FunctionFault> {
         Ok(self.0.take())
     }
     fn completed_elements(&self) -> usize {
@@ -490,8 +508,12 @@ pub fn invoke(
         });
     }
     if target.is_resumable() {
-        return invoke_slice(target, arguments, services, scratch, usize::MAX)
-            .map(|value| value.expect("unlimited cooperative kernel completes"));
+        return invoke_slice(target, arguments, services, scratch, usize::MAX).and_then(|value| {
+            value.ok_or(FunctionFault::NotImplemented {
+                id: target.entry.id,
+                argument: None,
+            })
+        });
     }
     let entry = target.entry;
     let supplied = arguments.count();
@@ -556,7 +578,7 @@ pub fn invoke_slice(
         .task
         .as_mut()
         .expect("started above")
-        .advance(elements);
+        .advance(elements, services);
     if !matches!(result, Ok(None)) {
         scratch.task = None;
         scratch.task_target = None;

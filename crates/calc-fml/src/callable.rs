@@ -11,6 +11,7 @@ pub use calc_func::UserCallableIdentity as CallableHandle;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CallableBindings {
     entries: BTreeMap<(Option<String>, String), CallableHandle>,
+    provisional: Vec<CallableHandle>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CallableBindingProof {
@@ -19,6 +20,9 @@ pub struct CallableBindingProof {
     pub bound: Option<CallableHandle>,
 }
 impl CallableBindings {
+    pub fn permits_provisional(&self, handle: CallableHandle) -> bool {
+        self.provisional.contains(&handle)
+    }
     pub fn validates(&self, proof: &CallableBindingProof) -> bool {
         self.bind(proof.provider.as_deref(), &proof.name) == proof.bound
     }
@@ -82,6 +86,16 @@ impl CallableTable {
                 .entries
                 .iter()
                 .map(|(key, r)| (key.clone(), r.handle))
+                .collect(),
+            provisional: self
+                .entries
+                .values()
+                .filter_map(|entry| {
+                    self.resolve(entry.handle)?
+                        .reevaluation_policy()
+                        .is_some()
+                        .then_some(entry.handle)
+                })
                 .collect(),
         }
     }

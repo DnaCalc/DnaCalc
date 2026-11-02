@@ -441,12 +441,27 @@ published value. Seven shared controls cover these rules through VM/JIT and both
 both plain Range and explicit Excel.Range types. The Excel-compatible projection has a distinct
 DNA nominal interface identity before the numeric-only DnaCalcObjects.Range reference, so stored
 Value2 retains Empty. Original Empty counters pass VM/JIT and finite/unlimited budgets.
-Request-area ordering and warm initial-cache visibility still need their measured profiles.
 Nested P07 waits now retain lazy arguments, defined-name and direct LAMBDA frames; sequential
 sites keep distinct tokens and one root activation. Lazy selection uses the existing catalogue
-kernels over retained arguments, without replaying argument effects or random draws. Helper
-kernels such as MAP and synchronous user callbacks still refuse waits they cannot retain.
-Post-effect dependency/placement waits and the remaining Range-order profiles stay open.
+kernels over retained arguments, without replaying argument effects or random draws. The helper
+kernels MAP, REDUCE, SCAN, BYROW, BYCOL and MAKEARRAY retain their item cursor, accumulator,
+completed values and current LAMBDA child. Nested helpers can wait on successive async requests
+without replaying an earlier body. Synchronous user callbacks still refuse waits whose caller
+cannot retain them.
+Post-effect pure read instructions retain their operands until an admitted prerequisite finishes;
+placement retains the completed array. An independent pure prerequisite cone can enter the
+waiting segment while the callback's original cached view stays pinned. An effectful prerequisite
+across a later observation fence remains an explicit refusal. Physical continuation never creates
+a new semantic ordinal. Failed reads do not become consumed-value certificates.
+
+P01/P03 range profiles (dc-hsa5.4, 2026-11-02): requested area order breaks ties among independent
+targets. Direct reference arguments of callbacks which explicitly permit provisional entries keep
+their invalidation edges, while their producers may follow them in the requested range order.
+Expression arguments retain dependency order. In the measured reversed scalar case an admitted
+unfinished independent producer exposes Empty, even with a warm held cache; its later installation
+precedes a new semantic entry observing 11. Observer-only scope retains the old dirty cache 2.
+Complete array images retain their P05 child values. Warm, contiguous and reversed controls run
+through HostSession. Broader chain-history and multithreaded order claims remain outside this profile.
 P07's owner boundary is in 3.4.
 RTD events use a separate provider/subscription sequence and immutable input snapshot. They mark
 provider consumers required for later demand, never supply a formula result or resume an async

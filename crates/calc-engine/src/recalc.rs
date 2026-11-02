@@ -438,6 +438,7 @@ pub(crate) struct EvalLocal {
     invocation: Option<calc_fml::UserInvocationFrame>,
     scratch: EvalScratch,
     activation: Option<calc_fml::EvalContinuation>,
+    placement: Option<(CalcValue, Vec<Prerequisite>, Calculation)>,
     random: Option<RandomStream>,
     quantum: usize,
     read_stamps: Vec<ReadSpan>,
@@ -668,6 +669,66 @@ impl RecalcWork {
             }
         }
         self.precedents = producers;
+    }
+
+    /// Bring only an admitted pure prerequisite cone to a waiting activation's segment.
+    /// Its pinned observations stay unchanged; another callback never crosses the fence.
+    fn admit_waiting_prerequisites(
+        &mut self,
+        state: &EngineState,
+        inputs: &ModelRoot,
+        node: NodeId,
+        on: NodeId,
+    ) {
+        let Some(&segment) = self.segments.get(&node) else {
+            return;
+        };
+        if self.segments.get(&on).is_none_or(|own| *own <= segment) {
+            return;
+        }
+        if self.precedents.is_empty() {
+            let members: BTreeSet<_> = self.order.iter().copied().collect();
+            let mut readers = Vec::new();
+            for &producer in &self.order {
+                readers_into(
+                    state,
+                    inputs,
+                    producer,
+                    &published_areas(state, inputs, producer),
+                    &mut readers,
+                );
+                for &reader in &readers {
+                    if members.contains(&reader) {
+                        self.precedents.entry(reader).or_default().push(producer);
+                    }
+                }
+            }
+        }
+        let mut cone = BTreeSet::new();
+        let mut stack = vec![on];
+        while let Some(producer) = stack.pop() {
+            if self.progress.is_evaluated(producer) || !cone.insert(producer) {
+                continue;
+            }
+            if producer == node
+                || !matches!(state.bindings.get(&producer),
+                Some(Binding::Placed(instance, _)) if !instance.plan().has_user_calls())
+            {
+                return;
+            }
+            stack.extend(
+                self.precedents
+                    .get(&producer)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            );
+        }
+        for producer in cone {
+            if let Some(own) = self.segments.get_mut(&producer) {
+                *own = (*own).min(segment);
+            }
+        }
     }
 
     pub fn continuation_progress(&self) -> Option<calc_fml::ContinuationProgress> {
@@ -1125,6 +1186,11 @@ fn begin_with_scope(
     state.readers_cache = cache;
     order.retain(|node| scope.contains(live_anchor(state, *node)));
     cyclic.retain(|node| scope.contains(live_anchor(state, *node)));
+    if cyclic.is_empty()
+        && let CalcScope::Range(areas) = &scope
+    {
+        order = range_reference_order(state, inputs, order, areas);
+    }
     let mut progress = Progress::new(state.nodes.len());
     for node in &order {
         progress.schedule(*node);
@@ -1566,7 +1632,9 @@ fn process(
         .expect("service age exhausted");
     work.last_service.insert(node, work.service_clock);
     let quantum = work.local.quantum;
-    if work.local.activation.is_some() && work.local.current_node.get() != Some(node) {
+    if (work.local.activation.is_some() || work.local.placement.is_some())
+        && work.local.current_node.get() != Some(node)
+    {
         let previous = work
             .local
             .current_node
@@ -1776,6 +1844,7 @@ mod parallel {
             && !work.has_fences
             && work.suspended.is_empty()
             && work.local.activation.is_none()
+            && work.local.placement.is_none()
             && observer.is_silent()
             && work.failure.is_none()
             && work.next == 0
@@ -3182,6 +3251,100 @@ fn tarjan(edges: &[Vec<usize>]) -> Vec<usize> {
     component
 }
 
+/// P01/P03: requested areas order independent work and eligible provisional callbacks.
+/// Pure dependencies and expression arguments still precede their consumers.
+fn range_reference_order(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    previous: Vec<NodeId>,
+    areas: &[GridArea],
+) -> Vec<NodeId> {
+    let members: BTreeSet<_> = previous.iter().copied().collect();
+    let mut readers = vec![(0, 0); state.nodes.len()];
+    let mut edges = Vec::new();
+    let mut found = Vec::new();
+    let provisional: BTreeMap<_, _> = previous
+        .iter()
+        .filter_map(|node| {
+            let Binding::Placed(instance, _) = state.bindings.get(node)? else {
+                return None;
+            };
+            instance
+                .plan()
+                .name_bindings()
+                .iter()
+                .all(|proof| proof.resolved.is_none())
+                .then(|| {
+                    (
+                        *node,
+                        instance.plan().provisional_references(&state.callables),
+                    )
+                })
+        })
+        .collect();
+    for &producer in &previous {
+        let footprint = published_areas(state, inputs, producer);
+        readers_into(state, inputs, producer, &footprint, &mut found);
+        let first = edges.len();
+        edges.extend(
+            found
+                .iter()
+                .copied()
+                .filter(|reader| members.contains(reader))
+                .filter(|reader| {
+                    let Some(indices) = provisional
+                        .get(reader)
+                        .filter(|indices| !indices.is_empty())
+                    else {
+                        return true;
+                    };
+                    let Some(Binding::Placed(instance, _)) = state.bindings.get(reader) else {
+                        return true;
+                    };
+                    let mut direct = false;
+                    for (index, area) in instance.areas().iter().enumerate() {
+                        if area.is_ok_and(|area| {
+                            area.contains(live_anchor(state, producer))
+                                || footprint
+                                    .iter()
+                                    .any(|filled| crate::contract::meets(area, *filled))
+                        }) {
+                            if !indices.contains(&index) {
+                                return true;
+                            }
+                            direct = true;
+                        }
+                    }
+                    !direct
+                }),
+        );
+        readers[producer.slot() as usize] = (
+            u32::try_from(first).expect("bounded edges"),
+            u32::try_from(edges.len() - first).expect("bounded edges"),
+        );
+    }
+    let closure = Closure {
+        members: previous.clone(),
+        readers,
+        edges,
+    };
+    order(
+        &closure,
+        |node| {
+            let at = live_anchor(state, node);
+            (
+                areas
+                    .iter()
+                    .position(|area| area.contains(at))
+                    .unwrap_or(usize::MAX),
+                at,
+            )
+        },
+        |node| live_anchor(state, node),
+    )
+    .unwrap_or(previous)
+}
+
 /// The members of `closure` in the order of the ready queue (a node is ready once every member
 /// it reads is ordered, and of the ready nodes the one whose anchor comes first is ordered next),
 /// or the anchors of those a cycle leaves unordered, in cell order. The counts are kept by slot
@@ -3402,6 +3565,7 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
         .iter()
         .copied()
         .filter(|node| is_array(*node) && !work.progress.is_evaluated(*node))
+        .filter(|node| !work.waits_on.contains_key(node))
         .min_by_key(|node| work.reference_rank.get(node).copied().unwrap_or(usize::MAX));
     let candidates = work
         .ready
@@ -3713,6 +3877,9 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
             None => break,
         }
     }
+    if work.local.activation.is_some() || work.local.placement.is_some() {
+        work.admit_waiting_prerequisites(state, inputs, node, on);
+    }
     if work.preferred.contains(&node) && work.progress.is_scheduled(on) {
         work.preferred.insert(on);
     }
@@ -3922,10 +4089,12 @@ impl ReferenceReader for Observed<'_, '_> {
     ) -> Result<calc_fml::reference::CellRead, calc_fml::reference::ReadContractError> {
         if self.silent && self.stopped.is_none() {
             self.footprint.borrow_mut().push(GridArea::cell(at));
-            self.value_reads
-                .borrow_mut()
-                .push((request, GridArea::cell(at)));
             let read = self.cells.read_cell(request, at);
+            if !matches!(read, Ok(calc_fml::reference::CellRead::Missing)) {
+                self.value_reads
+                    .borrow_mut()
+                    .push((request, GridArea::cell(at)));
+            }
             if matches!(read, Ok(calc_fml::reference::CellRead::Blank)) {
                 self.blanks
                     .borrow_mut()
@@ -3948,11 +4117,13 @@ impl ReferenceReader for Observed<'_, '_> {
             return;
         }
         self.footprint.borrow_mut().push(area);
-        self.value_reads.borrow_mut().push((request, area));
+        let before_blanks = self.blanks.borrow().len();
+        let mut missing = false;
         if self.silent {
             let blanks = &self.blanks;
             let mut offset = 0;
             self.cells.read_area(request, area, &mut |run| {
+                missing |= matches!(run, CellRun::Missing(_));
                 if matches!(run, CellRun::Blank(_)) {
                     blanks.borrow_mut().push((
                         area,
@@ -3965,6 +4136,11 @@ impl ReferenceReader for Observed<'_, '_> {
                 offset += run.len();
                 sink(run)
             });
+            if missing {
+                self.blanks.borrow_mut().truncate(before_blanks);
+            } else {
+                self.value_reads.borrow_mut().push((request, area));
+            }
             return;
         }
         let mut observer = self.observer.borrow_mut();
@@ -3972,6 +4148,7 @@ impl ReferenceReader for Observed<'_, '_> {
         let mut offset = 0u64;
         let mut stopped = false;
         self.cells.read_area(request, area, &mut |run| {
+            missing |= matches!(run, CellRun::Missing(_));
             if matches!(run, CellRun::Blank(_)) {
                 self.blanks.borrow_mut().push((
                     area,
@@ -3989,6 +4166,11 @@ impl ReferenceReader for Observed<'_, '_> {
             sink(run)
         });
         drop(observer);
+        if missing || stopped {
+            self.blanks.borrow_mut().truncate(before_blanks);
+        } else {
+            self.value_reads.borrow_mut().push((request, area));
+        }
         if stopped {
             // The withheld run and the rest of the area reach the evaluation as cells the reader
             // cannot supply, so it reads no value the engine's reader did not report; the
@@ -4001,15 +4183,18 @@ impl ReferenceReader for Observed<'_, '_> {
     fn spill_extent(&mut self, anchor: CellKey) -> calc_fml::reference::SpillExtent {
         let region = GridArea::cell(anchor);
         self.footprint.borrow_mut().push(region);
-        self.value_reads.borrow_mut().push((
-            calc_fml::ReadRequest {
-                purpose: calc_fml::ReadPurpose::ReferenceShape,
-                facets: calc_fml::ObservableFacets::Shape,
-                ..calc_fml::ReadRequest::DEPENDENCY
-            },
-            region,
-        ));
-        self.cells.spill_extent(anchor)
+        let extent = self.cells.spill_extent(anchor);
+        if !matches!(extent, calc_fml::reference::SpillExtent::NotModelled) {
+            self.value_reads.borrow_mut().push((
+                calc_fml::ReadRequest {
+                    purpose: calc_fml::ReadPurpose::ReferenceShape,
+                    facets: calc_fml::ObservableFacets::Shape,
+                    ..calc_fml::ReadRequest::DEPENDENCY
+                },
+                region,
+            ));
+        }
+        extent
     }
 
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<calc_fml::SubtotalExclusions> {
@@ -4203,7 +4388,7 @@ fn evaluate_with(
             at: live_anchor(state, node),
         });
     }
-    if local.activation.is_none() {
+    if local.activation.is_none() && local.placement.is_none() {
         local.effects = calc_fml::UserFunctionEffects::default();
         local.references = if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls())
         {
@@ -4594,6 +4779,20 @@ fn evaluate_unstamped(
             });
         }
     };
+    if let Some((value, dynamic, calculation)) = local.placement.take() {
+        return place_value(
+            state,
+            inputs,
+            shared,
+            local,
+            node,
+            formula,
+            role,
+            value,
+            dynamic,
+            calculation,
+        );
+    }
     if instance.plan().has_user_calls() && functions.is_none() {
         return Ok(Attempt::Done(refused_by(
             &calculation,
@@ -4610,6 +4809,10 @@ fn evaluate_unstamped(
             shared.progress,
             shared.spills,
             shared.volatile_inputs,
+            (matches!(shared.scope, CalcScope::Range(_))
+                && functions
+                    .is_some_and(|functions| instance.plan().has_provisional_calls(functions)))
+            .then_some(node),
         );
         local.invocation = Some(calc_fml::UserInvocationFrame::new(
             None,
@@ -4787,17 +4990,6 @@ fn evaluate_unstamped(
             };
             return Ok(Attempt::Reevaluate { on, cell, reason });
         }
-        if local.effects.calls() > 0 {
-            return Ok(Attempt::Done(refused_by(
-                &calculation,
-                NotModeled::Evaluation(EvalFault::NotModelled {
-                    construct: "an effectful callable requiring a dependency continuation",
-                    owner: "dc-hsa5.4",
-                }),
-            )));
-        }
-        // A formula cell one of the formula's own placed references names was ordered before it,
-        // unless it waits itself or is on a cycle: the graph missed an edge.
         let named = instance
             .areas()
             .iter()
@@ -4810,6 +5002,21 @@ fn evaluate_unstamped(
         {
             return Err(RecalcFailure::UnscheduledRead { formula, cell });
         }
+        if matches!(outcome, calc_fml::EvalStep::Suspended(_)) {
+            local.footprint = footprint.into_inner();
+            local.activation = Some(activation);
+            local.random = Some(random);
+            return Ok(Attempt::Waits { on, cell });
+        }
+        if local.effects.calls() > 0 {
+            return Ok(Attempt::Done(refused_by(
+                &calculation,
+                NotModeled::Evaluation(EvalFault::NotModelled {
+                    construct: "an effectful callable requiring a dependency continuation",
+                    owner: "dc-hsa5.4",
+                }),
+            )));
+        }
         return Ok(Attempt::Waits { on, cell });
     }
     if local.effects.reevaluation().is_some() {
@@ -4821,6 +5028,15 @@ fn evaluate_unstamped(
             }),
         )));
     }
+    let outcome = if matches!(outcome, calc_fml::EvalStep::Suspended(_))
+        && let Some(cell) = activation.waiting_input()
+    {
+        // No admitted unresolved producer reached the wait branch above. A permanently
+        // unavailable input cannot become runnable merely by scheduling another quantum.
+        calc_fml::EvalStep::Complete(Err(EvalFault::MissingInput { cell }))
+    } else {
+        outcome
+    };
     let outcome = match outcome {
         calc_fml::EvalStep::Suspended(_) => {
             local.footprint = footprint.into_inner();
@@ -4844,7 +5060,7 @@ fn evaluate_unstamped(
         }
     };
     let mut areas = footprint.into_inner();
-    let mut dynamic = dynamic_prerequisites(state, node, instance, &areas);
+    let dynamic = dynamic_prerequisites(state, node, instance, &areas);
     areas.clear();
     local.footprint = areas;
     let value = match outcome {
@@ -4867,24 +5083,42 @@ fn evaluate_unstamped(
             }));
         }
     };
+    place_value(
+        state,
+        inputs,
+        shared,
+        local,
+        node,
+        formula,
+        role,
+        value,
+        dynamic,
+        calculation,
+    )
+}
+
+fn place_value(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    shared: &EvalShared<'_>,
+    local: &mut EvalLocal,
+    node: NodeId,
+    formula: CellKey,
+    role: ArrayRole,
+    value: CalcValue,
+    mut dynamic: Vec<Prerequisite>,
+    calculation: Calculation,
+) -> Result<Attempt, RecalcFailure> {
     let outcome = match array_outcome(
         shared.view(state, inputs, local),
         node,
         formula,
         role,
-        value,
+        value.clone(),
     ) {
         Ok(outcome) => outcome,
         Err(Placed::Waits { on, cell }) => {
-            if local.effects.calls() > 0 {
-                return Ok(Attempt::Done(refused_by(
-                    &calculation,
-                    NotModeled::Evaluation(EvalFault::NotModelled {
-                        construct: "an effectful callable requiring a spill placement continuation",
-                        owner: "dc-hsa5.4",
-                    }),
-                )));
-            }
+            local.placement = Some((value, dynamic, calculation));
             return Ok(Attempt::Waits { on, cell });
         }
         Err(Placed::Refused(refusal)) => {
