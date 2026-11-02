@@ -6879,6 +6879,80 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[Check::PainterStable,Check::CanvasInk("L5"),Check::Attr("grid","data-frozen-rows","5"),Check::Attr("grid","data-frozen-columns","12"),Check::ActiveSemantic("L5")],
     },
 
+    Case {
+        name: "clipboard history: pasted formats retain their captured colour after Undo and a new style branch",
+        actions: &[
+            Action::Into(BAR,"17\u{E007}"),Action::Into("name-box","A1\u{E007}"),
+            Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-fill"),
+            Action::Into("format-fill","#ff0000"),Action::Click("format-apply"),
+            Action::Keys("grid","\u{E009}c\u{E000}"),Action::Click("undo"),
+            Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-fill"),
+            Action::Into("format-fill","#0000ff"),Action::Click("format-apply"),
+            Action::Into("name-box","B1\u{E007}"),Action::OpenDetails("clipboard-tools"),Action::Choose("paste-mode","formats"),
+            Action::Click("paste-snapshot"),
+        ],
+        checks:&[Check::PlanCell("A1","text","17"),Check::PlanCell("A1","style.fill","#0000ff"),Check::PlanCell("B1","text",""),Check::PlanCell("B1","style.fill","#ff0000")],
+    },
+    Case {
+        name: "clipboard history: Undo removes restored clipboard definitions and Redo restores them atomically",
+        actions:&[Action::Click("undo"),Action::Wait(Check::PlanAbsent("B1")),Action::Click("redo")],
+        checks:&[Check::PlanCell("A1","style.fill","#0000ff"),Check::PlanCell("B1","style.fill","#ff0000")],
+    },
+    Case {
+        name: "clipboard history: the two style branches remain distinct after xlsx save and reopen",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady)],
+        checks:&[Check::PlanCell("A1","text","17"),Check::PlanCell("A1","style.fill","#0000ff"),Check::PlanCell("B1","style.fill","#ff0000")],
+    },
+    Case {
+        name:"array recovery: phone details show current spill bounds and the actual blocker",
+        actions:&[Action::Window(390,844),Action::Into("name-box","B2\u{E007}"),Action::Into(BAR,"99\u{E007}"),Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"=SEQUENCE(3,2)\u{E007}"),Action::Into("name-box","A1\u{E007}")],
+        checks:&[Check::Fits,Check::Text("result-state","Worksheet error"),Check::PlanCell("A1","provenance","calculated"),Check::Text(cell!("A1"),"#SPILL!"),Check::TextContains("array-detail-summary","cannot spill into Sheet1!A1:B3"),Check::Name("array-blocker","Open blocker Sheet1!B2"),Check::Reachable("array-blocker"),Check::Contained("array-blocker","[data-dnacalc=result-details] .dc-result-body")],
+    },
+    Case {
+        name:"array recovery: keyboard navigation to a blocker and clearing it refreshes details",
+        actions:&[Action::Keys("array-blocker","\u{E007}"),Action::Wait(Check::Value("name-box","B2")),Action::Keys("grid",DELETE),Action::Into("name-box","A1\u{E007}"),Action::OpenDetails("result-details")],
+        checks:&[Check::TextContains("array-detail-summary","actual range Sheet1!A1:B3"),Check::Absent("array-blocker"),Check::PlanCell("B3","text","6"),Check::PlanCell("B3","provenance","calculated")],
+    },
+    Case {
+        name:"array recovery: a spill child opens its real owner through shared source navigation",
+        actions:&[Action::Into("name-box","B2\u{E007}"),Action::OpenDetails("result-details"),Action::Wait(Check::TextContains("array-detail-summary","Array anchor Sheet1!A1")),Action::Keys("array-owner","\u{E007}")],
+        checks:&[Check::Value("name-box","A1"),Check::Focused("grid"),Check::Absent("array-blocker")],
+    },
+    Case {
+        name:"array recovery: a new blocker replaces recovered details at tablet width",
+        actions:&[Action::Window(1024,768),Action::Into(BAR,"=SEQUENCE(1,2)\u{E007}"),Action::Into("name-box","B2\u{E007}"),Action::Into(BAR,"101\u{E007}"),Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"=SEQUENCE(3,2)\u{E007}"),Action::Into("name-box","A1\u{E007}")],
+        checks:&[Check::Fits,Check::TextContains("array-detail-summary","cannot spill into Sheet1!A1:B3"),Check::Count("array-blocker",1),Check::Name("array-blocker","Open blocker Sheet1!B2")],
+    },
+    Case {
+        name:"array recovery: details follow source selection and do not retain stale blockers",
+        actions:&[Action::Window(1440,1000),Action::Into("name-box","D10\u{E007}"),Action::OpenDetails("result-details")],
+        checks:&[Check::Fits,Check::Absent("array-detail"),Check::Absent("array-blocker"),Check::Value("name-box","D10")],
+    },
+    Case {
+        name:"phone ledger: address, calculated value, formula and provenance fit one audit row",
+        actions:&[Action::Window(390,844),Action::Into(BAR,"=2+3\u{E007}"),Action::Into("name-box","A2\u{E007}"),Action::Into(BAR,"=NoSheet!A1\u{E007}"),Action::Into("name-box","A3\u{E007}"),Action::Into(BAR,"17\u{E007}"),Action::Into("name-box","A1\u{E007}"),Action::Click("skin-ledger")],
+        checks:&[Check::Fits,Check::Count("ledger-row",2),Check::Contained("[data-cell='Sheet1!A1'] [data-dnacalc=ledger-select]","ledger-table"),Check::Contained("[data-cell='Sheet1!A1'] [data-dnacalc=ledger-value]","ledger-table"),Check::Contained("[data-cell='Sheet1!A1'] .dc-chip","ledger-table"),Check::Text("[data-cell='Sheet1!A1'] [data-dnacalc=ledger-value]","5"),Check::Name("[data-cell='Sheet1!A1'] [data-dnacalc=ledger-value]","5"),Check::Name("[data-cell='Sheet1!A1'] [data-field=provenance]","calculated"),Check::Attr("[data-cell='Sheet1!A2']","data-provenance","refused")],
+    },
+    Case {
+        name:"phone ledger: refused source actions work by keyboard and retain controls on return",
+        actions:&[Action::Choose("ledger-filter","refused"),Action::Wait(Check::Count("ledger-row",1)),Action::Keys("ledger-open-grid","\u{E007}"),Action::Wait(Check::Value("name-box","A2")),Action::Click("skin-ledger")],
+        checks:&[Check::Fits,Check::Value("ledger-filter","refused"),Check::Count("ledger-row",1),Check::TextContains("ledger-reason","NoSheet"),Check::Contained("ledger-value","ledger-table"),Check::Contained("[data-field=provenance]","ledger-table")],
+    },
+    Case {
+        name:"phone ledger: stale values stay paired with their state and literal inputs stay in Grid",
+        actions:&[Action::Click("ledger-open-grid"),Action::Into("name-box","A1\u{E007}"),Action::Choose("calc-mode","manual"),Action::Into(BAR,"=3+4\u{E007}"),Action::Click("skin-ledger"),Action::Choose("ledger-filter","stale")],
+        checks:&[Check::Fits,Check::Text("ledger-value","5"),Check::Attr("ledger-row","data-provenance","stale"),Check::TextContains("ledger-reason","awaiting recalculation"),Check::Contained("ledger-value","ledger-table"),Check::Contained("[data-field=provenance]","ledger-table")],
+    },
+    Case {
+        name:"phone shell: a long workbook title keeps accessible identity and commands",
+        actions:&[Action::Window(390,844),Action::RememberPresentation,Action::UploadAs("open-file","crates/calc-host/tests/fixtures/dc_09v/formats.xlsx","November forecast with a very long descriptive workbook name and review notes.xlsx"),Action::Wait(Check::Text("document","November forecast with a very long descriptive workbook name and review notes.xlsx"))],
+        checks:&[Check::Fits,Check::HeaderHeightRetained,Check::Narrow(390),Check::Name("document","November forecast with a very long descriptive workbook name and review notes.xlsx"),Check::Reachable("document"),Check::Reachable("save"),Check::Reachable("undo"),Check::Reachable("[data-dnacalc=settings] summary")],
+    },
+    Case {
+        name:"phone shell: changed titles retain their full accessible label and changed indicator",
+        actions:&[Action::Into(BAR,"18\u{E007}")],
+        checks:&[Check::Fits,Check::HeaderHeightRetained,Check::Name("document","November forecast with a very long descriptive workbook name and review notes.xlsx (changed)"),Check::Attr("document","data-changed","true"),Check::Reachable("document"),Check::Reachable("save"),Check::Reachable("redo")],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -7557,4 +7631,8 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"name-manager",start:464,end:474,core:10,setup:&[]},
     CaseGroup {name:"large-format",start:474,end:480,core:6,setup:&[]},
     CaseGroup {name:"physical-styles",start:480,end:487,core:7,setup:&[]},
+    CaseGroup {name:"clipboard-history",start:487,end:490,core:3,setup:&[]},
+    CaseGroup {name:"array-recovery",start:490,end:495,core:5,setup:&[]},
+    CaseGroup {name:"phone-ledger",start:495,end:498,core:3,setup:&[]},
+    CaseGroup {name:"phone-title",start:498,end:500,core:2,setup:&[]},
 ];

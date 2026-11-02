@@ -42,7 +42,7 @@ html,body{height:100%}
 /* Shared workbook feedback and compact commands (dc-971p.3). */
 .dc-mast,.dc-bar,.dc-tabs,.dc-status{flex-shrink:0}
 .dc-mast{position:relative;gap:6px}
-.dc-doc{max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc-doc{flex:1 1 90px;min-width:0;max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dc-mast button,.dc-mast select,.dc-settings>summary{min-height:30px;box-sizing:border-box}
 .dc-mast button:disabled{opacity:.5;cursor:default}
 .dc-settings{margin-left:auto}
@@ -196,3 +196,14 @@ html,body{height:100%}
 .dc-format-dialog button:focus-visible,.dc-names-dialog button:focus-visible{outline:2px solid var(--dna-accent-ink);outline-offset:2px}
 .dc-format-tabs button[aria-selected=true]{border-color:var(--dna-ink);background:var(--dna-paper-2);font-weight:600}
 @media(max-width:520px){.dc-format-dialog button,.dc-names-dialog button,.dc-format-dialog input:not([type=checkbox]),.dc-format-dialog select,.dc-names-dialog input,.dc-names-dialog select{min-height:44px}.dc-format-fields label:has([type=checkbox]){min-height:44px}}
+
+/* Keep a workbook's full accessible identity without title-dependent toolbar wrapping. */
+@media(max-width:700px){
+ .dc-mast .dc-doc{flex:1 1 90px;min-width:0;max-width:none}
+ .dc-mast>strong{flex:0 0 auto;margin-right:0}
+ .dc-mast>.dc-settings{flex:0 0 auto}
+}
+[data-dnacalc=array-detail] button{margin:3px 6px 3px 0;max-width:100%;overflow-wrap:anywhere}
+[data-dnacalc=array-detail-failure]:empty{display:none}
+
+.dc-doc[data-changed=true]::before{content:"● ";color:var(--dna-amber);font-size:10px}

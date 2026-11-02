@@ -112,7 +112,7 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() {
+fn dc_971p__copied_formats_restore_definitions_after_history_branches() {
     use calc_host::{
         CopySnapshot, FormatPatch, PasteMode, PasteSource, WorkbookCommand, prepare_paste,
     };
@@ -127,6 +127,9 @@ fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() 
                 areas: vec![area],
                 patch: FormatPatch {
                     fill: Some(fill.into()),
+                    number_format: Some(format!("0.00 \"{fill}\"")),
+                    font_name: Some("monospace".into()),
+                    font_size: Some(if fill == "#ff0000" { "18" } else { "12" }.into()),
                     ..Default::default()
                 },
             }))
@@ -177,8 +180,8 @@ fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() 
     assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert!(book.dispatch(SkinIntent::Undo).accepted());
     assert!(
-        prepare(&book, PasteMode::Formats).is_err(),
-        "removed captured styles must not be applied"
+        prepare(&book, PasteMode::Formats).is_ok(),
+        "captured styles are restored after Undo"
     );
     assert!(book.dispatch(SkinIntent::Redo).accepted());
     assert!(
@@ -192,19 +195,64 @@ fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() 
         copied_style,
         "the new history branch reuses the old index"
     );
-    let revision = book.host().revision();
+    let blue = book.host().styles().clone();
+    let fill = |host: &calc_host::HostState, cell| {
+        let table = host.styles();
+        let xf = &table.cell_formats[host.cell_style(cell) as usize];
+        table.fills[xf.fill_id.unwrap() as usize]
+            .fg_color
+            .as_ref()
+            .unwrap()
+            .rgb
+            .clone()
+    };
     for mode in [PasteMode::All, PasteMode::Formats] {
-        let error = prepare(&book, mode)
-            .expect_err("a reused index must not paste the new blue format for the copied red one");
-        assert!(error.to_string().contains("dc-971p.6"), "{error}");
+        let plan = prepare(&book, mode).unwrap();
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::Paste(plan)))
+                .accepted()
+        );
+        assert_eq!(
+            fill(book.host(), source.first()).as_deref(),
+            Some("FF0000FF")
+        );
+        assert_eq!(
+            fill(book.host(), target.first()).as_deref(),
+            Some("FFFF0000")
+        );
+        assert_ne!(
+            book.host().cell_style(source.first()),
+            book.host().cell_style(target.first())
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = session(&saved);
+        let sheet = reopened.host().sheets()[0].id();
+        assert_eq!(
+            fill(reopened.host(), at(sheet, "A1")).as_deref(),
+            Some("FF0000FF")
+        );
+        assert_eq!(
+            fill(reopened.host(), at(sheet, "B1")).as_deref(),
+            Some("FFFF0000")
+        );
+        let styles = book.host().styles().clone();
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(book.host().styles(), &blue);
+        assert!(book.host().model().cell(target.first()).is_none());
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(book.host().styles(), &styles);
+        assert_eq!(
+            fill(book.host(), target.first()).as_deref(),
+            Some("FFFF0000")
+        );
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
     }
     assert!(
         snapshot
             .fill_edits(book.host(), target, false, false)
-            .is_err()
+            .is_ok()
     );
-    assert_eq!(book.host().revision(), revision);
-    assert!(book.host().model().cell(target.first()).is_none());
     assert!(prepare(&book, PasteMode::Formulas).is_ok());
     let values = prepare(&book, PasteMode::Values).unwrap();
     assert!(
@@ -216,6 +264,79 @@ fn dc_971p__copied_formats_refuse_reused_style_indices_after_history_branches() 
         Some(&number(17.0))
     );
     assert_eq!(book.host().cell_style(target.first()), 0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__clipboard_restoration_preserves_distinct_imported_style_sources() {
+    use calc_host::{
+        CopySnapshot, FormatPatch, PasteMode, PasteSource, WorkbookCommand as C, prepare_paste,
+    };
+    let bytes = package_with_part("xl/styles.xml", |xml| {
+        xml.replacen("<styleSheet ", "<styleSheet xmlns:v=\"urn:clipboard\" ",1)
+            .replacen("<fonts", r#"<numFmts count="2"><numFmt numFmtId="164" formatCode="0.00" v:keep="first"/><numFmt numFmtId="165" formatCode="0.00" v:keep="second"/></numFmts><fonts"#,1)
+            .replacen("<name val=\"Calibri\"", "<name v:keep=\"font\" val=\"Calibri\"",1)
+            .replacen("<cellXfs count=\"1\"", "<cellXfs count=\"2\"",1)
+            .replacen("</cellXfs>", r#"<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" v:keep="xf"/></cellXfs>"#,1)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "<sheetData/>",
+            r#"<sheetData><row r="1"><c r="A1" s="1"><v>3</v></c></row></sheetData>"#,
+        )
+    });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let source = GridArea::cell(at(sheet, "A1"));
+    let target = GridArea::cell(at(sheet, "B1"));
+    let style = |book: &mut HostSession, bold| {
+        assert!(
+            book.dispatch(SkinIntent::Command(C::FormatCells {
+                areas: vec![source],
+                patch: FormatPatch {
+                    bold: Some(bold),
+                    italic: (!bold).then_some(true),
+                    ..Default::default()
+                }
+            }))
+            .accepted()
+        )
+    };
+    style(&mut book, true);
+    let snapshot = CopySnapshot::capture(book.host(), source).unwrap();
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    style(&mut book, false);
+    let plan = prepare_paste(
+        book.host(),
+        PasteSource::Snapshot {
+            snapshot: &snapshot,
+            cut: false,
+        },
+        target,
+        PasteMode::Formats,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(plan)))
+            .accepted()
+    );
+    let table = book.host().styles();
+    let xf = &table.cell_formats[book.host().cell_style(target.first()) as usize];
+    assert_eq!(xf.number_format_id, Some(165));
+    assert!(table.fonts[xf.font_id.unwrap() as usize].bold);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/styles.xml");
+    assert!(xml.contains(r#"v:keep="first""#));
+    assert!(xml.contains(r#"v:keep="second""#));
+    assert!(xml.matches(r#"v:keep="xf""#).count() >= 3, "{xml}");
+    assert!(xml.matches(r#"v:keep="font""#).count() >= 2, "{xml}");
+    let reopened = session(&saved);
+    let s = reopened.host().sheets()[0].id();
+    let table = reopened.host().styles();
+    let xf = &table.cell_formats[reopened.host().cell_style(at(s, "B1")) as usize];
+    assert_eq!(xf.number_format_id, Some(165));
+    assert!(table.fonts[xf.font_id.unwrap() as usize].bold);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
