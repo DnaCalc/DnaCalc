@@ -194,6 +194,47 @@ pub enum NameScope {
     Sheet(SheetId),
 }
 
+/// The caller and current definition used by the one name lowering path.
+/// Local definitions select their own worksheet; workbook aliases inherit this context.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct NameEvaluationContext {
+    pub caller: FormulaAnchor,
+    pub definition: Option<calc_func::value::NameId>,
+    pub definition_sheet: Option<SheetId>,
+}
+impl NameEvaluationContext {
+    pub fn for_formula(caller: FormulaAnchor) -> Self {
+        Self {
+            caller,
+            definition: None,
+            definition_sheet: None,
+        }
+    }
+    pub fn lookup_sheet(self) -> SheetId {
+        self.definition_sheet.unwrap_or(self.caller.sheet())
+    }
+    pub fn child(
+        self,
+        definition: Option<calc_func::value::NameId>,
+        definition_sheet: Option<SheetId>,
+    ) -> Self {
+        Self {
+            definition,
+            definition_sheet,
+            ..self
+        }
+    }
+}
+
+/// An occurrence from the canonical compiler, kept outside interned semantic plans.
+/// Its span is in its owner's equals-prefixed source, in UTF-16 units.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NameUse {
+    pub span: TextSpan,
+    pub context: NameEvaluationContext,
+    pub resolved: Option<BoundName>,
+}
+
 /// What a defined name is, as a [`ReferenceCatalog`] gives it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum NameDefinition {

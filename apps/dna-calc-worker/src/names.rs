@@ -232,4 +232,77 @@ mod tests {
         };
         assert!(value.text.unwrap_err().contains("changed"));
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn name_rename_and_scope_move_use_the_existing_journalled_wire_command() {
+        let mut server = Server::new();
+        let made = server.execute_current(
+            decoded(Request::Intent(Intent::EditName {
+                id: None,
+                version: None,
+                name: "Answer".into(),
+                scope: None,
+                formula: Some("=42".into()),
+            })),
+            None,
+        );
+        assert!(
+            matches!(
+                made.reply,
+                Ok(Reply::Done {
+                    outcome: wire::Outcome { accepted: true, .. },
+                    ..
+                })
+            ),
+            "{:?}",
+            made.reply
+        );
+        let sheet = server.book().sheets()[0].id;
+        let mut id = None;
+        for scope in [None, Some(wire::Sheet::of(sheet)), None] {
+            let Reply::Names(page) = server
+                .handle(
+                    decoded(Request::Names {
+                        query: "".into(),
+                        page: 0,
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap()
+            else {
+                panic!("name projection")
+            };
+            let row = page
+                .rows
+                .iter()
+                .find(|row| row.name == if id.is_none() { "Answer" } else { "Renamed" })
+                .unwrap();
+            let previous = server.book().session().history_depth().0;
+            id.get_or_insert(row.id);
+            assert_eq!(Some(row.id), id);
+            let request = server.envelope(Request::Intent(Intent::EditName {
+                id: Some(row.id),
+                version: Some(row.version),
+                name: "Renamed".into(),
+                scope,
+                formula: Some("=42".into()),
+            }));
+            let first = server.handle(decoded(request.clone()), None).reply.unwrap();
+            assert!(
+                matches!(
+                    first,
+                    Reply::Done {
+                        outcome: wire::Outcome { accepted: true, .. },
+                        ..
+                    }
+                ),
+                "{first:?}"
+            );
+            let revision = server.book().host().revision();
+            assert_eq!(server.handle(decoded(request), None).reply.unwrap(), first);
+            assert_eq!(server.book().host().revision(), revision);
+            assert_eq!(server.book().session().history_depth().0, previous + 1);
+        }
+    }
 }

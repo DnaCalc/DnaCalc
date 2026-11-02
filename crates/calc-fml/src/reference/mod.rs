@@ -35,7 +35,8 @@ mod transform;
 
 pub use bind::{
     BindError, BoundName, ExternalBookRef, ExternalOperand, NameBindingProof, NameDefinition,
-    NameProbe, NameScope, ReferenceCatalog, ReferenceSite, bind_references, qualified_name,
+    NameEvaluationContext, NameProbe, NameScope, NameUse, ReferenceCatalog, ReferenceSite,
+    bind_references, qualified_name,
 };
 pub(crate) use bind::{external_operand, qualified_call};
 pub use calc_func::TextReference;

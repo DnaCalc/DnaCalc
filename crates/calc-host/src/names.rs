@@ -11,52 +11,7 @@ pub struct NameEdit {
     pub name: String,
     pub formula: Option<String>,
 }
-fn valid_name(name: &str) -> bool {
-    let first = name.chars().next();
-    if name.encode_utf16().count() > 255
-        || !first.is_some_and(|c| c.is_alphabetic() || c == '_' || c == '\\')
-        || !name
-            .chars()
-            .all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '\\'))
-    {
-        return false;
-    }
-    if matches!(
-        name.to_ascii_uppercase().as_str(),
-        "R" | "C" | "TRUE" | "FALSE"
-    ) {
-        return false;
-    }
-    let split = name
-        .find(|c: char| !c.is_ascii_alphabetic())
-        .unwrap_or(name.len());
-    if split > 0 && split < name.len() {
-        let column = name[..split].bytes().try_fold(0u32, |n, c| {
-            n.checked_mul(26)?
-                .checked_add(u32::from(c.to_ascii_uppercase() - b'A' + 1))
-        });
-        if column.is_some_and(|c| c <= calc_value::MAX_COLUMNS)
-            && name[split..]
-                .parse::<u32>()
-                .is_ok_and(|r| (1..=calc_value::MAX_ROWS).contains(&r))
-        {
-            return false;
-        }
-    }
-    let upper = name.to_ascii_uppercase();
-    if let Some(rest) = upper.strip_prefix('R')
-        && let Some((row, column)) = rest.split_once('C')
-        && row.bytes().all(|c| c.is_ascii_digit())
-        && column.bytes().all(|c| c.is_ascii_digit())
-    {
-        return false;
-    }
-    let parsed = calc_fml::parse_formula(&format!("={name}"));
-    parsed.diagnostics().is_empty()
-        && parsed
-            .expression()
-            .is_some_and(|n| n.kind() == calc_fml::syntax::SyntaxKind::IdentifierExpr)
-}
+use calc_engine::valid_defined_name as valid_name;
 pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>, String> {
     let table = host.model().definitions().name_table();
     if let NameScope::Sheet(sheet) = edit.scope
@@ -110,7 +65,85 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
         return Err("The name changed; refresh before editing it".into());
     }
     if node.definition().scope != edit.scope || node.definition().name != edit.name {
-        return Err("Renaming or moving an existing name is not modelled (dc-971p.34); its name and scope are fixed here".into());
+        if formula.as_deref() != Some(node.definition().formula.as_str()) {
+            return Err(
+                "Rename or move the name first, then edit or delete its definition (dc-hsa5.6)"
+                    .into(),
+            );
+        }
+        // These retained codec sources have no authored rewrite operation yet. Do not
+        // leave a dangling validation/chart name behind a successful Name Manager edit.
+        let mentions = |text: &str| {
+            calc_engine::mentions_name(text, &node.definition().name)
+                || calc_engine::mentions_name(text, &edit.name)
+        };
+        for sheet in host.loaded().sheets() {
+            if sheet
+                .validations()
+                .iter()
+                .flat_map(|v| [v.formula1.as_deref(), v.formula2.as_deref()])
+                .flatten()
+                .any(mentions)
+            {
+                return Err("A data-validation formula uses this name; its name rewrite is not modelled (dc-hsa5.6)".into());
+            }
+            let charts = sheet.charts();
+            if charts.unread > 0
+                || charts.charts.iter().any(|chart| {
+                    chart.title_formula.as_deref().is_some_and(mentions)
+                        || chart
+                            .plots
+                            .iter()
+                            .flat_map(|plot| &plot.series)
+                            .flat_map(|series| {
+                                [
+                                    series.name.as_ref(),
+                                    series.categories.as_ref(),
+                                    series.values.as_ref(),
+                                ]
+                            })
+                            .flatten()
+                            .filter_map(|data| data.formula.as_deref())
+                            .any(mentions)
+                })
+            {
+                return Err(
+                    "A chart source cannot be checked for this name change (dc-hsa5.6)".into(),
+                );
+            }
+        }
+        return host
+            .engine
+            .prepare_name_change(
+                host.model(),
+                &calc_engine::NameChangeRequest {
+                    id,
+                    version: node.binding_version(),
+                    scope: edit.scope,
+                    name: edit.name,
+                },
+            )
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|operation| match operation {
+                calc_doc_model::WorkbookOp::RestoreNames(names) => {
+                    Ok(CellEdit::RestoreNames(names))
+                }
+                calc_doc_model::WorkbookOp::SetCell { at, input } => {
+                    Ok(CellEdit::Set { at, input })
+                }
+                calc_doc_model::WorkbookOp::SetArray {
+                    array,
+                    input: calc_doc_model::CellInput::Formula(formula),
+                } => Ok(CellEdit::SetArray { array, formula }),
+                calc_doc_model::WorkbookOp::SetConditionalRules { sheet, rules } => {
+                    Ok(CellEdit::ConditionalRules { sheet, rules })
+                }
+                _ => Err(
+                    "The name change returned an unsupported authored operation (dc-hsa5.6)".into(),
+                ),
+            })
+            .collect();
     }
     if formula.as_ref() == Some(&node.definition().formula) {
         return Ok(Vec::new());
@@ -320,5 +353,281 @@ mod tests {
                 .definition(),
             &definition
         );
+    }
+    fn extra_sheet(book: &mut HostSession, name: &str) -> calc_value::SheetId {
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+                sheet: None,
+                change: crate::SheetChange::Add { name: name.into() }
+            }))
+            .accepted()
+        );
+        book.host()
+            .model()
+            .sheets()
+            .iter()
+            .find(|sheet| sheet.name().text().to_string_lossy() == name)
+            .unwrap()
+            .id()
+    }
+    fn rename(
+        book: &mut HostSession,
+        id: NameId,
+        scope: NameScope,
+        name: &str,
+    ) -> crate::IntentReceipt {
+        let node = book.host().name_node(id).unwrap();
+        let edit = NameEdit {
+            id: Some(id),
+            version: Some(node.binding_version()),
+            scope,
+            name: name.into(),
+            formula: Some(node.definition().formula.clone()),
+        };
+        book.dispatch(SkinIntent::Command(WorkbookCommand::Name(edit)))
+    }
+    fn entered(book: &mut HostSession, at: CellKey, text: &str) {
+        let result = book.dispatch(SkinIntent::EnterCell {
+            at,
+            text: text.into(),
+        });
+        assert!(result.accepted(), "{:?}", result.error);
+    }
+    fn cell_formula(book: &HostSession, at: CellKey) -> String {
+        match book.host().model().cell(at).unwrap() {
+            calc_doc_model::CellInput::Formula(text) => text.text().to_string_lossy(),
+            other => panic!("formula {other:?}"),
+        }
+    }
+    fn current(book: &HostSession, at: CellKey) -> CalcValue {
+        match crate::project(book.host(), &crate::ProjectionRequest { cells: vec![at] })
+            .unwrap()
+            .cells()[0]
+            .value()
+        {
+            ProjectedValue::Calculated { value, .. } => value.clone(),
+            other => panic!("calculated {other:?}"),
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn explicit_nested_name_contexts_keep_caller_and_definition_scope_distinct() {
+        let mut book = book();
+        let a = book.host().sheets()[0].id();
+        let b = extra_sheet(&mut book, "Other");
+        let global = add(&mut book, NameScope::Workbook, "Inner", "=1");
+        let local_a = add(&mut book, NameScope::Sheet(a), "Inner", "=10");
+        let local_b = add(&mut book, NameScope::Sheet(b), "Inner", "=20");
+        let alias = add(&mut book, NameScope::Workbook, "Alias", "=Inner");
+        let outer = add(&mut book, NameScope::Sheet(a), "Outer", "=Alias+1");
+        let at_a = CellKey::new(a, 1, 1).unwrap();
+        let at_b = CellKey::new(b, 1, 1).unwrap();
+        assert_eq!(value(&book, alias, at_a), CalcValue::number(10.));
+        assert_eq!(value(&book, alias, at_b), CalcValue::number(20.));
+        assert_eq!(value(&book, outer, at_b), CalcValue::number(11.));
+        assert_eq!(value(&book, global, at_a), CalcValue::number(1.));
+        let mut cache = calc_fml::PlanCache::new();
+        let first = calc_engine::DetachedFormula::analyze_name(
+            book.host().model(),
+            alias,
+            at_a,
+            &calc_fml::CallableBindings::default(),
+            &mut cache,
+        )
+        .unwrap();
+        let another = CellKey::new(a, 2, 1).unwrap();
+        let second = calc_engine::DetachedFormula::analyze_name(
+            book.host().model(),
+            alias,
+            another,
+            &calc_fml::CallableBindings::default(),
+            &mut cache,
+        )
+        .unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first.plan, &second.plan));
+        assert!(
+            second
+                .uses
+                .iter()
+                .all(|usage| usage.context.caller.cell() == another)
+        );
+        for (caller, expected) in [(at_a, local_a), (at_b, local_b)] {
+            let analysis = calc_engine::DetachedFormula::analyze_name(
+                book.host().model(),
+                alias,
+                caller,
+                &calc_fml::CallableBindings::default(),
+                &mut calc_fml::PlanCache::new(),
+            )
+            .unwrap();
+            let usage = analysis
+                .uses
+                .iter()
+                .find(|usage| usage.context.definition == Some(alias))
+                .unwrap();
+            assert_eq!(usage.context.caller.cell(), caller);
+            assert_eq!(usage.context.lookup_sheet(), caller.sheet());
+            assert_eq!(usage.resolved.unwrap().id, expected);
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rename_rewrites_only_bound_uses_and_keeps_ids_history_and_save() {
+        let mut book = book();
+        let a = book.host().sheets()[0].id();
+        let b = extra_sheet(&mut book, "Other");
+        let id = add(&mut book, NameScope::Workbook, "Rate", "=2");
+        let shadow = add(&mut book, NameScope::Sheet(a), "Rate", "=10");
+        let alias = add(&mut book, NameScope::Sheet(b), "Alias", "=Rate+1");
+        let a1 = CellKey::new(a, 1, 1).unwrap();
+        let b1 = CellKey::new(b, 1, 1).unwrap();
+        let b2 = CellKey::new(b, 2, 1).unwrap();
+        let b3 = CellKey::new(b, 3, 1).unwrap();
+        let b4 = CellKey::new(b, 4, 1).unwrap();
+        entered(&mut book, a1, "=Rate");
+        entered(&mut book, b1, "=Rate*3");
+        entered(&mut book, b2, "=LET(Rate,5,Rate+1)");
+        entered(&mut book, b3, "=\"Rate\"");
+        entered(&mut book, b4, "=\"😀\"&Rate");
+        let let_source = cell_formula(&book, b2);
+        let version = book.host().name_node(id).unwrap().binding_version();
+        let result = rename(&mut book, id, NameScope::Workbook, "YieldRate");
+        assert!(result.accepted(), "{:?}", result.error);
+        assert_eq!(
+            book.host().name_node(id).unwrap().definition().name,
+            "YieldRate"
+        );
+        assert_eq!(
+            book.host().name_node(shadow).unwrap().definition().name,
+            "Rate"
+        );
+        assert_eq!(cell_formula(&book, a1), "Rate");
+        assert_eq!(cell_formula(&book, b1), "YieldRate*3");
+        assert_eq!(cell_formula(&book, b2), let_source);
+        assert_eq!(cell_formula(&book, b3), "\"Rate\"");
+        assert_eq!(cell_formula(&book, b4), "\"😀\"&YieldRate");
+        assert_eq!(
+            book.host().name_node(alias).unwrap().definition().formula,
+            "YieldRate+1"
+        );
+        assert_eq!(current(&book, a1), CalcValue::number(10.));
+        assert_eq!(current(&book, b1), CalcValue::number(6.));
+        assert!(book.host().evaluate_name(id, version, b1).is_err());
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(book.host().name_node(id).unwrap().definition().name, "Rate");
+        assert_eq!(cell_formula(&book, b1), "Rate*3");
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(
+            book.host().name_node(id).unwrap().definition().name,
+            "YieldRate"
+        );
+        let mut bytes = Vec::new();
+        book.save(&Default::default(), &mut bytes).unwrap();
+        let reopened = HostSession::open(
+            std::sync::Arc::new(crate::MemorySource::new(bytes)),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        assert!(
+            reopened
+                .host()
+                .model()
+                .definitions()
+                .name_table()
+                .lookup(NameScope::Workbook, "YieldRate")
+                .is_some()
+        );
+        assert_eq!(cell_formula(&reopened, b1), "YieldRate*3");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn scope_moves_qualify_consumers_and_keep_array_extent_and_live_identity() {
+        let mut book = book();
+        let a = book.host().sheets()[0].id();
+        let b = extra_sheet(&mut book, "Other");
+        let id = add(&mut book, NameScope::Workbook, "Rate", "=2");
+        let a1 = CellKey::new(a, 1, 1).unwrap();
+        let b1 = CellKey::new(b, 1, 1).unwrap();
+        entered(&mut book, a1, "=Rate+1");
+        entered(&mut book, b1, "=Rate+2");
+        let area = GridArea::new(
+            CellKey::new(b, 3, 1).unwrap(),
+            CellKey::new(b, 4, 1).unwrap(),
+        )
+        .unwrap();
+        let array = calc_doc_model::ArrayFormula::new(area, calc_doc_model::ArrayKind::Legacy);
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![crate::CellEdit::SetArray {
+                    array,
+                    formula: calc_doc_model::FormulaText::with_form(
+                        calc_value::ExcelText::from_utf16_code_units(
+                            "Rate*{1;2}".encode_utf16().collect()
+                        ),
+                        calc_fml::FormulaForm::Legacy
+                    )
+                    .unwrap()
+                }]
+            })
+            .accepted()
+        );
+        let result = rename(&mut book, id, NameScope::Sheet(a), "Rate");
+        assert!(result.accepted(), "{:?}", result.error);
+        assert!(cell_formula(&book, b1).contains("!Rate"));
+        assert_eq!(current(&book, a1), CalcValue::number(3.));
+        assert_eq!(current(&book, b1), CalcValue::number(4.));
+        assert_eq!(
+            book.host().model().definitions().array(area.first()),
+            Some(&array)
+        );
+        let result = rename(&mut book, id, NameScope::Workbook, "Rate");
+        assert!(result.accepted(), "{:?}", result.error);
+        assert_eq!(cell_formula(&book, b1), "Rate+2");
+        assert_eq!(current(&book, b1), CalcValue::number(4.));
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            book.host().name_node(id).unwrap().definition().scope,
+            NameScope::Sheet(a)
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(
+            book.host().name_node(id).unwrap().definition().scope,
+            NameScope::Workbook
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn nested_capture_collision_and_reference_changing_moves_refuse_before_history() {
+        let mut book = book();
+        let a = book.host().sheets()[0].id();
+        let b = extra_sheet(&mut book, "Other");
+        let id = add(&mut book, NameScope::Workbook, "Rate", "=2");
+        add(&mut book, NameScope::Sheet(a), "Rate", "=10");
+        add(&mut book, NameScope::Workbook, "Alias", "=Rate+1");
+        let revision = book.host().revision();
+        let result = rename(&mut book, id, NameScope::Workbook, "YieldRate");
+        assert!(!result.accepted());
+        assert_eq!(book.host().revision(), revision);
+        assert!(
+            result
+                .error
+                .unwrap()
+                .to_string()
+                .contains("different identities")
+        );
+        let local = add(&mut book, NameScope::Sheet(b), "MoveMe", "=A1");
+        entered(&mut book, CellKey::new(a, 2, 1).unwrap(), "='Other'!MoveMe");
+        let revision = book.host().revision();
+        assert!(!rename(&mut book, local, NameScope::Workbook, "MoveMe").accepted());
+        assert_eq!(book.host().revision(), revision);
+        let another = add(&mut book, NameScope::Workbook, "Taken", "=8");
+        let revision = book.host().revision();
+        assert!(!rename(&mut book, another, NameScope::Workbook, "Rate").accepted());
+        assert_eq!(book.host().revision(), revision);
     }
 }

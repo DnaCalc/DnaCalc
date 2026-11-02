@@ -243,7 +243,37 @@ pub fn compile_loaded_with_bindings(
     )
 }
 
-/// [`compile_with`], or with `loaded` the text as a file stores it ([`compile_loaded`]).
+/// Name-source evidence from the same lowering that creates the executable plan.
+/// Spans and caller context never participate in semantic interning.
+#[derive(Debug)]
+pub struct NameAnalysis {
+    pub plan: Arc<CompiledPlan>,
+    pub uses: Vec<crate::reference::NameUse>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn analyze_loaded_names(
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+    form: FormulaForm,
+    functions: &crate::CallableBindings,
+) -> Result<NameAnalysis, CompileError> {
+    compile_analyzed_as(
+        tree,
+        true,
+        form,
+        notation,
+        anchor,
+        catalog,
+        cache,
+        Some((functions, false)),
+        true,
+    )
+}
+
 fn compile_as(
     tree: &SyntaxTree,
     loaded: bool,
@@ -254,6 +284,24 @@ fn compile_as(
     cache: &mut PlanCache,
     functions: Option<(&crate::CallableBindings, bool)>,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
+    compile_analyzed_as(
+        tree, loaded, form, notation, anchor, catalog, cache, functions, false,
+    )
+    .map(|analysis| analysis.plan)
+}
+
+/// [`compile_with`], or with `loaded` the text as a file stores it ([`compile_loaded`]).
+fn compile_analyzed_as(
+    tree: &SyntaxTree,
+    loaded: bool,
+    form: FormulaForm,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+    functions: Option<(&crate::CallableBindings, bool)>,
+    collect_name_uses: bool,
+) -> Result<NameAnalysis, CompileError> {
     if let Some(first) = tree.diagnostics().first() {
         return Err(CompileError::Syntax { span: first.span });
     }
@@ -280,8 +328,8 @@ fn compile_as(
         names: HashMap::new(),
         name_bindings: Vec::new(),
         callable_bindings: Vec::new(),
-        active_name: None,
-        name_sheet: None,
+        name_context: crate::reference::NameEvaluationContext::for_formula(anchor),
+        name_uses: collect_name_uses.then(Vec::new),
         last_name: None,
         last_name_sheet: None,
         nesting: 0,
@@ -302,7 +350,10 @@ fn compile_as(
         callable_bindings: lowering.callable_bindings.into_boxed_slice(),
         form,
     };
-    Ok(cache.share(plan))
+    Ok(NameAnalysis {
+        plan: cache.share(plan),
+        uses: lowering.name_uses.unwrap_or_default(),
+    })
 }
 
 /// A site's binding and whether it takes the formula's row by implicit intersection.
@@ -360,8 +411,8 @@ struct Lowering<'c> {
     >,
     name_bindings: Vec<NameBindingProof>,
     callable_bindings: Vec<crate::CallableBindingProof>,
-    active_name: Option<calc_func::value::NameId>,
-    name_sheet: Option<calc_func::value::SheetId>,
+    name_context: crate::reference::NameEvaluationContext,
+    name_uses: Option<Vec<crate::reference::NameUse>>,
     last_name: Option<BoundName>,
     last_name_sheet: Option<calc_func::value::SheetId>,
     /// How many defined names' formulas are being lowered, one inside another.
@@ -538,8 +589,7 @@ impl<'c> Lowering<'c> {
                             })?;
                         self.blocks[block].push(Instruction::Function(target));
                     } else {
-                        let scope =
-                            NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet()));
+                        let scope = NameScope::Formula(self.name_context.lookup_sheet());
                         self.defined_name(text, scope, span, block)?;
                     }
                 }
@@ -552,8 +602,7 @@ impl<'c> Lowering<'c> {
                     // dc-g9q: `[0]!Name`, a defined name qualified by the formula's own workbook,
                     // as a file stores one: the name as the formula's sheet sees it.
                     if let Some(name) = own_workbook_name(node) {
-                        let scope =
-                            NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet()));
+                        let scope = NameScope::Formula(self.name_context.lookup_sheet());
                         self.defined_name(name.text(), scope, span, block)?;
                         return Ok(());
                     }
@@ -1097,8 +1146,8 @@ impl<'c> Lowering<'c> {
         if let Some(slot) = self.local(&parameter_key(name.text())) {
             self.blocks[block].push(Instruction::Local(slot));
         } else {
-            let scope = NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet()));
-            let definition = self.lookup_name(name.text(), scope);
+            let scope = NameScope::Formula(self.name_context.lookup_sheet());
+            let definition = self.lookup_name(name.text(), scope, name.span());
             if matches!(&definition, NameDefinition::Unknown) {
                 self.watch_callable(None, spelling);
             }
@@ -1216,7 +1265,8 @@ impl<'c> Lowering<'c> {
         if own {
             match self.lookup_name(
                 name.text(),
-                NameScope::Formula(self.name_sheet.unwrap_or(self.anchor.sheet())),
+                NameScope::Formula(self.name_context.lookup_sheet()),
+                name.span(),
             ) {
                 NameDefinition::Formula(definition) => {
                     let name_block = self.name_block(name.text(), &definition, name.span())?;
@@ -1431,14 +1481,23 @@ impl<'c> Lowering<'c> {
         Ok((parameter_key(text), optional))
     }
 
-    fn lookup_name(&mut self, name: &str, scope: NameScope) -> NameDefinition {
-        let proof = self.catalog.name_binding(name, scope, self.active_name);
+    fn lookup_name(&mut self, name: &str, scope: NameScope, span: TextSpan) -> NameDefinition {
+        let proof = self
+            .catalog
+            .name_binding(name, scope, self.name_context.definition);
         self.last_name = proof.as_ref().and_then(|proof| proof.resolved);
+        if let Some(uses) = &mut self.name_uses {
+            uses.push(crate::reference::NameUse {
+                span,
+                context: self.name_context,
+                resolved: self.last_name,
+            });
+        }
         self.last_name_sheet = self
             .last_name
             .and_then(|name| match name.scope {
                 calc_func::value::NameScope::Sheet(sheet) => Some(sheet),
-                calc_func::value::NameScope::Workbook => self.name_sheet,
+                calc_func::value::NameScope::Workbook => self.name_context.definition_sheet,
             })
             .or_else(|| {
                 if proof.is_none() {
@@ -1451,7 +1510,7 @@ impl<'c> Lowering<'c> {
                 }
             });
         if let Some(mut proof) = proof {
-            proof.parent = self.active_name;
+            proof.parent = self.name_context.definition;
             if !self.name_bindings.contains(&proof) {
                 self.name_bindings.push(proof);
             }
@@ -1469,7 +1528,7 @@ impl<'c> Lowering<'c> {
         span: TextSpan,
         block: usize,
     ) -> Result<(), CompileError> {
-        match self.lookup_name(name, scope) {
+        match self.lookup_name(name, scope, span) {
             NameDefinition::Formula(definition) => {
                 let name_block = self.name_block(name, &definition, span)?;
                 self.blocks[block].push(Instruction::Name(name_block));
@@ -1560,8 +1619,8 @@ impl<'c> Lowering<'c> {
             id: bound.map(|name| name.id),
         };
         self.names.insert(key, target);
-        let name_sheet = std::mem::replace(&mut self.name_sheet, definition_sheet);
-        let active_name = std::mem::replace(&mut self.active_name, target.id);
+        let child_context = self.name_context.child(target.id, definition_sheet);
+        let name_context = std::mem::replace(&mut self.name_context, child_context);
         let floor = std::mem::replace(&mut self.floor, self.scope.len());
         let in_name = std::mem::replace(&mut self.in_name, true);
         self.nesting += 1;
@@ -1569,8 +1628,7 @@ impl<'c> Lowering<'c> {
         self.nesting -= 1;
         self.in_name = in_name;
         self.floor = floor;
-        self.name_sheet = name_sheet;
-        self.active_name = active_name;
+        self.name_context = name_context;
         lowered.map_err(|error| match error {
             CompileError::Unsupported { .. } | CompileError::UnknownFunction { .. } => error,
             _ => refused(),
@@ -1592,7 +1650,7 @@ impl<'c> Lowering<'c> {
             // as a file stores it, relative to A1 of the formula's sheet, and wraps when placed.
             Some((Err(BindError::ExternalWorkbook), _)) => {
                 let (notation, anchor) = if self.in_name {
-                    let a1 = CellKey::new(self.name_sheet.unwrap_or(self.anchor.sheet()), 1, 1)
+                    let a1 = CellKey::new(self.name_context.lookup_sheet(), 1, 1)
                         .expect("A1 lies on the grid");
                     (ReferenceNotation::A1, FormulaAnchor::new(a1))
                 } else {
@@ -1658,7 +1716,7 @@ impl<'c> Lowering<'c> {
     fn push_reference(&mut self, mut operand: ReferenceOperand, this_row: bool, block: usize) {
         if self.in_name
             && operand.sheet == SheetTarget::Anchor
-            && let Some(sheet) = self.name_sheet
+            && let Some(sheet) = self.name_context.definition_sheet
         {
             operand.sheet = SheetTarget::Sheet(sheet);
         }

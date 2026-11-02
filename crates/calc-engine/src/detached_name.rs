@@ -16,6 +16,21 @@ struct SelectedName<'a> {
     root: Cell<bool>,
 }
 const INSPECTION: &str = "__DnaCalcNameInspection";
+fn selected_catalog(inputs: &ModelRoot, id: NameId) -> Result<SelectedName<'_>, NotModeled> {
+    let selected = inputs
+        .definitions()
+        .name_table()
+        .get(id)
+        .ok_or(NotModeled::Evaluation(calc_fml::EvalFault::NotModelled {
+            construct: "an explicit evaluation of a deleted name",
+            owner: "dc-971p.34",
+        }))?;
+    Ok(SelectedName {
+        base: SnapshotCatalog::new(inputs),
+        selected,
+        root: Cell::new(false),
+    })
+}
 impl ReferenceCatalog for SelectedName<'_> {
     fn defined_name(&self, name: &str, scope: NameScope) -> NameDefinition {
         if self.root.get() && name == INSPECTION {
@@ -77,6 +92,27 @@ impl ReferenceCatalog for SelectedName<'_> {
     }
 }
 impl DetachedFormula {
+    /// Definition/caller-qualified source evidence from the ordinary name compiler.
+    /// This compiles only; it runs no user code and creates no evaluation or shared value.
+    pub fn analyze_name(
+        inputs: &ModelRoot,
+        id: NameId,
+        anchor: CellKey,
+        functions: &calc_fml::CallableBindings,
+        cache: &mut calc_fml::PlanCache,
+    ) -> Result<calc_fml::NameAnalysis, NotModeled> {
+        let catalog = selected_catalog(inputs, id)?;
+        calc_fml::analyze_loaded_names(
+            &calc_fml::parse_formula(&format!("={INSPECTION}")),
+            ReferenceNotation::A1,
+            FormulaAnchor::new(anchor),
+            &catalog,
+            cache,
+            calc_fml::FormulaForm::Dynamic,
+            functions,
+        )
+        .map_err(NotModeled::Compile)
+    }
     /// A selected non-cell node compiled at its actual caller, through the canonical
     /// name binding path (relative name references wrap; cell formula references do not).
     pub fn compile_name(
@@ -84,19 +120,7 @@ impl DetachedFormula {
         id: NameId,
         anchor: CellKey,
     ) -> Result<Self, NotModeled> {
-        let selected = inputs
-            .definitions()
-            .name_table()
-            .get(id)
-            .ok_or(NotModeled::Evaluation(calc_fml::EvalFault::NotModelled {
-                construct: "an explicit evaluation of a deleted name",
-                owner: "dc-971p.34",
-            }))?;
-        let catalog = SelectedName {
-            base: SnapshotCatalog::new(inputs),
-            selected,
-            root: Cell::new(false),
-        };
+        let catalog = selected_catalog(inputs, id)?;
         let mut cache = calc_fml::PlanCache::new();
         let plan = calc_fml::compile_loaded_with(
             &calc_fml::parse_formula(&format!("={INSPECTION}")),

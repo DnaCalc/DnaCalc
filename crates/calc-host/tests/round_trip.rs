@@ -9225,3 +9225,147 @@ fn dc_971p__gradient_stops_and_pattern_records_survive_an_unrelated_font_edit() 
         assert!(xml.contains(&format!("v:keep=\"{marker}\"")));
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_rename_and_scope_history_retain_imported_duplicate_origins_and_attributes() {
+    use calc_doc_model::NameScope;
+    let mut book = session(&package_with_names(
+        r#"<definedName name="Rate" hidden="1" comment="keep" shortcutKey="K">2</definedName><definedName name="Rate" shortcutKey="L">7</definedName>"#,
+    ));
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "A1"), "=Rate+1");
+    enter(&mut book, at(s, "B1"), "=SUM(40,2)");
+    let unchanged = value(book.host(), at(s, "B1"));
+    let id = book
+        .host()
+        .model()
+        .definitions()
+        .name_table()
+        .lookup(NameScope::Workbook, "Rate")
+        .unwrap()
+        .id();
+    let change = |book: &mut HostSession, scope| {
+        let node = book.host().name_node(id).unwrap();
+        let edit = calc_host::NameEdit {
+            id: Some(id),
+            version: Some(node.binding_version()),
+            name: "Promoted".into(),
+            scope,
+            formula: Some(node.definition().formula.clone()),
+        };
+        let result = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Name(edit)));
+        assert!(result.accepted(), "{:?}", result.error);
+    };
+    change(&mut book, NameScope::Workbook);
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, "Rate")
+            .unwrap()
+            .definition()
+            .formula,
+        "7"
+    );
+    change(&mut book, NameScope::Sheet(s));
+    for _ in 0..2 {
+        let mut bytes = Vec::new();
+        book.save(&SavePolicy::default(), &mut bytes).unwrap();
+        let xml = part_text(&bytes, "xl/workbook.xml");
+        assert!(xml.contains("shortcutKey=\"K\""));
+        assert!(xml.contains("shortcutKey=\"L\""));
+        assert!(xml.find("shortcutKey=\"K\"").unwrap() < xml.find("shortcutKey=\"L\"").unwrap());
+        assert_eq!(
+            session(&bytes).host().defined_names(),
+            book.host().defined_names()
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "A1")),
+            Some(CalcValue::number(3.))
+        );
+        assert_eq!(value(book.host(), at(s, "B1")), unchanged);
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .name_table()
+                .lookup(NameScope::Workbook, "Rate")
+                .unwrap()
+                .id(),
+            id
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(
+            book.host().name_node(id).unwrap().definition().scope,
+            NameScope::Sheet(s)
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_rename_rewrites_conditional_sources_and_refuses_unowned_validation_sources() {
+    use calc_doc_model::NameScope;
+    for validation in [false, true] {
+        let named = package_with_names(r#"<definedName name="Rate">2</definedName>"#);
+        let bytes = package_with_part_from(&named, "xl/worksheets/sheet1.xml", |xml| {
+            let guard = if validation {
+                r#"<dataValidations count="1"><dataValidation type="list" sqref="A1"><formula1>Rate</formula1></dataValidation></dataValidations>"#
+            } else {
+                ""
+            };
+            xml.replace("</worksheet>",&format!(r#"<conditionalFormatting sqref="A1"><cfRule type="expression" priority="1"><formula>Rate&gt;1</formula></cfRule></conditionalFormatting>{guard}</worksheet>"#))
+        });
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let node = book
+            .host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, "Rate")
+            .unwrap();
+        let edit = calc_host::NameEdit {
+            id: Some(node.id()),
+            version: Some(node.binding_version()),
+            scope: NameScope::Workbook,
+            name: "YieldRate".into(),
+            formula: Some(node.definition().formula.clone()),
+        };
+        let revision = book.host().revision();
+        let result = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Name(edit)));
+        if validation {
+            assert!(!result.accepted());
+            assert_eq!(book.host().revision(), revision);
+            assert!(
+                result
+                    .error
+                    .unwrap()
+                    .to_string()
+                    .contains("data-validation")
+            );
+        } else {
+            assert!(result.accepted(), "{:?}", result.error);
+            assert_eq!(
+                book.host().model().definitions().conditional_rules(sheet)[0].formulas,
+                vec!["YieldRate>1"]
+            );
+            let mut saved = Vec::new();
+            book.save(&SavePolicy::default(), &mut saved).unwrap();
+            assert_eq!(
+                session(&saved)
+                    .host()
+                    .model()
+                    .definitions()
+                    .conditional_rules(sheet)[0]
+                    .formulas,
+                vec!["YieldRate>1"]
+            );
+        }
+    }
+}
