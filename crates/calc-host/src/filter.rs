@@ -6,6 +6,11 @@ use calc_engine::DetachedFormula;
 use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FilterChange {
+    Color {
+        column: u32,
+        cell_color: bool,
+        color: String,
+    },
     Enable {
         area: GridArea,
     },
@@ -78,6 +83,51 @@ pub(crate) fn prepare(
     if revision != host.revision().get() {
         return Err("The workbook changed; reopen the filter and try again".into());
     }
+    let mut staged_styles = None;
+    let change = match change {
+        FilterChange::Color {
+            column,
+            cell_color,
+            color,
+        } => {
+            let color = crate::format::color(&color)?;
+            let mut styles = (**host.styles()).clone();
+            let mut dxf = calc_doc_model::DifferentialFormat::default();
+            if cell_color {
+                dxf.fill = Some(calc_doc_model::Fill {
+                    pattern_type: Some(if color.is_some() { "solid" } else { "none" }.into()),
+                    fg_color: color,
+                    ..Default::default()
+                });
+            } else {
+                dxf.font = Some(calc_doc_model::Font {
+                    color: Some(color.unwrap_or(calc_doc_model::StyleColor {
+                        auto: true,
+                        ..Default::default()
+                    })),
+                    ..Default::default()
+                });
+            }
+            let dxf_id = if let Some(id) = styles
+                .differential_formats
+                .iter()
+                .position(|old| old == &dxf)
+            {
+                id as u32
+            } else {
+                let id = u32::try_from(styles.differential_formats.len())
+                    .map_err(|_| refusal("has too many differential formats"))?;
+                styles.differential_formats.push(dxf);
+                id
+            };
+            staged_styles = Some(styles);
+            FilterChange::Column {
+                column,
+                criteria: Some(FilterCriteria::Color { dxf_id, cell_color }),
+            }
+        }
+        change => change,
+    };
     let old = host.model().definitions().auto_filter(sheet);
     if let Some(filter) = old
         && host.model().definitions().tables().iter().any(|t| {
@@ -136,11 +186,17 @@ pub(crate) fn prepare(
             if !f.valid() {
                 return Err(refusal("criteria exceed supported limits"));
             }
-            f.filtered_rows = apply(host, &f)?;
+            f.filtered_rows = apply(host, &f, staged_styles.as_ref().unwrap_or(host.styles()))?;
             Some(f)
         }
     };
-    if host.loaded().sheet(sheet).is_some_and(|s|s.geometry().outline_unsupported) {return Err("AutoFilter visibility with this imported outline is not modelled (dc-971p.39); nothing changed".into());}
+    if host
+        .loaded()
+        .sheet(sheet)
+        .is_some_and(|s| s.geometry().outline_unsupported)
+    {
+        return Err("AutoFilter visibility with this imported outline is not modelled (dc-971p.39); nothing changed".into());
+    }
     // Removal is explicit; protected sheets still refuse before changing any authored state.
     if host
         .loaded()
@@ -149,23 +205,35 @@ pub(crate) fn prepare(
     {
         return Err(refusal("requires an editable worksheet"));
     }
-    Ok(if next.as_ref() == old {
+    let mut edits = if next.as_ref() == old {
         Vec::new()
     } else {
         vec![CellEdit::AutoFilter {
             sheet,
             filter: next,
         }]
-    })
+    };
+    if let Some(styles) = staged_styles.filter(|s| s != host.styles().as_ref()) {
+        edits.insert(0, CellEdit::Styles(std::sync::Arc::new(styles)));
+    }
+    Ok(edits)
 }
 
-fn apply(host: &HostState, filter: &AutoFilter) -> Result<BTreeSet<u32>, String> {
+fn apply(
+    host: &HostState,
+    filter: &AutoFilter,
+    styles: &calc_doc_model::StyleTable,
+) -> Result<BTreeSet<u32>, String> {
     let first = filter.area.first().row() + 1;
     let work = filter
         .columns
         .values()
         .map(|c| match c {
             FilterCriteria::Values { values, .. } => values.len().max(1),
+            FilterCriteria::Dates { groups, values, .. } => {
+                (groups.len() * 6 + values.len()).max(1)
+            }
+            FilterCriteria::Top { .. } | FilterCriteria::Color { .. } => 1,
             FilterCriteria::Custom { predicates, .. } => predicates.len(),
         })
         .sum::<usize>();
@@ -194,7 +262,52 @@ fn apply(host: &HostState, filter: &AutoFilter) -> Result<BTreeSet<u32>, String>
         ));
     }
     let mut plans = Vec::new();
+    let mut colors = Vec::new();
     for (col, criteria) in &filter.columns {
+        if let FilterCriteria::Color { dxf_id, cell_color } = criteria {
+            let area = GridArea::new(
+                CellKey::new(filter.area.sheet(), first, *col).unwrap(),
+                CellKey::new(filter.area.sheet(), filter.area.last().row(), *col).unwrap(),
+            )
+            .unwrap();
+            if host.loaded().sheet(area.sheet()).is_some_and(|sheet| {
+                sheet.review().conditional_extensions
+                    || sheet.conditional_formats().iter().any(|block| {
+                        block.unread_container
+                            && (block.areas.is_empty()
+                                || host
+                                    .current_areas(area.sheet(), &block.areas)
+                                    .iter()
+                                    .any(|a| a.intersection(area).is_some()))
+                    })
+            }) {
+                return Err(refusal(
+                    "colour filtering with unread conditional formatting or conditional extensions is not modelled",
+                ));
+            }
+            if host
+                .model()
+                .definitions()
+                .conditional_rules(area.sheet())
+                .iter()
+                .any(|rule| rule.areas.iter().any(|a| a.intersection(area).is_some()))
+            {
+                return Err(refusal(
+                    "colour filtering on conditionally formatted cells is not modelled",
+                ));
+            }
+            let dxf = styles
+                .differential_formats
+                .get(*dxf_id as usize)
+                .ok_or_else(|| refusal("colour filter format is unavailable"))?;
+            let color = if *cell_color {
+                fill_color(host, dxf.fill.as_ref())?
+            } else {
+                font_color(host, dxf.font.as_ref())?
+            };
+            colors.push((*col, *cell_color, color));
+            continue;
+        }
         let origin = CellKey::new(filter.area.sheet(), first, *col).unwrap();
         let cell = label(origin);
         let count = |criterion: String| format!("COUNTIF({cell},{})", quote(&criterion));
@@ -221,6 +334,74 @@ fn apply(host: &HostState, filter: &AutoFilter) -> Result<BTreeSet<u32>, String>
                     if *blank { "TRUE" } else { "FALSE" }
                 )
             }
+            FilterCriteria::Dates {
+                groups,
+                values,
+                blank,
+            } => {
+                let functions = ["YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"];
+                let mut terms = groups
+                    .iter()
+                    .map(|g| {
+                        format!(
+                            "AND({})",
+                            g.iter()
+                                .zip(functions)
+                                .map(|(n, f)| format!("{f}({cell})={n}"))
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let dates = if terms.is_empty() {
+                    "FALSE".into()
+                } else {
+                    format!(
+                        "IFERROR(AND(ISNUMBER({cell}),OR({})),FALSE)",
+                        terms.join(",")
+                    )
+                };
+                terms = values
+                    .iter()
+                    .map(|v| format!("{}>0", count(format!("={}", literal(v)))))
+                    .collect();
+                terms.push(dates);
+                format!(
+                    "IF(IFERROR({cell}=\"\",FALSE),{},OR({}))",
+                    if *blank { "TRUE" } else { "FALSE" },
+                    terms.join(",")
+                )
+            }
+            FilterCriteria::Top {
+                top,
+                percent,
+                value,
+            } => {
+                let start = label(origin).trim_end_matches(char::is_numeric).to_owned();
+                let range = format!("${start}${first}:${start}${}", filter.area.last().row());
+                let k = if *percent {
+                    format!("ROUNDUP(COUNT({range})*{value}/100,0)")
+                } else {
+                    value.clone()
+                };
+                let cutoff = format!(
+                    "IF(COUNT({range})=0,0,_xlfn.AGGREGATE({},6,{range},MIN(COUNT({range}),MAX(1,{k}))))",
+                    if *top { 14 } else { 15 }
+                );
+                let cutoff_value = DetachedFormula::compile(host.model(), &cutoff, origin)
+                    .map_err(|e| refusal(e))?
+                    .evaluate(&host.engine, host.model(), origin)
+                    .map_err(|e| refusal(e))?;
+                let cutoff = cutoff_value
+                    .as_number()
+                    .filter(|n| n.is_finite())
+                    .ok_or_else(|| refusal("could not calculate a numeric Top/Bottom cutoff"))?;
+                format!(
+                    "AND(ISNUMBER({cell}),IFERROR({cell}{}{cutoff},FALSE))",
+                    if *top { ">=" } else { "<=" }
+                )
+            }
+            FilterCriteria::Color { .. } => unreachable!(),
             FilterCriteria::Custom { and, predicates } => {
                 let terms = predicates
                     .iter()
@@ -256,6 +437,47 @@ fn apply(host: &HostState, filter: &AutoFilter) -> Result<BTreeSet<u32>, String>
                 None => return Err(refusal("criteria did not return a logical result")),
             }
         }
+        if !hidden.contains(&row) {
+            for (col, cell_color, expected) in &colors {
+                let at = CellKey::new(filter.area.sheet(), row, *col).unwrap();
+                let table = host.styles();
+                let default_format = calc_doc_model::CellFormat::default();
+                let id = host.cell_style(at);
+                let format = table
+                    .cell_formats
+                    .get(id as usize)
+                    .or_else(|| (id == 0).then_some(&default_format))
+                    .ok_or_else(|| refusal("cell format is unavailable"))?;
+                let parent = format
+                    .xf_id
+                    .and_then(|i| table.cell_style_formats.get(i as usize));
+                let actual = if *cell_color {
+                    let index = format
+                        .fill_id
+                        .or_else(|| parent.and_then(|p| p.fill_id))
+                        .unwrap_or(0);
+                    let fill = table.fills.get(index as usize);
+                    if fill.is_none() && index != 0 {
+                        return Err(refusal("fill is unavailable"));
+                    }
+                    fill_color(host, fill)?
+                } else {
+                    let index = format
+                        .font_id
+                        .or_else(|| parent.and_then(|p| p.font_id))
+                        .unwrap_or(0);
+                    let font = table.fonts.get(index as usize);
+                    if font.is_none() && index != 0 {
+                        return Err(refusal("font is unavailable"));
+                    }
+                    font_color(host, font)?
+                };
+                if &actual != expected {
+                    hidden.insert(row);
+                    break;
+                }
+            }
+        }
     }
     Ok(hidden)
 }
@@ -282,13 +504,17 @@ pub fn filter_values(
     let excluded = if let Some(criteria) = f.columns.get(&column) {
         let mut single = AutoFilter::new(f.area);
         single.columns.insert(column, criteria.clone());
-        apply(host, &single)?
+        apply(host, &single, host.styles())?
     } else {
         BTreeSet::new()
     };
     let mut blank = match f.columns.get(&column) {
-        Some(FilterCriteria::Values { blank, .. }) => *blank,
-        Some(FilterCriteria::Custom { .. }) => false,
+        Some(FilterCriteria::Values { blank, .. } | FilterCriteria::Dates { blank, .. }) => *blank,
+        Some(
+            FilterCriteria::Custom { .. }
+            | FilterCriteria::Top { .. }
+            | FilterCriteria::Color { .. },
+        ) => false,
         None => true,
     };
     let mut values = BTreeMap::new();
@@ -328,4 +554,52 @@ pub fn filter_values(
         }
     }
     Ok((values.into_iter().collect(), blank))
+}
+
+fn color_value(
+    host: &HostState,
+    color: Option<&calc_doc_model::StyleColor>,
+    automatic: Option<&str>,
+) -> Result<Option<String>, String> {
+    match color {
+        None => Ok(automatic.map(str::to_owned)),
+        Some(c) if c.auto => Ok(automatic.map(str::to_owned)),
+        Some(c) => host
+            .resolved_style_color(c)
+            .map(Some)
+            .ok_or_else(|| refusal("stored colour cannot be resolved")),
+    }
+}
+fn font_color(
+    host: &HostState,
+    font: Option<&calc_doc_model::Font>,
+) -> Result<Option<String>, String> {
+    if font.and_then(|f| f.color.as_ref()).is_some_and(|c| {
+        c.theme.as_deref() == Some("1")
+            && c.rgb.is_none()
+            && c.indexed.is_none()
+            && c.tint.as_deref().is_none_or(|v| v.parse::<f64>() == Ok(0.))
+    }) && host.loaded().theme_colors().is_empty()
+    {
+        return Ok(Some("#000000".into()));
+    }
+    color_value(host, font.and_then(|f| f.color.as_ref()), Some("#000000"))
+}
+fn fill_color(
+    host: &HostState,
+    fill: Option<&calc_doc_model::Fill>,
+) -> Result<Option<String>, String> {
+    let Some(fill) = fill else {
+        return Ok(None);
+    };
+    if fill.gradient.is_some() || !fill.other_children.is_empty() {
+        return Err(refusal("colour filtering on this fill is not modelled"));
+    }
+    match fill.pattern_type.as_deref().unwrap_or("none") {
+        "none" => Ok(None),
+        "solid" => color_value(host, fill.fg_color.as_ref(), None)?
+            .map(Some)
+            .ok_or_else(|| refusal("solid fill colour is unavailable")),
+        _ => Err(refusal("colour filtering on pattern fills is not modelled")),
+    }
 }

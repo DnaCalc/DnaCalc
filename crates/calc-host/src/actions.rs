@@ -561,6 +561,13 @@ fn sort_rows(
             "array formulas; paste their Values into an ordinary range first",
         ));
     }
+    if host.model().definitions().axis_layouts()
+        .outline_groups(area.sheet(), Axis::Rows).iter().any(|group| {
+            group.first.min(group.summary) <= data.last().row()
+                && group.last.max(group.summary) >= data.first().row()
+        }) {
+        return Err(unavailable("outline groups or their summary rows"));
+    }
     if host.sheet_geometry(area.sheet()).is_some_and(|g| {
         g.rows
             .range(first..=area.last().row())
@@ -595,7 +602,11 @@ fn sort_rows(
     }
     // Rule ranges and formulas are separate authored objects. Do not strand them by moving
     // only cell inputs, and never infer a formula value from a saved cache.
-    if !host
+    if review.conditional_extensions
+        || host.loaded.sheet(area.sheet()).is_some_and(|sheet| {
+            sheet.conditional_formats().iter().any(|block| block.unread_container)
+        })
+        || !host
         .model()
         .definitions()
         .conditional_rules(area.sheet())
@@ -616,22 +627,8 @@ fn sort_rows(
         for col in area.first().column()..=area.last().column() {
             let at = CellKey::new(area.sheet(), row, col).unwrap();
             if let Some(crate::CellInput::Formula(formula)) = host.model().cell(at) {
-                // Sheet-qualified references have distinct Excel sort behaviour. Do not
-                // silently apply the ordinary copy rule to them.
-                let tree = calc_fml::parse_formula(&format!("={}", formula.text().to_string_lossy()));
-                if !tree.diagnostics().is_empty() {
+                if !sort_formula_references_supported(host, formula, at) {
                     return Err(unavailable("qualified or unsupported formula references"));
-                }
-                use calc_fml::syntax::{SyntaxChild, SyntaxKind};
-                let mut nodes = vec![tree.root()];
-                while let Some(node) = nodes.pop() {
-                    if matches!(node.kind(), SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr) {
-                        return Err(unavailable("qualified or unsupported formula references"));
-                    }
-                    nodes.extend(node.children().iter().filter_map(|child| match child {
-                        SyntaxChild::Node(node) => Some(node),
-                        _ => None,
-                    }));
                 }
             }
         }
@@ -715,4 +712,85 @@ fn sort_rows(
         );
     }
     Ok(edits)
+}
+
+// Qualified relative references have distinct Excel sort behaviour. The only newly
+// admitted qualifier is one valid, fully fixed cell on a different worksheet. Check
+// its identity with the canonical binder and its invariance with the copy relocator.
+fn sort_formula_references_supported(
+    host: &HostState,
+    formula: &crate::FormulaText,
+    at: CellKey,
+) -> bool {
+    use calc_fml::syntax::{SyntaxChild, SyntaxKind};
+    let tree = calc_fml::parse_formula(&format!("={}", formula.text().to_string_lossy()));
+    if !tree.diagnostics().is_empty() {
+        return false;
+    }
+    let step = |index, maximum| {
+        if index < maximum {
+            index + 1
+        } else {
+            index - 1
+        }
+    };
+    let probe = CellKey::new(
+        at.sheet(),
+        step(at.row(), crate::value::MAX_ROWS),
+        step(at.column(), crate::value::MAX_COLUMNS),
+    )
+    .unwrap();
+    let mut qualified = false;
+    let mut reference_operator = false;
+    let mut nodes = vec![tree.root()];
+    while let Some(node) = nodes.pop() {
+        match node.kind() {
+            SyntaxKind::SheetSpan3DReferenceExpr => return false,
+            SyntaxKind::RangeExpr
+            | SyntaxKind::IntersectionExpr
+            | SyntaxKind::UnionExpr
+            | SyntaxKind::PostfixExpr => reference_operator = true,
+            SyntaxKind::QualifiedReferenceExpr => {
+                qualified = true;
+                let Some((_, target)) = calc_fml::reference::qualified_name(node) else {
+                    return false;
+                };
+                // Excel names cannot start with '$'. Positive binding below still rejects
+                // invalid dollar-prefixed cells, rather than treating unchanged text as proof.
+                if !target.text().starts_with('$') {
+                    return false;
+                }
+                let source = node.text();
+                let source = source.trim();
+                let crate::ReferenceTarget::Area(target) = host.resolve_reference_text(at, source)
+                else {
+                    return false;
+                };
+                if target.sheet() == at.sheet()
+                    || target.row_count() != 1
+                    || target.column_count() != 1
+                {
+                    return false;
+                }
+                let Some(crate::CellInput::Formula(reference)) =
+                    crate::interpret_entry(&format!("={source}")).ok().flatten()
+                else {
+                    return false;
+                };
+                if calc_engine::relocate_formula(host.model(), &reference, at, probe).as_ref()
+                    != Some(&reference)
+                {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+        nodes.extend(node.children().iter().filter_map(|child| match child {
+            SyntaxChild::Node(node) => Some(node),
+            _ => None,
+        }));
+    }
+    // A qualifier can govern both endpoints of a range. Do not admit just its first
+    // absolute endpoint while the second endpoint still changes under relocation.
+    !qualified || !reference_operator
 }

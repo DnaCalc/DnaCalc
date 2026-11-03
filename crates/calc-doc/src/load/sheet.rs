@@ -997,11 +997,12 @@ pub(super) fn load_sheet(
                 sheet.load.conditional_formats.push(block);
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "extLst") => {
-                let unread = super::conditional::read_extensions(
+                let (unread, conditional_extensions) = super::conditional::read_extensions(
                     &mut events,
                     &mut bars,
                     &mut sheet.load.validations,
                 )?;
+                sheet.load.review.conditional_extensions |= conditional_extensions;
                 if unread > 0 {
                     sheet.load.review.unsupported.push(format!("{unread} extension-only conditional rules are preserved but cannot be displayed or edited (dc-971p.8)"));
                 }

@@ -273,6 +273,7 @@ dependencies = [
  "calc-doc-model",
  "calc-engine",
  "calc-fml",
+ "calc-func",
  "calc-value",
  "calc-vba",
  "calc-verdict",

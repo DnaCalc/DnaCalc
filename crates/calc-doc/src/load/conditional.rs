@@ -289,16 +289,25 @@ pub(crate) fn read_extensions(
     events: &mut Events<'_>,
     bars: &mut BTreeMap<String, DataBarExtension>,
     validations: &mut Vec<super::validation::Validation>,
-) -> Result<usize, LoadError> {
+) -> Result<(usize, bool), LoadError> {
     let mut unread = 0usize;
+    let mut conditional = false;
     let mut depth = 1u32;
     let mut rule_id: Option<String> = None;
     while depth > 0 {
         match events.next()? {
+            Some(XmlEvent::Start(element))
+                if element.name.is(X14_NAMESPACE, "conditionalFormatting")
+                    || element.name.is(X14_NAMESPACE, "conditionalFormattings") =>
+            {
+                conditional = true;
+                depth += 1;
+            }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "dataValidation") => {
                 validations.push(super::validation::read_x14(events, &element)?);
             }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "cfRule") => {
+                conditional = true;
                 if element.attribute("type") != Some("dataBar") {
                     unread += 1;
                 }
@@ -306,6 +315,7 @@ pub(crate) fn read_extensions(
                 depth += 1;
             }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "dataBar") => {
+                conditional = true;
                 if let Some(id) = rule_id.clone() {
                     bars.insert(
                         id,
@@ -324,7 +334,7 @@ pub(crate) fn read_extensions(
             None => return Err(events.invalid("the part ends inside extLst")),
         }
     }
-    Ok(unread)
+    Ok((unread, conditional))
 }
 
 /// The blocks with each data bar's lengths and fill taken from Excel 2010's extension when it

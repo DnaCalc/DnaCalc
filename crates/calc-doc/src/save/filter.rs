@@ -37,6 +37,58 @@ fn render(prefix: &str, filter: &AutoFilter, definitions: &Definitions) -> Vec<u
                 }
                 out.extend(format!("</{prefix}filters>").bytes());
             }
+            FilterCriteria::Dates {
+                groups,
+                values,
+                blank,
+            } => {
+                out.extend(format!("<{prefix}filters blank=\"{}\">", u8::from(*blank)).bytes());
+                for v in values {
+                    out.extend(format!("<{prefix}filter val=").bytes());
+                    xstring_attribute(&v.encode_utf16().collect::<Vec<_>>(), &mut out);
+                    out.extend(b"/>");
+                }
+                let fields = ["year", "month", "day", "hour", "minute", "second"];
+                for group in groups {
+                    out.extend(
+                        format!(
+                            "<{prefix}dateGroupItem dateTimeGrouping=\"{}\"",
+                            fields[group.len() - 1]
+                        )
+                        .bytes(),
+                    );
+                    for (field, value) in fields.iter().zip(group) {
+                        out.extend(format!(" {field}=\"{value}\"").bytes());
+                    }
+                    out.extend(b"/>");
+                }
+                out.extend(format!("</{prefix}filters>").bytes());
+            }
+            FilterCriteria::Top {
+                top,
+                percent,
+                value,
+            } => {
+                out.extend(
+                    format!(
+                        "<{prefix}top10 top=\"{}\" percent=\"{}\" val=",
+                        u8::from(*top),
+                        u8::from(*percent)
+                    )
+                    .bytes(),
+                );
+                xstring_attribute(&value.encode_utf16().collect::<Vec<_>>(), &mut out);
+                out.extend(b"/>");
+            }
+            FilterCriteria::Color { dxf_id, cell_color } => {
+                out.extend(
+                    format!(
+                        "<{prefix}colorFilter dxfId=\"{dxf_id}\" cellColor=\"{}\"/>",
+                        u8::from(*cell_color)
+                    )
+                    .bytes(),
+                );
+            }
             FilterCriteria::Custom { and, predicates } => {
                 out.extend(format!("<{prefix}customFilters and=\"{}\">", u8::from(*and)).bytes());
                 for p in predicates {

@@ -33,7 +33,7 @@ use std::collections::HashMap;
 
 const CODE: u16 = 310;
 
-/// W111 typed EXPAND/HSTACK/VSTACK controls distinguish a direct scalar source error
+/// W111 typed DROP/EXPAND/HSTACK/VSTACK controls distinguish a direct scalar source error
 /// from an error held in an actual array or reference.
 fn source_error(arguments: &[CalcValue]) -> Step<()> {
     match arguments[0].core_ref() {
@@ -651,6 +651,7 @@ ported_family! {
         }
     }
     7 drop_fn "DROP" (2, 3) [R "array", V "rows", V "columns"] |s, a, sv| {
+        source_error(a)?;
         match sub_area(s, a, false)? {
             Some(reference) => Ok(reference),
             None => run(s, a, sv, k::eval_drop_prepared),

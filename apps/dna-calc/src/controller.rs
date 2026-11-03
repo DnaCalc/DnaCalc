@@ -2224,6 +2224,23 @@ impl Controller {
         };
         self.filter_command_revision(change,Some(self.summary.get_untracked().revision));
     }
+    pub fn color_filter(&self,cell_color:bool,color:String) {
+        let Some(sheet)=self.sheet.get_untracked()else{return;};
+        let Some(area)=self.grid_geometry(sheet).and_then(|g|g.auto_filter).and_then(|f|f.area.area())else{return;};
+        if let Some(column)=self.model.with_untracked(|m|m.runtime.tools.filter.column.parse::<u32>().ok()).filter(|c|*c>0 && *c<=area.column_count()).map(|c|area.first().column()+c-1) {self.filter_command_revision(wire::FilterChange::Color{column,cell_color,color},Some(self.summary.get_untracked().revision));}else{self.say("Choose a column within the filter range",true);}
+    }
+    pub fn special_filter(&self, date:Option<String>, top:bool, percent:bool, value:String, blank:bool) {
+        let Some(sheet)=self.sheet.get_untracked()else{return;};
+        let Some(area)=self.grid_geometry(sheet).and_then(|g|g.auto_filter).and_then(|f|f.area.area())else{return;};
+        let Some(column)=self.model.with_untracked(|m|m.runtime.tools.filter.column.parse::<u32>().ok()).filter(|c|*c>0 && *c<=area.column_count()).map(|c|area.first().column()+c-1)else{self.say("Choose a column within the filter range",true);return;};
+        let change=if let Some(date)=date {
+            let groups=date.lines().filter(|s|!s.trim().is_empty()).map(|s|s.trim().split(['-','T',':']).map(str::parse::<u16>).collect::<Result<Vec<_>,_>>()).collect::<Result<Vec<_>,_>>();
+            let Ok(groups)=groups else{self.say("Enter years such as 2026, months such as 2026-11, or dates such as 2026-11-03T14:30",true);return;};
+            if groups.is_empty(){self.say("Enter at least one date group",true);return;}
+            wire::FilterChange::Dates{column,groups,values:Vec::new(),blank}
+        }else{wire::FilterChange::Top{column,top,percent,value}};
+        self.filter_command_revision(change,Some(self.summary.get_untracked().revision));
+    }
     pub fn clear_filter_column(&self) {
         let Some(sheet)=self.sheet.get_untracked()else{return;};
         let Some(filter)=self.grid_geometry(sheet).and_then(|g|g.auto_filter)else{return;};
