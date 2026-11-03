@@ -5,11 +5,12 @@
 //!
 //! - Abramowitz and Stegun, *Handbook of Mathematical Functions* (1964), 9.8.1 to 9.8.8: the
 //!   polynomial approximations of I0, I1, K0 and K1 used here, with their published coefficients.
-//! - J0, J1, Y0 and Y1 below argument magnitude 8 call the licensed fixed rational
-//!   helpers in `bessel_rational`. Other arguments retain the existing `libm` fdlibm methods.
-//!   Agreement outside the measured low-region seed readings remains open.
+//! - J0, J1, Y0 and Y1 below argument magnitude 8, and Y1 from 8, call the licensed
+//!   fixed helpers in `bessel_rational`. Other seed arguments retain the existing `libm`
+//!   fdlibm methods. Agreement outside the recorded measurements remains open.
 //! - The three-term recurrence `C(n+1) = (2n/x) C(n) - C(n-1)` (A&S 9.1.27, 9.6.26), run forward
-//!   for Y and K and for J above its order. J below its order delegates to libm::jn.
+//!   for Y and K and for J above its order. J below its order calls the separately
+//!   licensed published adaptive backward program in `bessel_rational`.
 //! - I of order at least two uses the backward recurrence (DLMF 10.29.1,
 //!   10.74(iv)), normalized to the same A&S I0 approximation as order zero.
 //!   Its defining positive series (DLMF 10.25.2) handles a normalization ratio
@@ -170,6 +171,11 @@ fn y0(x: D) -> R {
     }
  Ok(D::new(libm::y0(x.0))) }
 fn y1(x: D) -> R {
+    if x.0 >= 8.0 {
+        let value = super::bessel_rational::y1_large(x.0);
+        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+    }
+
     if x.0 > 0.0 && x.0 < 8.0 {
         let value = super::bessel_rational::y1(x.0);
         return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
@@ -304,7 +310,7 @@ pub fn besselj_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
         _ if x.0 == 0.0 => Ok(D(0.0)),
         _ => {
             let ax = x.abs();
-            let v = if ax.0 > n as f64 { forward(ax, n, j0(ax)?, j1(ax)?, false) } else { D::new(libm::jn(n as i32, ax.0)) };
+            let v = if ax.0 > n as f64 { forward(ax, n, j0(ax)?, j1(ax)?, false) } else { D::new(super::bessel_rational::jn(n as i32, ax.0)) };
             Ok(odd_sign(x, n, v))
         }
     })
@@ -392,10 +398,10 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn spot_values_record_exact_controls_and_known_gaps() {
-        assert_eq!(besselj_kernel(1.9, 2.0).unwrap().to_bits(), 0x3fd51d80cca30f39, "recorded Excel excel(0x3fd51d81390f83eb)");
+        assert_eq!(besselj_kernel(1.9, 2.0).unwrap().to_bits(), 0x3fd51d81390f83eb, "recorded Excel excel(0x3fd51d81390f83eb)");
         assert_eq!(besseli_kernel(1.5, 1.0), Ok(excel(0x3fef69cfb6bc3907)));
         assert_eq!(besselk_kernel(1.5, 1.0), Ok(excel(0x3fd1c0b8c63a3a82)));
-        assert_eq!(bessely_kernel(100.0, 1.0).unwrap().to_bits(), 0xbf94dc7ab72edc1f, "recorded Excel -0.020372311933786909");
+        assert_eq!(bessely_kernel(100.0, 1.0).unwrap().to_bits(), 0xbf94dc7ab5ff838f, "recorded Excel -0.020372311933786909");
         assert_eq!(bessely_kernel(0.5, 0.0).unwrap().to_bits(), 0xbfdc72feb3fe171f, "recorded Excel -0.44451873376270784");
         assert_eq!(besselj_kernel(0.0, 0.0).unwrap().to_bits(), 0x3ff0000000c292b1, "recorded Excel 1.00000000283141");
         assert_eq!(besselj_kernel(-2.5, 1.0).unwrap().to_bits(), 0xbfdfd063c8529f24, "recorded Excel -0.49709410250442176");
@@ -417,7 +423,7 @@ mod tests {
         assert_eq!(besselj_kernel(134217728.0, 0.0).unwrap().to_bits(), 0xbed7ff19ed9c47a0, "recorded Excel NUM; phase cutoff removed");
         assert_eq!(besselj_kernel(134217727.5, 0.0).unwrap().to_bits(), 0xbf03e23975421ed4, "recorded Excel -3.792512787637833E-05");
         assert_eq!(besseli_kernel(709.78, 0.0), Err(Num));
-        // Excel records NUM; the public-library backward method underflows to zero.
-        assert_eq!(besselj_kernel(1e-300, 2.0), Ok(0.0));
+        // Original Excel NUM reading; the published backward program agrees.
+        assert_eq!(besselj_kernel(1e-300, 2.0), Err(Num));
     }
 }
