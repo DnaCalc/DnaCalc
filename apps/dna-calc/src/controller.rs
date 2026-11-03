@@ -1415,6 +1415,12 @@ impl Controller {
         self.copy_pending.get() > 0
     }
 
+    // Construct this small adapter on demand. Keeping it out of the copied Controller avoids
+    // multiplying its size through every retained view closure on the wasm stack.
+    pub fn paste_transpose(&self) -> ModelField<bool> {
+        Field::new(self.model, |m| &m.runtime.paste_transpose, |m| &mut m.runtime.paste_transpose)
+    }
+
     fn chosen_paste_mode(&self) -> wire::PasteMode {
         match self.paste_mode.get_untracked().as_str() {
             "values" => wire::PasteMode::Values,
@@ -1452,6 +1458,7 @@ impl Controller {
             let Some(to)=controller.selected_area_untracked() else {return;};
             let generation=controller.generation.get_untracked();
             let mode=controller.chosen_paste_mode();
+            let transpose=controller.model.with_untracked(|m| m.runtime.paste_transpose);
             controller.pending_actions.update(|n|*n+=1);
             controller.pending_changes.update(|n|*n+=1);
             wasm_bindgen_futures::spawn_local(async move {
@@ -1461,7 +1468,7 @@ impl Controller {
                 if generation!=controller.generation.get_untracked() {return;}
                 match result {
                     Ok((text,html))=>match controller.clipboard_source(&text,&html) {
-                        Ok(source)=>controller.prepare_paste_at_mode(source,to,false,mode),
+                        Ok(source)=>controller.prepare_paste_at_mode(source,to,false,mode,transpose),
                         Err(reason)=>controller.say(reason,true),
                     },
                     Err(_)=>{controller.clipboard_fallback.set(Some(false));controller.say("Browser clipboard access was denied. Paste table text in the dialog, or use Paste copied cells.",true);}
@@ -1524,7 +1531,7 @@ impl Controller {
     }
 
     pub fn prepare_paste_at(&self, source: wire::PasteSource, to: GridArea, force_preview: bool) {
-        self.prepare_paste_at_mode(source, to, force_preview, self.chosen_paste_mode());
+        self.prepare_paste_at_mode(source, to, force_preview, self.chosen_paste_mode(), self.model.with_untracked(|m| m.runtime.paste_transpose));
     }
 
     fn prepare_paste_at_mode(
@@ -1533,6 +1540,7 @@ impl Controller {
         to: GridArea,
         force_preview: bool,
         chosen_mode: wire::PasteMode,
+        transpose: bool,
     ) {
         let controller = *self;
         let generation = self.generation.get_untracked();
@@ -1546,6 +1554,7 @@ impl Controller {
         self.pending_changes.update(|n| *n += 1);
         self.call(
             Request::PreparePaste {
+                transpose: transpose && !matches!(source, wire::PasteSource::Fill { .. }),
                 source,
                 to: Area::of(to),
                 mode,
@@ -2065,6 +2074,26 @@ impl Controller {
                 }
             },
         );
+    }
+
+
+    pub fn sort_rows(&self, descending: bool) {
+        let controller=*self;
+        self.after_input(move || {
+            if controller.editing.get_untracked().is_some() {return;}
+            let areas=controller.areas.get_untracked();
+            let [area]=areas.as_slice() else {
+                controller.say("Select one rectangular range to sort",true);return;
+            };
+            let area=*area;
+            let column=controller.model.with_untracked(|m|m.runtime.tools.sort_column.parse::<u32>());
+            let Ok(column)=column else {controller.say("Enter a column number within the selection",true);return;};
+            if column==0 || column>area.column_count() {controller.say("The sort column must be within the selected range (1 is its first column)",true);return;}
+            let header=controller.model.with_untracked(|m|m.runtime.tools.sort_header);
+            controller.dispatch(Intent::SortRows{area:Area::of(area),column:area.first().column()+column-1,header,descending,revision:controller.summary.get_untracked().revision},move |outcome| {
+                if outcome.accepted {controller.say(format!("Sorted {} {}",controller.area_label(area),if descending {"largest to smallest"}else{"smallest to largest"}),false);}
+            });
+        });
     }
 
     pub fn freeze_panes(&self, choice: &'static str) {

@@ -43,6 +43,7 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
             horizontal: Some("right".into()),
             vertical: Some("center".into()),
             wrap: Some(true),
+            shrink: Some(true),
             rotation: Some(-30),
             indent: Some(2),
             font_name: Some("Arial".into()),
@@ -74,6 +75,7 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
         assert!(after.fonts.starts_with(&original.fonts));
         assert!(after.cell_formats.starts_with(&original.cell_formats));
         let authored = [book.host().cell_style(a), book.host().cell_style(b)];
+        assert!(book.host().cell_alignment(a).unwrap().shrink_to_fit);
         assert!(book.dispatch(SkinIntent::Undo).accepted());
         assert_eq!(book.host().styles(), &original);
         assert_eq!(book.host().cell_style(a), old_a);
@@ -102,6 +104,7 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
         assert_eq!(reopened.styles().number_formats, after.number_formats);
         for (address, index) in ["A1", "B2"].into_iter().zip(authored) {
             assert_eq!(reopened.cell_style(at(r, address)), index);
+            assert!(reopened.cell_alignment(at(r,address)).unwrap().shrink_to_fit);
             assert_eq!(
                 reopened.number_format(at(r, address)),
                 Some("0.0000 \"units\"")
@@ -10266,4 +10269,564 @@ fn dc_hsa5_10__table_formula_sources_keep_their_existing_storage() {
             _ => panic!("a table formula changed source storage"),
         }
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__transpose_paste_preserves_formula_offsets_formats_history_and_xlsx() {
+    use calc_host::{
+        CopySnapshot, FormatPatch, PasteMode, PasteSource, WorkbookCommand as C,
+        prepare_paste_oriented,
+    };
+    let bytes = calc_host::blank_package();
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "1"),
+        ("B1", "2"),
+        ("C1", "3"),
+        ("A2", "4"),
+        ("B2", "5"),
+        ("D1", "7"),
+        ("B6", "20"),
+        ("D6", "10"),
+        ("F1", "30"),
+        ("C2", "=A1+$B1+C$1+$D$1"),
+    ] {
+        assert!(enter(&mut book, at(sheet, address), text).accepted());
+    }
+    for (address, patch) in [
+        (
+            "A1",
+            FormatPatch {
+                bold: Some(true),
+                fill: Some("#ff0000".into()),
+                ..Default::default()
+            },
+        ),
+        (
+            "B2",
+            FormatPatch {
+                italic: Some(true),
+                number_format: Some("0.00".into()),
+                ..Default::default()
+            },
+        ),
+    ] {
+        assert!(
+            book.dispatch(SkinIntent::Command(C::FormatCells {
+                areas: vec![GridArea::cell(at(sheet, address))],
+                patch
+            }))
+            .accepted()
+        );
+    }
+    let snapshot = CopySnapshot::capture(
+        book.host(),
+        GridArea::new(at(sheet, "A1"), at(sheet, "C2")).unwrap(),
+    )
+    .unwrap();
+    assert!(enter(&mut book, at(sheet, "F5"), "99").accepted());
+    let prior_depth = book.history_depth();
+    let plan = prepare_paste_oriented(
+        book.host(),
+        PasteSource::Snapshot {
+            snapshot: &snapshot,
+            cut: false,
+        },
+        GridArea::cell(at(sheet, "E5")),
+        PasteMode::All,
+        true,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.target(),
+        GridArea::new(at(sheet, "E5"), at(sheet, "F7")).unwrap()
+    );
+    assert_eq!(plan.replaces(), 1);
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!(book.history_depth(), (prior_depth.0 + 1, 0));
+    for (address, value) in [
+        ("E5", 1.),
+        ("F5", 4.),
+        ("E6", 2.),
+        ("F6", 5.),
+        ("E7", 3.),
+        ("F7", 67.),
+        ("C2", 13.),
+    ] {
+        assert_eq!(
+            session_calculated(&book, at(sheet, address)).or_else(|| {
+                match session_value(&book, at(sheet, address)) {
+                    ProjectedValue::Literal(v) => Some(v),
+                    _ => None,
+                }
+            }),
+            Some(CalcValue::number(value)),
+            "{address}"
+        );
+    }
+    assert_eq!(
+        calc_host::search::entry_text(book.host().model().cell(at(sheet, "F7"))),
+        "=D6+$B6+F$1+$D$1"
+    );
+    assert_eq!(
+        book.host().cell_style(at(sheet, "E5")),
+        book.host().cell_style(at(sheet, "A1"))
+    );
+    assert_eq!(
+        book.host().cell_style(at(sheet, "F6")),
+        book.host().cell_style(at(sheet, "B2"))
+    );
+    assert_eq!(book.host().number_format(at(sheet, "F6")), Some("0.00"));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.history_depth(), (prior_depth.0, 1));
+    assert_eq!(
+        book.host().model().cell(at(sheet, "F5")),
+        Some(&number(99.))
+    );
+    for address in ["E5", "E6", "F6", "E7", "F7"] {
+        assert!(book.host().model().cell(at(sheet, address)).is_none());
+        assert_eq!(book.host().cell_style(at(sheet, address)), 0);
+    }
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    assert_eq!(
+        calc_host::search::entry_text(reopened.host().model().cell(at(rs, "F7"))),
+        "=D6+$B6+F$1+$D$1"
+    );
+    assert!(matches!(session_value(&reopened, at(rs, "F7")), ProjectedValue::FileCached(_)));
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(session_calculated(&reopened, at(rs, "F7")), Some(CalcValue::number(67.)));
+    assert_eq!(reopened.host().number_format(at(rs, "F6")), Some("0.00"));
+    assert_eq!(
+        reopened.host().cell_style(at(rs, "E5")),
+        reopened.host().cell_style(at(rs, "A1"))
+    );
+    let mut twin = session(&bytes);
+    let replayed = replay(book.intent_log(), &mut twin);
+    assert!(replayed.mismatches.is_empty(), "{replayed:?}");
+    assert_eq!(
+        session_calculated(&twin, at(sheet, "F7")),
+        Some(CalcValue::number(67.))
+    );
+    let overlap = prepare_paste_oriented(
+        book.host(),
+        PasteSource::Snapshot {
+            snapshot: &snapshot,
+            cut: false,
+        },
+        GridArea::cell(at(sheet, "B1")),
+        PasteMode::All,
+        true,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(overlap)))
+            .accepted()
+    );
+    for (address, value) in [("B1", 1.), ("C1", 4.), ("B2", 2.), ("C2", 5.), ("B3", 3.)] {
+        assert_eq!(
+            book.host().model().cell(at(sheet, address)),
+            Some(&number(value)),
+            "{address}"
+        );
+    }
+    assert_eq!(
+        calc_host::search::entry_text(book.host().model().cell(at(sheet, "C3"))),
+        "=A2+$B2+C$1+$D$1"
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "C3")),
+        Some(CalcValue::number(17.))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "C2")),
+        Some(CalcValue::number(13.))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__transpose_modes_keep_captured_values_and_refuse_unsupported_or_partial_arrays() {
+    use calc_host::{
+        CopySnapshot, FormatPatch, PasteMode, PasteSource, WorkbookCommand as C,
+        prepare_paste_oriented,
+    };
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    let from = GridArea::new(at(sheet, "A1"), at(sheet, "C2")).unwrap();
+    assert!(enter(&mut book, at(sheet, "A1"), "=SEQUENCE(2,3)").accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(C::FormatCells {
+            areas: vec![GridArea::cell(at(sheet, "A1"))],
+            patch: FormatPatch {
+                fill: Some("#ff0000".into()),
+                number_format: Some("0.00 \"copied\"".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let snapshot = CopySnapshot::capture(book.host(), from).unwrap();
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(C::FormatCells {
+            areas: vec![GridArea::cell(at(sheet, "A1"))],
+            patch: FormatPatch {
+                fill: Some("#0000ff".into()),
+                number_format: Some("0.000 \"branch\"".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let original = (book.host().revision(), book.history_depth());
+    for cut in [false, true] {
+        let reason = prepare_paste_oriented(
+            book.host(),
+            PasteSource::Snapshot {
+                snapshot: &snapshot,
+                cut,
+            },
+            GridArea::cell(at(sheet, "E1")),
+            PasteMode::All,
+            true,
+        )
+        .unwrap_err();
+        assert!(
+            reason.contains("not modelled") && reason.contains("dc-971p."),
+            "{reason}"
+        );
+        assert_eq!((book.host().revision(), book.history_depth()), original);
+    }
+    assert!(enter(&mut book, at(sheet, "A1"), "=SEQUENCE(2,3,10)").accepted());
+    let plan = prepare_paste_oriented(
+        book.host(),
+        PasteSource::Snapshot {
+            snapshot: &snapshot,
+            cut: false,
+        },
+        GridArea::cell(at(sheet, "E1")),
+        PasteMode::Values,
+        true,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(plan)))
+            .accepted()
+    );
+    for (address, value) in [
+        ("E1", 1.),
+        ("F1", 4.),
+        ("E2", 2.),
+        ("F2", 5.),
+        ("E3", 3.),
+        ("F3", 6.),
+    ] {
+        assert_eq!(
+            book.host().model().cell(at(sheet, address)),
+            Some(&number(value)),
+            "{address}"
+        );
+    }
+    assert!(enter(&mut book, at(sheet, "J1"), "keep").accepted());
+    let plan = prepare_paste_oriented(
+        book.host(),
+        PasteSource::Snapshot {
+            snapshot: &snapshot,
+            cut: false,
+        },
+        GridArea::cell(at(sheet, "J1")),
+        PasteMode::Formats,
+        true,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!(
+        calc_host::search::entry_text(book.host().model().cell(at(sheet, "J1"))),
+        "keep"
+    );
+    assert_ne!(
+        book.host().cell_style(at(sheet, "J1")),
+        book.host().cell_style(at(sheet, "A1"))
+    );
+    assert_eq!(
+        book.host().number_format(at(sheet, "J1")),
+        Some("0.00 \"copied\"")
+    );
+    assert_eq!(
+        book.host().number_format(at(sheet, "A1")),
+        Some("0.000 \"branch\"")
+    );
+    let before = (book.host().revision(), book.history_depth());
+    for target in [
+        GridArea::cell(at(sheet, "A1")),
+        GridArea::new(at(sheet, "J10"), at(sheet, "M13")).unwrap(),
+        GridArea::cell(at(sheet, "XFD1048576")),
+    ] {
+        assert!(
+            prepare_paste_oriented(
+                book.host(),
+                PasteSource::Snapshot {
+                    snapshot: &snapshot,
+                    cut: false
+                },
+                target,
+                PasteMode::Values,
+                true
+            )
+            .is_err()
+        );
+        assert_eq!((book.host().revision(), book.history_depth()), before);
+    }
+    let external = PasteSource::External(vec![
+        vec!["one".into(), "".into(), "3".into()],
+        vec!["four".into(), "5".into(), "6".into()],
+    ]);
+    let plan = prepare_paste_oriented(
+        book.host(),
+        external,
+        GridArea::cell(at(sheet, "A10")),
+        PasteMode::All,
+        true,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.target(),
+        GridArea::new(at(sheet, "A10"), at(sheet, "B12")).unwrap()
+    );
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(plan)))
+            .accepted()
+    );
+    for (address, text) in [
+        ("A10", "one"),
+        ("B10", "four"),
+        ("A11", ""),
+        ("B11", "5"),
+        ("A12", "3"),
+        ("B12", "6"),
+    ] {
+        assert_eq!(
+            calc_host::search::entry_text(book.host().model().cell(at(sheet, address))),
+            text
+        );
+    }
+    let tiled = PasteSource::External(vec![
+        vec!["1".into(), "2".into(), "3".into()],
+        vec!["4".into(), "5".into(), "6".into()],
+    ]);
+    let plan = prepare_paste_oriented(
+        book.host(),
+        tiled,
+        GridArea::new(at(sheet, "J5"), at(sheet, "M10")).unwrap(),
+        PasteMode::All,
+        true,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!(
+        book.host().model().cell(at(sheet, "M10")),
+        Some(&number(6.))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    assert_eq!(
+        reopened.host().model().cell(at(rs, "F3")),
+        Some(&number(6.))
+    );
+    assert_eq!(
+        calc_host::search::entry_text(reopened.host().model().cell(at(rs, "J1"))),
+        "keep"
+    );
+    assert_ne!(
+        reopened.host().cell_style(at(rs, "J1")),
+        reopened.host().cell_style(at(rs, "A1"))
+    );
+    assert_eq!(
+        reopened.host().number_format(at(rs, "J1")),
+        Some("0.00 \"copied\"")
+    );
+    assert_eq!(
+        reopened.host().number_format(at(rs, "A1")),
+        Some("0.000 \"branch\"")
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__transpose_table_refusals_keep_the_source_and_target_unchanged() {
+    use calc_host::{CopySnapshot,PasteMode,PasteSource,prepare_paste_oriented};
+    let book=session(&fixture());
+    let table=book.host().model().definitions().tables()[0].area;
+    let snapshot=CopySnapshot::capture(book.host(),table).unwrap();
+    let to=GridArea::cell(CellKey::new(table.sheet(),1000,1).unwrap());
+    let revision=book.host().revision();
+    for mode in [PasteMode::All,PasteMode::Values,PasteMode::Formulas,PasteMode::Formats] {
+        let refusal=prepare_paste_oriented(book.host(),PasteSource::Snapshot{snapshot:&snapshot,cut:false},to,mode,true).unwrap_err();
+        assert!(refusal.contains("Transposing table cells"),"{refusal}");
+    }
+    let refusal=prepare_paste_oriented(book.host(),PasteSource::External(vec![vec!["1".into(),"2".into()]]),GridArea::cell(table.first()),PasteMode::All,true).unwrap_err();
+    assert!(refusal.contains("Transposing table cells"),"{refusal}");
+    assert_eq!(book.host().revision(),revision);
+    assert!(book.host().model().cell(to.first()).is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__numeric_row_sort_is_stable_moves_formats_and_round_trips_one_history_group() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [("A1","Key"),("B1","Payload"),("A2","3"),("B2","three"),("A3","1"),("B3","one first"),("A4","1"),("B4","one second"),("B5","blank"),("A6","2"),("B6","two"),("D1","=A2")] {
+        let entered = enter(&mut book, at(s,address),input);
+        assert!(entered.accepted(),"{entered:?}");
+    }
+    let red = GridArea::new(at(s,"A2"),at(s,"B2")).unwrap();
+    assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {areas:vec![red],patch:FormatPatch{fill:Some("#ff0000".into()),number_format:Some("0.000".into()),..Default::default()}})).accepted());
+    let style = book.host().cell_style(at(s,"A2"));
+    let sort = |book:&mut HostSession, descending| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {area:GridArea::new(at(s,"A1"),at(s,"B6")).unwrap(),column:1,header:true,descending,revision}))
+    };
+    let done = sort(&mut book,false);
+    assert!(done.accepted(),"{done:?}");
+    for (address, expected) in [("A1","Key"),("B2","one first"),("B3","one second"),("B4","two"),("B5","three"),("B6","blank")] {
+        assert_eq!(book.host().model().cell(at(s,address)),Some(&calc_host::interpret_entry(expected).unwrap().unwrap()));
+    }
+    assert_eq!(book.host().model().cell(at(s,"A6")),None);
+    assert_eq!(book.host().cell_style(at(s,"A5")),style);
+    assert_eq!(book.host().cell_style(at(s,"B5")),style);
+    assert_eq!(book.host().cell_style(at(s,"A2")),0);
+    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number().unwrap(),1.);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number().unwrap(),3.);
+    assert_eq!(book.host().cell_style(at(s,"A2")),style);
+    assert_eq!(book.host().model().cell(at(s,"A5")),None);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number().unwrap(),1.);
+    let mut saved=Vec::new();
+    book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let reopened=open(&saved); let r=reopened.sheets()[0].id();
+    assert_eq!(reopened.model().cell(at(r,"B2")),Some(&calc_host::interpret_entry("one first").unwrap().unwrap()));
+    assert_eq!(reopened.model().cell(at(r,"B6")),Some(&calc_host::interpret_entry("blank").unwrap().unwrap()));
+    assert_eq!(reopened.cell_style(at(r,"A5")),style);
+    assert_eq!(reopened.number_format(at(r,"A5")),Some("0.000"));
+    assert!(sort(&mut book,true).accepted());
+    assert_eq!(match book.host().model().cell(at(s,"A2")).unwrap() {CellInput::Number(n)=>n.get(),_=>panic!("number")},3.);
+    assert_eq!(book.host().model().cell(at(s,"B4")),Some(&calc_host::interpret_entry("one first").unwrap().unwrap()));
+    assert_eq!(book.host().model().cell(at(s,"B5")),Some(&calc_host::interpret_entry("one second").unwrap().unwrap()));
+    assert_eq!(book.host().model().cell(at(s,"A6")),None);
+    let mut twin=session(&calc_host::blank_package());
+    let replayed=replay(book.intent_log(),&mut twin);
+    assert!(replayed.mismatches.is_empty(),"{replayed:?}");
+    let p=twin.host().sheets()[0].id();
+    assert_eq!(twin.host().model().cell(at(p,"B2")),book.host().model().cell(at(s,"B2")));
+    assert_eq!(twin.host().cell_style(at(p,"A2")),book.host().cell_style(at(s,"A2")));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
+    use calc_host::{WorkbookCommand,SheetChange};
+    let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
+    assert!(enter(&mut book,at(s,"A1"),"3").accepted());
+    assert!(enter(&mut book,at(s,"A2"),"1").accepted());
+    assert!(enter(&mut book,at(s,"B1"),"=A1+1").accepted());
+    let area=GridArea::new(at(s,"A1"),at(s,"B2")).unwrap();
+    let refuse=|book:&mut HostSession,column,revision| {
+        let before=book.host().revision(); let old=book.host().model().clone(); let styles=book.host().styles().clone();
+        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area,column,header:false,descending:false,revision}));
+        assert!(!r.accepted(),"{r:?}"); assert_eq!(book.host().revision(),before); assert_eq!(book.host().styles(),&styles);
+        for at in [at(s,"A1"),at(s,"A2"),at(s,"B1"),at(s,"B2")] {assert_eq!(book.host().model().cell(at),old.cell(at));}
+        r
+    };
+    let rev=book.host().revision().get();
+    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("formula cells"));
+    assert!(enter(&mut book,at(s,"B1"),"literal").accepted());
+    let rev=book.host().revision().get();refuse(&mut book,3,rev);refuse(&mut book,1,rev-1);
+    assert!(enter(&mut book,at(s,"A2"),"text").accepted());let rev=book.host().revision().get();
+    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("non-numeric keys"));
+    assert!(enter(&mut book,at(s,"A2"),"1").accepted());
+    assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(true)})).accepted());
+    let rev=book.host().revision().get();let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("hidden or filtered rows"));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(enter(&mut book,at(s,"A1"),"=SEQUENCE(2,2)").accepted());let rev=book.host().revision().get();
+    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("array formulas"));
+    // A new ordinary sheet proves the header option is independent of the input spellings.
+    assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet{sheet:None,change:SheetChange::Add{name:"Dates".into()}})).accepted());
+    let dates=book.host().sheets().last().unwrap().id();
+    for (cell,text) in [("A1","46329"),("A2","46023")] {assert!(enter(&mut book,at(dates,cell),text).accepted());}
+    assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {areas:vec![GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap()],patch:calc_host::FormatPatch{number_format:Some("yyyy-mm-dd".into()),..Default::default()}})).accepted());
+    let revision=book.host().revision().get();
+    let sorted=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap(),column:1,header:false,descending:false,revision}));
+    assert!(sorted.accepted(),"{sorted:?}");
+    assert!(match (book.host().model().cell(at(dates,"A1")),book.host().model().cell(at(dates,"A2"))) {(Some(CellInput::Number(a)),Some(CellInput::Number(b)))=>a.get()<b.get(),_=>false});
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p__numeric_sort_retains_source_metadata_by_refusing_decorated_text_and_prompt_rules() {
+    use calc_host::WorkbookCommand;
+    for (text,tail) in [
+        ("<r><rPr><b/></rPr><t>rich</t></r>",""),
+        ("<t>plain</t><rPh sb=\"0\" eb=\"1\"><t>reading</t></rPh>",""),
+        ("<t>plain</t>","<dataValidations count=\"1\"><dataValidation type=\"none\" sqref=\"B1\" showInputMessage=\"1\" promptTitle=\"Keep me\" prompt=\"Help\"/></dataValidations>"),
+    ] {
+        let xml=format!("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\"><v>3</v></c><c r=\"B1\" t=\"inlineStr\"><is>{text}</is></c></row><row r=\"2\"><c r=\"A2\"><v>1</v></c><c r=\"B2\" t=\"inlineStr\"><is><t>second</t></is></c></row></sheetData>{tail}</worksheet>");
+        let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.clone());
+        let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
+        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),column:1,header:false,descending:false,revision}));
+        assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
+        assert_eq!(book.host().model().cell(at(s,"A1")),Some(&number(3.)));
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+        assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml"),xml);
+    }
+    for cell in [
+        "<c r=\"B1\"><!--vendor payload--><v>42</v></c>",
+        "<c r=\"B1\"><?vendor retained?><v>42</v></c>",
+        "<c r=\"B1\" v:t=\"keep\" t=\"inlineStr\"><is><t>plain</t></is></c>",
+        "<c r=\"B1\"><v v:keep=\"unit\">42</v></c>",
+        "<c r=\"B1\" t=\"inlineStr\"><is><t v:keep=\"spoken\">plain</t></is></c>",
+        "<c r=\"B1\" t=\"inlineStr\"><is><v:alternate>retained</v:alternate><t>plain</t></is></c>",
+    ] {
+        let xml=format!("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:v=\"urn:sort-retained\"><sheetData><row r=\"1\"><c r=\"A1\"><v>3</v></c>{cell}</row><row r=\"2\"><c r=\"A2\"><v>1</v></c></row></sheetData></worksheet>");
+        let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.clone());
+        let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
+        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),column:1,header:false,descending:false,revision}));
+        assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+        assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml"),xml);
+    }
+    let mut original=session(&calc_host::blank_package());let s=original.host().sheets()[0].id();
+    for (cell,text) in [("A1","3"),("A2","1"),("B1","payload"),("B2","second")] {assert!(enter(&mut original,at(s,cell),text).accepted());}
+    let mut plain=Vec::new();original.save(&SavePolicy::default(),&mut plain).unwrap();
+    let rich=package_with_part_from(&plain,"xl/sharedStrings.xml",|xml| {
+        assert!(xml.contains("<t>payload</t>"));xml.replace("<t>payload</t>","<r><rPr><i/></rPr><t>payload</t></r>")
+    });
+    let mut book=session(&rich);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
+    let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),column:1,header:false,descending:false,revision}));
+    assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    assert_eq!(part_text(&saved,"xl/sharedStrings.xml"),part_text(&rich,"xl/sharedStrings.xml"));
+    let mut ordinary=session(&plain);let p=ordinary.host().sheets()[0].id();let revision=ordinary.host().revision().get();
+    let done=ordinary.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(p,"A1"),at(p,"B2")).unwrap(),column:1,header:false,descending:false,revision}));
+    assert!(done.accepted(),"{done:?}");
+    assert_eq!(ordinary.host().model().cell(at(p,"B1")),Some(&calc_host::interpret_entry("second").unwrap().unwrap()));
 }

@@ -35,7 +35,9 @@ pub(super) fn remember(canvas: bool) {
     }
 }
 fn font(cell: &PlannedCell, scale: f64) -> String {
-    let style = &cell.shown.style;
+    let mut display_style=cell.shown.style.clone();
+    display_style.pixels=cell.paint_pixels;
+    let style = &display_style;
     let conditional = cell.shown.conditional.as_ref();
     let italic = style.italic
         || conditional.is_some_and(|c| c.italic)
@@ -320,7 +322,9 @@ pub(super) fn paint(
     );
 }
 fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
-    let s = &cell.shown.style;
+    let mut display_style=cell.shown.style.clone();
+    display_style.pixels=cell.paint_pixels;
+    let s = &display_style;
     let c = cell.shown.conditional.clone().unwrap_or_default();
     if c.hide_value {
         return;

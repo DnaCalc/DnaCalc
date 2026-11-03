@@ -63,12 +63,23 @@ pub fn controls(controller: Controller) -> impl IntoView {
     let epoch = controller.name_field(|s| &s.epoch, |s| &mut s.epoch);
     let refresh = controller.name_field(|s| &s.refresh, |s| &mut s.refresh);
     let edit_revision = controller.name_field(|s| &s.edit_revision, |s| &mut s.edit_revision);
+    let editor_session = StoredValue::new(0_u64);
     let close = move || {
+        editor_session.update_value(|session| *session += 1);
         open.set(false);
         if let Some(d) = dialog.get_untracked() {
             d.close();
         }
         controller.focus_active_skin();
+    };
+    let observe_close = move || {
+        // Native close events can arrive after an immediate show_modal in Firefox.
+        // A queued close from the previous opening must not hide the current dialog.
+        if dialog.get_untracked().is_some_and(|d| d.open()) {
+            return;
+        }
+        editor_session.update_value(|session| *session += 1);
+        open.set(false);
     };
     Effect::new(move |_| {
         if let Some(d) = dialog.get() {
@@ -77,6 +88,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
                     anchor.set(crate::cells::address(at.row(), at.column()));
                     anchor_sheet.set(sheet_key(wire::Sheet::of(at.sheet())));
                 }
+                editor_session.update_value(|session| *session += 1);
                 let _ = d.show_modal();
             } else if !open.get() && d.open() {
                 d.close();
@@ -126,6 +138,17 @@ pub fn controls(controller: Controller) -> impl IntoView {
         if !creating.get_untracked() && row.is_none() {
             return;
         }
+        let submitted = (
+            row.clone(),
+            creating.get_untracked(),
+            name.get_untracked(),
+            scope.get_untracked(),
+            formula.get_untracked(),
+        );
+        let session = editor_session.get_value();
+        let changed_identity = row.as_ref().is_some_and(|r| {
+            r.name != name.get_untracked() || r.scope != parse_sheet(&scope.get_untracked())
+        });
         let generation = controller.generation.get_untracked();
         controller.dispatch(
             Intent::EditName {
@@ -136,7 +159,28 @@ pub fn controls(controller: Controller) -> impl IntoView {
                 formula: (!delete).then(|| formula.get_untracked()),
             },
             move |outcome| {
-                if controller.generation.get_untracked() != generation || !open.get_untracked() {
+                if controller.generation.get_untracked() != generation {
+                    return;
+                }
+                if outcome.accepted {
+                    refresh.update(|r| *r += 1);
+                }
+                let current = (
+                    selected.get_untracked(),
+                    creating.get_untracked(),
+                    name.get_untracked(),
+                    scope.get_untracked(),
+                    formula.get_untracked(),
+                );
+                if !open.get_untracked()
+                    || editor_session.get_value() != session
+                    || current != submitted
+                {
+                    // A new definition has no stale identity. Preserve its draft and let the
+                    // host validate it against the now-current workbook revision.
+                    if outcome.accepted && creating.get_untracked() {
+                        edit_revision.set(controller.summary.get_untracked().revision);
+                    }
                     return;
                 }
                 if outcome.accepted {
@@ -148,12 +192,13 @@ pub fn controls(controller: Controller) -> impl IntoView {
                     message.set(
                         if delete {
                             "Name deleted; Undo restores it"
+                        } else if changed_identity {
+                            "Name or scope changed; referring formulas updated. Undo restores it"
                         } else {
                             "Definition saved; values are evaluated only when requested"
                         }
                         .into(),
                     );
-                    refresh.update(|r| *r += 1);
                 } else {
                     message.set(
                         outcome
@@ -215,18 +260,18 @@ pub fn controls(controller: Controller) -> impl IntoView {
     }).collect_view()
     };
     view!{
-        <dialog node_ref=dialog class="dc-names-dialog" data-dnacalc="names-dialog" aria-labelledby="dc-names-title" on:cancel=move |_:web_sys::Event|close() on:close=move |_:web_sys::Event|open.set(false)>
+        <dialog node_ref=dialog class="dc-names-dialog" data-dnacalc="names-dialog" aria-labelledby="dc-names-title" on:cancel=move |_:web_sys::Event|close() on:close=move |_:web_sys::Event|observe_close()>
             <h2 id="dc-names-title">"Name Manager"</h2>
             <p class="dc-note">"Definitions are listed without evaluation. Evaluate reads the published workbook for the selected name at the caller cell you choose."</p>
             <div class="dc-name-toolbar"><label>"Filter names"<input data-dnacalc="names-filter" prop:value=move ||query.get() on:input=move |ev|{query.set(event_target_value(&ev));page.set(0);}/></label><button type="button" data-dnacalc="name-new" on:click=move |_|new_name()>"New…"</button><button type="button" data-dnacalc="names-undo" disabled=move ||controller.command_availability(dna_calc_model::CommandId::Undo).is_err() on:click=move |_|controller.command(Command::Undo)>"Undo"</button><button type="button" data-dnacalc="names-redo" disabled=move ||controller.command_availability(dna_calc_model::CommandId::Redo).is_err() on:click=move |_|controller.command(Command::Redo)>"Redo"</button></div>
             <div class="dc-name-list"><table><thead><tr><th>"Name"</th><th>"Scope"</th><th>"Refers to"</th><th>"Visibility"</th></tr></thead><tbody>{rows}</tbody></table></div>
             <div class="dc-name-toolbar"><button type="button" data-dnacalc="names-previous" disabled=move ||page.get()==0 on:click=move |_|page.update(|p|*p=p.saturating_sub(1))>"Previous"</button><span data-dnacalc="names-count">{move ||listing.with(|l|format!("{} names · page {}",l.total,l.page+1))}</span><button type="button" data-dnacalc="names-next" disabled=move ||listing.with(|l|(l.page+1).saturating_mul(200)>=l.total as u64) on:click=move |_|page.update(|p|*p+=1)>"Next"</button></div>
             <fieldset class="dc-name-editor"><legend>{move ||if creating.get(){"New name"}else{"Selected definition"}}</legend>
-                <label>"Name"<input node_ref=name_field data-dnacalc="name-name" prop:value=move ||name.get() readonly=move ||!creating.get() disabled=move ||!creating.get()&&selected.get().is_none() on:input=move |ev|name.set(event_target_value(&ev))/></label>
-                <label>"Scope"<select data-dnacalc="name-scope" disabled=move ||!creating.get() prop:value=move ||scope.get() on:change=move |ev|scope.set(event_target_value(&ev))><option value="">"Workbook"</option>{move ||controller.sheets().into_iter().map(|s|view!{<option value=sheet_key(wire::Sheet::of(s.id))>{s.name}</option>}).collect_view()}</select></label>
+                <label>"Name"<input node_ref=name_field data-dnacalc="name-name" prop:value=move ||name.get() disabled=move ||!creating.get()&&selected.get().is_none() on:input=move |ev|name.set(event_target_value(&ev))/></label>
+                <label>"Scope"<select data-dnacalc="name-scope" disabled=move ||!creating.get()&&selected.get().is_none() prop:value=move ||scope.get() on:change=move |ev|scope.set(event_target_value(&ev))><option value="">"Workbook"</option>{move ||controller.sheets().into_iter().map(|s|view!{<option value=sheet_key(wire::Sheet::of(s.id))>{s.name}</option>}).collect_view()}</select></label>
                 <label class="dc-name-definition">"Refers to"<textarea data-dnacalc="name-formula" rows="2" spellcheck="false" disabled=move ||!creating.get()&&selected.get().is_none() prop:value=move ||formula.get() on:input=move |ev|formula.set(event_target_value(&ev))></textarea></label>
-                <p class="dc-note">"Name and scope stay fixed when editing an existing definition. Renaming is not yet modelled."</p>
-                <div class="dc-dialog-actions"><button type="button" data-dnacalc="name-save" disabled=move ||(!creating.get()&&selected.get().is_none())||edit_revision.get()!=controller.summary.get().revision on:click=move |_|save(false)>"Save definition"</button><button type="button" data-dnacalc="name-delete" disabled=move ||selected.get().is_none()||edit_revision.get()!=controller.summary.get().revision on:click=move |_|save(true)>"Delete"</button></div>
+                <p class="dc-note">"Referring formulas update with a supported rename or scope move. Save those changes before changing Refers to. Moves that cannot preserve references are refused."</p>
+                <div class="dc-dialog-actions"><button type="button" data-dnacalc="name-save" disabled=move ||(!creating.get()&&selected.get().is_none())||edit_revision.get()!=controller.summary.get().revision on:click=move |_|save(false)>{move ||if selected.with(|r|r.as_ref().is_some_and(|r|r.name!=name.get()||r.scope!=parse_sheet(&scope.get()))){"Rename or move name"}else{"Save definition"}}</button><button type="button" data-dnacalc="name-delete" disabled=move ||selected.get().is_none()||edit_revision.get()!=controller.summary.get().revision on:click=move |_|save(true)>"Delete"</button></div>
             </fieldset>
             <fieldset><legend>"Explicit evaluation"</legend>
                 <div class="dc-name-toolbar"><label>"Caller worksheet"<select data-dnacalc="name-evaluation-sheet" prop:value=move ||anchor_sheet.get() on:change=move |ev|anchor_sheet.set(event_target_value(&ev))>{move ||controller.sheets().into_iter().map(|s|view!{<option value=sheet_key(wire::Sheet::of(s.id))>{s.name}</option>}).collect_view()}</select></label><label>"Caller cell"<input data-dnacalc="name-anchor" prop:value=move ||anchor.get() on:input=move |ev|anchor.set(event_target_value(&ev))/></label><button type="button" data-dnacalc="name-evaluate" disabled=move ||selected.get().is_none() on:click=move |_|evaluate()>"Evaluate"</button></div>

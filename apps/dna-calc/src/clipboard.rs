@@ -399,7 +399,9 @@ pub fn native_paste(controller: Controller, event: web_sys::ClipboardEvent) {
 }
 
 /// Compact, keyboard-reachable commands, a native modal for conflicts and a permission fallback.
-pub fn controls(controller: Controller) -> impl IntoView {
+// Bound the parent view size: retained controller closures otherwise accumulate on the wasm stack.
+pub fn controls(controller: Controller) -> AnyView {
+    let transpose = controller.paste_transpose();
     let dialog: NodeRef<leptos::html::Dialog> = NodeRef::new();
     let scope = dna_calc_model::SkinId::new("clipboard-dialog");
     let fallback_text = controller.view_field::<dna_calc_model::ClipboardDraftState, _>(
@@ -454,6 +456,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
                 <label>"Paste Special "<select data-dnacalc="paste-mode" prop:value=move ||controller.paste_mode.get() on:change=move |ev|controller.paste_mode.set(event_target_value(&ev))>
                     <option value="all">"Contents and cell formats"</option><option value="values">"Values"</option><option value="formulas">"Formulas"</option><option value="formats">"Cell formats"</option>
                 </select></label>
+                <label><input type="checkbox" data-dnacalc="paste-transpose" prop:checked=move ||transpose.get() on:change=move |ev|transpose.set(event_target_checked(&ev))/><span>"Transpose rows and columns"</span></label>
                 <button data-dnacalc="paste-fallback" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.clipboard_fallback.set(Some(false))>"Paste text…"</button>
                 <button data-dnacalc="copy-fallback" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.clipboard_fallback.set(Some(true))>"Copy text…"</button>
                 <button data-dnacalc="fill-down" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.fill(true)>"Fill down"</button>
@@ -477,7 +480,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
             })}
             <button data-dnacalc="paste-cancel" on:click=move |_|cancel()>"Cancel"</button>
         </dialog>
-    }
+    }.into_any()
 }
 
 #[cfg(test)]

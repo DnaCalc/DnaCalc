@@ -14,6 +14,7 @@ pub struct FormatPatch {
     pub horizontal: Option<String>,
     pub vertical: Option<String>,
     pub wrap: Option<bool>,
+    pub shrink: Option<bool>,
     pub rotation: Option<i16>,
     pub indent: Option<u16>,
     pub font_name: Option<String>,
@@ -229,6 +230,9 @@ pub fn patched_style(
     }
     if let Some(v) = patch.wrap {
         a.wrap_text = v;
+    }
+    if let Some(v) = patch.shrink {
+        a.shrink_to_fit = v;
     }
     if let Some(v) = patch.rotation {
         a.text_rotation = Some(if v < 0 { 90 - v } else { v }.to_string());

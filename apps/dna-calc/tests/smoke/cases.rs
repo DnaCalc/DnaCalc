@@ -1309,6 +1309,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("cell-editor", ENTER),
             Action::Keys("grid", "2"),
             Action::Keys("cell-editor", ENTER),
+            // Finish publishing the seed before locating the name field for the completion test.
+            Action::Wait(Check::Text(cell!("A2"), "2")),
             Action::Into("name-box", "B1\u{E007}"),
             Action::Keys("grid", "="),
             Action::Keys("cell-editor", "SUM"),
@@ -7056,6 +7058,257 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
 
+    Case {
+        name: "transpose: a copied two-by-three matrix becomes three-by-two through the shared paste command",
+        actions: &[
+            Action::ExternalClipboard("1\t2\t3\n4\t5\t6",false),
+            Action::Keys("grid","\u{E009}v\u{E000}"),
+            Action::Wait(Check::Text(cell!("C2"),"6")),
+            Action::Into("name-box","A1:C2\u{E007}"),
+            Action::Keys("grid","\u{E009}c\u{E000}"),
+            Action::Wait(Check::Count("copy-outline",1)),
+            Action::OpenDetails("clipboard-tools"),
+            Action::Click("paste-transpose"),
+            Action::Into("name-box","E1\u{E007}"),
+            Action::Click("paste-snapshot"),
+        ],
+        checks: &[
+            Check::Text(cell!("E1"),"1"),Check::Text(cell!("F1"),"4"),
+            Check::Text(cell!("E2"),"2"),Check::Text(cell!("F2"),"5"),
+            Check::Text(cell!("E3"),"3"),Check::Text(cell!("F3"),"6"),
+            Check::Text(cell!("C2"),"6"),Check::PlanCell("F3","provenance","literal"),
+        ],
+    },
+    Case {
+        name: "transpose: one Undo removes the complete matrix and one Redo restores it",
+        actions: &[
+            Action::Click("undo"),Action::Wait(Check::PlanAbsent("E1")),Action::Wait(Check::PlanAbsent("F3")),
+            Action::Wait(Check::Text(cell!("C2"),"6")),Action::Click("redo"),
+        ],
+        checks: &[Check::Text(cell!("E1"),"1"),Check::Text(cell!("F1"),"4"),Check::Text(cell!("E3"),"3"),Check::Text(cell!("F3"),"6")],
+    },
+    Case {
+        name: "transpose: the saved matrix reopens and the command remains reachable on a phone",
+        actions: &[
+            Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,
+            Action::Wait(Check::Text(cell!("F1"),"4")),Action::Wait(Check::Text(cell!("F3"),"6")),
+            Action::Window(390,844),Action::OpenDetails("clipboard-tools"),
+        ],
+        checks: &[Check::Fits,Check::Narrow(390),Check::MinHeight("grid",120),Check::Reachable("grid"),Check::Reachable("paste-transpose"),Check::Name("paste-transpose","Transpose rows and columns")],
+    },
+    Case {
+        name: "transpose: native external paste exchanges axes and keeps the ordinary history route",
+        actions: &[
+            Action::Window(1440,1000),Action::ExternalClipboard("11\t12\n13\t14\n15\t16",false),Action::Into("name-box","H1\u{E007}"),Action::Keys("grid","\u{E009}v\u{E000}"),
+            Action::Wait(Check::Text(cell!("H1"),"11")),Action::Wait(Check::Text(cell!("I1"),"13")),Action::Wait(Check::Text(cell!("J1"),"15")),
+            Action::Wait(Check::Text(cell!("H2"),"12")),Action::Wait(Check::Text(cell!("I2"),"14")),Action::Wait(Check::Text(cell!("J2"),"16")),
+            Action::Click("undo"),Action::Wait(Check::PlanAbsent("J2")),Action::Click("redo"),
+        ],
+        checks: &[Check::Text(cell!("H1"),"11"),Check::Text(cell!("J1"),"15"),Check::Text(cell!("H2"),"12"),Check::Text(cell!("J2"),"16"),Check::PlanCell("J2","provenance","literal")],
+    },
+    Case {
+        name: "transpose modes: array formulas refuse atomically while preserving their source",
+        actions: &[
+            Action::Into(BAR,"=SEQUENCE(2,3)\u{E007}"),
+            Action::Into("name-box","A1:C2\u{E007}"),Action::Keys("grid","\u{E009}c\u{E000}"),
+            Action::Wait(Check::Count("copy-outline",1)),Action::OpenDetails("clipboard-tools"),Action::Click("paste-transpose"),
+            Action::Into("name-box","E1\u{E007}"),Action::Click("paste-snapshot"),
+        ],
+        checks: &[Check::TextContains("status","Transposing array formulas is not modelled"),Check::PlanAbsent("E1"),Check::PlanAbsent("F3"),Check::Text(cell!("C2"),"6")],
+    },
+    Case {
+        name: "transpose modes: Values uses the calculated snapshot after the array source changes",
+        actions: &[
+            Action::Choose("paste-mode","values"),Action::Into("name-box","A1\u{E007}"),
+            Action::Into(BAR,"=SEQUENCE(2,3,10)\u{E007}"),Action::Into("name-box","E1\u{E007}"),Action::Click("paste-snapshot"),
+        ],
+        checks: &[Check::Text(cell!("E1"),"1"),Check::Text(cell!("F1"),"4"),Check::Text(cell!("E3"),"3"),Check::Text(cell!("F3"),"6"),Check::Text(cell!("C2"),"15"),Check::PlanCell("E1","formula","false"),Check::PlanCell("E1","provenance","literal")],
+    },
+    Case {
+        name: "transpose modes: Values Undo and Redo retain the changed array source",
+        actions: &[
+            Action::Click("undo"),Action::Wait(Check::PlanAbsent("F3")),Action::Wait(Check::Text(cell!("C2"),"15")),Action::Click("redo"),
+        ],
+        checks: &[Check::Text(cell!("F3"),"6"),Check::Text(cell!("C2"),"15"),Check::PlanCell("F3","formula","false")],
+    },
+    Case {
+        name: "transpose modes: cell formats exchange axes without replacing content and keep one Undo group",
+        actions: &[
+            Action::Into("name-box","A1:A2\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),
+            Action::Click("format-tab-fill"),Action::Into("format-fill","#ff0000"),Action::Click("format-apply"),
+            Action::Into("name-box","A1:C2\u{E007}"),Action::Keys("grid","\u{E009}c\u{E000}"),Action::Wait(Check::Count("copy-outline",1)),
+            Action::Choose("paste-mode","formats"),Action::Into("name-box","J1\u{E007}"),Action::Into(BAR,"77\u{E007}"),
+            Action::Into("name-box","J1\u{E007}"),Action::Click("paste-snapshot"),
+            Action::Wait(Check::PlanCell("J1","style.fill","#ff0000")),Action::Wait(Check::PlanCell("K1","style.fill","#ff0000")),
+            Action::Click("undo"),Action::Wait(Check::PlanAbsent("K1")),Action::Wait(Check::Text(cell!("J1"),"77")),Action::Click("redo"),
+        ],
+        checks: &[Check::Text(cell!("J1"),"77"),Check::PlanCell("J1","style.fill","#ff0000"),Check::PlanCell("K1","style.fill","#ff0000"),Check::PlanCell("K1","provenance","empty"),Check::Text(cell!("C2"),"15")],
+    },
+    Case {
+        name: "transpose modes: Cut refuses without removing the array or writing the target",
+        actions: &[
+            Action::Choose("paste-mode","all"),Action::Into("name-box","A1:C2\u{E007}"),Action::Keys("grid","\u{E009}x\u{E000}"),
+            Action::Wait(Check::Count("copy-outline",1)),Action::Into("name-box","M1\u{E007}"),Action::Click("paste-snapshot"),
+        ],
+        checks: &[Check::TextContains("status","Transposing a cut is not modelled"),Check::PlanAbsent("M1"),Check::Text(cell!("C2"),"15"),Check::Text(cell!("F3"),"6")],
+    },
+    Case {
+        name: "transpose modes: saved values and cell formats reopen alongside the original calculated array",
+        actions: &[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement],
+        checks: &[Check::Text(cell!("C2"),"15"),Check::PlanCell("C2","provenance","calculated"),Check::Text(cell!("F3"),"6"),Check::PlanCell("F3","provenance","literal"),Check::Text(cell!("J1"),"77"),Check::PlanCell("K1","style.fill","#ff0000")],
+    },
+
+    Case {
+        name:"name changes: rename updates bound users and nested aliases while retaining a local shadow",
+        actions:&[
+            Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("name-new"),Action::Into("name-name","Rate"),Action::Into("name-formula","=2"),Action::Click("name-save"),Action::Wait(Check::Count("[data-name=Rate][data-name-scope=Workbook]",1)),
+            Action::Click("name-new"),Action::Into("name-name","Taken"),Action::Into("name-formula","=99"),Action::Click("name-save"),Action::Wait(Check::Count("[data-name=Taken]",1)),
+            Action::Click("name-new"),Action::Into("name-name","Rate"),Action::Keys("name-scope","\u{E010}\u{E007}"),Action::Into("name-formula","=10"),Action::Click("name-save"),Action::Wait(Check::Count("[data-name=Rate][data-name-scope=Sheet1]",1)),
+            Action::Click("names-close"),Action::Into(BAR,"=Rate\u{E007}"),Action::Wait(Check::Text(cell!("A1"),"10")),
+            Action::Click("[data-dnacalc=sheet-tools] summary"),Action::Into("sheet-new-name","Other sheet"),Action::Click("sheet-add"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Other sheet")),Action::Click("[data-dnacalc=sheet-tools] summary"),
+            Action::Into(BAR,"=Rate*3\u{E007}"),Action::Into(BAR,"=LET(Rate,5,Rate+1)\u{E007}"),Action::Into(BAR,"=\"Rate\"\u{E007}"),Action::Into(BAR,"=\"😀\"&Rate\u{E007}"),
+            Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("name-new"),Action::Into("name-name","Alias"),Action::Keys("name-scope","\u{E010}\u{E007}"),Action::Into("name-formula","=Rate+1"),Action::Click("name-save"),Action::Wait(Check::Count("[data-name=Alias]",1)),
+            Action::Click("[data-name=Rate][data-name-scope=Workbook] [data-dnacalc=name-select]"),Action::Into("name-name","YieldRate"),Action::Click("name-save"),
+        ],
+        checks:&[Check::Count("[data-name=YieldRate][data-name-scope=Workbook]",1),Check::Count("[data-name=Rate][data-name-scope=Sheet1]",1),Check::TextContains("[data-name=Alias]","=YieldRate+1"),Check::Text("name-value","Not evaluated"),Check::Text(cell!("A1"),"6"),Check::Text(cell!("A2"),"6"),Check::Text(cell!("A3"),"Rate"),Check::Text(cell!("A4"),"😀2"),Check::PlanCell("A1","provenance","calculated")],
+    },
+    Case {
+        name:"name changes: source tokens and one Undo Redo preserve LET parameters and string literals",
+        actions:&[
+            Action::Click("names-close"),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::Value(BAR,"=YieldRate*3")),Action::Into("name-box","A2\u{E007}"),Action::Wait(Check::Value(BAR,"=LET(_xlpm.Rate,5,_xlpm.Rate+1)")),Action::Into("name-box","A3\u{E007}"),Action::Wait(Check::Value(BAR,"=\"Rate\"")),Action::Into("name-box","A4\u{E007}"),Action::Wait(Check::Value(BAR,"=\"😀\"&YieldRate")),
+            Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("names-undo"),Action::Wait(Check::Count("[data-name=Rate][data-name-scope=Workbook]",1)),Action::Wait(Check::TextContains("[data-name=Alias]","=Rate+1")),Action::Click("names-redo"),
+        ],
+        checks:&[Check::Count("[data-name=YieldRate][data-name-scope=Workbook]",1),Check::TextContains("[data-name=Alias]","=YieldRate+1"),Check::Text(cell!("A1"),"6"),Check::Text(cell!("A2"),"6"),Check::Text(cell!("A3"),"Rate"),Check::Text(cell!("A4"),"😀2")],
+    },
+    Case {
+        name:"name changes: a combined definition rewrite refuses atomically and retains the draft",
+        actions:&[Action::Click("[data-name=YieldRate][data-name-scope=Workbook] [data-dnacalc=name-select]"),Action::Into("name-name","TrialRate"),Action::Into("name-formula","=9"),Action::Click("name-save")],
+        checks:&[Check::TextContains("names-message","Rename or move the name first"),Check::Count("[data-name=YieldRate][data-name-scope=Workbook]",1),Check::Count("[data-name=TrialRate]",0),Check::Value("name-name","TrialRate"),Check::Value("name-formula","=9"),Check::Text(cell!("A1"),"6")],
+    },
+    Case {
+        name:"name changes: workbook to worksheet scope qualifies users on another worksheet",
+        actions:&[
+            Action::Click("names-close"),Action::Into("name-box","Sheet1!B1\u{E007}"),Action::Into(BAR,"=YieldRate+4\u{E007}"),Action::Into("name-box","B1\u{E007}"),
+            Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("[data-name=YieldRate][data-name-scope=Workbook] [data-dnacalc=name-select]"),Action::Keys("name-scope","\u{E010}\u{E007}"),Action::Click("name-save"),
+        ],
+        checks:&[Check::Count("[data-name=YieldRate][data-name-scope=\"Other sheet\"]",1),Check::Count("[data-name=YieldRate][data-name-scope=Workbook]",0),Check::Value(BAR,"='Other sheet'!YieldRate+4"),Check::Text(cell!("B1"),"6"),Check::PlanCell("B1","provenance","calculated"),Check::Text("name-value","Not evaluated")],
+    },
+    Case {
+        name:"name changes: a scope move and every qualified formula share one Undo Redo group",
+        actions:&[Action::Click("names-undo"),Action::Wait(Check::Count("[data-name=YieldRate][data-name-scope=Workbook]",1)),Action::Wait(Check::Value(BAR,"=YieldRate+4")),Action::Click("names-redo")],
+        checks:&[Check::Count("[data-name=YieldRate][data-name-scope=\"Other sheet\"]",1),Check::Value(BAR,"='Other sheet'!YieldRate+4"),Check::Text(cell!("B1"),"6")],
+    },
+    Case {
+        name:"name changes: a worksheet to worksheet move retains the canonical referring value",
+        actions:&[Action::Click("[data-name=YieldRate][data-name-scope=\"Other sheet\"] [data-dnacalc=name-select]"),Action::Keys("name-scope","\u{E011}\u{E015}\u{E007}"),Action::Click("name-save")],
+        checks:&[Check::Count("[data-name=YieldRate][data-name-scope=Sheet1]",1),Check::Value(BAR,"='Sheet1'!YieldRate+4"),Check::Text(cell!("B1"),"6"),Check::TextContains("[data-name=Alias]","='Sheet1'!YieldRate+1")],
+    },
+    Case {
+        name:"name changes: returning to workbook scope removes the temporary qualification",
+        actions:&[Action::Click("[data-name=YieldRate][data-name-scope=Sheet1] [data-dnacalc=name-select]"),Action::Choose("name-scope",""),Action::Click("name-save")],
+        checks:&[Check::Count("[data-name=YieldRate][data-name-scope=Workbook]",1),Check::Value(BAR,"=YieldRate+4"),Check::Text(cell!("B1"),"6"),Check::TextContains("[data-name=Alias]","=YieldRate+1"),Check::Count("[data-name=Rate][data-name-scope=Sheet1]",1)],
+    },
+    Case {
+        name:"name changes: destination collisions refuse without replacing either definition",
+        actions:&[Action::Click("[data-name=YieldRate][data-name-scope=Workbook] [data-dnacalc=name-select]"),Action::Into("name-name","Taken"),Action::Click("name-save")],
+        checks:&[Check::TextContains("names-message","destination name already exists"),Check::Count("[data-name=YieldRate][data-name-scope=Workbook]",1),Check::TextContains("[data-name=Taken]","=99"),Check::Value(BAR,"=YieldRate+4"),Check::Text(cell!("B1"),"6")],
+    },
+    Case {
+        name:"name changes: renamed definitions and rewritten users survive xlsx while values remain explicit",
+        actions:&[
+            Action::Click("names-close"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Wait(Check::Count("[data-dnacalc=name-row]",4)),Action::Click("[data-name=YieldRate][data-name-scope=Workbook] [data-dnacalc=name-select]"),Action::Wait(Check::Text("name-value","Not evaluated")),Action::Click("name-evaluate"),Action::Wait(Check::Text("name-value","2")),Action::Click("names-close"),
+            Action::Into("name-box","Sheet1!A1\u{E007}"),Action::Wait(Check::Text(cell!("A1"),"10")),Action::Into("name-box","Sheet1!B1\u{E007}"),Action::Wait(Check::Value(BAR,"=YieldRate+4")),Action::Wait(Check::Text(cell!("B1"),"6")),Action::Into("name-box","'Other sheet'!A1\u{E007}"),Action::Wait(Check::Value(BAR,"=YieldRate*3")),Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("[data-name=Alias] [data-dnacalc=name-select]"),Action::Wait(Check::Text("name-value","Not evaluated")),Action::Click("name-evaluate"),
+        ],
+        checks:&[Check::Text("name-value","3"),Check::Value("name-formula","=YieldRate+1"),Check::Text(cell!("A1"),"6"),Check::PlanCell("A1","provenance","calculated")],
+    },
+    Case {
+        name:"name changes: editable name and scope remain keyboard reachable on a phone",
+        actions:&[Action::Window(390,844),Action::Click("name-name"),Action::Keys("name-name",TAB),Action::Wait(Check::Focused("name-scope")),Action::Wait(Check::Reachable("name-scope")),Action::Wait(Check::Name("name-scope","Scope")),Action::Wait(Check::Fits),Action::Window(1440,1000)],
+        checks:&[Check::Focused("name-scope"),Check::Value("name-name","Alias"),Check::Value("name-formula","=YieldRate+1")],
+    },
+
+    Case {
+        name:"numeric sort: complete rows and cell formats move stably while the header stays",
+        actions:&[
+            Action::ExternalClipboard("Key\tPayload\n3\tthree\n1\tone first\n1\tone second\n\tblank\n2\ttwo",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Text(cell!("B6"),"two")),
+            Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=A2\u{E007}"),
+            Action::Into("name-box","A2:B2\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-fill"),Action::Into("format-fill","#ff0000"),Action::Click("format-apply"),
+            Action::Into("name-box","A1:B6\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),
+        ],
+        checks:&[Check::Text(cell!("A1"),"Key"),Check::Text(cell!("B2"),"one first"),Check::Text(cell!("B3"),"one second"),Check::Text(cell!("B4"),"two"),Check::Text(cell!("B5"),"three"),Check::Text(cell!("B6"),"blank"),Check::PlanAbsent("A6"),Check::PlanCell("A5","style.fill","#ff0000"),Check::Text(cell!("D1"),"1"),Check::PlanCell("D1","provenance","calculated")],
+    },
+    Case {
+        name:"numeric sort: one Undo restores the entire order and formats and Redo replays it",
+        actions:&[Action::Click("undo"),Action::Wait(Check::Text(cell!("B2"),"three")),Action::Wait(Check::Text(cell!("B6"),"two")),Action::Wait(Check::PlanCell("A2","style.fill","#ff0000")),Action::Wait(Check::Text(cell!("D1"),"3")),Action::Click("redo")],
+        checks:&[Check::Text(cell!("B2"),"one first"),Check::Text(cell!("B5"),"three"),Check::PlanCell("A5","style.fill","#ff0000"),Check::Text(cell!("D1"),"1")],
+    },
+    Case {
+        name:"numeric sort: descending keeps blank keys last and preserves equal-key row order",
+        actions:&[Action::Click("sort-descending")],
+        checks:&[Check::Text(cell!("A2"),"3"),Check::Text(cell!("B2"),"three"),Check::Text(cell!("B3"),"two"),Check::Text(cell!("B4"),"one first"),Check::Text(cell!("B5"),"one second"),Check::Text(cell!("B6"),"blank"),Check::PlanAbsent("A6"),Check::PlanCell("A2","style.fill","#ff0000"),Check::Text(cell!("D1"),"3")],
+    },
+    Case {
+        name:"numeric sort: XLSX reopens the authored order and moved cell formats",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement],
+        checks:&[Check::Text(cell!("B2"),"three"),Check::Text(cell!("B4"),"one first"),Check::Text(cell!("B5"),"one second"),Check::Text(cell!("B6"),"blank"),Check::PlanCell("A2","style.fill","#ff0000"),Check::Text(cell!("D1"),"3"),Check::PlanCell("D1","provenance","calculated")],
+    },
+    Case {
+        name:"numeric sort: another selected key column sorts only the selected rectangle",
+        actions:&[
+            Action::Into("name-box","F1\u{E007}"),Action::ExternalClipboard("right\t2\nleft\t1",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Text(cell!("G2"),"1")),
+            Action::Into("name-box","F1:G2\u{E007}"),Action::OpenDetails("sort-tools"),Action::Into("sort-column","2"),Action::Click("sort-header"),Action::Click("sort-ascending"),
+        ],
+        checks:&[Check::Text(cell!("F1"),"left"),Check::Text(cell!("G1"),"1"),Check::Text(cell!("F2"),"right"),Check::Text(cell!("G2"),"2"),Check::Text(cell!("B2"),"three")],
+    },
+    Case {
+        name:"numeric sort: phone controls wrap with accessible names and retain keyboard access",
+        actions:&[Action::Window(390,844),Action::OpenDetails("sort-tools"),Action::Click("sort-column"),Action::Keys("sort-column",TAB)],
+        checks:&[Check::Fits,Check::Narrow(390),Check::Name("sort-column","Column within selection"),Check::Reachable("sort-header"),Check::Focused("sort-header"),Check::Reachable("sort-ascending"),Check::Reachable("sort-descending")],
+    },
+    Case {
+        name:"numeric sort limits: formula content refuses without changing the range",
+        actions:&[Action::Window(1440,1000),Action::Into(BAR,"3\u{E007}"),Action::Into("name-box","A2\u{E007}"),Action::Into(BAR,"1\u{E007}"),Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"=A1+1\u{E007}"),Action::Into("name-box","A1:B2\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-header"),Action::Click("sort-ascending")],
+        checks:&[Check::TextContains("status","Sorting formula cells"),Check::Text(cell!("A1"),"3"),Check::Text(cell!("A2"),"1"),Check::Text(cell!("B1"),"4"),Check::PlanCell("B1","provenance","calculated")],
+    },
+    Case {
+        name:"numeric sort limits: text keys refuse and leave literal rows unchanged",
+        actions:&[Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"payload\u{E007}"),Action::Into("name-box","A2\u{E007}"),Action::Into(BAR,"text\u{E007}"),Action::Into("name-box","A1:B2\u{E007}"),Action::Click("sort-ascending")],
+        checks:&[Check::TextContains("status","Sorting non-numeric keys"),Check::Text(cell!("A1"),"3"),Check::Text(cell!("A2"),"text"),Check::Text(cell!("B1"),"payload")],
+    },
+    Case {
+        name:"numeric sort limits: array cells refuse without flattening the source",
+        actions:&[Action::Keys("grid",DELETE),Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"=SEQUENCE(2,2)\u{E007}"),Action::Into("name-box","A1:B2\u{E007}"),Action::Click("sort-ascending")],
+        checks:&[Check::TextContains("status","Sorting array formulas"),Check::Text(cell!("A1"),"1"),Check::Text(cell!("B2"),"4"),Check::PlanCell("B2","provenance","calculated")],
+    },
+
+    Case {
+        name:"shrink: text and formatted formula values fit without changing their authored font",
+        actions:&[
+            Action::Into(BAR,"ABCDEFGHIJKL\u{E007}"),Action::Into(BAR,"=123456\u{E007}"),Action::Into("name-box","A1:A2\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Into("format-number","0.00"),Action::Click("format-tab-font"),Action::Into("format-font","monospace"),Action::Into("format-size","18"),Action::Click("format-tab-alignment"),Action::Choose("format-shrink","true"),Action::Click("format-apply"),
+        ],
+        checks:&[Check::Text(cell!("A1"),"ABCDEFGHIJKL"),Check::Text(cell!("A2"),"123456.00"),Check::PlanCell("A2","provenance","calculated"),Check::PlanCell("A1","style.shrink","true"),Check::PlanCell("A1","style.pixels","24"),Check::FitsText(cell!("A1")),Check::FitsText(cell!("A2")),Check::Spill(cell!("A1"),"A","A")],
+    },
+    Case {
+        name:"shrink: one format Undo Redo and the dialog retain the original 18 point font",
+        actions:&[Action::Click("undo"),Action::Wait(Check::PlanCell("A1","style.shrink","false")),Action::Click("redo"),Action::Wait(Check::PlanCell("A1","style.shrink","true")),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Wait(Check::Value("format-size","18")),Action::Click("format-tab-alignment"),Action::Wait(Check::Value("format-shrink","true")),Action::Click("format-cancel")],
+        checks:&[Check::Text(cell!("A1"),"ABCDEFGHIJKL"),Check::FitsText(cell!("A1")),Check::FitsText(cell!("A2")),Check::PlanCell("A1","style.pixels","24")],
+    },
+    Case {
+        name:"shrink: Canvas paints the same fitted values and zoom keeps the complete text",
+        actions:&[Action::OpenDetails("pane-tools"),Action::Wait(Check::PlanReady),Action::RememberPresentation,Action::SetPainter("canvas"),Action::Wait(Check::PainterStable),Action::Wait(Check::CanvasInk("A1")),Action::Wait(Check::CanvasInk("A2")),Action::SetPainter("dom"),Action::Into("zoom-percent","200\u{E007}"),Action::Wait(Check::FitsText(cell!("A1"))),Action::Wait(Check::FitsText(cell!("A2"))),Action::Click("zoom-reset")],
+        checks:&[Check::Text(cell!("A2"),"123456.00"),Check::FitsText(cell!("A1")),Check::FitsText(cell!("A2")),Check::PlanCell("A1","style.pixels","24")],
+    },
+    Case {
+        name:"shrink: widening restores the full display font and width history recalculates the fit",
+        actions:&[Action::OpenDetails("axis-tools"),Action::Into("row-size","30"),Action::Click("set-row-size"),Action::Into("column-size","40"),Action::Click("set-column-size"),Action::Wait(Check::Computed(cell!("A1"),"font-size:24px")),Action::Click("undo"),Action::Wait(Check::FitsText(cell!("A1"))),Action::Click("redo")],
+        checks:&[Check::Computed(cell!("A1"),"font-size:24px"),Check::FitsText(cell!("A1")),Check::FitsText(cell!("A2")),Check::Text(cell!("A2"),"123456.00")],
+    },
+    Case {
+        name:"shrink: XLSX retains the setting and the phone dialog exposes the original font",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Into("name-box","A1:A2\u{E007}"),Action::OpenDetails("axis-tools"),Action::Into("column-size","8.43"),Action::Click("set-column-size"),Action::Window(390,844),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Wait(Check::Value("format-size","18")),Action::Click("format-tab-alignment"),Action::Wait(Check::Value("format-shrink","true")),Action::Wait(Check::Reachable("format-shrink")),Action::Wait(Check::Name("format-shrink","Shrink to fit")),Action::Wait(Check::Fits),Action::Click("format-cancel"),Action::Window(1440,1000)],
+        checks:&[Check::PlanCell("A1","style.shrink","true"),Check::PlanCell("A1","style.pixels","24"),Check::FitsText(cell!("A1")),Check::FitsText(cell!("A2")),Check::Text(cell!("A2"),"123456.00"),Check::PlanCell("A2","provenance","calculated")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -7479,6 +7732,32 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Check::Count("ledger-row", 50),
         ],
     },
+
+    Case {
+        name:"worker latency: a saved name preserves a newer new-name draft",
+        actions:&[
+            Action::Click("skin-grid"),Action::Click("new"),Action::DiscardReplacement,Action::PauseMillis(1000),
+            Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("name-new"),Action::Into("name-name","First"),Action::Into("name-formula","=2"),Action::Click("name-save"),
+            Action::Click("name-new"),Action::Into("name-name","Second"),Action::Into("name-formula","=3"),Action::PauseMillis(1200),
+        ],
+        checks:&[Check::Count("[data-name=First]",1),Check::Value("name-name","Second"),Check::Value("name-formula","=3")],
+    },
+    Case {
+        name:"worker latency: a renamed name preserves a newer selected definition",
+        actions:&[
+            Action::Click("name-save"),Action::Wait(Check::Count("[data-name=Second]",1)),Action::Click("[data-name=First] [data-dnacalc=name-select]"),Action::Into("name-name","Renamed"),Action::Click("name-save"),
+            Action::Click("[data-name=Second] [data-dnacalc=name-select]"),Action::PauseMillis(1200),
+        ],
+        checks:&[Check::Count("[data-name=Renamed]",1),Check::Count("[data-name=First]",0),Check::Value("name-name","Second"),Check::Value("name-formula","=3")],
+    },
+    Case {
+        name:"worker latency: closing and reopening Names waits for its save and keeps the new draft",
+        actions:&[
+            Action::Click("[data-name=Renamed] [data-dnacalc=name-select]"),Action::Into("name-name","FinalName"),Action::Click("name-save"),Action::Click("names-close"),Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("name-new"),Action::Into("name-name","Third"),Action::Into("name-formula","=4"),Action::PauseMillis(1200),
+        ],
+        checks:&[Check::Count("[data-name=FinalName]",1),Check::Value("name-name","Third"),Check::Value("name-formula","=4")],
+    },
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[
@@ -7740,4 +8019,10 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"phone-title",start:498,end:500,core:2,setup:&[]},
     CaseGroup {name:"friendly-functions",start:500,end:504,core:4,setup:&[]},
     CaseGroup {name:"notebook-actions",start:504,end:507,core:3,setup:&[]},
+    CaseGroup {name:"transpose",start:507,end:511,core:4,setup:&[]},
+    CaseGroup {name:"transpose-modes",start:511,end:517,core:6,setup:&[]},
+    CaseGroup {name:"name-changes",start:517,end:527,core:10,setup:&[]},
+    CaseGroup {name:"numeric-sort",start:527,end:533,core:6,setup:&[]},
+    CaseGroup {name:"numeric-sort-limits",start:533,end:536,core:3,setup:&[]},
+    CaseGroup {name:"shrink",start:536,end:541,core:5,setup:&[]},
 ];

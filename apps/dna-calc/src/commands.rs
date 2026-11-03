@@ -19,7 +19,8 @@ fn find_options(controller: Controller) -> impl IntoView {
     }
 }
 
-pub fn controls(controller: Controller) -> impl IntoView {
+// Bound the parent view size: retained controller closures otherwise accumulate on the wasm stack.
+pub fn controls(controller: Controller) -> AnyView {
     let dialog = NodeRef::<leptos::html::Dialog>::new();
     let query_field = NodeRef::<leptos::html::Input>::new();
     let goto_field = NodeRef::<leptos::html::Input>::new();
@@ -323,7 +324,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
             <button role="menuitem" data-dnacalc="context-clear" disabled=move ||!writable() title=unavailable on:click=move |_|command("clear")>"Clear contents"</button><button role="menuitem" data-dnacalc="context-insert" disabled=move ||!writable() title=unavailable on:click=move |_|command("insert")>"Insert cells…"</button><button role="menuitem" data-dnacalc="context-delete" disabled=move ||!writable() title=unavailable on:click=move |_|command("delete")>"Delete cells…"</button>
             <button role="menuitem" data-dnacalc="context-find" on:click=move |_|command("find")>"Find…"</button><button role="menuitem" data-dnacalc="context-goto" on:click=move |_|command("goto")>"Go to…"</button><button role="menuitem" data-dnacalc="context-review" on:click=move |_|command("review")>"Rules & review"</button><small role="status" data-dnacalc="context-reason">{unavailable}</small><small>"Shift + right click opens browser commands."</small>
         </dialog>
-    }
+    }.into_any()
 }
 
 pub fn summary(controller: Controller) -> impl IntoView {
@@ -438,4 +439,23 @@ mod browser_tests {
         drop(mount);
         root.cleanup();
     }
+}
+
+/// Range sorting shares the model's command route with every grid gesture.
+pub fn sort_controls(controller: Controller) -> AnyView {
+    let header=controller.tool_field(|s| &s.sort_header,|s| &mut s.sort_header);
+    let column=controller.tool_field(|s| &s.sort_column,|s| &mut s.sort_column);
+    view! {
+        <details class="dc-clipboard-tools" data-dnacalc="sort-tools" name="worksheet-tools">
+            <summary>"Sort rows"</summary>
+            <p class="dc-note">"Select the complete data rectangle. Only selected cells move. Choose a numeric or date column; blank keys stay last and equal keys keep their order."</p>
+            <div class="dc-command-row">
+                <label>"Column within selection "<input data-dnacalc="sort-column" type="number" min="1" step="1" inputmode="numeric" prop:value=move ||column.get() on:input=move |ev|column.set(event_target_value(&ev))/></label>
+                <label><input data-dnacalc="sort-header" type="checkbox" prop:checked=move ||header.get() on:change=move |ev|header.set(event_target_checked(&ev))/><span>"First row is a header"</span></label>
+                <button data-dnacalc="sort-ascending" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.sort_rows(false)>"Smallest to largest"</button>
+                <button data-dnacalc="sort-descending" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.sort_rows(true)>"Largest to smallest"</button>
+            </div>
+            <p class="dc-muted">"Formula cells, hidden rows, tables, merged cells, rich text and attached rules, notes or links need additional sort support. One Undo restores the sorted range."</p>
+        </details>
+    }.into_any()
 }

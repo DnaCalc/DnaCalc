@@ -200,6 +200,7 @@ pub fn text_style_for(
     }
     if let Some(a) = calc_host::style_alignment(styles, index) {
         out.wrap = a.wrap_text;
+        out.shrink = a.shrink_to_fit;
         out.horizontal = a.horizontal.clone();
         out.vertical = a.vertical.clone();
         if matches!(a.horizontal.as_deref(), Some("centerContinuous" | "fill")) {
@@ -245,6 +246,10 @@ pub fn text_style_for(
         if out.wrap && out.rotation != 0 {
             out.unsupported = Some("AutoFit combining wrapping and rotation is unavailable".into());
         }
+    }
+    if out.shrink && (out.wrap || out.rotation!=0 || host.merged_areas(at.sheet()).iter().any(|a|a.contains(at))
+        || matches!(out.horizontal.as_deref(),Some("fill"|"justify"|"distributed"|"centerContinuous"))) {
+        out.unsupported=Some("Shrink-to-fit with wrapping, rotation, merged cells or special horizontal alignment is preserved but not painted (dc-971p.6)".into());
     }
     out
 }

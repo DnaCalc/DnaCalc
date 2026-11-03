@@ -74,6 +74,13 @@ pub enum WorkbookCommand {
         revision: u64,
         only: Option<CellKey>,
     },
+    SortRows {
+        area: GridArea,
+        column: u32,
+        header: bool,
+        descending: bool,
+        revision: u64,
+    },
     Paste(crate::paste::PastePlan),
     ShiftCells {
         area: GridArea,
@@ -88,6 +95,13 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::SortRows {
+            area,
+            column,
+            header,
+            descending,
+            revision,
+        } => sort_rows(host, area, column, header, descending, revision),
         WorkbookCommand::Name(edit) => crate::names::prepare(host, edit),
         WorkbookCommand::FormatCells { areas, patch } => {
             crate::format::prepare(host, &areas, &patch)
@@ -460,4 +474,204 @@ pub(crate) fn conditional_edits(
         rules[index].priority = rank as i64 + 1;
     }
     Ok(vec![CellEdit::ConditionalRules { sheet, rules }])
+}
+
+/// A bounded row permutation. Ordering comes from the existing evaluator; edits use the same
+/// immutable copy snapshots and one transaction as Paste. Formula relocation and document
+/// metadata movement need separate Excel measurements before this command admits them.
+fn sort_rows(
+    host: &HostState,
+    area: GridArea,
+    column: u32,
+    header: bool,
+    descending: bool,
+    revision: u64,
+) -> Result<Vec<CellEdit>, String> {
+    let unavailable = |detail: &str| {
+        format!("Sorting {detail} is not modelled (dc-971p.36); nothing was changed")
+    };
+    if revision != host.revision().get() {
+        return Err("The workbook changed before sorting; select the range again".into());
+    }
+    crate::check_destination(host, area, crate::PasteMode::All).map_err(|e| e.to_string())?;
+    if !(area.first().column()..=area.last().column()).contains(&column) {
+        return Err("The sort column must lie in the selected range".into());
+    }
+    let first = area.first().row() + u32::from(header);
+    if first > area.last().row() {
+        return Err("Select at least one data row below the header".into());
+    }
+    let data = GridArea::new(
+        CellKey::new(area.sheet(), first, area.first().column()).unwrap(),
+        area.last(),
+    )
+    .unwrap();
+    if host
+        .merged_areas(area.sheet())
+        .iter()
+        .any(|a| a.intersection(data).is_some())
+    {
+        return Err(unavailable("merged cells"));
+    }
+    if host
+        .model()
+        .definitions()
+        .tables()
+        .iter()
+        .any(|t| t.area.intersection(data).is_some())
+    {
+        return Err(unavailable("table rows"));
+    }
+    if host
+        .model()
+        .definitions()
+        .arrays()
+        .any(|a| a.area().intersection(data).is_some())
+        || host
+            .engine
+            .spills()
+            .any(|a| a.area().intersection(data).is_some())
+    {
+        return Err(unavailable(
+            "array formulas; paste their Values into an ordinary range first",
+        ));
+    }
+    if host.sheet_geometry(area.sheet()).is_some_and(|g| {
+        g.rows
+            .range(first..=area.last().row())
+            .any(|(_, r)| r.hidden)
+    }) {
+        return Err(unavailable("hidden or filtered rows"));
+    }
+    if host
+        .model()
+        .definitions()
+        .unloaded_in(data)
+        .next()
+        .is_some()
+    {
+        return Err(unavailable("unloaded cell content"));
+    }
+    if !host.loaded.cell_sort_metadata_supported(area.sheet()) {
+        return Err(unavailable("source cell decorations or worksheet objects"));
+    }
+    let review = host.sheet_review(area.sheet());
+    if !review.unsupported.is_empty()
+        || review.notes.iter().any(|n| data.contains(n.at))
+        || review
+            .links
+            .iter()
+            .any(|l| data.intersection(l.area).is_some())
+    {
+        return Err(unavailable("cells with notes or hyperlinks"));
+    }
+    // Rule ranges and formulas are separate authored objects. Do not strand them by moving
+    // only cell inputs, and never infer a formula value from a saved cache.
+    if !host
+        .model()
+        .definitions()
+        .conditional_rules(area.sheet())
+        .is_empty()
+    {
+        return Err(unavailable("a sheet with conditional formatting"));
+    }
+    if host.loaded.sheet(area.sheet()).is_some_and(|sheet| {
+        sheet.validations().iter().any(|validation| {
+            host.current_areas(area.sheet(), &validation.areas)
+                .iter()
+                .any(|v| data.intersection(*v).is_some())
+        })
+    }) {
+        return Err(unavailable("cells with data validation"));
+    }
+    for row in first..=area.last().row() {
+        for col in area.first().column()..=area.last().column() {
+            let at = CellKey::new(area.sheet(), row, col).unwrap();
+            if matches!(host.model().cell(at), Some(crate::CellInput::Formula(_))) {
+                return Err(unavailable("formula cells; use Paste Special Values first"));
+            }
+        }
+    }
+    for row in first..=data.last().row() {
+        let key = CellKey::new(area.sheet(), row, column).unwrap();
+        if host
+            .model()
+            .cell(key)
+            .is_some_and(|input| !matches!(input, crate::CellInput::Number(_)))
+        {
+            return Err(unavailable(
+                "non-numeric keys; choose a numeric or date column",
+            ));
+        }
+    }
+    let count = data.row_count();
+    if count < 2 {
+        return Ok(Vec::new());
+    }
+    let label = |row| {
+        let mut col = column;
+        let mut chars = Vec::new();
+        while col > 0 {
+            chars.push(char::from(b'A' + ((col - 1) % 26) as u8));
+            col = (col - 1) / 26;
+        }
+        format!("{}{}", chars.into_iter().rev().collect::<String>(), row)
+    };
+    let key = format!("{}:{}", label(first), label(data.last().row()));
+    // Empty keys stay last in both directions. Original row index is an explicit tie key.
+    // DetachedFormula reads canonical XLSX function spellings.
+    let formula = format!(
+        "_xlfn.SORTBY(_xlfn.SEQUENCE({count}),ISBLANK({key}),1,{key},{},_xlfn.SEQUENCE({count}),1)",
+        if descending { -1 } else { 1 }
+    );
+    let value = calc_engine::DetachedFormula::compile_dynamic(host.model(), &formula, data.first())
+        .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
+        .map_err(|e| format!("Sort could not calculate the row order (dc-971p.36): {e}"))?;
+    let calc_value::CoreRef::Array(order) = value.core_ref() else {
+        return Err(match value.core_ref() {
+            calc_value::CoreRef::Error(code) => format!(
+                "Sort could not calculate the row order: {} (dc-971p.36)",
+                code.excel_spelling()
+            ),
+            _ => "Sort did not return a row order (dc-971p.36)".into(),
+        });
+    };
+    if order.shape().rows != count as usize || order.shape().cols != 1 {
+        return Err("Sort returned an unexpected row count (dc-971p.36)".into());
+    }
+    let mut seen = BTreeSet::new();
+    let mut edits = Vec::new();
+    for index in 0..count {
+        let Some(calc_value::CoreRef::Number(number)) =
+            order.get(index as usize, 0).map(|v| v.core_ref())
+        else {
+            return Err("Sort did not return numeric row positions (dc-971p.36)".into());
+        };
+        if number < 1.
+            || number > f64::from(count)
+            || number.fract() != 0.
+            || !seen.insert(number as u32)
+        {
+            return Err("Sort returned invalid row positions (dc-971p.36)".into());
+        }
+        let source_row = first + number as u32 - 1;
+        let target_row = first + index;
+        if source_row == target_row {
+            continue;
+        }
+        let band = |row| {
+            GridArea::new(
+                CellKey::new(area.sheet(), row, data.first().column()).unwrap(),
+                CellKey::new(area.sheet(), row, data.last().column()).unwrap(),
+            )
+            .unwrap()
+        };
+        let copy =
+            crate::CopySnapshot::capture(host, band(source_row)).map_err(|e| e.to_string())?;
+        edits.extend(
+            copy.edits(host, band(target_row), crate::PasteMode::All, false, None)
+                .map_err(|e| e.to_string())?,
+        );
+    }
+    Ok(edits)
 }

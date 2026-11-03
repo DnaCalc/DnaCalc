@@ -1546,7 +1546,8 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         (false, false) => {}
                     }
                     let italic=matches!(cell.shown.provenance,cells::Provenance::FileCache|cells::Provenance::Refused);
-                    style.push(';');style.push_str(&autofit::font_css(&cell.shown.style,Some(&conditional),italic,plan.scale));
+                    let mut display_style=cell.shown.style.clone();display_style.pixels=cell.paint_pixels;
+                    style.push(';');style.push_str(&autofit::font_css(&display_style,Some(&conditional),italic,plan.scale));
                     let layout = alignment::layout(cell, &conditional, italic, plan.scale);
                     style.push_str(&layout.container);
                     let shown = cell.shown.clone();
@@ -2100,6 +2101,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             {(ctx.index==0).then(move ||view!{<>
             {crate::clipboard::controls(controller)}
             {axis::controls(controller)}
+            {crate::commands::sort_controls(controller)}
             {structure::controls(controller)}
             <details class="dc-clipboard-tools" data-dnacalc="pane-tools" name="worksheet-tools">
                 <summary>"View & panes"</summary>

@@ -54,7 +54,8 @@
 /* Touch: a tap selects and a double tap edits (no double-tap zoom); panning scrolls the grid. */
 .dc-grid{touch-action:manipulation}
 @media (pointer:coarse){.dc-dropdown{width:28px}.dc-list li{padding:8px 10px}}
-.dc-grid{min-height:0}
+/* Keep usable rows while expanded commands share a small viewport. */
+.dc-grid{min-height:120px}
 .dc-gridbar .dc-note{flex:1 1 100px;overflow-wrap:anywhere}
 
 .dc-freeze-line{position:absolute;background:var(--dna-accent);pointer-events:none;z-index:1}

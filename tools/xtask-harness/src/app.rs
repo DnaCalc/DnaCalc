@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (96 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (130 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1098,6 +1098,7 @@ pub enum Check {
     PlanReady,
     PainterStable,
     HeaderHeightRetained,
+    MinHeight(&'static str, u32),
     CanvasInk(&'static str),
     MergedCell(&'static str, u32, u32),
     Editability(&'static str, bool),
@@ -1220,6 +1221,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         return Ok(value.pointer(pointer).cloned().unwrap_or(Value::Null));
     }
     let script = match check {
+        Check::MinHeight(name, pixels) => format!("var e={};return !!e&&e.getBoundingClientRect().height>={};",q(name),pixels),
         Check::Rendered(name, _) => format!("var e={};return e?e.checkVisibility():false;",q(name)),
         Check::DownloadedJson(..) => unreachable!(),
         Check::HeaderHeightRetained => "var h=document.querySelector('.dc-mast')?.getBoundingClientRect().height,b=window.__dcHeaderHeight;return typeof h==='number'&&typeof b==='number'&&Math.abs(h-b)<1;".to_owned(),
@@ -1426,6 +1428,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::PlanReady
         | Check::PainterStable
         | Check::HeaderHeightRetained
+        | Check::MinHeight(..)
         | Check::CanvasInk(_)
         | Check::ActiveSemantic(_)
         | Check::HashMask(_)
@@ -1502,6 +1505,7 @@ fn describe(check: &Check) -> String {
         Check::Spill(name, first, last) => {
             format!("{name} text clips between columns {first} and {last}")
         }
+        Check::MinHeight(name, pixels) => format!("{name} keeps at least {pixels} pixels of visible height"),
         Check::HeaderHeightRetained => "the workbook title retains the header's measured height".to_owned(),
         Check::Before(first, last) => format!("{first} precedes {last} in the rendered layout"),
         Check::Text(name, expected) => format!("{name} is {expected:?}"),
@@ -2459,7 +2463,7 @@ fn measure_skins(
 
 fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
     let selector = select(app, name);
-    if name.starts_with("skin-") || matches!(name, "save" | "new") {
+    if name.starts_with("skin-") || matches!(name, "save" | "new" | "name-manager") {
         // These buttons are disabled until earlier workbook input has answered. WebDriver
         // reports a successful click on a disabled button without dispatching it. Wait for
         // the same availability a person sees before making the ordinary pointer click.
@@ -2907,8 +2911,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 96,
-            "the two applications have 96 core cases including friendly formulas and folded Notebook actions"
+            total, 130,
+            "the two applications have 130 core cases including Paste Special, name changes, numeric sorting and shrink-to-fit"
         );
     }
 

@@ -68,6 +68,8 @@ pub struct Health {
 /// Shared Find/Replace/Go To inputs and workbook-relative query results.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolState {
+    pub sort_header: bool,
+    pub sort_column: String,
     pub query: String,
     pub replacement: String,
     pub target: String,
@@ -89,6 +91,8 @@ pub struct ToolState {
 impl Default for ToolState {
     fn default() -> Self {
         Self {
+            sort_header: true,
+            sort_column: "1".into(),
             query: String::new(),
             replacement: String::new(),
             target: String::new(),
@@ -153,6 +157,7 @@ pub struct RuntimeState {
     pub paste_preview: Option<wire::PastePreview>,
     pub paste_cut: bool,
     pub paste_mode: String,
+    pub paste_transpose: bool,
     pub fill_series: String,
     pub cut: bool,
     pub selection: Snapshot<ViewMirror>,
@@ -197,6 +202,7 @@ impl Default for RuntimeState {
             paste_preview: None,
             paste_cut: false,
             paste_mode: "all".to_owned(),
+            paste_transpose: false,
             fill_series: "series".to_owned(),
             cut: false,
             selection: Snapshot::new(ViewMirror::default()),
@@ -223,6 +229,8 @@ mod tool_tests {
 
     fn populated() -> ToolState {
         ToolState {
+            sort_header: false,
+            sort_column: "3".into(),
             query: "needle".into(),
             replacement: "thread".into(),
             target: "C9".into(),

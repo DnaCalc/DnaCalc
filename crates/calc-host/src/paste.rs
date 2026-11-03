@@ -57,6 +57,20 @@ pub fn prepare_paste(
     to: GridArea,
     mode: PasteMode,
 ) -> Result<PastePlan, String> {
+    prepare_paste_oriented(host, source, to, mode, false)
+}
+
+/// The same revision-bound planner with rows and columns exchanged at the copy boundary.
+pub fn prepare_paste_oriented(
+    host: &HostState,
+    source: PasteSource<'_>,
+    to: GridArea,
+    mode: PasteMode,
+    transpose: bool,
+) -> Result<PastePlan, String> {
+    if transpose && matches!(&source, PasteSource::Fill { .. }) {
+        return Err(crate::CopyRefusal::TransposeFill.to_string());
+    }
     let coordinates = match &source {
         PasteSource::Snapshot {
             snapshot,
@@ -75,9 +89,11 @@ pub fn prepare_paste(
                     "Paste Special is unavailable for a cut; copy the cells instead".to_owned(),
                 );
             }
-            let target = snapshot.target(to).map_err(|e| e.to_string())?;
+            let target = snapshot
+                .target_oriented(to, transpose)
+                .map_err(|e| e.to_string())?;
             let edits = snapshot
-                .edits(host, to, mode, cut, None)
+                .edits_oriented(host, to, mode, cut, None, transpose)
                 .map_err(|e| e.to_string())?;
             (edits, target)
         }
@@ -89,6 +105,18 @@ pub fn prepare_paste(
             (edits, to)
         }
         PasteSource::External(rows) => {
+            let rows = if transpose {
+                let (height, width) = matrix_shape(&rows)?;
+                (0..width as usize)
+                    .map(|column| {
+                        (0..height as usize)
+                            .map(|row| rows[row][column].clone())
+                            .collect()
+                    })
+                    .collect()
+            } else {
+                rows
+            };
             if mode == PasteMode::Formats {
                 return Err(
                     "External table formats are not modelled; copy formats within this workbook"
@@ -143,6 +171,9 @@ pub fn prepare_paste(
             (edits, target)
         }
     };
+    if transpose && host.model().definitions().tables().iter().any(|t| t.area.intersection(target).is_some()) {
+        return Err(crate::CopyRefusal::TransposeTable.to_string());
+    }
     for edit in &edits {
         if let CellEdit::Set { at, input } = edit {
             if let Err(failure) = host.check_entry(*at, Some(input)) {

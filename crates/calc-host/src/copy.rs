@@ -65,7 +65,7 @@ pub enum CopyRefusal {
         anchor: CellKey,
     },
     SourceChanged,
-    /// History removed or reused the format definitions captured by a clipboard snapshot.
+    /// Captured format definitions belong to another workbook or unsupported source records.
     StyleDefinitionsChanged,
     UnavailableValue {
         at: CellKey,
@@ -76,11 +76,19 @@ pub enum CopyRefusal {
     },
     Series,
     LegacyFill,
+    TransposeCut,
+    TransposeArray,
+    TransposeTable,
+    TransposeFill,
 }
 
 impl fmt::Display for CopyRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::TransposeCut => f.write_str("Transposing a cut is not modelled (dc-971p.35); use Copy first"),
+            Self::TransposeTable => f.write_str("Transposing table cells is not modelled (dc-971p.35); copy their Values to an ordinary range first"),
+            Self::TransposeArray => f.write_str("Transposing array formulas is not modelled (dc-971p.35); choose Values or Cell formats instead"),
+            Self::TransposeFill => f.write_str("Transposing a fill is not modelled (dc-971p.35); copy the cells and use Paste instead"),
             Self::LegacyFill => f.write_str(
                 "fill from a legacy array is not modelled; copy its whole extent instead",
             ),
@@ -233,6 +241,39 @@ impl CopySnapshot {
         cut: bool,
         series: Option<bool>,
     ) -> Result<Vec<CellEdit>, CopyRefusal> {
+        self.edits_oriented(host, to, mode, cut, series, false)
+    }
+
+    pub(crate) fn edits_oriented(
+        &self,
+        host: &HostState,
+        to: GridArea,
+        mode: PasteMode,
+        cut: bool,
+        series: Option<bool>,
+        transpose: bool,
+    ) -> Result<Vec<CellEdit>, CopyRefusal> {
+        if transpose && cut {
+            return Err(CopyRefusal::TransposeCut);
+        }
+        if transpose && self.model.definitions().tables().iter().any(|t|t.area.intersection(self.from).is_some()) {
+            return Err(CopyRefusal::TransposeTable);
+        }
+        if transpose
+            && !matches!(mode, PasteMode::Values | PasteMode::Formats)
+            && (self
+                .spills
+                .iter()
+                .any(|area| self.from.contains(area.first()))
+                || self
+                    .model
+                    .definitions()
+                    .arrays_meeting(self.from)
+                    .into_iter()
+                    .any(|array| self.from.contains(array.anchor())))
+        {
+            return Err(CopyRefusal::TransposeArray);
+        }
         if cut
             && (host.revision() != self.model.revision()
                 || self.styles.iter().any(|(&at, &style)| {
@@ -241,12 +282,22 @@ impl CopySnapshot {
         {
             return Err(CopyRefusal::SourceChanged);
         }
-        let to = self.target(to)?;
+        let to = self.target_oriented(to, transpose)?;
         check_destination(host, to, mode)?;
         if cut {
             check_destination(host, self.from, PasteMode::All)?;
         }
-        copy_edits_from(host, self.from, to, cut, Some(self), mode, series, false)
+        copy_edits_from(
+            host,
+            self.from,
+            to,
+            cut,
+            Some(self),
+            mode,
+            series,
+            false,
+            transpose,
+        )
     }
 
     /// Extend a seed rectangle along one axis, including an incomplete repetition at the far edge.
@@ -267,17 +318,31 @@ impl CopySnapshot {
             PasteMode::All,
             series.then_some(down),
             true,
+            false,
         )
     }
 
     pub fn target(&self, to: GridArea) -> Result<GridArea, CopyRefusal> {
+        self.target_oriented(to, false)
+    }
+
+    pub(crate) fn target_oriented(
+        &self,
+        to: GridArea,
+        transpose: bool,
+    ) -> Result<GridArea, CopyRefusal> {
+        let (height, width) = if transpose {
+            (self.from.column_count(), self.from.row_count())
+        } else {
+            (self.from.row_count(), self.from.column_count())
+        };
         if to.cell_count() != 1 {
             return Ok(to);
         }
         let last = CellKey::new(
             to.sheet(),
-            to.first().row() + self.from.row_count() - 1,
-            to.first().column() + self.from.column_count() - 1,
+            to.first().row() + height - 1,
+            to.first().column() + width - 1,
         )
         .map_err(|_| CopyRefusal::PastTheGrid)?;
         GridArea::new(to.first(), last).map_err(|_| CopyRefusal::PastTheGrid)
@@ -558,6 +623,7 @@ fn copy_edits_from(
     mode: PasteMode,
     series: Option<bool>,
     partial: bool,
+    transpose: bool,
 ) -> Result<Vec<CellEdit>, CopyRefusal> {
     let restored = if matches!(mode, PasteMode::All | PasteMode::Formats) {
         if let Some(snapshot) = snapshot {
@@ -590,13 +656,18 @@ fn copy_edits_from(
         return Err(CopyRefusal::UnknownSheet);
     }
     let (source_rows, source_cols) = (from.row_count(), from.column_count());
+    let (tile_rows, tile_cols) = if transpose {
+        (source_cols, source_rows)
+    } else {
+        (source_rows, source_cols)
+    };
     // A single target cell takes the source's shape.
     let to = if !partial && to.row_count() == 1 && to.column_count() == 1 {
         let first = to.first();
         let last = CellKey::new(
             to.sheet(),
-            first.row() + source_rows - 1,
-            first.column() + source_cols - 1,
+            first.row() + tile_rows - 1,
+            first.column() + tile_cols - 1,
         )
         .map_err(|_| CopyRefusal::PastTheGrid)?;
         GridArea::new(first, last).expect("both corners are on the target's sheet")
@@ -604,10 +675,10 @@ fn copy_edits_from(
         to
     };
     let shape = CopyRefusal::Shape {
-        source: (source_rows, source_cols),
+        source: (tile_rows, tile_cols),
         target: (to.row_count(), to.column_count()),
     };
-    if !partial && (to.row_count() % source_rows != 0 || to.column_count() % source_cols != 0) {
+    if !partial && (to.row_count() % tile_rows != 0 || to.column_count() % tile_cols != 0) {
         return Err(shape);
     }
     if cut && (to.row_count() != source_rows || to.column_count() != source_cols) {
@@ -685,22 +756,22 @@ fn copy_edits_from(
     for row in top..=to.last().row() {
         for column in left..=to.last().column() {
             let target = CellKey::new(to.sheet(), row, column).expect("inside the target area");
+            let (row_offset, col_offset) = if transpose {
+                ((column - left) % source_rows, (row - top) % source_cols)
+            } else if partial {
+                (
+                    (i64::from(row) - i64::from(from.first().row()))
+                        .rem_euclid(i64::from(source_rows)) as u32,
+                    (i64::from(column) - i64::from(from.first().column()))
+                        .rem_euclid(i64::from(source_cols)) as u32,
+                )
+            } else {
+                ((row - top) % source_rows, (column - left) % source_cols)
+            };
             let source = CellKey::new(
                 from.sheet(),
-                from.first().row()
-                    + if partial {
-                        (i64::from(row) - i64::from(from.first().row()))
-                            .rem_euclid(i64::from(source_rows)) as u32
-                    } else {
-                        (row - top) % source_rows
-                    },
-                from.first().column()
-                    + if partial {
-                        (i64::from(column) - i64::from(from.first().column()))
-                            .rem_euclid(i64::from(source_cols)) as u32
-                    } else {
-                        (column - left) % source_cols
-                    },
+                from.first().row() + row_offset,
+                from.first().column() + col_offset,
             )
             .expect("inside the source area");
             if matches!(mode, PasteMode::All | PasteMode::Formats) {

@@ -116,7 +116,7 @@
     if(spec.op==='absent')return {handled:true,seen:!target};
     if(!target)return {handled:true,seen:null};
     if(canvas.dataset.drawRevision!==String(plan.publication.next)||canvas.dataset.drawPresentation!==String(plan.presentation.epoch))return {handled:true,seen:null};
-    const s=cell.shown.style, cf=cell.shown.conditional||{}, scale=plan.scale, rect=cell.rect, anchor=cell.anchor;
+    const s={...cell.shown.style,pixels:cell.paint_pixels??cell.shown.style.pixels}, cf=cell.shown.conditional||{}, scale=plan.scale, rect=cell.rect, anchor=cell.anchor;
     const css=getComputedStyle(grid), token=n=>css.getPropertyValue(n).trim();
     const scratch=document.createElement('canvas'), context=scratch.getContext('2d');scratch.width=4;scratch.height=4;
     const family=s.family?(/^(system-ui|sans-serif|serif|monospace)$/i.test(s.family)?s.family:JSON.stringify(s.family)+',system-ui'):'system-ui';
