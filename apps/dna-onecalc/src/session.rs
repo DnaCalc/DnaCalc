@@ -1,7 +1,7 @@
 //! The OneCalc application controller: a session of named sheets, typed inputs and one formula,
 //! calculated through calc-fml and calc-func alone.
 
-use crate::fixture::{Fixture, Read, TracingReader};
+use crate::fixture::{Fixture, Read, SessionFacts, TracingReader};
 use calc_fml::reference::{BindError, FormulaAnchor, ReferenceNotation, ReferenceShape};
 use calc_fml::syntax::SyntaxDiagnostic;
 use calc_fml::{
@@ -391,7 +391,8 @@ impl Session {
             }
         };
         let instance = instantiate(&plan, anchor);
-        let mut reader = TracingReader::new(&self.fixture);
+        let mut reader = TracingReader::new(&self.fixture, self.formula_cell);
+        let mut facts = SessionFacts::new(&self.fixture, self.formula_cell);
         // The session's sheets are the workbook context INDIRECT's text is bound in.
         let mut function_diagnostics = Vec::new();
         let references = self.references.pin();
@@ -401,7 +402,7 @@ impl Session {
                 &self.numeric,
                 &mut reader,
                 self.environment,
-                None,
+                Some(&mut facts),
                 calc_fml::ReadRequest::DEPENDENCY,
             )
             .with_catalog(&self.fixture)
