@@ -879,16 +879,7 @@ impl HostState {
             .sheet(sheet)
             .map(|s| s.review().clone())
             .unwrap_or_default();
-        review.notes = review
-            .notes
-            .into_iter()
-            .filter_map(|mut n| {
-                for edit in &self.axis_edits {
-                    n.at = calc_doc_model::moved_cell(*edit, n.at)?;
-                }
-                Some(n)
-            })
-            .collect();
+        review.notes = self.model.definitions().review_notes(sheet).to_vec();
         review.links = review
             .links
             .into_iter()

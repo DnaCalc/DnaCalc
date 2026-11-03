@@ -1842,6 +1842,21 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             Some(view!{<button type="button" class="dc-review-marker" data-dnacalc="review-marker" data-cell=format!("{}{}",dna_formula_ui::display::column_letters(at.column()),at.row()) title=label.clone() aria-label=label use:css=format!("left:{};top:{}",px(rect.x+rect.w-14.0),px(rect.y)) on:mousedown=move |ev|ev.stop_propagation() on:click=move |ev|{ev.stop_propagation();controller.navigate_to(at,move |ok|{if ok {controller.review_open.set(true);}});}>"•"</button>})
         }).collect_view()
     };
+    // Invalid-data marks are a view overlay over the same published workbook audit for both painters.
+    let invalid_view = move || {
+        let m = metrics.get();
+        let v = viewport.get();
+        let p = panes.get();
+        let plan = plan.get();
+        let sheet = controller.sheet.get();
+        let revision = controller.summary.with(|s|s.revision);
+        controller.validation_scan().get().and_then(Result::ok).filter(|r|Some(r.sheet.id())==sheet && r.revision==revision).map(|r|r.invalid.into_iter().filter_map(wire::Key::cell).flat_map(|at|{
+            let mut fragments=plan.cells.iter().filter(|c|c.row==at.row() && c.col==at.column()).map(|c|(c.anchor,p.anchor_clip_style(c,&m,&v))).collect::<Vec<_>>();
+            if fragments.is_empty() && !p.area_rects(GridArea::cell(at),&m,&v).is_empty() {let rect=p.rect(&m,&v,at.row(),at.column());fragments.push((rect,p.clip_style(rect,&m,&v,Some(at.row()),Some(at.column()))));}
+            let address=format!("{}{}",dna_formula_ui::display::column_letters(at.column()),at.row());
+            fragments.into_iter().map(move |(rect,clip)|{let style=format!("left:{};top:{};width:{};height:{}{}",px(rect.x),px(rect.y),px(rect.w),px(rect.h),clip);view!{<div class="dc-invalid-circle" data-dnacalc="validation-invalid" data-cell=address.clone() aria-hidden="true" use:css=style></div>}})
+        }).collect_view())
+    };
     // The active cell's data validation (dc-6yw): a list's drop-down button at its right edge, the
     // list it opens (Alt+Down too, as in Excel), and the rule's input message below the cell.
     Effect::new(move |_| {
@@ -1901,7 +1916,18 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         let at = controller.active_key_untracked()?;
         let items = rule.with_untracked(|rule| rule.as_ref().map(|r| r.items.clone()))?;
         let rect = active_rect();
-        let style = format!("left:{};top:{}", px(rect.x), px(rect.y + rect.h));
+        let m = metrics.get();
+        let (left, top, width, height, above) =
+            viewport::validation_popup(rect, viewport.get(), m.header_w, m.header_h, 160.);
+        let style = format!("left:{};top:{};max-width:{};max-height:{}{}", px(left), px(top),
+            px(width),
+            px(height),
+            if above {
+                ";transform:translateY(-100%)"
+            } else {
+                ""
+            }
+        );
         let rows = items
             .into_iter().enumerate()
             .map(|(index,item)| {
@@ -1924,7 +1950,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     ev.stop_propagation();let key=ev.key();let items=rule.get_untracked().map(|r|r.items).unwrap_or_default();
                     if let Some(next)=validation_list_index(list_index.get_untracked(),&key,items.len()){ev.prevent_default();list_index.set(next);
                         use wasm_bindgen::JsCast;
-                        if let Some(element)=document().get_element_by_id(&format!("dc-validation-option-{next}")).and_then(|e|e.dyn_into::<web_sys::HtmlElement>().ok()) {element.scroll_into_view_with_bool(false);}
+                        if let (Some(list),Some(element))=(listbox.get_untracked(),document().get_element_by_id(&format!("dc-validation-option-{}-{next}",ctx.index)).and_then(|e|e.dyn_into::<web_sys::HtmlElement>().ok()) ) {let bounds=list.get_bounding_client_rect();let item=element.get_bounding_client_rect();let scroll=f64::from(list.scroll_top());
+                            if item.top()<bounds.top()+1. {list.set_scroll_top((scroll+item.top()-bounds.top()-1.).round() as i32);}else if item.bottom()>bounds.bottom()-1. {list.set_scroll_top((scroll+item.bottom()-bounds.bottom()+1.).round() as i32);}
+                        }
                     } else if key=="Escape" {ev.prevent_default();list_open.set(false);focus_grid();}
                     else if key=="Enter" {ev.prevent_default();if let Some(text)=items.get(list_index.get_untracked()){list_open.set(false);controller.enter(at,text.clone(),|_|{});focus_grid();}}
                     else if key=="Tab" {list_open.set(false);}
@@ -1942,13 +1970,28 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             return None;
         }
         let rect = active_rect();
+        let m = metrics.get();
+        let (left, top, width, height, above) =
+            viewport::validation_popup(rect, viewport.get(), m.header_w, m.header_h, 180.);
         let style = format!(
-            "left:{};top:{}",
-            px(rect.x + 8.0),
-            px(rect.y + rect.h + 4.0)
+            "left:{};top:{};max-width:{};max-height:{};overflow:auto{}",
+            px(left),
+            px(top),
+            px(width.min(220.)),
+            px(height),
+            if above {
+                ";transform:translateY(-100%)"
+            } else {
+                ""
+            }
         );
+        let description = if title.is_empty() {
+            text.clone()
+        } else {
+            format!("{title}: {text}")
+        };
         Some(view! {
-            <div class="dc-prompt" data-dnacalc="validation-prompt" use:css=style>
+            <div class="dc-prompt" id=format!("dc-validation-prompt-{}",ctx.index) role="note" tabindex="0" on:dblclick=move |ev:leptos::ev::MouseEvent|ev.stop_propagation() on:mousedown=move |ev:leptos::ev::MouseEvent|ev.stop_propagation() on:keydown=prompt_key on:wheel=prompt_wheel aria-label=description data-dnacalc="validation-prompt" use:css=style>
                 {(!title.is_empty()).then(|| view! { <b>{title}</b> })}
                 {text}
             </div>
@@ -2048,7 +2091,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 aria-label=move || controller.sheet.get().and_then(|id| controller.sheets().into_iter().find(|tab| tab.id == id).map(|tab| format!("{} worksheet", tab.name))).unwrap_or_else(|| "Worksheet".to_owned())
                 aria-rowcount="1048577"
                 aria-colcount="16385"
-                aria-describedby=format!("dc-grid-keyboard-{}",ctx.index)
+                aria-describedby=move ||format!("dc-grid-keyboard-{}{}",ctx.index,if rule.with(|r|r.as_ref().is_some_and(|r|r.prompt.is_some())) && !list_open.get() {format!(" dc-validation-prompt-{}",ctx.index)}else{String::new()})
                 aria-activedescendant=move || {
                     plan.with(|plan| plan.semantic_rows.iter().flat_map(|r| &r.cells).find(|cell|cell.active).map(|cell|format!("dc-grid-cell-{}-{}-{}",ctx.index,cell.row,cell.col)))
                 }
@@ -2091,6 +2134,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         {canvas_icons}
                         {charts_view}
                         {markers_view}
+                        {invalid_view}
                         {selection_view}
                         {active_view}
                         {copy_outline}
@@ -2245,6 +2289,32 @@ mod tests {
             GridExtent::new(MAX_ROW, MAX_COLUMN)
         );
     }
+}
+
+// A focused input message owns scrolling even when its content already fits.
+fn prompt_key(ev:leptos::ev::KeyboardEvent) {
+    use wasm_bindgen::JsCast;
+    ev.stop_propagation();
+    let Some(node)=ev.current_target().and_then(|n|n.dyn_into::<web_sys::HtmlElement>().ok()) else {return;};
+    let page=node.client_height().max(16);let current=node.scroll_top();
+    let next=match ev.key().as_str() {
+        "Home"=>0,"End"=>node.scroll_height(),
+        "ArrowUp"=>current.saturating_sub(16),"ArrowDown"=>current.saturating_add(16),
+        "PageUp"=>current.saturating_sub(page),"PageDown"=>current.saturating_add(page),
+        " "=>if ev.shift_key(){current.saturating_sub(page)}else{current.saturating_add(page)},
+        "ArrowLeft"|"ArrowRight"=>current,
+        _=>return,
+    };
+    ev.prevent_default();node.set_scroll_top(next);
+}
+fn prompt_wheel(ev:leptos::ev::WheelEvent) {
+    use wasm_bindgen::JsCast;
+    ev.stop_propagation();
+    if ev.ctrl_key(){return;}
+    let Some(node)=ev.current_target().and_then(|n|n.dyn_into::<web_sys::HtmlElement>().ok()) else {return;};
+    ev.prevent_default();
+    let scale=match ev.delta_mode(){1=>16.,2=>f64::from(node.client_height()),_=>1.};
+    node.set_scroll_top((f64::from(node.scroll_top())+ev.delta_y()*scale).round().clamp(0.,f64::from(i32::MAX)) as i32);
 }
 
 /// Bounded list movement. Empty lists and unrelated keys have no navigation target.

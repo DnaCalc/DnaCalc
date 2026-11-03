@@ -1316,6 +1316,10 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Wait(Check::Text("status", "New workbook")),
             Action::Keys("grid", "1"),
             Action::Keys("cell-editor", ENTER),
+            // The second seed belongs to the next cell, after the first commit retires its editor.
+            Action::Wait(Check::Text(cell!("A1"), "1")),
+            Action::Wait(Check::Value("name-box", "A2")),
+            Action::Wait(Check::Focused("grid")),
             Action::Keys("grid", "2"),
             Action::Keys("cell-editor", ENTER),
             // Finish publishing the seed before locating the name field for the completion test.
@@ -3826,6 +3830,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "axis: a dimension edit invalidates imported manual-mode caches without calculating them",
         actions: &[
+            // The preceding drag can fail before restoring zoom. Keep C3 in this viewport.
+            Action::Click("zoom-reset"),
+            Action::Wait(Check::Text("zoom", "100%")),
             Action::ClearDownloads,
             Action::Click("save"),
             Action::ManualDownloadFixture,
@@ -6924,6 +6931,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into(BAR,"17\u{E007}"),Action::Into("name-box","A1\u{E007}"),
             Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-fill"),
             Action::Into("format-fill","#ff0000"),Action::Click("format-apply"),
+            // Applying a format closes the modal only after the worker accepts it.
+            Action::Wait(Check::Absent("[data-dnacalc=format-dialog][open]")),
+            Action::Wait(Check::Focused("grid")),
             Action::Keys("grid","\u{E009}c\u{E000}"),Action::Click("undo"),
             Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-fill"),
             Action::Into("format-fill","#0000ff"),Action::Click("format-apply"),
@@ -7681,6 +7691,265 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks:&[Check::Fits,Check::Focused("rule-add"),Check::Reachable("rule-add")],
     },
 
+Case {
+        name: "review editing: an imported note opens with its original author and text",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Click("review-tools"),
+        ],
+        checks: &[
+            Check::Count("review-note", 1),
+            Check::TextContains("review-note", "Govert van Drimmelen"),
+            Check::TextContains("review-note", "a comment"),
+            Check::Rendered("note-edit", true),
+        ],
+    },
+    Case {
+        name: "review editing: ordinary typing edits note text without rebuilding the field",
+        actions: &[
+            Action::Click("note-edit"),
+            Action::Wait(Check::Focused("note-text")),
+            Action::Into("note-text", "Updated note & <plain> 🧬\nsecond line"),
+            Action::Click("note-save"),
+        ],
+        checks: &[
+            Check::Absent("note-editor"),
+            Check::TextContains("review-note", "Updated note & <plain> 🧬\nsecond line"),
+        ],
+    },
+    Case {
+        name: "review editing: notes use the ordinary Undo and Redo commands",
+        actions: &[
+            Action::Click("review-undo"),
+            Action::Wait(Check::TextContains("review-note", "a comment")),
+            Action::Click("review-redo"),
+        ],
+        checks: &[
+            Check::TextContains("review-note", "Updated note & <plain> 🧬\nsecond line"),
+            Check::TextContains("review-note", "Govert van Drimmelen"),
+        ],
+    },
+    Case {
+        name: "review editing: saved note text reopens from the actual XLSX package",
+        actions: &[
+            Action::Click("review-close"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("features.xlsx"),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Click("review-tools"),
+        ],
+        checks: &[
+            Check::Count("review-note", 1),
+            Check::TextContains("review-note", "Updated note & <plain> 🧬\nsecond line"),
+        ],
+    },
+    Case {
+        name: "review editing: threaded comments show their author and edit the authoritative thread",
+        actions: &[
+            Action::Click("review-close"),
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/d2/structural-base.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=U]"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Click("review-tools"),
+            Action::Wait(Check::Count("review-note", 1)),
+            Action::Wait(Check::TextContains("review-note", "thread")),
+            Action::Click("note-edit"),
+            Action::Into("note-text", "Edited thread & Ω"),
+            Action::Click("note-save"),
+        ],
+        checks: &[
+            Check::Count("review-note", 1),
+            Check::TextContains("review-note", "Govert van Drimmelen"),
+            Check::TextContains("review-note", "Edited thread & Ω"),
+            Check::Absent("note-editor"),
+        ],
+    },
+    Case {
+        name: "review editing: threaded text survives saved reopening and a phone edit can cancel",
+        actions: &[
+            Action::Click("review-close"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("structural-base.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=U]"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Click("review-tools"),
+            Action::Wait(Check::TextContains("review-note", "Edited thread & Ω")),
+            Action::Window(390, 844),
+            Action::Click("note-edit"),
+            Action::Wait(Check::Focused("note-text")),
+            Action::Into("note-text", "Cancelled draft"),
+            Action::Wait(Check::Reachable("note-text")),
+            Action::Click("note-cancel"),
+        ],
+        checks: &[
+            Check::Fits,
+            Check::Absent("note-editor"),
+            Check::TextContains("review-note", "Edited thread & Ω"),
+        ],
+    },
+    Case {
+        name: "validation audit: published formula results can be circled without an entry alert",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into(BAR, "=1\u{E007}"),
+            Action::Wait(Check::Text(cell!("A1"), "1")),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Click("review-tools"),
+            Action::Click("validation-circle"),
+            Action::Wait(Check::TextContains("validation-scan", "invalid")),
+            Action::Click("review-close"),
+        ],
+        checks: &[
+            Check::Count("[data-dnacalc=validation-invalid][data-cell=A1]", 1),
+            Check::PlanCell("A1", "text", "1"),
+            Check::PlanCell("A1", "provenance", "calculated"),
+        ],
+    },
+    Case {
+        name: "validation audit: correcting an invalid value removes its circle automatically",
+        actions: &[
+            Action::Into(BAR, "Red\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Absent("[data-dnacalc=validation-invalid][data-cell=A1]"),
+            Check::Text(cell!("A1"), "Red"),
+            Check::TextContains("validation-prompt", "Pick a colour"),
+        ],
+    },
+    Case {
+        name: "validation audit: view circles add no Undo entry and follow ordinary Undo Redo",
+        actions: &[
+            Action::Click("undo"),
+            Action::Wait(Check::Text(cell!("A1"), "1")),
+            Action::Wait(Check::Count(
+                "[data-dnacalc=validation-invalid][data-cell=A1]",
+                1,
+            )),
+            Action::Click("redo"),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "Red"),
+            Check::Absent("[data-dnacalc=validation-invalid][data-cell=A1]"),
+        ],
+    },
+    Case {
+        name: "validation audit: saved validation rules and prompts reopen without saving view circles",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("data-validation.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "Red"),
+            Check::TextContains("validation-prompt", "Pick a colour"),
+            Check::Count("validation-invalid", 0),
+            Check::Attr(
+                "grid",
+                "aria-describedby",
+                "dc-grid-keyboard-0 dc-validation-prompt-0",
+            ),
+        ],
+    },
+    Case {
+        name: "validation list: End reveals the last option inside a long keyboard list",
+        actions: &[
+            Action::ValidationListFixture,
+            Action::UploadDownload("validation-list.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "\u{E00A}\u{E015}\u{E000}"),
+            Action::Wait(Check::Focused("dropdown-list")),
+            Action::Keys("dropdown-list", "\u{E010}"),
+        ],
+        checks: &[
+            Check::Count("dropdown-item", 40),
+            Check::Text("[data-dnacalc=dropdown-item][aria-selected=true]", "V40"),
+            Check::Contained(
+                "[data-dnacalc=dropdown-item][aria-selected=true]",
+                "dropdown-list",
+            ),
+            Check::Reachable("dropdown-list"),
+            Check::ActiveDescendant("dropdown-list"),
+        ],
+    },
+    Case {
+        name: "validation list: a zoomed phone list opens within the pane above its lower edge",
+        actions: &[
+            Action::Keys("dropdown-list", ESCAPE),
+            Action::Window(390, 844),
+            Action::Into("zoom-percent", "200\u{E007}"),
+            Action::Into("name-box", "A25\u{E007}"),
+            Action::Wait(Check::Rendered("validation-prompt", true)),
+            Action::Keys("grid", "\u{E00A}\u{E015}\u{E000}"),
+            Action::Keys("dropdown-list", "\u{E010}"),
+            Action::Wait(Check::Contained(
+                "[data-dnacalc=dropdown-item][aria-selected=true]",
+                "dropdown-list",
+            )),
+            Action::Wait(Check::Reachable("dropdown-list")),
+            Action::Keys("dropdown-list", ENTER),
+        ],
+        checks: &[
+            Check::Fits,
+            Check::Text(cell!("A25"), "V40"),
+            Check::Absent("dropdown-list"),
+            Check::Reachable("validation-prompt"),
+        ],
+    },
+    Case {
+        name: "validation list: the long saved list still rejects a typed value with a real Stop decision",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::Click("zoom-reset"),
+            Action::ClearDownloads,
+            Action::Click("save"),
+            Action::UploadDownload("validation-list.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
+            Action::Into("name-box", "A25\u{E007}"),
+            Action::Into(BAR, "Wrong\u{E007}"),
+            Action::Wait(Check::Rendered("validation-dialog", true)),
+            Action::Wait(Check::TextContains(
+                "validation-message",
+                "Choose an item from the list",
+            )),
+            Action::Click("validation-cancel"),
+            Action::Wait(Check::Reachable("validation-prompt")),
+            Action::Keys("validation-prompt", "\u{E011}\u{E00F}\u{E010}"),
+        ],
+        checks: &[
+            Check::Reachable("validation-prompt"),
+            Check::Reachable("active-cell"),
+            Check::Value("name-box", "A25"),
+            Check::Absent("[data-dnacalc=validation-dialog][open]"),
+            Check::Text(cell!("A25"), "V40"),
+            Check::Value(BAR, "V40"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -8158,6 +8427,67 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
         checks: &[Check::Attr("result-details","open",""),Check::Rendered("recover-edit",true)],
     },
 
+    Case {
+        name: "review latency: a saved note retains text typed before its reply",
+        actions: &[
+            Action::Wait(Check::PlanReady),
+            Action::Upload("open-file", "crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "features.xlsx")),
+            Action::Wait(Check::PlanReady),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::ActiveSemantic("A1")),
+            Action::Click("review-tools"),
+            Action::Wait(Check::TextContains("review-note", "a comment")),
+            Action::Click("note-edit"),
+            Action::Wait(Check::Focused("note-text")),
+            Action::Into("note-text", "First text"),
+            Action::Click("note-save"),
+            Action::Keys("note-text", " later"),
+            // Position the caret after returning to the textarea, before the save reply.
+            Action::Keys("note-text", "\u{E011}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}"),
+            Action::PauseMillis(1200),
+            Action::Keys("note-text", "!"),
+        ],
+        checks: &[
+            Check::Value("note-text", "First! text later"),
+            Check::Focused("note-text"),
+            Check::TextContains("review-note", "First text"),
+            Check::Rendered("note-editor", true),
+        ],
+    },
+    Case {
+        name: "review latency: the retained text can be saved with ordinary Undo and Redo",
+        actions: &[
+            Action::Click("note-save"),
+            Action::Wait(Check::Absent("note-editor")),
+            Action::Wait(Check::TextContains("review-note", "First! text later")),
+            Action::Click("review-undo"),
+            Action::Wait(Check::TextContains("review-note", "First text")),
+            Action::Click("review-redo"),
+        ],
+        checks: &[Check::TextContains("review-note", "First! text later")],
+    },
+    Case {
+        name: "review latency: cancelling and reopening the same note starts a new edit",
+        actions: &[
+            Action::Click("note-edit"),
+            Action::Wait(Check::Focused("note-text")),
+            Action::Into("note-text", "Submitted text"),
+            Action::Click("note-save"),
+            Action::Click("note-cancel"),
+            Action::Click("note-edit"),
+            Action::Into("note-text", "Submitted text"),
+            Action::PauseMillis(1200),
+        ],
+        checks: &[
+            Check::Value("note-text", "Submitted text"),
+            Check::Focused("note-text"),
+            Check::Rendered("note-editor", true),
+            Check::TextContains("review-note", "Submitted text"),
+        ],
+    },
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[
@@ -8432,4 +8762,18 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"date-top-filters",start:566,end:575,core:9,setup:&[]},
     CaseGroup {name:"qualified-sort",start:575,end:580,core:5,setup:&[]},
     CaseGroup {name:"conditional-authoring",start:580,end:588,core:8,setup:&[]},
+CaseGroup {
+        name: "review-editing",
+        start: 588,
+        end: 594,
+        core: 6,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "validation-audit",
+        start: 594,
+        end: 601,
+        core: 7,
+        setup: &[],
+    },
 ];

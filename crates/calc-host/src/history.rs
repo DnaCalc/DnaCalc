@@ -109,6 +109,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::AutoFilter { .. }
             | CellEdit::Styles(_)
             | CellEdit::Layout(_)
+            | CellEdit::ReviewNotes { .. }
             | CellEdit::ConditionalRules { .. }
             | CellEdit::Axis(_)
             | CellEdit::Sheet(_)
@@ -222,6 +223,17 @@ pub(crate) fn inverse(
     for edit in edits {
         if let CellEdit::AutoFilter { sheet, .. } = edit && filters.insert(*sheet) {
             inverse.push(CellEdit::AutoFilter { sheet:*sheet, filter:definitions.auto_filter(*sheet).cloned() });
+        }
+    }
+    let mut reviews = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::ReviewNotes { sheet, .. } = edit
+            && reviews.insert(*sheet)
+        {
+            inverse.push(CellEdit::ReviewNotes {
+                sheet: *sheet,
+                notes: definitions.review_notes(*sheet).to_vec(),
+            });
         }
     }
     let mut conditional = BTreeSet::new();

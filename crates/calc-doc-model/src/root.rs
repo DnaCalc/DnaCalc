@@ -733,6 +733,7 @@ impl ModelRoot {
         let mut styles = None;
         let mut filters = Vec::new();
         let mut conditional = Vec::new();
+        let mut review = Vec::new();
         let mut panes = Vec::new();
         let mut axis_formats = Vec::new();
         // The defined names' formulas the batch sets, as the names will read.
@@ -741,6 +742,13 @@ impl ModelRoot {
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
+                WorkbookOp::SetReviewNotes { sheet, notes } => {
+                    self.position_of(operation, *sheet)?;
+                    if notes.iter().any(|n| n.at.sheet() != *sheet) {
+                        return Err(ApplyError::AxisEdit { operation });
+                    }
+                    review.push((*sheet, notes.clone()));
+                }
                 WorkbookOp::SetConditionalRules { sheet, rules } => {
                     self.position_of(operation, *sheet)?;
                     conditional.push((*sheet, rules.clone()));
@@ -890,6 +898,7 @@ impl ModelRoot {
         };
         if styles.is_some()
             || !conditional.is_empty()
+            || !review.is_empty()
             || !filters.is_empty()
             || !formats.is_empty()
             || !panes.is_empty()
@@ -901,7 +910,10 @@ impl ModelRoot {
             if let Some(styles) = styles {
                 next = next.with_styles(styles);
             }
-            for (sheet, filter) in filters { next = next.with_auto_filter(sheet, filter); }
+            for (sheet, filter) in filters { next = next.with_auto_filter(sheet, filter);
+            }
+            for (sheet, notes) in review {
+                next = next.with_review_notes(sheet, notes); }
             for (sheet, rules) in conditional {
                 next = next.with_conditional_rules(sheet, rules);
             }

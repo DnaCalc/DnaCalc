@@ -12795,3 +12795,497 @@ fn dc_971p_40__conditional_statistics_include_calculated_spill_members() {
         }
     }
 }
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__review_text_keeps_authors_threads_history_and_xlsx() {
+    use calc_host::{ReviewSource, WorkbookCommand};
+    let bytes = include_bytes!("fixtures/d2/structural-base.xlsx");
+    for (name, address, threaded) in [("S", "A2", false), ("S", "J1", false), ("U", "A1", true)] {
+        let mut book = session(bytes);
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let sheet = sheet(book.host(), name);
+        let cell = at(sheet, address);
+        let original = book
+            .host()
+            .model()
+            .definitions()
+            .review_notes(sheet)
+            .to_vec();
+        let (index, note) = original
+            .iter()
+            .enumerate()
+            .find(|(_, n)| {
+                n.at == cell && n.source.as_ref().is_some_and(|s| s.threaded() == threaded)
+            })
+            .unwrap();
+        assert_eq!(note.author, "Govert van Drimmelen");
+        assert!(note.editable);
+        assert!(!note.compatibility);
+        if threaded {
+            assert_eq!(original.iter().filter(|n| n.compatibility).count(), 1);
+        }
+        let source = note.source.clone();
+        let author = note.author.clone();
+        let prior_value = calculated(book.host(), cell);
+        let text = "Changed & <text>\n雪 🧬 literal _x0041_";
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Review {
+            at: cell,
+            revision,
+            index: index as u32,
+            text: text.into(),
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        assert_eq!(calculated(book.host(), cell), prior_value);
+        let changed = book
+            .host()
+            .model()
+            .definitions()
+            .review_notes(sheet)
+            .to_vec();
+        assert_eq!(changed[index].text, text);
+        assert_eq!(changed[index].author, author);
+        assert_eq!(changed[index].source, source);
+        if threaded {
+            assert!(
+                changed
+                    .iter()
+                    .find(|n| n.compatibility)
+                    .unwrap()
+                    .text
+                    .contains(text)
+            );
+        }
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            book.host().model().definitions().review_notes(sheet),
+            original
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(
+            book.host().model().definitions().review_notes(sheet),
+            changed
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = session(&saved);
+        let rs = self::sheet(reopened.host(), name);
+        let found = reopened
+            .host()
+            .model()
+            .definitions()
+            .review_notes(rs)
+            .iter()
+            .find(|n| n.at == at(rs, address) && !n.compatibility)
+            .unwrap();
+        assert_eq!(found.text, text);
+        assert_eq!(found.author, author);
+        assert_eq!(found.source, source);
+        assert_eq!(
+            part_text(bytes, "xl/persons/person.xml"),
+            part_text(&saved, "xl/persons/person.xml")
+        );
+        if let Some(ReviewSource::Thread { part, .. }) = &source {
+            let xml = part_text(&saved, part);
+            assert!(xml.contains("dT=\"2026-10-25T18:48:54.38\""));
+        }
+        let mut twin = session(bytes);
+        assert!(replay(book.intent_log(), &mut twin).mismatches.is_empty());
+        assert_eq!(
+            twin.host().model().definitions().review_notes(sheet),
+            changed
+        );
+        let revision = book.host().revision();
+        let depth = book.history_depth();
+        let stale = book.dispatch(SkinIntent::Command(WorkbookCommand::Review {
+            at: cell,
+            revision: revision.get() - 1,
+            index: index as u32,
+            text: "stale".into(),
+        }));
+        assert!(!stale.accepted());
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(
+            book.host().model().definitions().review_notes(sheet),
+            changed
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__threaded_replies_inherit_cells_and_keep_metadata_through_axis_edits() {
+    use calc_host::{ReviewSource, WorkbookCommand};
+    let original = include_bytes!("fixtures/d2/structural-base.xlsx");
+    let root = "{6FD4D730-1161-4BFA-AEEB-5774790722B8}";
+    let person = "{49BFAF50-3500-4664-B979-F67F3B203DA0}";
+    let reply = "{11111111-2222-4333-8444-555555555555}";
+    let bytes = package_with_part_from(
+        original,
+        "xl/threadedComments/threadedComment1.xml",
+        |xml| {
+            xml.replacen("<threadedComment ",&format!("<threadedComment id=\"{reply}\" personId=\"{person}\" parentId=\"{root}\"><text>Earlier reply &amp; café</text></threadedComment><threadedComment done=\"1\" "),1)
+        },
+    );
+    let mut book = session(&bytes);
+    let sheet = sheet(book.host(), "U");
+    let notes = book.host().model().definitions().review_notes(sheet);
+    assert_eq!(notes.len(), 3);
+    let (index, found) = notes
+        .iter()
+        .enumerate()
+        .find(|(_, n)| {
+            matches!(
+                &n.source,
+                Some(ReviewSource::Thread {
+                    parent: Some(_),
+                    ..
+                })
+            )
+        })
+        .unwrap();
+    assert_eq!(found.at, at(sheet, "A1"));
+    assert_eq!(found.text, "Earlier reply & café");
+    assert_eq!(found.author, "Govert van Drimmelen");
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Review {
+        at: at(sheet, "A1"),
+        revision,
+        index: index as u32,
+        text: "Edited reply".into(),
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let receipt = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(sheet, Axis::Rows, AxisChange::Insert, 1, 1).unwrap(),
+    ));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .review_notes(sheet)
+            .iter()
+            .all(|n| n.at == at(sheet, "A2"))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let sheet = self::sheet(reopened.host(), "U");
+    let notes = reopened.host().model().definitions().review_notes(sheet);
+    assert!(notes.iter().all(|n| n.at == at(sheet, "A2")));
+    assert!(notes.iter().any(|n|n.text=="Edited reply"&&matches!(&n.source,Some(ReviewSource::Thread {id,parent:Some(p),..}) if id==reply && p==root)));
+    assert!(
+        notes.iter().any(
+            |n| matches!(&n.source,Some(ReviewSource::Thread {id,resolved:true,..}) if id==root)
+        )
+    );
+    let receipt = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(sheet, Axis::Rows, AxisChange::Delete, 2, 1).unwrap(),
+    ));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .review_notes(sheet)
+            .is_empty()
+    );
+    let mut removed = Vec::new();
+    book.save(&SavePolicy::default(), &mut removed).unwrap();
+    assert!(
+        !part_text(&removed, "xl/threadedComments/threadedComment1.xml")
+            .contains("<threadedComment ")
+    );
+    let removed_book = session(&removed);
+    let rs = self::sheet(removed_book.host(), "U");
+    assert!(removed_book.host().sheet_review(rs).unsupported.is_empty());
+    assert!(
+        removed_book
+            .host()
+            .model()
+            .definitions()
+            .review_notes(rs)
+            .is_empty()
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let mut restored = Vec::new();
+    book.save(&SavePolicy::default(), &mut restored).unwrap();
+    let restored = session(&restored);
+    let rs = self::sheet(restored.host(), "U");
+    assert!(
+        restored
+            .host()
+            .model()
+            .definitions()
+            .review_notes(rs)
+            .iter()
+            .any(|n| n.text == "Edited reply")
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__review_mentions_shared_parts_and_forged_metadata_refuse_atomically() {
+    use calc_host::{ReviewSource, WorkbookCommand};
+    let original = include_bytes!("fixtures/d2/structural-base.xlsx");
+    for shared in [false, true] {
+        let bytes = if shared {
+            package_with_part_from(original, "xl/worksheets/_rels/sheet3.xml.rels", |xml| {
+                xml.replace("../comments2.xml", "../comments1.xml")
+            })
+        } else {
+            package_with_part_from(
+                original,
+                "xl/threadedComments/threadedComment1.xml",
+                |xml| {
+                    xml.replace("</threadedComment>","<mentions><mention mentionpersonId=\"{49BFAF50-3500-4664-B979-F67F3B203DA0}\" mentionId=\"{11111111-2222-4333-8444-555555555555}\" startIndex=\"0\" length=\"3\"/></mentions></threadedComment>")
+                },
+            )
+        };
+        let mut book = session(&bytes);
+        let sheet = sheet(book.host(), if shared { "S" } else { "U" });
+        let notes = book
+            .host()
+            .model()
+            .definitions()
+            .review_notes(sheet)
+            .to_vec();
+        let (index, n) = notes
+            .iter()
+            .enumerate()
+            .find(|(_, n)| {
+                if shared {
+                    n.at == at(sheet, "A2")
+                } else {
+                    matches!(&n.source, Some(ReviewSource::Thread { .. }))
+                }
+            })
+            .unwrap();
+        let revision = book.host().revision();
+        let depth = book.history_depth();
+        let source_part = n.source.as_ref().unwrap().part().to_owned();
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Review {
+            at: n.at,
+            revision: revision.get(),
+            index: index as u32,
+            text: "unsafe edit".into(),
+        }));
+        assert!(!receipt.accepted(), "{receipt:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(book.host().model().definitions().review_notes(sheet), notes);
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert_eq!(
+            part_text(&saved, &source_part),
+            part_text(&bytes, &source_part)
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__raw_review_edits_cannot_change_the_source_author() {
+    let mut host = open(include_bytes!("fixtures/d2/structural-base.xlsx"));
+    let s = sheet(&host, "S");
+    let original = host.model().definitions().review_notes(s).to_vec();
+    let mut forged = original.clone();
+    forged[0].author = "Changed identity".into();
+    let revision = host.revision();
+    let result = calc_host::dispatch(
+        &mut host,
+        calc_host::HostCommand {
+            base: revision,
+            edits: vec![CellEdit::ReviewNotes {
+                sheet: s,
+                notes: forged,
+            }],
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(host.revision(), revision);
+    assert_eq!(host.model().definitions().review_notes(s), original);
+    let u=sheet(&host,"U");let original=host.model().definitions().review_notes(u).to_vec();let mut changed=original.clone();
+    changed.iter_mut().find(|n|n.source.as_ref().is_some_and(|s|s.threaded())).unwrap().text="Raw thread".into();
+    let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:changed.clone()}]});
+    assert!(result.is_err());assert_eq!(host.revision(),revision);assert_eq!(host.model().definitions().review_notes(u),original);
+    let fallback=calc_doc_model::review_thread_text(&changed,at(u,"A1"));
+    changed.iter_mut().find(|n|n.compatibility).unwrap().text=fallback.clone();
+    let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:changed}]});assert!(result.is_ok(),"{result:?}");
+    let mut saved=Vec::new();calc_host::save(&host,&SavePolicy::default(),&mut saved).unwrap();let reopened=open(&saved);let u=sheet(&reopened,"U");
+    assert_eq!(reopened.model().definitions().review_notes(u).iter().find(|n|n.compatibility).unwrap().text,fallback);
+    let mut fallback_only=host.model().definitions().review_notes(u).to_vec();
+    fallback_only.iter_mut().find(|n|n.compatibility).unwrap().text=original.iter().find(|n|n.compatibility).unwrap().text.clone();
+    let revision=host.revision();let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:fallback_only}]});assert!(result.is_err());assert_eq!(host.revision(),revision);
+    let mut partial=host.model().definitions().review_notes(u).to_vec();
+    let previous=original.iter().find(|n|n.source.as_ref().is_some_and(|s|s.threaded())).unwrap();
+    partial.iter_mut().find(|n|n.source==previous.source).unwrap().text=previous.text.clone();
+    let revision=host.revision();let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:partial}]});assert!(result.is_err());assert_eq!(host.revision(),revision);
+    let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:original}]});assert!(result.is_ok(),"{result:?}");
+
+
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__invalid_data_audit_checks_values_custom_formulas_and_disabled_alerts() {
+    use calc_host::ValidationStatus;
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="4"><dataValidation type="whole" operator="between" allowBlank="1" showErrorMessage="0" sqref="A1:A3 A2"><formula1>1</formula1><formula2>3</formula2></dataValidation><dataValidation type="whole" operator="between" allowBlank="0" showErrorMessage="1" sqref="B1:B3"><formula1>1</formula1><formula2>3</formula2></dataValidation><dataValidation type="custom" allowBlank="1" showErrorMessage="1" sqref="C1:C3"><formula1>C1&gt;0</formula1></dataValidation><dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="D1:D3"><formula1>"Red,Green"</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = sheet(book.host(), "Sheet1");
+    for (address, text) in [
+        ("A1", "9"),
+        ("A2", "2"),
+        ("B1", "=9"),
+        ("B2", "=2"),
+        ("C1", "-1"),
+        ("C2", "2"),
+        ("D1", "Blue"),
+        ("D2", "Green"),
+    ] {
+        enter(&mut book, at(s, address), text);
+    }
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    let report = book.host().scan_validation(s);
+    assert_eq!(report.checked, 12);
+    assert_eq!(report.valid, 7);
+    assert_eq!(report.unavailable, 0);
+    assert!(!report.truncated);
+    let expected = ["A1", "B1", "B3", "C1", "D1"]
+        .into_iter()
+        .map(|a| at(s, a))
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        report
+            .invalid
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>(),
+        expected
+    );
+    assert!(matches!(
+        book.host().validation_status(at(s, "B1")),
+        Some(ValidationStatus::Invalid(_))
+    ));
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), history);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let rs = sheet(reopened.host(), "Sheet1");
+    let report = reopened.host().scan_validation(rs);
+    assert_eq!(report.checked, 12);
+    assert_eq!(report.invalid.len(), 5);
+    assert_eq!(report.valid, 7);
+    assert_eq!(report.unavailable, 0);
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("showErrorMessage=\"0\""));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__invalid_data_audits_count_unknown_rules_and_enforce_the_limit() {
+    for large in [false, true] {
+        let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+            xml.replace("</worksheet>",if large {r#"<dataValidations count="1"><dataValidation type="whole" operator="between" allowBlank="1" showErrorMessage="0" sqref="A1:A10001 A1:A20"><formula1>1</formula1><formula2>3</formula2></dataValidation></dataValidations></worksheet>"#}else{r#"<dataValidations count="2"><dataValidation type="custom" allowBlank="0" sqref="A1:A3"><formula1>NoSheet!A1&gt;0</formula1></dataValidation><dataValidation type="unknown" allowBlank="0" sqref="B1:B3"/></dataValidations></worksheet>"#})
+        });
+        let mut book = session(&bytes);
+        let s = sheet(book.host(), "Sheet1");
+        if large {
+            enter(&mut book, at(s, "A1"), "9");
+        }
+        let report = book.host().scan_validation(s);
+        if large {
+            assert_eq!(report.checked, 10_000);
+            assert!(report.truncated);
+            assert_eq!(report.invalid, vec![at(s, "A1")]);
+            assert_eq!(report.valid, 9999);
+            assert_eq!(report.unavailable, 0);
+        } else {
+            assert_eq!(report.checked, 6);
+            assert_eq!(report.invalid.len(), 0);
+            assert_eq!(report.valid, 0);
+            assert_eq!(report.unavailable, 6);
+            assert_eq!(report.reasons.iter().map(|r| r.1).sum::<u32>(), 6);
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__validation_audit_keeps_file_caches_and_stale_results_unavailable() {
+    use calc_host::ValidationStatus;
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>",r#"<sheetData><row r="1"><c r="A1"><f>9</f><v>9</v></c></row></sheetData>"#).replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" operator="between" allowBlank="0" showErrorMessage="0" sqref="A1"><formula1>1</formula1><formula2>3</formula2></dataValidation></dataValidations></worksheet>"#)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/workbook.xml", |xml| {
+        xml.replace("<calcPr ", "<calcPr calcMode=\"manual\" ")
+    });
+    let mut book = session(&bytes);
+    let s = sheet(book.host(), "Sheet1");
+    assert!(matches!(
+        value(book.host(), at(s, "A1")),
+        ProjectedValue::FileCached(_)
+    ));
+    let report = book.host().scan_validation(s);
+    assert_eq!(report.checked, 1);
+    assert_eq!(report.unavailable, 1);
+    assert_eq!(report.valid, 0);
+    assert!(report.invalid.is_empty());
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert!(matches!(
+        book.host().validation_status(at(s, "A1")),
+        Some(ValidationStatus::Invalid(_))
+    ));
+    enter(&mut book, at(s, "A1"), "=2");
+    assert!(matches!(
+        book.host().validation_status(at(s, "A1")),
+        Some(ValidationStatus::Unavailable { .. })
+    ));
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        book.host().validation_status(at(s, "A1")),
+        Some(ValidationStatus::Valid)
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__raw_review_text_survives_save_after_the_cell_moves() {
+    let bytes=include_bytes!("fixtures/d2/structural-base.xlsx");
+    let mut host=open(bytes);let s=sheet(&host,"S");
+    let revision=host.revision();
+    let receipt=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::Axis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap())]});assert!(receipt.is_ok(),"{receipt:?}");
+    let mut notes=host.model().definitions().review_notes(s).to_vec();
+    let note=notes.iter_mut().find(|n|n.at==at(s,"A3")).unwrap();note.text="Raw text after moving the source".into();
+    let revision=host.revision();
+    let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:s,notes}]});
+    assert!(result.is_ok(),"{result:?}");
+    let mut saved=Vec::new();calc_host::save(&host,&SavePolicy::default(),&mut saved).unwrap();
+    let reopened=session(&saved);let s=sheet(reopened.host(),"S");
+    let notes=reopened.host().model().definitions().review_notes(s);
+    assert_eq!(notes.iter().find(|n|n.at==at(s,"A3")).unwrap().text,"Raw text after moving the source");
+    assert_eq!(notes.iter().find(|n|n.at==at(s,"A9")).unwrap().text,"eight");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__validation_audit_refuses_old_cross_sheet_references_until_reopen() {
+    use calc_host::ValidationStatus;
+    let original=include_bytes!("fixtures/d2/structural-base.xlsx");
+    let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="list" allowBlank="0" showErrorMessage="0" sqref="Z1"><formula1>U!$Z$2:$Z$3</formula1></dataValidation></dataValidations></worksheet>"#));
+    let mut book=session(&bytes);let s=sheet(book.host(),"S");let source=sheet(book.host(),"U");
+    for (a,v) in [("Z1","Before"),("Z2","Red"),("Z3","Green")] {assert!(enter(&mut book,at(source,a),v).accepted());}
+    assert!(enter(&mut book,at(s,"Z1"),"Green").accepted());
+    assert_eq!(book.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Valid));
+    let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(source,Axis::Rows,AxisChange::Insert,2,1).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
+    assert!(matches!(book.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Unavailable {..})));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let reopened=session(&saved);let s=sheet(reopened.host(),"S");
+    assert_eq!(reopened.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Valid));
+}

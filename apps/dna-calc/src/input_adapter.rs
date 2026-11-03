@@ -246,7 +246,7 @@ impl Controller {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(super) fn restoring_editor(&self, action: impl FnOnce()) {
+    pub(crate) fn restoring_editor(&self, action: impl FnOnce()) {
         let prior = self
             .input_surfaces
             .with_value(|surfaces| surfaces.restoring);
