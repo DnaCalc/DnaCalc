@@ -363,19 +363,20 @@ fn ceiling_for(
 
 /// FLOOR: the number rounded down to a multiple of the significance; for a negative number and a
 /// positive significance down is away from zero, and for both negative it is toward zero. A zero
-/// significance is #DIV/0!, and a positive number with a negative significance #NUM!.
+/// significance is #DIV/0! for a nonzero number; zero always gives positive zero. A positive
+/// number with a negative significance gives #NUM!.
 fn floor(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     numeric(FLOOR, arguments, services, |site, n| {
         let (number, significance) = (n[0], n[1]);
-        if significance == 0.0 {
+        if number == 0.0 {
+            Ok(0.0)
+        } else if significance == 0.0 {
             Err(Exit::Error(WorksheetErrorCode::Div0))
         } else if number > 0.0 && significance < 0.0 {
             Err(Exit::Error(WorksheetErrorCode::Num))
-        } else if number == 0.0 {
-            Ok(0.0)
         } else {
             to_multiple(site, number, significance, Toward::Down)
         }
