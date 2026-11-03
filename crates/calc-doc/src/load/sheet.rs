@@ -108,10 +108,40 @@ struct Group {
 
 /// Validated once by the existing shared-reference occurrence mover.
 #[derive(Debug)]
-struct SharedSource {
+pub(crate) struct SharedSource {
     anchor: CellKey,
     source: ExcelText,
     moves: Option<shift::Moves>,
+}
+impl SharedSource {
+    pub(crate) fn from_source(anchor: CellKey, source: ExcelText) -> Option<Self> {
+        let spelling = String::from_utf16(source.utf16_code_units()).ok()?;
+        let moves = shift::Moves::new(&spelling).ok()?;
+        Some(Self {
+            anchor,
+            source,
+            moves: Some(moves),
+        })
+    }
+    pub(crate) fn try_render(&self, at: CellKey) -> Option<ExcelText> {
+        if at.sheet() != self.anchor.sheet() {
+            return None;
+        }
+        if at == self.anchor {
+            return Some(self.source.clone());
+        }
+        let text = self
+            .moves
+            .as_ref()?
+            .apply(
+                i64::from(at.row()) - i64::from(self.anchor.row()),
+                i64::from(at.column()) - i64::from(self.anchor.column()),
+            )
+            .ok()?;
+        Some(ExcelText::from_utf16_code_units(
+            text.encode_utf16().collect(),
+        ))
+    }
 }
 impl FormulaTemplateSource for SharedSource {
     fn anchor(&self) -> CellKey {
@@ -121,19 +151,8 @@ impl FormulaTemplateSource for SharedSource {
         &self.source
     }
     fn render(&self, at: CellKey) -> ExcelText {
-        if at == self.anchor {
-            return self.source.clone();
-        }
-        let text = self
-            .moves
-            .as_ref()
-            .expect("a validated shared member has a mover")
-            .apply(
-                i64::from(at.row()) - i64::from(self.anchor.row()),
-                i64::from(at.column()) - i64::from(self.anchor.column()),
-            )
-            .expect("every admitted member was validated against the grid");
-        ExcelText::from_utf16_code_units(text.encode_utf16().collect())
+        self.try_render(at)
+            .expect("every admitted member was validated against the grid")
     }
 }
 

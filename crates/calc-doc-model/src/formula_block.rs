@@ -195,3 +195,16 @@ impl FormulaBlock {
         &*self.source
     }
 }
+
+/// Authored source records and membership, not process allocation or calculation counts.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FormulaSourceStats {
+    pub formula_cells: usize,
+    pub retained_sources: usize,
+    pub inline_sources: usize,
+    pub retained_members: usize,
+    pub materialized_members: usize,
+    pub membership_runs: usize,
+    pub extent_cells: u128,
+    pub source_utf16_units: u128,
+}

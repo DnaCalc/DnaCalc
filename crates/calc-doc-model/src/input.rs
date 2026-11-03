@@ -177,6 +177,17 @@ impl FormulaText {
             }
         }
     }
+    /// Render a spelling without retaining a per-member expansion. Storage comparisons
+    /// and writers use this; `text` retains an expansion when an editor requests it.
+    pub fn rendered(&self) -> ExcelText {
+        match &self.storage {
+            FormulaStorage::Inline(text) => text.clone(),
+            FormulaStorage::Member { block, at, text } => text
+                .get()
+                .cloned()
+                .unwrap_or_else(|| block.source().render(*at)),
+        }
+    }
     pub fn detached(&self) -> Self {
         Self {
             storage: FormulaStorage::Inline(self.text().clone()),
@@ -206,14 +217,14 @@ impl FormulaText {
 
 impl PartialEq for FormulaText {
     fn eq(&self, other: &Self) -> bool {
-        self.form == other.form && (self.same_storage(other) || self.text() == other.text())
+        self.form == other.form && (self.same_storage(other) || self.rendered() == other.rendered())
     }
 }
 impl Eq for FormulaText {}
 impl Hash for FormulaText {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.form.hash(state);
-        self.text().hash(state);
+        self.rendered().hash(state);
     }
 }
 

@@ -586,6 +586,32 @@ that cannot be rewritten also refuse. A rename/move and a definition edit are se
 These controls cover the public worker route and saved/reopened names, duplicate fallbacks and
 raw imported attributes. Shared name-value memoization and plan eviction remain open.
 
+Formula source regrouping (dc-hsa5.10, 2026-11-03): `regroup_formula_sources` and
+`HostSession::compact_formula_sources` compare exact rendered spelling through the existing
+shared-reference mover, within explicit occupied-cell and UTF-16 work budgets. They merge whole
+retained sources and independently authored/restored members only under one legacy cell template;
+arrays, dynamic forms and tables stay separate. The model verifies placement, text, form and
+complete old/new membership before a storage replacement at the same revision and lineage.
+Results, history, pending provider activations and existing pins retain their identities.
+Equality, hashing, name-source analysis and save checks use temporary renderings; requesting editor
+text remains the operation that retains an expanded member cache.
+
+Ordinary Host/worker saves may use a bounded regrouped serialization root while leaving live
+storage unchanged. The writer selects a surviving member as master, recomputes its tight bounds,
+and places `si` only on actual members. It retains per-cell formula/cell attributes and caches
+through the existing writer. New shared rectangles avoid retained shared, array and table
+rectangles; after one million overlap comparisons, additional candidates stay individual.
+Untouched file groups retain their original representation. This follows the shared-formula
+membership and master-reference rules in the [CellFormula schema documentation](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.cellformula?view=openxml-3.0.1).
+
+Measured controls reduce 128 authored source records (1,044 UTF-16 units) to one (7 units), with
+zero retained member expansions. An Undo-restored member rejoins its 127 retained neighbors.
+A full-sheet extent holds two members/two membership runs and writes two occupied rows in a
+330-byte worksheet. These are authored source statistics, not process-memory savings: old pins
+and engine plans may retain prior allocations. Host/worker save/reopen controls also cover removed
+masters, holes, raw attributes, exact cosmetics, dialects, arrays, tables, intersecting rectangles
+and a parked provider. New live Excel-open validation remains for the Windows lane.
+
 ## 10. First slice: the eight demonstrations and their oracles
 
 Fixture, Manual mode, independent clone per demo: A1=1, B1=`=A1+1` (2), C1=`=B1*2` (4), D1=`=PeekB1()` (2; typed,
