@@ -464,6 +464,53 @@ impl Workbook {
             .prepare_calculated_save(&SavePolicy::default())
             .map_err(|error| error.to_string())
     }
+    pub fn begin_ordinary_save(
+        &mut self,
+        calculate_before_save: bool,
+    ) -> Result<calc_host::OrdinarySave, String> {
+        if !calculate_before_save {
+            return self
+                .session
+                .begin_save(&SavePolicy::default())
+                .map_err(|error| error.to_string());
+        }
+        let active_sheet = self
+            .session
+            .selection()
+            .active
+            .map(|at| at.sheet())
+            .or_else(|| self.host().sheets().first().map(|s| s.id()))
+            .ok_or("No active worksheet")?;
+        self.session
+            .begin_save_with_context(
+                &SavePolicy::default(),
+                calc_host::ExcelSaveContext {
+                    operation: calc_host::SaveOperation::Save,
+                    calculate_before_save,
+                    active_sheet,
+                    disabled_sheets: &[],
+                    before_save: None,
+                },
+            )
+            .map_err(|error| error.to_string())
+    }
+    pub fn advance_ordinary_save(
+        &mut self,
+        save: &mut calc_host::OrdinarySave,
+        budget: calc_host::WorkBudget,
+    ) -> calc_host::CalculatedSaveProgress {
+        save.advance(&mut self.session, budget)
+    }
+    pub fn cancel_ordinary_save(&mut self, mut save: calc_host::OrdinarySave) {
+        save.cancel(&mut self.session);
+    }
+    pub fn finish_ordinary_save(
+        &mut self,
+        save: calc_host::OrdinarySave,
+    ) -> Result<(Vec<u8>, SaveReceipt), String> {
+        let prepared = save.finish().map_err(|error| error.to_string())?;
+        self.write_prepared_save(prepared)
+    }
     pub fn finish_calculated_save(
         &mut self,
         save: calc_host::CalculatingSave,
@@ -472,6 +519,12 @@ impl Workbook {
             .session
             .finish_calculated_save(save)
             .map_err(|error| error.to_string())?;
+        self.write_prepared_save(prepared)
+    }
+    fn write_prepared_save(
+        &mut self,
+        prepared: calc_host::PreparedSave,
+    ) -> Result<(Vec<u8>, SaveReceipt), String> {
         let revision = prepared.pin().model;
         let mut bytes = Vec::new();
         let receipt = prepared

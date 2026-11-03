@@ -64,7 +64,7 @@ pub use names::NameEdit;
 pub mod chart;
 mod command;
 mod domain;
-pub use domain::{CalculationDomain, DomainError, DomainProgress, DomainWorkbookId};
+pub use domain::{CalculationDomain, DomainError, DomainProgress, DomainSaveId, DomainWorkbookId};
 mod envelope;
 pub use envelope::{CommandJournal, CommandRefusal, CommandStamp};
 mod paste;
@@ -102,7 +102,8 @@ pub use save::{
     SaveFailed, SaveOperation, SavePin, prepare_save, prepare_save_with_cache_policy, save,
 };
 pub use save_calculation::{
-    CalculatedSaveError, CalculatedSaveProgress, CalculatingSave, begin_calculated_save,
+    CalculatedSaveError, CalculatedSaveProgress, CalculatingSave, OrdinarySave,
+    begin_calculated_save,
 };
 pub use session::{
     DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, INTENT_LOG_LIMIT,

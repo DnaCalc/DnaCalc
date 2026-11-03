@@ -564,6 +564,17 @@ pub fn yield_kernel(
     let rate_ = rate(rate_)?;
     let price = pos(price)?;
     let red = pos(red)?;
+    // On a coupon date, a multi-period bond priced and redeemed at its 100 face value
+    // has yield equal to its coupon rate. At y=rate, the geometric coupon
+    // sum 100*c*sum((1+c)^-k) plus redemption 100*(1+c)^-n is 100.
+    // Return that exact algebraic root before the iterative price inversion.
+    // Preserve the existing coupon-overflow route. The build 20228 bank has
+    // both short and long par observations; wider Excel coverage stays open.
+    if p.n > 1 && c.settlement == p.prev && price == 100.0 && red == 100.0
+        && (100.0 * rate_ / c.frequency as f64).is_finite()
+    {
+        return Ok(rate_);
+    }
     if p.n == 1 {
         let coup = 100.0 * rate_ / c.frequency as f64;
         let e = dc(p.prev, p.next, c.basis, c.frequency)?;
@@ -1682,23 +1693,23 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn yield_unchanged_by_price_fix() {
+    fn yield_par_identity_and_existing_nonpar_solver() {
         let cat = yield_kernel(44013.0, 44562.0, 0.05, 95.0, 100.0, 2.0, Some(0.0)).unwrap();
         assert_eq!(
             cat.to_bits(),
             0x3fb61465bd6a9970,
-            "yield-catalog must be unchanged"
+            "the nonpar catalogue row retains the existing solver"
         );
-        // dc-ifc: bisection to adjacent bounds gives 0x3fa99999999999a1 (the 1e-15 price
-        // tolerance stopped at 0x3fa99999999999a0); Excel gives 0.05 itself, 0x3fa999999999999a
-        // (2026-10-27), and 0x3fb61465bd6a9983 for the catalogue row above.
+        // The recorded Excel par result is 0.05 itself. Bisection previously
+        // returned 0x3fa99999999999a1. The nonpar result above still differs
+        // from the recorded 0x3fb61465bd6a9983 and remains open.
         let par = yield_kernel(44013.0, 44562.0, 0.05, 100.0, 100.0, 2.0, Some(0.0)).unwrap();
         assert_eq!(
             par.to_bits(),
-            0x3fa99999999999a1,
-            "yield-par at full convergence"
+            0x3fa999999999999a,
+            "the par yield is the recorded coupon rate"
         );
-        assert_ne!(par.to_bits(), 0x3fa999999999999a);
+        assert_ne!(par.to_bits(), 0x3fa99999999999a1);
     }
 
     /// W111-5 G8-06, live Excel 20430: ACCRINTM basis 1 uses Excel's actual/actual rule,

@@ -200,6 +200,7 @@ pub(crate) fn submit(
                     cif,
                 });
                 let adapter = XllFunction {
+                    early: false,
                     parallel: 1,
                     state: state.clone(),
                     registration,

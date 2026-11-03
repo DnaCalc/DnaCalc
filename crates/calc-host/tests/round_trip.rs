@@ -4950,6 +4950,254 @@ fn contract_p06_handlers_precede_the_pin_and_copy_skips_them() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p06_domain_save_updates_dirty_peers_after_handlers_and_skips_disabled_active() {
+    use calc_host::{
+        CalculationDomain, DomainProgress, ExcelSaveContext, SaveOperation, SheetChange,
+        WorkbookCommand,
+    };
+    #[derive(Debug)]
+    struct Peer(Rc<std::cell::Cell<usize>>);
+    impl calc_fml::UserFunction for Peer {
+        fn call(&self, args: &[CalcValue]) -> Result<CalcValue, String> {
+            self.0.set(self.0.get() + 1);
+            Ok(args[0].clone())
+        }
+    }
+    struct Handler(SheetId, usize);
+    impl calc_host::BeforeSaveHandler for Handler {
+        fn before_save(
+            &mut self,
+            _: &HostState,
+            _: SaveOperation,
+        ) -> Result<calc_host::BeforeSaveOutcome, String> {
+            self.1 += 1;
+            Ok(calc_host::BeforeSaveOutcome {
+                edits: vec![CellEdit::Set {
+                    at: at(self.0, "A1"),
+                    input: number(7.0),
+                }],
+                cancel: false,
+            })
+        }
+    }
+    for budget in [WorkBudget::evaluations(1), WorkBudget::UNLIMITED] {
+        for calculate_before_save in [false, true] {
+            for active_disabled in [false, true] {
+                for operation in [
+                    SaveOperation::Save,
+                    SaveOperation::SaveAs,
+                    SaveOperation::SaveCopyAs,
+                ] {
+                    let mut owner = session(&calc_host::blank_package());
+                    owner.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+                    let s = owner.host().sheets()[0].id();
+                    owner.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+                        sheet: None,
+                        change: SheetChange::Add {
+                            name: "Disabled".into(),
+                        },
+                    }));
+                    let disabled = sheet(owner.host(), "Disabled");
+                    for (address, text) in [("A1", "1"), ("B1", "=A1*2"), ("C1", "=B1+1")] {
+                        enter(&mut owner, at(s, address), text);
+                    }
+                    owner.dispatch(SkinIntent::Recalculate);
+                    while owner.has_pending_calculation() {
+                        owner.advance_calculation();
+                    }
+                    enter(&mut owner, at(s, "A1"), "5");
+                    let calls = Rc::new(std::cell::Cell::new(0));
+                    let mut peer = session(&calc_host::blank_package());
+                    peer.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+                    let p = peer.host().sheets()[0].id();
+                    let mut functions = calc_fml::CallableTable::new();
+                    functions
+                        .register("PeerProbe", Rc::new(Peer(calls.clone())))
+                        .unwrap();
+                    peer.set_user_functions(functions);
+                    for (address, text) in [("A1", "1"), ("B1", "=A1*2"), ("C1", "=PeerProbe(A1)")]
+                    {
+                        enter(&mut peer, at(p, address), text);
+                    }
+                    peer.dispatch(SkinIntent::Recalculate);
+                    while peer.has_pending_calculation() {
+                        peer.advance_calculation();
+                    }
+                    assert_eq!(
+                        calculated(peer.host(), at(p, "C1")),
+                        Some(CalcValue::number(1.0))
+                    );
+                    enter(&mut peer, at(p, "A1"), "5");
+                    calls.set(0);
+                    let mut domain = CalculationDomain::new();
+                    let owner = domain.insert_session(owner).unwrap();
+                    let peer = domain.insert_session(peer).unwrap();
+                    let mut handler = Handler(s, 0);
+                    let save = domain
+                        .begin_save(
+                            owner,
+                            &SavePolicy::default(),
+                            ExcelSaveContext {
+                                operation,
+                                calculate_before_save,
+                                active_sheet: if active_disabled { disabled } else { s },
+                                disabled_sheets: &[disabled],
+                                before_save: Some(&mut handler),
+                            },
+                        )
+                        .unwrap();
+                    let mut complete = false;
+                    for _ in 0..1000 {
+                        match domain.advance(budget) {
+                            DomainProgress::Complete => {
+                                complete = true;
+                                break;
+                            }
+                            DomainProgress::Advanced {
+                                progress: HostProgress::Cancelled,
+                                ..
+                            } => panic!("cancelled"),
+                            DomainProgress::Advanced { .. } => {}
+                            other => panic!("{other:?}"),
+                        }
+                    }
+                    assert!(
+                        complete,
+                        "domain save did not finish: {operation:?}, calculate={calculate_before_save}, disabled={active_disabled}, budget={budget:?}"
+                    );
+                    assert_eq!(
+                        handler.1,
+                        usize::from(operation != SaveOperation::SaveCopyAs)
+                    );
+                    let did_calculate = calculate_before_save && !active_disabled;
+                    assert_eq!(calls.get(), usize::from(did_calculate));
+                    if did_calculate {
+                        assert_eq!(
+                            calculated(domain.host(peer).unwrap(), at(p, "B1")),
+                            Some(CalcValue::number(10.0))
+                        );
+                        assert_eq!(
+                            calculated(domain.host(peer).unwrap(), at(p, "C1")),
+                            Some(CalcValue::number(5.0))
+                        );
+                    } else {
+                        assert!(
+                            matches!(value(domain.host(peer).unwrap(), at(p,"C1")), ProjectedValue::Stale(held) if held.last_value().unwrap().as_number() == Some(1.0))
+                        );
+                    }
+                    let image = domain.take_save(save).unwrap();
+                    let mut bytes = Vec::new();
+                    image.write(&mut bytes).unwrap();
+                    let reopened = session(&bytes);
+                    let r = reopened.host().sheets()[0].id();
+                    let input = if operation == SaveOperation::SaveCopyAs {
+                        5.0
+                    } else {
+                        7.0
+                    };
+                    for (address, expected) in [
+                        ("B1", if did_calculate { input * 2.0 } else { 2.0 }),
+                        (
+                            "C1",
+                            if did_calculate {
+                                input * 2.0 + 1.0
+                            } else {
+                                3.0
+                            },
+                        ),
+                    ] {
+                        assert!(
+                            matches!(value(reopened.host(), at(r,address)), ProjectedValue::FileCached(cache) if cache.value() == &cached_of(&CalcValue::number(expected)))
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p06_save_refuses_an_active_narrow_cut_then_calculates_its_dirty_precedents() {
+    for domain_save in [false, true] {
+        let mut book = session(&calc_host::blank_package());
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let s = book.host().sheets()[0].id();
+        for (address, text) in [
+            ("Z1", "1"),
+            ("A1", "=Z1+1"),
+            ("B1", "=A1*2+SUM(SEQUENCE(8192))*0"),
+        ] {
+            enter(&mut book, at(s, address), text);
+        }
+        book.dispatch(SkinIntent::Recalculate);
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        enter(&mut book, at(s, "Z1"), "10");
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::cell(at(s, "B1"))],
+        });
+        assert!(book.has_pending_calculation());
+        let context = || calc_host::ExcelSaveContext {
+            operation: calc_host::SaveOperation::Save,
+            calculate_before_save: true,
+            active_sheet: s,
+            disabled_sheets: &[],
+            before_save: None,
+        };
+        let image = if domain_save {
+            let mut domain = calc_host::CalculationDomain::new();
+            let id = domain.insert_session(book).unwrap();
+            assert!(
+                domain
+                    .begin_save(id, &SavePolicy::default(), context())
+                    .is_err(),
+                "an excluded dirty precedent cannot be discharged by disjoint save admissions"
+            );
+            let session = domain.session_mut(id).unwrap();
+            while session.has_pending_calculation() {
+                session.advance_calculation();
+            }
+            let save = domain
+                .begin_save(id, &SavePolicy::default(), context())
+                .unwrap();
+            for _ in 0..1000 {
+                if matches!(
+                    domain.advance(WorkBudget::evaluations(1)),
+                    calc_host::DomainProgress::Complete
+                ) {
+                    break;
+                }
+            }
+            domain.take_save(save).unwrap()
+        } else {
+            assert!(
+                book.begin_save_with_context(&SavePolicy::default(), context())
+                    .is_err(),
+                "save must not omit an existing target after recalculating its precedent"
+            );
+            while book.has_pending_calculation() {
+                book.advance_calculation();
+            }
+            book.prepare_save_with_context(&SavePolicy::default(), context())
+                .unwrap()
+        };
+        let mut bytes = Vec::new();
+        image.write(&mut bytes).unwrap();
+        let reopened = session(&bytes);
+        let r = reopened.host().sheets()[0].id();
+        for (address, expected) in [("A1", 11.0), ("B1", 22.0)] {
+            assert!(
+                matches!(value(reopened.host(),at(r,address)),ProjectedValue::FileCached(cache) if cache.value()==&cached_of(&CalcValue::number(expected)))
+            );
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_p06_disabled_active_sheet_suppresses_save_calculation() {
     use calc_host::{ExcelSaveContext, SaveOperation, SheetChange, WorkbookCommand};
     for active_disabled in [false, true] {
@@ -5775,115 +6023,156 @@ fn contract_p08_seeded_full_observers_see_new_independent_pure_chains_once() {
             Ok(result)
         }
     }
-    // P08's seeded-cold/warm class: two 1000-cell pure chains. H1 is a pure
-    // formula mirror here; this does not establish native XPure provider capability.
+    #[derive(Debug)]
+    struct PureMirror(Rc<std::cell::Cell<usize>>);
+    impl calc_fml::UserFunction for PureMirror {
+        fn permits_early_execution(&self) -> bool {
+            true
+        }
+        fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+            self.0.set(self.0.get() + 1);
+            Ok(arguments[0].clone())
+        }
+    }
+    // P08's seeded-cold/warm class: two 1000-cell pure chains and an explicitly
+    // granted identity callable at H1. Native DLL execution remains a Windows test.
     for warm in [false, true] {
         for budget in [1, usize::MAX] {
-            let mut book = session(&calc_host::blank_package());
-            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
-            let s = book.host().sheets()[0].id();
-            let mut edits = vec![
-                CellEdit::Set {
-                    at: at(s, "A1"),
-                    input: number(1.),
-                },
-                CellEdit::Set {
-                    at: at(s, "Z1"),
-                    input: number(100.),
-                },
-            ];
-            for (column, input) in [("K", "A1"), ("L", "Z1")] {
-                for row in 1..=1000 {
-                    let source = if row == 1 {
-                        input.to_owned()
-                    } else {
-                        format!("{column}{}+1", row - 1)
-                    };
+            for rebuild in [false, true] {
+                let mut book = session(&calc_host::blank_package());
+                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+                let s = book.host().sheets()[0].id();
+                let mut edits = vec![
+                    CellEdit::Set {
+                        at: at(s, "A1"),
+                        input: number(1.),
+                    },
+                    CellEdit::Set {
+                        at: at(s, "Z1"),
+                        input: number(100.),
+                    },
+                ];
+                for (column, input) in [("K", "A1"), ("L", "Z1")] {
+                    for row in 1..=1000 {
+                        let source = if row == 1 {
+                            input.to_owned()
+                        } else {
+                            format!("{column}{}+1", row - 1)
+                        };
+                        edits.push(CellEdit::Set {
+                            at: at(s, &format!("{column}{row}")),
+                            input: formula(&source),
+                        });
+                    }
+                }
+                for (address, source) in [("B1", "K1000+1"), ("D1", "L1000+1"), ("H1", "B1")] {
                     edits.push(CellEdit::Set {
-                        at: at(s, &format!("{column}{row}")),
-                        input: formula(&source),
+                        at: at(s, address),
+                        input: formula(source),
                     });
                 }
-            }
-            for (address, source) in [("B1", "K1000+1"), ("D1", "L1000+1"), ("H1", "B1")] {
-                edits.push(CellEdit::Set {
-                    at: at(s, address),
-                    input: formula(source),
-                });
-            }
-            assert!(book.dispatch(SkinIntent::Edit { edits }).accepted());
-            book.dispatch(SkinIntent::Calculate {
-                scope: CalcScope::Workbook,
-                selection: EvalSelection::ForceAll,
-            });
-            while book.has_pending_calculation() {
-                book.advance_calculation();
-            }
-            let reads = Rc::new(RefCell::new(Vec::new()));
-            let mut functions = calc_fml::CallableTable::new();
-            for (name, addresses) in [
-                ("PeekB1", vec!["B1"]),
-                ("PeekSeveral", vec!["B1", "D1", "H1"]),
-            ] {
-                functions
-                    .register(
-                        name,
-                        Rc::new(Peek {
-                            cells: addresses.into_iter().map(|a| at(s, a)).collect(),
-                            reads: reads.clone(),
-                        }),
-                    )
-                    .unwrap();
-            }
-            book.set_user_functions(functions);
-            for (address, source) in [("C1", "=PeekB1()"), ("F1", "=PeekSeveral()")] {
-                assert!(enter(&mut book, at(s, address), source).accepted());
-                book.dispatch(SkinIntent::CalculateRange {
-                    areas: vec![GridArea::cell(at(s, address))],
+                assert!(book.dispatch(SkinIntent::Edit { edits }).accepted());
+                book.dispatch(SkinIntent::Calculate {
+                    scope: CalcScope::Workbook,
+                    selection: EvalSelection::ForceAll,
                 });
                 while book.has_pending_calculation() {
                     book.advance_calculation();
                 }
-            }
-            assert_eq!(reads.borrow()[0], vec![CalcValue::number(1001.)]);
-            if warm {
-                for _ in 0..2 {
-                    book.dispatch(SkinIntent::Recalculate);
+                let reads = Rc::new(RefCell::new(Vec::new()));
+                let mirror_calls = Rc::new(std::cell::Cell::new(0));
+                let mut functions = calc_fml::CallableTable::new();
+                functions
+                    .register("XPure", Rc::new(PureMirror(mirror_calls.clone())))
+                    .unwrap();
+                for (name, addresses) in [
+                    ("PeekB1", vec!["B1"]),
+                    ("PeekSeveral", vec!["B1", "D1", "H1"]),
+                ] {
+                    functions
+                        .register(
+                            name,
+                            Rc::new(Peek {
+                                cells: addresses.into_iter().map(|a| at(s, a)).collect(),
+                                reads: reads.clone(),
+                            }),
+                        )
+                        .unwrap();
+                }
+                book.set_user_functions(functions);
+                assert!(enter(&mut book, at(s, "H1"), "=XPure(B1)").accepted());
+                book.dispatch(SkinIntent::CalculateRange {
+                    areas: vec![GridArea::cell(at(s, "H1"))],
+                });
+                while book.has_pending_calculation() {
+                    book.advance_calculation();
+                }
+                for (address, source) in [("C1", "=PeekB1()"), ("F1", "=PeekSeveral()")] {
+                    assert!(enter(&mut book, at(s, address), source).accepted());
+                    book.dispatch(SkinIntent::CalculateRange {
+                        areas: vec![GridArea::cell(at(s, address))],
+                    });
                     while book.has_pending_calculation() {
                         book.advance_calculation();
                     }
                 }
-            }
-            reads.borrow_mut().clear();
-            enter(&mut book, at(s, "A1"), "10");
-            enter(&mut book, at(s, "Z1"), "200");
-            book.set_calculation_budget(WorkBudget::evaluations(budget));
-            book.dispatch(SkinIntent::Calculate {
-                scope: CalcScope::Workbook,
-                selection: EvalSelection::ForceAll,
-            });
-            for _ in 0..20000 {
-                if !book.has_pending_calculation() {
-                    break;
+                assert_eq!(reads.borrow()[0], vec![CalcValue::number(1001.)]);
+                if warm {
+                    for _ in 0..2 {
+                        book.dispatch(SkinIntent::Recalculate);
+                        while book.has_pending_calculation() {
+                            book.advance_calculation();
+                        }
+                    }
                 }
-                assert!(!matches!(
-                    book.advance_calculation(),
-                    HostProgress::Failed(_)
-                ));
-            }
-            assert!(!book.has_pending_calculation());
-            assert_eq!(
-                *reads.borrow(),
-                vec![
-                    vec![CalcValue::number(1010.)],
+                reads.borrow_mut().clear();
+                mirror_calls.set(0);
+                enter(&mut book, at(s, "A1"), "10");
+                enter(&mut book, at(s, "Z1"), "200");
+                book.set_calculation_budget(WorkBudget::evaluations(budget));
+                let revision = book.host().revision();
+                let history = book.history_depth();
+                assert!(
+                    book.dispatch(if rebuild {
+                        SkinIntent::Rebuild
+                    } else {
+                        SkinIntent::Calculate {
+                            scope: CalcScope::Workbook,
+                            selection: EvalSelection::ForceAll,
+                        }
+                    })
+                    .accepted()
+                );
+                for _ in 0..20000 {
+                    if !book.has_pending_calculation() {
+                        break;
+                    }
+                    assert!(!matches!(
+                        book.advance_calculation(),
+                        HostProgress::Failed(_)
+                    ));
+                }
+                assert!(!book.has_pending_calculation());
+                assert_eq!(book.host().revision(), revision);
+                assert_eq!(book.history_depth(), history);
+                assert_eq!(
+                    mirror_calls.get(),
+                    1,
+                    "physical continuation never reenters the granted callable"
+                );
+                assert_eq!(
+                    *reads.borrow(),
                     vec![
-                        CalcValue::number(1010.),
-                        CalcValue::number(1200.),
-                        CalcValue::number(1010.)
-                    ]
-                ],
-                "warm={warm} budget={budget}"
-            );
+                        vec![CalcValue::number(1010.)],
+                        vec![
+                            CalcValue::number(1010.),
+                            CalcValue::number(1200.),
+                            CalcValue::number(1010.)
+                        ]
+                    ],
+                    "warm={warm} budget={budget} rebuild={rebuild}"
+                );
+            }
         }
     }
 }
@@ -6742,6 +7031,132 @@ mod async_contract {
             }
         }
         panic!("bounded save calculation did not finish");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p06_ordinary_save_retains_new_and_existing_live_async_invocations() {
+        use calc_host::CalculatedSaveProgress as P;
+        for existing in [false, true] {
+            let (mut book, s, counts) = if existing {
+                setup("=AsyncEcho(A1)+2")
+            } else {
+                configured("=AsyncEcho(A1)+2", None, 1)
+            };
+            let mut save = book
+                .begin_save_with_context(
+                    &SavePolicy::default(),
+                    calc_host::ExcelSaveContext {
+                        operation: calc_host::SaveOperation::Save,
+                        calculate_before_save: true,
+                        active_sheet: s,
+                        disabled_sheets: &[],
+                        before_save: None,
+                    },
+                )
+                .unwrap();
+            assert_eq!(
+                counts.borrow().prefix,
+                usize::from(existing),
+                "begin does not enter user code"
+            );
+            for _ in 0..1000 {
+                if save.advance(&mut book, WorkBudget::evaluations(1)) == P::Waiting {
+                    break;
+                }
+            }
+            assert_eq!(save.progress(), P::Waiting);
+            assert!(
+                !save.needs_advance(book.host()),
+                "no task polling while parked"
+            );
+            let resumes = counts.borrow().resumes;
+            for _ in 0..3 {
+                assert_eq!(
+                    save.advance(&mut book, WorkBudget::evaluations(1)),
+                    P::Waiting
+                );
+            }
+            assert_eq!(
+                (counts.borrow().prefix, counts.borrow().resumes),
+                (1, resumes)
+            );
+            let token = token(&book);
+            assert_eq!(token.destination, calc_host::ResultDestination::Live);
+            assert_eq!(
+                book.complete_async(&token, CalcValue::number(40.0)),
+                D::Accepted
+            );
+            assert_eq!(counts.borrow().suffix, 0);
+            assert!(save.needs_advance(book.host()));
+            for _ in 0..1000 {
+                if matches!(
+                    save.advance(&mut book, WorkBudget::evaluations(1)),
+                    P::Ready | P::Failed
+                ) {
+                    break;
+                }
+            }
+            assert_eq!(save.progress(), P::Ready);
+            assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+            assert_eq!(
+                calculated(book.host(), at(s, "B1")),
+                Some(CalcValue::number(42.0))
+            );
+            assert_eq!(
+                calculated(book.host(), at(s, "C1")),
+                Some(CalcValue::number(84.0))
+            );
+            let image = save.finish().unwrap();
+            assert_eq!(image.pin().destination, calc_host::ResultDestination::Live);
+            enter(&mut book, at(s, "A1"), "9");
+            let mut bytes = Vec::new();
+            image.write(&mut bytes).unwrap();
+            let reopened = session(&bytes);
+            let r = reopened.host().sheets()[0].id();
+            for (address, expected) in [("B1", 42.0), ("C1", 84.0)] {
+                assert!(
+                    matches!(value(reopened.host(),at(r,address)),ProjectedValue::FileCached(cache) if cache.value() == &cached_of(&CalcValue::number(expected)))
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p06_ordinary_save_cancel_or_edit_cannot_write_an_async_image() {
+        use calc_host::CalculatedSaveProgress as P;
+        for cancel in [false, true] {
+            let (mut book, s, counts) = setup("=AsyncEcho(A1)+2");
+            let old = token(&book);
+            let mut save = book
+                .begin_save_with_context(
+                    &SavePolicy::default(),
+                    calc_host::ExcelSaveContext {
+                        operation: calc_host::SaveOperation::Save,
+                        calculate_before_save: true,
+                        active_sheet: s,
+                        disabled_sheets: &[],
+                        before_save: None,
+                    },
+                )
+                .unwrap();
+            if cancel {
+                save.cancel(&mut book);
+            } else {
+                enter(&mut book, at(s, "A1"), "9");
+            }
+            assert_eq!(
+                save.advance(&mut book, WorkBudget::evaluations(1)),
+                P::Failed
+            );
+            assert!(save.finish().is_err());
+            assert!(matches!(
+                book.complete_async(&old, CalcValue::number(40.0)),
+                D::Rejected(_)
+            ));
+            assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 0));
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

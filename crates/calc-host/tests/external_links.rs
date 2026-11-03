@@ -12,6 +12,8 @@
 
 #[allow(dead_code)]
 mod chost_m1_1_support;
+#[path = "../../calc-engine/tests/fixtures/seven_cell_async.rs"]
+mod async_provider;
 
 use calc_host::value::{CellKey, CoreRef, WorksheetErrorCode};
 use calc_host::{
@@ -708,8 +710,19 @@ fn dc_ylr__transitive_workbooks_refresh_and_disconnect_without_reusing_old_proof
             .value(),
         ProjectedValue::Calculated { .. }
     ));
-    domain.request_calculation(&[target], false).unwrap();
-    drain_domain(&mut domain, WorkBudget::UNLIMITED);
+    let save = domain.begin_save(target, &calc_host::SavePolicy::default(), calc_host::ExcelSaveContext {
+        operation:calc_host::SaveOperation::Save, calculate_before_save:true, active_sheet:at.sheet(),
+        disabled_sheets:&[], before_save:None,
+    }).unwrap();
+    drain_domain(&mut domain, WorkBudget::evaluations(1));
+    assert_eq!(shown_value(domain.host(target).unwrap(), at), "17");
+    let image=domain.take_save(save).unwrap();
+    let mut bytes=Vec::new();image.write(&mut bytes).unwrap();
+    let reopened=HostState::open(Arc::new(MemorySource::new(bytes)),&OpenPolicy::default(),HostOptions { calc_mode:Some(CalcMode::Manual),..Default::default() }).unwrap();
+    let page=project(&reopened,&ProjectionRequest { cells:vec![CellKey::new(reopened.sheets()[0].id(),1,1).unwrap()] }).unwrap();
+    assert!(matches!(page.cells()[0].value(),ProjectedValue::FileCached(cache) if cache.value().to_value().as_number()==Some(17.0)));
+    domain.request_rebuild(&[target]).unwrap();
+    drain_domain(&mut domain, WorkBudget::evaluations(1));
     assert_eq!(shown_value(domain.host(target).unwrap(), at), "17");
     domain.disconnect(target, 1).unwrap();
     domain.request_calculation(&[target], false).unwrap();
@@ -724,4 +737,91 @@ fn dc_ylr__transitive_workbooks_refresh_and_disconnect_without_reusing_old_proof
         domain.request_calculation(&[target], false),
         Err(calc_host::DomainError::LinkedCycle { owner: "dc-ylr" })
     ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p06_save_false_does_not_invalidate_unchanged_linked_consumers() {
+    let mut domain = calc_host::CalculationDomain::new();
+    let source = domain
+        .insert(source_sheet(r#"<c r="A1"><f>3+4</f></c>"#))
+        .unwrap();
+    let target = domain
+        .insert(source_sheet(r#"<c r="A1"><f>[1]Sheet1!A1+1</f></c>"#))
+        .unwrap();
+    domain.connect(target, 1, source).unwrap();
+    domain.request_calculation(&[target], false).unwrap();
+    drain_domain(&mut domain, WorkBudget::UNLIMITED);
+    let at = CellKey::new(domain.host(target).unwrap().sheets()[0].id(), 1, 1).unwrap();
+    let before = project(
+        domain.host(target).unwrap(),
+        &ProjectionRequest { cells: vec![at] },
+    )
+    .unwrap();
+    assert!(
+        matches!(before.cells()[0].value(),ProjectedValue::Calculated {value,..} if value.as_number()==Some(8.0))
+    );
+    let s = domain.host(source).unwrap().sheets()[0].id();
+    let save = domain
+        .begin_save(
+            source,
+            &calc_host::SavePolicy::default(),
+            calc_host::ExcelSaveContext {
+                operation: calc_host::SaveOperation::Save,
+                calculate_before_save: false,
+                active_sheet: s,
+                disabled_sheets: &[],
+                before_save: None,
+            },
+        )
+        .unwrap();
+    domain.take_save(save).unwrap();
+    let after = project(
+        domain.host(target).unwrap(),
+        &ProjectionRequest { cells: vec![at] },
+    )
+    .unwrap();
+    assert_eq!(
+        before, after,
+        "an unchanged Save(false) cannot remove its peer's admitted linked cut"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p06_domain_save_refuses_a_changed_cut_without_reentering_a_live_async_prefix() {
+    use std::{cell::RefCell,rc::Rc};
+    let mut source=source_sheet(r#"<c r="A1"><f>NOW()</f></c>"#);
+    source.set_clock(Some(1.0));calc_host::calculate(&mut source);
+    while matches!(step(&mut source,WorkBudget::UNLIMITED,&mut Unobserved),HostProgress::Calculating {..}|HostProgress::Published(_)) {}
+    let target=source_sheet(r#"<c r="A1"><f>AsyncEcho(1)+[1]Sheet1!A1</f></c>"#);
+    let mut domain=calc_host::CalculationDomain::new();
+    let source=domain.insert(source).unwrap();let target=domain.insert(target).unwrap();
+    domain.connect(target,1,source).unwrap();
+    let pin=domain.host(source).unwrap().linked_snapshot();
+    let counts=Rc::new(RefCell::new(async_provider::Counts::default()));
+    let host=domain.host_mut(target).unwrap();
+    let mut functions=calc_fml::CallableTable::new();
+    functions.register("AsyncEcho",Rc::new(async_provider::Echo(counts.clone()))).unwrap();
+    host.set_user_functions(functions);host.set_linked_workbook(1,Some(pin)).unwrap();
+    calc_host::calculate(host);
+    for _ in 0..1000 {
+        step(host,WorkBudget::evaluations(1),&mut Unobserved);
+        if !host.pending_async().is_empty() {break;}
+    }
+    let token=host.pending_async()[0].clone();let s=host.sheets()[0].id();
+    assert_eq!(counts.borrow().prefix,1);
+    let save=domain.begin_save(target,&calc_host::SavePolicy::default(),calc_host::ExcelSaveContext { operation:calc_host::SaveOperation::Save,calculate_before_save:true,active_sheet:s,disabled_sheets:&[],before_save:None }).unwrap();
+    let mut failed=false;
+    for _ in 0..1000 {
+        match domain.advance(WorkBudget::evaluations(1)) {
+            calc_host::DomainProgress::Failed {..} => {failed=true;break;},
+            calc_host::DomainProgress::Complete | calc_host::DomainProgress::Waiting {..} => break,
+            _=>{},
+        }
+    }
+    assert!(failed,"a changed producing source command cannot retarget the parked invocation");
+    assert!(domain.take_save(save).is_err());
+    assert!(matches!(domain.complete_async(target,&token,calc_host::value::CalcValue::number(40.0)).unwrap(),calc_host::AsyncDisposition::Rejected(_)));
+    assert_eq!((counts.borrow().prefix,counts.borrow().suffix),(1,0));
 }

@@ -13,6 +13,7 @@ pub struct CallableBindings {
     entries: BTreeMap<(Option<String>, String), CallableHandle>,
     provisional: Vec<CallableHandle>,
     cached_readers: Vec<CallableHandle>,
+    early: Vec<CallableHandle>,
     parallel: BTreeMap<CallableHandle, usize>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -22,6 +23,9 @@ pub struct CallableBindingProof {
     pub bound: Option<CallableHandle>,
 }
 impl CallableBindings {
+    pub fn permits_early_execution(&self, handle: CallableHandle) -> bool {
+        self.early.contains(&handle)
+    }
     pub fn max_parallel_calls(&self, handle: CallableHandle) -> usize {
         self.parallel.get(&handle).copied().unwrap_or(1)
     }
@@ -91,6 +95,19 @@ impl CallableTable {
 
     pub fn bindings(&self) -> CallableBindings {
         CallableBindings {
+            early: self
+                .entries
+                .values()
+                .filter_map(|entry| {
+                    let function = self.resolve(entry.handle)?;
+                    (function.permits_early_execution()
+                        && !function.cached_reads()
+                        && function.state_lane().is_none()
+                        && function.reevaluation_policy().is_none()
+                        && !function.permits_reentry())
+                    .then_some(entry.handle)
+                })
+                .collect(),
             parallel: self
                 .entries
                 .values()
@@ -313,6 +330,74 @@ impl CallableTable {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug)]
+    struct Permission {
+        early: bool,
+        cached: bool,
+        lane: bool,
+    }
+    impl UserFunction for Permission {
+        fn permits_early_execution(&self) -> bool {
+            self.early
+        }
+        fn max_parallel_calls(&self) -> usize {
+            8
+        }
+        fn cached_reads(&self) -> bool {
+            self.cached
+        }
+        fn state_lane(&self) -> Option<u64> {
+            self.lane.then_some(1)
+        }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::number(42.0))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn early_execution_is_separate_from_parallelism_and_is_revoked_on_replacement() {
+        for (early, cached, lane, allowed) in [
+            (false, false, false, false),
+            (true, false, false, true),
+            (true, true, false, false),
+            (true, false, true, false),
+        ] {
+            let mut table = CallableTable::new();
+            table
+                .register(
+                    "F",
+                    Rc::new(Permission {
+                        early,
+                        cached,
+                        lane,
+                    }),
+                )
+                .unwrap();
+            let handle = table.bind(None, "F").unwrap();
+            assert_eq!(table.bindings().permits_early_execution(handle), allowed);
+            if !cached && !lane {
+                assert_eq!(table.bindings().max_parallel_calls(handle), 8);
+            }
+            let lease = table.resolve(handle).unwrap().clone();
+            let mut replacement = CallableTable::new();
+            replacement
+                .register(
+                    "F",
+                    Rc::new(Permission {
+                        early: false,
+                        cached: false,
+                        lane: false,
+                    }),
+                )
+                .unwrap();
+            table.replace(replacement);
+            assert!(table.resolve(handle).is_none());
+            let current = table.bind(None, "F").unwrap();
+            assert!(!table.bindings().permits_early_execution(current));
+            assert_eq!(lease.permits_early_execution(), early);
+        }
+    }
 
     #[derive(Debug)]
     struct Twice;

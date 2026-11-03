@@ -91,7 +91,7 @@ pub use result::{
     ValueChange, ValueDelta,
 };
 pub use spill::Spill;
-pub use state::{EngineState, FormulaNode, PrerequisiteError};
+pub use state::{CalculationInputVersion, EngineState, FormulaNode, PrerequisiteError};
 pub use structural::{
     ReferenceRewriter, move_name, move_references, relocate_formula, shift_formula,
 };

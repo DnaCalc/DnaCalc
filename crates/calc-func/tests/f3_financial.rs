@@ -366,3 +366,24 @@ fn irr_two_cashflows_publish_the_q_fixpoint() {
     exact(call("IRR", vec![col(&[-1000.0, 1210.0]), n(0.0)]),
         f64::from_bits(0x3fca_e147_ae14_7ae0));
 }
+
+/// Existing build20228 Value2 bank readings, on-coupon short and long par bonds.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yield_at_par_on_a_coupon_date_returns_the_recorded_coupon_rate() {
+    for maturity in [44562.0, 46753.0] {
+        exact(dated("YIELD", vec![n(44013.0), n(maturity), n(0.05), n(100.0), n(100.0), n(2.0), n(0.0)]), 0.05);
+    }
+}
+
+/// Documented one-period formula: DSR is184 days, while E is180 or182.5.
+/// This is a mathematical control, not a new Excel capture.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn single_period_actual_day_counts_keep_their_own_yield_formula() {
+    for basis in [2.0, 3.0] {
+        let result = dated("YIELD", vec![n(44013.0), n(44197.0), n(0.05), n(100.0), n(100.0), n(2.0), n(basis)]).unwrap();
+        let yield_ = result.as_number().unwrap();
+        assert!(yield_ > 0.0 && yield_ < 0.05, "basis {basis}: {yield_}");
+    }
+}

@@ -481,9 +481,16 @@ through HostSession.
 P08's seeded Full profile orders independent pure work before cached-read callbacks, while keeping
 the callbacks' reference order and retaining other callback barriers. Iteration and TABLE sessions
 keep their existing order. Two 1000-cell chains, seeded-cold and warm, produce the recorded
-1010/1200/1010 observations once per observer with finite and unlimited budgets. H1 is a pure
-formula mirror in this control; it establishes no native XPure capability. Rebuild has no separate
-public normalization yet. Broader chain-history and multithreaded order claims remain outside
+1010/1200/1010 observations once per observer with finite and unlimited budgets. The H1 counterpart
+now uses an explicitly granted identity callable, retaining one entry across physical continuations.
+The native XLL projection accepts explicit registration grants separately from thread safety;
+ordinary `$` registrations receive no early-execution permission. Grants reject volatile, async,
+cached-read and command registrations and are republished through callable generations. This
+establishes the portable scheduling path and native adapter code; new Windows DLL execution is
+still unrun. Public host/worker Rebuild clears derived plans, bindings and static/dynamic edges,
+then forces the workbook; the domain exposes the corresponding source-ordered request. Authored
+revisions, history, identities and held spill seeds survive. Active live work makes Rebuild unavailable.
+Broader chain-history and multithreaded order claims remain outside
 this profile; callbacks are never declared interchangeable.
 P07's owner boundary is in 3.4.
 RTD events use a separate provider/subscription sequence and immutable input snapshot. They mark
@@ -554,9 +561,27 @@ certificates: their attached receipt remains Incomplete with its uncertified cou
 does not claim calcCompleted. An admitted refusal, held circular value, missing result, provider wait or
 failed calculation prevents this command from producing an image. The existing isolated
 calculated-save operation continues to require its stronger completion and async protocol.
-Cross-workbook Save(true) coordination, automatic VBA event registration and cooperative ordinary
-save calculations remain open. When new save calculation is required, the ordinary synchronous
-save API refuses an existing active calculation rather than copying its effects.
+The domain now owns ordinary HostSessions. Its Save(true) applies the saved session's handler edits
+before admission, calculates dirty/volatile work in every domain workbook (including unrelated peers),
+then prepares the saved workbook's owned image. A disabled active sheet suppresses this admission;
+other disabled sheets narrow the saved workbook's scope. Peers currently use their workbook scope;
+per-peer disabled-sheet policies are not projected. Unchanged Save(false) preserves connected input
+cuts. A changed source cut cannot retarget an existing parked invocation to discharge a save.
+
+Ordinary saves now retain a live calculation across finite tasks and provider waits. They can wait
+for a compatible existing command without entering its prefix again. An incompatible narrow scope
+or retained range obligation refuses; callers must finish that command before a new save. Final
+images require matching completion/results and no remaining required or stale target in the save
+scope. Cancellation, changed model/inputs/providers or incomplete coverage write no image. An image
+already prepared retains its contents through later edits. This is the ordinary live strategy;
+isolated calculated saves keep their separate destination and original input cut.
+
+Worker Save and SaveWithContext return SavePending when calculation is needed, schedule no task
+while waiting for a provider, and emit one SaveReady notification. PollSave returns the owned bytes
+through the existing command journal. The controller retains the download callback by workbook,
+token and generation and drops it on replacement. Manual Save(false) stays noncalculating. These
+async save controls establish DNA behavior, not new Excel Save(true) measurements. P07's UI
+Save(false) cancellation profile and automatic VBA event registration remain open.
 
 
 Defined-name implementation update (dc-hsa5.5, 2026-11-01): the canonical `NameTable` stores

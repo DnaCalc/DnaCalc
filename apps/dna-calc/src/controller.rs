@@ -64,6 +64,7 @@ pub use dna_formula_ui::web::{memory_bytes, now_ms};
 mod input_adapter;
 
 type CommandAnswer = Box<dyn FnOnce(Result<Reply, String>, Option<Vec<u8>>)>;
+type SaveDownload = Box<dyn FnOnce(String, Vec<u8>)>;
 
 type ValidationCallback = Box<dyn FnOnce(Result<Outcome, String>)>;
 
@@ -138,6 +139,7 @@ pub struct Controller {
     selection_epoch: ModelField<u64>,
     deferred: StoredValue<VecDeque<Box<dyn FnOnce()>>, LocalStorage>,
     command_answers: StoredValue<BTreeMap<u64, CommandAnswer>, LocalStorage>,
+    save_download: StoredValue<Option<(u64, u64, SaveDownload)>, LocalStorage>,
     deferred_version: ModelField<u64>,
     replaying: ModelField<bool>,
     flush_scheduled: ModelField<bool>,
@@ -356,6 +358,7 @@ impl Controller {
             ),
             deferred: StoredValue::new_local(VecDeque::new()),
             command_answers: StoredValue::new_local(BTreeMap::new()),
+            save_download: StoredValue::new_local(None),
             deferred_version: Field::new(
                 model,
                 |m| &m.runtime.deferred_version,
@@ -589,6 +592,30 @@ impl Controller {
     /// Projection controls bracket binary fragments. Only a closed transaction and its
     /// completion barrier replace the root a skin can read.
     fn receive(&self, event: Event) {
+        if let Event::SaveReady { workbook, token } = event {
+            let mut download = None;
+            self.save_download.update_value(|pending| {
+                if pending
+                    .as_ref()
+                    .is_some_and(|(owner, id, _)| *owner == workbook && *id == token)
+                {
+                    download = pending.take().map(|(_, _, saved)| saved);
+                }
+            });
+            if let Some(saved) = download {
+                if self.summary.with_untracked(|s| s.workbook) != workbook {
+                    return;
+                }
+                let controller = *self;
+                let generation = self.generation.get_untracked();
+                self.send_command(Request::PollSave { token }, None, move |reply, bytes| {
+                    if controller.generation.get_untracked() == generation {
+                        controller.save_reply(reply, bytes, saved);
+                    }
+                });
+            }
+            return;
+        }
         if let Event::Calculation {
             workbook,
             receipt,
@@ -716,7 +743,9 @@ impl Controller {
             Event::Tiles(b) => b.stamp.id,
             Event::TileCompletion(b) => b.id,
             Event::ProjectionFailed { id, .. } => *id,
-            Event::Calculation { .. } => unreachable!("calculation controls are handled above"),
+            Event::Calculation { .. } | Event::SaveReady { .. } => {
+                unreachable!("owner controls are handled above")
+            }
         };
         let Some(mirror) = self.mirrors.with_value(|m| m.get(&id).copied()) else {
             return;
@@ -728,7 +757,9 @@ impl Controller {
             Event::TileAdmission(stamp) => mirror.admit(*stamp),
             Event::Tiles(batch) => mirror.stage(batch),
             Event::TileCompletion(barrier) => mirror.complete(*barrier),
-            Event::Calculation { .. } => unreachable!("calculation controls are handled above"),
+            Event::Calculation { .. } | Event::SaveReady { .. } => {
+                unreachable!("owner controls are handled above")
+            }
             Event::ProjectionFailed { .. } => {
                 mirror.invalidate();
                 Ok(TileApply::Ignored)
@@ -776,6 +807,7 @@ impl Controller {
                 .update(|m| m.runtime.callback_focus = Some(fresh));
         }
         self.generation.update(|n| *n += 1);
+        self.save_download.set_value(None);
         self.grid_geometry.update_value(|all| all.clear());
         self.mirrors.update_value(BTreeMap::clear);
         let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
@@ -3024,41 +3056,72 @@ impl Controller {
     }
 
     fn save_package(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
+        if self.save_download.with_value(|pending| pending.is_some()) {
+            self.say("A workbook save is still being prepared", false);
+            return;
+        }
         let controller = *self;
+        let generation = self.generation.get_untracked();
         self.send_command(Request::Save, None, move |reply, bytes| {
-            controller.revision.update(|n| *n += 1);
-            match (reply, bytes) {
-                (
-                    Ok(Reply::Done {
-                        outcome,
-                        saved: Some(name),
-                        ..
-                    }),
-                    Some(bytes),
-                ) => {
-                    if controller.summary.get_untracked().changed {
-                        controller.download_unconfirmed.set(true);
-                    }
-                    controller.summary.set(outcome.summary.into());
-                    controller.say(
-                        format!("Download package prepared: {name}, {} bytes", bytes.len()),
-                        false,
-                    );
-                    saved(name, bytes);
-                }
-                (Ok(Reply::Done { outcome, .. }), _) => controller.say(
-                    format!(
-                        "The workbook was not saved: {}",
-                        outcome.error.unwrap_or_default()
-                    ),
-                    true,
-                ),
-                (Ok(_), _) => controller.say("The workbook was not saved", true),
-                (Err(message), _) => {
-                    controller.say(format!("The workbook was not saved: {message}"), true)
-                }
+            if controller.generation.get_untracked() == generation {
+                controller.save_reply(reply, bytes, Box::new(saved));
             }
         });
+    }
+    fn save_reply(
+        &self,
+        reply: Result<Reply, String>,
+        bytes: Option<Vec<u8>>,
+        saved: SaveDownload,
+    ) {
+        let controller = *self;
+        controller.revision.update(|n| *n += 1);
+        match (reply, bytes) {
+            (
+                Ok(Reply::Done {
+                    outcome,
+                    saved: Some(name),
+                    ..
+                }),
+                Some(bytes),
+            )
+            | (
+                Ok(Reply::SaveImage {
+                    outcome,
+                    saved: name,
+                    ..
+                }),
+                Some(bytes),
+            ) => {
+                if controller.summary.get_untracked().changed {
+                    controller.download_unconfirmed.set(true);
+                }
+                controller.summary.set(outcome.summary.into());
+                controller.say(
+                    format!("Download package prepared: {name}, {} bytes", bytes.len()),
+                    false,
+                );
+                saved(name, bytes);
+            }
+            (Ok(Reply::SavePending { token, .. }), _) => {
+                let workbook = controller.summary.with_untracked(|s| s.workbook);
+                controller
+                    .save_download
+                    .set_value(Some((workbook, token, saved)));
+                controller.say("Preparing workbook download", false);
+            }
+            (Ok(Reply::Done { outcome, .. }), _) => controller.say(
+                format!(
+                    "The workbook was not saved: {}",
+                    outcome.error.unwrap_or_default()
+                ),
+                true,
+            ),
+            (Ok(_), _) => controller.say("The workbook was not saved", true),
+            (Err(message), _) => {
+                controller.say(format!("The workbook was not saved: {message}"), true)
+            }
+        }
     }
 }
 
@@ -3383,6 +3446,61 @@ mod projection_lifetime_tests {
             assert!(!controller.point_at(1, 1, false));
             assert!(controller.editing.get_untracked().is_none());
         });
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn ordinary_table_save_downloads_after_the_worker_ready_event_and_reopen_cancels_old_callback()
+    {
+        use calc_host::{CalcMode, HostProgress, SkinIntent, WorkBudget};
+        for reopen in [false, true] {
+            let root = Owner::new();
+            root.with(|| {
+                let mut server = dna_calc_worker::server::Server::new();
+                server.execute_current(Request::Open { name:"tables.xlsx".into() }, Some(include_bytes!("../../../crates/calc-engine/tests/fixtures/dc_10y/oracle.xlsx").to_vec())).reply.unwrap();
+                while server.has_pending_calculation() { server.advance_calculation(); }
+                let s = server.book().host().sheets().iter().find(|s| s.name().text().to_string_lossy()=="DT").unwrap().id();
+                server.book_mut().dispatch(SkinIntent::SetCalcMode(CalcMode::AutomaticExceptTables));
+                for (row,column,text) in [(1,26,"1"),(3,2,"=B1*Z1"),(4,1,"2"),(5,1,"3")] {
+                    server.book_mut().dispatch(SkinIntent::EnterCell { at:CellKey::new(s,row,column).unwrap(),text:text.into() });
+                    while server.has_pending_calculation() { server.advance_calculation(); }
+                }
+                server.book_mut().dispatch(SkinIntent::Recalculate);
+                while server.has_pending_calculation() { server.advance_calculation(); }
+                server.book_mut().dispatch(SkinIntent::EnterCell { at:CellKey::new(s,1,26).unwrap(),text:"10".into() });
+                while server.has_pending_calculation() { server.advance_calculation(); }
+                server.set_calculation_budget(WorkBudget::evaluations(1));
+                let (package,_) = server.book_mut().save().unwrap();
+                let transport=std::rc::Rc::new(dna_calc_worker::transport::InProcessTransport::default());
+                let controller=Controller::with_transport(transport.clone());
+                controller.open("tables.xlsx",package,|opened| assert!(opened));
+                let images=std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+                let target=images.clone();
+                controller.save(move |name,bytes| target.borrow_mut().push((name,bytes)));
+                assert!(images.borrow().is_empty(), "a pending save has no package bytes");
+                let pending=controller.save_download.with_value(|p| p.as_ref().map(|(book,token,_)| (*book,*token))).expect("retained download callback");
+                if reopen {
+                    controller.new_workbook();
+                    controller.receive(Event::SaveReady { workbook:pending.0,token:pending.1 });
+                    assert!(controller.save_download.with_value(|p| p.is_none()));
+                    assert!(images.borrow().is_empty());
+                } else {
+                    for _ in 0..1000 {
+                        assert!(!matches!(transport.advance_calculation().unwrap(),HostProgress::Failed(_)));
+                        if !images.borrow().is_empty() { break; }
+                    }
+                    assert_eq!(images.borrow().len(),1);
+                    assert!(controller.save_download.with_value(|p| p.is_none()));
+                    let bytes=images.borrow()[0].1.clone();
+                    let reopened=calc_host::HostState::open(std::sync::Arc::new(calc_host::MemorySource::new(bytes)),&calc_host::OpenPolicy::default(),calc_host::HostOptions { calc_mode:Some(CalcMode::Manual),..Default::default() }).unwrap();
+                    let s=reopened.sheets().iter().find(|s| s.name().text().to_string_lossy()=="DT").unwrap().id();
+                    for (row,expected) in [(4,20.0),(5,30.0)] {
+                        let page=calc_host::project(&reopened,&calc_host::ProjectionRequest { cells:vec![CellKey::new(s,row,2).unwrap()] }).unwrap();
+                        assert!(matches!(page.cells()[0].value(),calc_host::ProjectedValue::FileCached(cache) if cache.value().to_value().as_number()==Some(expected)));
+                    }
+                }
+            });
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
