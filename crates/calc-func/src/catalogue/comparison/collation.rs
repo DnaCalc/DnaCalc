@@ -29,11 +29,9 @@
 //!
 //! The weights cover every UTF-16 code unit but a few (dc-zsn.2). A text holding one of those is
 //! not decided ([`Beyond`]), whichever pass would decide it: U+0000, the Hangul conjoining jamo,
-//! U+30A0, the isolated and medial forms of Arabic marks, and an iteration mark after a Han
-//! character or a special (see [`super::sort_key`]).
-//! For iteration after Han, an earlier primary difference or a completed primary prefix can
-//! still decide the order: 時々 follows 時 (catalogue dczsn2_collation!D61). The mark's unknown
-//! primary is never assigned a guessed value. Iteration after a special remains undecided.
+//! U+30A0, the isolated and medial forms of Arabic marks, and an iteration mark after a
+//! special (see [`super::sort_key`]). Iteration after Han uses the measured repeat primary,
+//! confirmed by fn1's comparison and ordering controls; iteration after a special remains undecided.
 
 use super::Beyond;
 use super::sort_key::{diacritic_order, leading_order, parts, refused};

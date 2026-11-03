@@ -28,7 +28,7 @@ fn empty_text_delimiter_errors_match_the_recorded_excel_values() {
 /// workbook through calc-host, calc-engine and calc-fml.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn an_unknown_iteration_weight_can_follow_a_completed_primary_prefix() {
+fn iteration_prefix_and_measured_han_repeat_order() {
     use calc_func::value::NumericMode;
     use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
     use calc_verdict::{CaptureRecord, Observation};
@@ -59,12 +59,12 @@ fn an_unknown_iteration_weight_can_follow_a_completed_primary_prefix() {
     )
     .expect("the strict primary prefix decides this comparison");
     assert_eq!(result.as_logical(), Some(expected));
-    // Neither the unknown mark's relative weight nor its behavior after a special is inferred
-    // from that prefix observation. These retain typed refusal until measured.
+    // Fn1 D2 now measures the Han repeat order separately from the earlier prefix reading.
+    // Iteration after a special still retains its typed refusal.
     let order = |a: &str, b: &str| calc_func::text_order(
         &a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>()
     );
-    assert_eq!(order("時々", "時時"), None);
+    assert_eq!(order("時々", "時時"), Some(std::cmp::Ordering::Less));
     assert_eq!(order("カ-ゝ", "カ-"), None);
 }
 
