@@ -21,6 +21,9 @@
 //! - Excel computes with subnormal operands and results flushed to zero (BESSELK(700,2) equals
 //!   BESSELK(700,0); BESSELK(706,0) is 0); [`D`] does the same.
 //! - A result that is not finite is #NUM!.
+//! - R16 Value2 readings (Excel build 20527) bracket I's admission boundary at
+//!   adjacent binary64 magnitudes: 709.7 is numeric and its successor is #NUM!,
+//!   at orders 0, 1, 2, 3, 10 and 100. Negative arguments agree at orders 0..2.
 //!
 //! The generic J/Y and higher-order I bodies are published methods, not an
 //! identification of Excel's program. Exact disagreement counts are retained
@@ -303,7 +306,11 @@ pub fn bessely_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
 
 /// `BESSELI(x, n)`.
 pub fn besseli_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
-    if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
+    // Use one admission policy across orders, extending the adjacent-input
+    // measurements at orders 0, 1, 2, 3, 10 and 100. Higher orders still need
+    // Excel measurements; a representable series value alone cannot settle
+    // their admission. EXP itself admits larger x.
+    if !x.is_finite() || x.abs() > 709.7 { return Err(WorksheetErrorCode::Num); }
     let n = order(n)?;
     let x = D::new(x);
     finish(Ok(match n {
@@ -388,7 +395,7 @@ mod tests {
         assert_eq!(besselk_kernel(-1.0, 1.0), Err(Num));
         assert_eq!(besselj_kernel(134217728.0, 0.0).unwrap().to_bits(), 0xbed7ff19ed9c47a0, "recorded Excel NUM; phase cutoff removed");
         assert_eq!(besselj_kernel(134217727.5, 0.0).unwrap().to_bits(), 0xbf03e23975421ed4, "recorded Excel -3.792512787637833E-05");
-        assert_eq!(besseli_kernel(709.78, 0.0).unwrap().to_bits(), 0x7f8e96fc20a992f7, "recorded Excel NUM; empirical cutoff removed");
+        assert_eq!(besseli_kernel(709.78, 0.0), Err(Num));
         // Excel records NUM; the public-library backward method underflows to zero.
         assert_eq!(besselj_kernel(1e-300, 2.0), Ok(0.0));
     }
