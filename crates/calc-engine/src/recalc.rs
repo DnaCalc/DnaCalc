@@ -4794,10 +4794,6 @@ fn evaluate_with(
     let at = live_anchor(state, node);
     let required = shared.requirements.get(&node).map_or(1, |r| r.required);
     let mut reads = ReadCertificate {
-        linked_inputs: (!shared.linked_workbooks.is_empty()).then(|| crate::LinkedInputStamp {
-            version: shared.linked_input_version,
-            sources: shared.linked_workbooks.values().cloned().collect(),
-        }),
         external_cache: match &done.result {
             FormulaResult::Calculated { calculation, .. }
             | FormulaResult::NotModeled { calculation, .. } => calculation.reads_external_links(),
@@ -4807,11 +4803,22 @@ fn evaluate_with(
         bindings: state.contract.bindings,
         ..ReadCertificate::default()
     };
-    reads.external_inputs = local.effects.external_inputs().to_vec();
-    reads.callables = match state.bindings.get(&node) {
+    if !shared.linked_workbooks.is_empty() {
+        reads.linked_inputs = Some(crate::LinkedInputStamp {
+            version: shared.linked_input_version,
+            sources: shared.linked_workbooks.values().cloned().collect(),
+        });
+    }
+    if !local.effects.external_inputs().is_empty() {
+        reads.external_inputs = local.effects.external_inputs().to_vec();
+    }
+    let callables = match state.bindings.get(&node) {
         Some(Binding::Placed(instance, _)) => instance.plan().callable_bindings().to_vec(),
         _ => Vec::new(),
     };
+    if !callables.is_empty() {
+        reads.callables = callables;
+    }
     for proof in local.effects.callable_reads() {
         if !reads.callables.contains(proof) {
             reads.callables.push(proof.clone());
@@ -4825,7 +4832,7 @@ fn evaluate_with(
             }
         }
     }
-    reads.invocations = local
+    let invocations: Vec<_> = local
         .effects
         .invocations()
         .iter()
@@ -4843,11 +4850,20 @@ fn evaluate_with(
             }
         })
         .collect();
-    reads.udf_volatile=matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls()).then_some(local.effects.volatile());
-    reads.names = match state.bindings.get(&node) {
+    if !invocations.is_empty() {
+        reads.invocations = invocations;
+    }
+    if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls())
+    {
+        reads.udf_volatile = Some(local.effects.volatile());
+    }
+    let names = match state.bindings.get(&node) {
         Some(Binding::Placed(instance, _)) => instance.plan().name_bindings().to_vec(),
         _ => state.index.name_bindings(node).to_vec(),
     };
+    if !names.is_empty() {
+        reads.names = names;
+    }
     for proof in &local.name_reads {
         if !reads.names.contains(proof) {
             reads.names.push(proof.clone());
@@ -4864,14 +4880,15 @@ fn evaluate_with(
         }
     }
     reads.dependencies = local.read_stamps.clone();
-    for read in &reads.dependencies {
+    // Walk the same retained spans while filling the certificate's optional details.
+    for read in &local.read_stamps {
         for span in &read.boundary_caches {
             if !reads.boundary_caches.contains(span) {
                 reads.boundary_caches.push(span.clone());
             }
         }
     }
-    for dependency in &reads.dependencies {
+    for dependency in &local.read_stamps {
         for observation in
             crate::contract::observation_ancestry_at(state, shared.progress, dependency.region)
         {
@@ -4973,18 +4990,10 @@ fn evaluate_with(
             blanks: vec![blank],
         });
     }
-    for proof in &mut reads.absences {
-        proof.pending_producers = producer_pending_at(
-            state,
-            inputs,
-            shared.progress,
-            proof.region,
-            &proof.blanks,
-            node,
-            Some(shared.requirements),
-        );
-        if proof.pending_producers != 0
-            && crate::contract::producer_pending_in(
+    if !reads.absences.is_empty() {
+        let mut uses_cached_absence = false;
+        for proof in &mut reads.absences {
+            proof.pending_producers = producer_pending_at(
                 state,
                 inputs,
                 shared.progress,
@@ -4992,12 +5001,24 @@ fn evaluate_with(
                 &proof.blanks,
                 node,
                 Some(shared.requirements),
-                &|at| shared.scope.contains(at),
-            ) == 0
-        {
-            proof.cached = Some(shared.boundary_caches.view());
-            reads.uses_boundary_cache = true;
+            );
+            if proof.pending_producers != 0
+                && crate::contract::producer_pending_in(
+                    state,
+                    inputs,
+                    shared.progress,
+                    proof.region,
+                    &proof.blanks,
+                    node,
+                    Some(shared.requirements),
+                    &|at| shared.scope.contains(at),
+                ) == 0
+            {
+                proof.cached = Some(shared.boundary_caches.view());
+                uses_cached_absence = true;
+            }
         }
+        reads.uses_boundary_cache |= uses_cached_absence;
     }
     if let Some(region) = done.spill.as_ref().map(Spill::area).or(done.blocked) {
         reads.absences.push(AbsenceProof {

@@ -191,7 +191,11 @@ impl FormulaResult {
     pub(crate) fn rebase_occupancy(&mut self, occupancy: impl Fn(GridArea) -> u64) {
         match self {
             Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
-                if let Some(stamp) = calculation.stamp.as_mut() {
+                if let Some(stamp) = calculation
+                    .stamp
+                    .as_mut()
+                    .filter(|stamp| !stamp.reads.absences.is_empty())
+                {
                     for proof in &mut Arc::make_mut(stamp).reads.absences {
                         // Publication has validated every exact blank run against the final
                         // producer cut. Candidate-time uncertainty is now discharged.
