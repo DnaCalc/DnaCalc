@@ -569,8 +569,11 @@ The fixed-observation comparison preserves 18,841/20,030 original formula
 matches and 19,594/20,840 with the R16 catalogue captures. All 63,783 evaluation
 records are unchanged. All 1,246 nonmatches fail: 1,159 mismatched, refused or
 missing, plus 73 external and 14 circular-policy cells; the denominator is 20,840.
+The original scope has 1,189 failures and a 94.06% pass rate; the expanded scope
+has a 94.02% pass rate. Neither comparison changes any formula result.
 The fixed bank improves 3,230,756 to 3,230,758 of 3,875,343, including 116 unread
-failures. This numerical gain is separate from capture intake.
+failures: 644,587 to 644,585 failures, and 83.36697% to 83.36702% matched.
+This numerical gain is separate from capture intake.
 
 R16 scalar intake verifies all 151 supplied file hashes and 250 requested,
 submitted and Value2-read-back identities in 13 canonical WitnessSets. Both
@@ -578,10 +581,16 @@ frozen prediction sets match 69; the already-calculated current product matches
 70 and fails 180. The three supplied catalogue copies are byte-identical to the
 committed captures. The reader groups mixed-arity GEOMEAN calls; verification
 retains that order and joins it to the frozen request through unique IDs, with
-seven corrupted-input controls rejected. The 179 new distinct bank inputs add
+nine corrupted-input controls rejected. A synthetic consistent metadata variant
+is accepted as a control, never an Excel observation. Recorded build, CPU and
+settings values remain provenance; raw/canonical completeness and agreement
+are checked without a build or CPU whitelist. The 179 new distinct bank inputs add
 42 matches and 137 failures. All 3,875,227 shared outputs and answers are unchanged;
 71 repeated identities retain their answers. The bank becomes 3,230,800/3,875,522,
-with 644,722 failures including 116 unread. Those 42 matches are added coverage.
+with 644,722 failures including 116 unread and an 83.36425% pass rate.
+Those 42 matches are added coverage. The scalar packet's current pass rate is
+28% (70 matched, 180 failed); each frozen prediction set has 27.6% matched
+(69 matched, 181 failed). Their difference is not a round-18 product gain.
 
 The exact Bessel study excludes 6,093,750 labelled finite Miller policies, including
 the earlier coherent families. Necessary forward J/Y policies remain; no seed,
