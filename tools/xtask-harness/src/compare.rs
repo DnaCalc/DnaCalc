@@ -1207,7 +1207,18 @@ mod tests {
         use calc_host::{HostSession, SheetChange, SkinIntent, WorkbookCommand};
         let dir = std::env::temp_dir().join(format!("xtask-linked-source-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
-        let fixture = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_ylr/oracle.xlsx");
+        // Relocate every path alternative in this test copy. The measured
+        // formulas, inputs and expected values stay unchanged; an original
+        // absolute source left on the machine must not satisfy the missing case.
+        let fixture = crate::oracle_cases::replace_package_parts(
+            include_bytes!("../../../crates/calc-host/tests/fixtures/dc_ylr/oracle.xlsx"),
+            &std::collections::BTreeMap::from([(
+                "xl/externalLinks/_rels/externalLink1.xml.rels".into(),
+                br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/externalLinkPath" Target="ylr-source.xlsx" TargetMode="External"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/externalLinkPath" Target="ylr-source.xlsx" TargetMode="External"/><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/externalLinkPath" Target="ylr-source.xlsx" TargetMode="External"/></Relationships>"#.to_vec(),
+            )]),
+        )
+        .unwrap();
+        let fixture = fixture.as_slice();
         let path = dir.join("oracle.xlsx");
         fs::write(&path, fixture).unwrap();
         // Original source inputs, from make-dc-ylr-oracle.ps1:79-84. No expected
@@ -1296,10 +1307,15 @@ mod tests {
         assert_eq!(report.counts.denominator, 74);
         assert_eq!(report.counts.matched, 74, "{}", report.summary());
         assert_eq!(report.counts.external_links, 0);
+        let canonical_source = source_path.canonicalize().unwrap();
         assert!(
-            run.linked_inputs
-                .iter()
-                .any(|record| record.get("sha256").is_some())
+            run.linked_inputs.iter().any(|record| {
+                record.get("sha256").is_some()
+                    && record
+                        .get("source")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|source| Path::new(source) == canonical_source)
+            })
         );
         fs::remove_file(source_path).unwrap();
         let run = run_workbook(
@@ -1318,6 +1334,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(report.counts.external_links, 73);
+        assert!(
+            run.linked_inputs
+                .iter()
+                .all(|record| record.get("sha256").is_none())
+        );
         assert_eq!(
             report.counts.matched - report.counts.matched_external_links,
             1
