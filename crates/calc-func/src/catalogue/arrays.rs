@@ -18,7 +18,7 @@
 //! is refused here too.
 
 use super::comparison::{self, Want};
-use super::kit::{fail, grid};
+use super::kit::{fail, grid, scalar_error};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::dynamic_array_reshape_family::{
@@ -33,13 +33,10 @@ use std::collections::HashMap;
 
 const CODE: u16 = 310;
 
-/// W111 typed DROP/EXPAND/HSTACK/VSTACK controls distinguish a direct scalar source error
-/// from an error held in an actual array or reference.
+/// W111 typed array-function controls distinguish a direct scalar source error from an error
+/// held in an actual array or reference.
 fn source_error(arguments: &[CalcValue]) -> Step<()> {
-    match arguments[0].core_ref() {
-        CoreRef::Error(code) if arguments[0].callable_value().is_none() => fail(code),
-        _ => Ok(()),
-    }
+    scalar_error(&arguments[0])
 }
 
 /// The arguments as OxFunc's kernels take them: each reference read as the array of its values.
@@ -218,6 +215,7 @@ fn choose(
     sv: &mut EvalServices<'_>,
     kernel: fn(&[CalcValue]) -> Result<CalcValue, E>,
 ) -> Step<CalcValue> {
+    source_error(a)?;
     let args = prepared(site, a, sv)?;
     let mut flat = vec![args[0].clone()];
     for arg in &args[1..] {
@@ -633,6 +631,7 @@ ported_family! {
         result(s, k::eval_sequence_prepared(a))
     }
     2 filter_fn "FILTER" (2, 3) [R "array", R "include", R "if_empty"] |s, a, sv| {
+        source_error(a)?;
         run(s, a, sv, k::eval_filter_prepared)
     }
     3 sort_fn "SORT" (1, 4) [R "array", R "sort_index", R "sort_order", V "by_col"] |s, a, sv| {
