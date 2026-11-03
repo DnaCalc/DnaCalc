@@ -7924,6 +7924,256 @@ mod async_contract {
         assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (2, 1));
     }
 
+    #[derive(Debug, Default)]
+    struct PoolProbeState {
+        active: usize,
+        maximum: usize,
+        entered: Vec<f64>,
+        release: bool,
+    }
+    #[derive(Debug)]
+    struct PoolProbe {
+        state: Rc<RefCell<PoolProbeState>>,
+        limit: usize,
+        serialized: bool,
+    }
+    #[derive(Debug)]
+    struct PoolProbeCall {
+        state: Rc<RefCell<PoolProbeState>>,
+        value: CalcValue,
+        finished: bool,
+    }
+    impl UserFunction for PoolProbe {
+        fn max_parallel_calls(&self) -> usize {
+            self.limit
+        }
+        fn state_lane(&self) -> Option<u64> {
+            self.serialized.then_some(7)
+        }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("cooperative entry required")
+        }
+        fn begin_call(
+            &self,
+            values: &[CalcValue],
+            _: UserInvocationFrame,
+            _: &mut dyn UserFunctionContext,
+        ) -> Result<Option<Box<dyn UserFunctionInvocation>>, String> {
+            let mut state = self.state.borrow_mut();
+            state.active += 1;
+            state.maximum = state.maximum.max(state.active);
+            state.entered.push(values[0].as_number().unwrap());
+            Ok(Some(Box::new(PoolProbeCall {
+                state: self.state.clone(),
+                value: values[0].clone(),
+                finished: false,
+            })))
+        }
+    }
+    impl Drop for PoolProbeCall {
+        fn drop(&mut self) {
+            if !self.finished {
+                self.state.borrow_mut().active -= 1;
+            }
+        }
+    }
+    impl UserFunctionInvocation for PoolProbeCall {
+        fn resume(
+            &mut self,
+            _: &mut dyn UserFunctionContext,
+            _: u64,
+        ) -> Result<UserFunctionStep, String> {
+            if !self.state.borrow().release {
+                return Ok(UserFunctionStep::Suspended);
+            }
+            self.state.borrow_mut().active -= 1;
+            self.finished = true;
+            Ok(UserFunctionStep::Complete(self.value.clone()))
+        }
+    }
+    #[derive(Debug)]
+    struct HiddenPoolRead(CellKey);
+    impl UserFunction for HiddenPoolRead {
+        fn max_parallel_calls(&self) -> usize {
+            2
+        }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("context required")
+        }
+        fn call_with_context(
+            &self,
+            _: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            context.argument_values_of(&calc_host::value::ReferenceLike::cell(self.0))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn scalar_pool_dynamic_callback_prerequisites_are_typed_refusals_not_cycles() {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let state = Rc::new(RefCell::new(PoolProbeState {
+            release: true,
+            ..Default::default()
+        }));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("HiddenPoolRead", Rc::new(HiddenPoolRead(at(s, "D1"))))
+            .unwrap();
+        functions
+            .register(
+                "PoolProbe",
+                Rc::new(PoolProbe {
+                    state: state.clone(),
+                    limit: 2,
+                    serialized: false,
+                }),
+            )
+            .unwrap();
+        book.set_user_functions(functions);
+        for (address, formula) in [
+            ("B1", "HiddenPoolRead()"),
+            ("C1", "HiddenPoolRead()"),
+            ("D1", "PoolProbe(3)"),
+        ] {
+            assert!(
+                book.dispatch(SkinIntent::Edit {
+                    edits: vec![CellEdit::Set {
+                        at: at(s, address),
+                        input: CellInput::Formula(
+                            calc_host::FormulaText::with_form(
+                                calc_host::value::ExcelText::from_utf16_code_units(
+                                    formula.encode_utf16().collect()
+                                ),
+                                calc_doc_model::FormulaForm::Legacy
+                            )
+                            .unwrap()
+                        )
+                    }]
+                })
+                .accepted()
+            );
+        }
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        for address in ["B1", "C1"] {
+            let result = value(book.host(), at(s, address));
+            let ProjectedValue::NotModeled {
+                refusal,
+                calculation,
+            } = result
+            else {
+                panic!("{result:?}");
+            };
+            assert!(format!("{refusal:?}").contains("dc-snz.23"), "{refusal:?}");
+            assert!(!calculation.held_by_circular_rule());
+        }
+        assert_eq!(
+            calculated(book.host(), at(s, "D1")),
+            Some(CalcValue::number(3.))
+        );
+        assert_eq!(state.borrow().entered, vec![3.]);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn scalar_pool_reserves_pure_prefixes_and_keeps_serial_lanes_ordered() {
+        for (limit, serialized, admitted) in [(2, false, 2), (1, false, 1), (2, true, 1)] {
+            let mut book = session(&calc_host::blank_package());
+            let s = book.host().sheets()[0].id();
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            let state = Rc::new(RefCell::new(PoolProbeState::default()));
+            let mut functions = calc_fml::CallableTable::new();
+            functions
+                .register(
+                    "PoolProbe",
+                    Rc::new(PoolProbe {
+                        state: state.clone(),
+                        limit,
+                        serialized,
+                    }),
+                )
+                .unwrap();
+            book.set_user_functions(functions);
+            for (address, formula) in [
+                ("B1", "PoolProbe(1)"),
+                ("C1", "SUM(SEQUENCE(100000))+PoolProbe(2)"),
+                ("D1", "PoolProbe(3)"),
+                ("E1", "B1+D1"),
+            ] {
+                assert!(
+                    book.dispatch(SkinIntent::Edit {
+                        edits: vec![CellEdit::Set {
+                            at: at(s, address),
+                            input: CellInput::Formula(
+                                calc_host::FormulaText::with_form(
+                                    calc_host::value::ExcelText::from_utf16_code_units(
+                                        formula.encode_utf16().collect()
+                                    ),
+                                    calc_doc_model::FormulaForm::Legacy
+                                )
+                                .unwrap()
+                            )
+                        }]
+                    })
+                    .accepted()
+                );
+            }
+            book.set_calculation_budget(WorkBudget::evaluations(1));
+            book.dispatch(SkinIntent::Recalculate);
+            for _ in 0..1000 {
+                if state.borrow().entered.len() == admitted {
+                    break;
+                }
+                assert!(book.has_pending_calculation());
+                assert!(!matches!(
+                    book.advance_calculation(),
+                    HostProgress::Failed(_)
+                ));
+            }
+            assert_eq!(
+                state.borrow().entered,
+                if admitted == 2 {
+                    vec![1., 2.]
+                } else {
+                    vec![1.]
+                }
+            );
+            for _ in 0..10 {
+                book.advance_calculation();
+            }
+            assert_eq!(state.borrow().maximum, admitted);
+            assert_eq!(
+                state.borrow().entered.len(),
+                admitted,
+                "a third cell cannot pass a suspended prefix"
+            );
+            state.borrow_mut().release = true;
+            for _ in 0..1000 {
+                if !book.has_pending_calculation() {
+                    break;
+                }
+                assert!(!matches!(
+                    book.advance_calculation(),
+                    HostProgress::Failed(_)
+                ));
+            }
+            assert!(!book.has_pending_calculation());
+            assert_eq!(state.borrow().maximum, admitted);
+            assert_eq!(state.borrow().active, 0);
+            assert_eq!(
+                calculated(book.host(), at(s, "C1")),
+                Some(CalcValue::number(5_000_050_002.))
+            );
+            assert_eq!(
+                calculated(book.host(), at(s, "E1")),
+                Some(CalcValue::number(4.))
+            );
+        }
+    }
+
     #[derive(Debug)]
     struct YieldLate {
         source: CellKey,
@@ -9223,5 +9473,149 @@ fn dc_971p__gradient_stops_and_pattern_records_survive_an_unrelated_font_edit() 
     let xml = part_text(&saved, "xl/styles.xml");
     for marker in ["linear", "stop", "color"] {
         assert!(xml.contains(&format!("v:keep=\"{marker}\"")));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_rename_and_scope_history_retain_imported_duplicate_origins_and_attributes() {
+    use calc_doc_model::NameScope;
+    let mut book = session(&package_with_names(
+        r#"<definedName name="Rate" hidden="1" comment="keep" shortcutKey="K">2</definedName><definedName name="Rate" shortcutKey="L">7</definedName>"#,
+    ));
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "A1"), "=Rate+1");
+    enter(&mut book, at(s, "B1"), "=SUM(40,2)");
+    let unchanged = value(book.host(), at(s, "B1"));
+    let id = book
+        .host()
+        .model()
+        .definitions()
+        .name_table()
+        .lookup(NameScope::Workbook, "Rate")
+        .unwrap()
+        .id();
+    let change = |book: &mut HostSession, scope| {
+        let node = book.host().name_node(id).unwrap();
+        let edit = calc_host::NameEdit {
+            id: Some(id),
+            version: Some(node.binding_version()),
+            name: "Promoted".into(),
+            scope,
+            formula: Some(node.definition().formula.clone()),
+        };
+        let result = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Name(edit)));
+        assert!(result.accepted(), "{:?}", result.error);
+    };
+    change(&mut book, NameScope::Workbook);
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, "Rate")
+            .unwrap()
+            .definition()
+            .formula,
+        "7"
+    );
+    change(&mut book, NameScope::Sheet(s));
+    for _ in 0..2 {
+        let mut bytes = Vec::new();
+        book.save(&SavePolicy::default(), &mut bytes).unwrap();
+        let xml = part_text(&bytes, "xl/workbook.xml");
+        assert!(xml.contains("shortcutKey=\"K\""));
+        assert!(xml.contains("shortcutKey=\"L\""));
+        assert!(xml.find("shortcutKey=\"K\"").unwrap() < xml.find("shortcutKey=\"L\"").unwrap());
+        assert_eq!(
+            session(&bytes).host().defined_names(),
+            book.host().defined_names()
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "A1")),
+            Some(CalcValue::number(3.))
+        );
+        assert_eq!(value(book.host(), at(s, "B1")), unchanged);
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .name_table()
+                .lookup(NameScope::Workbook, "Rate")
+                .unwrap()
+                .id(),
+            id
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(
+            book.host().name_node(id).unwrap().definition().scope,
+            NameScope::Sheet(s)
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_rename_rewrites_conditional_sources_and_refuses_unowned_validation_sources() {
+    use calc_doc_model::NameScope;
+    for validation in [false, true] {
+        let named = package_with_names(r#"<definedName name="Rate">2</definedName>"#);
+        let bytes = package_with_part_from(&named, "xl/worksheets/sheet1.xml", |xml| {
+            let guard = if validation {
+                r#"<dataValidations count="1"><dataValidation type="list" sqref="A1"><formula1>Rate</formula1></dataValidation></dataValidations>"#
+            } else {
+                ""
+            };
+            xml.replace("</worksheet>",&format!(r#"<conditionalFormatting sqref="A1"><cfRule type="expression" priority="1"><formula>Rate&gt;1</formula></cfRule></conditionalFormatting>{guard}</worksheet>"#))
+        });
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let node = book
+            .host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, "Rate")
+            .unwrap();
+        let edit = calc_host::NameEdit {
+            id: Some(node.id()),
+            version: Some(node.binding_version()),
+            scope: NameScope::Workbook,
+            name: "YieldRate".into(),
+            formula: Some(node.definition().formula.clone()),
+        };
+        let revision = book.host().revision();
+        let result = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Name(edit)));
+        if validation {
+            assert!(!result.accepted());
+            assert_eq!(book.host().revision(), revision);
+            assert!(
+                result
+                    .error
+                    .unwrap()
+                    .to_string()
+                    .contains("data-validation")
+            );
+        } else {
+            assert!(result.accepted(), "{:?}", result.error);
+            assert_eq!(
+                book.host().model().definitions().conditional_rules(sheet)[0].formulas,
+                vec!["YieldRate>1"]
+            );
+            let mut saved = Vec::new();
+            book.save(&SavePolicy::default(), &mut saved).unwrap();
+            assert_eq!(
+                session(&saved)
+                    .host()
+                    .model()
+                    .definitions()
+                    .conditional_rules(sheet)[0]
+                    .formulas,
+                vec!["YieldRate>1"]
+            );
+        }
     }
 }

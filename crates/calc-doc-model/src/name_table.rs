@@ -242,6 +242,7 @@ impl NameTable {
         let node = Arc::make_mut(&mut Arc::make_mut(&mut self.pages)[slot / PAGE])[slot % PAGE]
             .as_mut()
             .expect("a live name");
+        node.key = Arc::new(NameKey::new(definition.scope, &definition.name));
         node.definition = Arc::new(definition);
         node.version = version;
         true
@@ -355,13 +356,22 @@ impl NameTable {
             .iter()
             .map(|snapshot| snapshot.key.clone())
             .collect();
+        // Origins move between selected keys without deleting and recreating their live IDs.
+        let by_origin: HashMap<_, _> = keys
+            .iter()
+            .flat_map(|key| self.records_for_key(key))
+            .map(|node| (node.origin, node.id))
+            .collect();
+        let targets_kept: HashSet<_> = snapshots
+            .iter()
+            .flat_map(|snapshot| &snapshot.records)
+            .filter_map(|record| by_origin.get(&record.origin).copied())
+            .collect();
         let plans: Vec<_> = snapshots
             .iter()
             .map(|snapshot| {
                 let current = self.records_for_key(&snapshot.key);
                 let ids: Vec<_> = current.iter().map(|node| node.id).collect();
-                let by_origin: HashMap<_, _> =
-                    current.iter().map(|node| (node.origin, node.id)).collect();
                 let targets: Vec<_> = snapshot
                     .records
                     .iter()
@@ -420,7 +430,7 @@ impl NameTable {
             }
             primaries.push((snapshot.key.clone(), primary));
             for id in ids {
-                if !used.contains(&id) {
+                if !used.contains(&id) && !targets_kept.contains(&id) {
                     changed |= self.remove_id(id);
                 }
             }
@@ -452,6 +462,11 @@ impl NameTable {
                         .map(|page| Arc::new(page.to_vec()))
                         .collect(),
                 );
+            }
+        }
+        for snapshot in snapshots {
+            if snapshot.records.len() > 1 {
+                Arc::make_mut(&mut self.duplicates).insert(Arc::new(snapshot.key.clone()));
             }
         }
         for (key, first) in primaries {

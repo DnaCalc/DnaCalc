@@ -569,6 +569,23 @@ workbook aliases inherit the current use context. Static and INDIRECT routes tes
 new Excel parity for nested cross-scope aliases awaits P12. Per-name invocation identities,
 `NameView` evaluation commands and transitive eligibility for any shared memo remain open.
 
+Name operations (dc-hsa5.6 / dc-971p.34, 2026-11-03): the canonical compiler now carries
+`NameEvaluationContext` with the caller, current definition identity and definition worksheet.
+Optional `NameAnalysis` records source occurrences outside interned semantic plans; copied plans
+still share while their source evidence retains each caller. This makes the existing nested-scope
+policy explicit; it supplies no new P12 Excel measurement.
+`EngineState::prepare_name_change` and the existing host/worker `NameEdit` command rename and move
+ordinary names in one authored/history batch. They rewrite compiler-bound cell, name and
+conditional-rule occurrences, retain live IDs and source origins across Undo/Redo, preserve array
+extents, and preview the complete changed name table during formula-file conversion. Local
+variables, other scoped identities and string literals keep their text. A candidate must preserve
+name bindings and placed references in every checked caller context before anything commits.
+Analysis stops at 100,000 source/context pairs. Ambiguous nested aliases, changed reference
+contexts, macro names and table metadata return explicit refusals; host validation/chart sources
+that cannot be rewritten also refuse. A rename/move and a definition edit are separate commands.
+These controls cover the public worker route and saved/reopened names, duplicate fallbacks and
+raw imported attributes. Shared name-value memoization and plan eviction remain open.
+
 ## 10. First slice: the eight demonstrations and their oracles
 
 Fixture, Manual mode, independent clone per demo: A1=1, B1=`=A1+1` (2), C1=`=B1*2` (4), D1=`=PeekB1()` (2; typed,

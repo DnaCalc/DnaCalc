@@ -392,6 +392,41 @@ fn engine_pool_overlaps_workbooks_and_services_borrowed_reads() {
     assert_eq!(result["live_callback_allocations"], 0);
 }
 
+/// Native-only: real XLL barriers and worker callbacks run through one workbook command.
+#[test]
+fn engine_pool_overlaps_independent_cells_in_one_workbook() {
+    let fixture = Fixture::new();
+    let cases = fixture.directory.join("workbook-pool.json");
+    std::fs::write(
+        &cases,
+        include_bytes!("../../../crates/calc-xll-reference/fixture/x5-workbook-pool-cases.json"),
+    )
+    .unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_POOL_TESTS", "1")
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .args(["--engine", "--cases"])
+            .arg(cases)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 41.);
+    assert_eq!(result["results"][0]["dependent"], 81.);
+    assert_eq!(result["results"][1]["value"], 2.);
+    for proof in [
+        &result["results"][0]["provenance"],
+        &result["results"][0]["dependent_provenance"],
+        &result["results"][2]["provenance"],
+        &result["results"][3]["provenance"],
+    ] {
+        assert_eq!(proof["cooperative_invocations"], 1);
+        assert_eq!(proof["completed_invocations"], 1);
+    }
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+
 /// Native-only: overwrite revokes the engine token and the delayed XLL return cannot publish or unload early.
 #[test]
 fn overwritten_native_async_call_rejects_its_late_return() {

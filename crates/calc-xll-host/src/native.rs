@@ -392,6 +392,14 @@ impl XllHost {
                 continue;
             }
             let adapter = Rc::new(XllFunction {
+                parallel: if registration.info.signature.thread_safe
+                    && !registration.info.signature.asynchronous
+                    && !registration.info.signature.volatile
+                {
+                    state.workers.as_ref().map_or(1, |pool| pool.capacity())
+                } else {
+                    1
+                },
                 state: self.state.clone(),
                 registration: registration.clone(),
                 bound: true,
@@ -429,6 +437,7 @@ impl XllHost {
             );
         }
         XllFunction {
+            parallel: 1,
             state: self.state.clone(),
             registration,
             bound: false,
@@ -616,6 +625,7 @@ impl Drop for XllHost {
 
 #[derive(Clone)]
 pub(crate) struct XllFunction {
+    pub parallel: usize,
     pub state: Shared,
     pub registration: Rc<Registration>,
     pub bound: bool,
@@ -640,6 +650,9 @@ pub(crate) fn refuse_native_error(context: &mut dyn UserFunctionContext, why: &s
     }
 }
 impl UserFunction for XllFunction {
+    fn max_parallel_calls(&self) -> usize {
+        self.parallel
+    }
     fn state_lane(&self) -> Option<u64> {
         (!self.registration.info.signature.thread_safe)
             .then_some(self.registration.origin.handle as u64)

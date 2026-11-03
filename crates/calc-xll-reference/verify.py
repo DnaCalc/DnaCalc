@@ -945,6 +945,82 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             "scope": "Original xlOil 0.22.1 async generator and separate Python cache; empty sequenced inputs, exact P07 certificate, formula replacement and finite client protocol. General providers, arrays, remote servers and arbitrary teardown remain open." if signaling else "Controlled finite scalar RTD, exact P07 input certificate and retirement. General providers/teardown, arrays and remote RTD remain open."}
 
 
+def verify_workbook_pool(excel, excel_control, host, host_control, cases_path, publication_path):
+    directories = (excel, excel_control, host, host_control)
+    envs = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    require(all(c.get("manual") and c.get("legacy") for c in cases), "Pool cases must select the same legacy/manual calculation form")
+    require(all(e["fixture_files"] == envs[0]["fixture_files"] and e["cases_sha256"] == digest(cases_path) for e in envs), "Different pool fixture/cases")
+    require(envs[0]["excel_file_version"] == envs[1]["excel_file_version"] and envs[0]["tracer_sha256"] == envs[2]["tracer_sha256"], "Different pool Excel builds/tracers")
+    require(envs[2]["executable_sha256"] == envs[3]["executable_sha256"] and envs[2]["shim_sha256"] == envs[3]["shim_sha256"], "Different pool host binaries")
+    outcomes = []
+    for directory, env in zip(directories[:2], envs[:2]):
+        data = controller(directory)
+        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"] and data["AutomationSecurity unchanged"], "Pool Excel ownership/security failed")
+        for case in cases:
+            outcomes.append({"capture":directory.name,"formula":case["formula"],"expected":case["value"],"actual":data[case["formula"]],"matched":data[case["formula"]] == case["value"]})
+            if "dependent" in case:
+                require(data["dependent " + case["formula"]] == case["dependent_value"], "Excel second pool cell differs")
+    outputs = []
+    for directory in directories[2:]:
+        require(json.loads((directory / "host.exit.json").read_text()) == {"exit_code": 0, "finished": True}, "Pool host failed")
+        require(not (directory / "host.stderr").read_text().strip(), "Pool host diagnostics")
+        output = json.loads((directory / "host.stdout").read_text())
+        require(output["host"] == "DNA Calc / CalcHost P07" and output["live_callback_allocations"] == 0 and output["closed_registration"] == "#NAME?", "Pool owner/teardown differs")
+        for case, row in zip(cases, output["results"], strict=True):
+            require((row["formula"], row["value"]) == (case["formula"], case["value"]), "Host pool result differs")
+            if "dependent" in case:
+                require(row["dependent"] == case["dependent_value"], "Host second pool cell differs")
+        for proof in (output["results"][0]["provenance"], output["results"][0]["dependent_provenance"]):
+            require(proof["cooperative_invocations"] == proof["completed_invocations"] == 1, "Pool cell lacks its single owning activation")
+        require(not output["async_returns"] and not output["revoked_tokens"], "Scalar pool used native async completion")
+        outputs.append(output)
+    forms = {"MyOverlap":"QE$", "MyOverlapMax":"J", "MyOverlapReset":"J#", "MyWorkerCallbacks":"QQQ$", "MyWorkerReference":"QU$", "MyWorkerOwned":"Q$", "MyFreeCount":"J"}
+    traces = [boundary(p) for p in (excel, host)]
+    records, overlaps, ownership, entry_counts, worker_calls = [], [], [], [], []
+    for trace in traces:
+        registrations = {e["entry"].rsplit(":", 1)[-1]:e["signature"] for e in trace[0] if e["event"] == "registered_entry"}
+        require(all(registrations.get(name) == form for name, form in forms.items()), "Pool signatures differ")
+        opens = [e for e in trace[1].values() if e["entry"].endswith("!xlAutoOpen")]
+        require(len(opens) == 1, "Pool loader entry missing/repeated")
+        owner = opens[0]["thread"]
+        entries = {name:[e for e in trace[1].values() if e["entry"].endswith(":" + name)] for name in forms}
+        require(all(entries.values()) and len(entries["MyOverlapReset"]) == 1, "Pool native invocation/reset missing")
+        reset = entries["MyOverlapReset"][0]
+        require(reset["thread"] == owner and trace[2][reset["call"]]["result"] == 1, "Pool barrier reset failed")
+        pair = [e for e in entries["MyOverlap"] if e["seq"] > trace[2][reset["call"]]["seq"]]
+        require(len(pair) == 2, "Calculation did not enter exactly two barrier calls after reset")
+        for name, native in entries.items():
+            if forms[name].endswith("$"):
+                require(any(e["thread"] != owner for e in native), "No calculation worker observed for " + name)
+            else:
+                require(all(e["thread"] == owner for e in native), "Serial/macro pool entry left its owner")
+        require(pair[0]["thread"] != pair[1]["thread"] and all(e["thread"] != owner for e in pair), "Pool barriers did not enter distinct workers")
+        require(pair[0]["seq"] < trace[2][pair[1]["call"]]["seq"] and pair[1]["seq"] < trace[2][pair[0]["call"]]["seq"], "Pool native entry intervals never overlapped")
+        measured = {name:sorted([{**invocation_record(trace, e),"execution_context":"owner" if e["thread"] == owner else "worker"} for e in native], key=lambda r:json.dumps(r["arguments"], sort_keys=True)) for name, native in entries.items()}
+        calculation_calls = sorted([invocation_record(trace,e) for e in pair],key=lambda r:json.dumps(r["arguments"],sort_keys=True))
+        require([r["arguments"] for r in calculation_calls] == [[{"code":"E","value":40}], [{"code":"E","value":80}]], "Pool barrier arguments differ")
+        require([r["result"] for r in calculation_calls] == [{"type":1,"value":41},{"type":1,"value":81}], "Pool barrier did not observe both entries")
+        worker_calls.append(calculation_calls)
+        entry_counts.append({name:len(native) for name,native in entries.items()})
+        records.append(measured)
+        overlaps.append({"owner_thread":owner,"entries":pair,"returns":[trace[2][e["call"]] for e in pair]})
+        ownership.append(framework_ownership(trace))
+    verify_sources(envs, publication_path)
+    source_bindings_checked = sum(len(e["source_files"])+2 for e in envs)
+    failures = []
+    if not all(r["matched"] for r in outcomes): failures.append("Excel formula outcomes differ")
+    if entry_counts[0] != entry_counts[1]: failures.append("Native invocation counts differ")
+    if records[0] != records[1]: failures.append("Native arguments/results/ordered nested callbacks differ")
+    if not all(o["owned_returns"] == o["free_calls"] == 1 for o in ownership): failures.append("Owned result/free counts differ")
+    require(worker_calls[0] == worker_calls[1], "Calculation-phase barrier calls differ")
+    require(not failures, "; ".join(failures))
+    return {"status":"verified within-workbook legacy scalar pool", "formula_cases":len(cases), "native_invocations_each_host":sum(entry_counts[0].values()),
+            "native_records":records[0], "overlap_excel_and_host":overlaps,"ownership_excel_and_host":ownership,"host_results":outputs,
+            "source_bindings_checked":sum(len(e["source_files"])+2 for e in envs),
+            "scope":"Two independent explicitly legacy scalar cells in one workbook, distinct worker entries, owner-serviced callbacks, exact P07 activations and same-thread frees. Dynamic spill formulas stay ordered; volatile plans and additional dynamic callback prerequisites are outside this concurrent route."}
+
+
 def verify_permissions(excel, control, hosts, cases_path, publication_path):
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in (excel, control)]
@@ -1074,6 +1150,7 @@ if __name__ == "__main__":
     parser.add_argument("--x3-cases", type=Path)
     parser.add_argument("--x4-cases", type=Path)
     parser.add_argument("--rtd-cases", type=Path)
+    parser.add_argument("--workbook-pool-cases", type=Path)
     parser.add_argument("--permission-cases", type=Path)
     parser.add_argument("--permission-host", type=Path)
     parser.add_argument("--source-publication", type=Path)
@@ -1088,7 +1165,8 @@ if __name__ == "__main__":
             result = verify_x2_controls(args.traced, args.control, args.identity)
         elif args.host:
             parser.error("--host requires --host-control") if args.host_control is None else None
-            result = (verify_rtd(args.traced, args.control, args.host, args.host_control, args.rtd_cases, args.source_publication) if args.rtd_cases else
+            result = (verify_workbook_pool(args.traced, args.control, args.host, args.host_control, args.workbook_pool_cases, args.source_publication) if args.workbook_pool_cases else
+                      verify_rtd(args.traced, args.control, args.host, args.host_control, args.rtd_cases, args.source_publication) if args.rtd_cases else
                       verify_x2(args.traced, args.control, args.host, args.host_control, args.x4_cases or args.x3_cases or args.x2_cases, args.source_publication, x3=bool(args.x3_cases or args.x4_cases), x4=bool(args.x4_cases))
                       if args.x2_cases or args.x3_cases or args.x4_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
         else:
@@ -1097,7 +1175,7 @@ if __name__ == "__main__":
         failed = True
         result = {"status": "failed verification", "error": str(error), "error_type": type(error).__name__}
         trace = error.__traceback__
-        while trace and trace.tb_frame.f_code.co_name not in ("verify_x2", "verify_rtd", "verify_permissions"):
+        while trace and trace.tb_frame.f_code.co_name not in ("verify_x2", "verify_rtd", "verify_permissions", "verify_workbook_pool"):
             trace = trace.tb_next
         if trace:
             data = trace.tb_frame.f_locals
@@ -1105,6 +1183,8 @@ if __name__ == "__main__":
                 changes = data["changes"]
                 differences = [i for i, pair in enumerate(zip_longest(*(changes + [[]] * (2 - len(changes))))) if pair[0] != pair[1]]
                 result.update({"formula_cases_checked": len(data.get("cases", [])), "native_invocations_checked": data.get("call_comparisons", []), "sheet_changes_excel_and_host": changes, "udf_early_com_excel_and_host": data.get("nested", []), "sheet_change_differences": differences, "scope": "Strict X4 comparison remains failed; matching earlier checks do not convert the differing event calls into passes."})
+            elif trace.tb_frame.f_code.co_name == "verify_workbook_pool":
+                result.update({"formula_outcomes":data.get("outcomes",[]),"overlap_excel_and_host":data.get("overlaps",[]),"calculation_phase_calls_excel_and_host":data.get("worker_calls",[]),"native_invocations_excel_and_host":data.get("records",[]),"native_entry_counts_excel_and_host":data.get("entry_counts",[]),"ownership_excel_and_host":data.get("ownership",[]),"source_bindings_checked":data.get("source_bindings_checked",0),"compatibility_failures":data.get("failures",[]),"scope":"Strict full-profile failure; overlap and owning-activation evidence do not convert extra entry-time native calls or differing outcomes into passes."})
             elif trace.tb_frame.f_code.co_name == "verify_rtd":
                 pairs = data.get("protocol_pairs", [])
                 result.update({"host_results_checked": data.get("outputs", []), "source_bindings_checked": data.get("source_bindings_checked", 0), "client_protocols_excel_and_host": data.get("protocols", []), "raw_client_protocols_excel_and_host": data.get("raw_protocols", []), "client_protocol_comparison": pairs, "client_calls_matched": sum(r["matched"] for r in pairs), "client_calls_failed": sum(not r["matched"] for r in pairs), "client_calls_by_method": data.get("method_pairs", []), "server_bindings": data.get("server_bindings", []), "native_invocations_excel_and_host": data.get("native", []), "native_ownership_excel_and_host": data.get("ownership", []), "internal_server_bodies": data.get("internals", []), "scope": "Failed RTD comparison; successful value/provenance checks do not turn differing or incomplete traffic into passes."})

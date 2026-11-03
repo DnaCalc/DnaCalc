@@ -42,12 +42,13 @@ mod lift;
 mod refops;
 mod run;
 
+pub use compile::{
+    CompileError, NameAnalysis, analyze_loaded_names, compile, compile_loaded, compile_loaded_with,
+    compile_loaded_with_bindings, compile_loaded_with_functions, compile_with,
+    compile_with_functions,
+};
 /// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.
 pub(crate) use compile::{binding_call, file_unprefixed};
-pub use compile::{
-    CompileError, compile, compile_loaded, compile_loaded_with, compile_loaded_with_bindings,
-    compile_loaded_with_functions, compile_with, compile_with_functions,
-};
 pub use run::{
     ContinuationProgress, EvalContinuation, EvalFault, EvalStep, MAX_CALL_DEPTH, evaluate,
 };
@@ -106,6 +107,35 @@ impl CompiledPlan {
                 .iter()
                 .any(|instruction| matches!(instruction, Instruction::UserCall { .. }))
         })
+    }
+
+    /// A conservative permission for independent scalar cells. Every user call,
+    /// including calls in unselected branches, must have a checked binding.
+    pub fn parallel_call_limit(&self, functions: &crate::CallableBindings) -> Option<usize> {
+        if self.callable_bindings.is_empty() {
+            return None;
+        }
+        if self.volatile() {
+            return None;
+        }
+        let mut limit = None;
+        for instruction in self.blocks.iter().flatten() {
+            if let Instruction::Function(target) = instruction
+                && VOLATILE_FUNCTIONS
+                    .iter()
+                    .any(|name| strip_future_prefix(target.0.spelling()).eq_ignore_ascii_case(name))
+            {
+                return None;
+            }
+            if let Instruction::UserCall { binding, .. } = instruction {
+                let next = functions.max_parallel_calls((*binding)?);
+                if next <= 1 {
+                    return None;
+                }
+                limit = Some(limit.map_or(next, |held: usize| held.min(next)));
+            }
+        }
+        limit
     }
 
     /// Every callback in this plan uses the cached observation boundary. This does not

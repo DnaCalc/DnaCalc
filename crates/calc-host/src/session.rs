@@ -980,34 +980,48 @@ impl HostSession {
         let mut pending =
             BTreeMap::<calc_doc_model::value::NameKey, std::collections::VecDeque<String>>::new();
         for edit in &edits {
-            if let CellEdit::SetName {
-                name,
-                scope,
-                formula,
-            } = edit
-            {
-                let key = calc_doc_model::value::NameKey::new(*scope, name);
-                let queue = pending.entry(key.clone()).or_insert_with(|| {
-                    self.host
-                        .model
-                        .definitions()
-                        .name_table()
-                        .matching(&key)
-                        .map(|node| node.definition().formula.clone())
-                        .collect()
-                });
-                match formula {
-                    Some(formula) => {
-                        if let Some(first) = queue.front_mut() {
-                            *first = formula.clone();
-                        } else {
-                            queue.push_back(formula.clone());
+            match edit {
+                CellEdit::SetName {
+                    name,
+                    scope,
+                    formula,
+                } => {
+                    let key = calc_doc_model::value::NameKey::new(*scope, name);
+                    let queue = pending.entry(key.clone()).or_insert_with(|| {
+                        self.host
+                            .model
+                            .definitions()
+                            .name_table()
+                            .matching(&key)
+                            .map(|node| node.definition().formula.clone())
+                            .collect()
+                    });
+                    match formula {
+                        Some(formula) => {
+                            if let Some(first) = queue.front_mut() {
+                                *first = formula.clone();
+                            } else {
+                                queue.push_back(formula.clone());
+                            }
+                        }
+                        None => {
+                            queue.pop_front();
                         }
                     }
-                    None => {
-                        queue.pop_front();
+                }
+                CellEdit::RestoreNames(names) => {
+                    for snapshot in names {
+                        pending.insert(
+                            snapshot.key.clone(),
+                            snapshot
+                                .records
+                                .iter()
+                                .map(|record| record.definition.formula.clone())
+                                .collect(),
+                        );
                     }
                 }
+                _ => {}
             }
         }
         let names: BTreeMap<_, _> = pending

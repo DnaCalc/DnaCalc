@@ -389,6 +389,7 @@ pub struct RecalcWork {
     reference_rank: BTreeMap<NodeId, usize>,
     segments: BTreeMap<NodeId, usize>,
     segment_scheduling: bool,
+    parallel_scheduling: bool,
     has_fences: bool,
     preferred_quanta: usize,
     urgent_interest: bool,
@@ -642,9 +643,7 @@ impl RecalcWork {
         if !self.segment_scheduling || !self.cyclic.is_empty() {
             return;
         }
-        let members: BTreeSet<_> = self.order.iter().copied().collect();
-        let mut producers: BTreeMap<NodeId, Vec<NodeId>> = BTreeMap::new();
-        let mut readers = Vec::new();
+        let producers = scheduling_precedents(state, inputs, &self.order);
         for &node in &self.order {
             let footprint = published_areas(state, inputs, node);
             if areas.iter().any(|area| {
@@ -654,12 +653,6 @@ impl RecalcWork {
                         .any(|filled| crate::contract::meets(*area, *filled))
             }) {
                 self.preferred.insert(node);
-            }
-            readers_into(state, inputs, node, &footprint, &mut readers);
-            for &reader in &readers {
-                if members.contains(&reader) {
-                    producers.entry(reader).or_default().push(node);
-                }
             }
         }
         let mut stack: Vec<_> = self.preferred.iter().copied().collect();
@@ -1248,12 +1241,31 @@ fn begin_with_scope(
         .enumerate()
         .map(|(rank, node)| (*node, rank))
         .collect();
+    let segment_scheduling = !iteration.enabled()
+        && inputs.definitions().data_tables().is_empty()
+        && !order.iter().any(|node| {
+            state.volatile.contains(node)
+                && matches!(
+                    state.bindings.get(node),
+                    Some(Binding::Placed(_, ArrayRole::Spill))
+                )
+        });
     let mut segment = 0;
+    let mut parallel = false;
     let segments: BTreeMap<_, _> = order
         .iter()
         .map(|node| {
             let fence = match state.bindings.get(node) {
-                Some(Binding::Placed(instance, _)) => instance.plan().has_user_calls(),
+                Some(Binding::Placed(instance, role)) => {
+                    let allowed = segment_scheduling
+                        && matches!(role, ArrayRole::Cell)
+                        && instance
+                            .plan()
+                            .parallel_call_limit(&state.callables)
+                            .is_some();
+                    parallel |= allowed;
+                    instance.plan().has_user_calls() && !allowed
+                }
                 Some(Binding::Refused(NotModeled::Compile(
                     calc_fml::CompileError::UnknownFunction { .. },
                 ))) => inputs.definitions().macro_enabled(),
@@ -1269,23 +1281,19 @@ fn begin_with_scope(
             (*node, own)
         })
         .collect();
-    let segment_scheduling = !iteration.enabled()
-        && inputs.definitions().data_tables().is_empty()
-        && !order.iter().any(|node| {
-            state.volatile.contains(node)
-                && matches!(
-                    state.bindings.get(node),
-                    Some(Binding::Placed(_, ArrayRole::Spill))
-                )
-        });
     Ok(RecalcWork {
         interest: Vec::new(),
         preferred: BTreeSet::new(),
-        precedents: BTreeMap::new(),
+        precedents: if parallel {
+            scheduling_precedents(state, inputs, &order)
+        } else {
+            BTreeMap::new()
+        },
         reference_rank,
         segments,
         has_fences: segment != 0,
         segment_scheduling,
+        parallel_scheduling: parallel && segment_scheduling,
         preferred_quanta: 0,
         urgent_interest: false,
         service_clock: 0,
@@ -1658,6 +1666,21 @@ fn process(
         work.local = local;
     }
     work.local.quantum = quantum;
+    if let Some((limit, held)) = parallel_reservations(state, work)
+        && !held.contains(&node)
+        && matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls())
+        && parallel_limit(state, node).is_none_or(|own| held.len() >= limit.min(own))
+    {
+        let done = refused(
+            work,
+            NotModeled::Evaluation(EvalFault::NotModelled {
+                construct: "a scalar callback admission without an available pool slot",
+                owner: "dc-snz.23",
+            }),
+        );
+        stage(state, inputs, work, node, done);
+        return;
+    }
     let attempt = evaluate_node(state, inputs, work, node, &mut *observer);
     apply(state, inputs, work, node, attempt, observer);
 }
@@ -1789,6 +1812,21 @@ fn apply(
         }
         Ok(Attempt::Kept) => keep(state, inputs, work, node),
         Ok(Attempt::Waits { on, cell }) => {
+            if work.parallel_scheduling && parallel_limit(state, node).is_some() {
+                // Static prerequisites were checked before entry. A callback's
+                // additional prerequisite cannot consume an unreserved worker,
+                // be retried as the same invocation, or be labelled circular.
+                work.local.activation.take();
+                let done = refused(
+                    work,
+                    NotModeled::Evaluation(EvalFault::NotModelled {
+                        construct: "a dynamic prerequisite inside a concurrent scalar callback",
+                        owner: "dc-snz.23",
+                    }),
+                );
+                stage(state, inputs, work, node, done);
+                return;
+            }
             observer.deferred(live_anchor(state, node), cell);
             defer(state, inputs, work, node, on);
         }
@@ -3597,11 +3635,73 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
     }
 }
 
-/// Choose one quantum without moving the command's admitted reference ranks. Off-interest
-/// work gets the eighth contested quantum, even while an interested kernel keeps yielding.
+/// Static prerequisites shared by viewport priority and scalar pool admission.
+fn scheduling_precedents(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    order: &[NodeId],
+) -> BTreeMap<NodeId, Vec<NodeId>> {
+    let members: BTreeSet<_> = order.iter().copied().collect();
+    let mut producers: BTreeMap<NodeId, Vec<NodeId>> = BTreeMap::new();
+    let mut readers = Vec::new();
+    for &node in order {
+        let footprint = published_areas(state, inputs, node);
+        readers_into(state, inputs, node, &footprint, &mut readers);
+        for &reader in &readers {
+            if members.contains(&reader) {
+                producers.entry(reader).or_default().push(node);
+            }
+        }
+    }
+    producers
+}
+
+fn parallel_limit(state: &EngineState, node: NodeId) -> Option<usize> {
+    match state.bindings.get(&node)? {
+        Binding::Placed(instance, ArrayRole::Cell) => {
+            instance.plan().parallel_call_limit(&state.callables)
+        }
+        _ => None,
+    }
+}
+
+/// Reserve a place from the cell's first suspended instruction through its
+/// completion, including pure prefixes before a native call. Resuming a prefix
+/// cannot start an additional call outside the admitted capacity.
+fn parallel_reservations(
+    state: &EngineState,
+    work: &RecalcWork,
+) -> Option<(usize, BTreeSet<NodeId>)> {
+    if !work.parallel_scheduling {
+        return None;
+    }
+    let mut held = BTreeMap::new();
+    for (node, local) in work
+        .suspended
+        .iter()
+        .map(|(node, local)| (Some(*node), local))
+        .chain(std::iter::once((
+            work.local.current_node.get(),
+            &work.local,
+        )))
+    {
+        if (local.activation.is_some() || local.placement.is_some())
+            && let Some(node) = node
+            && !work.progress.is_evaluated(node)
+            && let Some(limit) = parallel_limit(state, node)
+        {
+            held.insert(node, limit);
+        }
+    }
+    Some((*held.values().min()?, held.into_keys().collect()))
+}
+
+/// Choose one quantum without moving admitted reference ranks. Off-interest
+/// work gets the eighth contested quantum; pool cells share by service age.
 fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId> {
+    let parallel = parallel_reservations(state, work);
     if !work.segment_scheduling
-        || (!work.has_fences && work.preferred.is_empty())
+        || (!work.has_fences && work.preferred.is_empty() && parallel.is_none())
         || work.waves != 0
         || !work.cyclic.is_empty()
     {
@@ -3640,6 +3740,20 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
                 .all(|producer| work.progress.is_evaluated(*producer))
         })
         .filter(|node| work.segments.get(node) == Some(&segment))
+        .filter(|node| {
+            let Some((limit, held)) = &parallel else {
+                return true;
+            };
+            if held.contains(node) {
+                return true;
+            }
+            match state.bindings.get(node) {
+                Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls() => {
+                    parallel_limit(state, *node).is_some_and(|own| held.len() < (*limit).min(own))
+                }
+                _ => true,
+            }
+        })
         .filter(|node| !is_array(*node) || first_array == Some(*node));
     let mut preferred = None;
     let mut other = None;
@@ -3654,7 +3768,7 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
                 preferred = Some((rank, node));
             }
         } else {
-            let age = if work.preferred.is_empty() {
+            let age = if work.preferred.is_empty() && parallel.is_none() {
                 0
             } else {
                 work.last_service.get(&node).copied().unwrap_or(0)

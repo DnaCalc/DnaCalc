@@ -290,12 +290,23 @@ try {
         }
         $sheet.Range('A1').Value2 = 7
         foreach ($case in (Get-Content -LiteralPath $Cases -Raw | ConvertFrom-Json)) {
-            if ($case.PSObject.Properties['dependent']) { $sheet.Range('C3').Formula2=[string]$case.dependent }
+            if ($case.PSObject.Properties['manual'] -and $case.manual) { $excel.Calculation=-4135 }
+            if ($case.PSObject.Properties['dependent']) {
+                if ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('C3').Formula=[string]$case.dependent }
+                else { $sheet.Range('C3').Formula2=[string]$case.dependent }
+            }
             if ($case.PSObject.Properties['enable_events']) { $excel.EnableEvents=[bool]$case.enable_events }
             if ($case.PSObject.Properties['edit']) { $sheet.Range([string]$case.edit.cell).Value2=[double]$case.edit.value }
             # Assign the formula anchor directly, as the OneCalc controller does.
             # Excel removes the previous anchor's spill when replacing its formula.
-            $sheet.Range('B3').Formula2 = [string]$case.formula
+            if ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('B3').Formula = [string]$case.formula }
+            else { $sheet.Range('B3').Formula2 = [string]$case.formula }
+            if ($case.PSObject.Properties['before_calculate']) {
+                $commandValue=$excel.Run([string]$case.before_calculate)
+                Note ('before Calculate ' + [string]$case.before_calculate) $commandValue
+                if ($commandValue -ne $case.before_calculate_value) { throw 'Precalculation command differs.' }
+            }
+            if ($case.PSObject.Properties['manual'] -and $case.manual) { $excel.Calculate() }
             if ($case.formula -match 'X0.Async') {
                 $deadline=[DateTime]::UtcNow.AddSeconds(60)
                 do { Start-Sleep -Milliseconds 100; $value=$sheet.Range('B3').Value2 } until ($value -eq 42 -or [DateTime]::UtcNow -gt $deadline)

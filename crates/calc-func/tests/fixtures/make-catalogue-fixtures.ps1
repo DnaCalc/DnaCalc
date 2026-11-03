@@ -316,6 +316,7 @@ $FormulaSheets += , @('dch9u_functions', 'sheet-dch9u.txt')
 $FormulaSheets += , @('dc96l3_bessel', 'sheet-dc96l3_bessel.txt')
 $FormulaSheets += , @('dc96l3_discrete', 'sheet-dc96l3_discrete.txt')
 $FormulaSheets += , @('dc96l3_x87', 'sheet-dc96l3_x87.txt')
+$FormulaSheets += , @('dcj9k_r16', 'sheet-dcj9k_r16.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),

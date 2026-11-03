@@ -1,0 +1,8 @@
+[
+  {"manual":true,"legacy":true,"formula":"=MyOverlap(40)","value":41,"dependent":"=MyOverlap(80)","dependent_value":81,"before_calculate":"MyOverlapReset","before_calculate_value":1},
+  {"manual":true,"legacy":true,"formula":"=MyOverlapMax()","value":2,"dependent":"=0","dependent_value":0},
+  {"manual":true,"legacy":true,"formula":"=MyWorkerCallbacks(19,23)","value":42},
+  {"manual":true,"legacy":true,"formula":"=MyWorkerReference(A1)","value":7},
+  {"manual":true,"legacy":true,"formula":"=MyWorkerOwned()","value":"native owned"},
+  {"manual":true,"legacy":true,"formula":"=MyFreeCount()","value":1}
+]

@@ -678,3 +678,36 @@ requests evaluate `1+1`; the measured `$` denial remains128. The native fixture
 retains the result type and exact double bits for comparison with Excel. Nested
 retained kernel calls live on the heap so the existing one-megabyte recursion test
 continues to exercise the full evaluator depth after the shared helper changes.
+
+The corrected X4 comparison checks all12 cases and13 SheetChange deliveries,
+including Worksheet.Name and both addresses in every event. The permission matrix
+now matches all39 requests, including result2 and its exact double bits for the
+normal and `#` EVALUATE calls. Original xlOil empty signals produce55/dependent110
+with a sequence3 P07 certificate, followed by replacement99/dependent198 and topic
+retirement. The strict RTD protocol comparison still fails: Excel makes11 client
+calls, including three Heartbeats, and the host makes eight. The other eight
+method occurrences and their payloads match. A traced completion deadline failure
+is retained beside a separate successful capture of the same executable.
+
+## 18. Within-workbook scalar pool calls (dc-snz.23)
+
+A callable opts into a fixed maximum of independent scalar activations when it
+registers. State lanes, cached reads, semantic reevaluation and reentry keep the
+default single activation. Synchronous `$` XLL adapters publish their pool's
+capacity. Only explicitly legacy scalar cells with eligible calls may share a
+segment. Dynamic spill formulas, legacy array producers and volatile plans remain
+ordered; iteration and data-table calculation retain their existing scheduling.
+
+The scheduler checks static prerequisites and shares service by age. A suspended
+pure prefix reserves capacity until its cell completes, so a later prefix cannot
+start another call beyond the limit. All fallback admissions check that limit.
+An additional prerequisite discovered inside a concurrent callback returns a
+typed dc-snz.23 refusal instead of consuming another slot or becoming a circular
+result. Native async continues to use its separate P07 completion route.
+
+The reference fixture selects legacy form and Manual calculation in both hosts.
+Excel also evaluates these formulas on its owner thread during entry. Its extra
+entry calls remain part of the strict comparison. The fixture resets its existing
+barrier after entry and before Calculate, in both hosts, to measure actual worker
+overlap independently. An overlap witness is not a full lifecycle compatibility
+pass; differing native invocation or owned-result counts remain failures.

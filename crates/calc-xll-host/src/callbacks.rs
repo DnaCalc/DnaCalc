@@ -733,6 +733,7 @@ fn run(
                     "dc-snz.18: nested registered calls that change cached-read mode are not modelled".into()));
             }
             let adapter = crate::native::XllFunction {
+                parallel: 1,
                 state: frame.state.clone(),
                 registration,
                 bound: false,

@@ -113,6 +113,11 @@ pub enum UserReevaluationReason {
 /// returns worksheet errors as values and execution failures as diagnostics (mapped to #VALUE!).
 /// No Send/Sync promise is made: a desktop add-in may belong to its owning thread.
 pub trait UserFunction: fmt::Debug {
+    /// Maximum independent scalar-cell activations allowed together. This is
+    /// fixed when registering the callable; adapters opt in explicitly.
+    fn max_parallel_calls(&self) -> usize {
+        1
+    }
     fn reevaluation_policy(&self) -> Option<UserReevaluationReason> {
         None
     }

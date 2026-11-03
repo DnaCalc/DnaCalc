@@ -13,6 +13,7 @@ pub struct CallableBindings {
     entries: BTreeMap<(Option<String>, String), CallableHandle>,
     provisional: Vec<CallableHandle>,
     cached_readers: Vec<CallableHandle>,
+    parallel: BTreeMap<CallableHandle, usize>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CallableBindingProof {
@@ -21,6 +22,9 @@ pub struct CallableBindingProof {
     pub bound: Option<CallableHandle>,
 }
 impl CallableBindings {
+    pub fn max_parallel_calls(&self, handle: CallableHandle) -> usize {
+        self.parallel.get(&handle).copied().unwrap_or(1)
+    }
     pub fn uses_cached_reads(&self, handle: CallableHandle) -> bool {
         self.cached_readers.contains(&handle)
     }
@@ -77,6 +81,7 @@ struct Registration {
     /// Retain the inventory spelling separately from its shared comparison key.
     name: String,
     handle: CallableHandle,
+    parallel: usize,
 }
 
 impl CallableTable {
@@ -86,6 +91,12 @@ impl CallableTable {
 
     pub fn bindings(&self) -> CallableBindings {
         CallableBindings {
+            parallel: self
+                .entries
+                .values()
+                .filter(|entry| entry.parallel > 1)
+                .map(|entry| (entry.handle, entry.parallel))
+                .collect(),
             cached_readers: self
                 .entries
                 .values()
@@ -146,6 +157,7 @@ impl CallableTable {
                 key,
                 Registration {
                     name: registration.name,
+                    parallel: registration.parallel,
                     handle: CallableHandle {
                         table: self.identity,
                         slot: slot as u32,
@@ -196,6 +208,15 @@ impl CallableTable {
             slot: u32::try_from(self.slots.len()).map_err(|_| "callable slots exhausted")?,
             generation: self.next_generation(self.slots.len()),
         };
+        let parallel = if function.state_lane().is_none()
+            && !function.cached_reads()
+            && function.reevaluation_policy().is_none()
+            && !function.permits_reentry()
+        {
+            function.max_parallel_calls().max(1)
+        } else {
+            1
+        };
         self.slots.push(Some(function));
         self.generations.push(handle.generation);
         self.entries.insert(
@@ -203,6 +224,7 @@ impl CallableTable {
             Registration {
                 name: name.to_ascii_uppercase(),
                 handle,
+                parallel,
             },
         );
         Ok(())
