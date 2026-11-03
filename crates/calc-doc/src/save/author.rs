@@ -409,6 +409,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         .definitions()
         .all_conditional_rules()
         .ne(model.definitions().all_conditional_rules());
+    let filters_changed = base.definitions().auto_filters().ne(model.definitions().auto_filters());
+    let visibility_changed = base.definitions().hidden_rows_all().ne(model.definitions().hidden_rows_all());
     let panes_changed = base.definitions().panes().ne(model.definitions().panes());
     let dimensions_changed =
         base.definitions().axis_layouts() != model.definitions().axis_layouts();
@@ -422,6 +424,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         && !conditional_changed
         && !panes_changed
         && !dimensions_changed
+        && !filters_changed
+        && !visibility_changed
         && iteration.is_none()
         && !sheets_changed
     {
@@ -1001,9 +1005,9 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     {
         out.removed.push(chain);
     }
-    if dimensions_changed || model.definitions().styles().runs.iter().next().is_some() {
+    if dimensions_changed || visibility_changed || model.definitions().styles().runs.iter().next().is_some() {
         for sheet in sheets.iter() {
-            let changed = model
+            let changed = base.definitions().hidden_rows(sheet.id(),1,1048576).ne(model.definitions().hidden_rows(sheet.id(),1,1048576)) || model
                 .definitions()
                 .styles()
                 .runs
@@ -1047,10 +1051,19 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             let bytes = super::geometry::rewrite(
                 xml,
                 sheet.id(),
-                model.definitions().axis_layouts(),
+                &model.definitions().visible_axis_layouts(),
                 style_plan.as_ref(),
             )?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
+    }
+    if filters_changed || dimensions_changed {
+        for sheet in sheets.iter().filter(|s| !model.definitions().auto_filter(s.id()).is_some_and(|f|f.unsupported) && (base.definitions().auto_filter(s.id()) != model.definitions().auto_filter(s.id()) || (model.definitions().auto_filter(s.id()).is_some() && base.definitions().axis_layouts()!=model.definitions().axis_layouts()))) {
+            let original=super::sheets::read_sheet(package,sheet.part().name())?;
+            let current=out.rewritten.remove(sheet.part().name()).map(|bytes|original.with_bytes(bytes));
+            let xml=current.as_ref().unwrap_or(&original);
+            let bytes=super::filter::rewrite(xml,model.definitions().auto_filter(sheet.id()),model.definitions())?;
+            out.rewritten.insert(sheet.part().name().to_owned(),bytes);
         }
     }
     if panes_changed {

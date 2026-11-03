@@ -337,6 +337,7 @@ pub enum Intent {
         rows: u32,
         columns: u32,
     },
+    AutoFilter { sheet:Sheet, revision:u64, change:FilterChange },
     SortRows {
         area: Area,
         column: u32,
@@ -481,9 +482,22 @@ pub struct ToServer {
     pub request: Request,
 }
 
+/// Commands carry neutral criteria; the host validates and owns their authored representation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FilterChange {
+    Enable(Area), Values { column:u32, values:Vec<String>, blank:bool },
+    Custom { column:u32, and:bool, predicates:Vec<(String,String)> },
+    ClearColumn(u32), Clear, Remove, Reapply,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FilterView {
+    pub area:Area, pub columns:Vec<u32>, pub filtered:u32, pub unsupported:bool,
+}
+
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    FilterValues { sheet:Sheet, column:u32 },
     Names {
         query: String,
         page: u64,
@@ -692,6 +706,8 @@ pub struct Outcome {
 /// A sheet's sizes as the file states them (calc-host's sheet geometry).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
+    #[serde(default)]
+    pub auto_filter: Option<FilterView>,
     /// Areas whose absent cells are known empty in this committed subscription root.
     #[serde(default)]
     pub coverage: Vec<Area>,
@@ -826,6 +842,7 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    FilterValues { revision:u64, values:Result<(Vec<(String,bool)>,bool),String>, criteria:Option<FilterChange> },
     Names(crate::names::NamePage),
     NameEvaluation(crate::names::NameEvaluation),
     FormatSelection(Result<crate::format::FormatSelection, String>),

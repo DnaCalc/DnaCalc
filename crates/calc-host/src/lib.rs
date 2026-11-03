@@ -55,6 +55,8 @@
 
 mod actions;
 mod format;
+mod filter;
+pub use filter::{AutoFilter,FilterCriteria,FilterOperator,FilterPredicate,FilterChange,filter_values};
 mod names;
 pub use facts::alignment as style_alignment;
 pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};

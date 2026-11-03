@@ -600,6 +600,7 @@ impl Server {
                     }
                     Ok(Reply::Subscribed)
                 }
+                Request::FilterValues { sheet,column } => Ok(Reply::FilterValues { revision:self.book.host().revision().get(), values:calc_host::filter_values(self.book.host(),sheet.id(),column), criteria:self.book.host().model().definitions().auto_filter(sheet.id()).and_then(|f|f.columns.get(&column)).map(|c|match c {calc_host::FilterCriteria::Values{values,blank}=>wire::FilterChange::Values{column,values:values.clone(),blank:*blank},calc_host::FilterCriteria::Custom{and,predicates}=>wire::FilterChange::Custom{column,and:*and,predicates:predicates.iter().map(|p|(p.operator.xml().to_owned(),p.value.clone())).collect()}}) }),
                 Request::Geometry(sheet) => Ok(Reply::Geometry(self.geometry(sheet))),
                 Request::UsedArea(sheet) => Ok(Reply::UsedArea(
                     self.book.used_area(sheet.id()).map(Area::of),
@@ -1084,6 +1085,16 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::AutoFilter {sheet,revision,change} => {
+                use wire::FilterChange as W; use calc_host::{FilterChange as H,FilterCriteria,FilterPredicate,FilterOperator};
+                let change=match change {
+                    W::Enable(a)=>H::Enable{area:area(a)?},
+                    W::Values{column,values,blank}=>H::Column{column,criteria:Some(FilterCriteria::Values{values,blank})},
+                    W::Custom{column,and,predicates}=>H::Column{column,criteria:Some(FilterCriteria::Custom{and,predicates:predicates.into_iter().map(|(operator,value)|Ok(FilterPredicate{operator:FilterOperator::from_xml(&operator).ok_or("Unknown filter operator")?,value})).collect::<Result<Vec<_>,&str>>()?})},
+                    W::ClearColumn(column)=>H::Column{column,criteria:None}, W::Clear=>H::Clear,W::Remove=>H::Remove,W::Reapply=>H::Reapply,
+                };
+                SkinIntent::Command(calc_host::WorkbookCommand::AutoFilter{sheet:sheet.id(),revision,change})
+            },
             Intent::SortRows {area:a,column,header,descending,revision} => SkinIntent::Command(calc_host::WorkbookCommand::SortRows {area:area(a)?,column,header,descending,revision}),
             Intent::Replace {
                 options,
@@ -1839,6 +1850,7 @@ impl Server {
             .sheet_geometry(sheet.id())
             .map(|g| wire::geometry_of(&g))
             .unwrap_or_default();
+        geometry.auto_filter=self.book.host().model().definitions().auto_filter(sheet.id()).map(|f|wire::FilterView{area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported});
         geometry.merges = self
             .book
             .host()

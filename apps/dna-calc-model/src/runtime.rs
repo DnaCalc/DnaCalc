@@ -65,9 +65,21 @@ pub struct Health {
     pub pending: usize,
 }
 
+/// A revision-bound filter draft; choices are never applied to a different sheet or workbook.
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct FilterTools {
+    pub column:String, pub search:String, pub values:Vec<(String,bool)>, pub blank:bool,
+    pub operator:String, pub value:String, pub operator2:String, pub value2:String, pub and:bool,
+    pub sheet:Option<wire::Sheet>, pub revision:u64, pub epoch:u64, pub message:String, pub loaded:bool, pub open:bool,
+}
+impl Default for FilterTools {
+    fn default()->Self {Self{column:"1".into(),search:String::new(),values:Vec::new(),blank:true,operator:"equal".into(),value:String::new(),operator2:String::new(),value2:String::new(),and:true,sheet:None,revision:0,epoch:0,message:String::new(),loaded:false,open:false}}
+}
+
 /// Shared Find/Replace/Go To inputs and workbook-relative query results.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolState {
+    pub filter: FilterTools,
     pub sort_header: bool,
     pub sort_column: String,
     pub query: String,
@@ -91,6 +103,7 @@ pub struct ToolState {
 impl Default for ToolState {
     fn default() -> Self {
         Self {
+            filter: FilterTools::default(),
             sort_header: true,
             sort_column: "1".into(),
             query: String::new(),
@@ -123,6 +136,7 @@ impl ToolState {
     /// Keep user inputs; retire results, permissions and locations from the old workbook.
     pub fn reset_workbook(&mut self) {
         self.invalidate_search();
+        self.filter=FilterTools {epoch:self.filter.epoch+1,..Default::default()};
         self.selected = 0;
         self.found_revision = 0;
         self.anchor = None;
@@ -229,6 +243,7 @@ mod tool_tests {
 
     fn populated() -> ToolState {
         ToolState {
+            filter: FilterTools {loaded:true, sheet:Some(wire::Sheet(0,0)), revision:7, epoch:3, values:vec![("old choice".into(),true)],..Default::default()},
             sort_header: false,
             sort_column: "3".into(),
             query: "needle".into(),
@@ -283,6 +298,8 @@ mod tool_tests {
         model.reset_workbook();
         let state = &model.runtime.tools;
         assert_ne!(state.epoch, before.epoch);
+        assert!(!state.filter.loaded && state.filter.sheet.is_none() && state.filter.values.is_empty());
+        assert!(state.filter.epoch>before.filter.epoch);
         assert!(state.found.is_none() && state.anchor.is_none() && state.areas.is_empty());
         assert!(state.permission.is_none() && state.selection_stats.is_none());
         assert!(state.message.is_empty());

@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub enum CellEdit {
     /// Authored style table, in the same transaction as its cell assignments.
     Styles(Arc<calc_doc_model::StyleTable>),
+    AutoFilter { sheet: calc_doc_model::value::SheetId, filter: Option<calc_doc_model::AutoFilter> },
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
     /// Replaces authored conditional rules, retaining original XML fields.
@@ -76,6 +77,7 @@ impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
+            CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
             CellEdit::ConditionalRules { sheet, rules } => {
                 WorkbookOp::SetConditionalRules { sheet, rules }
@@ -289,6 +291,19 @@ pub fn dispatch(
             _ => None,
         })
         .collect();
+    let mut filter_areas=host.model.definitions().auto_filters().map(|(s,f)|(s,f.area)).collect::<std::collections::BTreeMap<_,_>>();
+    for edit in &axis_edits {
+        if edit.axis()==calc_doc_model::Axis::Rows && host.model.definitions().auto_filter(edit.sheet()).is_some_and(|f|f.unsupported && host.model.definitions().axis_layouts().bands(edit.sheet(),calc_doc_model::Axis::Rows).any(|(r,v)|r>f.area.first().row() && r<=f.area.last().row() && v.hidden())) {
+            return Err(CommandError::Document(EditError::SheetOperation("Row edits with independent manual hiding in an imported filter are not modelled (dc-971p.37); nothing changed".into())));
+        }
+        if let Some(area)=filter_areas.get(&edit.sheet()).copied() {
+            if edit.axis()==calc_doc_model::Axis::Rows && edit.change()==calc_doc_model::AxisChange::Delete && edit.first()<=area.first().row() && edit.last()>=area.first().row() {
+                return Err(CommandError::Document(EditError::SheetOperation("Remove AutoFilter before deleting its header (dc-971p.37); nothing changed".into())));
+            }
+            let next=calc_doc_model::moved_area(*edit,area).ok_or_else(||CommandError::Document(EditError::SheetOperation("Remove AutoFilter before deleting or moving its entire range outside the grid (dc-971p.37); nothing changed".into())))?;
+            filter_areas.insert(edit.sheet(),next);
+        }
+    }
     for edit in &axis_edits {
         if let Some(view) = host.sheet_view(edit.sheet())
             && let Some(p) = view.frozen
@@ -413,7 +428,7 @@ pub fn dispatch(
     let facts_changed = batch
         .operations
         .iter()
-        .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_)));
+        .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. }));
     let changes_inputs =
         facts_changed || !engine.seeds().is_empty() || !engine.node_changes().is_empty();
     let (mut added, mut replaced, mut removed) = (0usize, 0usize, 0usize);

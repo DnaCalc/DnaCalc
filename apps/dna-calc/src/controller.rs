@@ -2077,6 +2077,95 @@ impl Controller {
     }
 
 
+    pub fn filter_view(&self)->Option<wire::FilterView> {
+        let sheet=self.sheet.get()?;
+        self.grid_geometry.with(|all|all.get(&sheet).and_then(|g|g.auto_filter.clone()))
+    }
+    pub fn filter_command(&self,change:wire::FilterChange) {self.filter_command_revision(change,None);}
+    fn filter_command_revision(&self,change:wire::FilterChange,expected:Option<u64>) {
+        let controller=*self;
+        let generation=self.generation.get_untracked(); let target=self.sheet.get_untracked();
+        self.after_input(move || {
+            if controller.generation.get_untracked()!=generation || controller.sheet.get_untracked()!=target {controller.say("The filter target changed; reopen it",true);return;}
+            if controller.editing.get_untracked().is_some(){controller.say("Finish the entry before filtering",true);return;}
+            let Some(sheet)=controller.sheet.get_untracked()else{return;};
+            let revision=controller.summary.get_untracked().revision;
+            if expected.is_some_and(|r|r!=revision){controller.say("The filter draft is out of date; load its values again",true);return;}
+            controller.dispatch(Intent::AutoFilter{sheet:Sheet::of(sheet),revision,change},move |outcome|{
+                if outcome.accepted {
+                    controller.model.update(|m|{m.runtime.tools.filter.loaded=false;m.runtime.tools.filter.epoch+=1;});
+                    controller.say("AutoFilter updated",false);
+                }
+            });
+        });
+    }
+    pub fn enable_filter(&self) {
+        let areas=self.areas.get_untracked();
+        let [area]=areas.as_slice()else{self.say("Select one rectangle including its header",true);return;};
+        self.filter_command(wire::FilterChange::Enable(Area::of(*area)));
+    }
+    pub fn open_filter(&self,column:u32) {
+        let Some(sheet)=self.sheet.get_untracked()else{return;};
+        let Some(filter)=self.grid_geometry(sheet).and_then(|g|g.auto_filter)else{return;};
+        let Some(area)=filter.area.area()else{return;};
+        self.model.update(|m|{let f=&mut m.runtime.tools.filter;f.column=(column-area.first().column()+1).to_string();f.open=true;});
+        self.load_filter_values();
+    }
+    pub fn load_filter_values(&self) {
+        let controller=*self;
+        self.after_input(move || {
+            let Some(sheet)=controller.sheet.get_untracked()else{return;};
+            let Some(filter)=controller.grid_geometry(sheet).and_then(|g|g.auto_filter)else{return;};
+            let Some(area)=filter.area.area()else{return;};
+            let relative=controller.model.with_untracked(|m|m.runtime.tools.filter.column.parse::<u32>());
+            let Ok(relative)=relative else{controller.say("Enter a column number within the filtered range",true);return;};
+            if relative==0 || relative>area.column_count(){controller.say("The filter column must be within its range",true);return;}
+            let column=area.first().column()+relative-1;
+            let generation=controller.generation.get_untracked();
+            let epoch=controller.model.try_update(|m|{let f=&mut m.runtime.tools.filter;f.epoch+=1;f.loaded=false;f.message="Loading values…".into();f.epoch}).unwrap();
+            controller.call(Request::FilterValues{sheet:Sheet::of(sheet),column},None,move |reply,_|{
+                if controller.generation.get_untracked()!=generation || controller.sheet.get_untracked()!=Some(sheet) || controller.model.with_untracked(|m|m.runtime.tools.filter.epoch!=epoch || m.runtime.tools.filter.column.parse::<u32>().ok()!=Some(relative)){return;}
+                controller.model.update(|m|{
+                    let f=&mut m.runtime.tools.filter;
+                    match reply {
+                        Ok(Reply::FilterValues{revision,values:Ok((values,blank)),criteria}) if revision==m.runtime.summary.revision=>{
+                            f.sheet=Some(Sheet::of(sheet));f.revision=revision;
+                            f.values=values;
+                            f.blank=blank;
+                            f.operator="equal".into(); f.value.clear(); f.operator2.clear(); f.value2.clear(); f.and=true;
+                            if let Some(wire::FilterChange::Custom{and,predicates,..})=criteria {f.and=and;if let Some((op,v))=predicates.first(){f.operator=op.clone();f.value=v.clone();}if let Some((op,v))=predicates.get(1){f.operator2=op.clone();f.value2=v.clone();}}
+                            f.loaded=true;f.search.clear();f.message="Choose values, then Apply. All values in the range are listed.".into();
+                        },
+                        Ok(Reply::FilterValues{values:Err(e),..})|Err(e)=>f.message=e,
+                        _=>f.message="The workbook changed; load its values again".into(),
+                    }
+                });
+            });
+        });
+    }
+    pub fn apply_filter(&self,custom:bool) {
+        let Some(sheet)=self.sheet.get_untracked()else{return;};
+        let Some(filter)=self.grid_geometry(sheet).and_then(|g|g.auto_filter)else{return;};
+        let Some(area)=filter.area.area()else{return;};
+        let f=self.model.with_untracked(|m|m.runtime.tools.filter.clone());
+        let Some(column)=f.column.parse::<u32>().ok().filter(|c|*c>0 && *c<=area.column_count()).map(|c|area.first().column()+c-1)else{self.say("Choose a column within the filter range",true);return;};
+        let change=if custom {
+            let mut predicates=vec![(f.operator,f.value)];
+            if !f.operator2.is_empty(){predicates.push((f.operator2,f.value2));}
+            wire::FilterChange::Custom{column,and:f.and,predicates}
+        }else{
+            if !f.loaded || f.sheet!=Some(Sheet::of(sheet)) || f.revision!=self.summary.get_untracked().revision {self.say("The filter list is out of date; load its values again",true);return;}
+            wire::FilterChange::Values{column,values:f.values.into_iter().filter(|(_,checked)|*checked).map(|(v,_)|v).collect(),blank:f.blank}
+        };
+        self.filter_command_revision(change,Some(self.summary.get_untracked().revision));
+    }
+    pub fn clear_filter_column(&self) {
+        let Some(sheet)=self.sheet.get_untracked()else{return;};
+        let Some(filter)=self.grid_geometry(sheet).and_then(|g|g.auto_filter)else{return;};
+        let Some(area)=filter.area.area()else{return;};
+        if let Some(c)=self.model.with_untracked(|m|m.runtime.tools.filter.column.parse::<u32>().ok()).filter(|c|*c>0 && *c<=area.column_count()) {self.filter_command(wire::FilterChange::ClearColumn(area.first().column()+c-1));}
+    }
+
     pub fn sort_rows(&self, descending: bool) {
         let controller=*self;
         self.after_input(move || {

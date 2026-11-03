@@ -297,6 +297,7 @@ pub struct Definitions {
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::FrozenPanes>,
+    filters: BTreeMap<SheetId, crate::AutoFilter>,
     arrays: BTreeMap<CellKey, ArrayFormula>,
     names: crate::NameTable,
     tables: Vec<Table>,
@@ -361,10 +362,40 @@ impl Definitions {
             } else {
                 self.hidden_rows.remove(&key);
             }
+            if self.filters.get(&edit.sheet()).is_some_and(|f|f.filtered_rows.contains(&edit.index())) {
+                self.hidden_rows.insert(key, RowHidden::Filtered);
+            }
         }
         self
     }
 
+    pub fn auto_filter(&self, sheet: SheetId) -> Option<&crate::AutoFilter> { self.filters.get(&sheet) }
+    pub fn auto_filters(&self) -> impl Iterator<Item=(SheetId, &crate::AutoFilter)> { self.filters.iter().map(|(s,f)|(*s,f)) }
+    pub fn with_auto_filter(mut self, sheet: SheetId, filter: Option<crate::AutoFilter>) -> Self {
+        if let Some(old) = self.filters.remove(&sheet) {
+            for row in old.filtered_rows {
+                let key=(sheet,row);
+                if self.axis_layouts.get(sheet, crate::Axis::Rows, row).hidden() { self.hidden_rows.insert(key, RowHidden::Manual); }
+                else { self.hidden_rows.remove(&key); }
+            }
+        }
+        if let Some(filter) = filter {
+            for row in &filter.filtered_rows { self.hidden_rows.insert((sheet,*row), RowHidden::Filtered); }
+            self.filters.insert(sheet, filter);
+        }
+        self
+    }
+    /// Physical visibility includes filtering; the authored axis table retains manual hiding.
+    pub fn visible_axis_layouts(&self) -> crate::AxisLayouts {
+        let mut layouts=self.axis_layouts.clone();
+        for ((sheet,row),why) in &self.hidden_rows {
+            if *why == RowHidden::Filtered {
+                let format=layouts.get(*sheet,crate::Axis::Rows,*row).with_hidden(true);
+                layouts.set(crate::AxisFormatEdit::new(*sheet,crate::Axis::Rows,*row,format).expect("valid hidden row"));
+            }
+        }
+        layouts
+    }
     pub fn frozen_panes(&self, sheet: SheetId) -> Option<crate::FrozenPanes> {
         self.panes.get(&sheet).copied()
     }
@@ -397,6 +428,7 @@ impl Definitions {
             conditional: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
+            filters: BTreeMap::new(),
             arrays: arrays
                 .into_iter()
                 .map(|array| (array.anchor(), array))
@@ -604,6 +636,7 @@ impl Definitions {
         }
         self.axis_layouts.without_sheet(sheet);
         self.panes.remove(&sheet);
+        self.filters.remove(&sheet);
         self.arrays.retain(|at, _| at.sheet() != sheet);
         self.tables.retain(|table| table.sheet != sheet);
         self.unloaded.retain(|at, _| at.sheet() != sheet);
@@ -632,6 +665,7 @@ impl Definitions {
         self.conditional.is_empty()
             && self.axis_layouts.sheets().next().is_none()
             && self.panes.is_empty()
+            && self.filters.is_empty()
             && self.arrays.is_empty()
             && self.names.is_empty()
             && self.tables.is_empty()
@@ -721,6 +755,7 @@ impl Definitions {
             .chain(self.tables.iter().map(|table| table.sheet))
             .chain(self.hidden_rows.keys().map(|(sheet, _)| *sheet))
             .chain(self.panes.keys().copied())
+            .chain(self.filters.keys().copied())
             .chain(self.axis_layouts.sheets())
             .chain(self.data_tables.iter().map(|table| table.area.sheet()))
             .chain(

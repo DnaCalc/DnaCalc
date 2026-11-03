@@ -6835,7 +6835,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "physical styles: imported pattern fills reach the DOM as repeating physical tiles",
         actions: &[
             Action::SetPainter("dom"),Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,
-            Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady),Action::Into("name-box","B12\u{E007}"),
+            Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady),Action::Into("name-box","B13\u{E007}"),Action::Wait(Check::PlanCell("B13","style.brush.Pattern.name","darkDown")),Action::Into("name-box","B12\u{E007}"),
         ],
         checks: &[Check::PlanCell("B12","style.brush.Pattern.name","darkGray"),Check::PlanCell("E12","style.brush.Pattern.name","gray125"),Check::PlanCell("B13","style.brush.Pattern.name","darkDown"),Check::PlanCell("I13","style.brush.Pattern.name","lightTrellis"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B12]","background-repeat:repeat")],
     },
@@ -7307,6 +7307,52 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name:"shrink: XLSX retains the setting and the phone dialog exposes the original font",
         actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Into("name-box","A1:A2\u{E007}"),Action::OpenDetails("axis-tools"),Action::Into("column-size","8.43"),Action::Click("set-column-size"),Action::Window(390,844),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Wait(Check::Value("format-size","18")),Action::Click("format-tab-alignment"),Action::Wait(Check::Value("format-shrink","true")),Action::Wait(Check::Reachable("format-shrink")),Action::Wait(Check::Name("format-shrink","Shrink to fit")),Action::Wait(Check::Fits),Action::Click("format-cancel"),Action::Window(1440,1000)],
         checks:&[Check::PlanCell("A1","style.shrink","true"),Check::PlanCell("A1","style.pixels","24"),Check::FitsText(cell!("A1")),Check::FitsText(cell!("A2")),Check::Text(cell!("A2"),"123456.00"),Check::PlanCell("A2","provenance","calculated")],
+    },
+
+    Case {
+        name:"AutoFilter: range headers and independent manual row hiding use the workbook command",
+        actions:&[
+            Action::ExternalClipboard("Category\tAmount\nAlpha\t10\nBeta\t=B2*2\nAlpha\t30\nBeta\t40\n\t50",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Text(cell!("B6"),"50")),
+            Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=SUBTOTAL(9,B2:B6)\u{E007}"),Action::Into("name-box","E1\u{E007}"),Action::Into(BAR,"=SUBTOTAL(109,B2:B6)\u{E007}"),
+            Action::Into("name-box","A4\u{E007}"),Action::OpenDetails("axis-tools"),Action::Click("hide-rows"),Action::Wait(Check::PlanAbsent("A4")),
+            Action::Into("name-box","A1:B6\u{E007}"),Action::OpenDetails("filter-tools"),Action::Click("filter-enable"),
+        ],
+        checks:&[Check::Count("filter-header",2),Check::TextContains("filter-summary","0 rows filtered out"),Check::Text(cell!("D1"),"150"),Check::Text(cell!("E1"),"120"),Check::PlanCell("B3","provenance","calculated")],
+    },
+    Case {
+        name:"AutoFilter: a header opens choices and selected values exclude rows without flattening formulas",
+        actions:&[Action::Keys("[data-dnacalc=filter-header][data-filter-column=\"1\"]",ENTER),Action::Wait(Check::Count("filter-choice",2)),Action::Click("[data-dnacalc=filter-choice][data-filter-value=Beta]"),Action::Click("filter-blank"),Action::Click("filter-apply")],
+        checks:&[Check::TextContains("filter-summary","3 rows filtered out"),Check::PlanAbsent("A3"),Check::PlanAbsent("A4"),Check::PlanAbsent("A5"),Check::PlanAbsent("B6"),Check::Text(cell!("B2"),"10"),Check::Text(cell!("D1"),"40"),Check::Text(cell!("E1"),"10")],
+    },
+    Case {
+        name:"AutoFilter: one Undo restores criteria and visibility and Redo applies both",
+        actions:&[Action::Click("undo"),Action::Wait(Check::TextContains("filter-summary","0 rows filtered out")),Action::Wait(Check::Text(cell!("B3"),"20")),Action::Wait(Check::Text(cell!("D1"),"150")),Action::Click("redo")],
+        checks:&[Check::TextContains("filter-summary","3 rows filtered out"),Check::Text(cell!("D1"),"40"),Check::Text(cell!("E1"),"10"),Check::PlanAbsent("A3")],
+    },
+    Case {
+        name:"AutoFilter: XLSX retains the criteria and two independent causes of hidden rows",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("filter-tools")],
+        checks:&[Check::Count("filter-header",2),Check::TextContains("filter-summary","3 rows filtered out"),Check::PlanAbsent("A3"),Check::PlanAbsent("A4"),Check::Text(cell!("D1"),"40"),Check::Text(cell!("E1"),"10")],
+    },
+    Case {
+        name:"AutoFilter: Clear restores filtered rows while preserving manual hiding and formula provenance",
+        actions:&[Action::Click("filter-clear")],
+        checks:&[Check::TextContains("filter-summary","0 rows filtered out"),Check::PlanAbsent("A4"),Check::Text(cell!("B3"),"20"),Check::PlanCell("B3","provenance","calculated"),Check::Text(cell!("D1"),"150"),Check::Text(cell!("E1"),"120")],
+    },
+    Case {
+        name:"AutoFilter: two custom comparisons combine on a calculated numeric column",
+        actions:&[Action::Into("filter-column","2"),Action::Click("filter-load"),Action::Wait(Check::Count("filter-choice",5)),Action::Wait(Check::Count("[data-dnacalc=filter-choice][data-filter-value=\"20\"]",1)),Action::OpenDetails("filter-custom-tools"),Action::Choose("filter-operator","greaterThanOrEqual"),Action::Into("filter-value","20"),Action::Choose("filter-operator-2","lessThanOrEqual"),Action::Into("filter-value-2","40"),Action::Click("filter-custom-apply")],
+        checks:&[Check::TextContains("filter-summary","2 rows filtered out"),Check::PlanAbsent("A2"),Check::PlanAbsent("B6"),Check::PlanAbsent("A4"),Check::Text(cell!("B3"),"20"),Check::PlanCell("B3","provenance","calculated"),Check::Text(cell!("D1"),"90"),Check::Text(cell!("E1"),"60"),Check::PlanAbsent("D2")],
+    },
+    Case {
+        name:"AutoFilter: phone controls wrap and remain named and keyboard reachable",
+        actions:&[Action::Window(390,844),Action::OpenDetails("filter-tools"),Action::Click("filter-column"),Action::Keys("filter-column",TAB)],
+        checks:&[Check::Fits,Check::Narrow(390),Check::Name("filter-column","Column within filter range"),Check::Focused("filter-load"),Check::Reachable("filter-load"),Check::Reachable("filter-clear")],
+    },
+    Case {
+        name:"AutoFilter: removing the filter restores excluded rows and retains manual hiding",
+        actions:&[Action::Window(1440,1000),Action::Click("filter-remove")],
+        checks:&[Check::Count("filter-header",0),Check::TextContains("filter-summary","Select one rectangle"),Check::PlanAbsent("A4"),Check::Text(cell!("B2"),"10"),Check::Text(cell!("B3"),"20"),Check::Text(cell!("D1"),"150"),Check::Text(cell!("E1"),"120")],
     },
 
 ];
@@ -8025,4 +8071,5 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"numeric-sort",start:527,end:533,core:6,setup:&[]},
     CaseGroup {name:"numeric-sort-limits",start:533,end:536,core:3,setup:&[]},
     CaseGroup {name:"shrink",start:536,end:541,core:5,setup:&[]},
+    CaseGroup {name:"autofilter",start:541,end:549,core:8,setup:&[]},
 ];

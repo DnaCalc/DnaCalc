@@ -85,3 +85,8 @@
 .dc-grid-canvas{position:absolute;left:0;top:0;pointer-events:none}
 
 .dc-canvas-icon{position:absolute;overflow:hidden;pointer-events:none}.dc-canvas-icon .dc-icon{display:inline-flex;padding-right:4px}
+
+.dc-filter-header{position:absolute;z-index:8;box-sizing:border-box;padding:0;border:1px solid var(--dna-ink-3);background:var(--dna-paper);color:var(--dna-ink);font:inherit;cursor:pointer}
+.dc-filter-header:focus-visible{outline:2px solid var(--dna-amber);outline-offset:-2px}
+.dc-filter-values{max-height:200px;overflow:auto;display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--dna-ink-3)}
+.dc-filter-values label{display:flex;align-items:center;gap:8px;overflow-wrap:anywhere}

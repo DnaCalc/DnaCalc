@@ -464,6 +464,7 @@ fn describe_input(input: &CellInput) -> String {
 /// own equality.
 fn describe(op: &WorkbookOp) -> String {
     match op {
+        WorkbookOp::SetAutoFilter {sheet,filter} => format!("filter {sheet:?} {:?}",filter.as_ref().map(|f|(f.area,&f.columns,&f.filtered_rows,f.unsupported))),
         WorkbookOp::SetConditionalRules { sheet, rules } => format!(
             "conditional {sheet:?} {:?}",
             rules
@@ -619,6 +620,8 @@ fn describe_all(ops: &[WorkbookOp]) -> Vec<String> {
 /// stops this file compiling until the cases cover it.
 fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
     let feature = match op {
+        // Wire version 1 refuses AutoFilter state as EncodeError::AutoFilter.
+        WorkbookOp::SetAutoFilter { .. } => "op:auto_filter".to_owned(),
         // Wire version 1 refuses conditional-rule state as EncodeError::ConditionalRules.
         WorkbookOp::SetConditionalRules { .. } => "op:conditional_rules".to_owned(),
         WorkbookOp::SetCell { input, .. } => {

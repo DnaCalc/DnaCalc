@@ -1693,6 +1693,20 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         };
         rects.into_iter().map(|rect|view! { <div class="dc-active" data-dnacalc="active-cell" use:css=format!("{}{}",rect_style(&rect),if merged.is_some(){String::new()}else{panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(row),Some(col))})></div> }).collect_view()
     };
+    let filter_open=controller.tool_field(|s|&s.filter.open,|s|&mut s.filter.open);
+    let filter_headers = move || {
+        let filter=controller.filter_view();
+        let Some(filter)=filter else{return Vec::new().collect_view();};
+        let Some(area)=filter.area.area() else{return Vec::new().collect_view();};
+        let plan=plan.get();
+        let Some(row)=plan.row_headers.iter().find(|r|r.row==area.first().row()) else {return Vec::new().collect_view();};
+        plan.col_headers.iter().filter(|c|(area.first().column()..=area.last().column()).contains(&c.col)).map(|c|{
+            let column=c.col; let applied=filter.columns.contains(&column);
+            let mut rect=geometry::CellRect {x:c.rect.x,y:row.rect.y,w:c.rect.w,h:row.rect.h};rect.x+=(rect.w-22.0*plan.scale).max(0.0);rect.w=rect.w.min(22.0*plan.scale);rect.h=rect.h.min(24.0*plan.scale);
+            let style=format!("{}{}",rect_style(&rect),panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(row.row),Some(c.col)));
+            view!{<button class="dc-filter-header" data-dnacalc="filter-header" data-filter-column=column aria-label=format!("Filter column {}{}",column,if applied{" (filtered)"}else{""}) aria-expanded=move ||filter_open.get() title=if applied{"Filter applied"}else{"Filter column"} use:css=style on:pointerdown=move |ev|ev.stop_propagation() on:keydown=move |ev:leptos::ev::KeyboardEvent|ev.stop_propagation() on:click=move |ev|{ev.stop_propagation();controller.open_filter(column);}>{if applied{"◆"}else{"▾"}}</button>}
+        }).collect_view()
+    };
     let copy_outline = move || {
         controller.clipboard.get().filter(|area|Some(area.sheet())==controller.sheet.get()).map(|area|panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(|rect|view!{
             <div class="dc-copy-outline" data-dnacalc="copy-outline" data-cut=move ||controller.cut.get().to_string() use:css=rect_style(&rect)></div>
@@ -2078,6 +2092,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         {selection_view}
                         {active_view}
                         {copy_outline}
+                        {filter_headers}
                         {fill_preview}
                         {fill_handle}
                         {point_view}
@@ -2102,6 +2117,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             {crate::clipboard::controls(controller)}
             {axis::controls(controller)}
             {crate::commands::sort_controls(controller)}
+            {crate::commands::filter_controls(controller)}
             {structure::controls(controller)}
             <details class="dc-clipboard-tools" data-dnacalc="pane-tools" name="worksheet-tools">
                 <summary>"View & panes"</summary>

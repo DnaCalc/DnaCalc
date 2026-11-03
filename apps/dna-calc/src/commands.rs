@@ -459,3 +459,69 @@ pub fn sort_controls(controller: Controller) -> AnyView {
         </details>
     }.into_any()
 }
+
+/// AutoFilter drafts and choices use the same command/history path as other worksheet edits.
+pub fn filter_controls(controller:Controller)->AnyView {
+    let column=controller.tool_field(|s|&s.filter.column,|s|&mut s.filter.column);
+    let search=controller.tool_field(|s|&s.filter.search,|s|&mut s.filter.search);
+    let values=controller.tool_field(|s|&s.filter.values,|s|&mut s.filter.values);
+    let blank=controller.tool_field(|s|&s.filter.blank,|s|&mut s.filter.blank);
+    let operator=controller.tool_field(|s|&s.filter.operator,|s|&mut s.filter.operator);
+    let value=controller.tool_field(|s|&s.filter.value,|s|&mut s.filter.value);
+    let operator2=controller.tool_field(|s|&s.filter.operator2,|s|&mut s.filter.operator2);
+    let value2=controller.tool_field(|s|&s.filter.value2,|s|&mut s.filter.value2);
+    let and=controller.tool_field(|s|&s.filter.and,|s|&mut s.filter.and);
+    let epoch=controller.tool_field(|s|&s.filter.epoch,|s|&mut s.filter.epoch);
+    let loaded=controller.tool_field(|s|&s.filter.loaded,|s|&mut s.filter.loaded);
+    let message=controller.tool_field(|s|&s.filter.message,|s|&mut s.filter.message);
+    let open=controller.tool_field(|s|&s.filter.open,|s|&mut s.filter.open);
+    let current=move ||controller.filter_view();
+    let options=||view!{<option value="equal">"Equals"</option><option value="notEqual">"Does not equal"</option><option value="greaterThan">"Greater than"</option><option value="greaterThanOrEqual">"Greater than or equal"</option><option value="lessThan">"Less than"</option><option value="lessThanOrEqual">"Less than or equal"</option>};
+    view!{
+        <details class="dc-clipboard-tools" data-dnacalc="filter-tools" name="worksheet-tools" open=move ||open.get()
+            on:toggle=move |ev|{if let Some(e)=ev.target().and_then(|t|t.dyn_into::<web_sys::HtmlDetailsElement>().ok()){open.set(e.open());}}>
+            <summary>"AutoFilter"</summary>
+            <p class="dc-note" data-dnacalc="filter-summary">{move ||current().map(|f|format!("{} · {} rows filtered out{}",f.area.area().map(|a|controller.area_label(a)).unwrap_or_default(),f.filtered,if f.unsupported{" · imported criteria are preserved; editing is unavailable"}else{""})).unwrap_or_else(||"Select one rectangle including a header, then enable AutoFilter.".into())}</p>
+            <div class="dc-command-row">
+                <button data-dnacalc="filter-enable" disabled=move ||current().is_some() on:click=move |_|controller.enable_filter()>"Enable for selection"</button>
+                <button data-dnacalc="filter-clear" disabled=move ||current().is_none() on:click=move |_|controller.filter_command(wire::FilterChange::Clear)>"Clear all filters"</button>
+                <button data-dnacalc="filter-reapply" disabled=move ||current().is_none() on:click=move |_|controller.filter_command(wire::FilterChange::Reapply)>"Reapply"</button>
+                <button data-dnacalc="filter-remove" disabled=move ||current().is_none() on:click=move |_|controller.filter_command(wire::FilterChange::Remove)>"Remove AutoFilter"</button>
+            </div>
+            <Show when=move ||current().is_some_and(|f|!f.unsupported)>
+                <div class="dc-command-row">
+                    <label>"Column within filter range "<input data-dnacalc="filter-column" type="number" min="1" prop:value=move ||column.get() on:input=move |ev|{column.set(event_target_value(&ev));loaded.set(false);epoch.update(|n|*n+=1);}/></label>
+                    <button data-dnacalc="filter-load" on:click=move |_|controller.load_filter_values()>"Load values"</button>
+                    <button data-dnacalc="filter-clear-column" on:click=move |_|controller.clear_filter_column()>"Clear this column"</button>
+                </div>
+                <p class="dc-muted" role="status" data-dnacalc="filter-message">{move ||message.get()}</p>
+                <Show when=move ||loaded.get()>
+                    <label>"Find values "<input data-dnacalc="filter-search" prop:value=move ||search.get() on:input=move |ev|search.set(event_target_value(&ev))/></label>
+                    <div class="dc-command-row">
+                        <button data-dnacalc="filter-select-all" on:click=move |_|{values.update(|v|for (_,checked) in v{*checked=true;});blank.set(true);}>"Select all"</button>
+                        <button data-dnacalc="filter-select-none" on:click=move |_|{values.update(|v|for (_,checked) in v{*checked=false;});blank.set(false);}>"Select none"</button>
+                    </div>
+                    <div class="dc-filter-values" role="group" aria-label="Filter values">
+                        <label><input data-dnacalc="filter-blank" type="checkbox" prop:checked=move ||blank.get() on:change=move |ev|blank.set(event_target_checked(&ev))/><span>"(Blanks)"</span></label>
+                        <For each=move ||{let find=search.get().to_lowercase();values.get().into_iter().enumerate().filter(|(_, (v,_))|v.to_lowercase().contains(&find)).map(|(i,(v,_))|(i,v)).collect::<Vec<_>>()} key=|(i,_)|*i children=move |(i,v)|view!{
+                            <label><input data-dnacalc="filter-choice" data-filter-value=v.clone() type="checkbox" prop:checked=move ||values.get().get(i).is_some_and(|(_,c)|*c) on:change=move |ev|values.update(|v|{if let Some((_,checked))=v.get_mut(i){*checked=event_target_checked(&ev);}})/><span>{v}</span></label>
+                        }/>
+                    </div>
+                    <button data-dnacalc="filter-apply" on:click=move |_|controller.apply_filter(false)>"Apply selected values"</button>
+                </Show>
+                <details data-dnacalc="filter-custom-tools">
+                    <summary>"Custom number or text filter"</summary>
+                    <p class="dc-muted">"Text accepts * and ? wildcards; ~ escapes them. Dates use their stored serial number. Both conditions apply to this column."</p>
+                    <div class="dc-command-row">
+                        <label>"First condition "<select data-dnacalc="filter-operator" prop:value=move ||operator.get() on:change=move |ev|operator.set(event_target_value(&ev))>{options()}</select></label>
+                        <label>"First value "<input data-dnacalc="filter-value" prop:value=move ||value.get() on:input=move |ev|value.set(event_target_value(&ev))/></label>
+                        <label>"Combine "<select data-dnacalc="filter-and" prop:value=move ||if and.get(){"and"}else{"or"} on:change=move |ev|and.set(event_target_value(&ev)=="and")><option value="and">"And"</option><option value="or">"Or"</option></select></label>
+                        <label>"Second condition "<select data-dnacalc="filter-operator-2" prop:value=move ||operator2.get() on:change=move |ev|operator2.set(event_target_value(&ev))><option value="">"None"</option>{options()}</select></label>
+                        <label>"Second value "<input data-dnacalc="filter-value-2" prop:value=move ||value2.get() on:input=move |ev|value2.set(event_target_value(&ev))/></label>
+                        <button data-dnacalc="filter-custom-apply" on:click=move |_|controller.apply_filter(true)>"Apply conditions"</button>
+                    </div>
+                </details>
+            </Show>
+        </details>
+    }.into_any()
+}

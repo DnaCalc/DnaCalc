@@ -54,6 +54,8 @@ pub(super) struct SheetLoad {
     pub(super) hidden_rows: Vec<u32>,
     /// The sheet's `<autoFilter ref>` range, (top, left, bottom, right).
     pub(super) auto_filter: Option<(u32, u32, u32, u32)>,
+    pub(super) filter: Option<calc_doc_model::AutoFilter>,
+    pub(super) filter_manual: Option<std::collections::BTreeSet<u32>>,
     /// The rows' and columns' sizes and hidden flags (dc-09v).
     pub(super) geometry: super::geometry::SheetGeometry,
     /// The first window's top left and active cells (dc-uar).
@@ -965,6 +967,8 @@ pub(super) fn load_sheet(
             value_caches: BTreeMap::new(),
             hidden_rows: Vec::new(),
             auto_filter: None,
+            filter: None,
+            filter_manual: None,
             geometry: super::geometry::SheetGeometry::default(),
             view: super::geometry::SheetView::default(),
             conditional_formats: Vec::new(),
@@ -1020,7 +1024,7 @@ pub(super) fn load_sheet(
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "autoFilter") => {
                 sheet.load.auto_filter = element.attribute("ref").and_then(address::area);
-                events.skip()?;
+                (sheet.load.filter,sheet.load.filter_manual)=super::filter::read(&mut events,&element,id)?;
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetViews") => {
                 sheet.load.view = read_view(&mut events)?;

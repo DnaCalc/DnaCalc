@@ -35,6 +35,7 @@ pub enum ConditionalChange {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
     Name(crate::NameEdit),
+    AutoFilter { sheet:SheetId, revision:u64, change:crate::FilterChange },
     FormatCells {
         areas: Vec<GridArea>,
         patch: crate::FormatPatch,
@@ -95,6 +96,7 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::AutoFilter { sheet,revision,change }=>crate::filter::prepare(host,sheet,revision,change),
         WorkbookCommand::SortRows {
             area,
             column,
@@ -298,14 +300,12 @@ pub(crate) fn axis_format_edits(
     if count > 16_384 {
         return Err("Change at most 16384 rows or columns at once".to_owned());
     }
-    if rows
-        && host
-            .model()
-            .definitions()
-            .hidden_rows(sheet, first, last)
-            .any(|(_, why)| why == crate::RowHidden::Filtered)
-    {
-        return Err("Rows hidden by a filter cannot be resized or shown here".to_owned());
+    if rows && (hidden.is_some() || size_bits.is_some()) && host.model().definitions().auto_filter(sheet).is_some_and(|f|f.unsupported && first<=f.area.last().row() && last>f.area.first().row()) {
+        return Err("Row visibility for imported filter metadata is not modelled (dc-971p.37); nothing changed".into());
+    }
+    if rows && host.model().definitions().hidden_rows(sheet,first,last).any(|(row,why)|
+        why==crate::RowHidden::Filtered && (!host.model().definitions().auto_filter(sheet).is_some_and(|f|f.filtered_rows.contains(&row)) || host.model().definitions().tables().iter().any(|t|t.sheet==sheet && row>t.area.first().row() && row<=t.area.last().row()))) {
+        return Err("Rows hidden by an imported table filter cannot be resized or shown here (dc-971p.37)".into());
     }
     let size = size_bits
         .map(|b| stored_axis_size(rows, f64::from_bits(b)))

@@ -379,6 +379,16 @@ impl ModelRoot {
                     .filter_map(|(at, format)| Some((moved_cell(edit, at)?, format)))
                     .collect::<Vec<_>>(),
             );
+        for (sheet,filter) in definitions.auto_filters() {
+            let mut filter=filter.clone();
+            if sheet==edit.sheet() {
+                let Some(area)=moved_area(edit,filter.area) else {continue;}; filter.area=area;
+                if edit.axis()==Axis::Rows {filter.filtered_rows=filter.filtered_rows.iter().filter_map(|r|moved_position(edit,*r)).filter(|r|*r>area.first().row() && *r<=area.last().row()).collect();}
+                else {filter.columns=filter.columns.into_iter().filter_map(|(c,v)|Some((moved_position(edit,c)?,v))).collect();}
+            }
+            next=next.with_auto_filter(sheet,Some(filter));
+        }
+
         for (sheet, rules) in definitions.all_conditional_rules() {
             let rules = rules
                 .iter()

@@ -731,6 +731,7 @@ impl ModelRoot {
         // The cell formats the batch sets, in order.
         let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
         let mut styles = None;
+        let mut filters = Vec::new();
         let mut conditional = Vec::new();
         let mut panes = Vec::new();
         let mut axis_formats = Vec::new();
@@ -830,6 +831,13 @@ impl ModelRoot {
                         .restore_records(snapshots);
                 }
                 WorkbookOp::SetIteration(settings) => iteration = Some(*settings),
+                WorkbookOp::SetAutoFilter { sheet, filter } => {
+                    self.position_of(operation, *sheet)?;
+                    if filter.as_ref().is_some_and(|f| f.area.sheet()!=*sheet || !f.valid()) {
+                        return Err(ApplyError::AxisEdit { operation });
+                    }
+                    filters.push((*sheet,filter.clone()));
+                }
                 WorkbookOp::SetAxisFormat(edit) => {
                     self.position_of(operation, edit.sheet())?;
                     axis_formats.push(*edit);
@@ -881,6 +889,7 @@ impl ModelRoot {
         };
         if styles.is_some()
             || !conditional.is_empty()
+            || !filters.is_empty()
             || !formats.is_empty()
             || !panes.is_empty()
             || !axis_formats.is_empty()
@@ -891,6 +900,7 @@ impl ModelRoot {
             if let Some(styles) = styles {
                 next = next.with_styles(styles);
             }
+            for (sheet, filter) in filters { next = next.with_auto_filter(sheet, filter); }
             for (sheet, rules) in conditional {
                 next = next.with_conditional_rules(sheet, rules);
             }

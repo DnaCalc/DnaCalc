@@ -56,6 +56,8 @@ mod cache;
 mod cells;
 mod conditional;
 mod definitions;
+mod filter;
+pub use filter::{AutoFilter, FilterCriteria, FilterOperator, FilterPredicate};
 pub use conditional::ConditionalRuleSource;
 mod formula_block;
 mod input;

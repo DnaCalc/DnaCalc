@@ -10918,3 +10918,184 @@ fn dc_971p__numeric_sort_retains_source_metadata_by_refusing_decorated_text_and_
     assert!(done.accepted(),"{done:?}");
     assert_eq!(ordinary.host().model().cell(at(p,"B1")),Some(&calc_host::interpret_entry("second").unwrap().unwrap()));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__filter_visibility_history_subtotals_and_xlsx_keep_manual_hiding() {
+    use calc_host::{WorkbookCommand as W, FilterChange as F, FilterCriteria, FrozenPanes};
+    let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
+    for (address,input) in [("A1","Category"),("B1","Amount"),("A2","Alpha"),("B2","10"),("A3","Beta"),("B3","=B2*2"),("A4","Alpha"),("B4","30"),("A5","Beta"),("B5","40"),("B6","50"),("D1","=SUBTOTAL(9,B2:B6)"),("D2","=SUBTOTAL(109,B2:B6)")] {assert!(enter(&mut book,at(s,address),input).accepted());}
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:4,count:1,size_bits:None,hidden:Some(true)})).accepted());
+    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
+    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B6")).unwrap()}).accepted());
+    assert_eq!(calc_host::filter_values(book.host(),s,1).unwrap().0,vec![("Alpha".into(),true),("Beta".into(),true)]);
+    let filtered=command(&mut book,F::Column{column:1,criteria:Some(FilterCriteria::Values{values:vec!["alpha".into()],blank:false})});
+    assert!(filtered.accepted(),"{filtered:?}");
+    let rows=|b:&HostSession| b.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>();
+    assert_eq!(rows(&book),vec![3,5,6]);
+    assert!(!calc_host::filter_values(book.host(),s,1).unwrap().1);
+    assert_eq!(calc_host::filter_values(book.host(),s,1).unwrap().0,vec![("Alpha".into(),true),("Beta".into(),false)]);
+    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(40.));
+    assert_eq!(session_calculated(&book,at(s,"D2")).unwrap().as_number(),Some(10.));
+    assert!(book.host().sheet_geometry(s).unwrap().rows[&4].hidden);
+    assert!(book.host().sheet_geometry(s).unwrap().rows[&3].hidden);
+    // A pane change must not erase filtering (the interrupted implementation did so).
+    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::FrozenPanes{sheet:s,panes:Some(FrozenPanes::new(1,0).unwrap())}]}).accepted());
+    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::FrozenPanes{sheet:s,panes:None}]}).accepted());
+    assert_eq!(rows(&book),vec![3,5,6]);
+    let mut saved=Vec::new(); book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let xml=part_text(&saved,"xl/worksheets/sheet1.xml");
+    assert!(xml.contains("autoFilter ref=\"A1:B6\""),"{xml}");
+    assert!(xml.contains("sheetPr filterMode=\"1\""),"{xml}");
+    let saved=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|xml|xml.replace("><dc:visibility",">\n  <dc:visibility").replace("/></ext>","/>\n</ext>"));
+    let mut reopened=session(&saved); let r=reopened.host().sheets()[0].id();
+    assert_eq!(reopened.host().model().definitions().auto_filter(r).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![3,5,6]);
+    let rev=reopened.host().revision().get();
+    let cleared=reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision:rev,change:F::Clear}));
+    assert!(cleared.accepted(),"{cleared:?}");
+    let g=reopened.host().sheet_geometry(r).unwrap();
+    assert!(!g.rows.get(&3).is_some_and(|r|r.hidden)); assert!(g.rows[&4].hidden);
+    assert_eq!(session_calculated(&reopened,at(r,"D1")).unwrap().as_number(),Some(150.));
+    assert_eq!(session_calculated(&reopened,at(r,"D2")).unwrap().as_number(),Some(120.));
+    assert!(reopened.dispatch(SkinIntent::Undo).accepted());
+    assert!(reopened.host().sheet_geometry(r).unwrap().rows[&3].hidden);
+    assert!(reopened.dispatch(SkinIntent::Redo).accepted());
+    assert!(!reopened.host().sheet_geometry(r).unwrap().rows.get(&3).is_some_and(|r|r.hidden));
+    assert!(command(&mut book,F::Remove).accepted());
+    assert!(book.host().model().definitions().auto_filter(s).is_none());
+    assert!(book.host().sheet_geometry(s).unwrap().rows[&4].hidden);
+    assert!(book.dispatch(SkinIntent::Undo).accepted()); assert_eq!(rows(&book),vec![3,5,6]);
+    let mut twin=session(&calc_host::blank_package()); let replayed=replay(book.intent_log(),&mut twin);
+    assert!(replayed.mismatches.is_empty(),"{replayed:?}"); assert_eq!(rows(&twin),vec![3,5,6]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__custom_filters_use_shared_wildcards_comparisons_and_atomic_refusals() {
+    use calc_host::{WorkbookCommand as W, FilterChange as F, FilterCriteria as C, FilterOperator as O, FilterPredicate as P};
+    let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
+    for (address,input) in [("A1","Text"),("B1","Value"),("A2","apple"),("B2","1"),("A3","Apricot"),("B3","=B2+1"),("A4","banana"),("B4","3"),("A5","a*"),("B5","4")] {assert!(enter(&mut book,at(s,address),input).accepted());}
+    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
+    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B5")).unwrap()}).accepted());
+    let custom=|column,and,predicates| F::Column{column,criteria:Some(C::Custom{and,predicates})};
+    assert!(command(&mut book,custom(1,true,vec![P{operator:O::Equal,value:"a*".into()}])).accepted());
+    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![4]);
+    assert!(command(&mut book,custom(2,true,vec![P{operator:O::Greater,value:"1".into()},P{operator:O::LessEqual,value:"3".into()}])).accepted());
+    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2,4,5]);
+    assert!(command(&mut book,F::Column{column:2,criteria:None}).accepted());
+    assert!(command(&mut book,custom(1,false,vec![P{operator:O::Equal,value:"a~*".into()},P{operator:O::Equal,value:"banana".into()}])).accepted());
+    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2,3]);
+    let revision=book.host().revision(); let before=book.host().model().definitions().auto_filter(s).cloned();
+    assert!(!command(&mut book,F::Column{column:99,criteria:None}).accepted());
+    assert_eq!(book.host().revision(),revision); assert_eq!(book.host().model().definitions().auto_filter(s),before.as_ref());
+    // Showing a filtered row changes only its manual flag, not the filter result.
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(false)})).accepted());
+    assert!(book.host().sheet_geometry(s).unwrap().rows[&2].hidden);
+    assert!(command(&mut book,F::Clear).accepted());
+    assert!(!book.host().sheet_geometry(s).unwrap().rows.get(&2).is_some_and(|r|r.hidden));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__unknown_imported_filter_xml_survives_unrelated_edits() {
+    use calc_host::{WorkbookCommand as W,FilterChange as F};
+    let raw="<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><top10 top=\"1\" percent=\"0\" val=\"2\"/></filterColumn></autoFilter>";
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("{raw}</worksheet>")));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+    assert!(book.host().model().definitions().auto_filter(s).unwrap().unsupported);
+    let old=book.host().revision();
+    assert!(!book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(true)})).accepted());
+    assert_eq!(book.host().revision(),old);
+    let revision=book.host().revision();
+    let denied=book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision:revision.get(),change:F::Clear}));
+    assert!(!denied.accepted()); assert_eq!(book.host().revision(),revision);
+    assert!(enter(&mut book,at(s,"D1"),"42").accepted());
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:false,first:4,count:1,size_bits:Some(100f64.to_bits()),hidden:None})).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains(raw));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__filter_refuses_uncomputed_values_and_reopens_overlapping_hidden_causes() {
+    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    assert!(enter(&mut book,at(s,"A1"),"Header").accepted());
+    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());
+    assert!(enter(&mut book,at(s,"A2"),"=1+1").accepted());
+    assert!(enter(&mut book,at(s,"A3"),"3").accepted());
+    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
+    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A3")).unwrap()}).accepted());
+    assert!(calc_host::filter_values(book.host(),s,1).is_err());
+    let revision=book.host().revision();
+    let criterion=||F::Column{column:1,criteria:Some(C::Values{values:vec!["2".into()],blank:false})};
+    let denied=command(&mut book,criterion());assert!(!denied.accepted(),"{denied:?}");assert_eq!(book.host().revision(),revision);
+    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic)).accepted());
+    assert!(command(&mut book,criterion()).accepted());
+    // Row 3 is both manually hidden and excluded by the filter.
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();let revision=reopened.host().revision().get();
+    assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Clear})).accepted());
+    assert!(reopened.host().sheet_geometry(r).unwrap().rows[&3].hidden);
+    assert_eq!(reopened.host().model().definitions().hidden_rows(r,3,3).collect::<Vec<_>>(),vec![(3,calc_host::RowHidden::Manual)]);
+    assert_eq!(session_calculated(&reopened,at(r,"A2")).unwrap().as_number(),Some(2.));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__custom_filter_choices_preserve_excluded_blanks() {
+    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C,FilterPredicate as P,FilterOperator as O};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (a,v) in [("A1","Key"),("A2","1"),("A3","2")] {enter(&mut book,at(s,a),v);}
+    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
+    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A4")).unwrap()}).accepted());
+    assert!(command(&mut book,F::Column{column:1,criteria:Some(C::Custom{and:true,predicates:vec![P{operator:O::Greater,value:"0".into()}]})}).accepted());
+    let (choices,blank)=calc_host::filter_values(book.host(),s,1).unwrap();
+    assert_eq!(choices,vec![("1".into(),true),("2".into(),true)]);assert!(!blank);
+    assert!(command(&mut book,F::Column{column:1,criteria:Some(C::Values{values:choices.into_iter().filter(|(_,checked)|*checked).map(|(v,_)|v).collect(),blank})}).accepted());
+    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![4]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__axis_edits_move_filter_criteria_visibility_and_manual_flags_together() {
+    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (a,v) in [("A1","Key"),("A2","keep"),("A3","hide"),("A4","keep")] {enter(&mut book,at(s,a),v);}
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
+    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
+    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());
+    assert!(command(&mut book,F::Column{column:1,criteria:Some(C::Values{values:vec!["keep".into()],blank:false})}).accepted());
+    let inserted=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,2,1).unwrap()));
+    assert!(inserted.accepted(),"{inserted:?}");
+    let f=book.host().model().definitions().auto_filter(s).unwrap();
+    assert_eq!(f.area,GridArea::new(at(s,"A1"),at(s,"B5")).unwrap());assert_eq!(f.filtered_rows.iter().copied().collect::<Vec<_>>(),vec![4]);
+    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Columns,AxisChange::Insert,1,1).unwrap())).accepted());
+    let f=book.host().model().definitions().auto_filter(s).unwrap();assert_eq!(f.columns.keys().copied().collect::<Vec<_>>(),vec![2]);assert_eq!(f.area,GridArea::new(at(s,"B1"),at(s,"C5")).unwrap());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();let revision=reopened.host().revision().get();
+    assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Clear})).accepted());assert!(reopened.host().sheet_geometry(r).unwrap().rows[&4].hidden);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let f=book.host().model().definitions().auto_filter(s).unwrap();assert_eq!(f.area,GridArea::new(at(s,"A1"),at(s,"B4")).unwrap());assert_eq!(f.filtered_rows.iter().copied().collect::<Vec<_>>(),vec![3]);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let before=book.host().revision();let denied=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,1,1).unwrap()));assert!(!denied.accepted());assert_eq!(book.host().revision(),before);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__opaque_filter_row_edits_refuse_without_losing_independent_manual_hiding() {
+    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (a,v) in [("A1","Key"),("A2","keep"),("A3","keep"),("A4","hide")] {enter(&mut book,at(s,a),v);}
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
+    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A4")).unwrap()}})).accepted());
+    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Column{column:1,criteria:Some(C::Values{values:vec!["keep".into()],blank:false})}})).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let opaque=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|s|s.replace("<autoFilter ","<autoFilter xmlns:v=\"urn:filter-test\" v:uid=\"retained\" "));
+    let mut reopened=session(&opaque);let r=reopened.host().sheets()[0].id();assert!(reopened.host().model().definitions().auto_filter(r).unwrap().unsupported);
+    let before=reopened.host().revision();let denied=reopened.dispatch(SkinIntent::EditAxis(AxisEdit::new(r,Axis::Rows,AxisChange::Insert,2,1).unwrap()));assert!(!denied.accepted());assert_eq!(reopened.host().revision(),before);
+    assert_eq!(reopened.host().model().definitions().hidden_rows(r,3,4).collect::<Vec<_>>(),vec![(3,calc_host::RowHidden::Manual),(4,calc_host::RowHidden::Filtered)]);
+    let revision=reopened.host().revision().get();assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Remove})).accepted());
+    let mut removed=Vec::new();reopened.save(&SavePolicy::default(),&mut removed).unwrap();let after=open(&removed);let a=after.sheets()[0].id();assert!(after.sheet_geometry(a).unwrap().rows[&3].hidden);assert!(!after.sheet_geometry(a).unwrap().rows.get(&4).is_some_and(|v|v.hidden));
+}

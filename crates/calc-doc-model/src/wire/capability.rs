@@ -571,6 +571,7 @@ impl WireOp {
             WorkbookOp::SetIteration(_) => {
                 unreachable!("encode_batch refuses the iteration settings before it reaches here")
             }
+            WorkbookOp::SetAutoFilter { .. } => unreachable!("AutoFilter is refused before encoding"),
             WorkbookOp::SetAxisFormat(_) => {
                 unreachable!("wire version 1 refuses physical dimensions before encoding")
             }

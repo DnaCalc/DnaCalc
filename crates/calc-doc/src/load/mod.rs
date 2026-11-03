@@ -30,6 +30,7 @@ mod chart;
 pub(crate) mod conditional;
 mod error;
 mod external;
+pub(crate) mod filter;
 mod review;
 pub use review::{ReviewLink, ReviewNote, SheetReview};
 pub(crate) mod geometry;
@@ -1371,6 +1372,7 @@ pub fn load(
     let mut cells = Vec::new();
     let mut sheets = Vec::with_capacity(declared.len());
     let (mut arrays, mut unloaded, mut tables) = (Vec::new(), Vec::new(), Vec::new());
+    let mut auto_filters = Vec::new();
     let mut conditional_sources = Vec::new();
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
@@ -1391,6 +1393,12 @@ pub fn load(
                         .iter()
                         .map(|row| (id, *row, loaded.auto_filter)),
                 );
+                if let Some(mut filter)=loaded.filter {
+                    let physically_hidden=loaded.hidden_rows.iter().copied().filter(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()).collect::<std::collections::BTreeSet<_>>();
+                    let manual=loaded.filter_manual.filter(|m| m.union(&filter.filtered_rows).copied().collect::<std::collections::BTreeSet<_>>()==physically_hidden && m.iter().all(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()));
+                    if manual.is_none() {filter.filtered_rows=if filter.columns.is_empty() && !filter.unsupported {Default::default()} else {physically_hidden};}
+                    auto_filters.push((id,filter,manual));
+                }
                 unloaded.extend(loaded.unloaded);
                 tables.extend(sheet_tables);
                 sheets.push(LoadedSheet {
@@ -1477,6 +1485,7 @@ pub fn load(
                         && row > table.area.first().row()
                         && row <= table.area.last().row()
                 });
+            let in_filter=auto_filters.iter().find(|(s,f,_)|*s==sheet && row>f.area.first().row() && row<=f.area.last().row()).map_or(in_filter,|(_,f,_)|f.filtered_rows.contains(&row)) || tables.iter().any(|t: &calc_doc_model::Table|t.sheet==sheet && row>t.area.first().row() && row<=t.area.last().row());
             let why = if in_filter {
                 RowHidden::Filtered
             } else {
@@ -1488,6 +1497,16 @@ pub fn load(
     let mut axis_layouts = calc_doc_model::AxisLayouts::default();
     for sheet in &sheets {
         sheet.geometry.add_to_model(sheet.id, &mut axis_layouts);
+    }
+    // Remove filter visibility from the manual axis flags. Ordinary imports cannot distinguish
+    // both causes; DNA's validated extension restores them independently when it is present.
+    for (sheet,filter,manual) in &auto_filters {
+        for row in filter.filtered_rows.iter().chain(manual.iter().flat_map(|m|m.iter())).copied().collect::<std::collections::BTreeSet<_>>() {
+            if filter.filtered_rows.contains(&row) || manual.as_ref().is_some_and(|m|m.contains(&row)) {
+                let f=axis_layouts.get(*sheet,calc_doc_model::Axis::Rows,row).with_hidden(manual.as_ref().is_some_and(|m|m.contains(&row)));
+                axis_layouts.set(calc_doc_model::AxisFormatEdit::new(*sheet,calc_doc_model::Axis::Rows,row,f).unwrap());
+            }
+        }
     }
     let styles = Arc::new(styles);
     let mut definitions = Definitions::new(arrays, names, tables, unloaded)
@@ -1504,6 +1523,7 @@ pub fn load(
         .with_data_tables(data_tables)
         .with_workbook_name(package.source_name().map(str::to_owned))
         .with_external_books(external_books);
+    for (sheet,filter,_) in auto_filters { definitions=definitions.with_auto_filter(sheet,Some(filter)); }
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);
     }

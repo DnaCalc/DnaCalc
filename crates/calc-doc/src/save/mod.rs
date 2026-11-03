@@ -18,6 +18,7 @@ pub use conditional::{conditional_rule, new_conditional_rule};
 mod diff;
 pub(crate) mod file_form;
 mod geometry;
+mod filter;
 mod manifest;
 mod panes;
 mod parts;

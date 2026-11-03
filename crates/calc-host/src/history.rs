@@ -106,7 +106,8 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
-            CellEdit::Styles(_)
+            CellEdit::AutoFilter { .. }
+            | CellEdit::Styles(_)
             | CellEdit::Layout(_)
             | CellEdit::ConditionalRules { .. }
             | CellEdit::Axis(_)
@@ -214,6 +215,12 @@ pub(crate) fn inverse(
                     visibility: entry.visibility(),
                 }));
             }
+        }
+    }
+    let mut filters = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::AutoFilter { sheet, .. } = edit && filters.insert(*sheet) {
+            inverse.push(CellEdit::AutoFilter { sheet:*sheet, filter:definitions.auto_filter(*sheet).cloned() });
         }
     }
     let mut conditional = BTreeSet::new();

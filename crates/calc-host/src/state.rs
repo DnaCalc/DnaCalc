@@ -730,7 +730,7 @@ impl HostState {
                 .sheet(sheet)
                 .map(|s| s.geometry().clone())
                 .unwrap_or_default()
-                .authored(sheet, self.model().definitions().axis_layouts()),
+                .authored(sheet, &self.model().definitions().visible_axis_layouts()),
         )
     }
 

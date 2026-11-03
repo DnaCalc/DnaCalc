@@ -310,7 +310,8 @@ pub fn prepare_edit<'s, 'r>(
             // reference become pending when the change is committed.
             WorkbookOp::SetIteration(_) => {}
             WorkbookOp::SetAxisFormat(edit) => require_sheet(inputs, operation, edit.sheet())?,
-            WorkbookOp::SetConditionalRules { sheet, .. }
+            WorkbookOp::SetAutoFilter { sheet, .. }
+            | WorkbookOp::SetConditionalRules { sheet, .. }
             | WorkbookOp::SetFrozenPanes { sheet, .. } => require_sheet(inputs, operation, *sheet)?,
         }
     }
@@ -460,7 +461,7 @@ pub fn prepare_edit<'s, 'r>(
     let dimensions_pending = change
         .operations
         .iter()
-        .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_)))
+        .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. }))
         .then(|| state.nodes().map(|node| node.id()).collect());
     let schema_changed = change
         .operations
@@ -617,6 +618,7 @@ fn structural_moves(
                 | WorkbookOp::SetIteration(_)
                 | WorkbookOp::SetAxisFormat(_)
                 | WorkbookOp::SetConditionalRules { .. }
+                | WorkbookOp::SetAutoFilter { .. }
                 | WorkbookOp::SetFrozenPanes { .. }
         )
     }) {
@@ -641,6 +643,7 @@ fn structural_moves(
             | WorkbookOp::SetIteration(_)
             | WorkbookOp::SetAxisFormat(_)
             | WorkbookOp::SetConditionalRules { .. }
+            | WorkbookOp::SetAutoFilter { .. }
             | WorkbookOp::SetFrozenPanes { .. } => unreachable!("refused above"),
             WorkbookOp::EditAxis(edit) => {
                 require_sheet(inputs, operation, edit.sheet())?;
