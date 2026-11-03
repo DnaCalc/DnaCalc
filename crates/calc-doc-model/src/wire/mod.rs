@@ -219,6 +219,9 @@ impl std::error::Error for DecodeError {}
 /// Why [`encode_batch`] refused a batch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EncodeError {
+    ReviewNotes {
+        operation: usize,
+    },
     AutoFilter { operation: usize },
     ConditionalRules {
         operation: usize,
@@ -263,6 +266,10 @@ pub enum EncodeError {
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            EncodeError::ReviewNotes { operation } => write!(
+                f,
+                "operation {operation} changes review notes, which wire version 1 does not encode"
+            ),
             EncodeError::AutoFilter { operation } => write!(f, "operation {operation} changes AutoFilter, which wire version 1 does not encode"),
             EncodeError::ConditionalRules { operation } => write!(
                 f,
@@ -335,6 +342,9 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         if matches!(operation, WorkbookOp::SetAutoFilter { .. }) { return Err(EncodeError::AutoFilter { operation:index }); }
         if matches!(operation, WorkbookOp::SetAxisFormat(_)) {
             return Err(EncodeError::AxisFormat { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetReviewNotes { .. }) {
+            return Err(EncodeError::ReviewNotes { operation: index });
         }
         if matches!(operation, WorkbookOp::SetConditionalRules { .. }) {
             return Err(EncodeError::ConditionalRules { operation: index });

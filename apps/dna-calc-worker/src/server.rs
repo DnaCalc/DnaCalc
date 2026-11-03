@@ -728,8 +728,19 @@ impl Server {
                 Request::ReviewMarkers(sheet) => {
                     let review = self.book.host().sheet_review(sheet.id());
                     let mut markers: BTreeMap<Key, String> = BTreeMap::new();
-                    for note in review.notes {
-                        markers.insert(Key::of(note.at), "Note".into());
+                    for note in review.notes .into_iter().filter(|n| !n.compatibility) {
+                        markers.entry(Key::of(note.at))
+                            .and_modify(|label| {
+                                if note.source.as_ref().is_some_and(|s| s.threaded()) {
+                                    *label = "Comment and note".into();
+                                }
+                            })
+                            .or_insert_with(|| {
+                                if note.source.as_ref().is_some_and(|s| s.threaded()) {
+                                    "Comment".into()
+                                } else {
+                                    "Note".into()}
+                            });
                     }
                     for link in review.links {
                         markers
@@ -829,6 +840,22 @@ impl Server {
                     page as usize,
                     active.and_then(Key::cell),
                 ))),
+                Request::ValidationInvalid(sheet) => {
+                    if self.book.host().model().sheet_by_id(sheet.id()).is_none() {
+                        return Err("The worksheet no longer exists".into());
+                    }
+                    let report = self.book.host().scan_validation(sheet.id());
+                    Ok(Reply::ValidationInvalid(wire::ValidationScan {
+                        sheet,
+                        revision: self.book.host().revision().get(),
+                        invalid: report.invalid.into_iter().map(Key::of).collect(),
+                        checked: report.checked,
+                        valid: report.valid,
+                        unavailable: report.unavailable,
+                        truncated: report.truncated,
+                        reasons: report.reasons,
+                    }))
+                }
                 Request::Validation(at) => {
                     let at = cell(at)?;
                     Ok(Reply::Validation(self.book.validation(at).map(|rule| {
@@ -1075,7 +1102,7 @@ impl Server {
             .collect::<Vec<_>>();
         rules.sort_by_key(|r| r.priority);
         let review = host.sheet_review(at.sheet());
-        let count = review.notes.len() + review.links.len();
+        let count = review.notes.iter().filter(|n| !n.compatibility).count() + review.links.len();
         let mut unsupported = review.unsupported;
         if host
             .loaded()
@@ -1091,7 +1118,7 @@ impl Server {
                     .into(),
             );
         }
-        let validation=host.validation(at).map(|v|format!("{} validation · {:?}. Custom rules and formula-entry result checks are unavailable (dc-6yw); loaded rules are preserved.",v.kind,v.style));
+        let validation=host.validation(at).map(|v|format!("{} validation · {:?}. Input alerts do not yet check custom rules or formula entries. Circle Invalid Data checks current published values; loaded rules are preserved.",v.kind,v.style));
         wire::Review {
             at: Some(Key::of(at)),
             revision: host.revision().get(),
@@ -1099,8 +1126,25 @@ impl Server {
             notes: review
                 .notes
                 .into_iter()
-                .filter(|n| n.at == at)
-                .map(|n| (n.author, n.text))
+                .enumerate()
+                .filter(|(_, n)| n.at == at&& !n.compatibility)
+                .map(|(index, n)| {
+                    let (threaded, reply, resolved) = match &n.source {
+                        Some(calc_host::ReviewSource::Thread {
+                            parent, resolved, ..
+                        }) => (true, parent.is_some(), *resolved),
+                        _ => (false, false, false),
+                    };
+                    wire::ReviewItem {
+                        index: index as u32,
+                        author: n.author,
+                        text: n.text,
+                        threaded,
+                        reply,
+                        resolved,
+                        editable: n.editable,
+                    }
+                })
                 .collect(),
             links: review
                 .links
@@ -1125,6 +1169,17 @@ impl Server {
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
+            Intent::EditReview {
+                at,
+                revision,
+                index,
+                text,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::Review {
+                at: cell(at)?,
+                revision,
+                index,
+                text,
+            }),
             Intent::EditName {
                 id,
                 version,

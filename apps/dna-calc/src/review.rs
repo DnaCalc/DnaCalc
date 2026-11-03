@@ -16,7 +16,68 @@ pub fn external_link(target: &str) -> Option<String> {
     .then(|| target.to_owned())
 }
 
+use dna_calc_model::ReviewDraft as NoteDraft;
+
 pub fn controls(controller: Controller) -> impl IntoView {
+    let note_edit = controller.review_edit();
+    let note_field = NodeRef::<leptos::html::Textarea>::new();
+    let note_identity = Memo::new(move |_| {
+        note_edit.with(|n| n.as_ref().map(|n| (n.session, n.at, n.index, n.threaded)))
+    });
+    Effect::new(move |_| {
+        if controller.review_open.get()
+            && note_identity.get().is_some()
+            && let Some(field) = note_field.get()
+        {
+            let _ = field.focus();
+        }
+    });
+    Effect::new(move |_| {
+        let sheet = controller.sheet.get();
+        let generation = controller.generation.get();
+        let refresh = controller.revision.get();
+        let revision = controller.summary.with(|s|s.revision);
+        let epoch = controller.validation_epoch().get();
+        let enabled =
+            sheet.is_some_and(|s| controller.validation_circles().with(|all| all.contains(&s)));
+        controller.validation_scan().set(None);
+        if !enabled {
+            return;
+        }
+        let sheet = sheet.expect("enabled validation sheet");
+        controller.ask_result(Request::ValidationInvalid(Sheet::of(sheet)), move |reply| {
+            if controller.sheet.get_untracked() == Some(sheet)
+                && controller.generation.get_untracked() == generation
+                && controller.revision.get_untracked() == refresh
+                && controller.summary.with_untracked(|s|s.revision)==revision
+                && controller.validation_epoch().get_untracked() == epoch
+                && controller
+                    .validation_circles()
+                    .with_untracked(|all| all.contains(&sheet))
+            {
+                match reply {
+                    Ok(Reply::ValidationInvalid(report))
+                        if report.revision == revision && report.sheet.id() == sheet =>
+                    {
+                        controller.validation_scan().set(Some(Ok(report)));
+                    }
+                    Err(error) => controller.validation_scan().set(Some(Err(error))),
+                    _ => {}
+                }
+            }
+        });
+    });
+    let circle_controls = move || {
+        view! {<section aria-labelledby="dc-validation-audit-title"><h3 id="dc-validation-audit-title">"Validation audit"</h3>
+            <div class="dc-dialog-actions"><button data-dnacalc="validation-circle" on:click=move |_|controller.show_validation_circles(true)>"Circle Invalid Data"</button><button data-dnacalc="validation-clear-circles" on:click=move |_|controller.show_validation_circles(false)>"Clear circles"</button></div>
+            {move ||controller.validation_scan().get().map(|result|match result {Err(error)=>view!{<p role="alert" data-dnacalc="validation-scan-error">{format!("Validation audit unavailable: {error}")}</p>}.into_any(),Ok(r)=>view!{<p data-dnacalc="validation-scan" role="status">{format!("{} invalid · {} valid · {} unavailable of {} checked{}",r.invalid.len(),r.valid,r.unavailable,r.checked,if r.truncated {"; more cells remain (10,000-cell limit)"}else{""})}</p>
+                {r.reasons.into_iter().map(|(reason,count)|view!{<p class="dc-muted">{format!("{count}: {reason}")}</p>}).collect_view()}
+                <div class="dc-invalid-links">{r.invalid.iter().take(50).filter_map(|key|key.cell()).map(|at|view!{<button data-dnacalc="validation-invalid-cell" on:click=move |_|{controller.review_open.set(false);controller.navigate_to(at,|_|{});}>{controller.cell_label(at)}</button>}).collect_view()}</div>
+                {(r.invalid.len()>50).then(||view!{<p class="dc-muted">"The first 50 invalid addresses are listed; the grid marks all checked invalid cells."</p>})}
+            }.into_any()})}
+            {move ||(controller.sheet.get().is_some_and(|s|controller.validation_circles().with(|all|all.contains(&s))) && controller.validation_scan().get().is_none()).then(||view!{<p role="status">"Checking validation rules…"</p>})}
+        </section>}
+    };
     let validation = NodeRef::<leptos::html::Dialog>::new();
     Effect::new(move |_| {
         if let Some(dialog) = validation.get() {
@@ -51,6 +112,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
         controller.review_open.set(false);
         data.set(None);
         selected.set(None);
+    note_edit.set(None);
     });
     Effect::new(move |_| {
         let open = controller.review_open.get();
@@ -111,6 +173,10 @@ pub fn controls(controller: Controller) -> impl IntoView {
         crate::grid::focus_grid();
     };
     let submit = move |change: ConditionalChange| {
+        if note_edit.get_untracked().is_some() {
+            controller.say("Save or cancel the note edit first", true);
+            return;
+        }
         let (Some(sheet), Some(data)) = (controller.sheet.get_untracked(), data.get_untracked())
         else {
             return;
@@ -163,8 +229,32 @@ pub fn controls(controller: Controller) -> impl IntoView {
     };
     let notes = move || {
         data.get().map(|d|{
-        if d.notes.is_empty(){view!{<p class="dc-muted">"No note on this cell."</p>}.into_any()}
-        else {d.notes.into_iter().map(|(author,text)|view!{<article class="dc-review-note" data-dnacalc="review-note"><h4>{author}</h4><p>{text}</p></article>}).collect_view().into_any()}
+        if d.notes.is_empty(){return view!{<p class="dc-muted">"No note or comment on this cell."</p>}.into_any();}
+        let at=d.at;let revision=d.revision;
+            d.notes.into_iter().map(|n|{
+                let index=n.index;let threaded=n.threaded;let draft=n.text.clone();
+                view!{<article class="dc-review-note" data-dnacalc="review-note" data-note-index=index><h4>{n.author}<small>{if threaded {if n.reply {" · Reply"}else{" · Comment"}}else{" · Note"}}{n.resolved.then_some(" · Resolved")}</small></h4><p>{n.text}</p>{n.editable.then(||view!{<button data-dnacalc="note-edit" data-note-index=index disabled=move ||note_edit.get().is_some() on:click=move |_|{if let Some(at)=at {controller.begin_review_edit(at,revision,index,draft.clone(),threaded);}}>{if threaded {"Edit comment"}else{"Edit note"}}</button>})}
+                    {(!n.editable).then(||view!{<p class="dc-muted">"Text editing is unavailable for this comment’s mentions or additional metadata; the file is preserved."</p>})}
+                </article>}}).collect_view().into_any()})
+    };
+    let note_editor = move || {
+        note_identity.get().map(|(_session,at,_index,threaded)|{
+        let title=if threaded {"Edit comment"}else{"Edit note"};
+        view!{<fieldset data-dnacalc="note-editor"><legend>{title}</legend>
+            <p>{at.cell().map(|at|controller.cell_label(at))}</p>
+            {(!threaded).then(||view!{<p class="dc-muted">"Saved note text uses plain formatting."</p>})}
+            <label>"Text"<textarea data-dnacalc="note-text" node_ref=note_field maxlength="32767" prop:value=move ||note_edit.get().map(|n|n.text).unwrap_or_default() on:input=move |ev|note_edit.update(|n|{if let Some(n)=n {n.text=event_target_value(&ev);}})></textarea></label>
+            <div class="dc-dialog-actions"><button data-dnacalc="note-save" on:click=move |_|{
+                let Some(draft)=note_edit.get_untracked() else{return;};
+                if draft.at.cell()!=controller.active_key_untracked() {controller.say("Return to the note’s cell before saving; your text is retained",true);return;}
+                let generation=controller.generation.get_untracked();
+                controller.dispatch(Intent::EditReview {at:draft.at,revision:draft.revision,index:draft.index,text:draft.text.clone()},move |outcome|{
+                    if outcome.accepted && controller.generation.get_untracked()==generation {
+                        note_edit.update(|current|NoteDraft::accepted_save(current,&draft,outcome.summary.revision));
+                    }
+                });
+            }>"Save text"</button><button data-dnacalc="note-cancel" on:click=move |_|note_edit.set(None)>"Cancel edit"</button></div>
+        </fieldset>}
     })
     };
     let links = move || {
@@ -231,9 +321,9 @@ pub fn controls(controller: Controller) -> impl IntoView {
                             }
                         }>"Add rule"</button>
                     </fieldset>
-                    <div class="dc-dialog-actions"><button data-dnacalc="review-undo" disabled=move ||controller.summary.get().undo==0 on:click=move |_|controller.undo()>"Undo"</button><button data-dnacalc="review-redo" disabled=move ||controller.summary.get().redo==0 on:click=move |_|controller.redo()>"Redo"</button></div>
+                    <div class="dc-dialog-actions"><button data-dnacalc="review-undo" disabled=move ||controller.summary.get().undo==0 || note_edit.get().is_some() on:click=move |_|controller.undo()>"Undo"</button><button data-dnacalc="review-redo" disabled=move ||controller.summary.get().redo==0 || note_edit.get().is_some() on:click=move |_|controller.redo()>"Redo"</button></div>
                 </section>
-                <section aria-labelledby="dc-notes-title"><h3 id="dc-notes-title">"Notes & links"</h3>{notes}{links}<p class="dc-muted">"Imported notes and links are preserved on save. Editing notes and replying to comments are unavailable."</p>{move ||data.get().and_then(|d|d.validation).map(|v|view!{<h3>"Data validation"</h3><p data-dnacalc="review-validation">{v}</p>})}{move ||data.get().map(|d|d.unsupported.into_iter().map(|text|view!{<p>{text}</p>}).collect_view())}</section>
+                <section aria-labelledby="dc-notes-title"><h3 id="dc-notes-title">"Notes, comments & links"</h3>{circle_controls}{note_editor}{notes}{links}<p class="dc-muted">"Text changes use ordinary Undo and XLSX saving. Author identities, thread relationships and other imported review metadata are retained. New threaded replies are unavailable."</p>{move ||data.get().and_then(|d|d.validation).map(|v|view!{<h3>"Data validation"</h3><p data-dnacalc="review-validation">{v}</p>})}{move ||data.get().map(|d|d.unsupported.into_iter().map(|text|view!{<p>{text}</p>}).collect_view())}</section>
             </div>
             <p class="dc-review-status" role="status" data-dnacalc="review-status">{move ||controller.status.get().text}</p>
         </dialog>

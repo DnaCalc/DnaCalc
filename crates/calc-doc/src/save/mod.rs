@@ -24,6 +24,7 @@ mod manifest;
 mod panes;
 mod parts;
 mod reader;
+mod review;
 mod sheet;
 mod sheets;
 mod strings;

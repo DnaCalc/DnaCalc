@@ -21,6 +21,10 @@ pub enum CellEdit {
     AutoFilter { sheet: calc_doc_model::value::SheetId, filter: Option<calc_doc_model::AutoFilter> },
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
+    ReviewNotes {
+        sheet: calc_doc_model::value::SheetId,
+        notes: Vec<calc_doc_model::ReviewNote>,
+    },
     /// Replaces authored conditional rules, retaining original XML fields.
     ConditionalRules {
         sheet: calc_doc_model::value::SheetId,
@@ -80,6 +84,7 @@ impl CellEdit {
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
+            CellEdit::ReviewNotes { sheet, notes } => WorkbookOp::SetReviewNotes { sheet, notes },
             CellEdit::ConditionalRules { sheet, rules } => {
                 WorkbookOp::SetConditionalRules { sheet, rules }
             }
@@ -325,6 +330,32 @@ pub fn dispatch(
         }
     }
     for edit in &axis_edits {
+        if host
+            .model
+            .definitions()
+            .review_notes(edit.sheet())
+            .iter()
+            .any(|n| {
+                n.source.as_ref().is_some_and(|source| {
+                    host.loaded
+                        .sheets()
+                        .iter()
+                        .filter(|s| {
+                            s.review().notes.iter().any(|n| {
+                                n.source
+                                    .as_ref()
+                                    .is_some_and(|other| other.part() == source.part())
+                            })
+                        })
+                        .count()
+                        > 1
+                })
+            })
+        {
+            return Err(CommandError::Document(EditError::SheetOperation("Structural edits with shared review parts are unavailable (dc-971p.40); nothing changed".into())));
+        }
+    }
+    for edit in &axis_edits {
         if let Some(view) = host.sheet_view(edit.sheet())
             && let Some(p) = view.frozen
         {
@@ -343,6 +374,52 @@ pub fn dispatch(
                 && edit.first() <= origin.saturating_add(count).saturating_sub(1)
             {
                 return Err(CommandError::Document(EditError::SheetOperation("Unfreeze this imported view before inserting or deleting these bands (dc-971p.16)".into())));
+            }
+        }
+    }
+    for op in &batch.operations {
+        if let WorkbookOp::SetReviewNotes { sheet, notes } = op {
+            let old = host.model.definitions().review_notes(*sheet);
+            let shared = old.iter().zip(notes).any(|(a, b)| {
+                a.text != b.text
+                    && a.source.as_ref().is_some_and(|source| {
+                        host.loaded
+                            .sheets()
+                            .iter()
+                            .filter(|s| {
+                                s.review().notes.iter().any(|n| {
+                                    n.source
+                                        .as_ref()
+                                        .is_some_and(|other| other.part() == source.part())
+                                })
+                            })
+                            .count()
+                            > 1
+                    })
+            });
+            let stale_compatibility = notes.iter().filter(|n|n.compatibility).any(|note| {
+                let original_threads=notes.iter().filter(|n|n.at==note.at && n.source.as_ref().is_some_and(|s|s.threaded())).all(|n|host.loaded.model().definitions().review_notes(*sheet).iter().any(|original|original.source==n.source && original.text==n.text));
+                let original_compatibility=host.loaded.model().definitions().review_notes(*sheet).iter().any(|original|original.compatibility && original.source==note.source && original.author==note.author && original.text==note.text);
+                note.text!=calc_doc_model::review_thread_text(notes,note.at) && !(original_threads && original_compatibility)
+            });
+            let invalid = shared || stale_compatibility
+                || host
+                    .loaded
+                    .sheet(*sheet)
+                    .is_none_or(|s| s.protected() || s.is_macro_sheet())
+                || old.len() != notes.len()
+                || old.iter().zip(notes).any(|(a, b)| {
+                    a.at != b.at
+                        || a.author != b.author
+                        || a.source != b.source
+                        || a.editable != b.editable
+                        || a.compatibility != b.compatibility
+                        || b.text.encode_utf16().count() > 32767
+                        || (!a.editable && !a.compatibility && a.text != b.text)
+
+                });
+            if invalid {
+                return Err(CommandError::Document(EditError::SheetOperation("Review edits must retain the note’s source, cell and author on an editable worksheet (dc-971p.40)".into())));
             }
         }
     }
