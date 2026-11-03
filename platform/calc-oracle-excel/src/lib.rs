@@ -1,5 +1,5 @@
-//! The one Excel capture adapter (plan sections 10.1, 10.2 and 3.3): opens a workbook in a fresh,
-//! isolated Excel instance, sets the calculation policy, forces a full rebuild, captures the raw
+//! The one Excel capture adapter (plan sections 10.1, 10.2 and 3.3): opens a workbook in the lane's
+//! owned Excel session, sets the calculation policy, forces a full rebuild, captures the raw
 //! `Value2` of every formula cell (numbers as their binary64 bits) with its formula text and
 //! whether it spills, Excel's build, compatibility, CPU, OS, locale, date system and calculation
 //! settings, saves the workbook, reopens it and captures it again, and writes the whole as a
@@ -11,6 +11,13 @@
 //! cells it spills into never enter the formula inventory. A spill that cannot be read refuses the capture,
 //! so an Excel without Range.HasSpill (one older than dynamic arrays) refuses every capture that
 //! holds a formula (`convert.rs` holds the detail).
+//!
+//! Capture and witness jobs use `tools/excel-session`: the original worker receives an owned
+//! application, closes its workbook and returns. The host verifies its recorded baseline before
+//! and after the job; a failed reset refuses the result. Each work directory retains the host's
+//! receipt, bound to the worker and raw-result hashes. Every fiftieth ordinary observation job
+//! is repeated in a fresh process, with both results retained. The process-isolation API below
+//! remains for timing and for the existing worker containment tests.
 //!
 //! What the isolation enforces, and how a capture shows it (`worker/capture-worker.ps1` holds the
 //! detail):
@@ -120,6 +127,7 @@ compile_error!(
 mod capture;
 mod convert;
 mod isolation;
+mod session;
 mod timing;
 mod witness;
 #[cfg(all(test, windows))]
