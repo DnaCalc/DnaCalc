@@ -2178,8 +2178,13 @@ impl Controller {
             let column=controller.model.with_untracked(|m|m.runtime.tools.sort_column.parse::<u32>());
             let Ok(column)=column else {controller.say("Enter a column number within the selection",true);return;};
             if column==0 || column>area.column_count() {controller.say("The sort column must be within the selected range (1 is its first column)",true);return;}
-            let header=controller.model.with_untracked(|m|m.runtime.tools.sort_header);
-            controller.dispatch(Intent::SortRows{area:Area::of(area),column:area.first().column()+column-1,header,descending,revision:controller.summary.get_untracked().revision},move |outcome| {
+            let (header,levels)=controller.model.with_untracked(|m|(m.runtime.tools.sort_header,m.runtime.tools.sort_levels.clone()));
+            let mut keys=vec![(area.first().column()+column-1,descending)];
+            for (text,reverse) in levels {
+                let Some(column)=text.parse::<u32>().ok().filter(|c|*c>0 && *c<=area.column_count()) else {controller.say("Every sort key must be a column within the selection",true);return;};
+                keys.push((area.first().column()+column-1,reverse));
+            }
+            controller.dispatch(Intent::SortRows{area:Area::of(area),keys,header,revision:controller.summary.get_untracked().revision},move |outcome| {
                 if outcome.accepted {controller.say(format!("Sorted {} {}",controller.area_label(area),if descending {"largest to smallest"}else{"smallest to largest"}),false);}
             });
         });

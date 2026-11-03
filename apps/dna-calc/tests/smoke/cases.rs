@@ -7266,14 +7266,14 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks:&[Check::Fits,Check::Narrow(390),Check::Name("sort-column","Column within selection"),Check::Reachable("sort-header"),Check::Focused("sort-header"),Check::Reachable("sort-ascending"),Check::Reachable("sort-descending")],
     },
     Case {
-        name:"numeric sort limits: formula content refuses without changing the range",
+        name:"sort formulas: ordinary relative formulas move and recalculate with their rows",
         actions:&[Action::Window(1440,1000),Action::Into(BAR,"3\u{E007}"),Action::Into("name-box","A2\u{E007}"),Action::Into(BAR,"1\u{E007}"),Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"=A1+1\u{E007}"),Action::Into("name-box","A1:B2\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-header"),Action::Click("sort-ascending")],
-        checks:&[Check::TextContains("status","Sorting formula cells"),Check::Text(cell!("A1"),"3"),Check::Text(cell!("A2"),"1"),Check::Text(cell!("B1"),"4"),Check::PlanCell("B1","provenance","calculated")],
+        checks:&[Check::Text(cell!("A1"),"1"),Check::Text(cell!("A2"),"3"),Check::Text(cell!("B2"),"4"),Check::PlanCell("B2","formula","true"),Check::PlanCell("B2","provenance","calculated")],
     },
     Case {
-        name:"numeric sort limits: text keys refuse and leave literal rows unchanged",
+        name:"sort mixed keys: numbers precede text and literal rows stay together",
         actions:&[Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"payload\u{E007}"),Action::Into("name-box","A2\u{E007}"),Action::Into(BAR,"text\u{E007}"),Action::Into("name-box","A1:B2\u{E007}"),Action::Click("sort-ascending")],
-        checks:&[Check::TextContains("status","Sorting non-numeric keys"),Check::Text(cell!("A1"),"3"),Check::Text(cell!("A2"),"text"),Check::Text(cell!("B1"),"payload")],
+        checks:&[Check::Text(cell!("A1"),"1"),Check::Text(cell!("A2"),"text"),Check::Text(cell!("B1"),"payload")],
     },
     Case {
         name:"numeric sort limits: array cells refuse without flattening the source",
@@ -7353,6 +7353,40 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name:"AutoFilter: removing the filter restores excluded rows and retains manual hiding",
         actions:&[Action::Window(1440,1000),Action::Click("filter-remove")],
         checks:&[Check::Count("filter-header",0),Check::TextContains("filter-summary","Select one rectangle"),Check::PlanAbsent("A4"),Check::Text(cell!("B2"),"10"),Check::Text(cell!("B3"),"20"),Check::Text(cell!("D1"),"150"),Check::Text(cell!("E1"),"120")],
+    },
+
+    Case {
+        name:"general sort: text collation and multiple keys move formulas with their rows",
+        actions:&[
+            Action::ExternalClipboard("Category\tScore\tTotal\nBeta\t2\t=B2*2\nalpha\t3\t=B3*2\nAlpha\t1\t=B4*2\nco-op\t4\t=B5*2\ncoop\t5\t=B6*2",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Text(cell!("C6"),"10")),
+            Action::Into("name-box","A1:C6\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-add-key"),Action::Wait(Check::Count("sort-level-order-2",1)),Action::Choose("sort-level-order-2","desc"),Action::Click("sort-ascending"),
+        ],
+        checks:&[Check::Text(cell!("A2"),"alpha"),Check::Text(cell!("A3"),"Alpha"),Check::Text(cell!("A4"),"Beta"),Check::Text(cell!("A5"),"coop"),Check::Text(cell!("A6"),"co-op"),Check::Text(cell!("C2"),"6"),Check::Text(cell!("C3"),"2"),Check::Text(cell!("C4"),"4"),Check::PlanCell("C2","formula","true"),Check::PlanCell("C2","provenance","calculated")],
+    },
+    Case {
+        name:"general sort: one history group restores row order and relocated formulas",
+        actions:&[Action::Click("undo"),Action::Wait(Check::Text(cell!("A2"),"Beta")),Action::Wait(Check::Text(cell!("C2"),"4")),Action::Click("redo")],
+        checks:&[Check::Text(cell!("A2"),"alpha"),Check::Text(cell!("C2"),"6"),Check::Text(cell!("A6"),"co-op"),Check::Text(cell!("C6"),"8"),Check::PlanCell("C6","provenance","calculated")],
+    },
+    Case {
+        name:"general sort: real XLSX reopen retains moved formulas and calculated values",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement],
+        checks:&[Check::Text(cell!("A2"),"alpha"),Check::Text(cell!("A5"),"coop"),Check::Text(cell!("C2"),"6"),Check::Text(cell!("C5"),"10"),Check::PlanCell("C5","formula","true"),Check::PlanCell("C5","provenance","calculated")],
+    },
+    Case {
+        name:"general sort: each key has its own direction after reopen",
+        actions:&[Action::Into("name-box","A1:C6\u{E007}"),Action::OpenDetails("sort-tools"),Action::Wait(Check::Count("sort-level-order-2",1)),Action::Choose("sort-level-order-2","asc"),Action::Click("sort-descending")],
+        checks:&[Check::Text(cell!("A2"),"co-op"),Check::Text(cell!("A3"),"coop"),Check::Text(cell!("A4"),"Beta"),Check::Text(cell!("A5"),"Alpha"),Check::Text(cell!("A6"),"alpha"),Check::Text(cell!("C5"),"2"),Check::Text(cell!("C6"),"6")],
+    },
+    Case {
+        name:"general sort: duplicate keys refuse atomically and extra keys can be removed",
+        actions:&[Action::Into("sort-level-column-2","1"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","each sort column only once")),Action::Click("sort-level-remove-2")],
+        checks:&[Check::Text(cell!("A2"),"co-op"),Check::Text(cell!("C2"),"8"),Check::Count("sort-level-column-2",0)],
+    },
+    Case {
+        name:"general sort: phone access includes multiple key columns and independent order",
+        actions:&[Action::Window(390,844),Action::OpenDetails("sort-tools"),Action::Click("sort-add-key"),Action::Wait(Check::Count("sort-level-order-2",1)),Action::Click("sort-level-column-2"),Action::Keys("sort-level-column-2",TAB)],
+        checks:&[Check::Fits,Check::Narrow(390),Check::Name("sort-level-column-2","Then column 2"),Check::Focused("sort-level-order-2"),Check::Reachable("sort-level-order-2"),Check::Reachable("sort-level-remove-2"),Check::Reachable("sort-add-key")],
     },
 
 ];
@@ -8072,4 +8106,5 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"numeric-sort-limits",start:533,end:536,core:3,setup:&[]},
     CaseGroup {name:"shrink",start:536,end:541,core:5,setup:&[]},
     CaseGroup {name:"autofilter",start:541,end:549,core:8,setup:&[]},
+    CaseGroup {name:"general-sort",start:549,end:555,core:6,setup:&[]},
 ];

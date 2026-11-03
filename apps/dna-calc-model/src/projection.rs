@@ -340,9 +340,8 @@ pub enum Intent {
     AutoFilter { sheet:Sheet, revision:u64, change:FilterChange },
     SortRows {
         area: Area,
-        column: u32,
+        keys: Vec<(u32, bool)>,
         header: bool,
-        descending: bool,
         revision: u64,
     },
     ApplyPaste {

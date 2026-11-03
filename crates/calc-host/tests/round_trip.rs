@@ -10791,7 +10791,7 @@ fn dc_971p__numeric_row_sort_is_stable_moves_formats_and_round_trips_one_history
     let style = book.host().cell_style(at(s,"A2"));
     let sort = |book:&mut HostSession, descending| {
         let revision = book.host().revision().get();
-        book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {area:GridArea::new(at(s,"A1"),at(s,"B6")).unwrap(),column:1,header:true,descending,revision}))
+        book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {area:GridArea::new(at(s,"A1"),at(s,"B6")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending}],header:true,revision}))
     };
     let done = sort(&mut book,false);
     assert!(done.accepted(),"{done:?}");
@@ -10836,21 +10836,22 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
     assert!(enter(&mut book,at(s,"A1"),"3").accepted());
     assert!(enter(&mut book,at(s,"A2"),"1").accepted());
-    assert!(enter(&mut book,at(s,"B1"),"=A1+1").accepted());
+    assert!(enter(&mut book,at(s,"B1"),"=Sheet1!A1+1").accepted());
     let area=GridArea::new(at(s,"A1"),at(s,"B2")).unwrap();
     let refuse=|book:&mut HostSession,column,revision| {
         let before=book.host().revision(); let old=book.host().model().clone(); let styles=book.host().styles().clone();
-        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area,column,header:false,descending:false,revision}));
+        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area,keys:vec![calc_host::SortKey{column,descending:false}],header:false,revision}));
         assert!(!r.accepted(),"{r:?}"); assert_eq!(book.host().revision(),before); assert_eq!(book.host().styles(),&styles);
         for at in [at(s,"A1"),at(s,"A2"),at(s,"B1"),at(s,"B2")] {assert_eq!(book.host().model().cell(at),old.cell(at));}
         r
     };
     let rev=book.host().revision().get();
-    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("formula cells"));
+    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("qualified or unsupported formula references"));
     assert!(enter(&mut book,at(s,"B1"),"literal").accepted());
     let rev=book.host().revision().get();refuse(&mut book,3,rev);refuse(&mut book,1,rev-1);
-    assert!(enter(&mut book,at(s,"A2"),"text").accepted());let rev=book.host().revision().get();
-    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("non-numeric keys"));
+    assert!(enter(&mut book,at(s,"A2"),"\u{1100}").accepted());assert!(enter(&mut book,at(s,"A1"),"text").accepted());let rev=book.host().revision().get();
+    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("row order"));
+    assert!(enter(&mut book,at(s,"A1"),"3").accepted());
     assert!(enter(&mut book,at(s,"A2"),"1").accepted());
     assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(true)})).accepted());
     let rev=book.host().revision().get();let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("hidden or filtered rows"));
@@ -10863,7 +10864,7 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     for (cell,text) in [("A1","46329"),("A2","46023")] {assert!(enter(&mut book,at(dates,cell),text).accepted());}
     assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {areas:vec![GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap()],patch:calc_host::FormatPatch{number_format:Some("yyyy-mm-dd".into()),..Default::default()}})).accepted());
     let revision=book.host().revision().get();
-    let sorted=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap(),column:1,header:false,descending:false,revision}));
+    let sorted=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
     assert!(sorted.accepted(),"{sorted:?}");
     assert!(match (book.host().model().cell(at(dates,"A1")),book.host().model().cell(at(dates,"A2"))) {(Some(CellInput::Number(a)),Some(CellInput::Number(b)))=>a.get()<b.get(),_=>false});
 }
@@ -10880,7 +10881,7 @@ fn dc_971p__numeric_sort_retains_source_metadata_by_refusing_decorated_text_and_
         let xml=format!("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\"><v>3</v></c><c r=\"B1\" t=\"inlineStr\"><is>{text}</is></c></row><row r=\"2\"><c r=\"A2\"><v>1</v></c><c r=\"B2\" t=\"inlineStr\"><is><t>second</t></is></c></row></sheetData>{tail}</worksheet>");
         let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.clone());
         let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
-        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),column:1,header:false,descending:false,revision}));
+        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
         assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
         assert_eq!(book.host().model().cell(at(s,"A1")),Some(&number(3.)));
         let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
@@ -10897,7 +10898,7 @@ fn dc_971p__numeric_sort_retains_source_metadata_by_refusing_decorated_text_and_
         let xml=format!("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:v=\"urn:sort-retained\"><sheetData><row r=\"1\"><c r=\"A1\"><v>3</v></c>{cell}</row><row r=\"2\"><c r=\"A2\"><v>1</v></c></row></sheetData></worksheet>");
         let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.clone());
         let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
-        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),column:1,header:false,descending:false,revision}));
+        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
         assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
         let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
         assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml"),xml);
@@ -10909,12 +10910,12 @@ fn dc_971p__numeric_sort_retains_source_metadata_by_refusing_decorated_text_and_
         assert!(xml.contains("<t>payload</t>"));xml.replace("<t>payload</t>","<r><rPr><i/></rPr><t>payload</t></r>")
     });
     let mut book=session(&rich);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
-    let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),column:1,header:false,descending:false,revision}));
+    let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
     assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
     let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
     assert_eq!(part_text(&saved,"xl/sharedStrings.xml"),part_text(&rich,"xl/sharedStrings.xml"));
     let mut ordinary=session(&plain);let p=ordinary.host().sheets()[0].id();let revision=ordinary.host().revision().get();
-    let done=ordinary.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(p,"A1"),at(p,"B2")).unwrap(),column:1,header:false,descending:false,revision}));
+    let done=ordinary.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(p,"A1"),at(p,"B2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
     assert!(done.accepted(),"{done:?}");
     assert_eq!(ordinary.host().model().cell(at(p,"B1")),Some(&calc_host::interpret_entry("second").unwrap().unwrap()));
 }
@@ -11098,4 +11099,117 @@ fn dc_971p_37__opaque_filter_row_edits_refuse_without_losing_independent_manual_
     assert_eq!(reopened.host().model().definitions().hidden_rows(r,3,4).collect::<Vec<_>>(),vec![(3,calc_host::RowHidden::Manual),(4,calc_host::RowHidden::Filtered)]);
     let revision=reopened.host().revision().get();assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Remove})).accepted());
     let mut removed=Vec::new();reopened.save(&SavePolicy::default(),&mut removed).unwrap();let after=open(&removed);let a=after.sheets()[0].id();assert!(after.sheet_geometry(a).unwrap().rows[&3].hidden);assert!(!after.sheet_geometry(a).unwrap().rows.get(&4).is_some_and(|v|v.hidden));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__text_multiple_keys_relocate_formulas_and_keep_history_xlsx_and_replay() {
+    use calc_host::{WorkbookCommand as W, SortKey};
+    let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
+    for (address,input) in [("A1","Category"),("B1","Amount"),("C1","Total"),("D1","Mixed"),("F1","1000"),("B9","100"),("H1","=B2")] {assert!(enter(&mut book,at(s,address),input).accepted());}
+    for (row,text,number) in [(2,"Beta",2),(3,"alpha",3),(4,"Alpha",1),(5,"co-op",4),(6,"coop",5)] {
+        for (col,value) in [("A",text.to_string()),("B",number.to_string()),("C",format!("=B{row}+$F$1")),("D",format!("=$B{row}+B$9+$B$9"))] {assert!(enter(&mut book,at(s,&format!("{col}{row}")),&value).accepted());}
+    }
+    assert!(book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::new(at(s,"A2"),at(s,"D2")).unwrap()],patch:calc_host::FormatPatch{fill:Some("#ff0000".into()),..Default::default()}})).accepted());
+    let style=book.host().cell_style(at(s,"A2"));
+    let area=GridArea::new(at(s,"A1"),at(s,"D6")).unwrap();
+    let revision=book.host().revision().get();
+    let result=book.dispatch(SkinIntent::Command(W::SortRows{area,keys:vec![SortKey{column:1,descending:false},SortKey{column:2,descending:true}],header:true,revision}));
+    assert!(result.accepted(),"{result:?}");
+    for (row,text,value) in [(2,"alpha",3.),(3,"Alpha",1.),(4,"Beta",2.),(5,"coop",5.),(6,"co-op",4.)] {
+        assert_eq!(book.host().model().cell(at(s,&format!("A{row}"))),Some(&calc_host::interpret_entry(text).unwrap().unwrap()));
+        assert_eq!(book.host().model().cell(at(s,&format!("C{row}"))),Some(&calc_host::interpret_entry(&format!("=B{row}+$F$1")).unwrap().unwrap()));
+        assert_eq!(book.host().model().cell(at(s,&format!("D{row}"))),Some(&calc_host::interpret_entry(&format!("=$B{row}+B$9+$B$9")).unwrap().unwrap()));
+        assert_eq!(session_calculated(&book,at(s,&format!("C{row}"))).unwrap().as_number(),Some(value+1000.));
+        assert_eq!(session_calculated(&book,at(s,&format!("D{row}"))).unwrap().as_number(),Some(value+200.));
+    }
+    assert_eq!(book.host().cell_style(at(s,"A4")),style);
+    // Formulas outside the selected rectangle keep their physical references.
+    assert_eq!(book.host().model().cell(at(s,"H1")),Some(&calc_host::interpret_entry("=B2").unwrap().unwrap()));
+    assert_eq!(session_calculated(&book,at(s,"H1")).unwrap().as_number(),Some(3.));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(session_calculated(&book,at(s,"H1")).unwrap().as_number(),Some(2.));
+    assert_eq!(book.host().cell_style(at(s,"A2")),style);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(reopened.host().model().cell(at(r,"C4")),Some(&calc_host::interpret_entry("=B4+$F$1").unwrap().unwrap()));
+    assert_eq!(reopened.host().cell_style(at(r,"A4")),style);
+    assert_eq!(session_calculated(&reopened,at(r,"D4")).unwrap().as_number(),Some(202.));
+    // The normal XLSX writer compresses these formula columns into shared groups. Sorting
+    // the reopened file must materialise and relocate their members through the same route.
+    assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains("t=\"shared\""));
+    let revision=reopened.host().revision().get();
+    let sorted=reopened.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(r,"A1"),at(r,"D6")).unwrap(),keys:vec![SortKey{column:1,descending:true},SortKey{column:2,descending:false}],header:true,revision}));
+    assert!(sorted.accepted(),"{sorted:?}");
+    assert_eq!(reopened.host().model().cell(at(r,"C2")),Some(&calc_host::interpret_entry("=B2+$F$1").unwrap().unwrap()));
+    assert_eq!(session_calculated(&reopened,at(r,"C2")).unwrap().as_number(),Some(1004.));
+    let mut twin=session(&calc_host::blank_package());let replayed=replay(book.intent_log(),&mut twin);
+    assert!(replayed.mismatches.is_empty(),"{replayed:?}");
+    let t=twin.host().sheets()[0].id();
+    for address in ["A2","C4","D6","H1"] {assert_eq!(twin.host().model().cell(at(t,address)),book.host().model().cell(at(s,address)));}
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__mixed_keys_keep_errors_equal_and_blanks_last_in_both_directions() {
+    use calc_host::{WorkbookCommand as W,SortKey};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (row,input,label) in [(1,"=1/0","error first"),(2,"TRUE","true"),(3,"a","text"),(4,"1","number"),(5,"=#REF!","error second"),(6,"FALSE","false")] {
+        assert!(enter(&mut book,at(s,&format!("A{row}")),input).accepted());
+        assert!(enter(&mut book,at(s,&format!("B{row}")),label).accepted());
+    }
+    assert!(enter(&mut book,at(s,"B7"),"blank").accepted());
+    for (descending,expected) in [(false,["number","text","false","true","error first","error second","blank"]),(true,["error first","error second","true","false","text","number","blank"])] {
+        let revision=book.host().revision().get();
+        let sorted=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B7")).unwrap(),keys:vec![SortKey{column:1,descending}],header:false,revision}));
+        assert!(sorted.accepted(),"{sorted:?}");
+        for (index,text) in expected.iter().enumerate() {assert_eq!(book.host().model().cell(at(s,&format!("B{}",index+1))),Some(&calc_host::interpret_entry(text).unwrap().unwrap()));}
+        assert_eq!(book.host().model().cell(at(s,"A7")),None);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__formula_keys_require_current_values_and_invalid_key_lists_are_atomic() {
+    use calc_host::{WorkbookCommand as W,SortKey};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());
+    assert!(enter(&mut book,at(s,"A1"),"=3").accepted());assert!(enter(&mut book,at(s,"A2"),"=1").accepted());
+    let area=GridArea::new(at(s,"A1"),at(s,"A2")).unwrap();
+    let sort=|book:&mut HostSession,keys| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::SortRows{area,keys,header:false,revision}))};
+    let key=SortKey{column:1,descending:false};let revision=book.host().revision();
+    let refused=sort(&mut book,vec![key]);assert!(!refused.accepted());assert!(refused.error.unwrap().to_string().contains("current calculated values"));assert_eq!(book.host().revision(),revision);
+    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic)).accepted());
+    for keys in [vec![],vec![key,key],vec![SortKey{column:2,..key}],vec![key;33]] {
+        let revision=book.host().revision();let old=book.host().model().cell(at(s,"A1")).cloned();
+        assert!(!sort(&mut book,keys).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.host().model().cell(at(s,"A1")),old.as_ref());
+    }
+    let sorted=sort(&mut book,vec![key]);assert!(sorted.accepted(),"{sorted:?}");
+    assert_eq!(session_calculated(&book,at(s,"A1")).unwrap().as_number(),Some(1.));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomically() {
+    use calc_host::{WorkbookCommand as W,SortKey};
+    let xml="<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"9\"><c r=\"A9\"><v>2</v></c></row><row r=\"10\"><c r=\"A10\"><f ca=\"1\">1</f><v>1</v></c></row></sheetData></worksheet>";
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.into());
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,1,1).unwrap())).accepted());
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let before=book.host().revision();
+    let result=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A8"),at(s,"A9")).unwrap(),keys:vec![SortKey{column:1,descending:false}],header:false,revision:before.get()}));
+    assert!(!result.accepted(),"{result:?}");assert_eq!(book.host().revision(),before);
+    assert_eq!(book.host().model().cell(at(s,"A8")),Some(&number(2.)));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains("<f ca=\"1\">1</f>"));
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (address,input) in [("A1","Header"),("A2","2"),("A3","1")] {assert!(enter(&mut book,at(s,address),input).accepted());}
+    let area=GridArea::new(at(s,"A1"),at(s,"A3")).unwrap();let revision=book.host().revision().get();
+    assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:calc_host::FilterChange::Enable{area}})).accepted());
+    let before=book.host().revision();let result=book.dispatch(SkinIntent::Command(W::SortRows{area,keys:vec![SortKey{column:1,descending:false}],header:true,revision:before.get()}));
+    assert!(!result.accepted(),"{result:?}");assert!(result.error.unwrap().to_string().contains("AutoFilter ranges"));assert_eq!(book.host().revision(),before);
+    assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
 }

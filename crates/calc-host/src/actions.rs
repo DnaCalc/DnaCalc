@@ -4,6 +4,13 @@ use crate::value::{CellKey, GridArea, SheetId};
 use crate::{Axis, CellEdit, HostState, SheetEdit, SheetKey, SheetName, SheetVisibility};
 use std::collections::BTreeSet;
 
+/// Sort columns in priority order, with an independent direction per column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SortKey {
+    pub column: u32,
+    pub descending: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SheetChange {
     Add { name: String },
@@ -77,9 +84,8 @@ pub enum WorkbookCommand {
     },
     SortRows {
         area: GridArea,
-        column: u32,
+        keys: Vec<SortKey>,
         header: bool,
-        descending: bool,
         revision: u64,
     },
     Paste(crate::paste::PastePlan),
@@ -99,11 +105,10 @@ pub(crate) fn prepare(
         WorkbookCommand::AutoFilter { sheet,revision,change }=>crate::filter::prepare(host,sheet,revision,change),
         WorkbookCommand::SortRows {
             area,
-            column,
+            keys,
             header,
-            descending,
             revision,
-        } => sort_rows(host, area, column, header, descending, revision),
+        } => sort_rows(host, area, &keys, header, revision),
         WorkbookCommand::Name(edit) => crate::names::prepare(host, edit),
         WorkbookCommand::FormatCells { areas, patch } => {
             crate::format::prepare(host, &areas, &patch)
@@ -477,25 +482,33 @@ pub(crate) fn conditional_edits(
 }
 
 /// A bounded row permutation. Ordering comes from the existing evaluator; edits use the same
-/// immutable copy snapshots and one transaction as Paste. Formula relocation and document
-/// metadata movement need separate Excel measurements before this command admits them.
+/// immutable copy snapshots and reference relocation as Paste, in one transaction. Source-only
+/// metadata and qualified formula references remain refused until their movement is measured.
 fn sort_rows(
     host: &HostState,
     area: GridArea,
-    column: u32,
+    keys: &[SortKey],
     header: bool,
-    descending: bool,
     revision: u64,
 ) -> Result<Vec<CellEdit>, String> {
     let unavailable = |detail: &str| {
-        format!("Sorting {detail} is not modelled (dc-971p.36); nothing was changed")
+        format!("Sorting {detail} is not modelled (dc-971p.38); nothing was changed")
     };
     if revision != host.revision().get() {
         return Err("The workbook changed before sorting; select the range again".into());
     }
     crate::check_destination(host, area, crate::PasteMode::All).map_err(|e| e.to_string())?;
-    if !(area.first().column()..=area.last().column()).contains(&column) {
-        return Err("The sort column must lie in the selected range".into());
+    if keys.is_empty() || keys.len() > 32 {
+        return Err("Choose 1 to 32 sort keys".into());
+    }
+    let mut columns = BTreeSet::new();
+    for key in keys {
+        if !(area.first().column()..=area.last().column()).contains(&key.column) {
+            return Err("Every sort column must lie in the selected range".into());
+        }
+        if !columns.insert(key.column) {
+            return Err("Choose each sort column only once".into());
+        }
     }
     let first = area.first().row() + u32::from(header);
     if first > area.last().row() {
@@ -552,6 +565,9 @@ fn sort_rows(
     {
         return Err(unavailable("unloaded cell content"));
     }
+    if host.model().definitions().auto_filter(area.sheet()).is_some_and(|filter| filter.area.intersection(data).is_some()) {
+        return Err(unavailable("AutoFilter ranges; remove the filter first"));
+    }
     if !host.loaded.cell_sort_metadata_supported(area.sheet()) {
         return Err(unavailable("source cell decorations or worksheet objects"));
     }
@@ -587,28 +603,39 @@ fn sort_rows(
     for row in first..=area.last().row() {
         for col in area.first().column()..=area.last().column() {
             let at = CellKey::new(area.sheet(), row, col).unwrap();
-            if matches!(host.model().cell(at), Some(crate::CellInput::Formula(_))) {
-                return Err(unavailable("formula cells; use Paste Special Values first"));
+            if let Some(crate::CellInput::Formula(formula)) = host.model().cell(at) {
+                // Sheet-qualified references have distinct Excel sort behaviour. Do not
+                // silently apply the ordinary copy rule to them.
+                let tree = calc_fml::parse_formula(&format!("={}", formula.text().to_string_lossy()));
+                if !tree.diagnostics().is_empty() {
+                    return Err(unavailable("qualified or unsupported formula references"));
+                }
+                use calc_fml::syntax::{SyntaxChild, SyntaxKind};
+                let mut nodes = vec![tree.root()];
+                while let Some(node) = nodes.pop() {
+                    if matches!(node.kind(), SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr) {
+                        return Err(unavailable("qualified or unsupported formula references"));
+                    }
+                    nodes.extend(node.children().iter().filter_map(|child| match child {
+                        SyntaxChild::Node(node) => Some(node),
+                        _ => None,
+                    }));
+                }
             }
         }
     }
-    for row in first..=data.last().row() {
-        let key = CellKey::new(area.sheet(), row, column).unwrap();
-        if host
-            .model()
-            .cell(key)
-            .is_some_and(|input| !matches!(input, crate::CellInput::Number(_)))
-        {
-            return Err(unavailable(
-                "non-numeric keys; choose a numeric or date column",
-            ));
-        }
+    let cells = (first..=data.last().row()).flat_map(|row| keys.iter().map(move |key|
+        CellKey::new(area.sheet(), row, key.column).unwrap())).collect();
+    let page = crate::project(host, &crate::ProjectionRequest { cells }).map_err(|e| e.to_string())?;
+    if page.cells().iter().any(|cell| !matches!(cell.value(),
+        crate::ProjectedValue::Empty | crate::ProjectedValue::Literal(_) | crate::ProjectedValue::Calculated { .. })) {
+        return Err(unavailable("keys without current calculated values; calculate the range first"));
     }
     let count = data.row_count();
     if count < 2 {
         return Ok(Vec::new());
     }
-    let label = |row| {
+    let label = |column, row| {
         let mut col = column;
         let mut chars = Vec::new();
         while col > 0 {
@@ -617,27 +644,29 @@ fn sort_rows(
         }
         format!("{}{}", chars.into_iter().rev().collect::<String>(), row)
     };
-    let key = format!("{}:{}", label(first), label(data.last().row()));
     // Empty keys stay last in both directions. Original row index is an explicit tie key.
-    // DetachedFormula reads canonical XLSX function spellings.
-    let formula = format!(
-        "_xlfn.SORTBY(_xlfn.SEQUENCE({count}),ISBLANK({key}),1,{key},{},_xlfn.SEQUENCE({count}),1)",
-        if descending { -1 } else { 1 }
-    );
+    // Grid sorting treats all errors as equal. Normalise their codes through the evaluator,
+    // whose SORTBY otherwise orders different error codes. No host comparator is introduced.
+    let mut formula = format!("_xlfn.SORTBY(_xlfn.SEQUENCE({count})");
+    for key in keys {
+        let range = format!("{}:{}", label(key.column, first), label(key.column, data.last().row()));
+        formula.push_str(&format!(",ISBLANK({range}),1,IFERROR({range},NA()),{}", if key.descending {-1} else {1}));
+    }
+    formula.push_str(&format!(",_xlfn.SEQUENCE({count}),1)"));
     let value = calc_engine::DetachedFormula::compile_dynamic(host.model(), &formula, data.first())
         .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
-        .map_err(|e| format!("Sort could not calculate the row order (dc-971p.36): {e}"))?;
+        .map_err(|e| format!("Sort could not calculate the row order (dc-971p.38): {e}"))?;
     let calc_value::CoreRef::Array(order) = value.core_ref() else {
         return Err(match value.core_ref() {
             calc_value::CoreRef::Error(code) => format!(
-                "Sort could not calculate the row order: {} (dc-971p.36)",
+                "Sort could not calculate the row order: {} (dc-971p.38)",
                 code.excel_spelling()
             ),
-            _ => "Sort did not return a row order (dc-971p.36)".into(),
+            _ => "Sort did not return a row order (dc-971p.38)".into(),
         });
     };
     if order.shape().rows != count as usize || order.shape().cols != 1 {
-        return Err("Sort returned an unexpected row count (dc-971p.36)".into());
+        return Err("Sort returned an unexpected row count (dc-971p.38)".into());
     }
     let mut seen = BTreeSet::new();
     let mut edits = Vec::new();
@@ -645,14 +674,14 @@ fn sort_rows(
         let Some(calc_value::CoreRef::Number(number)) =
             order.get(index as usize, 0).map(|v| v.core_ref())
         else {
-            return Err("Sort did not return numeric row positions (dc-971p.36)".into());
+            return Err("Sort did not return numeric row positions (dc-971p.38)".into());
         };
         if number < 1.
             || number > f64::from(count)
             || number.fract() != 0.
             || !seen.insert(number as u32)
         {
-            return Err("Sort returned invalid row positions (dc-971p.36)".into());
+            return Err("Sort returned invalid row positions (dc-971p.38)".into());
         }
         let source_row = first + number as u32 - 1;
         let target_row = first + index;

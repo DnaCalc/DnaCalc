@@ -1095,7 +1095,7 @@ impl Server {
                 };
                 SkinIntent::Command(calc_host::WorkbookCommand::AutoFilter{sheet:sheet.id(),revision,change})
             },
-            Intent::SortRows {area:a,column,header,descending,revision} => SkinIntent::Command(calc_host::WorkbookCommand::SortRows {area:area(a)?,column,header,descending,revision}),
+            Intent::SortRows {area:a,keys,header,revision} => SkinIntent::Command(calc_host::WorkbookCommand::SortRows {area:area(a)?,keys:keys.into_iter().map(|(column,descending)|calc_host::SortKey{column,descending}).collect(),header,revision}),
             Intent::Replace {
                 options,
                 replacement,
