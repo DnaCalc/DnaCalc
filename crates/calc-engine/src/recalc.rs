@@ -293,6 +293,44 @@ struct BySlot<T> {
     entries: crate::slots::Slots<(NodeId, T)>,
 }
 
+#[cfg(test)]
+mod scheduling_slot_tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn scheduling_metadata_keeps_slot_order_and_rejects_a_replaced_generation() {
+        for dense in [false, true] {
+            let mut map = BySlot::new(1_000_003, 3);
+            let low = NodeId::from_parts(2, 3);
+            let high = NodeId::from_parts(1_000_002, 2);
+            map.insert(high, 20);
+            map.insert(low, 10);
+            if dense {
+                map.reserve_slots(1_000_003);
+            }
+            for (_, value) in map.iter_mut() {
+                *value += 1;
+            }
+            assert_eq!(
+                map.iter()
+                    .map(|(node, value)| (*node, *value))
+                    .collect::<Vec<_>>(),
+                vec![(low, 11), (high, 21)]
+            );
+            let replacement = NodeId::from_parts(high.slot(), high.generation() + 1);
+            map.insert(replacement, 30);
+            assert_eq!(map.get(high), None);
+            assert_eq!(map.get_mut(&high), None);
+            *map.get_mut(&replacement).unwrap() += 1;
+            assert_eq!(
+                map.into_entries().collect::<Vec<_>>(),
+                vec![(low, 11), (replacement, 31)]
+            );
+        }
+    }
+}
+
 impl<T> Default for BySlot<T> {
     fn default() -> Self {
         BySlot {
@@ -302,11 +340,29 @@ impl<T> Default for BySlot<T> {
 }
 
 impl<T> BySlot<T> {
-    fn get(&self, node: NodeId) -> Option<&T> {
+    fn new(slots: usize, expected: usize) -> Self {
+        Self {
+            entries: crate::slots::Slots::new(slots, expected),
+        }
+    }
+    fn get(&self, node: impl std::borrow::Borrow<NodeId>) -> Option<&T> {
+        let node = *node.borrow();
         self.entries
             .get(node.slot())
             .filter(|(held, _)| *held == node)
             .map(|(_, value)| value)
+    }
+    fn get_mut(&mut self, node: &NodeId) -> Option<&mut T> {
+        self.entries
+            .get_mut(node.slot())
+            .filter(|(held, _)| held == node)
+            .map(|(_, value)| value)
+    }
+    fn iter(&self) -> impl Iterator<Item = (&NodeId, &T)> {
+        self.entries.iter().map(|(node, value)| (node, value))
+    }
+    fn iter_mut(&mut self) -> impl Iterator<Item = (&NodeId, &mut T)> {
+        self.entries.iter_mut().map(|(node, value)| (&*node, value))
     }
     fn reserve_slots(&mut self, slots: usize) {
         self.entries.reserve_dense(slots);
@@ -379,15 +435,15 @@ pub struct RecalcWork {
     interest: Vec<GridArea>,
     preferred: BTreeSet<NodeId>,
     precedents: BTreeMap<NodeId, Vec<NodeId>>,
-    reference_rank: BTreeMap<NodeId, usize>,
-    segments: BTreeMap<NodeId, usize>,
+    reference_rank: BySlot<usize>,
+    segments: BySlot<usize>,
     segment_scheduling: bool,
     parallel_scheduling: bool,
     has_fences: bool,
     preferred_quanta: usize,
     urgent_interest: bool,
     service_clock: u64,
-    last_service: BTreeMap<NodeId, u64>,
+    last_service: BySlot<u64>,
     suspended: BTreeMap<NodeId, EvalLocal>,
     early_published: BTreeMap<NodeId, Option<crate::contract::ResultStamp>>,
     publication_fences: bool,
@@ -476,7 +532,7 @@ pub(crate) struct EvalShared<'a> {
     linked_input_version: u64,
     selection: EvalSelection,
     parallel_scheduling: bool,
-    reference_rank: &'a BTreeMap<NodeId, usize>,
+    reference_rank: &'a BySlot<usize>,
     destination: ResultDestination,
     pass: CalcPassId,
     root_reason: ReevaluationReason,
@@ -1295,11 +1351,7 @@ fn begin_with_scope(
         predecessor: None,
     };
     let boundary_caches = crate::read::BoundarySnapshot::capture(state, inputs, &admission.scope);
-    let reference_rank = order
-        .iter()
-        .enumerate()
-        .map(|(rank, node)| (*node, rank))
-        .collect();
+    let mut reference_rank = BySlot::new(state.nodes.len(), order.len());
     let segment_scheduling = selection != EvalSelection::FormulaEntry
         && !iteration.enabled()
         && inputs.definitions().data_tables().is_empty()
@@ -1312,35 +1364,34 @@ fn begin_with_scope(
         });
     let mut segment = 0;
     let mut parallel = false;
-    let segments: BTreeMap<_, _> = order
-        .iter()
-        .map(|node| {
-            let fence = match state.bindings.get(node) {
-                Some(Binding::Placed(instance, role)) => {
-                    let allowed = segment_scheduling
-                        && matches!(role, ArrayRole::Cell | ArrayRole::Spill)
-                        && instance
-                            .plan()
-                            .parallel_call_limit(&state.callables)
-                            .is_some();
-                    parallel |= allowed && instance.plan().has_user_calls();
-                    instance.plan().has_user_calls() && !allowed
-                }
-                Some(Binding::Refused(NotModeled::Compile(
-                    calc_fml::CompileError::UnknownFunction { .. },
-                ))) => inputs.definitions().macro_enabled(),
-                _ => false,
-            };
-            if fence {
-                segment += 1;
+    let mut segments = BySlot::new(state.nodes.len(), order.len());
+    for (rank, &node) in order.iter().enumerate() {
+        reference_rank.insert(node, rank);
+        let fence = match state.bindings.get(&node) {
+            Some(Binding::Placed(instance, role)) => {
+                let allowed = segment_scheduling
+                    && matches!(role, ArrayRole::Cell | ArrayRole::Spill)
+                    && instance
+                        .plan()
+                        .parallel_call_limit(&state.callables)
+                        .is_some();
+                parallel |= allowed && instance.plan().has_user_calls();
+                instance.plan().has_user_calls() && !allowed
             }
-            let own = segment;
-            if fence {
-                segment += 1;
-            }
-            (*node, own)
-        })
-        .collect();
+            Some(Binding::Refused(NotModeled::Compile(
+                calc_fml::CompileError::UnknownFunction { .. },
+            ))) => inputs.definitions().macro_enabled(),
+            _ => false,
+        };
+        if fence {
+            segment += 1;
+        }
+        let own = segment;
+        if fence {
+            segment += 1;
+        }
+        segments.insert(node, own);
+    }
     Ok(RecalcWork {
         interest: Vec::new(),
         preferred: BTreeSet::new(),
@@ -1357,7 +1408,7 @@ fn begin_with_scope(
         preferred_quanta: 0,
         urgent_interest: false,
         service_clock: 0,
-        last_service: BTreeMap::new(),
+        last_service: BySlot::new(state.nodes.len(), order.len()),
         linked_workbooks: state.linked_workbooks.clone(),
         linked_input_version: state.linked_input_version,
         external_input_version: state.contract.external_inputs,
@@ -1872,7 +1923,7 @@ fn apply(
             for (rank, value) in ranks.values_mut().enumerate() {
                 *value = rank;
             }
-            for (node, segment) in &mut work.segments {
+            for (node, segment) in work.segments.iter_mut() {
                 *segment = ranks[&(moved.contains(node), *segment)];
             }
             observer.deferred(live_anchor(state, node), cell);
