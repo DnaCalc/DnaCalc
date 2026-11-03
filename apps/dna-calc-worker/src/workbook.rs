@@ -220,7 +220,23 @@ impl Workbook {
         }
         let functions = calc_vba::load_module(name, source, max_steps)?;
         self.session.set_user_functions(functions);
+        self.session.set_workbook_event_handler(None);
         Ok(())
+    }
+    pub fn load_vba_project(&mut self, modules: &[crate::wire::VbaModule], max_steps: u64) -> Result<(), String> {
+        self.load_vba_project_with_backend(modules, max_steps, None)
+    }
+    pub fn load_vba_project_with_backend(&mut self, modules: &[crate::wire::VbaModule], max_steps: u64, backend: Option<calc_vba::Backend>) -> Result<(), String> {
+        let owner = crate::vba_events::prepare(self.session.host(), &self.name, modules, max_steps, backend)?;
+        self.session.set_user_functions(owner.project.functions());
+        self.session.set_workbook_event_handler(Some(owner));
+        Ok(())
+    }
+    pub fn set_vba_events_enabled(&mut self, enabled: bool) {
+        self.session.set_workbook_events_enabled(enabled);
+    }
+    pub fn take_workbook_event_failures(&mut self) -> calc_host::WorkbookEventFailures {
+        self.session.take_workbook_event_failures()
     }
     pub fn set_calculation_budget(&mut self, budget: calc_host::WorkBudget) {
         self.session.set_calculation_budget(budget);

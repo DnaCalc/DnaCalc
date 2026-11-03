@@ -52,6 +52,9 @@ pub(super) fn adapter_error(value: api::Error) -> Error {
     }
 }
 impl api::Session for OwnedSession {
+    fn attach_document(&self, module: &str, source: &api::HostObject) -> Result<(), api::Error> {
+        self.inner.attach_document(module, source).map_err(error)
+    }
     fn procedures(&self) -> &[api::Procedure] {
         &self.catalogue
     }
@@ -142,7 +145,7 @@ impl api::Session for OwnedSession {
         }
         let module = Module::load_spreadsheet(&module.name, &module.source)
             .map_err(|e| api::Error::Compile(e.to_string()))?;
-        let (image, functions, spreadsheet) = split_module(module);
+        let (image, functions, spreadsheet, event_project) = split_module(module);
         self.inner.reload(image).map_err(error)?;
         self.catalogue = catalogue(&self.inner);
         self.bound = bind_functions(&functions, |p| self.inner.bind(&p.module, &p.name, p.kind))
@@ -153,6 +156,7 @@ impl api::Session for OwnedSession {
         self.typed = super::typed::entries(&self.inner, &functions, &self.bound);
         self.functions = functions;
         self.spreadsheet = spreadsheet;
+        self.event_project = event_project;
         Ok(())
     }
 }

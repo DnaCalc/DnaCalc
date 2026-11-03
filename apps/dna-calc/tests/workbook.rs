@@ -2795,4 +2795,50 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
     assert!(matches!(bad, FromServer::Failed { .. }), "{bad:?}");
     force(&mut server);
     assert_eq!(shown(server.book(), at).text, "3");
+
+    // Document handlers are selected by the runtime and share the registered UDF state.
+    let modules = vec![
+        wire::VbaModule { name: "Events".into(), target: wire::VbaModuleTarget::Standard,
+            source: "Public Changes As Long\nPublic Calcs As Long\nPublic Last As Double\nPublic Function Probe() As String\n Probe = CStr(Changes) & \":\" & CStr(Calcs) & \":\" & CStr(Last)\nEnd Function\n".into() },
+        wire::VbaModule { name: "Sheet1".into(), target: wire::VbaModuleTarget::Worksheet(wire::Sheet::of(sheet)),
+            source: "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n If Target.Column = 1 Then\n  Changes = Changes + 1\n  Last = Target.Value2\n End If\nEnd Sub\nPrivate Sub Worksheet_Calculate()\n Calcs = Calcs + 1\nEnd Sub\n".into() },
+    ];
+    let load_events = server.envelope(Request::LoadVbaProject { modules: modules.clone(), max_steps: 100_000 });
+    assert!(matches!(exchange(&mut server, load_events.clone()), FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted));
+    let report_cell = CellKey::new(sheet, 1, 5).unwrap();
+    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(report_cell), text: "=Probe()".into() }));
+    let report = |server: &mut Server| {
+        send(server, Request::Intent(Intent::CalculateRange { areas: vec![Area::of(GridArea::cell(report_cell))] }));
+        while server.has_pending_calculation() { server.advance_calculation(); }
+        shown(server.book(), report_cell).text
+    };
+    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "10".into() }));
+    assert_eq!(report(&mut server), "1:0:10", "Calculate runs after the formula observes its state");
+    exchange(&mut server, load_events);
+    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "10".into() }));
+    assert_eq!(report(&mut server), "2:1:10", "retried load keeps state; same-value writes raise Change");
+    send(&mut server, Request::SetVbaEventsEnabled { enabled: false });
+    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "12".into() }));
+    assert_eq!(report(&mut server), "2:2:10");
+    send(&mut server, Request::SetVbaEventsEnabled { enabled: true });
+    let before_save = send(&mut server, Request::LoadVbaProject { modules: vec![wire::VbaModule {
+        name: "ThisWorkbook".into(), target: wire::VbaModuleTarget::Workbook,
+        source: "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Cancel = True\nEnd Sub\n".into(),
+    }], max_steps: 1000 });
+    assert!(matches!(before_save, FromServer::Failed { message, .. } if message.contains("carrier") && message.contains("dc-hsa5.12")));
+    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "13".into() }));
+    assert_eq!(report(&mut server), "3:2:13", "failed preparation preserves the whole prior project");
+    send(&mut server, Request::LoadVbaProject { modules: modules.clone(), max_steps: 100_000 });
+    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "14".into() }));
+    assert_eq!(report(&mut server), "1:0:14", "an intentional replacement has fresh state and one subscription lineage");
+
+    let mut failing = modules;
+    failing[1].source = "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Changes = Changes + 1\n Err.Raise 5\nEnd Sub\n".into();
+    send(&mut server, Request::LoadVbaProject { modules: failing, max_steps: 100_000 });
+    server.take_events();
+    let edit = send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "15".into() }));
+    assert!(matches!(edit, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted && outcome.committed));
+    assert_eq!(shown(server.book(), at).text, "15");
+    let events = server.take_events();
+    assert_eq!(events.iter().filter(|event| matches!(event, wire::Event::WorkbookEventFailed { event, .. } if event == "Worksheet_Change")).count(), 1, "handler failure is delivered once and does not undo the authored edit");
 }

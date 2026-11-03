@@ -10,6 +10,7 @@ mod publication;
 mod search;
 pub mod server;
 mod services;
+mod vba_events;
 pub mod transport;
 mod tree;
 pub mod wire;

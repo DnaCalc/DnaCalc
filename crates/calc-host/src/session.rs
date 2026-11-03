@@ -317,6 +317,7 @@ struct Subscription {
 /// One open workbook as skins see it: the host, its undo history, the selection, the
 /// subscriptions and the intent log.
 pub struct HostSession {
+    pub(crate) workbook_events: crate::events::WorkbookEventState,
     recalc_budget: WorkBudget,
     pub(crate) host: HostState,
     sheet_keys: BTreeSet<crate::SheetKey>,
@@ -355,6 +356,7 @@ impl HostSession {
     /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
         HostSession {
+            workbook_events: crate::events::WorkbookEventState::default(),
             recalc_budget: WorkBudget::UNLIMITED,
             sheet_keys: host.sheets().iter().map(|s| s.key()).collect(),
             host,
@@ -634,12 +636,12 @@ impl HostSession {
                 "The save context names an unavailable worksheet",
             ));
         }
-        if context.operation != crate::SaveOperation::SaveCopyAs
-            && let Some(handler) = context.before_save.as_mut()
-        {
-            let outcome = handler
-                .before_save(&self.host, context.operation)
-                .map_err(operation_failed)?;
+        if context.operation != crate::SaveOperation::SaveCopyAs && self.workbook_events_enabled() {
+            let outcome = if let Some(handler) = context.before_save.as_mut() {
+                handler.before_save(&self.host, context.operation)
+            } else {
+                self.notify_workbook_before_save(context.operation)
+            }.map_err(operation_failed)?;
             if !outcome.edits.is_empty() {
                 let receipt = self.dispatch(SkinIntent::Edit {
                     edits: outcome.edits,
@@ -1233,6 +1235,9 @@ impl HostSession {
     }
 
     fn after_commit(&mut self, receipt: &mut IntentReceipt) {
+        if let Some(committed) = &receipt.committed {
+            self.notify_workbook_change(committed);
+        }
         if self.host.calc_mode() != CalcMode::Manual {
             self.recalculate(receipt);
         }
@@ -1329,6 +1334,7 @@ impl HostSession {
             }),
         };
         let deltas = cause.map_or(0, |cause| self.deliver_changes(cause, false));
+        self.notify_workbook_calculation(&progress);
         (progress, deltas)
     }
 

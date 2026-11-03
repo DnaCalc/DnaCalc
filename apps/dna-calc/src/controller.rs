@@ -592,6 +592,13 @@ impl Controller {
     /// Projection controls bracket binary fragments. Only a closed transaction and its
     /// completion barrier replace the root a skin can read.
     fn receive(&self, event: Event) {
+        if let Event::WorkbookEventFailed { workbook, event, reason, omitted, .. } = &event {
+            if self.summary.with_untracked(|current| current.workbook) == *workbook {
+                let omitted = if *omitted == 0 { String::new() } else { format!("; {omitted} earlier handler failures") };
+                self.say(format!("{event}: {reason}{omitted}"), true);
+            }
+            return;
+        }
         if let Event::SaveReady { workbook, token } = event {
             let mut download = None;
             self.save_download.update_value(|pending| {
@@ -743,7 +750,7 @@ impl Controller {
             Event::Tiles(b) => b.stamp.id,
             Event::TileCompletion(b) => b.id,
             Event::ProjectionFailed { id, .. } => *id,
-            Event::Calculation { .. } | Event::SaveReady { .. } => {
+            Event::Calculation { .. } | Event::SaveReady { .. } | Event::WorkbookEventFailed { .. } => {
                 unreachable!("owner controls are handled above")
             }
         };
@@ -757,7 +764,7 @@ impl Controller {
             Event::TileAdmission(stamp) => mirror.admit(*stamp),
             Event::Tiles(batch) => mirror.stage(batch),
             Event::TileCompletion(barrier) => mirror.complete(*barrier),
-            Event::Calculation { .. } | Event::SaveReady { .. } => {
+            Event::Calculation { .. } | Event::SaveReady { .. } | Event::WorkbookEventFailed { .. } => {
                 unreachable!("owner controls are handled above")
             }
             Event::ProjectionFailed { .. } => {

@@ -123,6 +123,16 @@ fn scoped_context<T>(
     }
 }
 
+pub(crate) fn record_capability_refusal(reason: &'static str) {
+    if CONTEXT.is_set() {
+        CONTEXT.with(|(context, refused, _)| {
+            refused
+                .borrow_mut()
+                .get_or_insert_with(|| context.refuse(reason));
+        });
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Axis {
     Cells,
@@ -741,7 +751,10 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
         request: &TypeLibResolveRequest,
         _: &TypeLibMetadataBlob,
     ) -> Option<oxvba_com::ComInterfaceIid> {
-        if request.reference_name.eq_ignore_ascii_case("DnaCalcObjects") {
+        if request
+            .reference_name
+            .eq_ignore_ascii_case("DnaCalcObjects")
+        {
             Some(typed_iid())
         } else if request.reference_name.eq_ignore_ascii_case("Excel") {
             // Without a nominal identity, declaration lowering continues to the next
