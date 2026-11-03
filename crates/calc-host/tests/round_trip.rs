@@ -8681,6 +8681,189 @@ mod async_contract {
     }
 
     #[derive(Debug)]
+    struct PoolArrayProbe(Rc<RefCell<PoolProbeState>>);
+    #[derive(Debug)]
+    struct PoolArrayCall {
+        inner: PoolProbeCall,
+        later: bool,
+    }
+    impl UserFunction for PoolArrayProbe {
+        fn max_parallel_calls(&self) -> usize {
+            2
+        }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("cooperative array entry required")
+        }
+        fn begin_call(
+            &self,
+            values: &[CalcValue],
+            _: UserInvocationFrame,
+            _: &mut dyn UserFunctionContext,
+        ) -> Result<Option<Box<dyn UserFunctionInvocation>>, String> {
+            let start = values[0].as_number().unwrap();
+            let mut state = self.0.borrow_mut();
+            state.active += 1;
+            state.maximum = state.maximum.max(state.active);
+            state.entered.push(start);
+            let array = calc_host::value::CalcArray::from_rows(vec![
+                vec![CalcValue::number(start), CalcValue::number(start + 1.)],
+                vec![CalcValue::number(start + 2.), CalcValue::number(start + 3.)],
+            ])
+            .unwrap();
+            Ok(Some(Box::new(PoolArrayCall {
+                inner: PoolProbeCall {
+                    state: self.0.clone(),
+                    value: CalcValue::array(array),
+                    finished: false,
+                },
+                later: start >= 10.,
+            })))
+        }
+    }
+    impl UserFunctionInvocation for PoolArrayCall {
+        fn resume(
+            &mut self,
+            context: &mut dyn UserFunctionContext,
+            quantum: u64,
+        ) -> Result<UserFunctionStep, String> {
+            if self.later && self.inner.state.borrow().entered.len() >= 2 {
+                self.inner.state.borrow_mut().active -= 1;
+                self.inner.finished = true;
+                return Ok(UserFunctionStep::Complete(self.inner.value.clone()));
+            }
+            self.inner.resume(context, quantum)
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn spill_pool_overlaps_computation_but_keeps_reservation_order() {
+        for competing in [false, true] {
+            let mut book = session(&calc_host::blank_package());
+            let s = book.host().sheets()[0].id();
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            let state = Rc::new(RefCell::new(PoolProbeState::default()));
+            let mut functions = calc_fml::CallableTable::new();
+            functions
+                .register("PoolArray", Rc::new(PoolArrayProbe(state.clone())))
+                .unwrap();
+            book.set_user_functions(functions);
+            let first = at(s, "C1");
+            let second = at(s, if competing { "B2" } else { "F3" });
+            assert!(enter(&mut book, first, "=PoolArray(1)").accepted());
+            assert!(enter(&mut book, second, "=PoolArray(10)").accepted());
+            book.set_calculation_budget(WorkBudget::evaluations(1));
+            book.dispatch(SkinIntent::Recalculate);
+            for _ in 0..1000 {
+                if state.borrow().entered.len() == 2 && state.borrow().active == 1 {
+                    break;
+                }
+                assert!(!matches!(
+                    book.advance_calculation(),
+                    HostProgress::Failed(_)
+                ));
+            }
+            assert_eq!(state.borrow().entered, vec![1., 10.]);
+            assert_eq!(state.borrow().maximum, 2);
+            assert_eq!(state.borrow().active, 1);
+            assert!(
+                calculated(book.host(), second).is_none(),
+                "later completion cannot claim its spill before the earlier reservation"
+            );
+            state.borrow_mut().release = true;
+            drain(&mut book);
+            assert_eq!(
+                state.borrow().entered,
+                vec![1., 10.],
+                "placement must not reenter a completed provider"
+            );
+            assert_eq!(state.borrow().active, 0);
+            assert_eq!(calculated(book.host(), first), Some(CalcValue::number(1.)));
+            assert_eq!(
+                calculated(book.host(), at(s, "D2")),
+                Some(CalcValue::number(4.))
+            );
+            if competing {
+                assert_eq!(
+                    calculated(book.host(), second).unwrap().as_error(),
+                    Some(calc_host::value::WorksheetErrorCode::Spill)
+                );
+            } else {
+                assert_eq!(
+                    calculated(book.host(), second),
+                    Some(CalcValue::number(10.)),
+                    "later projection: {:?}",
+                    value(book.host(), second)
+                );
+                assert_eq!(
+                    calculated(book.host(), at(s, "G4")),
+                    Some(CalcValue::number(13.))
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn spill_pool_completed_outputs_release_capacity_for_an_earlier_reservation() {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let state = Rc::new(RefCell::new(PoolProbeState::default()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("PoolArray", Rc::new(PoolArrayProbe(state.clone())))
+            .unwrap();
+        book.set_user_functions(functions);
+        for (address, start) in [("A1", 1), ("D1", 10), ("G1", 20)] {
+            assert!(enter(&mut book, at(s, address), &format!("=PoolArray({start})")).accepted());
+        }
+        let _subscription = subscribe(
+            &mut book,
+            Interest::Areas(vec![
+                GridArea::cell(at(s, "D1")),
+                GridArea::cell(at(s, "G1")),
+            ]),
+        );
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.dispatch(SkinIntent::Recalculate);
+        for _ in 0..2000 {
+            if state.borrow().entered.len() == 3 && state.borrow().active == 1 {
+                break;
+            }
+            assert!(!matches!(
+                book.advance_calculation(),
+                HostProgress::Failed(_)
+            ));
+        }
+        assert_eq!(state.borrow().entered, vec![10., 20., 1.], "G1: {:?}; pending={}",value(book.host(),at(s,"G1")),book.has_pending_calculation());
+        assert_eq!(state.borrow().maximum, 2);
+        assert_eq!(state.borrow().active, 1);
+        for address in ["D1", "G1"] {
+            assert!(
+                calculated(book.host(), at(s, address)).is_none(),
+                "a later output must wait for the first reservation"
+            );
+        }
+        state.borrow_mut().release = true;
+        drain(&mut book);
+        for (address, expected) in [
+            ("A1", 1.),
+            ("B2", 4.),
+            ("D1", 10.),
+            ("E2", 13.),
+            ("G1", 20.),
+            ("H2", 23.),
+        ] {
+            assert_eq!(
+                calculated(book.host(), at(s, address)),
+                Some(CalcValue::number(expected))
+            );
+        }
+        assert_eq!(state.borrow().entered, vec![10., 20., 1.]);
+        assert_eq!(state.borrow().active, 0);
+    }
+
+    #[derive(Debug)]
     struct YieldLate {
         source: CellKey,
         counts: Rc<RefCell<Counts>>,

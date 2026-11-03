@@ -854,3 +854,39 @@ keep the formula, exact admitted input sequences and producing certificates.
 It retains every native/client call and reports unequal traffic as a strict
 comparison failure even when final values match. Arrays, remote RTD, ribbon
 painting, button actions and general COM remain outside the scalar observations.
+
+## 22. Spill computation, modern entry and array RTD (dc-snz.23)
+
+Independent checked native calls can compute spilled results concurrently. Their
+completed output buffers release native pool capacity while placement keeps the
+admitted reservation order. A placement delay is not a formula read and creates
+no dependency edge. The ordered placement rule applies to the initial parallel
+wave; repair waves retain their existing sequential order. Preferred producers
+share service by age, so a parked preferred output cannot starve another producer.
+Portable HostSession tests force later completion first, check competing and
+disjoint ranges, and make two later preferred producers finish before an earlier
+reservation starts. They require the capacity limit and no provider reentry.
+The native application test uses two DLL-owned 2x2 outputs, checks all eight
+published cells, actual worker overlap, and three same-thread frees.
+
+The reference composition can request FormulaEntry independently of whether the
+authored formula uses legacy Formula or modern Formula2 form. The explicit
+CalcHost command owns its P07 continuation. An Excel Formula2 control observed
+one native async invocation before Manual Calculate, as with legacy assignment.
+Both forms have application regression coverage; an ordinary calculation remains
+a separate command. Configurable independent anchors and spill probes extend the
+existing reference runner rather than adding another evaluator or fixture path.
+
+A controlled COM RTD provider returns a VARIANT SAFEARRAY with four numeric
+values from ConnectData and RefreshData. Excel 16.0.20527 exposes those values to
+xlfRtd as #N/A, without a spill. The host now makes the same conversion for this
+variant type while retaining the admitted input and sequence. Other SAFEARRAY
+element types and remote servers remain unqualified.
+
+The native async callback's raw result remains different: Excel leaves its result
+operand at type zero, while the host supplies the Boolean described by
+[Microsoft's xlAsyncReturn reference](https://learn.microsoft.com/en-us/office/client-developer/excel/xlasyncreturn).
+The argument values, return code and admitted P07 publication can agree despite
+that difference. The verifier retains it and returns a failed strict comparison;
+it does not count the raw result as equal. Broader managed RTD traffic likewise
+remains a failure whenever its complete ordered client/native calls differ.

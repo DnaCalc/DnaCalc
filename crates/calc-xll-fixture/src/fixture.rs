@@ -279,6 +279,7 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
     {
         if !unsafe {
             register(&module, "MyOverlap", "QE$", "MyOverlap")
+                && register(&module, "MyOverlapArray", "QE$", "MyOverlapArray")
                 && register(&module, "MyOverlapMax", "J", "MyOverlapMax")
                 && register(&module, "MyOverlapReset", "J#", "MyOverlapReset")
         } {
@@ -365,6 +366,34 @@ pub unsafe extern "system" fn MyOverlap(value: *const f64) -> *mut XlOper12 {
     } else {
         XlOper12::error(15)
     })
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyOverlapArray(value: *const f64) -> *mut XlOper12 {
+    let entered = unsafe { MyOverlap(value) };
+    if unsafe { (*entered).xltype } & TYPE_MASK == XL_ERR {
+        return entered;
+    }
+    let start = unsafe { *value };
+    let cells = (1..=4)
+        .map(|n| XlOper12::number(start + n as f64))
+        .collect::<Vec<_>>()
+        .into_boxed_slice();
+    let values = Box::into_raw(cells) as *mut XlOper12;
+    let result = Box::into_raw(Box::new(XlOper12 {
+        value: XlValue12 {
+            array: XlArray12 {
+                values,
+                rows: 2,
+                columns: 2,
+            },
+        },
+        xltype: XL_MULTI | DLL_FREE,
+    }));
+    OWNERS
+        .lock()
+        .unwrap()
+        .insert(result as usize, unsafe { GetCurrentThreadId() });
+    result
 }
 #[unsafe(no_mangle)]
 pub extern "system" fn MyOverlapMax() -> i32 {
@@ -527,6 +556,14 @@ pub unsafe extern "system" fn xlAutoFree12(value: *mut XlOper12) {
         unsafe {
             drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                 pointer, length,
+            )));
+        }
+    } else if owned.xltype & TYPE_MASK == XL_MULTI {
+        let array = unsafe { owned.value.array };
+        unsafe {
+            drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                array.values,
+                (array.rows as usize) * (array.columns as usize),
             )));
         }
     }

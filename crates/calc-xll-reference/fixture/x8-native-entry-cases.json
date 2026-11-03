@@ -1,4 +1,18 @@
 [
- {"formula":"=10+MyAsync(28)+3","value":42,"manual":true,"legacy":true,"entry_wait_value":42,"dependent":"=B3*2","dependent_value":84},
- {"formula":"=MyAsyncEntries()","value":2,"manual":true,"legacy":true}
+  {
+    "formula": "=10+MyAsync(28)+3",
+    "value": 42,
+    "manual": true,
+    "legacy": true,
+    "entry_wait_value": 42,
+    "dependent": "=B3*2",
+    "dependent_value": 84,
+    "expected_async_returns": 2
+  },
+  {
+    "formula": "=MyAsyncEntries()",
+    "value": 2,
+    "manual": true,
+    "legacy": true
+  }
 ]

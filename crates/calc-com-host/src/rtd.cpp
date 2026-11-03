@@ -71,6 +71,8 @@ HRESULT flatten(const VARIANT& v,Value* out){
     case VT_UI2:out->kind=1;out->number=v.uiVal;break;
     case VT_BOOL:out->kind=3;out->number=v.boolVal!=VARIANT_FALSE;break;
     case VT_BSTR:out->kind=2;out->length=SysStringLen(v.bstrVal);out->text=SysAllocStringLen(v.bstrVal,(UINT)out->length);return out->text||!out->length?S_OK:E_OUTOFMEMORY;
+    // Excel 16 returns #N/A for a VARIANT SAFEARRAY topic value; it does not spill it.
+    case VT_ARRAY|VT_VARIANT:out->kind=5;out->number=2042;return S_OK;
     case VT_ERROR:out->kind=5;out->number=(unsigned long)v.scode;return S_OK;
     default:return DISP_E_TYPEMISMATCH;
     }

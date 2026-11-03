@@ -756,6 +756,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
     else:
         old_codes = set()
     x3_details = {}
+    async_callback_differences = []
     if x3:
         callbacks = [framework_callbacks(trace) for trace in traces]
         require([(r["function"], r["return_code"]) for r in callbacks[0]] ==
@@ -764,7 +765,15 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         registrations = [Counter(json.dumps(r, sort_keys=True) for r in rows if r["function"] == 149) for rows in callbacks]
         require(registrations[0] == registrations[1], "A registration differs beyond its order/opaque identity")
         # These differences are reported, not counted as raw boundary matches.
-        require(all(d["excel"]["function"] in (149, 614, 16401, 16384) for d in differences), "Unexplained callback difference")
+        for difference in differences:
+            a, b = difference["excel"], difference["host"]
+            if a["function"] == 16400:
+                require(a["args"] == b["args"] and a["return_code"] == b["return_code"] == 0
+                        and a["result"] == {"type": 0, "value": {"raw32": "00" * 32}}
+                        and b["result"] == {"type": 4, "value": True}, "Unqualified native async callback difference")
+                async_callback_differences.append(difference)
+            else:
+                require(a["function"] in (149, 614, 16401, 16384), "Unexplained callback difference")
         ownership = [framework_ownership(trace) for trace in traces]
         require(ownership[0] == ownership[1], "Native ownership counts/modules differ")
         dynamic = [[x for x in trace[0] if x["event"] == "registered_entry" and "!xloil_stub:" in x["entry"]] for trace in traces]
@@ -774,6 +783,23 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                       "rewritten_export_registrations_each_host": [len(x) for x in dynamic],
                       "teardown_callbacks_excel_and_host": [framework_callbacks(trace, teardown=True) for trace in traces],
                       "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted."}
+    entry_cases = [case for case in cases if "entry_wait_value" in case]
+    if entry_cases:
+        for directory in (excel, excel_control):
+            observed_entry = controller(directory)
+            for case in entry_cases:
+                require(observed_entry["formula-entry " + case["formula"]] == case["entry_wait_value"], "Excel formula-entry completion differs")
+                if "before_calculate" in case:
+                    require(observed_entry["before Calculate " + case["before_calculate"]] == case["before_calculate_value"], "Excel entry-time invocation count differs")
+        for output in host_outputs:
+            for case in entry_cases:
+                entry = [row for row in output["formula_entries"] if row["cell"] == "B3" and row["formula"] == case["formula"]]
+                require(len(entry) == 1 and entry[0]["value"] == case["entry_wait_value"] and "reason: FormulaEntry" in entry[0]["provenance"]["stamp"], "Host has no actual producing formula-entry completion")
+                require(entry[0]["provenance"]["cooperative_invocations"] == entry[0]["provenance"]["completed_invocations"] == 1, "Formula entry did not resume its producing invocation")
+                require(len(output["async_returns"]) == case["expected_async_returns"] and all(r["disposition"] == "Accepted" for r in output["async_returns"]), "Native entry/calculation P07 completions differ")
+                require(not output["rtd_updates"], "Native async formula entry used RTD")
+        x3_details["native_async_formula_entry"] = {"cases": len(entry_cases), "p07_returns_each_host_control": len(host_outputs[0]["async_returns"]), "raw_callback_result_differences": async_callback_differences,
+            "scope": "Actual owner formula-entry completion and later Manual Calculate. Excel leaves the xlAsyncReturn result operand type zero; the host supplies the documented Boolean. This raw difference stays a failed strict comparison."}
     x4_details = {}
     if x4:
         def com_calls(trace, start, end, thread, env):
@@ -852,7 +878,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                       "all_delivered_event_counts_excel_and_host": delivered,
                       "event_scope": "Ordered SheetChange calls and addresses agree; other event counts are retained separately. Retained Python COM objects/futures are explicitly released before teardown.",
                       "raw_workbook_names": [env["workbook_name"] for env in environments]}
-    return {"status": "verified X4 measured cases" if x4 else "verified X3 measured cases" if x3 else "verified X2 measured cases", "fixture": fixture_name,
+    return {"status": "failed strict async callback result comparison" if async_callback_differences else "verified X4 measured cases" if x4 else "verified X3 measured cases" if x3 else "verified X2 measured cases", "fixture": fixture_name,
             "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
             "source_revisions": sorted({e["repository_commit"] for e in environments}),
             "source_publication_revisions": [p["revision"] for p in publications],
@@ -982,7 +1008,9 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
             elif method == "RefreshData":
                 count = after[0]["value"]["value"] if dispatch else returned["count"]
                 data = json.loads(json.dumps(returned["result"]["value"] if dispatch else returned["data"]))
-                require(data is not None and data["dimensions"] == 2 and not data["truncated"] and len(data["values"]) == 2 * count, "Incomplete RTD refresh array")
+                require(count >= 0 and (data is not None or count == 0), "Missing RTD refresh array")
+                if data is not None:
+                    require(data["dimensions"] == 2 and not data["truncated"] and len(data["values"]) == 2 * count, "Incomplete RTD refresh array")
                 for i in range(count):
                     item = data["values"][2*i]; require(item["vt"] == 3 and item["value"] in topics, "RTD refresh has an unknown topic"); item["value"] = topics[item["value"]]
                 row.update(count=count, data=data)
@@ -1014,7 +1042,7 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
 
 def verify_rtd(excel, excel_control, host, host_control, cases_path, publication_path):
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
-    if any(c.get("keep_formula") for c in cases) or any("MyAsync" in c["formula"] for c in cases):
+    if any(c.get("keep_formula") or c.get("rtd_variant_array") or "expected_rtd_inputs" in c for c in cases) or any("MyAsync" in c["formula"] for c in cases):
         return verify_rtd_extended(excel, excel_control, host, host_control, cases_path, publication_path)
     directories = (excel, excel_control, host, host_control)
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
@@ -1218,7 +1246,50 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             "scope": "Original xlOil 0.22.1 async generator and separate Python cache; empty sequenced inputs, exact P07 certificate, formula replacement and finite client protocol. General providers, arrays, remote servers and arbitrary teardown remain open." if signaling else "Controlled finite scalar RTD, exact P07 input certificate and retirement. General providers/teardown, arrays and remote RTD remain open."}
 
 
+def verify_spill_pool(excel, excel_control, host, host_control, cases_path, publication_path):
+    result = verify_x2(excel, excel_control, host, host_control, cases_path, publication_path, x3=True)
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    for directory in (excel, excel_control):
+        control = controller(directory)
+        for case in cases:
+            if "dependent" in case:
+                require(control["dependent " + case["formula"]] == case["dependent_value"], "Excel independent spill anchor differs")
+            for address, expected in case.get("spill_cells", {}).items():
+                require(control["spill " + case["formula"] + " " + address] == expected, "Excel spill cell differs")
+    for directory in (host, host_control):
+        output = json.loads((directory / "host.stdout").read_text())
+        for row, case in zip(output["results"], cases, strict=True):
+            if "dependent" in case:
+                require(row["dependent"] == case["dependent_value"], "Host independent spill anchor differs")
+            require(set(row["spill_cells"]) == set(case.get("spill_cells", {})), "Host spill probes missing or additional")
+            for address, expected in case.get("spill_cells", {}).items():
+                probe = row["spill_cells"][address]
+                require(probe["value"] == expected and probe["provenance"]["completed_invocations"] == probe["provenance"]["cooperative_invocations"] == 1, "Spill cell lacks its actual producing native computation")
+    witnesses, ordered = [], []
+    for directory in (excel, host):
+        trace = boundary(directory); _, enters, leaves = trace
+        owner = next(e["thread"] for e in enters.values() if e["entry"].endswith("!xlAutoOpen"))
+        reset = next(e for e in enters.values() if e["entry"].endswith(":MyOverlapReset"))
+        array_calls = [e for e in enters.values() if e["entry"].endswith(":MyOverlapArray")]
+        entry_calls = [e for e in array_calls if e["seq"] < reset["seq"]]
+        workers = [e for e in array_calls if e["seq"] > leaves[reset["call"]]["seq"]]
+        require(len(entry_calls) == len(workers) == 2 and all(e["thread"] == owner for e in entry_calls), "Spill entry/calculation phases differ")
+        require(len({e["thread"] for e in workers}) == 2 and all(e["thread"] != owner for e in workers), "Spill producers did not use two workers")
+        require(max(e["seq"] for e in workers) < min(leaves[e["call"]]["seq"] for e in workers), "Native spill producers did not overlap")
+        ownership = framework_ownership(trace)
+        require(ownership["owned_returns"] == ownership["free_calls"] == 3, "Native spill ownership/free count differs")
+        witnesses.append({"owner_thread": owner, "worker_entries": workers, "ownership": ownership})
+        ordered.append([{"name":e["entry"].rsplit(":",1)[1], **invocation_record(trace,e)} for e in enters.values() if ":" in e["entry"]])
+    require(ordered[0] == ordered[1], "Full ordered spill native calls differ")
+    if not result["status"].startswith("failed"):
+        result["status"] = "verified bounded concurrent native spills"
+    result["spill_pool"] = {"witnesses": witnesses, "cells_each_capture": sum(len(c.get("spill_cells", {})) for c in cases), "scope": "Two native computations overlap; owner entry and worker calculation, every selected spill cell, full ordered native calls and same-module/pointer/thread frees agree. Portable tests separately check competing placement order and completed-output capacity."}
+    return result
+
+
 def verify_workbook_pool(excel, excel_control, host, host_control, cases_path, publication_path):
+    if any(c.get("spill_cells") for c in json.loads(cases_path.read_text(encoding="utf-8-sig"))):
+        return verify_spill_pool(excel, excel_control, host, host_control, cases_path, publication_path)
     directories = (excel, excel_control, host, host_control)
     envs = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
@@ -1465,7 +1536,8 @@ def verify_ribbon(excel, excel_control, host, host_control, cases_path, publicat
     for directory in (host, host_control):
         output = json.loads((directory / "host.stdout").read_text())
         require(len(output["ribbons"]) == 1 and output["ribbons"][0][1] == ui[0]["value"], "Application did not retain the actual ribbon XML")
-    result["status"] = "verified bounded ribbon startup, helper properties and XML"
+    if not result["status"].startswith("failed"):
+        result["status"] = "verified bounded ribbon startup, helper properties and XML"
     result["ribbon"] = {"startup_callbacks_each_host": len(startup[0]), "startup": startup[0],
                         "helper_properties_each_host": len(property_calls[0]), "helper_properties": property_calls[0],
                         "teardown_callbacks_excel_and_host": teardown, "activation_bindings": bindings,

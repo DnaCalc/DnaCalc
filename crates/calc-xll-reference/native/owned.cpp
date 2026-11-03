@@ -96,6 +96,14 @@ static std::vector<std::pair<std::wstring,Oper>> permissionRegistrations;
 static std::atomic<LONG> liveServers{0};
 static std::atomic<LONG> liveFactories{0},serverLocks{0};
 static std::mutex rtdLogLock;
+static bool rtdArrays=false;
+static HRESULT rtdValue(double start,VARIANT* result) {
+    VariantInit(result);if(!rtdArrays){result->vt=VT_R8;result->dblVal=start;return S_OK;}
+    SAFEARRAYBOUND bounds[]={{2,0},{2,0}};auto array=SafeArrayCreate(VT_VARIANT,2,bounds);if(!array)return E_OUTOFMEMORY;
+    for(LONG row=0;row<2;++row)for(LONG col=0;col<2;++col){LONG index[]={row,col};VARIANT value{};value.vt=VT_R8;value.dblVal=start+row*2+col;auto hr=SafeArrayPutElement(array,index,&value);if(FAILED(hr)){SafeArrayDestroy(array);return hr;}}
+    result->vt=VT_ARRAY|VT_VARIANT;result->parray=array;return S_OK;
+}
+
 static void rtdLogText(const wchar_t* event,const std::wstring& value){
     std::lock_guard<std::mutex> lock(rtdLogLock);
     wchar_t path[32768];auto n=GetModuleFileNameW(module,path,32768);if(!n||n>=32768)return;
@@ -144,7 +152,7 @@ struct NumericServer final:Rtd {
     }
     HRESULT STDMETHODCALLTYPE ConnectData(LONG id,SAFEARRAY** strings,VARIANT_BOOL* fresh,VARIANT* result) override{
         if(!strings||!*strings||!fresh||!result||!update)return E_POINTER;
-        topics.insert(id);*fresh=VARIANT_TRUE;VariantInit(result);result->vt=VT_R8;result->dblVal=value.load();rtdLog(L"ConnectData",id);
+        topics.insert(id);*fresh=VARIANT_TRUE;auto initial=rtdValue(value.load(),result);if(FAILED(initial))return initial;rtdLog(L"ConnectData",id);
         if(!worker.joinable()){
             IStream* stream=nullptr;auto hr=CoMarshalInterThreadInterfaceInStream(update_iid,update,&stream);if(FAILED(hr))return hr;
             worker=std::thread([this,stream]{
@@ -160,7 +168,7 @@ struct NumericServer final:Rtd {
         if(!count||!result)return E_POINTER;*count=(LONG)topics.size();SAFEARRAYBOUND bounds[]={{2,0},{(ULONG)*count,0}};
         *result=SafeArrayCreate(VT_VARIANT,2,bounds);if(!*result)return E_OUTOFMEMORY;LONG row=0;
         for(auto topic:topics){LONG index[]={0,row};VARIANT id{};id.vt=VT_I4;id.lVal=topic;auto hr=SafeArrayPutElement(*result,index,&id);if(FAILED(hr))return hr;
-            VARIANT data{};data.vt=VT_R8;data.dblVal=value.load();index[0]=1;hr=SafeArrayPutElement(*result,index,&data);if(FAILED(hr))return hr;++row;}
+            VARIANT data{};hr=rtdValue(value.load(),&data);if(FAILED(hr))return hr;index[0]=1;hr=SafeArrayPutElement(*result,index,&data);VariantClear(&data);if(FAILED(hr))return hr;++row;}
         rtdLog(L"RefreshData",value.load());return S_OK;
     }
     HRESULT STDMETHODCALLTYPE DisconnectData(LONG id) override{topics.erase(id);rtdLog(L"DisconnectData",id);return S_OK;}
@@ -224,7 +232,7 @@ static void removePrivateKeys(){for(auto it=privateKeys.rbegin();it!=privateKeys
 static bool rtdOpen(const std::wstring& file){
     if(FAILED(CoCreateGuid(&rtdClass)))return false;wchar_t guid[64];StringFromGUID2(rtdClass,guid,64);
     rtdProgid=L"DnaCalc.X5."+std::to_wstring(GetCurrentProcessId());
-    auto path=counted(L"");wchar_t modulePath[32768];auto n=GetModuleFileNameW(module,modulePath,32768);if(!n||n>=32768)return false;
+    auto path=counted(L"");wchar_t modulePath[32768];auto n=GetModuleFileNameW(module,modulePath,32768);if(!n||n>=32768)return false;auto marker=std::wstring(modulePath,n);marker.resize(marker.find_last_of(L"\\/")+1);marker+=L"rtd-array.enable";rtdArrays=GetFileAttributesW(marker.c_str())!=INVALID_FILE_ATTRIBUTES;
     auto progidKey=L"Software\\Classes\\"+rtdProgid;auto classKey=L"Software\\Classes\\CLSID\\"+std::wstring(guid);
     if(!privateKey(progidKey,L"DNA Calc X5 controlled RTD fixture")||!privateKey(classKey,L"DNA Calc X5 controlled RTD fixture")||!privateKey(progidKey+L"\\CLSID",guid)||!privateKey(classKey+L"\\InprocServer32",std::wstring(modulePath,n))){removePrivateKeys();return false;}
     auto proc=counted(L"RtdValue"),signature=counted(L"Q#"),name=counted(L"X5.RtdValue");auto moduleFile=file;
