@@ -1244,11 +1244,16 @@ fn begin_with_scope(
         BTreeSet::new()
     };
     if !force_roots.is_empty() {
-        let affected = dirty_closure(state, inputs, force_roots.clone(), &|node| {
-            invalidation_areas(state, inputs, node)
-        })
-        .members()
-        .to_vec();
+        let affected = if force_roots.len() == state.node_count() {
+            // Every live participant is already a root; expansion adds no member.
+            force_roots.iter().copied().collect()
+        } else {
+            dirty_closure(state, inputs, force_roots.clone(), &|node| {
+                invalidation_areas(state, inputs, node)
+            })
+            .members()
+            .to_vec()
+        };
         state.contract.invalidate(affected.iter().copied());
         state.pending.extend(affected);
     }
@@ -1290,13 +1295,15 @@ fn begin_with_scope(
         }
     };
     roots.extend(force_roots);
-    roots = dirty_closure(state, inputs, roots, &|node| {
-        invalidation_areas(state, inputs, node)
-    })
-    .members()
-    .iter()
-    .copied()
-    .collect();
+    if roots.len() != state.node_count() || roots.iter().any(|node| state.node(*node).is_none()) {
+        roots = dirty_closure(state, inputs, roots, &|node| {
+            invalidation_areas(state, inputs, node)
+        })
+        .members()
+        .iter()
+        .copied()
+        .collect();
+    }
     let mut cache = std::mem::take(&mut state.readers_cache);
     cache.validate(state, inputs);
     let Scheduled {
