@@ -785,12 +785,17 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
         for case in cases:
             require(observed[case["formula"]] == case["value"], "Excel RTD formula differs")
             require(observed["dependent " + case["formula"]] == case["dependent_value"], "Excel RTD dependent differs")
+            if "rtd_idle_ms" in case:
+                require(observed["RTD idle begin " + case["formula"]] == case["rtd_idle_ms"] and observed["RTD idle complete " + case["formula"]] >= case["rtd_idle_ms"], "Excel RTD idle observation was shortened")
     for directory in directories[2:]:
         require(json.loads((directory / "host.exit.json").read_text()) == {"exit_code": 0, "finished": True}, "RTD host failed")
         require(not (directory / "host.stderr").read_text().strip(), "RTD host diagnostics")
         output = json.loads((directory / "host.stdout").read_text())
         require(output["live_callback_allocations"] == output["rtd_subscriptions_after_close"] == 0 and output["closed_registration"] == "#NAME?", "RTD teardown incomplete")
         require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c["dependent_value"]) for c in cases], "Host RTD outcomes differ")
+        for case, row in zip(cases, output["results"], strict=True):
+            if "rtd_idle_ms" in case:
+                require(row["idle_observed_ms"] >= case["rtd_idle_ms"], "Host RTD idle observation was shortened")
         updates = output["rtd_updates"]
         if signaling:
             require(len(updates) >= 2 and [(v["sequence"], v["value"], v["disposition"]) for v in updates] == [(i + 1, None, "Accepted") for i in range(len(updates))], "Empty RTD signals were not admitted as ordered inputs")
@@ -1012,7 +1017,9 @@ def verify_workbook_pool(excel, excel_control, host, host_control, cases_path, p
     if not all(r["matched"] for r in outcomes): failures.append("Excel formula outcomes differ")
     if entry_counts[0] != entry_counts[1]: failures.append("Native invocation counts differ")
     if records[0] != records[1]: failures.append("Native arguments/results/ordered nested callbacks differ")
-    if not all(o["owned_returns"] == o["free_calls"] == 1 for o in ownership): failures.append("Owned result/free counts differ")
+    expected_entries = {"MyOverlap":4, "MyOverlapMax":2, "MyOverlapReset":1, "MyWorkerCallbacks":2, "MyWorkerReference":2, "MyWorkerOwned":2, "MyFreeCount":2}
+    if not all(counts == expected_entries for counts in entry_counts): failures.append("Entry and calculation occurrences missing or repeated")
+    if not all(o["owned_returns"] == o["free_calls"] == 2 for o in ownership): failures.append("Owned result/free counts differ")
     require(worker_calls[0] == worker_calls[1], "Calculation-phase barrier calls differ")
     require(not failures, "; ".join(failures))
     return {"status":"verified within-workbook legacy scalar pool", "formula_cases":len(cases), "native_invocations_each_host":sum(entry_counts[0].values()),

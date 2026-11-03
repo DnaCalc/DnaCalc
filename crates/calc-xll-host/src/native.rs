@@ -660,9 +660,18 @@ impl UserFunction for XllFunction {
     fn begin_call(
         &self,
         arguments: &[CalcValue],
-        _frame: calc_func::UserInvocationFrame,
+        frame: calc_func::UserInvocationFrame,
         context: &mut dyn UserFunctionContext,
     ) -> Result<Option<Box<dyn calc_func::UserFunctionInvocation>>, String> {
+        if frame.formula_entry {
+            if self.registration.info.signature.asynchronous {
+                return Err(context.refuse_by(
+                    "native async formula-entry evaluation is not modelled",
+                    "dc-snz.23",
+                ));
+            }
+            return Ok(None);
+        }
         if !self.state.borrow().async_continuations {
             return Ok(None);
         }

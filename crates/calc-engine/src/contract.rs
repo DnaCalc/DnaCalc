@@ -93,6 +93,14 @@ pub enum RangePostState {
 pub enum EvalSelection {
     DirtyAndVolatile,
     ForceAll,
+    /// One assigned formula, evaluated on the owner before a later calculation.
+    /// Only a single-cell range is admitted; Manual entry leaves it required.
+    FormulaEntry,
+}
+impl EvalSelection {
+    pub fn forces_all(self) -> bool {
+        matches!(self, Self::ForceAll | Self::FormulaEntry)
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ReevaluationReason {
@@ -101,6 +109,7 @@ pub enum ReevaluationReason {
     XllUncalcedUnwind,
     ProvisionalArguments,
     NewCommandDemand,
+    FormulaEntry,
     AuthoredOrInputChange,
     SpillShapePass,
     IterationSweep,

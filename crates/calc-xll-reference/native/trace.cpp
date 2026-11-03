@@ -2,7 +2,6 @@
 // Black-box x64 boundary observation.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <tlhelp32.h>
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -148,6 +147,7 @@ static std::map<Address, Module> modules;
 static std::map<DWORD, std::vector<Call>> calls;
 static std::map<DWORD, std::vector<HANDLE>> suspended;
 static std::map<DWORD, Address> stepping;
+static std::set<DWORD> liveThreads;
 static std::set<DWORD> exitedThreads;
 static std::vector<HANDLE> stoppedThreads;
 static std::map<Address,std::string> objects;
@@ -602,23 +602,25 @@ static bool holdThread(HANDLE h,DWORD thread) {
     healthy=false;emit("\"event\":\"debugger_error\",\"operation\":\"NtSuspendThread\",\"thread\":"+std::to_string(thread)+",\"ntstatus\":"+hex((uint32_t)status));return false;
 }
 static void suspendOthers(DWORD current) {
-    HANDLE snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD,0);
-    THREADENTRY32 e{sizeof(e)};
-    if(Thread32First(snapshot,&e)) do {
-        if(e.th32OwnerProcessID!=processId||e.th32ThreadID==current||exitedThreads.count(e.th32ThreadID))continue;
-        HANDLE h=OpenThread(THREAD_SUSPEND_RESUME|THREAD_QUERY_LIMITED_INFORMATION,FALSE,e.th32ThreadID);
+    // DebugActiveProcess reports the initial thread and every existing thread,
+    // then every creation/exit before that thread can execute user instructions.
+    // Keep that exact inventory instead of taking a system-wide snapshot at
+    // every breakpoint. Snapshot cost stretched the RTD observation interval.
+    // https://learn.microsoft.com/windows/win32/debug/debugging-events
+    for(DWORD thread:liveThreads) {
+        if(thread==current||exitedThreads.count(thread))continue;
+        HANDLE h=OpenThread(THREAD_SUSPEND_RESUME|THREAD_QUERY_LIMITED_INFORMATION,FALSE,thread);
         if(h) {
             DWORD owner=GetProcessIdOfThread(h);
             if(owner!=processId){
                 if(!owner)debuggerError("GetProcessIdOfThread");
                 CloseHandle(h);continue;
             }
-            if(holdThread(h,e.th32ThreadID))suspended[current].push_back(h);
+            if(holdThread(h,thread))suspended[current].push_back(h);
             else CloseHandle(h);
         }
         else debuggerError("OpenThread single step");
-    }while(Thread32Next(snapshot,&e));
-    CloseHandle(snapshot);
+    }
 }
 static void resumeOthers(DWORD thread) {
     for(HANDLE h:suspended[thread]) {
@@ -740,12 +742,12 @@ int wmain(int argc,wchar_t** argv) {
         if(!WaitForDebugEvent(&ev,100))continue;
         DWORD status=DBG_CONTINUE;
         switch(ev.dwDebugEventCode){
-        case CREATE_PROCESS_DEBUG_EVENT:{auto& p=ev.u.CreateProcessInfo;addModule((Address)p.lpBaseOfImage,filePath(p.hFile));if(p.hFile)CloseHandle(p.hFile);break;}
+        case CREATE_PROCESS_DEBUG_EVENT:{liveThreads.insert(ev.dwThreadId);auto& p=ev.u.CreateProcessInfo;addModule((Address)p.lpBaseOfImage,filePath(p.hFile));if(p.hFile)CloseHandle(p.hFile);break;}
         case CREATE_THREAD_DEBUG_EVENT:{
             // Process/thread handles supplied by debug events belong to the debugger
             // lifecycle: ContinueDebugEvent closes them on exit. Never close or retain
             // those values as owned holds; open an independent handle when needed.
-            exitedThreads.erase(ev.dwThreadId);
+            exitedThreads.erase(ev.dwThreadId);liveThreads.insert(ev.dwThreadId);
             bool debugBreakThread=false;
             if(stopping)for(auto& [base,m]:modules){auto found=m.exports.find("DbgUiRemoteBreakin");if(found!=m.exports.end()&&found->second==(Address)ev.u.CreateThread.lpStartAddress)debugBreakThread=true;}
             if(!stepping.empty()&&(!stopping||!debugBreakThread)){
@@ -759,7 +761,7 @@ int wmain(int argc,wchar_t** argv) {
         }
         case LOAD_DLL_DEBUG_EVENT:{auto& d=ev.u.LoadDll;addModule((Address)d.lpBaseOfDll,filePath(d.hFile));if(d.hFile)CloseHandle(d.hFile);break;}
         case UNLOAD_DLL_DEBUG_EVENT:{Address base=(Address)ev.u.UnloadDll.lpBaseOfDll;auto it=modules.find(base);if(it!=modules.end()){emit("\"event\":\"module_unload\",\"base\":"+hex(base));Address end=base+it->second.size;for(auto b=breakpoints.lower_bound(base);b!=breakpoints.end()&&b->first<end;)b=breakpoints.erase(b);modules.erase(it);}break;}
-        case EXIT_THREAD_DEBUG_EVENT:exitedThreads.insert(ev.dwThreadId);emit("\"event\":\"thread_exit\",\"thread\":"+std::to_string(ev.dwThreadId)+",\"exit_code\":"+std::to_string(ev.u.ExitThread.dwExitCode));if(stepping.count(ev.dwThreadId))finishStep(ev.dwThreadId);if(!calls[ev.dwThreadId].empty())healthy=false;break;
+        case EXIT_THREAD_DEBUG_EVENT:liveThreads.erase(ev.dwThreadId);exitedThreads.insert(ev.dwThreadId);emit("\"event\":\"thread_exit\",\"thread\":"+std::to_string(ev.dwThreadId)+",\"exit_code\":"+std::to_string(ev.u.ExitThread.dwExitCode));if(stepping.count(ev.dwThreadId))finishStep(ev.dwThreadId);if(!calls[ev.dwThreadId].empty())healthy=false;break;
         case EXCEPTION_DEBUG_EVENT:{
             DWORD code=ev.u.Exception.ExceptionRecord.ExceptionCode;
             Address addr=(Address)ev.u.Exception.ExceptionRecord.ExceptionAddress;

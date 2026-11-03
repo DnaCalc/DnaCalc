@@ -1452,6 +1452,7 @@ impl Server {
                         calc_host::EvalSelection::DirtyAndVolatile
                     }
                     wire::CalculationSelection::ForceAll => calc_host::EvalSelection::ForceAll,
+                    wire::CalculationSelection::FormulaEntry => calc_host::EvalSelection::FormulaEntry,
                 },
             },
             Intent::CalculateRange { areas } => SkinIntent::CalculateRange {
@@ -1739,6 +1740,7 @@ impl Server {
                         wire::CalculationSelection::DirtyAndVolatile
                     }
                     calc_host::EvalSelection::ForceAll => wire::CalculationSelection::ForceAll,
+                    calc_host::EvalSelection::FormulaEntry => wire::CalculationSelection::FormulaEntry,
                 },
                 range_post_state: match r.range_post_state {
                     calc_host::RangePostState::Satisfied => {

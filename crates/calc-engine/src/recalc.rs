@@ -618,7 +618,7 @@ impl RecalcWork {
         assert!(
             self.admission_pending()
                 && matches!(self.admission.scope, CalcScope::Range(_))
-                && self.admission.selection == EvalSelection::ForceAll,
+                && self.admission.selection.forces_all(),
             "Manual range post-state is fixed at range admission"
         );
         self.admission.range_post_state = crate::contract::RangePostState::StillRequired;
@@ -976,6 +976,11 @@ fn begin_with_scope(
     requested_selection: EvalSelection,
     empty_successor: bool,
 ) -> Result<RecalcWork, StartError> {
+    if requested_selection == EvalSelection::FormulaEntry
+        && !matches!(&scope, CalcScope::Range(areas) if areas.len() == 1 && areas[0].cell_count() == 1)
+    {
+        return Err(StartError::InvalidScope { sheet: None });
+    }
     let sheets: Vec<_> = match &scope {
         CalcScope::Workbook => Vec::new(),
         CalcScope::Sheet(sheet) => vec![*sheet],
@@ -1011,7 +1016,7 @@ fn begin_with_scope(
         .collect();
     if !redemand.is_empty() {
         state.range_redemand.retain(|node| !redemand.contains(node));
-        if requested_selection != EvalSelection::ForceAll && !state.contract.force_all {
+        if !requested_selection.forces_all() && !state.contract.force_all {
             let affected = dirty_closure(state, inputs, redemand, &|node| {
                 invalidation_areas(state, inputs, node)
             })
@@ -1102,12 +1107,15 @@ fn begin_with_scope(
         state.contract.invalidate(state.by_anchor.values().copied());
         state.pending.extend(state.by_anchor.values().copied());
     }
-    let selection = if std::mem::take(&mut state.contract.force_all) {
+    let selection = if requested_selection == EvalSelection::FormulaEntry {
+        // Entry cannot consume a pending workbook-wide rebuild demand.
+        requested_selection
+    } else if std::mem::take(&mut state.contract.force_all) {
         EvalSelection::ForceAll
     } else {
         requested_selection
     };
-    let force_roots: BTreeSet<NodeId> = if selection == EvalSelection::ForceAll {
+    let force_roots: BTreeSet<NodeId> = if selection.forces_all() {
         state
             .nodes()
             .filter(|node| scope.contains(node.anchor()))
@@ -1182,13 +1190,13 @@ fn begin_with_scope(
     order.retain(|node| scope.contains(live_anchor(state, *node)));
     cyclic.retain(|node| scope.contains(live_anchor(state, *node)));
     if cyclic.is_empty()
-        && selection == EvalSelection::ForceAll
+        && selection.forces_all()
         && let CalcScope::Range(areas) = &scope
     {
         order = range_reference_order(state, inputs, order, areas);
     }
     if cyclic.is_empty()
-        && selection == EvalSelection::ForceAll
+        && selection.forces_all()
         && scope == CalcScope::Workbook
         && !inputs.definitions().iteration().enabled()
         && inputs.definitions().data_tables().is_empty()
@@ -1241,7 +1249,8 @@ fn begin_with_scope(
         .enumerate()
         .map(|(rank, node)| (*node, rank))
         .collect();
-    let segment_scheduling = !iteration.enabled()
+    let segment_scheduling = selection != EvalSelection::FormulaEntry
+        && !iteration.enabled()
         && inputs.definitions().data_tables().is_empty()
         && !order.iter().any(|node| {
             state.volatile.contains(node)
@@ -1312,7 +1321,11 @@ fn begin_with_scope(
         functions: None,
         references: None,
         callable_bindings: state.callables.clone(),
-        root_reason: ReevaluationReason::NewCommandDemand,
+        root_reason: if selection == EvalSelection::FormulaEntry {
+            ReevaluationReason::FormulaEntry
+        } else {
+            ReevaluationReason::NewCommandDemand
+        },
         boundary_caches,
         admission: admission.clone(),
         pass,
@@ -1422,7 +1435,7 @@ pub fn supersede_recalc_scoped(
     let mut next = begin_with_scope(state, inputs, mode, scope, selection, true)?;
     if previous.admission.range_post_state == crate::contract::RangePostState::StillRequired
         && matches!(next.admission.scope, CalcScope::Range(_))
-        && next.admission.selection == EvalSelection::ForceAll
+        && next.admission.selection.forces_all()
     {
         next = next.with_manual_range_poststate();
     }
@@ -1437,7 +1450,7 @@ pub fn supersede_recalc_scoped(
     events.push(CalcEvent::Superseded(terminal));
     events.push(CalcEvent::Admitted(next.admission.clone()));
     next.events = events;
-    let force = next.admission.selection == EvalSelection::ForceAll;
+    let force = next.admission.selection.forces_all();
     let mut candidates: BTreeMap<NodeId, FormulaResult> = std::mem::take(&mut previous.progress)
         .into_staged()
         .collect();
@@ -4983,18 +4996,21 @@ fn evaluate_unstamped(
             shared.spills,
             shared.volatile_inputs,
             (matches!(shared.scope, CalcScope::Range(_))
-                && shared.selection == EvalSelection::ForceAll
+                && shared.selection.forces_all()
                 && functions
                     .is_some_and(|functions| instance.plan().has_provisional_calls(functions)))
             .then_some(node),
         );
-        local.invocation = Some(calc_fml::UserInvocationFrame::new(
-            None,
-            std::rc::Rc::new(crate::contract::InvocationReadView {
-                root: root_invocation(state, shared, node),
-                view: pin.clone(),
-            }),
-        ));
+        local.invocation = Some(
+            calc_fml::UserInvocationFrame::new(
+                None,
+                std::rc::Rc::new(crate::contract::InvocationReadView {
+                    root: root_invocation(state, shared, node),
+                    view: pin.clone(),
+                }),
+            )
+            .with_formula_entry(shared.selection == EvalSelection::FormulaEntry),
+        );
         local.observation = Some(pin);
     }
     let reference_view = local.references.clone();

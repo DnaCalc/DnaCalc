@@ -904,6 +904,13 @@ impl HostSession {
                     .into(),
             ));
         }
+        if selection == calc_engine::EvalSelection::FormulaEntry
+            && !matches!(&scope, calc_engine::CalcScope::Range(areas) if areas.len() == 1 && areas[0].cell_count() == 1)
+        {
+            return Err(IntentError::Workbook(
+                "Formula entry must name exactly one assigned cell".into(),
+            ));
+        }
         let valid = match &scope {
             calc_engine::CalcScope::Workbook => true,
             calc_engine::CalcScope::Sheet(sheet) => self.host.model.sheet_by_id(*sheet).is_some(),

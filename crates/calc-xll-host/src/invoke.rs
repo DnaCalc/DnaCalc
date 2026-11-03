@@ -58,12 +58,18 @@ impl XllFunction {
         arguments: &[CalcValue],
         context: Option<&mut dyn UserFunctionContext>,
     ) -> Result<CalcValue, String> {
+        let formula_entry = context.as_ref().is_some_and(|context| {
+            context.invocation().is_some_and(|frame| frame.formula_entry)
+        });
+        if formula_entry && self.registration.info.signature.asynchronous {
+            return Err("dc-snz.23: native async formula-entry evaluation is not modelled".into());
+        }
         if self.registration.info.signature.thread_safe
             && self.registration.info.signature.asynchronous
         {
             return Err("dc-snz.23: thread-safe native async entry is not modelled".into());
         }
-        if self.registration.info.signature.thread_safe {
+        if self.registration.info.signature.thread_safe && !formula_entry {
             let pool = self.state.borrow().workers.clone();
             if let Some(pool) = pool {
                 return crate::worker::invoke(self, &pool, arguments, context);

@@ -189,7 +189,7 @@ pub fn step(
         && work.admission().predecessor.is_none()
         && host.calc_mode() == CalcMode::Manual
         && matches!(work.admission().scope, calc_engine::CalcScope::Range(_))
-        && work.admission().selection == calc_engine::EvalSelection::ForceAll
+        && work.admission().selection.forces_all()
     {
         work = work.with_manual_range_poststate();
     }

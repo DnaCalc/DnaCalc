@@ -1182,6 +1182,7 @@ pub enum CalculationScope {
 pub enum CalculationSelection {
     DirtyAndVolatile,
     ForceAll,
+    FormulaEntry,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CalculationOutcome {

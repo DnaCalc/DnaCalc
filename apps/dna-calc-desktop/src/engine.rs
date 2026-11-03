@@ -43,11 +43,29 @@ fn enter_as(book: &mut HostSession, at: CellKey, text: &str, legacy: bool) -> Re
         }
     };
     let receipt = book.dispatch(intent);
-    if receipt.accepted() {
-        Ok(())
-    } else {
-        Err(format!("cell entry refused: {:?}", receipt.error))
+    if !receipt.accepted() {
+        return Err(format!("cell entry refused: {:?}", receipt.error));
     }
+    if legacy {
+        // Formula assignment is an evaluation of this cell on its owner even
+        // in Manual. The later Calculate remains a separate native invocation.
+        let entry = book.dispatch(SkinIntent::Calculate {
+            scope: calc_host::CalcScope::Range(vec![calc_value::GridArea::cell(at)]),
+            selection: calc_host::EvalSelection::FormulaEntry,
+        });
+        if !entry.accepted() {
+            return Err(format!(
+                "formula-entry evaluation refused: {:?}",
+                entry.error
+            ));
+        }
+        while book.has_pending_calculation() {
+            if let HostProgress::Failed(why) = book.advance_calculation() {
+                return Err(why.to_string());
+            }
+        }
+    }
+    Ok(())
 }
 fn retire_rtd(
     book: &mut HostSession,
@@ -138,14 +156,23 @@ pub fn run(
     let mut revoked = Vec::new();
     let mut rtd_updates = Vec::new();
     let mut rtd_retired = Vec::new();
+    let mut formula_entries = Vec::new();
     for case in cases {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
         let legacy = case["legacy"].as_bool().unwrap_or(false);
         if let Some(dependent) = case["dependent"].as_str() {
             enter_as(&mut book, c, dependent, legacy)?;
+            if legacy {
+                let (calculated, proof) = value(&book, c)?;
+                formula_entries.push(serde_json::json!({"formula":dependent,"cell":"C3","value":crate::value_json(&calculated),"provenance":proof}));
+            }
             retire_rtd(&mut book, &rtd, &providers, c, &mut rtd_retired)?;
         }
         enter_as(&mut book, b, formula, legacy)?;
+        if legacy {
+            let (calculated, proof) = value(&book, b)?;
+            formula_entries.push(serde_json::json!({"formula":formula,"cell":"B3","value":crate::value_json(&calculated),"provenance":proof}));
+        }
         retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
         // Separate workbook commands retain separate read views and activations.
         // This lets the owner interleave them without moving either evaluator.
@@ -177,6 +204,8 @@ pub fn run(
         }
         book.dispatch(SkinIntent::Recalculate);
         let deadline = Instant::now() + Duration::from_secs(20);
+        let idle = Duration::from_millis(case["rtd_idle_ms"].as_u64().unwrap_or(0));
+        let mut idle_until = None;
         let mut replaced = false;
         loop {
             for input in rtd.poll()? {
@@ -240,7 +269,7 @@ pub fn run(
                 revoked.push(serde_json::json!({"token":format!("{token:?}"),"disposition":format!("{disposition:?}")}));
                 replaced = true;
             }
-            if !book.has_pending_calculation()
+            let complete = !book.has_pending_calculation()
                 && book.host().pending_async().is_empty()
                 && native.outstanding_native_calls() == 0
                 && case.get("rtd_wait_value").is_none_or(|expected| {
@@ -254,15 +283,30 @@ pub fn run(
                 })
                 && concurrent.as_ref().is_none_or(|(peer, _)| {
                     !peer.has_pending_calculation() && peer.host().pending_async().is_empty()
-                })
-            {
-                break;
+                });
+            if complete && idle_until.is_none() {
+                if idle.is_zero() {
+                    break;
+                }
+                idle_until = Some(
+                    Instant::now()
+                        .checked_add(idle)
+                        .ok_or("RTD idle interval overflow")?,
+                );
             }
-            if Instant::now() > deadline {
+            if let Some(until) = idle_until {
+                if Instant::now() >= until {
+                    if complete {
+                        break;
+                    }
+                    return Err("RTD idle observation ended with incomplete calculation".into());
+                }
+            } else if Instant::now() > deadline {
                 return Err("engine native completion deadline expired".into());
             }
             shell.pump_for(Duration::from_millis(2));
         }
+        let idle_observed_ms = idle_until.map(|until| (Instant::now() - (until - idle)).as_millis());
         let (calculated, proof) = value(&book, b)?;
         if case.get("replace_pending").is_some() && !replaced {
             return Err("native call completed before overwrite was exercised".into());
@@ -305,7 +349,7 @@ pub fn run(
                 Ok(serde_json::json!({"value":actual,"provenance":proof}))
             })
             .transpose()?;
-        results.push(serde_json::json!({"formula":formula,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof}));
+        results.push(serde_json::json!({"formula":formula,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms}));
         shell.projection()?.after_calculate()?;
     }
     if !native.diagnostics().is_empty() {
@@ -331,7 +375,7 @@ pub fn run(
         return Err("removed native entry still executes".into());
     }
     Ok(
-        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"results":results,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
+        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
         "reload_results":[],"commands":commands,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
     )
 }

@@ -32,6 +32,8 @@ pub struct UserInvocationFrame {
     pub id: u64,
     pub parent: Option<u64>,
     pub read_view: Rc<dyn Any>,
+    /// Formula assignment evaluates on its owner, including thread-safe native UDFs.
+    pub formula_entry: bool,
 }
 impl UserInvocationFrame {
     pub fn new(parent: Option<u64>, read_view: Rc<dyn Any>) -> Self {
@@ -47,7 +49,12 @@ impl UserInvocationFrame {
             id,
             parent,
             read_view,
+            formula_entry: false,
         }
+    }
+    pub fn with_formula_entry(mut self, entry: bool) -> Self {
+        self.formula_entry = entry;
+        self
     }
 }
 impl fmt::Debug for UserInvocationFrame {
@@ -55,6 +62,7 @@ impl fmt::Debug for UserInvocationFrame {
         f.debug_struct("UserInvocationFrame")
             .field("id", &self.id)
             .field("parent", &self.parent)
+            .field("formula_entry", &self.formula_entry)
             .finish_non_exhaustive()
     }
 }
