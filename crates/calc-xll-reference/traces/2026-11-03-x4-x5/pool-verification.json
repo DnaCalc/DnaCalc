@@ -1,0 +1,809 @@
+{
+  "status": "failed verification",
+  "error": "Excel formula outcomes differ; Native invocation counts differ; Native arguments/results/ordered nested callbacks differ; Owned result/free counts differ",
+  "error_type": "AssertionError",
+  "formula_outcomes": [
+    {
+      "capture": "excel-traced",
+      "formula": "=MyOverlap(40)",
+      "expected": 41,
+      "actual": 41.0,
+      "matched": true
+    },
+    {
+      "capture": "excel-traced",
+      "formula": "=MyOverlapMax()",
+      "expected": 2,
+      "actual": 2.0,
+      "matched": true
+    },
+    {
+      "capture": "excel-traced",
+      "formula": "=MyWorkerCallbacks(19,23)",
+      "expected": 42,
+      "actual": 42.0,
+      "matched": true
+    },
+    {
+      "capture": "excel-traced",
+      "formula": "=MyWorkerReference(A1)",
+      "expected": 7,
+      "actual": 7.0,
+      "matched": true
+    },
+    {
+      "capture": "excel-traced",
+      "formula": "=MyWorkerOwned()",
+      "expected": "native owned",
+      "actual": "native owned",
+      "matched": true
+    },
+    {
+      "capture": "excel-traced",
+      "formula": "=MyFreeCount()",
+      "expected": 1,
+      "actual": 2.0,
+      "matched": false
+    },
+    {
+      "capture": "excel-control",
+      "formula": "=MyOverlap(40)",
+      "expected": 41,
+      "actual": 41.0,
+      "matched": true
+    },
+    {
+      "capture": "excel-control",
+      "formula": "=MyOverlapMax()",
+      "expected": 2,
+      "actual": 2.0,
+      "matched": true
+    },
+    {
+      "capture": "excel-control",
+      "formula": "=MyWorkerCallbacks(19,23)",
+      "expected": 42,
+      "actual": 42.0,
+      "matched": true
+    },
+    {
+      "capture": "excel-control",
+      "formula": "=MyWorkerReference(A1)",
+      "expected": 7,
+      "actual": 7.0,
+      "matched": true
+    },
+    {
+      "capture": "excel-control",
+      "formula": "=MyWorkerOwned()",
+      "expected": "native owned",
+      "actual": "native owned",
+      "matched": true
+    },
+    {
+      "capture": "excel-control",
+      "formula": "=MyFreeCount()",
+      "expected": 1,
+      "actual": 2.0,
+      "matched": false
+    }
+  ],
+  "overlap_excel_and_host": [
+    {
+      "owner_thread": 45436,
+      "entries": [
+        {
+          "seq": 220,
+          "qpc": 14621362547473,
+          "event": "enter",
+          "call": 116,
+          "thread": 67972,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "from": {
+            "module": "EXCEL.EXE",
+            "rva": 41523720
+          },
+          "signature": "QE$",
+          "args": [
+            {
+              "code": "E",
+              "value": 40
+            }
+          ]
+        },
+        {
+          "seq": 221,
+          "qpc": 14621363820262,
+          "event": "enter",
+          "call": 117,
+          "thread": 45672,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "from": {
+            "module": "EXCEL.EXE",
+            "rva": 41523720
+          },
+          "signature": "QE$",
+          "args": [
+            {
+              "code": "E",
+              "value": 80
+            }
+          ]
+        }
+      ],
+      "returns": [
+        {
+          "seq": 223,
+          "qpc": 14621366395823,
+          "event": "leave",
+          "call": 116,
+          "thread": 67972,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "elapsed_qpc": 3848426,
+          "rax": "0x229275d2138",
+          "result": {
+            "type": 1,
+            "value": 41
+          }
+        },
+        {
+          "seq": 222,
+          "qpc": 14621365115494,
+          "event": "leave",
+          "call": 117,
+          "thread": 45672,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "elapsed_qpc": 1295365,
+          "rax": "0x229275d21f8",
+          "result": {
+            "type": 1,
+            "value": 81
+          }
+        }
+      ]
+    },
+    {
+      "owner_thread": 59684,
+      "entries": [
+        {
+          "seq": 189,
+          "qpc": 14622904104749,
+          "event": "enter",
+          "call": 75,
+          "thread": 40900,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "from": {
+            "module": "dna-calc-desktop.exe",
+            "rva": 17451937
+          },
+          "signature": "QE$",
+          "args": [
+            {
+              "code": "E",
+              "value": 40
+            }
+          ]
+        },
+        {
+          "seq": 190,
+          "qpc": 14622905317766,
+          "event": "enter",
+          "call": 76,
+          "thread": 14716,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "from": {
+            "module": "dna-calc-desktop.exe",
+            "rva": 17451937
+          },
+          "signature": "QE$",
+          "args": [
+            {
+              "code": "E",
+              "value": 80
+            }
+          ]
+        }
+      ],
+      "returns": [
+        {
+          "seq": 192,
+          "qpc": 14622907578485,
+          "event": "leave",
+          "call": 75,
+          "thread": 40900,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "elapsed_qpc": 3473745,
+          "rax": "0x1cafb726908",
+          "result": {
+            "type": 1,
+            "value": 41
+          }
+        },
+        {
+          "seq": 191,
+          "qpc": 14622906444667,
+          "event": "leave",
+          "call": 76,
+          "thread": 14716,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "elapsed_qpc": 1127037,
+          "rax": "0x1cafb726aa8",
+          "result": {
+            "type": 1,
+            "value": 81
+          }
+        }
+      ]
+    }
+  ],
+  "calculation_phase_calls_excel_and_host": [
+    [
+      {
+        "arguments": [
+          {
+            "code": "E",
+            "value": 40
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 41
+        },
+        "callbacks": []
+      },
+      {
+        "arguments": [
+          {
+            "code": "E",
+            "value": 80
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 81
+        },
+        "callbacks": []
+      }
+    ],
+    [
+      {
+        "arguments": [
+          {
+            "code": "E",
+            "value": 40
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 41
+        },
+        "callbacks": []
+      },
+      {
+        "arguments": [
+          {
+            "code": "E",
+            "value": 80
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 81
+        },
+        "callbacks": []
+      }
+    ]
+  ],
+  "native_invocations_excel_and_host": [
+    {
+      "MyOverlap": [
+        {
+          "arguments": [
+            {
+              "code": "E",
+              "value": 40
+            }
+          ],
+          "result": {
+            "type": 1,
+            "value": 41
+          },
+          "callbacks": [],
+          "execution_context": "owner"
+        },
+        {
+          "arguments": [
+            {
+              "code": "E",
+              "value": 40
+            }
+          ],
+          "result": {
+            "type": 1,
+            "value": 41
+          },
+          "callbacks": [],
+          "execution_context": "worker"
+        },
+        {
+          "arguments": [
+            {
+              "code": "E",
+              "value": 80
+            }
+          ],
+          "result": {
+            "type": 16,
+            "value": 15
+          },
+          "callbacks": [],
+          "execution_context": "owner"
+        },
+        {
+          "arguments": [
+            {
+              "code": "E",
+              "value": 80
+            }
+          ],
+          "result": {
+            "type": 1,
+            "value": 81
+          },
+          "callbacks": [],
+          "execution_context": "worker"
+        }
+      ],
+      "MyOverlapMax": [
+        {
+          "arguments": [],
+          "result": 2,
+          "callbacks": [],
+          "execution_context": "owner"
+        },
+        {
+          "arguments": [],
+          "result": 2,
+          "callbacks": [],
+          "execution_context": "owner"
+        }
+      ],
+      "MyOverlapReset": [
+        {
+          "arguments": [],
+          "result": 1,
+          "callbacks": [],
+          "execution_context": "owner"
+        }
+      ],
+      "MyWorkerCallbacks": [
+        {
+          "arguments": [
+            {
+              "code": "Q",
+              "value": {
+                "type": 1,
+                "value": 19
+              }
+            },
+            {
+              "code": "Q",
+              "value": {
+                "type": 1,
+                "value": 23
+              }
+            }
+          ],
+          "result": {
+            "type": 1,
+            "value": 42
+          },
+          "callbacks": [
+            [
+              4,
+              [
+                {
+                  "type": 1,
+                  "value": 19
+                },
+                {
+                  "type": 1,
+                  "value": 23
+                }
+              ],
+              0,
+              {
+                "type": 1,
+                "value": 42
+              }
+            ]
+          ],
+          "execution_context": "owner"
+        },
+        {
+          "arguments": [
+            {
+              "code": "Q",
+              "value": {
+                "type": 1,
+                "value": 19
+              }
+            },
+            {
+              "code": "Q",
+              "value": {
+                "type": 1,
+                "value": 23
+              }
+            }
+          ],
+          "result": {
+            "type": 1,
+            "value": 42
+          },
+          "callbacks": [
+            [
+              4,
+              [
+                {
+                  "type": 1,
+                  "value": 19
+                },
+                {
+                  "type": 1,
+                  "value": 23
+                }
+              ],
+              0,
+              {
+                "type": 1,
+                "value": 42
+              }
+            ]
+          ],
+          "execution_context": "worker"
+        }
+      ],
+      "MyWorkerReference": [
+        {
+          "arguments": [
+            {
+              "code": "U",
+              "value": {
+                "type": 1024,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            }
+          ],
+          "result": {
+            "type": 4097,
+            "value": 7
+          },
+          "callbacks": [
+            [
+              16386,
+              [
+                {
+                  "type": 1024,
+                  "value": {
+                    "count": 1,
+                    "rect": [
+                      0,
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                }
+              ],
+              0,
+              {
+                "type": 1,
+                "value": 7
+              }
+            ]
+          ],
+          "execution_context": "owner"
+        },
+        {
+          "arguments": [
+            {
+              "code": "U",
+              "value": {
+                "type": 1024,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            }
+          ],
+          "result": {
+            "type": 4097,
+            "value": 7
+          },
+          "callbacks": [
+            [
+              16386,
+              [
+                {
+                  "type": 1024,
+                  "value": {
+                    "count": 1,
+                    "rect": [
+                      0,
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                }
+              ],
+              0,
+              {
+                "type": 1,
+                "value": 7
+              }
+            ]
+          ],
+          "execution_context": "worker"
+        }
+      ],
+      "MyWorkerOwned": [
+        {
+          "arguments": [],
+          "result": {
+            "type": 16386,
+            "value": "native owned"
+          },
+          "callbacks": [],
+          "execution_context": "owner"
+        },
+        {
+          "arguments": [],
+          "result": {
+            "type": 16386,
+            "value": "native owned"
+          },
+          "callbacks": [],
+          "execution_context": "worker"
+        }
+      ],
+      "MyFreeCount": [
+        {
+          "arguments": [],
+          "result": 2,
+          "callbacks": [],
+          "execution_context": "owner"
+        },
+        {
+          "arguments": [],
+          "result": 2,
+          "callbacks": [],
+          "execution_context": "owner"
+        }
+      ]
+    },
+    {
+      "MyOverlap": [
+        {
+          "arguments": [
+            {
+              "code": "E",
+              "value": 40
+            }
+          ],
+          "result": {
+            "type": 1,
+            "value": 41
+          },
+          "callbacks": [],
+          "execution_context": "worker"
+        },
+        {
+          "arguments": [
+            {
+              "code": "E",
+              "value": 80
+            }
+          ],
+          "result": {
+            "type": 1,
+            "value": 81
+          },
+          "callbacks": [],
+          "execution_context": "worker"
+        }
+      ],
+      "MyOverlapMax": [
+        {
+          "arguments": [],
+          "result": 2,
+          "callbacks": [],
+          "execution_context": "owner"
+        }
+      ],
+      "MyOverlapReset": [
+        {
+          "arguments": [],
+          "result": 1,
+          "callbacks": [],
+          "execution_context": "owner"
+        }
+      ],
+      "MyWorkerCallbacks": [
+        {
+          "arguments": [
+            {
+              "code": "Q",
+              "value": {
+                "type": 1,
+                "value": 19
+              }
+            },
+            {
+              "code": "Q",
+              "value": {
+                "type": 1,
+                "value": 23
+              }
+            }
+          ],
+          "result": {
+            "type": 1,
+            "value": 42
+          },
+          "callbacks": [
+            [
+              4,
+              [
+                {
+                  "type": 1,
+                  "value": 19
+                },
+                {
+                  "type": 1,
+                  "value": 23
+                }
+              ],
+              0,
+              {
+                "type": 1,
+                "value": 42
+              }
+            ]
+          ],
+          "execution_context": "worker"
+        }
+      ],
+      "MyWorkerReference": [
+        {
+          "arguments": [
+            {
+              "code": "U",
+              "value": {
+                "type": 1024,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            }
+          ],
+          "result": {
+            "type": 4097,
+            "value": 7
+          },
+          "callbacks": [
+            [
+              16386,
+              [
+                {
+                  "type": 1024,
+                  "value": {
+                    "count": 1,
+                    "rect": [
+                      0,
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                }
+              ],
+              0,
+              {
+                "type": 1,
+                "value": 7
+              }
+            ]
+          ],
+          "execution_context": "worker"
+        }
+      ],
+      "MyWorkerOwned": [
+        {
+          "arguments": [],
+          "result": {
+            "type": 16386,
+            "value": "native owned"
+          },
+          "callbacks": [],
+          "execution_context": "worker"
+        }
+      ],
+      "MyFreeCount": [
+        {
+          "arguments": [],
+          "result": 1,
+          "callbacks": [],
+          "execution_context": "owner"
+        }
+      ]
+    }
+  ],
+  "native_entry_counts_excel_and_host": [
+    {
+      "MyOverlap": 4,
+      "MyOverlapMax": 2,
+      "MyOverlapReset": 1,
+      "MyWorkerCallbacks": 2,
+      "MyWorkerReference": 2,
+      "MyWorkerOwned": 2,
+      "MyFreeCount": 2
+    },
+    {
+      "MyOverlap": 2,
+      "MyOverlapMax": 1,
+      "MyOverlapReset": 1,
+      "MyWorkerCallbacks": 1,
+      "MyWorkerReference": 1,
+      "MyWorkerOwned": 1,
+      "MyFreeCount": 1
+    }
+  ],
+  "ownership_excel_and_host": [
+    {
+      "owned_returns": 2,
+      "free_calls": 2,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "Pool.xll": 2
+      }
+    },
+    {
+      "owned_returns": 1,
+      "free_calls": 1,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "Pool.xll": 1
+      }
+    }
+  ],
+  "source_bindings_checked": 1864,
+  "compatibility_failures": [
+    "Excel formula outcomes differ",
+    "Native invocation counts differ",
+    "Native arguments/results/ordered nested callbacks differ",
+    "Owned result/free counts differ"
+  ],
+  "scope": "Strict full-profile failure; overlap and owning-activation evidence do not convert extra entry-time native calls or differing outcomes into passes."
+}
