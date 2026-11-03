@@ -2,7 +2,7 @@
   "format": "dnacalc-capture-record",
   "version": 2,
   "case": "catalogue__dcuar_cell",
-  "source": "section:sha256:47d4e0908f974276e1cbc0cebeab3404193d568c1e8ad9e03110b613632bc28c",
+  "source": "section:sha256:1012e000a9dcb7cb6ad814703fe5b9a95a9c875770151d7b453b1afa119ea59a",
   "acquisition": {
     "kind": "live_capture"
   },
@@ -48,7 +48,7 @@
       "display_alerts": "false",
       "ask_to_update_links": "false",
       "ignore_remote_requests": "false",
-      "add_ins": "COM add-in Carousel.ExcelAddin connect=false;COM add-in Dna_78b015d8b23f56a68ecce694f11f8794_3 connect=false;COM add-in ExcelPlugInShell.PowerMapConnect connect=false;COM add-in ExcelVstoAddIn1 connect=false;COM add-in MicrosoftDataStreamerforExcel connect=false;COM add-in NativeShim.InquireConnector.1 connect=false;COM add-in OxVbaExcelAddin.ExcelAddin connect=false;COM add-in PDFMaker.OfficeAddin connect=false;COM add-in PowerPivotExcelClientAddIn.NativeEntry.1 connect=false;COM add-in TestComAddIn.ComAddIn connect=false;COM add-in TestRibbonRegistration.MyCustomRibbon connect=false;COM add-in VS15ExcelAdaptor connect=true;COM add-in xlPerf connect=false;add-in ANALYS32.XLL open=false installed=false;add-in ATPVBAEN.XLAM open=false installed=false;add-in CsTest160PR-AddIn64-packed.xll open=false installed=false;add-in EUROTOOL.XLAM open=false installed=false;add-in ExcelDna.IntelliSense.Tools-AddIn64.xll open=false installed=false;add-in ExcelDna.IntelliSense64.xll open=false installed=false;add-in ExcelDna64.xll open=false installed=false;add-in GENERIC.xll open=false installed=false;add-in McpExcel-AddIn64.xll open=false installed=true;add-in RibbonTest-AddIn64.xll open=false installed=false;add-in SOLVER.XLAM open=false installed=false;add-in Test160rc1Local-AddIn64.xll open=false installed=false;add-in TestCrashGuard-AddIn64.xll open=false installed=true;add-in TestCs170rc2-AddIn64.xll open=false installed=false;add-in TestDoc170-AddIn64.xll open=false installed=false;add-in TestIntelliEmbed-AddIn64.xll open=false installed=false;add-in TestOpen16-AddIn64-packed.xll open=false installed=false",
+      "add_ins": "COM add-in Carousel.ExcelAddin connect=false;COM add-in Dna_78b015d8b23f56a68ecce694f11f8794_3 connect=false;COM add-in ExcelPlugInShell.PowerMapConnect connect=false;COM add-in ExcelVstoAddIn1 connect=false;COM add-in MicrosoftDataStreamerforExcel connect=false;COM add-in MsoTDAddin.Connect.1 connect=false;COM add-in NativeShim.InquireConnector.1 connect=false;COM add-in OxVbaExcelAddin.ExcelAddin connect=false;COM add-in PDFMaker.OfficeAddin connect=false;COM add-in PowerPivotExcelClientAddIn.NativeEntry.1 connect=false;COM add-in TestComAddIn.ComAddIn connect=false;COM add-in TestRibbonRegistration.MyCustomRibbon connect=false;COM add-in VS15ExcelAdaptor connect=true;COM add-in xlPerf connect=false;add-in ANALYS32.XLL open=false installed=false;add-in ATPVBAEN.XLAM open=false installed=false;add-in CsTest160PR-AddIn64-packed.xll open=false installed=false;add-in EUROTOOL.XLAM open=false installed=false;add-in ExcelDna.IntelliSense.Tools-AddIn64.xll open=false installed=false;add-in ExcelDna.IntelliSense64.xll open=false installed=false;add-in ExcelDna64.xll open=false installed=false;add-in GENERIC.xll open=false installed=false;add-in McpExcel-AddIn64.xll open=false installed=true;add-in RibbonTest-AddIn64.xll open=false installed=false;add-in SOLVER.XLAM open=false installed=false;add-in Test160rc1Local-AddIn64.xll open=false installed=false;add-in TestCrashGuard-AddIn64.xll open=false installed=true;add-in TestCs170rc2-AddIn64.xll open=false installed=false;add-in TestDoc170-AddIn64.xll open=false installed=false;add-in TestIntelliEmbed-AddIn64.xll open=false installed=false;add-in TestOpen16-AddIn64-packed.xll open=false installed=false",
       "com_add_ins_connected": "VS15ExcelAdaptor|Visual Studio Tools for Office Design-Time Adaptor for Excel",
       "add_ins_installed": "McpExcel-AddIn64.xll;TestCrashGuard-AddIn64.xll",
       "has_vb_project": "false",
@@ -56,22 +56,22 @@
       "external_links": "",
       "ole_dde_links": "",
       "connections": "",
-      "calculation_clock": "40e69eae3dec29c9",
-      "workbook_path": "C:\\Work\\DnaCalc\\corpus\\c96\\in\\oracle.xlsx"
+      "calculation_clock": "40e69f26c3cbd9b0",
+      "workbook_path": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\c\\20261103030424-2\\in\\oracle.xlsx"
     }
   },
   "session": {
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:599032d018da3b9889269e0ca46c2c1c7f2f21572fb378bc1781a73b9cd93d25; repository d4eb5358571cdf0cae51fe8560cf082a16219d9a+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker results 1; worker sha256:599032d018da3b9889269e0ca46c2c1c7f2f21572fb378bc1781a73b9cd93d25; repository 2132f5f10c8412365918eb1cafcac3523365dd43+dirty",
     "packages": {
-      "input": "sha256:b2fe0e4012c6f4cb05e52b6d7e8544d04b0105f60b7c3dfb561726d5b0717ec3",
-      "output": "sha256:dc2a1fb4137180e3888ea561de6ea114368fe0a1442aacbf1a5f8280f67e6daa"
+      "input": "sha256:5bb6c51c8dbf65823531742735bf656729eb362032612a0d89ff2f982c472883",
+      "output": "sha256:55fa29453203d33dde0c0775f90044f3b55865f103b3bafc03c723c1a5b42740"
     },
     "failures": [
-      {"stage":"reopen","sheet":"dcuar_cell","row":42,"column":4,"message":"after reopening the saved package Excel reads CalcValue { core: Text(ExcelText { units: [67, 58, 92, 87, 111, 114, 107, 92, 68, 110, 97, 67, 97, 108, 99, 92, 99, 111, 114, 112, 117, 115, 92, 99, 57, 54, 92, 111, 117, 116, 92, 91, 111, 114, 97, 99, 108, 101, 46, 120, 108, 115, 120, 93, 100, 99, 117, 97, 114, 95, 99, 101, 108, 108] }), callable: None }, where the capture read CalcValue { core: Text(ExcelText { units: [67, 58, 92, 87, 111, 114, 107, 92, 68, 110, 97, 67, 97, 108, 99, 92, 99, 111, 114, 112, 117, 115, 92, 99, 57, 54, 92, 105, 110, 92, 91, 111, 114, 97, 99, 108, 101, 46, 120, 108, 115, 120, 93, 100, 99, 117, 97, 114, 95, 99, 101, 108, 108] }), callable: None }"},
-      {"stage":"reopen","sheet":"dcuar_cell","row":43,"column":4,"message":"after reopening the saved package Excel reads CalcValue { core: Text(ExcelText { units: [67, 58, 92, 87, 111, 114, 107, 92, 68, 110, 97, 67, 97, 108, 99, 92, 99, 111, 114, 112, 117, 115, 92, 99, 57, 54, 92, 111, 117, 116, 92, 91, 111, 114, 97, 99, 108, 101, 46, 120, 108, 115, 120, 93, 68, 97, 116, 97] }), callable: None }, where the capture read CalcValue { core: Text(ExcelText { units: [67, 58, 92, 87, 111, 114, 107, 92, 68, 110, 97, 67, 97, 108, 99, 92, 99, 111, 114, 112, 117, 115, 92, 99, 57, 54, 92, 105, 110, 92, 91, 111, 114, 97, 99, 108, 101, 46, 120, 108, 115, 120, 93, 68, 97, 116, 97] }), callable: None }"}
+      {"stage":"reopen","sheet":"dcuar_cell","row":42,"column":4,"message":"after reopening the saved package Excel reads CalcValue { core: Text(ExcelText { units: [67, 58, 92, 87, 111, 114, 107, 92, 68, 110, 97, 67, 97, 108, 99, 92, 68, 110, 97, 67, 97, 108, 99, 45, 119, 105, 110, 92, 116, 97, 114, 103, 101, 116, 92, 99, 92, 50, 48, 50, 54, 49, 49, 48, 51, 48, 51, 48, 52, 50, 52, 45, 50, 92, 111, 117, 116, 92, 91, 111, 114, 97, 99, 108, 101, 46, 120, 108, 115, 120, 93, 100, 99, 117, 97, 114, 95, 99, 101, 108, 108] }), callable: None }, where the capture read CalcValue { core: Text(ExcelText { units: [67, 58, 92, 87, 111, 114, 107, 92, 68, 110, 97, 67, 97, 108, 99, 92, 68, 110, 97, 67, 97, 108, 99, 45, 119, 105, 110, 92, 116, 97, 114, 103, 101, 116, 92, 99, 92, 50, 48, 50, 54, 49, 49, 48, 51, 48, 51, 48, 52, 50, 52, 45, 50, 92, 105, 110, 92, 91, 111, 114, 97, 99, 108, 101, 46, 120, 108, 115, 120, 93, 100, 99, 117, 97, 114, 95, 99, 101, 108, 108] }), callable: None }"},
+      {"stage":"reopen","sheet":"dcuar_cell","row":43,"column":4,"message":"after reopening the saved package Excel reads CalcValue { core: Text(ExcelText { units: [67, 58, 92, 87, 111, 114, 107, 92, 68, 110, 97, 67, 97, 108, 99, 92, 68, 110, 97, 67, 97, 108, 99, 45, 119, 105, 110, 92, 116, 97, 114, 103, 101, 116, 92, 99, 92, 50, 48, 50, 54, 49, 49, 48, 51, 48, 51, 48, 52, 50, 52, 45, 50, 92, 111, 117, 116, 92, 91, 111, 114, 97, 99, 108, 101, 46, 120, 108, 115, 120, 93, 68, 97, 116, 97] }), callable: None }, where the capture read CalcValue { core: Text(ExcelText { units: [67, 58, 92, 87, 111, 114, 107, 92, 68, 110, 97, 67, 97, 108, 99, 92, 68, 110, 97, 67, 97, 108, 99, 45, 119, 105, 110, 92, 116, 97, 114, 103, 101, 116, 92, 99, 92, 50, 48, 50, 54, 49, 49, 48, 51, 48, 51, 48, 52, 50, 52, 45, 50, 92, 105, 110, 92, 91, 111, 114, 97, 99, 108, 101, 46, 120, 108, 115, 120, 93, 68, 97, 116, 97] }), callable: None }"}
     ]
   },
   "sheets": [
@@ -905,8 +905,8 @@
     {"sheet":"dcuar_cell","row":39,"column":4,"excel_raw":{"logical":false}},
     {"sheet":"dcuar_cell","row":40,"column":4,"excel_raw":{"number":"4020000000000000"}},
     {"sheet":"dcuar_cell","row":41,"column":4,"excel_raw":{"number":"4020000000000000"}},
-    {"sheet":"dcuar_cell","row":42,"column":4,"excel_raw":{"text":"0043003a005c0057006f0072006b005c0044006e006100430061006c0063005c0063006f0072007000750073005c006300390036005c0069006e005c005b006f007200610063006c0065002e0078006c00730078005d00640063007500610072005f00630065006c006c"}},
-    {"sheet":"dcuar_cell","row":43,"column":4,"excel_raw":{"text":"0043003a005c0057006f0072006b005c0044006e006100430061006c0063005c0063006f0072007000750073005c006300390036005c0069006e005c005b006f007200610063006c0065002e0078006c00730078005d0044006100740061"}},
+    {"sheet":"dcuar_cell","row":42,"column":4,"excel_raw":{"text":"0043003a005c0057006f0072006b005c0044006e006100430061006c0063005c0044006e006100430061006c0063002d00770069006e005c007400610072006700650074005c0063005c00320030003200360031003100300033003000330030003400320034002d0032005c0069006e005c005b006f007200610063006c0065002e0078006c00730078005d00640063007500610072005f00630065006c006c"}},
+    {"sheet":"dcuar_cell","row":43,"column":4,"excel_raw":{"text":"0043003a005c0057006f0072006b005c0044006e006100430061006c0063005c0044006e006100430061006c0063002d00770069006e005c007400610072006700650074005c0063005c00320030003200360031003100300033003000330030003400320034002d0032005c0069006e005c005b006f007200610063006c0065002e0078006c00730078005d0044006100740061"}},
     {"sheet":"dcuar_cell","row":44,"column":4,"excel_raw":{"text":"0024004100240031"}},
     {"sheet":"dcuar_cell","row":45,"column":4,"excel_raw":{"text":"005b006f007200610063006c0065002e0078006c00730078005d004400610074006100210024004200240032"}},
     {"sheet":"dcuar_cell","row":46,"column":4,"excel_raw":{"text":"005b006f007200610063006c0065002e0078006c00730078005d004400610074006100210024004100240031"}},
@@ -933,7 +933,7 @@
     {"sheet":"dcuar_cell","row":67,"column":4,"excel_raw":{"text":"00310036002e0030"}},
     {"sheet":"dcuar_cell","row":68,"column":4,"excel_raw":{"text":"00570069006e0064006f007700730020002800360034002d00620069007400290020004e0054002000310030002e00300030"}},
     {"sheet":"dcuar_cell","row":69,"column":4,"excel_raw":{"text":"007000630064006f0073"}},
-    {"sheet":"dcuar_cell","row":70,"column":4,"excel_raw":{"number":"4038000000000000"}},
+    {"sheet":"dcuar_cell","row":70,"column":4,"excel_raw":{"number":"4039000000000000"}},
     {"sheet":"dcuar_cell","row":71,"column":4,"excel_raw":{"text":"00240041003a0024004300240035"}},
     {"sheet":"dcuar_cell","row":72,"column":4,"excel_raw":{"text":"00240041003a0024004300240035"}},
     {"sheet":"dcuar_cell","row":73,"column":4,"excel_raw":{"error":"na"}},
@@ -1690,8 +1690,8 @@
     {"sheet":"dcuar_cell","row":39,"column":4,"excel_saved_cache":{"t":"b","v":"0"}},
     {"sheet":"dcuar_cell","row":40,"column":4,"excel_saved_cache":{"t":"n","v":"8"}},
     {"sheet":"dcuar_cell","row":41,"column":4,"excel_saved_cache":{"t":"n","v":"8"}},
-    {"sheet":"dcuar_cell","row":42,"column":4,"excel_saved_cache":{"t":"str","v":"C:\\Work\\DnaCalc\\corpus\\c96\\in\\[oracle.xlsx]dcuar_cell"}},
-    {"sheet":"dcuar_cell","row":43,"column":4,"excel_saved_cache":{"t":"str","v":"C:\\Work\\DnaCalc\\corpus\\c96\\in\\[oracle.xlsx]Data"}},
+    {"sheet":"dcuar_cell","row":42,"column":4,"excel_saved_cache":{"t":"str","v":"C:\\Work\\DnaCalc\\DnaCalc-win\\target\\c\\20261103030424-2\\in\\[oracle.xlsx]dcuar_cell"}},
+    {"sheet":"dcuar_cell","row":43,"column":4,"excel_saved_cache":{"t":"str","v":"C:\\Work\\DnaCalc\\DnaCalc-win\\target\\c\\20261103030424-2\\in\\[oracle.xlsx]Data"}},
     {"sheet":"dcuar_cell","row":44,"column":4,"excel_saved_cache":{"t":"str","v":"$A$1"}},
     {"sheet":"dcuar_cell","row":45,"column":4,"excel_saved_cache":{"t":"str","v":"[oracle.xlsx]Data!$B$2"}},
     {"sheet":"dcuar_cell","row":46,"column":4,"excel_saved_cache":{"t":"str","v":"[oracle.xlsx]Data!$A$1"}},
@@ -1718,7 +1718,7 @@
     {"sheet":"dcuar_cell","row":67,"column":4,"excel_saved_cache":{"t":"str","v":"16.0"}},
     {"sheet":"dcuar_cell","row":68,"column":4,"excel_saved_cache":{"t":"str","v":"Windows (64-bit) NT 10.00"}},
     {"sheet":"dcuar_cell","row":69,"column":4,"excel_saved_cache":{"t":"str","v":"pcdos"}},
-    {"sheet":"dcuar_cell","row":70,"column":4,"excel_saved_cache":{"t":"n","v":"24"}},
+    {"sheet":"dcuar_cell","row":70,"column":4,"excel_saved_cache":{"t":"n","v":"25"}},
     {"sheet":"dcuar_cell","row":71,"column":4,"excel_saved_cache":{"t":"str","v":"$A:$C$5"}},
     {"sheet":"dcuar_cell","row":72,"column":4,"excel_saved_cache":{"t":"str","v":"$A:$C$5"}},
     {"sheet":"dcuar_cell","row":73,"column":4,"excel_saved_cache":{"t":"e","v":"#N/A"}},
@@ -2475,8 +2475,8 @@
     {"sheet":"dcuar_cell","row":39,"column":4,"excel_raw":{"logical":false}},
     {"sheet":"dcuar_cell","row":40,"column":4,"excel_raw":{"number":"4020000000000000"}},
     {"sheet":"dcuar_cell","row":41,"column":4,"excel_raw":{"number":"4020000000000000"}},
-    {"sheet":"dcuar_cell","row":42,"column":4,"excel_raw":{"text":"0043003a005c0057006f0072006b005c0044006e006100430061006c0063005c0063006f0072007000750073005c006300390036005c006f00750074005c005b006f007200610063006c0065002e0078006c00730078005d00640063007500610072005f00630065006c006c"}},
-    {"sheet":"dcuar_cell","row":43,"column":4,"excel_raw":{"text":"0043003a005c0057006f0072006b005c0044006e006100430061006c0063005c0063006f0072007000750073005c006300390036005c006f00750074005c005b006f007200610063006c0065002e0078006c00730078005d0044006100740061"}},
+    {"sheet":"dcuar_cell","row":42,"column":4,"excel_raw":{"text":"0043003a005c0057006f0072006b005c0044006e006100430061006c0063005c0044006e006100430061006c0063002d00770069006e005c007400610072006700650074005c0063005c00320030003200360031003100300033003000330030003400320034002d0032005c006f00750074005c005b006f007200610063006c0065002e0078006c00730078005d00640063007500610072005f00630065006c006c"}},
+    {"sheet":"dcuar_cell","row":43,"column":4,"excel_raw":{"text":"0043003a005c0057006f0072006b005c0044006e006100430061006c0063005c0044006e006100430061006c0063002d00770069006e005c007400610072006700650074005c0063005c00320030003200360031003100300033003000330030003400320034002d0032005c006f00750074005c005b006f007200610063006c0065002e0078006c00730078005d0044006100740061"}},
     {"sheet":"dcuar_cell","row":44,"column":4,"excel_raw":{"text":"0024004100240031"}},
     {"sheet":"dcuar_cell","row":45,"column":4,"excel_raw":{"text":"005b006f007200610063006c0065002e0078006c00730078005d004400610074006100210024004200240032"}},
     {"sheet":"dcuar_cell","row":46,"column":4,"excel_raw":{"text":"005b006f007200610063006c0065002e0078006c00730078005d004400610074006100210024004100240031"}},
@@ -2503,7 +2503,7 @@
     {"sheet":"dcuar_cell","row":67,"column":4,"excel_raw":{"text":"00310036002e0030"}},
     {"sheet":"dcuar_cell","row":68,"column":4,"excel_raw":{"text":"00570069006e0064006f007700730020002800360034002d00620069007400290020004e0054002000310030002e00300030"}},
     {"sheet":"dcuar_cell","row":69,"column":4,"excel_raw":{"text":"007000630064006f0073"}},
-    {"sheet":"dcuar_cell","row":70,"column":4,"excel_raw":{"number":"4038000000000000"}},
+    {"sheet":"dcuar_cell","row":70,"column":4,"excel_raw":{"number":"4039000000000000"}},
     {"sheet":"dcuar_cell","row":71,"column":4,"excel_raw":{"text":"00240041003a0024004300240035"}},
     {"sheet":"dcuar_cell","row":72,"column":4,"excel_raw":{"text":"00240041003a0024004300240035"}},
     {"sheet":"dcuar_cell","row":73,"column":4,"excel_raw":{"error":"na"}},
