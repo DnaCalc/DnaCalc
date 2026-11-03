@@ -7298,11 +7298,14 @@ fn cdoc_m1_3__formula_authoring() {
         ("K1", r#"<c r="K1" t="b"><v>1</v></c>"#),
         ("K2", r#"<c r="K2" t="e"><v>#N/A</v></c>"#),
         ("B1", r#"<c r="B1" s="1"/>"#),
-        // The shared group C6:C10, one of whose cells changed, as individual formulas.
-        ("C6", r#"<c r="C6"><f>A6*2+$A$1</f></c>"#),
-        ("C7", r#"<c r="C7"><f>A7*2+$A$1</f></c>"#),
-        ("C9", r#"<c r="C9"><f>A9*2+$A$1</f></c>"#),
-        ("C10", r#"<c r="C10"><f>A10*2+$A$1</f></c>"#),
+        // The remaining actual members share one master; C8's literal overrides the hole.
+        (
+            "C6",
+            r#"<c r="C6"><f t="shared" ref="C6:C10" si="0">A6*2+$A$1</f></c>"#,
+        ),
+        ("C7", r#"<c r="C7"><f t="shared" si="0"/></c>"#),
+        ("C9", r#"<c r="C9"><f t="shared" si="0"/></c>"#),
+        ("C10", r#"<c r="C10"><f t="shared" si="0"/></c>"#),
     ];
     for (at, xml) in expected {
         assert_eq!(bytes_at(at), xml, "{at}");
@@ -7503,7 +7506,19 @@ fn cdoc_m1_3__formula_authoring() {
     let cells_sheet = &reloaded.sheets()[0];
     assert_eq!(cells_sheet.style(1, 2), 1, "B1 keeps its style");
     assert_eq!(cells_sheet.style(1, 8), 2, "H1 keeps its style");
-    assert_eq!(cells_sheet.formula(6, 3).unwrap().shared(), None);
+    for row in [6, 7, 9, 10] {
+        let group = cells_sheet.formula(row, 3).unwrap().shared().unwrap();
+        assert_eq!(group.index(), 0);
+        assert_eq!(group.master(), cell(cells_sheet.id(), 6, 3));
+        assert_eq!(
+            group.area(),
+            GridArea::new(cell(cells_sheet.id(), 6, 3), cell(cells_sheet.id(), 10, 3)).unwrap()
+        );
+    }
+    assert!(
+        cells_sheet.formula(8, 3).is_none(),
+        "C8 stays a literal hole"
+    );
     assert_eq!(
         cells_sheet
             .formula(6, 5)

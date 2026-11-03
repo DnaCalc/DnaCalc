@@ -58,6 +58,19 @@
         "harnesses": 69,
         "packages": 16
       }
+    },
+    {
+      "log": "C:/Work/DnaCalc/codex-runs/xll6/check-latest-master-merge.log",
+      "sha256": "46c108c34d5554da431d4f61b87b4e31660151bc75ce974cfd5c53ea8f64d916",
+      "status": "passed",
+      "counts": {
+        "passed": 1358,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 2,
+        "harnesses": 71,
+        "packages": 17
+      }
     }
   ],
   "code_revisions": [
@@ -68,5 +81,6 @@
   "full_sweep": false,
   "linux_run": false,
   "github_ci_dispatched": false,
-  "review": "Read-only final audit passed all302 retained hashes,39 permission packets,930 Git source bindings, validation counts, corpus comparisons, overlap/frees and retained strict failures."
+  "review": "Read-only final audit passed all302 retained hashes,39 permission packets,930 Git source bindings, validation counts, corpus comparisons, overlap/frees and retained strict failures.",
+  "latest_integrated_upstream": "084c5e29"
 }

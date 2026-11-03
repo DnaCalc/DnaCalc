@@ -8679,7 +8679,9 @@ fn dc_hsa5_7__blocks_bind_without_expansion_and_edit_save_through_host() {
     );
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
-    assert!(!part_text(&saved, "xl/worksheets/sheet1.xml").contains("t=\"shared\""));
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert_eq!(xml.matches("t=\"shared\"").count(), 4);
+    assert!(xml.contains("ref=\"C1:D2\""));
     let mut reopened = session(&saved);
     assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
     for (address, value) in [("C1", 11.0), ("C2", 13.0), ("D1", 20.0), ("D2", 10.0)] {
@@ -9370,8 +9372,9 @@ fn dc_hsa5_9__master_edits_keep_the_shared_source_through_history_and_save() {
         Some(CalcValue::number(13.0))
     );
     assert!(book.dispatch(SkinIntent::Redo).accepted());
-    // The requested UI projections have now materialized this member's spelling. Its source
-    // remains shared; keeping a cached rendering does not turn it into an individual input.
+    // Request the spelling as a formula editor does. Comparisons and value projections no
+    // longer retain expansions. An explicit text request keeps the shared source intact.
+    assert_eq!(input(&book, "C1").text().to_string_lossy(), "A1+$B$1");
     assert_eq!(input(&book, "C1").block().unwrap().member_count(), 1);
     assert!(input(&book, "C1").materialized());
     assert_eq!(
@@ -9616,6 +9619,651 @@ fn names_rename_rewrites_conditional_sources_and_refuses_unowned_validation_sour
                     .formulas,
                 vec!["YieldRate>1"]
             );
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_10__authored_and_restored_sources_compact_without_recalculation() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    let mut edits = vec![CellEdit::Set {
+        at: at(s, "B1"),
+        input: number(10.),
+    }];
+    for row in 1..=128 {
+        edits.push(CellEdit::Set {
+            at: CellKey::new(s, row, 1).unwrap(),
+            input: number(f64::from(row)),
+        });
+        edits.push(CellEdit::Set {
+            at: CellKey::new(s, row, 3).unwrap(),
+            input: formula(&format!("A{row}+$B$1")),
+        });
+    }
+    assert!(book.dispatch(SkinIntent::Edit { edits }).accepted());
+    book.dispatch(SkinIntent::Recalculate);
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    let before = book.host().model().formula_source_stats();
+    assert_eq!(
+        (
+            before.formula_cells,
+            before.inline_sources,
+            before.retained_sources
+        ),
+        (128, 128, 0)
+    );
+    let old_root = book.host().model().clone();
+    let values: Vec<_> = (1..=128)
+        .map(|row| value(book.host(), CellKey::new(s, row, 3).unwrap()))
+        .collect();
+    let old_pin = book.prepare_save(&SavePolicy::default()).unwrap();
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    book.take_calculation_events();
+    for budget in [
+        calc_host::FormulaSourceBudget {
+            max_cells: 0,
+            ..Default::default()
+        },
+        calc_host::FormulaSourceBudget {
+            max_utf16_units: 0,
+            ..Default::default()
+        },
+    ] {
+        assert!(book.compact_formula_sources(budget).is_none());
+        assert_eq!(book.host().model().formula_source_stats(), before);
+    }
+    let compact = book.compact_formula_sources(Default::default()).unwrap();
+    assert_eq!(
+        (
+            compact.after.retained_sources,
+            compact.after.retained_members,
+            compact.after.inline_sources
+        ),
+        (1, 128, 0)
+    );
+    assert_eq!(
+        (
+            compact.after.materialized_members,
+            compact.after.membership_runs
+        ),
+        (0, 1)
+    );
+    assert_eq!(compact.regrouped_cells, 128);
+    assert_eq!(old_root.formula_source_stats(), before);
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), history);
+    assert!(book.take_calculation_events().is_empty());
+    assert_eq!(
+        book.prepare_save(&SavePolicy::default())
+            .unwrap()
+            .pin()
+            .results,
+        old_pin.pin().results
+    );
+    for (row, expected) in (1..=128).zip(&values) {
+        assert_eq!(
+            &value(book.host(), CellKey::new(s, row, 3).unwrap()),
+            expected
+        );
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert_eq!(xml.matches("t=\"shared\"").count(), 128);
+    assert!(xml.contains("ref=\"C1:C128\""));
+    assert_eq!(
+        book.host()
+            .model()
+            .formula_source_stats()
+            .materialized_members,
+        0
+    );
+    let create = calc_host::NameEdit {
+        id: None,
+        version: None,
+        scope: calc_doc_model::NameScope::Workbook,
+        name: "Spare".into(),
+        formula: Some("1".into()),
+    };
+    assert!(
+        book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Name(
+            create
+        )))
+        .accepted()
+    );
+    let node = book
+        .host()
+        .model()
+        .definitions()
+        .name_table()
+        .lookup(calc_doc_model::NameScope::Workbook, "Spare")
+        .unwrap();
+    let rename = calc_host::NameEdit {
+        id: Some(node.id()),
+        version: Some(node.binding_version()),
+        scope: calc_doc_model::NameScope::Workbook,
+        name: "SpareRenamed".into(),
+        formula: Some("1".into()),
+    };
+    assert!(
+        book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Name(
+            rename
+        )))
+        .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .formula_source_stats()
+            .materialized_members,
+        0,
+        "name-source analysis also leaves member renderings transient"
+    );
+    let mut reopened = session(&saved);
+    reopened.dispatch(SkinIntent::Recalculate);
+    while reopened.has_pending_calculation() {
+        reopened.advance_calculation();
+    }
+    for row in 1..=128 {
+        assert_eq!(
+            calculated(reopened.host(), CellKey::new(s, row, 3).unwrap()),
+            Some(CalcValue::number(f64::from(row) + 10.))
+        );
+    }
+
+    assert!(enter(&mut book, at(s, "C64"), "9").accepted());
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let fragmented = book.host().model().formula_source_stats();
+    assert_eq!(
+        (
+            fragmented.retained_sources,
+            fragmented.retained_members,
+            fragmented.inline_sources
+        ),
+        (1, 127, 1)
+    );
+    let held = value(book.host(), at(s, "C64"));
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    book.take_calculation_events();
+    let restored = book.compact_formula_sources(Default::default()).unwrap();
+    assert_eq!(
+        (
+            restored.after.retained_sources,
+            restored.after.retained_members,
+            restored.after.inline_sources
+        ),
+        (1, 128, 0)
+    );
+    assert_eq!(value(book.host(), at(s, "C64")), held);
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), history);
+    assert!(book.take_calculation_events().is_empty());
+    let mut pinned = Vec::new();
+    old_pin.write(&mut pinned).unwrap();
+    assert_eq!(
+        session(&pinned)
+            .host()
+            .model()
+            .formula_source_stats()
+            .retained_members,
+        128
+    );
+    println!(
+        "ACCEPT-NOTE: dc-hsa5.10 authored {before:?}; compact {:?}; restored fragmentation {fragmented:?} to {:?}; revision, history, certificates and pinned bytes retained",
+        compact.after, restored.after
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_10__edited_shared_master_uses_survivors_and_keeps_cell_attributes() {
+    let bytes = package_with_part_from(
+        &shared_block_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("ref=\"C1:C3\"","ref=\"C1:C5\"")
+            .replace("<c r=\"C1\">","<c r=\"C1\" s=\"0\" cm=\"17\" custom=\"keep\">")
+            .replace("<f t=\"shared\" si=\"2\">ignored dependent","<f t=\"shared\" si=\"2\" bx=\"1\" ca=\"1\">ignored dependent")
+            .replace("<row r=\"2\"><c r=\"A2\"><v>2</v></c></row>","<row r=\"2\"><c r=\"A2\"><v>2</v></c><c r=\"C2\"><f t=\"shared\" si=\"2\"/><v>12</v></c></row>")
+            .replace("</sheetData>","<row r=\"4\"><c r=\"A4\"><v>4</v></c><c r=\"C4\"><f t=\"shared\" si=\"2\"/><v>14</v></c></row><row r=\"5\"><c r=\"A5\"><v>5</v></c><c r=\"C5\"><f t=\"shared\" si=\"2\"/><v>15</v></c></row></sheetData>")
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    book.dispatch(SkinIntent::Recalculate);
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    let old_pin = book.prepare_save(&SavePolicy::default()).unwrap();
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![
+                CellEdit::Clear {
+                    area: GridArea::cell(at(s, "C2"))
+                },
+                CellEdit::Clear {
+                    area: GridArea::cell(at(s, "C3"))
+                }
+            ]
+        })
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert_eq!(xml.matches("t=\"shared\"").count(), 3);
+    assert!(xml.contains("ref=\"C1:C5\""));
+    assert!(xml.contains("bx=\"1\""));
+    assert!(xml.contains("cm=\"17\""));
+    assert!(xml.contains("custom=\"keep\""));
+    assert!(xml.contains("A1+$B$1"));
+    assert!(!xml.contains("ignored dependent"));
+    let mut reopened = session(&saved);
+    assert_eq!(
+        (
+            reopened
+                .host()
+                .model()
+                .formula_source_stats()
+                .retained_members,
+            reopened.host().model().formula_source_stats().formula_cells
+        ),
+        (3, 3)
+    );
+    for address in ["C2", "C3"] {
+        assert!(reopened.host().model().cell(at(s, address)).is_none());
+    }
+    for (address, expected) in [("C1", 11.), ("C4", 14.), ("C5", 15.)] {
+        let ProjectedValue::FileCached(cache) = value(reopened.host(), at(s, address)) else {
+            panic!("saved actual cache")
+        };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(expected)));
+    }
+    reopened.dispatch(SkinIntent::Recalculate);
+    while reopened.has_pending_calculation() {
+        reopened.advance_calculation();
+    }
+    for (address, expected) in [("C1", 11.), ("C4", 14.), ("C5", 15.)] {
+        assert_eq!(
+            calculated(reopened.host(), at(s, address)),
+            Some(CalcValue::number(expected))
+        );
+    }
+    let mut pinned = Vec::new();
+    old_pin.write(&mut pinned).unwrap();
+    assert_eq!(
+        session(&pinned)
+            .host()
+            .model()
+            .formula_source_stats()
+            .formula_cells,
+        5
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_10__full_sheet_extent_regroups_only_two_actual_members() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: ["A1", "XFD1048576"]
+                .map(|a| CellEdit::Set {
+                    at: at(s, a),
+                    input: formula("42")
+                })
+                .to_vec()
+        })
+        .accepted()
+    );
+    book.dispatch(SkinIntent::Recalculate);
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    let compact = book.compact_formula_sources(Default::default()).unwrap();
+    assert_eq!(
+        (
+            compact.after.retained_sources,
+            compact.after.retained_members,
+            compact.after.membership_runs
+        ),
+        (1, 2, 2)
+    );
+    assert_eq!(compact.after.extent_cells, 17_179_869_184u128);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert_eq!(xml.matches("t=\"shared\"").count(), 2);
+    assert_eq!(xml.matches("<row ").count(), 2);
+    assert!(xml.len() < 4096);
+    let mut reopened = session(&saved);
+    assert_eq!(
+        reopened.host().model().formula_source_stats().formula_cells,
+        2
+    );
+    reopened.dispatch(SkinIntent::Recalculate);
+    while reopened.has_pending_calculation() {
+        reopened.advance_calculation();
+    }
+    for address in ["A1", "XFD1048576"] {
+        assert_eq!(
+            calculated(reopened.host(), at(s, address)),
+            Some(CalcValue::number(42.))
+        );
+    }
+    println!(
+        "ACCEPT-NOTE: dc-hsa5.10 sparse full-sheet {:?}; saved sheet {} bytes, two occupied rows",
+        compact.after,
+        xml.len()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_10__exact_spelling_dialects_and_arrays_remain_separate() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "1"),
+        ("A2", "2"),
+        ("A3", "3"),
+        ("A4", "4"),
+        ("C1", "=A1+1"),
+        ("C2", "=A2 + 1"),
+        ("C3", "=a3+1"),
+        ("C4", "=A4+1"),
+    ] {
+        assert!(enter(&mut book, at(s, address), text).accepted());
+    }
+    let dynamic = |text: &str| {
+        FormulaText::with_form(
+            calc_value::ExcelText::from_interop_assignment(text),
+            calc_doc_model::FormulaForm::Dynamic,
+        )
+        .unwrap()
+    };
+    let area = GridArea::new(at(s, "G1"), at(s, "G2")).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![
+                CellEdit::Set {
+                    at: at(s, "E1"),
+                    input: CellInput::Formula(dynamic("A1+1"))
+                },
+                CellEdit::Set {
+                    at: at(s, "E2"),
+                    input: CellInput::Formula(dynamic("A2+1"))
+                },
+                CellEdit::SetArray {
+                    array: calc_doc_model::ArrayFormula::new(
+                        area,
+                        calc_doc_model::ArrayKind::Legacy
+                    ),
+                    formula: dynamic("A1+{1;2}")
+                }
+            ]
+        })
+        .accepted()
+    );
+    let sources: Vec<_> = ["C1", "C2", "C3", "C4", "E1", "E2", "G1"]
+        .map(|a| match book.host().model().cell(at(s, a)).unwrap() {
+            CellInput::Formula(text) => (a, text.rendered(), text.form()),
+            _ => panic!("formula"),
+        })
+        .to_vec();
+    let compact = book.compact_formula_sources(Default::default()).unwrap();
+    assert_eq!(
+        (
+            compact.after.retained_sources,
+            compact.after.retained_members
+        ),
+        (1, 2)
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    for (address, source, form) in sources {
+        let Some(CellInput::Formula(text)) = reopened.host().model().cell(at(s, address)) else {
+            panic!("formula")
+        };
+        assert_eq!(text.rendered(), source, "{address}");
+        assert_eq!(text.form(), form, "{address}");
+    }
+    assert_eq!(
+        part_text(&saved, "xl/worksheets/sheet1.xml")
+            .matches("t=\"shared\"")
+            .count(),
+        2
+    );
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .array(at(s, "G1"))
+            .is_some()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_10__overlapping_shared_rectangles_keep_the_second_group_individual() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [
+        ("Z1", "1"),
+        ("A1", "=$Z$1+1"),
+        ("C3", "=$Z$1+1"),
+        ("C1", "=$Z$1+2"),
+        ("A3", "=$Z$1+2"),
+    ] {
+        assert!(enter(&mut book, at(s, address), text).accepted());
+    }
+    let compact = book.compact_formula_sources(Default::default()).unwrap();
+    assert_eq!(
+        (
+            compact.after.retained_sources,
+            compact.after.retained_members
+        ),
+        (2, 4)
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(
+        part_text(&saved, "xl/worksheets/sheet1.xml")
+            .matches("t=\"shared\"")
+            .count(),
+        2
+    );
+    let mut reopened = session(&saved);
+    reopened.dispatch(SkinIntent::Recalculate);
+    while reopened.has_pending_calculation() {
+        reopened.advance_calculation();
+    }
+    for (address, expected) in [("A1", 2.), ("C3", 2.), ("C1", 3.), ("A3", 3.)] {
+        assert_eq!(
+            calculated(reopened.host(), at(s, address)),
+            Some(CalcValue::number(expected))
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_10__untouched_singleton_reserves_its_original_shared_rectangle() {
+    let bytes = package_with_part_from(
+        &shared_block_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace(
+                r#"<c r="C1"><f t="shared" si="2">ignored dependent</f><v>999</v></c>"#,
+                "",
+            )
+            .replace(r#"ref="C1:C3""#, r#"ref="C1:E10""#)
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    for address in ["D1", "D10"] {
+        assert!(enter(&mut book, at(s, address), "=$B$1+2").accepted());
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains(r#"<f t="shared" ref="C1:E10" si="2">A3+$B$1</f>"#));
+    assert_eq!(xml.matches("t=\"shared\"").count(), 1);
+    assert!(!xml.contains(r#"ref="D1:D10""#));
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    for (address, expected) in [("C3", 13.), ("D1", 12.), ("D10", 12.)] {
+        assert_eq!(
+            calculated(reopened.host(), at(s, address)),
+            Some(CalcValue::number(expected))
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_10__source_compaction_preserves_a_parked_provider_activation() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    let counts = Rc::new(RefCell::new(async_provider::Counts::default()));
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register("AsyncEcho", Rc::new(async_provider::Echo(counts.clone())))
+        .unwrap();
+    book.set_user_functions(functions);
+    let source = FormulaText::with_form(
+        calc_value::ExcelText::from_interop_assignment("AsyncEcho(1)+1"),
+        calc_doc_model::FormulaForm::Legacy,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: ["B1", "B2"]
+                .map(|a| CellEdit::Set {
+                    at: at(s, a),
+                    input: CellInput::Formula(source.clone())
+                })
+                .to_vec()
+        })
+        .accepted()
+    );
+    book.dispatch(SkinIntent::Recalculate);
+    for _ in 0..1000 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
+    let tokens = book.host().pending_async();
+    assert_eq!(tokens.len(), 1);
+    let before = (
+        counts.borrow().prefix,
+        counts.borrow().suffix,
+        counts.borrow().resumes,
+    );
+    let revision = book.host().revision();
+    book.take_calculation_events();
+    let compact = book.compact_formula_sources(Default::default()).unwrap();
+    assert_eq!(
+        (
+            compact.after.retained_sources,
+            compact.after.retained_members
+        ),
+        (1, 2)
+    );
+    assert_eq!(book.host().pending_async(), tokens);
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(
+        (
+            counts.borrow().prefix,
+            counts.borrow().suffix,
+            counts.borrow().resumes
+        ),
+        before
+    );
+    assert!(book.take_calculation_events().is_empty());
+    assert_eq!(
+        book.complete_async(&tokens[0], CalcValue::number(41.)),
+        calc_host::AsyncDisposition::Accepted
+    );
+    for _ in 0..1000 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
+    let tokens = book.host().pending_async();
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(
+        book.complete_async(&tokens[0], CalcValue::number(42.)),
+        calc_host::AsyncDisposition::Accepted
+    );
+    for _ in 0..1000 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
+    assert!(book.host().pending_async().is_empty());
+    assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (2, 2));
+    assert_eq!(
+        calculated(book.host(), at(s, "B1")),
+        Some(CalcValue::number(42.))
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "B2")),
+        Some(CalcValue::number(43.))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_10__table_formula_sources_keep_their_existing_storage() {
+    let mut book = session(&fixture());
+    let tables = book.host().model().definitions().tables().to_vec();
+    assert!(!tables.is_empty());
+    let table = &tables[0];
+    let cell = CellKey::new(
+        table.sheet,
+        table.area.first().row() + table.header_rows,
+        table.area.first().column(),
+    )
+    .unwrap();
+    assert!(enter(&mut book, cell, "=40+2").accepted());
+    let mut before = Vec::new();
+    for table in &tables {
+        for (at, input) in book.host().model().cells(table.area).into_iter().flatten() {
+            if let CellInput::Formula(text) = input {
+                before.push((at, text.clone()));
+            }
+        }
+    }
+    assert!(!before.is_empty());
+    book.compact_formula_sources(Default::default()).unwrap();
+    for (at, old) in before {
+        let Some(CellInput::Formula(new)) = book.host().model().cell(at) else {
+            panic!("table formula")
+        };
+        assert_eq!(new.rendered(), old.rendered());
+        assert_eq!(new.form(), old.form());
+        match (old.block(), new.block()) {
+            (Some(a), Some(b)) => assert!(Arc::ptr_eq(a, b)),
+            (None, None) => {}
+            _ => panic!("a table formula changed source storage"),
         }
     }
 }

@@ -34,6 +34,8 @@ including 2,443 awaiting capture. All 40 report/evaluation payloads for the othe
 20 workbooks are byte-identical. Of 13,509 existing catalogue evaluation records,
 13,507 are unchanged; SHEETS() and INFO("numfile") change24 to25. All 11,876
 still-captured catalogue verdict records are unchanged. See corpus-comparison.json.
+After merging the later formula-source grouping changes, all 42 complete
+verdict/evaluation payloads remain byte-identical for these same R16 inputs.
 
 The source publications bind every recorded implementation file, runner and
 tracer to retained Git contents. The raw files keep their original bytes,

@@ -150,7 +150,8 @@ pub(crate) enum FormulaCheck {
 /// [`FORMULA_MAX_UTF16_CODE_UNITS`] UTF-16 code units, and read by CalcFml's parser without a
 /// diagnostic.
 pub(crate) fn check_formula(formula: &FormulaText) -> Result<(), FormulaCheck> {
-    let units = formula.text().utf16_code_units();
+    let rendered = formula.rendered();
+    let units = rendered.utf16_code_units();
     if units.len() > FORMULA_MAX_UTF16_CODE_UNITS {
         return Err(FormulaCheck::TooLong(units.len()));
     }

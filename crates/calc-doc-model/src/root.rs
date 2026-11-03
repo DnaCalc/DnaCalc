@@ -9,7 +9,7 @@ use crate::op::{OpBatch, WorkbookOp};
 use crate::revision::AuthoredRevision;
 use crate::sheet::{SheetKey, SheetName, SheetVisibility};
 use calc_value::{CellKey, GridArea, SheetId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -274,6 +274,129 @@ impl ModelRoot {
             definitions: self.definitions.clone(),
             lineage: self.lineage,
         })
+    }
+
+    /// Physical source records at this root. Extent totals use wide arithmetic and never
+    /// visit an empty coordinate. Requesting these statistics renders no member text.
+    pub fn formula_source_stats(&self) -> crate::FormulaSourceStats {
+        let mut stats = crate::FormulaSourceStats::default();
+        let mut sources = BTreeSet::new();
+        for sheet in &self.sheets {
+            for (_, input) in self.sheet_cells(sheet.id).into_iter().flatten() {
+                let CellInput::Formula(text) = input else {
+                    continue;
+                };
+                stats.formula_cells += 1;
+                if let Some(block) = text.block() {
+                    stats.retained_members += 1;
+                    stats.materialized_members += usize::from(text.materialized());
+                    if sources.insert(Arc::as_ptr(block) as usize) {
+                        stats.retained_sources += 1;
+                        stats.membership_runs += match block.membership() {
+                            crate::FormulaMembership::Dense => 1,
+                            crate::FormulaMembership::Runs(runs) => runs.len(),
+                        };
+                        stats.extent_cells += u128::from(block.extent().cell_count());
+                        stats.source_utf16_units +=
+                            block.source().source().utf16_code_units().len() as u128;
+                    }
+                } else {
+                    stats.inline_sources += 1;
+                    stats.source_utf16_units += text.text().utf16_code_units().len() as u128;
+                }
+            }
+        }
+        stats
+    }
+
+    /// Replace only proven-equal formula storage, at the same revision and lineage. Values,
+    /// dialect, ingress form, definitions and layout cannot change through this operation.
+    pub fn with_formula_storage(
+        &self,
+        replacements: impl IntoIterator<Item = (CellKey, crate::FormulaText)>,
+    ) -> Option<Arc<Self>> {
+        let mut proposed = BTreeMap::new();
+        let mut leaving = BTreeSet::new();
+        let mut sources = BTreeMap::<usize, (Arc<crate::FormulaBlock>, usize)>::new();
+        for (at, text) in replacements {
+            let CellInput::Formula(held) = self.cell(at)? else {
+                return None;
+            };
+            let block = text.block()?;
+            if text.form() != crate::FormulaForm::Legacy
+                || self.array_containing(at).is_some()
+                || self.definitions.data_table_containing(at).is_some()
+                || self
+                    .definitions
+                    .tables()
+                    .iter()
+                    .any(|table| table.area.contains(at))
+                || text.member_at() != Some(at)
+                || held.member_at().is_some_and(|member| member != at)
+                || held.form() != text.form()
+                || held.is_form_explicit() != text.is_form_explicit()
+                || held.rendered() != block.source().render(at)
+            {
+                return None;
+            }
+            let key = Arc::as_ptr(block) as usize;
+            sources.entry(key).or_insert_with(|| (block.clone(), 0)).1 += 1;
+            if let Some(old) = held.block()
+                && !Arc::ptr_eq(old, block)
+            {
+                leaving.insert(Arc::as_ptr(old) as usize);
+            }
+            if proposed.insert(at, text).is_some() {
+                return None;
+            }
+        }
+        if proposed.is_empty() {
+            return Some(self.pin());
+        }
+        // Membership is an actual set, including after a physical replacement. Never
+        // leave half of an old source claiming cells assigned to another source.
+        for sheet in &self.sheets {
+            for (at, input) in self.sheet_cells(sheet.id).into_iter().flatten() {
+                let CellInput::Formula(text) = input else {
+                    continue;
+                };
+                let Some(block) = text.block() else { continue };
+                let key = Arc::as_ptr(block) as usize;
+                if !proposed.contains_key(&at) {
+                    if leaving.contains(&key) {
+                        return None;
+                    }
+                    if let Some((_, members)) = sources.get_mut(&key) {
+                        *members += 1;
+                    }
+                }
+            }
+        }
+        if sources
+            .values()
+            .any(|(block, members)| block.member_count() != *members as u64)
+        {
+            return None;
+        }
+        let positions: BTreeMap<_, _> = self
+            .sheets
+            .iter()
+            .enumerate()
+            .map(|(i, sheet)| (sheet.id, i))
+            .collect();
+        let mut touched = Touched::new();
+        for (at, text) in proposed {
+            let position = *positions.get(&at.sheet())?;
+            self.set_storage_into(&mut touched, position, at, CellInput::Formula(text));
+        }
+        Some(Arc::new(Self {
+            revision: self.revision,
+            sheets: self.sheets.clone(),
+            cells: self.cells_after(touched),
+            layout: self.layout.clone(),
+            definitions: self.definitions.clone(),
+            lineage: self.lineage,
+        }))
     }
 
     /// The root of these sheets, in this order, with no cells and an empty layout, at `revision`;
@@ -732,16 +855,7 @@ impl ModelRoot {
             }
         }
 
-        let mut cells = self.cells.clone();
-        for ((sheet, page_row, page_column), working) in touched {
-            let old = self.cells[sheet].page(page_row, page_column);
-            let new = CellPage::build(page_row, page_column, working);
-            match (old, new) {
-                (Some(old), Some(new)) if old.same_storage(&new) => {}
-                (None, None) => {}
-                (_, new) => cells[sheet].set_page(page_row, page_column, new.map(Arc::new)),
-            }
-        }
+        let cells = self.cells_after(touched);
         let layout = match layout {
             Some(layout) if layout != *self.layout => Arc::new(layout),
             _ => Arc::clone(&self.layout),
@@ -868,6 +982,20 @@ impl ModelRoot {
             definitions: Arc::new(parts.definitions),
             lineage: self.lineage,
         })
+    }
+
+    fn cells_after(&self, touched: Touched) -> Vec<SheetPages> {
+        let mut cells = self.cells.clone();
+        for ((sheet, page_row, page_column), working) in touched {
+            let old = self.cells[sheet].page(page_row, page_column);
+            let new = CellPage::build(page_row, page_column, working);
+            match (old, new) {
+                (Some(old), Some(new)) if old.same_storage(&new) => {}
+                (None, None) => {}
+                (_, new) => cells[sheet].set_page(page_row, page_column, new.map(Arc::new)),
+            }
+        }
+        cells
     }
 
     /// Sets `at` (on the sheet at position `sheet`) to `input` in the working copies `touched`.

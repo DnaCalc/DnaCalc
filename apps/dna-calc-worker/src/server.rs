@@ -4000,6 +4000,106 @@ mod async_contract_tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_10__worker_save_regroups_authored_sources_in_the_actual_bytes() {
+        let mut server = Server::new();
+        server
+            .execute_current(
+                Request::Open {
+                    name: "shared.xlsx".into(),
+                },
+                Some(calc_host::blank_package()),
+            )
+            .reply
+            .unwrap();
+        let sheet = server.book().host().sheets()[0].id();
+        for (r, c, text) in [
+            (1, 1, "1"),
+            (2, 1, "2"),
+            (4, 1, "4"),
+            (1, 2, "10"),
+            (1, 3, "=A1+$B$1"),
+            (2, 3, "=A2+$B$1"),
+            (4, 3, "=A4+$B$1"),
+        ] {
+            let request = server.envelope(Request::Intent(Intent::EnterCell {
+                at: Key::of(CellKey::new(sheet, r, c).unwrap()),
+                text: text.into(),
+            }));
+            let outcome = server.handle(wire::decode(&wire::encode(&request)).unwrap(), None);
+            assert!(
+                matches!(
+                    outcome.reply,
+                    Ok(Reply::Done {
+                        outcome: wire::Outcome { accepted: true, .. },
+                        ..
+                    })
+                ),
+                "{:?}",
+                outcome.reply
+            );
+            drain(&mut server);
+        }
+        let before = server.book().host().model().formula_source_stats();
+        assert_eq!((before.inline_sources, before.retained_sources), (3, 0));
+        let revision = server.book().host().revision();
+        let request = server.envelope(Request::Save);
+        let first = server.handle(wire::decode(&wire::encode(&request)).unwrap(), None);
+        let retry = server.handle(request, None);
+        assert_eq!(wire::encode(&first.reply), wire::encode(&retry.reply));
+        assert_eq!(first.bytes, retry.bytes);
+        assert!(
+            matches!(&first.reply,Ok(Reply::Done {outcome,saved:Some(_),..}) if outcome.accepted),
+            "{:?}",
+            first.reply
+        );
+        assert_eq!(server.book().host().revision(), revision);
+        assert_eq!(
+            server.book().host().model().formula_source_stats(),
+            before,
+            "serialization does not replace live storage"
+        );
+        let reopened = calc_host::HostState::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(first.bytes.unwrap())),
+            &Default::default(),
+            calc_host::HostOptions {
+                calc_mode: Some(calc_host::CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let stats = reopened.model().formula_source_stats();
+        assert_eq!(
+            (
+                stats.retained_sources,
+                stats.retained_members,
+                stats.formula_cells
+            ),
+            (1, 3, 3)
+        );
+        let sheet = reopened.sheets()[0].id();
+        assert!(
+            reopened
+                .model()
+                .cell(CellKey::new(sheet, 3, 3).unwrap())
+                .is_none()
+        );
+        for (row, expected) in [(1, 11.), (2, 12.), (4, 14.)] {
+            let at = CellKey::new(sheet, row, 3).unwrap();
+            let cells =
+                calc_host::project(&reopened, &calc_host::ProjectionRequest { cells: vec![at] })
+                    .unwrap();
+            let calc_host::ProjectedValue::FileCached(cache) = cells.cells()[0].value() else {
+                panic!("actual saved cache")
+            };
+            assert_eq!(
+                cache.value().to_value(),
+                calc_value::CalcValue::number(expected)
+            );
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p06_worker_save_writes_live_table_results_and_journals_the_bytes() {
         let mut server = Server::new();
         server
@@ -4408,7 +4508,10 @@ mod friendly_formula_tests {
         {
             Reply::Canvas(c) => {
                 assert_eq!(c.inspector.input, shown.input);
-                let center = c.chips.iter().find(|chip| chip.cell == Some(Key::of(at)))
+                let center = c
+                    .chips
+                    .iter()
+                    .find(|chip| chip.cell == Some(Key::of(at)))
                     .expect("the trace includes its selected center cell");
                 assert_eq!(center.input, shown.input);
             }
