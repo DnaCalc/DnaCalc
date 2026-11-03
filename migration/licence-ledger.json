@@ -189,7 +189,9 @@
   "allowed": {}
  },
  "files": [
-  {"path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_r21.txt", "class": "own-work", "reason": "dc-j9k R21: original LINEST/LOGEST scaling, translation, row/column permutation and operand-echo questions. Extends the one catalogue oracle; no expected values or external implementation copied."},
+  {"path": "crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx", "class": "own-work", "reason": "dc-j9k R22: isolate the incoming fn2 unanswered questions, generated from the existing unchanged formula layout and serializer, to preserve captured catalogue context."},
+  {"path": "crates/calc-func/tests/fixtures/dcj9k_r21/sheet-dcj9k_r21.txt", "class": "own-work", "reason": "dc-j9k R21 questions moved in R22: original LINEST/LOGEST scaling, translation, permutations and operand echoes in a separate workbook; no expected values or external implementation copied."},
+  {"path": "crates/calc-func/tests/fixtures/dcj9k_r21/oracle.xlsx", "class": "own-work", "reason": "dc-j9k R22: the existing generator writes unchanged R21 questions separately to preserve catalogue capture context; no answers or source code copied."},
   {
    "path": "crates/calc-func/tests/captures/catalogue/sections/fn1_collation.capture.json",
    "class": "own-work",
@@ -4844,7 +4846,7 @@
    "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
   },
   {
-     "path": "crates/calc-func/tests/fixtures/catalogue/fn2-layout.json",
+     "path": "crates/calc-func/tests/fixtures/fn2_questions/fn2-layout.json",
      "class": "own-work",
      "reason": "fn2 unanswered question layout and file forms from the existing calc-doc serializer; no expected values"
   }

@@ -1,7 +1,7 @@
 {
   "schema": "fn2-capture-layout/1",
   "generator": "crates/calc-func/tests/fixtures/make-catalogue-fixtures.ps1:New-OracleSheet",
-  "capture": "cargo xtask capture --pending; existing catalogue section capture lineage",
+  "capture": "cargo xtask capture --pending; existing capture route, in the separate fn2_questions workbook",
   "precedence": "This layout supersedes the general G1/G21 placement in README.md; caller and formula form remain authoritative.",
   "existing_data": {
     "A1": 1,
