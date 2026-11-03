@@ -78,6 +78,63 @@ fn real_executable_uses_onecalc_for_the_same_excel_fixture() {
     assert_eq!(result["live_callback_allocations"], 0);
     assert_eq!(result["closed_registration"], "#NAME?");
 }
+/// Native-only: invokes typed ABI entries through the application and real XLL.
+#[test]
+fn typed_native_arguments_coerce_values_and_return_worksheet_errors() {
+    let fixture = Fixture::new();
+    for (formula, expected) in [
+        ("=MyAdd(\"19\",23)", serde_json::json!(42.)),
+        ("=MyAdd(TRUE,41)", serde_json::json!(42.)),
+        (
+            "=MyAdd(\"invalid\",23)",
+            serde_json::json!({"error":"#VALUE!"}),
+        ),
+        ("=MyAdd(NA(),23)", serde_json::json!({"error":"#N/A"})),
+        ("=MyWide(12.25)", serde_json::json!("12.25")),
+        ("=MyWide(TRUE)", serde_json::json!("TRUE")),
+        ("=MyWide()", serde_json::json!("")),
+    ] {
+        let result = checked(
+            fixture
+                .command()
+                .args(["--formula", formula])
+                .output()
+                .unwrap(),
+        );
+        assert_eq!(result["results"][0]["value"], expected, "{formula}");
+        assert_eq!(result["live_callback_allocations"], 0);
+    }
+}
+/// Native-only: REFTEXT runs inside a real macro-equivalent XLL call.
+#[test]
+fn native_reference_text_uses_the_existing_address_formatter() {
+    let fixture = Fixture::new();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_REFERENCE_TEXT", "1")
+            .args(["--sheet", "Q'2 sales", "--formula", "=MyReference(A1:A2)"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(
+        result["results"][0]["value"],
+        "'[Book1]Q''2 sales'!$A$1:$A$2"
+    );
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+/// Native-only: an unsupported locale-dependent input must survive IFERROR.
+#[test]
+fn unmodelled_native_argument_conversion_cannot_be_hidden() {
+    let fixture = Fixture::new();
+    let output = fixture.command()
+        .args(["--formula", "=IFERROR(MyAdd(\"12/15\",1),123)"])
+        .output().unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("NotModelled") && error.contains("dc-snz.20"), "{error}");
+    assert!(output.stdout.is_empty());
+}
 /// Native-only: registers ten thousand callable names in a native process, then invokes the last.
 #[test]
 fn ten_thousand_registrations_have_no_small_pool_limit() {

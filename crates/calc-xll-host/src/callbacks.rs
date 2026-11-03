@@ -682,6 +682,51 @@ fn run(
                 .remove(&calc_value::fold_workbook_name(&text(&values[0])?));
             CalcValue::logical(true)
         }
+        146 => {
+            // REFTEXT uses the same ADDRESS kernel and qualifier formatter as
+            // worksheet formulas and the COM Range projection.
+            require(2)?;
+            let Some(reference) = values[0].as_reference() else {
+                return Ok(Some(CalcValue::error(WorksheetErrorCode::Value)));
+            };
+            let [area] = reference.areas() else {
+                return Err(err("dc-snz.2: multi-area REFTEXT is not modelled"));
+            };
+            let style = coerce(values[1].clone(), XL_BOOL)?;
+            let name = frame
+                .state
+                .borrow()
+                .sheet_names
+                .get(&area.sheet())
+                .cloned()
+                .ok_or_else(|| err("REFTEXT sheet has no name"))?;
+            let qualifier = if let Some((book, sheet)) =
+                name.strip_prefix('[').and_then(|s| s.split_once(']'))
+            {
+                calc_fml::reference::format_workbook_sheet_qualifier(book, sheet)
+            } else {
+                return Err(err("dc-snz.2: REFTEXT needs a workbook-qualified sheet"));
+            };
+            let address = |cell: calc_value::CellKey| -> Result<String, (i32, String)> {
+                let value = worksheet_value(
+                    "ADDRESS",
+                    &[
+                        CalcValue::number(f64::from(cell.row())),
+                        CalcValue::number(f64::from(cell.column())),
+                        CalcValue::number(1.),
+                        style.clone(),
+                    ],
+                )
+                .map_err(err)?;
+                text(&value)
+            };
+            let mut result = format!("{qualifier}!{}", address(area.first())?);
+            if area.first() != area.last() {
+                result.push(':');
+                result.push_str(&address(area.last())?);
+            }
+            CalcValue::text(ExcelText::from_interop_assignment(&result))
+        }
         XLF_EVALUATE => {
             require(1)?;
             let expression = text(&values[0])?;
@@ -818,7 +863,7 @@ fn run(
     Ok(Some(value))
 }
 
-fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, String)> {
+pub(crate) fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, String)> {
     let matches = match kind {
         XL_NUM => value.as_number().is_some(),
         XL_INT => false,
@@ -846,9 +891,25 @@ fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, String)> {
         (CoreRef::Number(n), XL_INT) if n >= i32::MIN as f64 && n <= i32::MAX as f64 => {
             Ok(CalcValue::number(n.trunc()))
         }
-        (CoreRef::Logical(b), XL_NUM) => Ok(CalcValue::number(f64::from(u8::from(b)))),
-        (CoreRef::Empty, XL_NUM) => Ok(CalcValue::number(0.)),
+        (CoreRef::Logical(b), XL_NUM | XL_INT) => Ok(CalcValue::number(f64::from(u8::from(b)))),
+        (CoreRef::Empty | CoreRef::Missing, XL_NUM | XL_INT) => Ok(CalcValue::number(0.)),
         (CoreRef::Number(n), XL_BOOL) => Ok(CalcValue::logical(n != 0.)),
+        (CoreRef::Empty | CoreRef::Missing, XL_BOOL) => Ok(CalcValue::logical(false)),
+        (CoreRef::Text(t), XL_BOOL) => {
+            let text = t.to_string_lossy();
+            if text.eq_ignore_ascii_case("TRUE") {
+                Ok(CalcValue::logical(true))
+            } else if text.eq_ignore_ascii_case("FALSE") {
+                Ok(CalcValue::logical(false))
+            } else {
+                Err((FAILED, "xlCoerce text is not a logical".into()))
+            }
+        }
+        (CoreRef::Number(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing, XL_STR) => {
+            // Use the worksheet's existing number-to-text rules, including its
+            // refusal for an unmodelled rounding case, rather than Rust display.
+            worksheet_value("CONCATENATE", &[value]).map_err(err)
+        }
         (_, XL_MULTI) if value.as_reference().is_none() => {
             Ok(CalcValue::array(calc_value::CalcArray::from_scalar(value)))
         }

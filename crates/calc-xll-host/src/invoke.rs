@@ -59,7 +59,9 @@ impl XllFunction {
         context: Option<&mut dyn UserFunctionContext>,
     ) -> Result<CalcValue, String> {
         let formula_entry = context.as_ref().is_some_and(|context| {
-            context.invocation().is_some_and(|frame| frame.formula_entry)
+            context
+                .invocation()
+                .is_some_and(|frame| frame.formula_entry)
         });
         if formula_entry && self.registration.info.signature.asynchronous {
             return Err("dc-snz.23: native async formula-entry evaluation is not modelled".into());
@@ -190,6 +192,36 @@ impl XllFunction {
                         .ok_or("dc-snz.2: XLL reference needs a reader")?
                         .argument_values_of(reference)?;
                 }
+            }
+            let scalar_kind = match kind {
+                XllType::Double
+                | XllType::DoublePointer
+                | XllType::UShort
+                | XllType::Short
+                | XllType::ShortPointer
+                | XllType::Int
+                | XllType::IntPointer => Some(XL_NUM),
+                XllType::Boolean | XllType::BooleanPointer => Some(XL_BOOL),
+                XllType::WideString
+                | XllType::WideCountedString
+                | XllType::WideStringInPlace
+                | XllType::WideCountedStringInPlace => Some(XL_STR),
+                _ => None,
+            };
+            if let Some(kind) = scalar_kind {
+                if value.as_error().is_some() {
+                    return Ok(NativeReturn::Value(value, XL_ERR));
+                }
+                value = match callbacks::coerce(value, kind) {
+                    Ok(value) => value,
+                    Err((_, why)) if why.contains("dc-snz.") => return Err(why),
+                    Err(_) => {
+                        return Ok(NativeReturn::Value(
+                            CalcValue::error(WorksheetErrorCode::Value),
+                            XL_ERR,
+                        ));
+                    }
+                };
             }
             let slot = marshal(
                 *kind,

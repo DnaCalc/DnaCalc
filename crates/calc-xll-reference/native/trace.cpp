@@ -370,6 +370,8 @@ static double doubleArgument(const CONTEXT& c,int i) {
 static std::string typed(const std::string& t, Address v) {
     if(t=="Q"||t=="U"||t=="X") return oper(v);
     if(t=="E") return number(read<double>(v));
+    if(t=="L"||t=="M") return std::to_string(read<int16_t>(v));
+    if(t=="N") return std::to_string(read<int32_t>(v));
     if(t=="D%") return quote(utf8(wide(v+2,read<uint16_t>(v))));
     if(t=="K%") {
         int32_t rows=read<int32_t>(v),cols=read<int32_t>(v+4);
