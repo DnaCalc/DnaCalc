@@ -393,6 +393,18 @@ mod arrays {
         assert_eq!(book.dynamic("=IFS(FALSE,{1,1},TRUE,2)"), n(2.0));
     }
 
+    /// w090-successor-00183-switch-arg4: the first scalar case matches before
+    /// an unused later array case, so that case does not enlarge the selection.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_unused_switch_cases_do_not_enlarge_a_scalar_match() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=SWITCH(\"A\",\"a\",1,{\"A\",\"A\"},2)"),
+            n(1.0)
+        );
+    }
+
     /// w090-successor-00179-ifs-arg2 records both error cells: an invalid scalar
     /// condition retains the shape contributed by its array result.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -700,6 +712,50 @@ mod arrays {
             rows(&[
                 &[result.clone(), result.clone(), e(W::NA)],
                 &[result.clone(), result, e(W::NA)]
+            ])
+        );
+    }
+
+    /// W111 depreciation padding cases 00030/00045/00060: an already formed
+    /// cost error precedes a later padded salvage coordinate, even for functions
+    /// whose optional argument validation otherwise precedes their kernel call.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_padding_keeps_formed_prefix_errors() {
+        let mut book = Book::new();
+        for cell in ["A100", "A101", "A102", "A103"] {
+            book.number(cell, 1000.0);
+        }
+        for cell in ["A104", "A105", "A106", "A107"] {
+            book.number(cell, 100.0);
+        }
+        book.number("A108", 10.0).number("A109", 2.0);
+        for (function, optional, expected) in [
+            ("DB", 6.0, 0x4067190624dd2f1a),
+            ("DDB", 2.0, 0x4064000000000000),
+        ] {
+            book.number("A110", optional);
+            let formula = format!(
+                "={function}(CHOOSE({{1,2,3;4,5,6}},A100,A101,#REF!,A102,A103,#REF!),CHOOSE({{1,2;3,4}},A104,A105,A106,A107),A108,A109,A110)"
+            );
+            let result = n(f64::from_bits(expected));
+            assert_eq!(
+                book.dynamic(&formula),
+                rows(&[
+                    &[result.clone(), result.clone(), e(W::Ref)],
+                    &[result.clone(), result, e(W::Ref)]
+                ]),
+                "{formula}"
+            );
+        }
+        book.number("A109", 1.0)
+            .number("A110", 2.0)
+            .number("A111", 2.0);
+        assert_eq!(
+            book.dynamic("=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,#REF!,A102,A103,#REF!),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110,A111,TRUE)"),
+            rows(&[
+                &[n(160.0), n(160.0), e(W::Ref)],
+                &[n(160.0), n(160.0), e(W::Ref)]
             ])
         );
     }

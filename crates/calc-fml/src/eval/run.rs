@@ -1269,7 +1269,7 @@ impl Run<'_, '_> {
         }
         // A scalar IFS/SWITCH selection returns the chosen result whole. Unused result
         // arrays must not enlarge it (the recorded w090 successor cases).
-        if lifted && target.0.selects_whole_result(&arguments) {
+        if lifted && target.0.selects_whole_result(&arguments, self.numeric) {
             lifted = false;
         }
         if !lifted && target.0.is_resumable() {
@@ -1494,7 +1494,7 @@ impl Run<'_, '_> {
         let mut element: Vec<CalcValue> = arguments.to_vec();
         for row in 0..shape.rows {
             for col in 0..shape.cols {
-                let mut short = false;
+                let mut short = None;
                 let mut held = None;
                 for index in &lifted {
                     let array = arguments[*index].as_array().expect("a lifted array");
@@ -1512,14 +1512,19 @@ impl Run<'_, '_> {
                                 element[*index] =
                                     self.admit_value(value.clone(), Admission::Lift)?;
                             } else {
-                                held = held.or(Some(CalcValue::error(WorksheetErrorCode::Value)));
+                                let error = CalcValue::error(WorksheetErrorCode::Value);
+                                element[*index] = error.clone();
+                                held = held.or(Some(error));
                             }
                         }
                         Some(value) => {
                             match held_array_element(target, self.instance.plan.form, value) {
                                 None => element[*index] = value.clone(),
                                 Some(Ok(first)) => element[*index] = first,
-                                Some(Err(error)) => held = held.or(Some(error)),
+                                Some(Err(error)) => {
+                                    element[*index] = error.clone();
+                                    held = held.or(Some(error));
+                                }
                             }
                         }
                         // A function's missing coordinate is an error in this argument.
@@ -1528,11 +1533,26 @@ impl Run<'_, '_> {
                         None if !target.0.padding_precedes_call() => {
                             element[*index] = CalcValue::error(WorksheetErrorCode::NA);
                         }
-                        None => short = true,
+                        None => {
+                            element[*index] = CalcValue::error(WorksheetErrorCode::NA);
+                            short.get_or_insert(*index);
+                        }
                     }
                 }
-                if short {
-                    cells.push(CalcValue::error(WorksheetErrorCode::NA));
+                if let Some(index) = short {
+                    // W111's independent depreciation controls: a formed earlier error
+                    // precedes padding, while a later optional error and text coercion do
+                    // not. Operators keep their separately measured padding policy.
+                    let prior = (target.0.notation() == calc_func::Notation::Call)
+                        .then(|| {
+                            element[..index].iter().find(|value| {
+                                value.callable_value().is_none()
+                                    && matches!(value.core_ref(), CoreRef::Error(_))
+                            })
+                        })
+                        .flatten()
+                        .cloned();
+                    cells.push(prior.unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::NA)));
                     continue;
                 }
                 if let Some(error) = held {
