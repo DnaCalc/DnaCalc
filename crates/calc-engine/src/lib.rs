@@ -56,6 +56,8 @@ mod detached;
 mod edit;
 mod external;
 mod graph;
+mod linked;
+pub use linked::{LinkedInputStamp, LinkedWorkbookSnapshot};
 mod name_change;
 pub use name_change::{NameChangeFailure, NameChangeRequest, mentions_name, valid_defined_name};
 mod pinned;

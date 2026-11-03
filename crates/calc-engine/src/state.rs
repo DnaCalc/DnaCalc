@@ -295,6 +295,8 @@ pub(crate) enum ArrayRole {
 /// pending and [`EngineState::stale`] still lists every result it left stale.
 #[derive(Debug)]
 pub struct EngineState {
+    pub(crate) linked_workbooks: Arc<crate::linked::LinkedWorkbooks>,
+    pub(crate) linked_input_version: u64,
     pub(crate) contract: crate::contract::ContractState,
     revision: AuthoredRevision,
     pub(crate) callables: calc_fml::CallableBindings,
@@ -482,6 +484,8 @@ impl EngineState {
     // their payloads; derived graph/result indexes are copied for this explicit save.
     pub(crate) fn snapshot_for_save(&self, save: crate::contract::CommandId) -> Self {
         Self {
+            linked_workbooks: self.linked_workbooks.clone(),
+            linked_input_version: self.linked_input_version,
             contract: self.contract.clone(),
             revision: self.revision,
             callables: self.callables.clone(),
@@ -616,6 +620,8 @@ impl EngineState {
     /// published until the first recalculation, which calculates every node.
     pub fn new(inputs: &ModelRoot) -> Self {
         let mut state = EngineState {
+            linked_workbooks: Default::default(),
+            linked_input_version: 0,
             contract: crate::contract::ContractState::new(),
             callables: calc_fml::CallableBindings::default(),
             revision: inputs.revision(),
@@ -1056,6 +1062,8 @@ impl EngineState {
     /// edit that brings back a whole earlier revision ([`calc_doc_model::ModelRoot::restored`]).
     pub fn rebuilt(&self, inputs: &ModelRoot) -> EngineState {
         let mut state = EngineState::new(inputs);
+        state.linked_workbooks = self.linked_workbooks.clone();
+        state.linked_input_version = self.linked_input_version;
         state.callables = self.callables.clone();
         state.last_tick = self.last_tick;
         state.tick_sequence = self.tick_sequence.clone();

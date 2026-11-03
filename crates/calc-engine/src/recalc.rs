@@ -334,6 +334,8 @@ impl<T> BySlot<T> {
 /// moved on since [`begin_recalc`].
 #[derive(Debug)]
 pub struct RecalcWork {
+    linked_workbooks: Arc<crate::linked::LinkedWorkbooks>,
+    linked_input_version: u64,
     external_input_version: u64,
     external_inputs: Option<std::rc::Rc<dyn calc_fml::UserExternalInputs>>,
     async_waits: BTreeMap<NodeId, AsyncToken>,
@@ -431,6 +433,7 @@ struct Sizing {
 /// evaluation read, the reader's gathering storage, and whether it read a formula of `kept`.
 #[derive(Debug, Default)]
 pub(crate) struct EvalLocal {
+    external_cache: bool,
     effects: calc_fml::UserFunctionEffects,
     semantic_prerequisite: Option<(CellKey, NodeId)>,
     references: Option<std::rc::Rc<calc_fml::reference::ReferenceView>>,
@@ -475,6 +478,8 @@ impl ReferenceSource {
 }
 
 pub(crate) struct EvalShared<'a> {
+    linked_workbooks: &'a Arc<crate::linked::LinkedWorkbooks>,
+    linked_input_version: u64,
     selection: EvalSelection,
     destination: ResultDestination,
     pass: CalcPassId,
@@ -508,6 +513,7 @@ impl<'a> EvalShared<'a> {
         local: &'a EvalLocal,
     ) -> RecalcView<'a> {
         RecalcView {
+            linked_workbooks: self.linked_workbooks,
             cached_observation: false,
             inputs,
             state,
@@ -530,6 +536,8 @@ impl<'a> EvalShared<'a> {
 macro_rules! shared_of {
     ($work:expr) => {
         EvalShared {
+            linked_workbooks: &$work.linked_workbooks,
+            linked_input_version: $work.linked_input_version,
             selection: $work.admission.selection,
             destination: $work.admission.destination,
             pass: $work.pass,
@@ -576,6 +584,7 @@ impl RecalcWork {
     }
     pub fn inputs_current(&self, state: &EngineState) -> bool {
         self.external_input_version == state.contract.external_inputs
+            && self.linked_input_version == state.linked_input_version
     }
     pub fn with_reference_tracker(
         mut self,
@@ -1307,6 +1316,8 @@ fn begin_with_scope(
         urgent_interest: false,
         service_clock: 0,
         last_service: BTreeMap::new(),
+        linked_workbooks: state.linked_workbooks.clone(),
+        linked_input_version: state.linked_input_version,
         external_input_version: state.contract.external_inputs,
         external_inputs: None,
         async_waits: BTreeMap::new(),
@@ -4575,6 +4586,7 @@ fn evaluate_with(
         });
     }
     if local.activation.is_none() && local.placement.is_none() {
+        local.external_cache = false;
         local.effects = calc_fml::UserFunctionEffects::default();
         local.references = if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls())
         {
@@ -4642,6 +4654,10 @@ fn evaluate_with(
     let at = live_anchor(state, node);
     let required = shared.requirements.get(&node).map_or(1, |r| r.required);
     let mut reads = ReadCertificate {
+        linked_inputs: (!shared.linked_workbooks.is_empty()).then(|| crate::LinkedInputStamp {
+            version: shared.linked_input_version,
+            sources: shared.linked_workbooks.values().cloned().collect(),
+        }),
         external_cache: match &done.result {
             FormulaResult::Calculated { calculation, .. }
             | FormulaResult::NotModeled { calculation, .. } => calculation.reads_external_links(),
@@ -4992,6 +5008,7 @@ fn evaluate_unstamped(
         let pin = crate::CachedReadLease::capture(
             state,
             inputs,
+            shared.linked_workbooks.clone(),
             shared.progress,
             shared.spills,
             shared.volatile_inputs,
@@ -5129,12 +5146,23 @@ fn evaluate_unstamped(
         };
         (outcome, observed.stopped.or(cached_stopped))
     };
-    let calculation = if instance.plan().reads_external_links() || cells.read_external_links() {
+    let unresolved_links = instance.plan().external_references().iter().any(|operand| {
+        let number = match &operand.book {
+            calc_fml::reference::ExternalBookRef::Number(number) => Some(*number),
+            calc_fml::reference::ExternalBookRef::File(name) => {
+                inputs.definitions().external_book_named(name)
+            }
+        };
+        number.is_none_or(|number| !shared.linked_workbooks.contains_key(&number))
+    });
+    let external_cache = unresolved_links || cells.read_external_links();
+    local.read_batch = cells.into_batch();
+    local.external_cache |= external_cache;
+    let calculation = if local.external_cache {
         calculation.with_external_links()
     } else {
         calculation
     };
-    local.read_batch = cells.into_batch();
     local.effects = user_effects;
     local.observation_reads = observation_reads.into_inner();
     local.name_reads = name_reads.into_inner();

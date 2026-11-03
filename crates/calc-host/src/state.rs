@@ -160,6 +160,27 @@ pub(crate) fn next_command_scope() -> u64 {
 }
 
 impl HostState {
+    /// A read-only source cut for another workbook's engine context. Imported and
+    /// uncertified formula values remain unavailable inside the snapshot.
+    pub fn linked_snapshot(&self) -> Arc<calc_engine::LinkedWorkbookSnapshot> {
+        self.engine
+            .linked_snapshot(self.model.clone())
+            .expect("host and engine revisions agree")
+    }
+
+    pub fn set_linked_workbook(
+        &mut self,
+        number: u32,
+        source: Option<Arc<calc_engine::LinkedWorkbookSnapshot>>,
+    ) -> Result<(), &'static str> {
+        if self.model.definitions().external_book(number).is_none() {
+            return Err("the workbook has no external link with that number (dc-ylr)");
+        }
+        self.engine.set_linked_workbook(number, source);
+        self.published = None;
+        self.last_failure = None;
+        Ok(())
+    }
     /// Physical result rows; this does not claim calculation coverage or freshness.
     pub fn result_storage_stats(&self) -> calc_engine::ResultStorageStats {
         self.engine.result_storage_stats()

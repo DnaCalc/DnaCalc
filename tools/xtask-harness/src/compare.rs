@@ -331,10 +331,12 @@ impl ReadObserver for Instrument<'_> {
 
 /// A read observer that can drop everything it recorded, which [`recalculate`] does when the
 /// recalculation publishes nothing.
+#[cfg(test)]
 trait Recorder: ReadObserver {
     fn drop_all(&mut self);
 }
 
+#[cfg(test)]
 impl Recorder for Instrument<'_> {
     fn drop_all(&mut self) {
         Instrument::drop_all(self);
@@ -345,6 +347,7 @@ impl Recorder for Instrument<'_> {
 /// Prefix publications do not complete the command. On refusal or failure, conservatively
 /// discard the run's evaluation records and count every formula under that engine failure;
 /// certified prefix values may remain installed in the host, but never score as a successful run.
+#[cfg(test)]
 fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<WorkbookFailure> {
     let progress = loop {
         match step(host, WorkBudget::UNLIMITED, recorder) {
@@ -356,7 +359,12 @@ fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<Wor
     match progress {
         HostProgress::Waiting { .. } => {
             recorder.drop_all();
-            Some(WorkbookFailure { class: Class::Engine, key: "waiting_external".into(), message: "the comparison has no provider return to complete its admitted command".into() })
+            Some(WorkbookFailure {
+                class: Class::Engine,
+                key: "waiting_external".into(),
+                message: "the comparison has no provider return to complete its admitted command"
+                    .into(),
+            })
         }
         HostProgress::Failed(failure) => {
             recorder.drop_all();
@@ -425,6 +433,7 @@ fn seconds(duration: Option<Duration>) -> String {
 
 /// What the run produced for the verdict and the triage.
 struct Run {
+    linked_inputs: Vec<serde_json::Value>,
     results: ResultSet,
     record: InstrumentRecord,
     dna: Vec<Dna>,
@@ -613,6 +622,7 @@ fn spilled_array(host: &HostState, at: CellKey) -> Option<CalcValue> {
 fn run_workbook(
     fixture: &[u8],
     name: Option<&str>,
+    fixture_path: Option<&Path>,
     capture: &CaptureRecord,
     numeric: NumericMode,
 ) -> Result<Run, Failure> {
@@ -659,6 +669,7 @@ fn run_workbook(
             // claims one.
             let context = "no-host: HostState::open refused the package".to_owned();
             return Ok(Run {
+                linked_inputs: Vec::new(),
                 results: ResultSet {
                     case: capture.case.clone(),
                     source: capture.source.clone(),
@@ -718,7 +729,53 @@ fn run_workbook(
 
     let mut instrument = Instrument::new(expected);
     let started = Instant::now();
-    let workbook = recalculate(&mut host, &mut instrument);
+    let options = host.options().clone();
+    let mut domain = calc_host::CalculationDomain::new();
+    let root = domain.insert(host).expect("new calculation domain");
+    let linked_inputs = fixture_path
+        .map(|path| crate::linked_workbooks::load(&mut domain, root, path, &options))
+        .unwrap_or_default();
+    let workbook = match domain.request_calculation(&[root], false) {
+        Err(error) => Some(WorkbookFailure {
+            class: Class::Engine,
+            key: "linked_domain".into(),
+            message: error.to_string(),
+        }),
+        Ok(()) => loop {
+            match domain.advance_observed(WorkBudget::UNLIMITED, Some(root), &mut instrument) {
+                calc_host::DomainProgress::Complete => break None,
+                calc_host::DomainProgress::Advanced {
+                    progress: HostProgress::Cancelled,
+                    ..
+                } => {
+                    break Some(WorkbookFailure {
+                        class: Class::Engine,
+                        key: "linked_cancelled".into(),
+                        message: "the linked-workbook calculation was cancelled".into(),
+                    });
+                }
+                calc_host::DomainProgress::Advanced { .. } => {}
+                calc_host::DomainProgress::Waiting { .. } => {
+                    break Some(WorkbookFailure {
+                        class: Class::Engine,
+                        key: "waiting_external".into(),
+                        message: "a linked-workbook calculation awaits a provider return".into(),
+                    });
+                }
+                calc_host::DomainProgress::Failed { error, .. } => {
+                    break Some(WorkbookFailure {
+                        class: Class::Engine,
+                        key: step_key(&error),
+                        message: error.to_string(),
+                    });
+                }
+            }
+        },
+    };
+    if workbook.is_some() {
+        instrument.drop_all();
+    }
+    let host = domain.host(root).expect("root workbook remains open");
     let step_time = started.elapsed();
 
     let keys: Vec<Option<CellKey>> = capture
@@ -897,6 +954,7 @@ fn run_workbook(
         .collect();
     let revision = host.revision().get();
     Ok(Run {
+        linked_inputs,
         results: ResultSet {
             case: capture.case.clone(),
             source: capture.source.clone(),
@@ -991,7 +1049,13 @@ fn compare(request: &Request) -> Result<(), Failure> {
     .map_err(judge_failure)?;
 
     let name = request.fixture.file_name().and_then(|name| name.to_str());
-    let mut run = run_workbook(&fixture, name, &capture, numeric.clone())?;
+    let mut run = run_workbook(
+        &fixture,
+        name,
+        Some(&request.fixture),
+        &capture,
+        numeric.clone(),
+    )?;
     let started = Instant::now();
     let report = judge(&capture, &run.results, &run.record, &policy).map_err(judge_failure)?;
     run.times.judge = started.elapsed();
@@ -1031,6 +1095,10 @@ fn compare(request: &Request) -> Result<(), Failure> {
         .map_err(|e| refused(format!("cannot create {}: {e}", request.out.display())))?;
     write(&request.out.join("report.json"), &report.encode())?;
     write(&request.out.join("evaluations.json"), &evaluations)?;
+    write(
+        &request.out.join("linked-inputs.json"),
+        &serde_json::to_string_pretty(&run.linked_inputs).expect("input records serialize"),
+    )?;
     write(
         &request.out.join("triage.json"),
         &triage.encode(&report, run_member),
@@ -1132,6 +1200,129 @@ mod test_package;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Native-only: resolves actual linked package files through the comparison route.
+    #[test]
+    fn dc_ylr_available_source_is_calculated_and_missing_source_stays_qualified() {
+        use calc_host::{HostSession, SheetChange, SkinIntent, WorkbookCommand};
+        let dir = std::env::temp_dir().join(format!("xtask-linked-source-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let fixture = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_ylr/oracle.xlsx");
+        let path = dir.join("oracle.xlsx");
+        fs::write(&path, fixture).unwrap();
+        // Original source inputs, from make-dc-ylr-oracle.ps1:79-84. No expected
+        // destination answer or imported source formula cache is used as an input.
+        let mut source = HostSession::open(
+            Arc::new(MemorySource::new(calc_host::blank_package())),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Manual),
+                ..HostOptions::default()
+            },
+        )
+        .unwrap();
+        let sheet = source.host().sheets()[0].id();
+        for (row, column, text) in [
+            (1, 1, "1"),
+            (2, 1, "2"),
+            (3, 1, "3"),
+            (1, 2, "x"),
+            (2, 2, "TRUE"),
+            (3, 2, "=NA()"),
+            (1, 4, "=A1*10"),
+        ] {
+            assert!(
+                source
+                    .dispatch(SkinIntent::EnterCell {
+                        at: CellKey::new(sheet, row, column).unwrap(),
+                        text: text.into()
+                    })
+                    .accepted()
+            );
+        }
+        assert!(
+            source
+                .dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+                    sheet: None,
+                    change: SheetChange::Add {
+                        name: "My Sheet".into()
+                    }
+                }))
+                .accepted()
+        );
+        let other = source
+            .host()
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == "My Sheet")
+            .unwrap()
+            .id();
+        assert!(
+            source
+                .dispatch(SkinIntent::EnterCell {
+                    at: CellKey::new(other, 1, 1).unwrap(),
+                    text: "10".into()
+                })
+                .accepted()
+        );
+        let mut bytes = Vec::new();
+        source
+            .prepare_save(&calc_host::SavePolicy::default())
+            .unwrap()
+            .write(&mut bytes)
+            .unwrap();
+        let source_path = dir.join("ylr-source.xlsx");
+        fs::write(&source_path, bytes).unwrap();
+        let capture = CaptureRecord::decode(include_bytes!(
+            "../../../crates/calc-host/tests/captures/dc_ylr/oracle.capture.json"
+        ))
+        .unwrap();
+        let run = run_workbook(
+            fixture,
+            Some("oracle.xlsx"),
+            Some(&path),
+            &capture,
+            NumericMode::Fast,
+        )
+        .unwrap();
+        assert!(run.workbook.is_none());
+        let report = judge(
+            &capture,
+            &run.results,
+            &run.record,
+            &VerdictPolicy::default(),
+        )
+        .unwrap();
+        assert_eq!(report.counts.denominator, 74);
+        assert_eq!(report.counts.matched, 74, "{}", report.summary());
+        assert_eq!(report.counts.external_links, 0);
+        assert!(
+            run.linked_inputs
+                .iter()
+                .any(|record| record.get("sha256").is_some())
+        );
+        fs::remove_file(source_path).unwrap();
+        let run = run_workbook(
+            fixture,
+            Some("oracle.xlsx"),
+            Some(&path),
+            &capture,
+            NumericMode::Fast,
+        )
+        .unwrap();
+        let report = judge(
+            &capture,
+            &run.results,
+            &run.record,
+            &VerdictPolicy::default(),
+        )
+        .unwrap();
+        assert_eq!(report.counts.external_links, 73);
+        assert_eq!(
+            report.counts.matched - report.counts.matched_external_links,
+            1
+        );
+    }
 
     fn args(text: &str) -> Vec<String> {
         text.split_whitespace().map(str::to_owned).collect()
@@ -1399,7 +1590,7 @@ mod tests {
             br#"{"format": "dnacalc-capture-record", "version": 1, "case": "k", "source": "sha256:00", "acquisition": {"kind": "file_cache_replay"}, "environment": null, "sheets": [{"name": "Inputs", "visibility": "visible"}, {"name": "Calc", "visibility": "visible"}], "formulas": [{"sheet": "Calc", "row": 1, "column": 3, "kind": "ordinary"}], "observations": []}"#,
         )
         .unwrap();
-        let run = run_workbook(&fixture, None, &capture, NumericMode::Fast).unwrap();
+        let run = run_workbook(&fixture, None, None, &capture, NumericMode::Fast).unwrap();
         let Dna::Refused(refusal) = &run.dna[0] else {
             panic!("Calc!C1 is {:?}", run.dna[0]);
         };

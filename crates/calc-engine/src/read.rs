@@ -625,6 +625,7 @@ impl BoundarySnapshot {
 /// generation.
 #[derive(Clone, Copy)]
 pub(crate) struct RecalcView<'a> {
+    pub(crate) linked_workbooks: &'a std::sync::Arc<crate::linked::LinkedWorkbooks>,
     pub(crate) cached_observation: bool,
     pub(crate) caller: Option<NodeId>,
     pub(crate) scope: Option<&'a crate::contract::CalcScope>,
@@ -1245,7 +1246,11 @@ impl<'a> WorkbookReader<'a> {
             return Overlay::Missing;
         }
         match view.spill_at(at) {
-            Ok(Some(spill)) => return Overlay::Value(spill.value_at(at)),
+            Ok(Some(spill)) => {
+                // A child carries its producer's qualifications just like an anchor read.
+                let _ = self.formula_value(spill.anchor());
+                return Overlay::Value(spill.value_at(at));
+            }
             Err((node, _)) => {
                 self.wait(at, node);
                 return Overlay::Missing;
@@ -1271,6 +1276,12 @@ impl<'a> WorkbookReader<'a> {
             NodeStanding::Staged(result) | NodeStanding::Published(Some(result))
                 if result.calculated().is_some() =>
             {
+                if result
+                    .calculated()
+                    .is_some_and(|(_, c)| c.reads_external_links())
+                {
+                    self.external.set(true);
+                }
                 Overlay::Blank
             }
             NodeStanding::Staged(_) | NodeStanding::Published(_) => Overlay::Missing,
@@ -1409,6 +1420,85 @@ impl<'a> WorkbookReader<'a> {
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {
+        let source = self
+            .view
+            .inputs
+            .definitions()
+            .external_books()
+            .find_map(|(number, book)| {
+                book.sheets
+                    .iter()
+                    .any(|s| s.id == held.id)
+                    .then(|| self.view.linked_workbooks.get(&number))
+                    .flatten()
+            });
+        if let Some(source) = source {
+            let Some(sheet) = source.sheet(&held.name) else {
+                let error = [CalcValue::error(WorksheetErrorCode::Ref)];
+                for _ in 0..area.cell_count() {
+                    if sink(CellRun::Values(&error)).is_break() {
+                        break;
+                    }
+                }
+                return;
+            };
+            let first = area.first();
+            let width = u64::from(area.column_count());
+            let mut next = 0;
+            for (&(row, column), value) in sheet
+                .cells
+                .range((first.row(), first.column())..=(area.last().row(), area.last().column()))
+            {
+                if column < first.column() || column > area.last().column() {
+                    continue;
+                }
+                let index =
+                    u64::from(row - first.row()) * width + u64::from(column - first.column());
+                let gap = if sheet.blank_proven {
+                    if index == next {
+                        ControlFlow::Continue(())
+                    } else {
+                        sink(CellRun::Blank(index - next))
+                    }
+                } else {
+                    self.read_cached_external(held, area, next, index - next, sink)
+                };
+                if gap.is_break() {
+                    return;
+                }
+                let emitted = match value {
+                    Some(value) => sink(CellRun::Values(std::slice::from_ref(&value.value))),
+                    None => self.read_cached_external(held, area, index, 1, sink),
+                };
+                if emitted.is_break() {
+                    return;
+                }
+                next = index + 1;
+            }
+            if next < area.cell_count() {
+                if sheet.blank_proven {
+                    let _ = sink(CellRun::Blank(area.cell_count() - next));
+                } else {
+                    let _ =
+                        self.read_cached_external(held, area, next, area.cell_count() - next, sink);
+                }
+            }
+            return;
+        }
+        let _ = self.read_cached_external(held, area, 0, area.cell_count(), sink);
+    }
+
+    fn read_cached_external(
+        &self,
+        held: &ExternalSheet,
+        area: GridArea,
+        offset: u64,
+        count: u64,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) -> ControlFlow<()> {
+        if count == 0 {
+            return ControlFlow::Continue(());
+        }
         self.external.set(true);
         let (first, last) = (area.first(), area.last());
         let width = u64::from(area.column_count());
@@ -1428,24 +1518,26 @@ impl<'a> WorkbookReader<'a> {
             }
             ControlFlow::Continue(())
         };
-        let mut next = 0u64;
-        for (&(row, column), cached) in held
-            .cells
-            .range((first.row(), first.column())..=(last.row(), last.column()))
-        {
+        let mut next = offset;
+        let end = offset + count;
+        let start_key = (
+            first.row() + (offset / width) as u32,
+            first.column() + (offset % width) as u32,
+        );
+        let end_key = (
+            first.row() + ((end - 1) / width) as u32,
+            first.column() + ((end - 1) % width) as u32,
+        );
+        for (&(row, column), cached) in held.cells.range(start_key..=end_key) {
             if column < first.column() || column > last.column() {
                 continue;
             }
             let index = u64::from(row - first.row()) * width + u64::from(column - first.column());
-            if gap(index - next, sink).is_break() {
-                return;
-            }
-            if sink(CellRun::Values(&[cached.to_value()])).is_break() {
-                return;
-            }
+            gap(index - next, sink)?;
+            sink(CellRun::Values(&[cached.to_value()]))?;
             next = index + 1;
         }
-        let _ = gap(area.cell_count() - next, sink);
+        gap(end - next, sink)
     }
 }
 
@@ -1667,6 +1759,8 @@ impl ReferenceReader for WorkbookReader<'_> {
 
     fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
         let view = self.view;
+        // Shape-only consumers inherit source provenance without consuming the value.
+        let _ = self.formula_lookup(anchor);
         if view.cached_observation {
             return view
                 .boundary_caches
@@ -1846,6 +1940,7 @@ fn literal_value(input: &CellInput) -> Option<CalcValue> {
 pub struct CachedReadLease(std::sync::Arc<CachedReadView>);
 #[derive(Debug)]
 struct CachedReadView {
+    linked_workbooks: std::sync::Arc<crate::linked::LinkedWorkbooks>,
     id: u64,
     model: std::sync::Arc<ModelRoot>,
     cache: BoundarySnapshot,
@@ -1888,6 +1983,7 @@ impl CachedReadLease {
     pub(crate) fn capture(
         state: &EngineState,
         inputs: &ModelRoot,
+        linked_workbooks: std::sync::Arc<crate::linked::LinkedWorkbooks>,
         progress: &Progress,
         spills: &SpillIndex,
         inputs_cut: u64,
@@ -1976,6 +2072,7 @@ impl CachedReadLease {
             .filter(|at| !cache.entries.contains_key(at) && !refused.contains(at))
             .collect();
         Self(std::sync::Arc::new(CachedReadView {
+            linked_workbooks,
             id,
             model: inputs.pin(),
             cache,
@@ -1991,6 +2088,7 @@ impl CachedReadLease {
         facts: Option<&'a std::sync::Arc<dyn calc_fml::WorkbookFacts>>,
     ) -> RecalcView<'a> {
         RecalcView {
+            linked_workbooks: &self.0.linked_workbooks,
             cached_observation: true,
             caller: None,
             scope: None,
@@ -2020,7 +2118,37 @@ impl CachedReadLease {
                 .model
                 .definitions()
                 .external_sheet(region.sheet())
-                .is_some()
+                .is_some_and(|held| {
+                    let source =
+                        self.0
+                            .model
+                            .definitions()
+                            .external_books()
+                            .find_map(|(number, book)| {
+                                book.sheets
+                                    .iter()
+                                    .any(|sheet| sheet.id == held.id)
+                                    .then(|| self.0.linked_workbooks.get(&number))
+                                    .flatten()
+                            });
+                    source.is_none_or(|source| {
+                        source.sheet(&held.name).is_some_and(|sheet| {
+                            !sheet.blank_proven
+                                || sheet
+                                    .cells
+                                    .range(
+                                        (region.first().row(), region.first().column())
+                                            ..=(region.last().row(), region.last().column()),
+                                    )
+                                    .any(|(&(row, column), value)| {
+                                        value.is_none()
+                                            && row >= region.first().row()
+                                            && column >= region.first().column()
+                                            && column <= region.last().column()
+                                    })
+                        })
+                    })
+                })
                 || self.0.cache.entries.iter().any(|(at, value)| {
                     value.external
                         && (region.contains(*at)

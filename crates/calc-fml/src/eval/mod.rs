@@ -217,10 +217,16 @@ impl CompiledPlan {
         self.form
     }
 
-    /// Whether the plan reads another workbook's cells, whose values are those the workbook's
-    /// links cache, not live inputs (dc-ylr).
+    /// Whether the plan contains external workbook operands. The owner selects an
+    /// admitted calculated source snapshot or a labelled file-cache fallback (dc-ylr).
     pub fn reads_external_links(&self) -> bool {
         !self.externals.is_empty()
+    }
+
+    /// External operands retain their workbook identity so the owner can distinguish
+    /// admitted source workbooks from file-cache fallbacks.
+    pub fn external_references(&self) -> &[ExternalOperand] {
+        &self.externals
     }
 
     /// Every catalogue entry the plan may call, in the order compile emitted the calls, those in

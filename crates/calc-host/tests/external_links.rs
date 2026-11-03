@@ -442,3 +442,286 @@ fn contract_vba_cached_read_of_a_refused_formula_cannot_become_zero() {
         p.cells()[0].value()
     );
 }
+
+fn source_sheet(cells: &str) -> HostState {
+    let sheet = format!(
+        r#"<worksheet xmlns="{MAIN}"><sheetData><row r="1">{cells}</row></sheetData></worksheet>"#
+    );
+    HostState::open(
+        Arc::new(MemorySource::new(package_with_sheet(&sheet))),
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Manual),
+            ..HostOptions::default()
+        },
+    )
+    .unwrap()
+}
+
+fn drain_domain(domain: &mut calc_host::CalculationDomain, budget: WorkBudget) {
+    for _ in 0..10000 {
+        match domain.advance(budget) {
+            calc_host::DomainProgress::Complete => return,
+            calc_host::DomainProgress::Advanced {
+                progress: HostProgress::Cancelled,
+                ..
+            } => panic!("cancelled"),
+            calc_host::DomainProgress::Advanced { .. } => {}
+            other => panic!("{other:?}"),
+        }
+    }
+    panic!("domain did not complete");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ylr__fallback_spill_children_cannot_export_calculated_source_values() {
+    let mut host = source_sheet(
+        r#"<c r="A1"><f t="array" ref="A1:A3">[1]Sheet1!A1:A3</f></c><c r="B1"><f>A2+1</f></c><c r="C1"><f>SUM(A2:A3)</f></c>"#,
+    );
+    calc_host::calculate(&mut host);
+    while matches!(
+        step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Calculating { .. } | HostProgress::Published(_)
+    ) {}
+    let sheet = host.sheets()[0].id();
+    for (column, expected) in [(2, "6 (external link)"), (3, "5 (external link)")] {
+        let at = CellKey::new(sheet, 1, column).unwrap();
+        assert_eq!(shown_value(&host, at), expected);
+        assert!(
+            host.linked_snapshot()
+                .calculation("Sheet1", 1, column)
+                .is_none()
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ylr__fallback_spill_shape_keeps_its_source_qualification() {
+    let mut session = calc_host::HostSession::open(
+        Arc::new(MemorySource::new(
+            include_bytes!("fixtures/dc_ylr/oracle.xlsx").to_vec(),
+        )),
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Manual),
+            ..HostOptions::default()
+        },
+    )
+    .unwrap();
+    let sheet = session
+        .host()
+        .sheets()
+        .iter()
+        .find(|s| s.name().text().to_string_lossy() == "Main")
+        .unwrap()
+        .id();
+    let at = CellKey::new(sheet, 80, 10).unwrap();
+    assert!(
+        session
+            .dispatch(calc_host::SkinIntent::EnterCell {
+                at,
+                text: "=ROWS(C1#)".into()
+            })
+            .accepted()
+    );
+    assert!(
+        session
+            .dispatch(calc_host::SkinIntent::Recalculate)
+            .accepted()
+    );
+    while matches!(
+        session.advance_calculation(),
+        HostProgress::Calculating { .. } | HostProgress::Published(_)
+    ) {}
+    assert_eq!(shown_value(session.host(), at), "3 (external link)");
+    assert!(
+        session
+            .host()
+            .linked_snapshot()
+            .calculation("Main", 80, 10)
+            .is_none()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ylr__available_source_calculates_its_formulas_in_its_own_context() {
+    for budget in [WorkBudget::evaluations(1), WorkBudget::UNLIMITED] {
+        let mut domain = calc_host::CalculationDomain::new();
+        let target = domain.insert(source_sheet(r#"<c r="A1"><f>[1]Sheet1!A1</f></c><c r="B1"><f>A1+1</f></c><c r="C1"><f>SUM([1]Sheet1!A1:A2)</f></c><c r="D1"><f>[2]Sheet1!A1</f></c><c r="E1"><f>[1]Sheet1!B9</f></c>"#)).unwrap();
+        let source = domain.insert(source_sheet(r#"<c r="A1"><f>B1*10</f><v>999</v></c><c r="B1"><v>7</v></c></row><row r="2"><c r="A2"><v>3</v></c></row><row r="9"><c r="B9"><v>9</v></c>"#)).unwrap();
+        domain.connect(target, 1, source).unwrap();
+        domain.request_calculation(&[target], false).unwrap();
+        drain_domain(&mut domain, budget);
+        let host = domain.host(target).unwrap();
+        let sheet = host.sheets()[0].id();
+        for (column, expected) in [(1, "70"), (2, "71"), (3, "73"), (5, "9")] {
+            let at = CellKey::new(sheet, 1, column).unwrap();
+            assert_eq!(shown_value(host, at), expected);
+            let page = project(host, &ProjectionRequest { cells: vec![at] }).unwrap();
+            let ProjectedValue::Calculated { calculation, .. } = page.cells()[0].value() else {
+                panic!("not calculated");
+            };
+            let stamp = calculation.stamp().unwrap();
+            assert!(!stamp.reads.external_cache);
+            let pin = stamp.reads.linked_inputs.as_ref().unwrap();
+            assert_eq!(
+                pin.sources[0].workbook(),
+                domain.host(source).unwrap().linked_snapshot().workbook()
+            );
+        }
+        assert_eq!(
+            shown_value(host, CellKey::new(sheet, 1, 4).unwrap()),
+            "Ref (external link)"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ylr__unavailable_source_results_keep_the_labelled_fallback() {
+    let mut target = source_sheet(r#"<c r="A1"><f>[1]Sheet1!A1</f></c><c r="B1"><f>A1+1</f></c>"#);
+    let mut source = source_sheet(r#"<c r="A1"><f>NOW()</f><v>111</v></c>"#);
+    // A file cache with the matching number is never sufficient.
+    target
+        .set_linked_workbook(1, Some(source.linked_snapshot()))
+        .unwrap();
+    calc_host::calculate(&mut target);
+    while matches!(
+        step(&mut target, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Calculating { .. } | HostProgress::Published(_)
+    ) {}
+    let sheet = target.sheets()[0].id();
+    assert_eq!(
+        shown_value(&target, CellKey::new(sheet, 1, 1).unwrap()),
+        "111 (external link)"
+    );
+    calc_host::calculate(&mut source);
+    while matches!(
+        step(&mut source, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Calculating { .. } | HostProgress::Published(_)
+    ) {}
+    target
+        .set_linked_workbook(1, Some(source.linked_snapshot()))
+        .unwrap();
+    calc_host::calculate(&mut target);
+    while matches!(
+        step(&mut target, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Calculating { .. } | HostProgress::Published(_)
+    ) {}
+    assert_eq!(
+        shown_value(&target, CellKey::new(sheet, 1, 2).unwrap()),
+        "112 (external link)"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ylr__fallback_qualification_survives_in_cell_suspension() {
+    // A runtime kernel must follow the read; a constant expression is folded away.
+    let mut target = source_sheet(
+        r#"<c r="A1"><f>[1]Sheet1!A1+SUM(_xlfn.SEQUENCE(8192))</f></c><c r="B1"><f>A1+1</f></c>"#,
+    );
+    let source = source_sheet(r#"<c r="A1"><f>NOW()</f><v>111</v></c>"#);
+    target
+        .set_linked_workbook(1, Some(source.linked_snapshot()))
+        .unwrap();
+    calc_host::calculate(&mut target);
+    let mut slices = 0;
+    loop {
+        match step(&mut target, WorkBudget::evaluations(1), &mut Unobserved) {
+            HostProgress::Calculating { .. } | HostProgress::Published(_) => slices += 1,
+            other => {
+                assert!(matches!(
+                    other,
+                    HostProgress::Manual | HostProgress::Current
+                ));
+                break;
+            }
+        }
+    }
+    assert!(
+        slices > 3,
+        "the external read must precede later continuation slices"
+    );
+    let sheet = target.sheets()[0].id();
+    assert_eq!(
+        shown_value(&target, CellKey::new(sheet, 1, 1).unwrap()),
+        "33558639 (external link)"
+    );
+    assert_eq!(
+        shown_value(&target, CellKey::new(sheet, 1, 2).unwrap()),
+        "33558640 (external link)"
+    );
+    assert!(
+        target
+            .linked_snapshot()
+            .calculation("Sheet1", 1, 1)
+            .is_none()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ylr__transitive_workbooks_refresh_and_disconnect_without_reusing_old_proofs() {
+    use calc_host::{CellEdit, CellInput, FiniteNumber, HostCommand};
+    let mut domain = calc_host::CalculationDomain::new();
+    let target = domain
+        .insert(source_sheet(r#"<c r="A1"><f>[1]Sheet1!A1+1</f></c>"#))
+        .unwrap();
+    let middle = domain
+        .insert(source_sheet(r#"<c r="A1"><f>[1]Sheet1!A1*2</f></c>"#))
+        .unwrap();
+    let source = domain
+        .insert(source_sheet(
+            r#"<c r="A1"><f>B1+1</f></c><c r="B1"><v>4</v></c>"#,
+        ))
+        .unwrap();
+    domain.connect(target, 1, middle).unwrap();
+    domain.connect(middle, 1, source).unwrap();
+    domain.request_calculation(&[target], true).unwrap();
+    drain_domain(&mut domain, WorkBudget::evaluations(1));
+    let at = CellKey::new(domain.host(target).unwrap().sheets()[0].id(), 1, 1).unwrap();
+    assert_eq!(shown_value(domain.host(target).unwrap(), at), "11");
+    let host = domain.host_mut(source).unwrap();
+    let input = CellKey::new(host.sheets()[0].id(), 1, 2).unwrap();
+    calc_host::dispatch(
+        host,
+        HostCommand {
+            base: host.revision(),
+            edits: vec![CellEdit::Set {
+                at: input,
+                input: CellInput::Number(FiniteNumber::new(7.0).unwrap()),
+            }],
+        },
+    )
+    .unwrap();
+    assert!(!matches!(
+        project(
+            domain.host(target).unwrap(),
+            &ProjectionRequest { cells: vec![at] }
+        )
+        .unwrap()
+        .cells()[0]
+            .value(),
+        ProjectedValue::Calculated { .. }
+    ));
+    domain.request_calculation(&[target], false).unwrap();
+    drain_domain(&mut domain, WorkBudget::UNLIMITED);
+    assert_eq!(shown_value(domain.host(target).unwrap(), at), "17");
+    domain.disconnect(target, 1).unwrap();
+    domain.request_calculation(&[target], false).unwrap();
+    drain_domain(&mut domain, WorkBudget::UNLIMITED);
+    assert_eq!(
+        shown_value(domain.host(target).unwrap(), at),
+        "112 (external link)"
+    );
+    domain.connect(target, 1, middle).unwrap();
+    domain.connect(middle, 1, target).unwrap();
+    assert!(matches!(
+        domain.request_calculation(&[target], false),
+        Err(calc_host::DomainError::LinkedCycle { owner: "dc-ylr" })
+    ));
+}

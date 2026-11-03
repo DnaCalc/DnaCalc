@@ -61,6 +61,8 @@ pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patch
 pub use names::NameEdit;
 pub mod chart;
 mod command;
+mod domain;
+pub use domain::{CalculationDomain, DomainError, DomainProgress, DomainWorkbookId};
 mod envelope;
 pub use envelope::{CommandJournal, CommandRefusal, CommandStamp};
 mod paste;
@@ -129,8 +131,9 @@ pub use calc_doc_model::{
     ViewKind,
 };
 pub use calc_engine::{
-    CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,
-    RecalcFailure, ResultStorageStats, StartError, Unobserved, ValueChange, ValueDelta, WorkBudget,
+    CacheWithoutFormula, CalcTick, Calculation, LinkedWorkbookSnapshot, NotModeled, PrepareError,
+    ReadObserver, RecalcFailure, ResultStorageStats, StartError, Unobserved, ValueChange,
+    ValueDelta, WorkBudget,
 };
 pub use calc_fml::reference::CellRun;
 pub use calc_fml::{CallableHandle, CallableTable, FormatProfile};

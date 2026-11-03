@@ -90,6 +90,7 @@ impl DetachedFormula {
         let progress = Progress::new(0);
         let spills = SpillIndex::default();
         let view = RecalcView {
+            linked_workbooks: &state.linked_workbooks,
             cached_observation: false,
             caller: None,
             scope: None,

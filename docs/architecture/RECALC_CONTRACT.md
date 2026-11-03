@@ -278,6 +278,22 @@ nonterminal certified scalar units through that same host/worker projection rout
 
 ## 5. The VBA read view
 
+Linked workbook inputs (dc-ylr, 2026-11-03): the portable host calculation domain
+orders acyclic source workbooks before their consumers and runs each through the
+ordinary engine in its own context. Engine-created immutable snapshots contain
+authored inputs and validated calculated results, retaining their producing
+calculations and source pins. Imported, dirty, refused and qualified formula
+values remain unavailable; a consumer may then use its labelled external-link
+cache, which remains a nonpass. Spill children and shape reads retain that label.
+Commands pin the linked-input version; replacing a live source invalidates its
+consumers, while an isolated save retains its original cut. The native comparison
+loader resolves local link targets and siblings and records source hashes. It
+never retrieves remote URLs. Domain mutation is unavailable during admitted work;
+cross-workbook cycles return a named dc-ylr refusal. This is acyclic snapshot
+coordination, with no cross-workbook iterative-session claim. The existing oracle
+deliberately omits its source workbook, so its 73 external-cache cells remain
+nonpasses when comparing the repository's files.
+
 - **SliceV1: serial observation fences.** Reference order is the command's dependency-compatible order fixed before
   interest changes; ties by saved chain rank, then workbook/sheet/address (a DNA policy, not Excel's chain). Pure ready
   work reorders by interest only inside a fence segment. An unrestricted callback is a fence: no installation from a

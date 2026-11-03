@@ -243,6 +243,7 @@ pub struct BoundaryReadSpan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ReadCertificate {
+    pub linked_inputs: Option<crate::LinkedInputStamp>,
     pub observations: Vec<CachedObservation>,
     pub external_inputs: Vec<calc_fml::UserInputRead>,
     pub callables: Vec<calc_fml::CallableBindingProof>,
@@ -906,6 +907,11 @@ pub(crate) fn certificate_valid_at(
         || target.formula_generation != state.contract.generation(target.node)
         || stamp.certification.required != required
         || stamp.reads.semantic_environment != state.contract.environment
+        || stamp
+            .reads
+            .linked_inputs
+            .as_ref()
+            .is_some_and(|pin| pin.version != state.linked_input_version)
         || stamp.reads.bindings != state.contract.bindings
         || stamp.reads.external_inputs.iter().any(|read| {
             state
