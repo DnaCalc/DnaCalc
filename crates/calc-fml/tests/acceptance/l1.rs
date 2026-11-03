@@ -588,6 +588,165 @@ mod arrays {
         );
     }
 
+    /// W111 independent MOD padding case 00008: the third dividend's #VALUE!
+    /// precedes the divisor's absent third coordinate.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_padding_keeps_earlier_argument_errors() {
+        let mut book = Book::new();
+        book.number("A100", f64::from_bits(0x4027b5c108bb5758))
+            .number("A101", f64::from_bits(0xc02c90d8b901f086))
+            .number("A102", f64::from_bits(0x402b94685e64e5f0));
+        assert_eq!(
+            book.dynamic("=MOD(CHOOSE({1;2;3},A100,A101,#VALUE!),CHOOSE({1;2},#NAME?,A102))"),
+            rows(&[
+                &[e(W::Name)],
+                &[n(f64::from_bits(0x402a97f803c7db5a))],
+                &[e(W::Value)]
+            ])
+        );
+    }
+
+    /// W111 text discovery cases 01616 and 01720 preserve the earlier text error
+    /// when a later argument has no element at that position.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_text_padding_keeps_argument_order() {
+        let mut book = Book::new();
+        book.number("A100", 123.0)
+            .number("A101", -0.5)
+            .number("A102", 1.0)
+            .number("A103", 1.0)
+            .number("A104", 2.0);
+        assert_eq!(
+            book.dynamic("=MID(CHOOSE({1,2,3;4,5,6},#N/A,#DIV/0!,#DIV/0!,FALSE,#N/A,A100),CHOOSE({1,2;3,4},#REF!,\"2\",A101,A102),CHOOSE({1,2,3},\"2\",A103,A104))"),
+            rows(&[
+                &[e(W::NA), e(W::Div0), e(W::Div0)],
+                &[e(W::Value), e(W::NA), e(W::NA)]
+            ])
+        );
+        book.number("A101", 123.0).number("A102", 123.0);
+        assert_eq!(
+            book.dynamic("=EXACT(CHOOSE({1,2;3,4;5,6},\"abc\",\"abc\",\"\",A100,\"\",#DIV/0!),CHOOSE({1,2;3,4},A101,A102,\"\",\"\"))"),
+            rows(&[
+                &[CalcValue::logical(false), CalcValue::logical(false)],
+                &[CalcValue::logical(true), CalcValue::logical(false)],
+                &[e(W::NA), e(W::Div0)]
+            ])
+        );
+    }
+
+    /// W111 depreciation padding case 00000: a missing salvage coordinate does
+    /// not hide the earlier cost error. The scalar depreciation kernel is unchanged.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_three_argument_padding_keeps_argument_order() {
+        let mut book = Book::new();
+        for cell in ["A100", "A101", "A102", "A103"] {
+            book.number(cell, 1000.0);
+        }
+        for cell in ["A104", "A105", "A106", "A107"] {
+            book.number(cell, 100.0);
+        }
+        book.number("A108", 10.0);
+        assert_eq!(
+            book.dynamic("=SLN(CHOOSE({1,2,3;4,5,6},A100,A101,#REF!,A102,A103,#REF!),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108)"),
+            rows(&[
+                &[n(90.0), n(90.0), e(W::Ref)],
+                &[n(90.0), n(90.0), e(W::Ref)]
+            ])
+        );
+    }
+
+    /// Independent W111 depreciation padding cases 00209/00334/00459 keep
+    /// #N/A before a later optional argument's error. Preserve these controls
+    /// while extending argument-order padding to the other measured functions.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_padding_preserves_optional_argument_controls() {
+        let mut book = Book::new();
+        for cell in ["A100", "A101", "A102", "A103"] {
+            book.number(cell, f64::from_bits(0x40957c0000000000));
+        }
+        book.number("A104", 125.0)
+            .number("A105", 9.75)
+            .number("A106", 3.125);
+        for (function, optional, expected) in [
+            ("DB", 4.5, 0x406b2be01a63a02a),
+            ("DDB", 1.5, 0x40628a73e06e783b),
+        ] {
+            for cell in ["A107", "A108", "A109", "A110"] {
+                book.number(cell, optional);
+            }
+            let formula = format!(
+                "={function}(CHOOSE({{1,2;3,4}},A100,A101,A102,A103),A104,A105,A106,CHOOSE({{1,2,3;4,5,6}},A107,A108,#NULL!,A109,A110,#NULL!))"
+            );
+            let result = n(f64::from_bits(expected));
+            assert_eq!(
+                book.dynamic(&formula),
+                rows(&[
+                    &[result.clone(), result.clone(), e(W::NA)],
+                    &[result.clone(), result, e(W::NA)]
+                ]),
+                "{formula}"
+            );
+        }
+        book.number("A106", 1.125)
+            .number("A107", 3.375)
+            .number("A108", 1.5);
+        let result = n(f64::from_bits(0x40764227a2b5d435));
+        assert_eq!(
+            book.dynamic("=VDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,A107,A108,CHOOSE({1,2,3;4,5,6},TRUE,TRUE,#NULL!,TRUE,TRUE,#NULL!))"),
+            rows(&[
+                &[result.clone(), result.clone(), e(W::NA)],
+                &[result.clone(), result, e(W::NA)]
+            ])
+        );
+    }
+
+    /// W111 prepared rounding cases 00424/00661 record padded #N/A before
+    /// coercion of the earlier text "(1.5)". No rounding algorithm changes here.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_padding_preserves_rounding_coercion_controls() {
+        let mut book = Book::new();
+        for (cell, value) in [
+            ("B200", 0xc068880000000000),
+            ("C200", 0xc085f40000000000),
+            ("B201", 0xc069f40000000000),
+            ("C201", 0xc0be4f0000000000),
+            ("A100", 0x401e000000000000),
+        ] {
+            book.number(cell, f64::from_bits(value));
+        }
+        book.set("D200", t("(1.5)")).set("D201", t("(1.5)"));
+        assert_eq!(
+            book.dynamic("=ROUNDDOWN(B200:D201,CHOOSE({1,2},A100,#DIV/0!))"),
+            rows(&[
+                &[n(f64::from_bits(0xc068880000000000)), e(W::Div0), e(W::NA)],
+                &[n(f64::from_bits(0xc069f40000000000)), e(W::Div0), e(W::NA)]
+            ])
+        );
+        book.set("B200", CalcValue::empty())
+            .number("C200", f64::from_bits(0xc0a0a00000000000))
+            .number("D200", f64::from_bits(0x4089b80000000000))
+            .number("B201", f64::from_bits(0x4086f00000000000))
+            .number("C201", f64::from_bits(0xc081390000000000))
+            .set("G200", CalcValue::empty())
+            .number("H200", -2.0);
+        assert_eq!(
+            book.dynamic("=ROUNDUP(B200:D201,G200:H200)"),
+            rows(&[
+                &[n(0.0), n(f64::from_bits(0xc0a1300000000000)), e(W::NA)],
+                &[
+                    n(f64::from_bits(0x4086f00000000000)),
+                    n(f64::from_bits(0xc082c00000000000)),
+                    e(W::NA)
+                ]
+            ])
+        );
+    }
+
     /// The legacy rows measured in Excel 16.0 (see the module documentation), each entered in row 2
     /// unless it says otherwise.
     #[cfg_attr(not(target_arch = "wasm32"), test)]

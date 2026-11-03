@@ -1137,7 +1137,7 @@ impl Run<'_, '_> {
         // reference from an array materialized by unary plus. Formula2 rejects the former
         // even when the caller aligns with it; a one-cell reference still supplies its value.
         if self.instance.plan.form == FormulaForm::Dynamic
-            && ordered_binary_arguments(target)
+            && rejects_multi_cell_reference(target)
             && let CoreRef::Reference(reference) = value.core_ref()
             && let [area] = reference.areas()
             && area.cell_count() > 1
@@ -1522,9 +1522,10 @@ impl Run<'_, '_> {
                                 Some(Err(error)) => held = held.or(Some(error)),
                             }
                         }
-                        // MROUND/QUOTIENT coerce arguments in order, including a padded
-                        // #N/A. An earlier error must win over a later absent coordinate.
-                        None if ordered_binary_arguments(target) => {
+                        // A function's missing coordinate is an error in this argument.
+                        // The scalar kernel owns the order in which arguments are read
+                        // (the W111 MOD, text-slice and depreciation padding controls).
+                        None if !target.0.padding_precedes_call() => {
                             element[*index] = CalcValue::error(WorksheetErrorCode::NA);
                         }
                         None => short = true,
@@ -2023,9 +2024,9 @@ fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue)
         || (reference_array(value) && lifts_over_references(target, form))
 }
 
-/// The measured reference-origin and ordered-padding policies of these binary functions
-/// (OxFunc-Evidence, W111 MROUND/QUOTIENT reference controls and asymmetric-shape controls).
-fn ordered_binary_arguments(target: Target) -> bool {
+/// The measured reference-origin policy of these binary functions (OxFunc-Evidence,
+/// W111 MROUND/QUOTIENT reference controls).
+fn rejects_multi_cell_reference(target: Target) -> bool {
     matches!(target.0.spelling(), "MROUND" | "QUOTIENT")
 }
 
