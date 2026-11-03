@@ -277,15 +277,15 @@ fn application_run_can_enter_a_hidden_or_worksheet_registration() {
 /// Native-only: the actual executable resumes one native async entry through CalcHost P07.
 #[test]
 fn native_async_resumes_the_existing_engine_activation_and_dependents() {
-    for legacy in [false, true] {
+    for (entry_evaluation, legacy) in [(false, false), (true, false), (true, true)] {
         let fixture = Fixture::new();
-        let calls = if legacy { 2 } else { 1 };
+        let calls = if entry_evaluation { 2 } else { 1 };
         let cases = fixture.directory.join("async-cases.json");
         std::fs::write(
         &cases,
         serde_json::to_vec(&serde_json::json!([
-            {"formula":"=10+MyAsync(28)+3","value":42,"dependent":"=B3*2","dependent_value":84,"legacy":legacy},
-            {"formula":"=MyAsyncEntries()","value":calls,"legacy":legacy}
+            {"formula":"=10+MyAsync(28)+3","value":42,"dependent":"=B3*2","dependent_value":84,"legacy":legacy,"formula_entry":entry_evaluation},
+            {"formula":"=MyAsyncEntries()","value":calls,"legacy":legacy,"formula_entry":entry_evaluation}
         ])).unwrap(),
     )
     .unwrap();
@@ -314,7 +314,7 @@ fn native_async_resumes_the_existing_engine_activation_and_dependents() {
             1
         );
         assert_eq!(result["results"][1]["value"].as_f64(), Some(calls as f64));
-        if legacy {
+        if entry_evaluation {
             let entries = result["formula_entries"].as_array().unwrap();
             let entry = entries
                 .iter()
@@ -518,6 +518,46 @@ fn engine_pool_overlaps_independent_cells_in_one_workbook() {
         assert_eq!(proof["completed_invocations"], 1);
     }
     assert_eq!(result["live_callback_allocations"], 0);
+}
+
+/// Native-only: overlapping native array producers use the real engine and DLL-owned frees.
+#[test]
+fn engine_pool_overlaps_spill_producers_and_publishes_every_cell() {
+    let fixture = Fixture::new();
+    let cases = fixture.directory.join("spill-pool.json");
+    std::fs::write(
+        &cases,
+        include_bytes!("../../../crates/calc-xll-reference/fixture/x8-spill-pool-cases.json"),
+    )
+    .unwrap();
+    let output = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_POOL_TESTS", "1")
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .args(["--engine", "--cases"])
+            .arg(cases)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(output["results"][1]["value"], 2.);
+    assert_eq!(output["results"][2]["value"], 3.);
+    let cells = output["results"][0]["spill_cells"].as_object().unwrap();
+    assert_eq!(cells.len(), 8);
+    for (address, expected) in [
+        ("B3", 41.),
+        ("C3", 42.),
+        ("B4", 43.),
+        ("C4", 44.),
+        ("F3", 81.),
+        ("G3", 82.),
+        ("F4", 83.),
+        ("G4", 84.),
+    ] {
+        assert_eq!(cells[address]["value"], expected);
+        assert_eq!(cells[address]["provenance"]["completed_invocations"], 1);
+        assert_eq!(cells[address]["provenance"]["cooperative_invocations"], 1);
+    }
 }
 
 /// Native-only: overwrite revokes the engine token and the delayed XLL return cannot publish or unload early.

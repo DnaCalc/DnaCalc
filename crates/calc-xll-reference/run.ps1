@@ -305,9 +305,10 @@ try {
         $sheet.Range('A1').Value2 = 7
         foreach ($case in (Get-Content -LiteralPath $Cases -Raw | ConvertFrom-Json)) {
             if ($case.PSObject.Properties['manual'] -and $case.manual) { $excel.Calculation=-4135 }
+            $dependentCell=if($case.PSObject.Properties['dependent_cell']){[string]$case.dependent_cell}else{'C3'}
             if ($case.PSObject.Properties['dependent']) {
-                if ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('C3').Formula=[string]$case.dependent }
-                else { $sheet.Range('C3').Formula2=[string]$case.dependent }
+                if ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range($dependentCell).Formula=[string]$case.dependent }
+                else { $sheet.Range($dependentCell).Formula2=[string]$case.dependent }
             }
             if ($case.PSObject.Properties['enable_events']) { $excel.EnableEvents=[bool]$case.enable_events }
             if ($case.PSObject.Properties['edit']) { $sheet.Range([string]$case.edit.cell).Value2=[double]$case.edit.value }
@@ -362,8 +363,15 @@ try {
                 $value=@{error=[string]$sheet.Range('B3').Text}
             }
             Note ([string]$case.formula) $value
+            if ($case.PSObject.Properties['spill_cells']) {
+                foreach($probe in $case.spill_cells.PSObject.Properties){
+                    $actual=$sheet.Range([string]$probe.Name).Value2
+                    Note ('spill '+[string]$case.formula+' '+[string]$probe.Name) $actual
+                    if($actual -ne $probe.Value){throw "Spill value differs at $($probe.Name)"}
+                }
+            }
             if ($case.PSObject.Properties['dependent']) {
-                $dependent=$sheet.Range('C3').Value2
+                $dependent=$sheet.Range($dependentCell).Value2
                 Note ('dependent ' + [string]$case.formula) $dependent
                 if ($dependent -ne $case.dependent_value) { throw 'Dependent value differs.' }
             }

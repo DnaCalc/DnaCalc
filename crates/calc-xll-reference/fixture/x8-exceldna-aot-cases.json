@@ -1,5 +1,86 @@
 [
-  {"formula":"=NativeHello(\"world\")","value":"Hello world!"},
-  {"formula":"=NativeSum(19,23)","value":42},
-  {"formula":"=NativeSum(3.5,-1.5)","value":2}
+  {
+    "formula": "=NativeHello(\"world\")",
+    "value": "Hello world!"
+  },
+  {
+    "formula": "=NativeSum(19,23)",
+    "value": 42
+  },
+  {
+    "formula": "=NativeSum(3.5,-1.5)",
+    "value": 2
+  },
+  {
+    "formula": "=NativeSum(\"19\",23)",
+    "value": 42
+  },
+  {
+    "formula": "=NativeSum(TRUE,41)",
+    "value": 42
+  },
+  {
+    "formula": "=NativeNullableDouble()",
+    "value": "Native Nullable VAL: NULL"
+  },
+  {
+    "formula": "=NativeNullableDouble(1.25)",
+    "value": "Native Nullable VAL: 1.25"
+  },
+  {
+    "formula": "=NativeOptionalDouble()",
+    "value": "Native Optional VAL: 1.23"
+  },
+  {
+    "formula": "=NativeOptionalDouble(2.5)",
+    "value": "Native Optional VAL: 2.5"
+  },
+  {
+    "formula": "=NativeEnum(\"Utc\")",
+    "value": "Native Enum VAL: Utc"
+  },
+  {
+    "formula": "=NativeEnumReturn(\"Local\")",
+    "value": "Local"
+  },
+  {
+    "formula": "=NativeStringArray({\"a\",\"b\",\"c\"})",
+    "value": "Native StringArray VALS: abc"
+  },
+  {
+    "formula": "=NativeStringArray2D({\"a\",\"b\";\"c\",\"d\"})",
+    "value": "Native StringArray2D VALS: ab cd "
+  },
+  {
+    "formula": "=NativeRangeConcat2({1,\"a\";TRUE,2})",
+    "value": "1aTrue2"
+  },
+  {
+    "formula": "=NativeParamsJoinString(\"|\",\"a\",\"b\",\"c\")",
+    "value": "a|b|c"
+  },
+  {
+    "formula": "=NativeParamsFunc1(1,\"a\",2,3)",
+    "value": "1,a, : 2"
+  },
+  {
+    "formula": "=NativeVersion2(\"1.2.3.4\")",
+    "value": "The Native Version value with field count 2 is 1.2"
+  },
+  {
+    "formula": "=NativeReturnTestType1(\"abc\")",
+    "value": "The Native TestType1 return value is abc"
+  },
+  {
+    "formula": "=NativeArgs16(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)",
+    "value": "136"
+  },
+  {
+    "formula": "=NativeArgs17(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17)",
+    "value": "153"
+  },
+  {
+    "formula": "=NativeVersion17(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,\"1.2.3.4\")",
+    "value": "The Native Version 17 value with field count 2 is 1.2"
+  }
 ]
