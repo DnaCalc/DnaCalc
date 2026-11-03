@@ -6,7 +6,7 @@
     {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-floor.json"}
   ],
   "witnesses": [
-    {"args":["0x0000000000000000","0x0000000000000000"],"calc_func":"error:Div0","expected_bits":"0x0000000000000000","id":"w111broad-20260929-FLOOR-00002","reading":"r0"},
+    {"args":["0x0000000000000000","0x0000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-FLOOR-00002","reading":"r0"},
     {"args":["0x0000000000000000","0x3fb999999999999a"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-FLOOR-00003","reading":"r0"},
     {"args":["0x0000000000000000","0x4000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-FLOOR-00004","reading":"r0"},
     {"args":["0x0000000000000000","0xbfb999999999999a"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-FLOOR-00001","reading":"r0"},
