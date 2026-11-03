@@ -4,13 +4,13 @@
 //! current spellings and the legacy ones (NORMDIST, CHIDIST, TDIST and the like), GAMMA, GAMMALN,
 //! GAUSS, PHI, the confidence intervals and the tests (CHISQ.TEST, F.TEST, T.TEST, Z.TEST). The
 //! numeric kernels are OxFunc's ([`crate::ported`]); every argument is read by worksheet number
-//! coercion, and a cumulative flag is a number read as TRUE when it is not 0.
+//! coercion, and a cumulative flag uses worksheet logical coercion.
 //!
 //! The error function is in this family too (ERF, ERF.PRECISE, ERFC, ERFC.PRECISE), since its
 //! kernels are the distributions' own.
 
 use super::aggregate::Held;
-use super::kit::{fail, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal};
+use super::kit::{fail, flag, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal, reject_logical};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::ported::{
@@ -22,11 +22,6 @@ use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
 const CODE: u16 = 104;
-
-/// Argument `index` as a cumulative flag: a number, TRUE unless 0.
-fn flag(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
-    Ok(num(site, a, index)? != 0.0)
-}
 
 /// The first `count` arguments as numbers.
 fn nums<const N: usize>(site: &Site<'_>, a: &[CalcValue]) -> Step<[f64; N]> {
@@ -310,15 +305,21 @@ ported_family! {
     }
     // The error function.
     90 erf "ERF" (1, 2) [V "lower_limit", V "upper_limit"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let lower = num(s, a, 0)?;
         let upper = if a.len() > 1 { Some(num(s, a, 1)?) } else { None };
         out(s, sd::erf_kernel(lower, upper))
     }
     91 erf_precise "ERF.PRECISE" (1, 1) [V "x"] |s, a, sv| {
+        reject_logical(&a[0])?;
         out(s, sd::erf_precise_kernel(num(s, a, 0)?))
     }
-    92 erfc "ERFC" (1, 1) [V "x"] |s, a, sv| { out(s, sd::erfc_kernel(num(s, a, 0)?)) }
+    92 erfc "ERFC" (1, 1) [V "x"] |s, a, sv| {
+        reject_logical(&a[0])?;
+        out(s, sd::erfc_kernel(num(s, a, 0)?))
+    }
     93 erfc_precise "ERFC.PRECISE" (1, 1) [V "x"] |s, a, sv| {
+        reject_logical(&a[0])?;
         out(s, sd::erfc_precise_kernel(num(s, a, 0)?))
     }
     // The tests.

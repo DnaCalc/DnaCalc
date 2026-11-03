@@ -13,7 +13,7 @@ $script:hostSha=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
 $script:app = $null
 $script:owned = $null
 $script:baseline = $null
-$global:DnaExcelSessionState=[pscustomobject]@{App=$null;Baseline=$null;Root=$root}
+$global:DnaExcelSessionState=[pscustomobject]@{App=$null;Baseline=$null;Root=$root;PreserveAutomationSecurity=($env:DNACALC_EXCEL_PRESERVE_AUTOMATION_SECURITY -eq '1')}
 $script:launches = 0
 $script:sequence = 0
 $script:ordinarySequence = 0
@@ -72,13 +72,23 @@ public static class DnaSessionDeadline {
 function Write-Json($Path, $Value) {
     $temp = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
     [IO.File]::WriteAllText($temp, (ConvertTo-Json -InputObject $Value -Depth 40), [Text.UTF8Encoding]::new($false))
-    [IO.File]::Move($temp, $Path, $true)
+    for ($attempt=0; ; $attempt++) {
+        try { [IO.File]::Move($temp, $Path, $true); break }
+        catch {
+            $cause=$_.Exception
+            while ($cause.InnerException) { $cause=$cause.InnerException }
+            if ($attempt -ge 49 -or ($cause.HResult -band 0xffff) -notin 5,32,33) { throw }
+            # A reader or antivirus can briefly deny replacement on Windows. Keep the
+            # original and the complete temporary JSON until the rename succeeds.
+            Start-Sleep -Milliseconds 100
+        }
+    }
 }
 function Event($Kind, $Data) {
     [IO.File]::AppendAllText((Join-Path $root 'events.jsonl'), (([ordered]@{utc=[DateTime]::UtcNow.ToString('O');kind=$Kind;data=$Data}|ConvertTo-Json -Depth 30 -Compress)+"`n"))
 }
 function Status($Job = $script:activeJob) {
-    Write-Json (Join-Path $root 'host.json') ([ordered]@{host_pid=$PID;host_start_ticks=$hostTicks;excel=$script:owned;launches=$script:launches;sequence=$script:sequence;ordinary_sequence=$script:ordinarySequence;active_job=$Job;environment=$script:environment})
+    Write-Json (Join-Path $root 'host.json') ([ordered]@{host_pid=$PID;host_start_ticks=$hostTicks;excel=$script:owned;launches=$script:launches;sequence=$script:sequence;ordinary_sequence=$script:ordinarySequence;active_job=$Job;environment=$script:environment;preserve_automation_security=$global:DnaExcelSessionState.PreserveAutomationSecurity})
 }
 function Read-Property($Object, [string]$Name) {
     $Object.GetType().InvokeMember($Name, [Reflection.BindingFlags]::GetProperty, $null, $Object, $null)
@@ -109,6 +119,11 @@ function Read-TraceObservations([string]$Path) {
 }
 function Reset-Baseline {
     $a = $global:DnaExcelSessionState.App
+    $baseline=$global:DnaExcelSessionState.Baseline
+    if ($baseline -and $global:DnaExcelSessionState.PreserveAutomationSecurity -and
+        (Read-Property $a 'AutomationSecurity') -ne $baseline['AutomationSecurity']) {
+        throw 'AutomationSecurity drift; this session forbids writing that setting.'
+    }
     $a.EnableEvents = $false
     $a.DisplayAlerts = $false
     $a.CutCopyMode = 0
@@ -120,9 +135,9 @@ function Reset-Baseline {
     $a.MaxIterations = 100
     $a.MaxChange = 0.001
     $a.CalculateBeforeSave = $false
-    $baseline=$global:DnaExcelSessionState.Baseline
     if ($baseline) {
-        foreach ($key in 'Visible','DisplayAlerts','ScreenUpdating','EnableEvents','Interactive','AutomationSecurity','UseSystemSeparators','DecimalSeparator','ThousandsSeparator','StatusBar') { $a.$key = $baseline[$key] }
+        foreach ($key in 'Visible','DisplayAlerts','ScreenUpdating','EnableEvents','Interactive','UseSystemSeparators','DecimalSeparator','ThousandsSeparator','StatusBar') { $a.$key = $baseline[$key] }
+        if (-not $global:DnaExcelSessionState.PreserveAutomationSecurity) { $a.AutomationSecurity = $baseline['AutomationSecurity'] }
         $a.MultiThreadedCalculation.Enabled = $baseline['mtc_enabled']
         $a.MultiThreadedCalculation.ThreadMode = $baseline['mtc_mode']
         if ($baseline['mtc_mode'] -eq 1) { $a.MultiThreadedCalculation.ThreadCount = $baseline['mtc_count'] }
@@ -268,6 +283,7 @@ try {
         $receipt=[ordered]@{format='dnacalc-excel-session-job/1';id=$job.id;sequence=$script:sequence;environment=$job.environment;fresh_required=[bool]$job.fresh_required;host_pid=$PID;started_utc=[DateTime]::UtcNow.ToString('O');launches_before=$script:launches;success=$false;error=$null;baseline_before=$null;baseline_after=$null;leakage=$null}
         $receipt['script']=$job.script
         $receipt['host_script_sha256']=$script:hostSha
+        $receipt['preserve_automation_security']=$global:DnaExcelSessionState.PreserveAutomationSecurity
         $receipt['script_sha256']=(Get-FileHash -LiteralPath $job.script).Hash.ToLowerInvariant()
         $receipt['job']=$job
         Copy-Item -LiteralPath $destination -Destination (Join-Path $directory 'job.json')

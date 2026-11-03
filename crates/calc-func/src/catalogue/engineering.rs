@@ -9,7 +9,7 @@
 //! number. A complex-number argument is a number, or text in the complex form (any other text is
 //! #NUM!); a logical is #VALUE! and a blank is 0.
 
-use super::kit::{fail, given, num, out, out_text, text, text_value, values};
+use super::kit::{fail, given, num, out, out_text, reject_logical, text, text_value, values};
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::complex_family::{
     ParsedComplex, format_complex_text, normalize_zero, parse_complex_text, suffix_from_operands,
@@ -242,11 +242,13 @@ ported_family! {
     62 besselk "BESSELK" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besselk_kernel) }
     63 bessely "BESSELY" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::bessely_kernel) }
     70 delta "DELTA" (1, 2) [V "number1", V "number2"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let x = num(s, a, 0)?;
         let y = if given(a, 1) { num(s, a, 1)? } else { 0.0 };
         out(s, k::delta_fn::delta_kernel(x, y))
     }
     71 gestep "GESTEP" (1, 2) [V "number", V "step"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let x = num(s, a, 0)?;
         let step = if given(a, 1) { num(s, a, 1)? } else { 0.0 };
         out(s, k::gestep_fn::gestep_kernel(x, step))

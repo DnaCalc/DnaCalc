@@ -63,3 +63,17 @@ groups share one fresh process, with baseline resets; each P06 trial uses a fres
 Earlier and resumed groups use different processes. Every receipt and raw result is retained,
 and the resume inventory lists remaining trials and launch counts. `--dry-run` audits and
 writes the proposed remaining trial groups without starting Excel.
+
+Set `DNACALC_EXCEL_PRESERVE_AUTOMATION_SECURITY=1` before starting the host when the session
+must not write that application setting, including assignments of its existing value. The host
+records this policy in its status and receipts. A different value refuses reset and recycles the
+owned process; it is never restored by assigning the baseline. A client requesting this policy
+refuses an already running host without it. The host retains its policy until stopped.
+
+Status readers permit atomic replacement while their handle is open. Metadata publication retries
+temporary Windows sharing/access errors for a bounded interval, retaining the old file and the
+complete temporary JSON until replacement succeeds. Other failures still stop the job.
+`--reviewed-unstarted <JSON>` lets the iteration resume audit retain a failed startup and submit
+its still-unrun trials. Each review binds the receipt, condition request, frozen trial requests
+and exact host source, with no worker log, pre-worker baseline, result or Excel binding in the job receipt. These
+failed attempts remain in the delivery and launch totals; they never count as completed trials.

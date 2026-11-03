@@ -375,6 +375,9 @@ fn address_fn(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         address::address_integer(n)
     };
     let col = {
+        if a[1].is_missing() {
+            return fail(WorksheetErrorCode::Value);
+        }
         let n = num(site, a, 1)?;
         if !n.is_finite() {
             return fail(WorksheetErrorCode::Value);

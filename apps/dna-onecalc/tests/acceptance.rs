@@ -79,6 +79,176 @@ fn poisson_validates_raw_counts_before_the_zero_count_exponential() {
     }
 }
 
+/// OxFunc-Evidence w111-distribution-heldout-typed-20260929, NORM.S.DIST
+/// cases 00000..00206: the cumulative position reads logical text, not numeric text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn distribution_cumulative_flags_read_logical_text() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_input("A100", InputValue::number(0.0).unwrap()).unwrap();
+    for (flag, expected) in [
+        ("TrUe", CalcValue::number(0.5)),
+        ("FAlSE", CalcValue::number(f64::from_bits(0x3fd9_8845_33d4_3651))),
+        ("00", CalcValue::error(WorksheetErrorCode::Value)),
+        ("+0", CalcValue::error(WorksheetErrorCode::Value)),
+        ("1.0", CalcValue::error(WorksheetErrorCode::Value)),
+        ("0%", CalcValue::error(WorksheetErrorCode::Value)),
+        ("\u{b}TRUE", CalcValue::error(WorksheetErrorCode::Value)),
+        ("TRUE\r", CalcValue::error(WorksheetErrorCode::Value)),
+        ("\u{2003}TRUE", CalcValue::error(WorksheetErrorCode::Value)),
+        ("FAL\u{17f}E", CalcValue::error(WorksheetErrorCode::Value)),
+    ] {
+        session.set_input("C4", InputValue::text(flag).unwrap()).unwrap();
+        for argument in [format!("\"{flag}\""), "C4".to_owned()] {
+            let formula = format!("=NORM.S.DIST(A100,{argument})");
+            session.set_formula(&formula);
+            let calculated = session.calculate();
+            assert_eq!(calculated.result, Some(expected.clone()), "{formula:?}: {:?}", calculated.diagnostics);
+            assert!(calculated.diagnostics.is_empty());
+        }
+    }
+    session.set_formula("=NORM.S.DIST(A100,CHOOSE({1;2},TRUE,\"TrUe\"))");
+    let expected = CalcValue::array(calc_func::value::CalcArray::from_rows(vec![
+        vec![CalcValue::number(0.5)], vec![CalcValue::number(0.5)],
+    ]).unwrap());
+    assert_eq!(session.calculate().result, Some(expected));
+}
+
+/// OxFunc-Evidence w111-numeric-text-core-heldout-20260929, INT direct/reference
+/// pairs 00600/00601, 01092/01093, 01112/01113 and 01122/01123.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_parenthesized_percent_text_keeps_its_suffix() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut profile = format_profile(LocaleId::EnZa);
+    // Actual separators retained in the Excel captures, independent of locale defaults.
+    profile.decimal_separator = ".";
+    profile.thousands_separator = " ";
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    for text in ["(19.811671778304706)%", "(2e-2)%", "(2e-2) %", "(200e-2)%"] {
+        session.set_input("B1", InputValue::text(text).unwrap()).unwrap();
+        for argument in [format!("\"{text}\""), "B1".to_owned()] {
+            let formula = format!("=INT({argument})");
+            session.set_formula(&formula);
+            let calculated = session.calculate();
+            assert_eq!(calculated.result, Some(CalcValue::number(-1.0)), "{formula}: {:?}", calculated.diagnostics);
+            assert!(calculated.diagnostics.is_empty());
+        }
+    }
+}
+
+/// OxFunc-Evidence cache/oracle-20430/build-20430/BAHTTEXT.jsonl,
+/// oc1210/1211/1849 with zero, signed-zero and satang boundary controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_bahttext_retains_the_sign_of_a_negative_amount() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_formula("=BAHTTEXT(B1)");
+    for (bits, expected) in [
+        (0xbf50_624d_d2f1_a9fc, "ลบศูนย์บาทถ้วน"),
+        (0xbf70_624d_d2f1_a9fc, "ลบศูนย์บาทถ้วน"),
+        (0xbf72_ec6b_ce85_33b1, "ลบศูนย์บาทถ้วน"),
+        (0x0000_0000_0000_0000, "ศูนย์บาทถ้วน"),
+        (0x8000_0000_0000_0000, "ศูนย์บาทถ้วน"),
+        (0x3f70_624d_d2f1_a9fc, "ศูนย์บาทถ้วน"),
+        (0x3f74_7ae1_47ae_147b, "หนึ่งสตางค์"),
+        (0xbf74_7ae1_47ae_147b, "ลบหนึ่งสตางค์"),
+    ] {
+        session.set_input("B1", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+        let calculated = session.calculate();
+        let expected = CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(expected));
+        assert_eq!(calculated.result, Some(expected), "{bits:#018x}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+}
+
+/// OxFunc-Evidence b028-agg-recheck-001 logical/text-number pairs; erf-arraylift-001
+/// erfrecheck-00005..00024; W089 seed 00255 and W092 successor 00209..00211.
+/// INTL calls: unswept-structural-sweep-001 cases 00445 and 00800.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_logical_scalar_admission() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment::dates(DateSystem::System1900)));
+    let cases = [
+        ("DELTA", "", 0x0000_0000_0000_0000),
+        ("FACTDOUBLE", "", 0x4000_0000_0000_0000),
+        ("GESTEP", "", 0x3ff0_0000_0000_0000),
+        ("MULTINOMIAL", "", 0x3ff0_0000_0000_0000),
+        ("NETWORKDAYS", ",2", 0x3ff0_0000_0000_0000),
+        ("SQRTPI", "", 0x4004_0d93_1ff6_2705),
+        ("WORKDAY", ",2", 0x4010_0000_0000_0000),
+        ("YEARFRAC", ",2", 0x0000_0000_0000_0000),
+        ("ERF", "", 0x3fef_d9ae_1427_95e3),
+        ("ERF.PRECISE", "", 0x3fef_d9ae_1427_95e3),
+        ("SERIESSUM", ",1,2,{1,2}", 0x4032_0000_0000_0000),
+    ];
+    // Run every retained logical case before the assertion, so a red run records each one.
+    let mut actuals: Vec<_> = cases.iter().map(|(name, rest, _)| {
+        session.set_formula(&format!("={name}(TRUE{rest})"));
+        (name, session.calculate().result)
+    }).collect();
+    let mut expected: Vec<_> = cases.iter().map(|(name, _, _)| {
+        (name, Some(CalcValue::error(WorksheetErrorCode::Value)))
+    }).collect();
+    // ERFC("2") has a retained numeric mismatch owned by the numeric lane. Its exact
+    // expected bits stay in the replay; these controls cover logical admission only.
+    let more = [("TBILLEQ", ",2,2"), ("TBILLPRICE", ",2,2"), ("TBILLYIELD", ",2,2"),
+        ("NETWORKDAYS.INTL", ",2"), ("WORKDAY.INTL", ",2"), ("ERFC", ""), ("ERFC.PRECISE", "")];
+    for (name, rest) in &more {
+        session.set_formula(&format!("={name}(TRUE{rest})"));
+        actuals.push((name, session.calculate().result));
+        expected.push((name, Some(CalcValue::error(WorksheetErrorCode::Value))));
+    }
+    assert_eq!(actuals, expected);
+    for (name, rest, bits) in cases {
+        let formula = format!("={name}(\"2\"{rest})");
+        session.set_formula(&formula);
+        assert_eq!(session.calculate().result, Some(CalcValue::number(f64::from_bits(bits))), "{formula}");
+    }
+    let row = CalcValue::array(calc_func::value::CalcArray::from_rows(vec![vec![
+        CalcValue::error(WorksheetErrorCode::Value), CalcValue::error(WorksheetErrorCode::Value),
+    ]]).unwrap());
+    for arguments in ["{TRUE,TRUE},1,2,{1,2}", "TRUE,{1,1},2,{1,2}", "TRUE,1,{2,2},{1,2}"] {
+        session.set_formula(&format!("=SERIESSUM({arguments})"));
+        assert_eq!(session.calculate().result, Some(row.clone()));
+    }
+}
+
+/// W111 address-blank-numeric-text-20260929 cases 0000/0002/0008/0010:
+/// an omitted column fails, while an omitted row and a blank column are allowed in R1C1.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_address_omitted_column_differs_from_blank() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J70").unwrap();
+    session.set_input("A1", InputValue::number(3.0).unwrap()).unwrap();
+    session.set_input("A2", InputValue::blank()).unwrap();
+    session.set_input("A11", InputValue::number(2.0).unwrap()).unwrap();
+    session.set_input("A12", InputValue::blank()).unwrap();
+    session.set_input("A21", InputValue::number(4.0).unwrap()).unwrap();
+    session.set_input("A31", InputValue::logical(false)).unwrap();
+    session.set_input("A41", InputValue::text("Alpha").unwrap()).unwrap();
+    session.set_formula("=ADDRESS(A1,,A21,A31,A41)");
+    assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)));
+    for (formula, expected) in [
+        ("=ADDRESS(,A11,A21,A31,A41)", "Alpha!RC[2]"),
+        ("=ADDRESS(A2,A11,A21,A31,A41)", "Alpha!RC[2]"),
+        ("=ADDRESS(A1,A12,A21,A31,A41)", "Alpha!R[3]C"),
+    ] {
+        session.set_formula(formula);
+        assert_eq!(session.calculate().result, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment(expected))), "{formula}");
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

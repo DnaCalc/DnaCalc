@@ -12,7 +12,7 @@
 //! modelled.
 
 use super::financial::{OFFSET_1904, date_1900};
-use super::kit::{fail, given, num};
+use super::kit::{fail, given, num, reject_logical};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::locale::DateSystem;
@@ -182,14 +182,17 @@ ported_family! {
         bill_out(s, bill::pricedisc_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
     }
     20 tbilleq_fn "TBILLEQ" (3, 3) [V "settlement", V "maturity", V "discount"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bill_out(s, bill::tbilleq_kernel(settlement, maturity, num(s, a, 2)?))
     }
     21 tbillprice_fn "TBILLPRICE" (3, 3) [V "settlement", V "maturity", V "discount"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bill_out(s, bill::tbillprice_kernel(settlement, maturity, num(s, a, 2)?))
     }
     22 tbillyield_fn "TBILLYIELD" (3, 3) [V "settlement", V "maturity", V "pr"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bill_out(s, bill::tbillyield_kernel(settlement, maturity, num(s, a, 2)?))
     }
