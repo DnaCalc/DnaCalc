@@ -317,6 +317,11 @@ pub struct EngineState {
     pub(crate) linked_workbooks: Arc<crate::linked::LinkedWorkbooks>,
     pub(crate) linked_input_version: u64,
     pub(crate) contract: crate::contract::ContractState,
+    /// Nonlocal certificate facets retain conservative validation. Ordinary dependency reads
+    /// use the graph's invalidation and publication candidates instead of a workbook scan.
+    pub(crate) certificate_watch: BTreeSet<NodeId>,
+    pub(crate) certificate_candidates: BTreeSet<NodeId>,
+    pub(crate) certificate_context: Option<(u64, u64)>,
     revision: AuthoredRevision,
     pub(crate) callables: calc_fml::CallableBindings,
     pub(crate) ids: Option<IdAllocator<NodeId>>,
@@ -465,6 +470,19 @@ impl EngineState {
     }
     pub(crate) fn publish_result(&mut self, node: NodeId, at: CellKey, result: FormulaResult) {
         let group = self.result_group(node, at);
+        let watch = result.stamp().is_some_and(|stamp| {
+            !stamp.reads.absences.is_empty()
+                || !stamp.reads.facts.is_empty()
+                || !stamp.reads.names.is_empty()
+                || !stamp.reads.callables.is_empty()
+                || stamp.reads.uses_boundary_cache
+                || stamp.reads.legacy_boundary
+        });
+        if watch {
+            self.certificate_watch.insert(node);
+        } else {
+            self.certificate_watch.remove(&node);
+        }
         self.results.publish(node, at, result, group);
     }
     /// Physical result rows, distinct from calculation coverage or freshness.
@@ -525,6 +543,9 @@ impl EngineState {
             linked_workbooks: self.linked_workbooks.clone(),
             linked_input_version: self.linked_input_version,
             contract: self.contract.clone(),
+            certificate_watch: self.certificate_watch.clone(),
+            certificate_candidates: self.certificate_candidates.clone(),
+            certificate_context: self.certificate_context,
             revision: self.revision,
             callables: self.callables.clone(),
             ids: None,
@@ -662,6 +683,9 @@ impl EngineState {
             linked_workbooks: Default::default(),
             linked_input_version: 0,
             contract: crate::contract::ContractState::new(),
+            certificate_watch: BTreeSet::new(),
+            certificate_candidates: BTreeSet::new(),
+            certificate_context: None,
             callables: calc_fml::CallableBindings::default(),
             revision: inputs.revision(),
             ids: Some(IdAllocator::new()),
@@ -1393,6 +1417,8 @@ impl EngineState {
             self.bindings.remove(&node);
             self.cached_arrays.remove(&node);
             self.contract.retire(node);
+            self.certificate_watch.remove(&node);
+            self.certificate_candidates.remove(&node);
             self.volatile.remove(&node);
             self.entered.remove(&node);
             self.subtotal_cells.remove(&record.anchor);

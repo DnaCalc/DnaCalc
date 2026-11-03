@@ -380,6 +380,26 @@ use crate::state::{ArrayRole, Binding};
 use crate::{EngineState, FormulaResult};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Generation-checked, persistent requirement versions pinned by an admitted calculation.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RequirementCut(crate::slots::SlotCut<(NodeId, RequirementState)>);
+impl RequirementCut {
+    pub fn get(&self, node: &NodeId) -> Option<&RequirementState> {
+        self.0
+            .get(node.slot())
+            .filter(|(held, _)| held == node)
+            .map(|(_, value)| value)
+    }
+    fn insert(&mut self, node: NodeId, value: RequirementState) {
+        self.0.insert(node.slot(), (node, value));
+    }
+    fn remove(&mut self, node: NodeId) {
+        if self.get(&node).is_some() {
+            self.0.remove(node.slot());
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct ContractState {
     pub workbook: WorkbookInstanceId,
@@ -392,7 +412,8 @@ pub(crate) struct ContractState {
     pub external_inputs: u64,
     pub external_versions: BTreeMap<calc_fml::UserInputKey, u64>,
     generations: BTreeMap<NodeId, u64>,
-    requirements: BTreeMap<NodeId, RequirementState>,
+    requirements: RequirementCut,
+    pub demanded: BTreeSet<NodeId>,
     writes: Vec<(GridArea, u64)>,
     occupancy: Vec<(GridArea, u64)>,
     pub facility_roots: BTreeSet<NodeId>,
@@ -420,7 +441,8 @@ impl ContractState {
             external_inputs: 0,
             external_versions: BTreeMap::new(),
             generations: BTreeMap::new(),
-            requirements: BTreeMap::new(),
+            requirements: RequirementCut::default(),
+            demanded: BTreeSet::new(),
             writes: Vec::new(),
             occupancy: Vec::new(),
             facility_roots: BTreeSet::new(),
@@ -441,12 +463,13 @@ impl ContractState {
         self.external_versions = previous.external_versions.clone();
         self.generation = previous.generation;
         self.generations.clear();
-        self.requirements.clear();
+        self.requirements = RequirementCut::default();
+        self.demanded.clear();
         for node in nodes {
             self.replace(node);
         }
     }
-    pub fn snapshot(&self) -> BTreeMap<NodeId, RequirementState> {
+    pub fn snapshot(&self) -> RequirementCut {
         self.requirements.clone()
     }
     pub fn advance(&mut self) -> u64 {
@@ -465,7 +488,8 @@ impl ContractState {
     }
     pub fn retire(&mut self, node: NodeId) {
         self.generations.remove(&node);
-        self.requirements.remove(&node);
+        self.requirements.remove(node);
+        self.demanded.remove(&node);
         self.facility_roots.remove(&node);
     }
     pub fn requirement(&self, node: NodeId) -> RequirementState {
@@ -483,6 +507,11 @@ impl ContractState {
             let mut current = self.requirement(node);
             current.required = current.required.max(epoch);
             self.requirements.insert(node, current);
+            if current.required != current.satisfied {
+                self.demanded.insert(node);
+            } else {
+                self.demanded.remove(&node);
+            }
         }
     }
     pub fn invalidate(&mut self, nodes: impl IntoIterator<Item = NodeId>) {
@@ -537,6 +566,11 @@ impl ContractState {
             current.value_version = Some(fallback);
         }
         self.requirements.insert(node, current);
+        if current.required != current.satisfied {
+            self.demanded.insert(node);
+        } else {
+            self.demanded.remove(&node);
+        }
     }
 }
 
@@ -552,7 +586,7 @@ pub(crate) fn span_versions_at(
     state: &EngineState,
     progress: &Progress,
     region: GridArea,
-    cut: Option<&BTreeMap<NodeId, RequirementState>>,
+    cut: Option<&RequirementCut>,
 ) -> SpanVersions {
     let mut versions = SpanVersions {
         authored: state.contract.authored(region),
@@ -706,7 +740,7 @@ pub(crate) fn producer_version_at(
     state: &EngineState,
     region: GridArea,
     except: NodeId,
-    cut: Option<&BTreeMap<NodeId, RequirementState>>,
+    cut: Option<&RequirementCut>,
 ) -> u64 {
     state
         .bindings
@@ -742,7 +776,7 @@ pub(crate) fn producer_pending_at(
     region: GridArea,
     blanks: &[BlankRun],
     except: NodeId,
-    cut: Option<&BTreeMap<NodeId, RequirementState>>,
+    cut: Option<&RequirementCut>,
 ) -> usize {
     producer_pending_in(
         state,
@@ -763,7 +797,7 @@ pub(crate) fn producer_pending_in(
     region: GridArea,
     blanks: &[BlankRun],
     except: NodeId,
-    cut: Option<&BTreeMap<NodeId, RequirementState>>,
+    cut: Option<&RequirementCut>,
     includes: &dyn Fn(CellKey) -> bool,
 ) -> usize {
     state
@@ -883,7 +917,7 @@ pub(crate) fn certificate_valid_at(
     progress: &Progress,
     stamp: &ResultStamp,
     facts: u64,
-    cut: Option<&BTreeMap<NodeId, RequirementState>>,
+    cut: Option<&RequirementCut>,
     volatile_inputs: u64,
 ) -> bool {
     if inputs.revision() != state.revision() {
