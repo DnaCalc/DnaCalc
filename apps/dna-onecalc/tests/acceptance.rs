@@ -249,6 +249,64 @@ fn plain_input_facts_reach_the_existing_reference_functions() {
     )), "{:?}", calculated.diagnostics);
 }
 
+/// W111 independent depreciation cases 00108/00111/00113/00114 and
+/// 00224/00227/00229/00230: #N/A in each earlier argument precedes #DIV/0! last.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_scalar_errors_precede_depreciation_options() {
+    let inputs = [
+        0x4093_4a45_6d5c_faad, // cost
+        0x4028_b0a3_d70a_3d71, // salvage
+        0x401f_0000_0000_0000, // life
+        0x400a_0000_0000_0000, // period
+    ];
+    for function in ["DB", "DDB"] {
+        for error_at in 0..4 {
+            let mut session = Session::new("Sheet1").unwrap();
+            session.set_formula_cell("J20").unwrap();
+            let mut arguments = Vec::new();
+            let mut cell = 100;
+            for (index, bits) in inputs.iter().enumerate() {
+                if index == error_at {
+                    arguments.push("#N/A".to_owned());
+                } else {
+                    let address = format!("A{cell}");
+                    session.set_input(&address, InputValue::number(f64::from_bits(*bits)).unwrap()).unwrap();
+                    arguments.push(address);
+                    cell += 1;
+                }
+            }
+            arguments.push("#DIV/0!".to_owned());
+            let formula = format!("={function}({})", arguments.join(","));
+            session.set_formula(&formula);
+            let calculated = session.calculate();
+            assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::NA)),
+                "{formula}: {:?}", calculated.diagnostics);
+            assert!(calculated.diagnostics.is_empty());
+        }
+    }
+}
+
+/// Retained unswept-structural-sweep-001 cases 00716 and 00718..00721.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_scalar_values_survive_trimrange() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("A1").unwrap();
+    for (formula, expected) in [
+        ("=TRIMRANGE(NA())", CalcValue::error(WorksheetErrorCode::NA)),
+        ("=TRIMRANGE(2)", CalcValue::number(2.0)),
+        ("=TRIMRANGE(\"\")", CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(""))),
+        ("=TRIMRANGE(\"2\")", CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("2"))),
+        ("=TRIMRANGE(TRUE)", CalcValue::logical(true)),
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+}
+
 /// OxFunc-Evidence w111-address-numeric-text-syntax-20260929 (0630..0695),
 /// w111-address-blank-numeric-text-20260929 (0057..0098) and the ABS numeric-text
 /// controls reject these Unicode spaces. The w111-locale-profile-20260929 VALUE
