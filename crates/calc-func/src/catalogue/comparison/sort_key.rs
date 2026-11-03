@@ -34,12 +34,14 @@
 //! U+30FC and the like), which takes the primary of the unit before it.
 //!
 //! An ignorable unit adds no weight, and so does a supplementary variation selector (U+E0100 to
-//! U+E01EF, a surrogate pair). A text has no weights here ([`None`]) when it holds U+0000, a
+//! U+E01EF, a surrogate pair). A text has incomplete weights here when it holds U+0000, a
 //! Hangul conjoining jamo (which Windows composes with each other), U+30A0 (which
 //! `CompareStringEx` orders otherwise than its key), an isolated or medial form of Arabic marks
 //! (U+FC5E to U+FC63, U+FE71 and the like, into which the walk's runs are not modelled), or an
 //! iteration mark after a Han character (whose repeat Windows' key writes otherwise) or after a
 //! special: `CompareStringEx` departs from the key there, in ways not yet measured.
+//! For an unmodelled iteration context, [`leading_order`] can still use an earlier strict
+//! primary difference or a completed prefix. It never assigns the iteration mark a primary.
 //!
 //! `cargo xtask collation verify` compares the order these weights give with `CompareStringEx`
 //! over random texts of many scripts.
@@ -543,6 +545,43 @@ pub(super) struct Parts {
     starts: Vec<u32>,
 }
 
+/// Primary weights before an unmodelled unit. After a Han character an iteration mark still
+/// contributes a primary, although its value is unknown. Earlier primary differences and a
+/// completed primary prefix can therefore decide an order without assigning that mark a weight.
+pub(super) struct Unfinished {
+    primary: Vec<u8>,
+    continues: bool,
+}
+
+/// An order decided entirely before either unknown primary, or by a completed primary prefix.
+/// No diacritic, case or special level can reverse a strict primary order.
+pub(super) fn leading_order(
+    left: &Result<Parts, Unfinished>,
+    right: &Result<Parts, Unfinished>,
+) -> Option<Ordering> {
+    fn prefix(parts: &Result<Parts, Unfinished>) -> Option<(&[u8], bool)> {
+        match parts {
+            Ok(parts) => Some((parts.primary.as_slice(), false)),
+            Err(rest) if rest.continues => Some((rest.primary.as_slice(), true)),
+            Err(_) => None,
+        }
+    }
+    let (a, a_continues) = prefix(left)?;
+    let (b, b_continues) = prefix(right)?;
+    let common = a.len().min(b.len());
+    let earlier = a[..common].cmp(&b[..common]);
+    if !earlier.is_eq() {
+        return Some(earlier);
+    }
+    if !a_continues && (a.len() < b.len() || (a.len() == b.len() && b_continues)) {
+        Some(Ordering::Less)
+    } else if !b_continues && (b.len() < a.len() || (a.len() == b.len() && a_continues)) {
+        Some(Ordering::Greater)
+    } else {
+        None
+    }
+}
+
 /// What an iteration mark repeats: the last unit before it that is not a mark, an ignorable unit
 /// or another iteration mark.
 #[derive(Clone, Copy)]
@@ -684,8 +723,8 @@ impl Gathered {
     }
 }
 
-/// The collation weights of `text`, or `None` when it holds a refused unit.
-pub(super) fn parts(text: &[u16]) -> Option<Parts> {
+/// The collation weights of `text`, or the primary prefix before an unmodelled unit.
+pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
     let table = table();
     let mut gathered = Gathered::default();
     let mut before = Before::Nothing;
@@ -706,7 +745,17 @@ pub(super) fn parts(text: &[u16]) -> Option<Parts> {
                 continue;
             }
         }
-        gathered.unit(table, code, &mut before)?;
+        let primaries = gathered.primary.len();
+        if gathered.unit(table, code, &mut before).is_none() {
+            gathered.primary.truncate(primaries);
+            return Err(Unfinished {
+                primary: gathered.primary,
+                // Failure after One is the repeated-Han context. After a special even a
+                // nonempty primary contribution has not been measured; leave it undecided.
+                continues: matches!(table.weights[usize::from(code)], Weight::Iteration(_))
+                    && matches!(before, Before::One(..)),
+            });
+        }
         at += 1;
     }
     starts.push(gathered.steps.len() as u32);
@@ -745,7 +794,7 @@ pub(super) fn parts(text: &[u16]) -> Option<Parts> {
     }
     rest.push(1);
     rest.extend_from_slice(&special);
-    Some(Parts {
+    Ok(Parts {
         primary,
         steps,
         rest,
@@ -902,7 +951,7 @@ mod tests {
 
     fn order(a: &str, b: &str) -> Option<Ordering> {
         let (a, b) = (units(a), units(b));
-        let (left, right) = (parts(&a)?, parts(&b)?);
+        let (left, right) = (parts(&a).ok()?, parts(&b).ok()?);
         Some(
             left.primary
                 .cmp(&right.primary)
@@ -957,16 +1006,16 @@ mod tests {
             assert_eq!(order(a, b), Some(expected), "{a:?} against {b:?}");
         }
         assert!(
-            parts(&units("\u{1100}\u{1161}")).is_none(),
+            parts(&units("\u{1100}\u{1161}")).is_err(),
             "conjoining jamo"
         );
-        assert!(parts(&units("\u{30a0}")).is_none(), "the double hyphen");
+        assert!(parts(&units("\u{30a0}")).is_err(), "the double hyphen");
         assert!(
-            parts(&units("\u{6642}\u{3005}")).is_none(),
+            parts(&units("\u{6642}\u{3005}")).is_err(),
             "an iteration mark after a Han character"
         );
         assert!(
-            parts(&units("\u{fc5e}")).is_none(),
+            parts(&units("\u{fc5e}")).is_err(),
             "an isolated form of marks"
         );
     }

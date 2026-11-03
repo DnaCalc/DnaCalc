@@ -245,6 +245,11 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
         Some(value) if matches!(value.core_ref(), CoreRef::Empty) => CalcValue::number(0.0),
         Some(value) => value.clone(),
     };
+    // Empty input has no text to split. Excel's typed Value2 observation
+    // w111typed-00282-textsplit-arg1-empty-text is #VALUE!, not a cell of empty text (dc-zsn.7).
+    if text.len_utf16_code_units() == 0 {
+        return fail(WorksheetErrorCode::Value);
+    }
     let mut row_texts = match &rows_by {
         Some(d) => k::split(&text, d, ignore_empty, case_insensitive),
         None => vec![text.clone()],
