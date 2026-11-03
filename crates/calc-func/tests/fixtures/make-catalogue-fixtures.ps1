@@ -2,7 +2,8 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-catalogue-fixtures.ps1 -OutDir <directory>
 #
-# writes <directory>/catalogue/oracle.xlsx. Run with this directory as -OutDir it rewrites the
+# writes <directory>/catalogue/oracle.xlsx and separate numeric research question workbooks.
+# Run with this directory as -OutDir it rewrites the
 # committed fixture; the acceptance case dc_xrxb__prefix_metadata_matches_excel runs it into a
 # fresh directory on Windows and compares its output with the committed workbook byte for byte.
 #
@@ -318,7 +319,6 @@ $FormulaSheets += , @('dc96l3_discrete', 'sheet-dc96l3_discrete.txt')
 $FormulaSheets += , @('dc96l3_x87', 'sheet-dc96l3_x87.txt')
 $FormulaSheets += , @('dcj9k_r16', 'sheet-dcj9k_r16.txt')
 $FormulaSheets += , @('fn1_collation', 'sheet-fn1_collation.txt')
-$FormulaSheets += , @('dcj9k_r21', 'sheet-dcj9k_r21.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
@@ -329,8 +329,8 @@ $prefixInputs = @(
 
 # The lines of a section file beside this script, without empty lines and lines starting with #
 # (comments).
-function Get-SectionLines([string]$Name) {
-    return @(Get-Content -LiteralPath (Join-Path (Join-Path $PSScriptRoot 'catalogue') $Name) -Encoding UTF8 |
+function Get-SectionLines([string]$Name, [string]$Case = 'catalogue') {
+    return @(Get-Content -LiteralPath (Join-Path (Join-Path $PSScriptRoot $Case) $Name) -Encoding UTF8 |
         Where-Object { $_ -ne '' -and -not $_.StartsWith('#') })
 }
 
@@ -404,10 +404,18 @@ $cellBefore = '<sheetViews><sheetView topLeftCell="C5" workbookViewId="0"/></she
     '<col min="8" max="8" width="9.140625"/><col min="9" max="9" width="12.7109375" customWidth="1"/>' +
     '<col min="10" max="10" width="0.7109375" customWidth="1"/><col min="11" max="11" width="255.7109375" customWidth="1"/></cols>'
 $sheets += , @('dcuar_cell', (New-OracleSheet $cellInputs $cellFormulas @() $cellBefore))
+Write-Workbook (Join-Path $OutDir 'catalogue/oracle.xlsx') $sheets
+
+# Research questions get a separate workbook. Adding a sheet to the catalogue changes
+# SHEETS/INFO context and the position of dcuar_cell, invalidating existing captures.
+$questions = @(, @('dcj9k_r21', (New-OracleSheet @() (Get-SectionLines 'sheet-dcj9k_r21.txt' 'dcj9k_r21'))))
+Write-Workbook (Join-Path $OutDir 'dcj9k_r21/oracle.xlsx') $questions
+
 # dc-b1l.6: every fn2 caller has a blank source sheet and a separate observer sheet.
 # Stored text comes from calc-doc's existing file_form serializer; the packet's authored
 # spelling, explicit form and caller remain alongside it in this section's layout.
-$fn2Path = Join-Path $PSScriptRoot 'catalogue/fn2-layout.json'
+$fn2Sheets = @(, @('Data', (New-OracleSheet $prefixInputs @())))
+$fn2Path = Join-Path $PSScriptRoot 'fn2_questions/fn2-layout.json'
 $fn2 = Get-Content -LiteralPath $fn2Path -Raw -Encoding UTF8 | ConvertFrom-Json
 foreach ($question in $fn2.questions) {
     if ($question.formula_form -eq 'Dynamic') {
@@ -418,8 +426,8 @@ foreach ($question in $fn2.questions) {
         $inputs = , @($question.source_cell, $cellXml)
         $sourceXml = New-OracleSheet $inputs @()
     } else { throw "Unknown fn2 formula form: $($question.formula_form)" }
-    $sheets += , @($question.source_sheet, $sourceXml)
-    $sheets += , @($question.observer_sheet, (New-OracleSheet @() $question.observer_stored_formulas))
+    $fn2Sheets += , @($question.source_sheet, $sourceXml)
+    $fn2Sheets += , @($question.observer_sheet, (New-OracleSheet @() $question.observer_stored_formulas))
 }
 
-Write-Workbook (Join-Path $OutDir 'catalogue/oracle.xlsx') $sheets -DynamicArrays
+Write-Workbook (Join-Path $OutDir 'fn2_questions/oracle.xlsx') $fn2Sheets -DynamicArrays

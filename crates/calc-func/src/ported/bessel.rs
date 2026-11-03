@@ -11,11 +11,11 @@
 //! - The three-term recurrence `C(n+1) = (2n/x) C(n) - C(n-1)` (A&S 9.1.27, 9.6.26), run forward
 //!   for Y and K and for J above its order. J below its order calls the separately
 //!   licensed published adaptive backward program in `bessel_rational`.
-//! - I of order at least two uses the backward recurrence (DLMF 10.29.1,
-//!   10.74(iv)), normalized to the same A&S I0 approximation as order zero.
-//!   Its defining positive series (DLMF 10.25.2) handles a normalization ratio
-//!   or I0 value outside binary64's range.
-//!   No Excel parity is claimed for these generic public-method bodies.
+//! - I0 and I of order at least two use the fixed published ITK GaussianOperator
+//!   helpers in `bessel_rational` (Apache-2.0, commit
+//!   311b7060ef39e371f3cd209ec135284ff5fde735), with the existing stored PC64
+//!   operations and worksheet EXP. The fixed start, rescale and normalization
+//!   reproduce all 1,431 recorded I outcomes at the R22 discovery checkpoint.
 //!
 //! # What was measured in Excel (16.0, 64-bit, 2026-10-30)
 //!
@@ -27,7 +27,7 @@
 //!   adjacent binary64 magnitudes: 709.7 is numeric and its successor is #NUM!,
 //!   at orders 0, 1, 2, 3, 10 and 100. Negative arguments agree at orders 0..2.
 //!
-//! The generic J/Y and higher-order I bodies are published methods, not an
+//! The generic J/Y bodies are published methods, not an
 //! identification of Excel's program. Exact disagreement counts are retained
 //! in the witness and corpus reports.
 //!
@@ -218,6 +218,7 @@ fn forward(x: D, n: u32, c0: D, c1: D, plus: bool) -> D {
 /// I_n(x) from the defining positive series (DLMF 10.25.2).
 /// Sum relative to its leading term; logarithms combine the normalizer and sum
 /// so an underflowed leading term does not erase a normal result.
+#[cfg(test)]
 fn i_series(x: D, n: u32) -> D {
     let half = x.abs().0 / 2.0;
     if half == 0.0 { return D(0.0); }
@@ -257,42 +258,6 @@ fn i_series(x: D, n: u32) -> D {
         sum = next;
     }
     D::new(libm::exp(leading_log + log_scale + libm::log(sum)))
-}
-
-/// Backward recurrence normalized to the existing I0 approximation. Above x,
-/// the ratio recurrence has derivative bounded by 1/4. The starting depth
-/// leaves at least 53 such steps before order n; it is set by binary64's
-/// precision, not by an Excel answer. Power-of-two rescaling is exact whenever
-/// its operands remain representable.
-fn i_normalized(x: D, n: u32) -> Option<D> {
-    let ax = x.abs();
-    let normalizer = i0(ax);
-    if !normalizer.0.is_finite() { return None; }
-    let start = n + ax.0.ceil() as u32 + f64::MANTISSA_DIGITS;
-    let mut before = D(0.0);
-    let mut current = D(1.0);
-    let mut selected = D(0.0);
-    // Half the binary64 exponent range, with its exact reciprocal.
-    const LIMIT: D = D(f64::from_bits(0x5ff0_0000_0000_0000));
-    const SCALE: D = D(f64::from_bits(0x1ff0_0000_0000_0000));
-    for k in (1..=start).rev() {
-        if k == n { selected = current; }
-        let following = before + (D(2.0) * D(k as f64) / ax) * current;
-        if !following.0.is_finite() { return None; }
-        before = current;
-        current = following;
-        if current.0 > LIMIT.0 {
-            before = before * SCALE;
-            current = current * SCALE;
-            selected = selected * SCALE;
-            if k < n && selected.0 == 0.0 { return None; }
-        }
-    }
-    let ratio = selected / current;
-    // I_n may be normal even when I_n/I0 underflows. The positive series
-    // carries its logarithmic scale through precisely that case.
-    if ratio.0 == 0.0 { return None; }
-    Some(normalizer * ratio)
 }
 
 fn odd_sign(x: D, n: u32, v: D) -> D {
@@ -346,10 +311,14 @@ pub fn besseli_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
     let n = order(n)?;
     let x = D::new(x);
     finish(Ok(match n {
-        0 => i0(x),
+        0 => D::new(super::bessel_rational::i0(x.0, &I0_SMALL, &I0_LARGE)),
         1 => i1(x),
         _ if x.0 == 0.0 => D(0.0),
-        _ => odd_sign(x, n, i_normalized(x, n).unwrap_or_else(|| i_series(x, n))),
+        _ => {
+            let ax = x.abs();
+            let normalizer = super::bessel_rational::i0(ax.0, &I0_SMALL, &I0_LARGE);
+            odd_sign(x, n, D::new(super::bessel_rational::in_(n, ax.0, normalizer)))
+        },
     }))
 }
 

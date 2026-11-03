@@ -118,6 +118,21 @@ fn package_parts(package: &[u8]) -> BTreeMap<String, Vec<u8>> {
     parts
 }
 
+/// Research questions must preserve the context of the existing catalogue captures.
+pub fn catalogue_context_captures_stay_valid() {
+    let parts = package_parts(include_bytes!("../fixtures/catalogue/oracle.xlsx"));
+    let sections = workbook_sections(&parts).unwrap();
+    for (sheet, bytes) in [
+        ("prefix_metadata", include_bytes!("../captures/catalogue/sections/prefix_metadata.capture.json").as_slice()),
+        ("dcuar_cell", include_bytes!("../captures/catalogue/sections/dcuar_cell.capture.json").as_slice()),
+    ] {
+        let capture = CaptureRecord::decode(bytes).unwrap();
+        let section = sections.iter().find(|s| s.sheet == sheet).unwrap();
+        assert_eq!(section.key, capture.source,
+            "{sheet}: put research questions in a separate workbook to preserve captured context");
+    }
+}
+
 fn text<'p>(parts: &'p BTreeMap<String, Vec<u8>>, name: &str) -> &'p str {
     let bytes = parts
         .get(name)
