@@ -75,6 +75,40 @@ fn bessel_functions() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn besseli_higher_orders_use_the_same_normalization_as_order_zero() {
+    // Original catalogue dcj9k_bessel/engineering readings. These cover both
+    // I0 approximation regions, negative arguments, and truncated order.
+    for (x, order, expected) in [
+        (2.0, 2.0, 0x3fe6_0bdd_9e3d_e5e0),
+        (2.5, 5.0, 0x3fa0_d0dc_29ee_9cbe),
+        (3.75, 3.0, 0x4003_d534_6d07_25af),
+        (3.9, 10.0, 0x3f34_303a_16de_a877),
+        (5.2, 10.0, 0x3f7d_06aa_c7a3_8c8e),
+        (8.0, 2.0, 0x4074_7988_8e58_37d5),
+        (-1.7, 3.0, 0xbfbf_4aa3_956a_9c7d),
+        (-9.1, 2.0, 0x408d_c4a7_358f_8c59),
+        (1.5, 2.9, 0x3fd5_9f15_1a07_2f72),
+    ] {
+        exact(call("BESSELI", vec![n(x), n(order)]), f64::from_bits(expected));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn besseli_normalization_keeps_results_when_its_ratio_is_not_representable() {
+    // Mathematical series controls at 100 and 200 decimal digits. Both are
+    // normal binary64 results although the I_n/I0 ratio or I0 itself is not.
+    for (x, order, expected) in [
+        (709.7, 1570.0, 6.766516533174238e-301),
+        (7000.0, 10000.0, 9.241488714987718e284),
+    ] {
+        close(call("BESSELI", vec![n(x), n(order)]), expected, 2e-11);
+    }
+    exact(call("BESSELI", vec![n(5.0), n(10_000_000.0)]), 0.0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delta_gestep_and_convert() {
     exact(call("DELTA", vec![n(5.0), n(4.0)]), 0.0);
     exact(call("DELTA", vec![n(5.0), n(5.0)]), 1.0);
