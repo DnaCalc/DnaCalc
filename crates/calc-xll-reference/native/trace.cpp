@@ -141,6 +141,7 @@ struct Call {
     Address run_result = 0;
     uint64_t rtd_call = 0;
     std::string clsid;
+    Address entry_address = 0;
 };
 static std::map<Address, Breakpoint> breakpoints;
 static std::map<Address, Module> modules;
@@ -398,8 +399,18 @@ static std::string entryArgs(const Entry& e,const CONTEXT& ctx) {
     if(parts.empty() && (e.name.find("xlAutoFree12")!=std::string::npos || e.name.find("xlAutoRegister12")!=std::string::npos || e.name.find("xlAddInManagerInfo12")!=std::string::npos)) s+=oper(ctx.Rcx);
     return s+"]";
 }
+// Non-this arguments in each observed COM ABI. A zero-argument RTD method
+// still has a physical caller frame; -1 means this ABI is not qualified here.
+static int forwardedArgumentCount(const std::string& signature) {
+    if(signature=="object1"||signature=="bstr1"||signature=="int1"||signature=="bool1"||signature=="rtddisconnect"||signature=="rtdinterval")return 1;
+    if(signature=="object2"||signature=="bstr2"||signature=="rtdstart"||signature=="rtdrefresh")return 2;
+    if(signature=="rtdconnect")return 4;
+    if(signature=="rtdterminate"||signature=="rtdnotify")return 0;
+    return -1;
+}
 static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
     Call c{++nextCall,thread,entry,ctx.Rsp,read<Address>(ctx.Rsp),ctx.R9,ctx.R8,ticks()};
+    c.entry_address=ctx.Rip;
     for(int i=0;i<9;++i)c.raw[i]=argument(ctx,i);
     std::string fields="\"event\":\"enter\",\"call\":"+std::to_string(c.id)+",\"thread\":"+std::to_string(thread)+",\"entry\":"+quote(entry.name)+",\"from\":"+location(c.ret);
     if(entry.name.find("!CoCreateInstance")!=std::string::npos) {
@@ -428,17 +439,17 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
             // Excel's adjustor thunk can tail-forward to a second watched
             // vtable body with exactly the same caller/stack frame. Preserve
             // that identity observation without counting a second API call.
-            size_t count=entry.signature=="object1"||entry.signature=="bstr1"||entry.signature=="int1"||entry.signature=="bool1"?1:entry.signature=="object2"||entry.signature=="bstr2"?2:0;
-            for(auto& active:calls[thread])if(count&&active.entry.name==entry.name&&active.ret==c.ret&&active.stack==c.stack&&std::equal(c.raw.begin()+1,c.raw.begin()+1+count,active.raw.begin()+1)){
-                std::string args="[";for(size_t i=1;i<=count;++i){if(i>1)args+=",";args+=hex(c.raw[i]);}args+="]";
-                emit("\"event\":\"com_tail_forward\",\"call\":"+std::to_string(active.id)+",\"entry\":"+quote(entry.name)+",\"thread\":"+std::to_string(thread)+",\"object\":"+hex(ctx.Rcx)+",\"entry_address\":"+hex(ctx.Rip)+",\"stack\":"+hex(ctx.Rsp)+",\"return\":"+hex(c.ret)+",\"non_this_arguments\":"+args);return;
+            int count=forwardedArgumentCount(entry.signature);
+            for(auto& active:calls[thread])if(count>=0&&active.entry.name==entry.name&&active.ret==c.ret&&active.stack==c.stack&&std::equal(c.raw.begin()+1,c.raw.begin()+1+count,active.raw.begin()+1)){
+                std::string args="[";for(int i=1;i<=count;++i){if(i>1)args+=",";args+=hex(c.raw[i]);}args+="]";
+                emit("\"event\":\"com_tail_forward\",\"call\":"+std::to_string(active.id)+",\"entry\":"+quote(entry.name)+",\"thread\":"+std::to_string(thread)+",\"object\":"+hex(ctx.Rcx)+",\"entry_address\":"+hex(ctx.Rip)+",\"origin_entry_address\":"+hex(active.entry_address)+",\"same_entry\":"+(active.entry_address==c.entry_address?"true":"false")+",\"stack\":"+hex(ctx.Rsp)+",\"return\":"+hex(c.ret)+",\"non_this_arguments\":"+args);return;
             }
         }
         fields+=",\"object\":"+hex(ctx.Rcx)+",\"object_label\":"+quote(objects[ctx.Rcx]);
         if(entry.name.rfind("COM!early.",0)==0) {
             fields+=",\"result_abi\":"+quote(entry.signature);
-            size_t count=entry.signature=="object1"||entry.signature=="bstr1"||entry.signature=="int1"||entry.signature=="bool1"?1:entry.signature=="object2"||entry.signature=="bstr2"?2:0;
-            if(count){fields+=",\"stack\":"+hex(ctx.Rsp)+",\"return\":"+hex(c.ret)+",\"entry_address\":"+hex(ctx.Rip)+",\"non_this_arguments\":[";for(size_t i=1;i<=count;++i){if(i>1)fields+=",";fields+=hex(c.raw[i]);}fields+="]";}
+            int count=forwardedArgumentCount(entry.signature);
+            if(count>=0){fields+=",\"stack\":"+hex(ctx.Rsp)+",\"return\":"+hex(c.ret)+",\"entry_address\":"+hex(ctx.Rip)+",\"non_this_arguments\":[";for(int i=1;i<=count;++i){if(i>1)fields+=",";fields+=hex(c.raw[i]);}fields+="]";}
             if(entry.signature=="putbool") fields+=",\"value\":"+std::string((int16_t)ctx.Rdx?"true":"false");
             if(entry.signature=="rtdstart"){fields+=",\"callback\":"+hex(ctx.Rdx);watchObject(ctx.Rdx,"RTD update sink","rtdsink");}
             if(entry.signature=="rtdconnect")fields+=",\"topic\":"+std::to_string((int32_t)ctx.Rdx)+",\"strings\":"+variantArray(read<Address>(ctx.R8))+",\"new_values\":"+std::string(read<int16_t>(ctx.R9)?"true":"false");

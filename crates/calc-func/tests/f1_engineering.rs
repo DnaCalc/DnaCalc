@@ -75,6 +75,28 @@ fn bessel_functions() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn besseli_recorded_adjacent_domain_boundary() {
+    // R16 Value2 readings, excel-20527/r16-BESSELI-2.json: 018..029,
+    // 054..059. The submitted and read-back binary64 operands agree.
+    let boundary = 709.7_f64;
+    let outside = f64::from_bits(boundary.to_bits() + 1);
+    for order in [0.0, 1.0, 2.0, 3.0, 10.0, 100.0] {
+        let value = call("BESSELI", vec![n(boundary), n(order)]).unwrap();
+        assert!(matches!(value.core(), calc_func::value::CoreValue::Number(_)),
+            "BESSELI({boundary}, {order}) must remain numeric: {value:?}");
+        error(call("BESSELI", vec![n(outside), n(order)]), Num);
+    }
+    for order in [0.0, 1.0, 2.0] {
+        error(call("BESSELI", vec![n(-outside), n(order)]), Num);
+    }
+    exact(call("BESSELI", vec![n(boundary), n(0.0)]),
+        f64::from_bits(0x7f8c_3d51_558e_e541));
+    exact(call("BESSELI", vec![n(-boundary), n(1.0)]),
+        f64::from_bits(0xff8c_3839_94e0_48cc));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn besseli_higher_orders_use_the_same_normalization_as_order_zero() {
     // Original catalogue dcj9k_bessel/engineering readings. These cover both
     // I0 approximation regions, negative arguments, and truncated order.
@@ -95,12 +117,11 @@ fn besseli_higher_orders_use_the_same_normalization_as_order_zero() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn besseli_normalization_keeps_results_when_its_ratio_is_not_representable() {
+fn besseli_normalization_keeps_a_normal_result_when_its_ratio_underflows() {
     // Mathematical series controls at 100 and 200 decimal digits. Both are
     // normal binary64 results although the I_n/I0 ratio or I0 itself is not.
     for (x, order, expected) in [
         (709.7, 1570.0, 6.766516533174238e-301),
-        (7000.0, 10000.0, 9.241488714987718e284),
     ] {
         close(call("BESSELI", vec![n(x), n(order)]), expected, 2e-11);
     }

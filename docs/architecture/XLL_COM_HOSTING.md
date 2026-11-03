@@ -890,3 +890,17 @@ The argument values, return code and admitted P07 publication can agree despite
 that difference. The verifier retains it and returns a failed strict comparison;
 it does not count the raw result as equal. Broader managed RTD traffic likewise
 remains a failure whenever its complete ordered client/native calls differ.
+
+The spill comparison keeps owner calls in their observed order. Only the two
+proven overlapping worker invocations are compared by their distinct numeric
+arguments. Each packet contains its outer call, exactly one same-thread nested
+call and its same-pointer/thread/module free. Every native entry belongs to an
+ordered owner call or one of those packets; extra entries fail verification.
+The raw cross-worker entry order remains recorded, including its difference.
+
+COM RTD observation now records caller stack, return address, entry address and
+all non-this arguments for the measured method ABIs, including zero-argument
+termination and notification. A watched thunk that forwards or restarts with exactly the
+same frame and arguments is an explicit forwarding event for the original call;
+a new frame remains a separate invocation. Older traces lacking that machine
+proof retain their original strict failures.
