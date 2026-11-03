@@ -101,6 +101,9 @@ command or document, look for the one that already exists and extend it. There i
   and writes the section captures (commit them). The same holds for every other oracle workbook
   and its `oracle.capture.json`. The Excel build, worker version and saved package a capture
   records are provenance, never a condition;
+- new numeric research questions go in a separate new workbook, written by the same generator
+  and read by the same capture route. Never add them to a captured workbook: CELL, SHEETS and
+  INFO can depend on its sheet positions or full sheet list. Preserve existing capture keys;
 - one corpus harness (`cargo xtask corpus`);
 - one adapter from OxFunc's types (`catalogue/kit.rs`);
 - one verdict path.

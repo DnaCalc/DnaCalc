@@ -611,3 +611,34 @@ Product file: crates/calc-func/src/ported/bessel_rational.rs.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+==============================================================================
+ITK (https://github.com/InsightSoftwareConsortium/ITK), v5.4.0
+Reference: 311b7060ef39e371f3cd209ec135284ff5fde735,
+Modules/Core/Common/include/itkGaussianOperator.hxx: ModifiedBesselI0 and ModifiedBesselI.
+Copyright NumFOCUS. Licensed under Apache-2.0; the complete Apache licence is
+reproduced in the SheetJS section above.
+
+Changed for DNA Calc: Rust scalar helpers, shared existing I0 coefficient tables,
+worksheet EXP, existing stored PC64 arithmetic and square root; order admission,
+parity, zero and result publication remain in the worksheet caller.
+Product files: crates/calc-func/src/ported/bessel_rational.rs and bessel.rs.
+
+Original ITK NOTICE:
+ITK Software Licenses
+=====================
+
+The copyright of the Insight Toolkit (ITK) is held by:
+
+> Copyright 1999-2019    Insight Software Consortium
+>
+> Copyright 2020-present NumFOCUS
+
+This software is distributed under the Apache 2.0 License.
+
+See [LICENSE](../../LICENSE) file for details.
+
+Vendored third party software are copyrighted with licenses compatible with the Apache 2.0 License.
+For details, see the [licenses.md file](Documentation/docs/licenses.md).
+
+==============================================================================

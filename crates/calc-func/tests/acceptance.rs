@@ -22731,3 +22731,9 @@ fn dc_nzpw__excel_comparison() {
 fn dc_xrxb__prefix_metadata_matches_excel() {
     dc_xrxb_support::prefix_metadata_matches_excel();
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_j9k__questions_preserve_catalogue_captures() {
+    dc_xrxb_support::catalogue_context_captures_stay_valid();
+}
