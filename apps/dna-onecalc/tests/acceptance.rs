@@ -188,6 +188,67 @@ fn selected_reference_results_publish_recorded_blank_zeros() {
     }
 }
 
+/// OxFunc-Evidence reference-fixture-001/002 and W111 broad typed 00890..00895,
+/// 00960..00961: input literals have no formulas or subtotal/visibility exclusions.
+/// Reference-operator-001 case 00004 also records #REF! for a literal input's A1#.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn plain_input_facts_reach_the_existing_reference_functions() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J10").unwrap();
+    session.set_input("A1", InputValue::number(7.0).unwrap()).unwrap();
+    for (formula, expected) in [
+        ("=ISFORMULA(A1)", CalcValue::logical(false)),
+        ("=FORMULATEXT(A1)", CalcValue::error(WorksheetErrorCode::NA)),
+        ("=SHEET(A1)", CalcValue::number(1.0)),
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+    for row in 1..=4 {
+        session.set_input(&format!("A{row}"), InputValue::number(row as f64).unwrap()).unwrap();
+    }
+    for formula in ["=SUBTOTAL(9,A1:A4)", "=AGGREGATE(9,0,A1:A4)"] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert_eq!(calculated.result, Some(CalcValue::number(10.0)),
+            "{formula}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+    session.set_formula("=A1#");
+    let calculated = session.calculate();
+    assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::Ref)),
+        "{:?}", calculated.diagnostics);
+    assert!(calculated.diagnostics.is_empty());
+    session.set_formula_cell("J20").unwrap();
+    session.set_input("A2", InputValue::text("2").unwrap()).unwrap();
+    session.set_input("A3", InputValue::logical(true)).unwrap();
+    session.set_input("A4", InputValue::blank()).unwrap();
+    session.set_input("A5", InputValue::number(4.0).unwrap()).unwrap();
+    for (selector, expected) in [(1.0, 2.5), (2.0, 2.0), (3.0, 4.0), (4.0, 4.0), (5.0, 1.0), (9.0, 5.0)] {
+        session.set_input("A100", InputValue::number(selector).unwrap()).unwrap();
+        session.set_formula("=SUBTOTAL(A100,A1:A5)");
+        let calculated = session.calculate();
+        assert_eq!(calculated.result, Some(CalcValue::number(expected)),
+            "SUBTOTAL {selector}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+    // Missing values still stop evaluation. A session has no workbook metadata for an
+    // unset input, and this change does not infer the current formula's own cell kind.
+    for formula in ["=ISFORMULA(J20)", "=FORMULATEXT(Z99)", "=SUBTOTAL(9,A1:J20)", "=J20#", "=Z99#"] {
+        session.set_formula(formula);
+        assert!(session.calculate().result.is_none(), "{formula}");
+    }
+    session.set_formula("=SUBTOTAL(9,A1:A6)");
+    let calculated = session.calculate();
+    assert!(calculated.result.is_none());
+    assert!(calculated.diagnostics.iter().any(|d| matches!(d,
+        Diagnostic::Eval(EvalFault::MissingInput { .. })
+    )), "{:?}", calculated.diagnostics);
+}
+
 /// OxFunc-Evidence w111-address-numeric-text-syntax-20260929 (0630..0695),
 /// w111-address-blank-numeric-text-20260929 (0057..0098) and the ABS numeric-text
 /// controls reject these Unicode spaces. The w111-locale-profile-20260929 VALUE

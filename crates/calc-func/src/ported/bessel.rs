@@ -165,6 +165,11 @@ fn j1(x: D) -> R {
     }
  Ok(D::new(libm::j1(x.0))) }
 fn y0(x: D) -> R {
+    if x.0 >= 8.0 {
+        let value = super::bessel_rational::y0_large(x.0);
+        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+    }
+
     if x.0 > 0.0 && x.0 < 8.0 {
         let value = super::bessel_rational::y0(x.0);
         return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };

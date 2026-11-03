@@ -300,3 +300,23 @@ fn bessel_published_backward_and_high_y1_match_recorded_excel_bits() {
     exact(call("BESSELJ", vec![n(-0.3), n(3.0)]), -f64::from_bits(0x3f42541c0c752fd9));
     exact(call("BESSELJ", vec![n(0.0), n(2.0)]), 0.0);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_high_y0_matches_recorded_excel_bits() {
+    // Original catalogue dc96l3_bessel Value2 answers, unchanged.
+    for (x, order, expected) in [
+        (8.0, 0.0, 0x3fcc9c5a2723ea8b),
+        (8.0, 2.0, 0xbfd0d5977bb7eb7a),
+        (8.0, 3.0, 0x3f9b2dde2bbe3168),
+        (8.4, 0.0, 0x3fd109c77154134d),
+        (8.4, 2.0, 0xbfd1da6b6a86eaa9),
+        (12.3, 0.0, 0xbfc96b7f9f5cfbe7),
+        (25.6, 0.0, 0xbfa9a0803136e92f),
+        (25.6, 10.0, 0xbfc4f5b48e80a043),
+        (100.0, 50.0, 0x3fb395d956a51e83),
+        (100000.0, 100.0, 0x3f5ccfd3e73ac451),
+    ] {
+        exact(call("BESSELY", vec![n(x), n(order)]), f64::from_bits(expected));
+    }
+}
