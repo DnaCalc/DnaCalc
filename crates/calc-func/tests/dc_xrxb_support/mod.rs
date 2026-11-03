@@ -467,11 +467,31 @@ pub fn prefix_metadata_matches_excel() {
     let mut prefixed = Vec::new();
     let mut bare = 0;
     let mut awaiting = Vec::new();
+    let mut prefix_only = Vec::new();
+    // Reuse the original saved-formula measurements already used by CalcDoc. These establish
+    // prefix spelling only; existing oracle rows still require every A/B value assertion below.
+    let bytes = include_bytes!("../../../calc-doc/tests/fixtures/d1/excel-prefixes.json");
+    let measured: serde_json::Value = serde_json::from_slice(
+        bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes)
+    ).expect("the original Excel saved-formula measurements");
+    assert_eq!(measured["excel"], "16.0 build 20430");
+    let measured_rows = measured["rows"].as_array().expect("measurement rows");
     for target in &named {
         let name = target.spelling();
         let Some(&(oracle, row)) = by_function.get(name) else {
+            let matches: Vec<_> = measured_rows.iter().filter(|row| row[0] == name).collect();
+            if let [row] = matches.as_slice() {
+                assert_eq!(row.as_array().unwrap().len(), 3, "{name}: measurement shape");
+                let entered = row[1].as_str().expect("entered formula");
+                let saved = row[2].as_str().expect("saved formula");
+                assert!(entered.starts_with(&format!("={name}(")), "{name}: {entered}");
+                let prefix = target.file_prefix().expect("a catalogued file prefix");
+                assert_eq!(saved, format!("{}{}", prefix.text(), &entered[1..]), "{name}");
+                prefix_only.push(name);
+                continue;
+            }
             problems.push(format!(
-                "{name}: catalogued, and no oracle workbook has a row calling it"
+                "{name}: catalogued, and neither an oracle row nor one unique saved-formula measurement calls it"
             ));
             continue;
         };
@@ -549,11 +569,17 @@ pub fn prefix_metadata_matches_excel() {
     );
     note!(
         "ACCEPT-NOTE: {CASE}: {} of {} catalogued named functions agree with the packages Excel saved: {bare} saved without a prefix in column A and as written in column B, with the same raw value in both; {} saved with their prefix (_xlfn. or _xlfn._xlws.) and the call in column A and as _xludf. and the call in column B, whose raw value is #NAME?: {}",
-        named.len() - awaiting.len(),
+        named.len() - awaiting.len() - prefix_only.len(),
         named.len(),
         prefixed.len(),
         prefixed.join(", ")
     );
+    if !prefix_only.is_empty() {
+        note!(
+            "ACCEPT-NOTE: {CASE}: {} additional names have prefix-only evidence in the original CalcDoc Excel 16.0 build 20430 saved-formula measurements: {}; no A/B rewriting or raw-value equivalence is claimed for these names",
+            prefix_only.len(), prefix_only.join(", ")
+        );
+    }
     if !awaiting.is_empty() {
         note!(
             "ACCEPT-NOT-RUN: {CASE}: {} catalogued named functions have rows awaiting capture (cargo xtask capture --pending): {}",

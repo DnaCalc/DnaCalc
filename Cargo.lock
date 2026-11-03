@@ -259,6 +259,7 @@ dependencies = [
  "calc-verdict",
  "libm",
  "miniz_oxide",
+ "serde_json",
  "sxd-document",
  "sxd-xpath",
  "wasm-bindgen",

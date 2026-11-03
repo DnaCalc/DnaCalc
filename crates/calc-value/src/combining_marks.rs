@@ -1,5 +1,4 @@
-//! Unicode combining-mark ranges (general categories `Mn` and `Mc`) that the lexer admits as
-//! identifier-continue characters.
+//! Unicode combining-mark ranges (general categories `Mn` and `Mc`) shared by formula names and text casing.
 //!
 //! `char::is_alphabetic` already covers the marks that carry Unicode's `Other_Alphabetic`
 //! property (most Indic vowel signs, Arabic harakat, Hebrew points). It does not cover the general

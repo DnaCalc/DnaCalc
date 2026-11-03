@@ -3,7 +3,7 @@
 //! minutes beside an hour or a second. AM/PM in either case writes the locale's designators
 //! (Excel on this machine, Windows locale en-ZA, wrote `pm` for `hh:mm AM/PM`).
 
-use crate::locale::{DateSystem as WorkbookDateSystem, FormatProfile, ymd_from_excel_serial};
+use crate::locale::{DateSystem as WorkbookDateSystem, FormatProfile, LocaleId, ymd_from_excel_serial};
 
 use super::names::{month_name, weekday_name};
 
@@ -22,6 +22,8 @@ enum DateTimeTokenKind {
     SubSecond,
     AmPmUpper,
     AmPmLower,
+    Era,
+    EraYear,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,6 +74,7 @@ pub(crate) fn render_with_datetime_tokens(
     date_system: WorkbookDateSystem,
     value: f64,
     section: &str,
+    name_locale: Option<LocaleId>,
 ) -> Option<String> {
     if !value.is_finite() {
         return None;
@@ -89,7 +92,8 @@ pub(crate) fn render_with_datetime_tokens(
         matches!(
             part,
             DateTimePart::Token {
-                kind: DateTimeTokenKind::Year | DateTimeTokenKind::Month | DateTimeTokenKind::Day,
+                kind: DateTimeTokenKind::Year | DateTimeTokenKind::Month | DateTimeTokenKind::Day
+                    | DateTimeTokenKind::Era | DateTimeTokenKind::EraYear,
                 ..
             }
         )
@@ -131,6 +135,9 @@ pub(crate) fn render_with_datetime_tokens(
         None
     };
     let weekday_index = date.map(|(year, month, day)| weekday_from_ymd(year, month, day));
+    // A locale tag selects names, while separators and other formatting fields remain those
+    // of the workbook profile. Fn1 measured German, French, Japanese and Russian names.
+    let names_profile = FormatProfile { id: name_locale.unwrap_or(profile.id), ..*profile };
 
     let mut rendered = String::new();
     for part in parts {
@@ -153,8 +160,8 @@ pub(crate) fn render_with_datetime_tokens(
                         match width {
                             1 => month.to_string(),
                             2 => format!("{month:02}"),
-                            3 => month_name(profile, month, true).to_string(),
-                            _ => month_name(profile, month, false).to_string(),
+                            3 => month_name(&names_profile, month, true, name_locale.is_some()),
+                            _ => month_name(&names_profile, month, false, name_locale.is_some()),
                         }
                     }
                     DateTimeTokenKind::Minute => {
@@ -169,8 +176,8 @@ pub(crate) fn render_with_datetime_tokens(
                         match width {
                             1 => day.to_string(),
                             2 => format!("{day:02}"),
-                            3 => weekday_name(profile, weekday_index?, true).to_string(),
-                            _ => weekday_name(profile, weekday_index?, false).to_string(),
+                            3 => weekday_name(&names_profile, weekday_index?, true).to_string(),
+                            _ => weekday_name(&names_profile, weekday_index?, false).to_string(),
                         }
                     }
                     DateTimeTokenKind::Hour => {
@@ -210,6 +217,20 @@ pub(crate) fn render_with_datetime_tokens(
                     }
                     DateTimeTokenKind::AmPmLower => {
                         super::designator(profile, time.hour < 12).to_string()
+                    }
+                    DateTimeTokenKind::Era | DateTimeTokenKind::EraYear => {
+                        let (year, month, day) = date?;
+                        // Fn1 records [$-411]ggge as 令和5 for 2023-03-15. Reiwa's start is
+                        // 2019-05-01 (Unicode TR35 dates, Japanese era 236). Earlier eras and
+                        // other token widths await Excel readings rather than guessed forms.
+                        if name_locale != Some(LocaleId::JaJp) || (year, month, day) < (2019, 5, 1) {
+                            return None;
+                        }
+                        match (kind, width) {
+                            (DateTimeTokenKind::Era, 3) => "令和".to_owned(),
+                            (DateTimeTokenKind::EraYear, 1) => (year - 2018).to_string(),
+                            _ => return None,
+                        }
                     }
                 };
                 rendered.push_str(&fragment);
@@ -296,6 +317,8 @@ fn tokenize_datetime_format(section: &str) -> Vec<DateTimePart> {
             'd' => Some(DateTimeTokenKind::Day),
             'h' => Some(DateTimeTokenKind::Hour),
             's' => Some(DateTimeTokenKind::Second),
+            'g' => Some(DateTimeTokenKind::Era),
+            'e' => Some(DateTimeTokenKind::EraYear),
             _ => None,
         };
 
