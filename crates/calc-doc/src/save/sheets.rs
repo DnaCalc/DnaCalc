@@ -202,8 +202,9 @@ pub(super) fn finish(
         let bytes = out
             .rewritten
             .remove(sheet.part().name())
+            .or_else(||out.added.iter().find(|(name,_)|name==sheet.part().name()).map(|(_,bytes)|bytes.clone()))
             .unwrap_or_else(|| EMPTY.to_vec());
-        out.added.push((sheet.part().name().to_owned(), bytes));
+        if let Some((_,current))=out.added.iter_mut().find(|(name,_)|name==sheet.part().name()){*current=bytes;}else{out.added.push((sheet.part().name().to_owned(),bytes));}
     }
     for sheet in &removed {
         out.rewritten.remove(sheet.part().name());

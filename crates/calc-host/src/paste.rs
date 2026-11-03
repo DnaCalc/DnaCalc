@@ -71,6 +71,9 @@ pub fn prepare_paste_oriented(
     if transpose && matches!(&source, PasteSource::Fill { .. }) {
         return Err(crate::CopyRefusal::TransposeFill.to_string());
     }
+    // Excel entry alerts apply to direct/Values entry; whole-cell copy and fill can introduce
+    // invalid values which Circle Invalid Data then audits against the copied rules.
+    let validate_entries=matches!(&source,PasteSource::External(_))||mode==PasteMode::Values;
     let coordinates = match &source {
         PasteSource::Snapshot {
             snapshot,
@@ -174,7 +177,7 @@ pub fn prepare_paste_oriented(
     if transpose && host.model().definitions().tables().iter().any(|t| t.area.intersection(target).is_some()) {
         return Err(crate::CopyRefusal::TransposeTable.to_string());
     }
-    for edit in &edits {
+    for edit in edits.iter().filter(|_|validate_entries) {
         if let CellEdit::Set { at, input } = edit {
             if let Err(failure) = host.check_entry(*at, Some(input)) {
                 return Err(failure.to_string());

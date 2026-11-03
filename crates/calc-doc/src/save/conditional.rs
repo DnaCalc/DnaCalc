@@ -113,11 +113,12 @@ pub(crate) fn sources(
                 })
                 .collect();
             Ok(ConditionalRuleSource {
-                source: fragment.into(),
+                source: fragment.clone().into(),
                 areas,
                 priority: rule.priority,
                 stop: rule.stop_if_true,
                 formulas: rule.formulas.clone(),
+                threshold_formulas:threshold_formulas(&XmlPart::new("conditional-threshold-source.xml".into(),fragment.clone(),XmlLimits::default()))?,
                 authored: false,
             })
         })
@@ -134,6 +135,7 @@ pub(crate) fn materialize(source: &ConditionalRuleSource) -> Result<XmlPart, Sav
     let mut reader = Reader::new(&xml);
     let mut splice = Splice::new(xml.bytes());
     let mut formula_index = 0usize;
+    let mut threshold_index=0usize;
     let mut in_rule = false;
     let mut formula_prefix = Vec::new();
     let mut empty_rule = false;
@@ -164,6 +166,11 @@ pub(crate) fn materialize(source: &ConditionalRuleSource) -> Result<XmlPart, Sav
                     ),
                 );
             }
+            XmlEvent::Start(e) if in_rule && e.name.is(MAIN_NAMESPACE,"cfvo") && e.attribute("type")==Some("formula") && e.attribute("val").is_some() => {
+                let value=source.threshold_formulas.get(threshold_index).ok_or_else(||reader.invalid("A conditional threshold formula is missing"))?;
+                threshold_index+=1;
+                let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);splice.replace(span,&tag.rebuilt_xstring("val",&value.encode_utf16().collect::<Vec<_>>(),tag.is_empty()));
+            }
             XmlEvent::Start(e) if in_rule && e.name.is(MAIN_NAMESPACE, "formula") => {
                 let end = reader.element_end()?;
                 let mut replacement = Vec::new();
@@ -189,6 +196,7 @@ pub(crate) fn materialize(source: &ConditionalRuleSource) -> Result<XmlPart, Sav
             _ => {}
         }
     }
+    if threshold_index!=source.threshold_formulas.len(){return Err(reader.invalid("A conditional threshold formula has no source field"));}
     Ok(xml.with_bytes(splice.finish()))
 }
 fn write_formula(prefix: &[u8], text: &str, out: &mut Vec<u8>) {
@@ -262,6 +270,7 @@ pub fn new_conditional_rule(
         priority: 1,
         stop: false,
         formulas: Vec::new(),
+        threshold_formulas:Vec::new(),
         authored: true,
     })
 }
@@ -291,7 +300,7 @@ pub fn new_condition_rule(
     for formula in &formulas {write_formula(b"",formula,&mut body);}
     let body=String::from_utf8(body).expect("XML writer emits UTF-8");
     let source=format!("<worksheet xmlns=\"{MAIN_NAMESPACE}\"><conditionalFormatting sqref=\"{}\"><cfRule type=\"{kind}\" dxfId=\"{dxf}\" priority=\"1\"{extra}>{body}</cfRule></conditionalFormatting></worksheet>",sqref(&areas)).into_bytes();
-    Ok(ConditionalRuleSource {source:source.into(),areas,priority:1,stop:false,formulas,authored:true})
+    Ok(ConditionalRuleSource {source:source.into(),areas,priority:1,stop:false,formulas,threshold_formulas:Vec::new(),authored:true})
 }
 
 /// Replaces standard blocks in the same worksheet, retaining all unrelated elements.
@@ -410,4 +419,21 @@ pub(super) fn rewrite(
         }
     }
     Ok(splice.finish())
+}
+
+fn threshold_formulas(xml:&XmlPart)->Result<Vec<String>,SaveRefusal>{
+    let mut reader=Reader::new(xml);let mut out=Vec::new();
+    while let Some((event,_))=reader.next()? {if let XmlEvent::Start(e)=event&&e.name.is(MAIN_NAMESPACE,"cfvo")&&e.attribute("type")==Some("formula")&&let Some(value)=e.attribute("val"){out.push(String::from_utf16_lossy(&crate::load::strings::decode(value)));}}
+    Ok(out)
+}
+/// Copies retain unknown rule fields; revision identifiers belong to the original instance.
+pub fn copied_conditional_source(rule:&ConditionalRuleSource)->Result<ConditionalRuleSource,String>{
+    let mut rule=rule.clone();let xml=XmlPart::new("conditional-copy.xml".into(),rule.source.to_vec(),XmlLimits::default());
+    rule.source=super::reader::without_revision_ids(&xml).map_err(|e|e.to_string())?.into();Ok(rule)
+}
+pub fn conditional_with_dxf(rule:&ConditionalRuleSource,id:u32)->Result<ConditionalRuleSource,String>{
+    let mut rule=rule.clone();let xml=XmlPart::new("conditional-copy.xml".into(),rule.source.to_vec(),XmlLimits::default());
+    let mut reader=Reader::new(&xml);let mut splice=Splice::new(xml.bytes());let value=id.to_string();
+    while let Some((event,span))=reader.next().map_err(|e|e.to_string())? {if let XmlEvent::Start(e)=event&&e.name.is(MAIN_NAMESPACE,"cfRule"){let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);splice.replace(span,&tag.rebuilt(&[("dxfId",Some(&value))],tag.is_empty()));}}
+    rule.source=splice.finish().into();Ok(rule)
 }

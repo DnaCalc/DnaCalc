@@ -393,7 +393,7 @@ pub fn dispatch(
                         // attributes retain their imported contract until an editor owns them.
                         !host.loaded.sheets().iter().flat_map(|s|s.validations()).any(|old| {
                             if old.source.as_ref()!=Some(source) || old.formula1.is_some()!=rule.formula1.is_some() || old.formula2.is_some()!=rule.formula2.is_some() {return false;}
-                            let mut expected=old.clone();expected.areas=rule.areas.clone();
+                            let mut expected=old.clone();expected.authored_copy=rule.authored_copy;expected.areas=rule.areas.clone();
                             expected.formula1=rule.formula1.clone();expected.formula2=rule.formula2.clone();
                             &expected==rule
                         })
@@ -402,51 +402,8 @@ pub fn dispatch(
             if invalid {return Err(CommandError::Document(EditError::SheetOperation("Validation edits need valid ranges on an editable sheet and must retain imported alert attributes (dc-971p.40)".into())));}
         }
     }
-    for op in &batch.operations {
-        if let WorkbookOp::SetReviewNotes { sheet, notes } = op {
-            let old = host.model.definitions().review_notes(*sheet);
-            let shared = old.iter().zip(notes).any(|(a, b)| {
-                a.text != b.text
-                    && a.source.as_ref().is_some_and(|source| {
-                        host.loaded
-                            .sheets()
-                            .iter()
-                            .filter(|s| {
-                                s.review().notes.iter().any(|n| {
-                                    n.source
-                                        .as_ref()
-                                        .is_some_and(|other| other.part() == source.part())
-                                })
-                            })
-                            .count()
-                            > 1
-                    })
-            });
-            let stale_compatibility = notes.iter().filter(|n|n.compatibility).any(|note| {
-                let original_threads=notes.iter().filter(|n|n.at==note.at && n.source.as_ref().is_some_and(|s|s.threaded())).all(|n|host.loaded.model().definitions().review_notes(*sheet).iter().any(|original|original.source==n.source && original.text==n.text));
-                let original_compatibility=host.loaded.model().definitions().review_notes(*sheet).iter().any(|original|original.compatibility && original.source==note.source && original.author==note.author && original.text==note.text);
-                note.text!=calc_doc_model::review_thread_text(notes,note.at) && !(original_threads && original_compatibility)
-            });
-            let invalid = shared || stale_compatibility
-                || host
-                    .loaded
-                    .sheet(*sheet)
-                    .is_none_or(|s| s.protected() || s.is_macro_sheet())
-                || old.len() != notes.len()
-                || old.iter().zip(notes).any(|(a, b)| {
-                    a.at != b.at
-                        || a.author != b.author
-                        || a.source != b.source
-                        || a.editable != b.editable
-                        || a.compatibility != b.compatibility
-                        || b.text.encode_utf16().count() > 32767
-                        || (!a.editable && !a.compatibility && a.text != b.text)
-
-                });
-            if invalid {
-                return Err(CommandError::Document(EditError::SheetOperation("Review edits must retain the note’s source, cell and author on an editable worksheet (dc-971p.40)".into())));
-            }
-        }
+    if batch.operations.iter().any(|op|matches!(op,WorkbookOp::SetReviewNotes{..})) {
+        crate::review::validate_batch(host,&batch).map_err(|message|CommandError::Document(EditError::SheetOperation(message)))?;
     }
     for op in &batch.operations {
         if let WorkbookOp::SetConditionalRules { sheet, rules } = op {
@@ -490,19 +447,10 @@ pub fn dispatch(
                 .any(|source| {
                     calc_doc::conditional_rule(source).is_ok_and(|r| {
                         r.extension_id.is_some()
-                            || r.color_scale
-                                .as_ref()
-                                .is_some_and(|s| s.thresholds.iter().any(|t| t.kind == "formula"))
-                            || r.data_bar
-                                .as_ref()
-                                .is_some_and(|s| s.thresholds.iter().any(|t| t.kind == "formula"))
-                            || r.icon_set
-                                .as_ref()
-                                .is_some_and(|s| s.thresholds.iter().any(|t| t.kind == "formula"))
                     })
                 }))
     {
-        return Err(CommandError::Document(EditError::SheetOperation("Axis edits with extension-backed or formula-threshold conditional rules are unavailable (dc-971p.8); nothing changed".into())));
+        return Err(CommandError::Document(EditError::SheetOperation("Axis edits with extension-backed conditional rules are unavailable (dc-971p.8); nothing changed".into())));
     }
     let sheet_edit = batch.operations.iter().find_map(|op| match op {
         WorkbookOp::EditSheet(edit) => Some(edit),

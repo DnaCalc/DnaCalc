@@ -161,3 +161,11 @@ pub use presentation_commands::{
 pub use calc_engine::contract::{CompletionOutcome, RangePostState};
 
 pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken, ResultDestination};
+
+mod review;
+pub use review::ReviewAction;
+pub use calc_doc_model::NoteStylePatch;
+
+mod copy_metadata;
+
+pub use calc_doc_model::note_segments;

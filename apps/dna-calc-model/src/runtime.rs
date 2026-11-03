@@ -150,6 +150,7 @@ impl ToolState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReviewDraft {
+    pub creation:Option<ReviewCreation>,
     pub session: u64,
     pub at: wire::Key,
     pub revision: u64,
@@ -158,6 +159,8 @@ pub struct ReviewDraft {
     pub threaded: bool,
 }
 
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct ReviewCreation {pub parent:Option<u32>,pub author:String,pub timestamp:String}
 impl ReviewDraft {
     /// An accepted save retires only the submitted text. Later typing remains a draft against
     /// the accepted revision; a cancelled or different edit is never replaced by the reply.
@@ -175,6 +178,7 @@ impl ReviewDraft {
             && current.revision == submitted.revision
         {
             current.revision = revision;
+            current.creation = None;
         }
     }
 }
@@ -228,9 +232,13 @@ pub struct RuntimeState {
     pub projected_views: BTreeMap<u64, Snapshot<ViewMirror>>,
 }
 impl RuntimeState {
+    pub fn begin_review_create(&mut self,at:wire::Key,revision:u64,index:u32,threaded:bool,parent:Option<u32>,timestamp:String){
+        self.begin_review_edit(at,revision,index,String::new(),threaded);
+        if let Some(n)=&mut self.review_edit {n.creation=Some(ReviewCreation{parent,author:"Author".into(),timestamp});}
+    }
     pub fn begin_review_edit(&mut self, at: wire::Key, revision: u64, index: u32, text: String, threaded: bool) {
         self.review_sequence = self.review_sequence.checked_add(1).expect("review edit identities exhausted");
-        self.review_edit = Some(ReviewDraft { session: self.review_sequence, at, revision, index, text, threaded });
+        self.review_edit = Some(ReviewDraft { creation:None, session: self.review_sequence, at, revision, index, text, threaded });
     }
 }
 impl Default for RuntimeState {
@@ -294,6 +302,7 @@ mod tool_tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn accepted_review_save_preserves_later_typing_cancellation_and_other_edits() {
         let submitted = ReviewDraft {
+            creation:None,
             session: 1,
             at: wire::Key::of(calc_value::CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap()),
             revision: 7,
@@ -335,6 +344,21 @@ mod tool_tests {
         assert_ne!(prior.session, reopened.as_ref().unwrap().session);
         ReviewDraft::accepted_save(&mut runtime.review_edit, &prior, 8);
         assert_eq!(runtime.review_edit, reopened);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn delayed_creation_reply_turns_later_typing_into_an_edit_of_the_created_note() {
+        let mut runtime=RuntimeState::default();
+        let at=wire::Key::of(calc_value::CellKey::new(calc_value::SheetId::from_parts(0,0),1,1).unwrap());
+        runtime.begin_review_create(at,7,3,false,None,String::new());
+        runtime.review_edit.as_mut().unwrap().text="Created text".into();
+        let submitted=runtime.review_edit.clone().unwrap();
+        runtime.review_edit.as_mut().unwrap().text.push_str(" and later typing");
+        ReviewDraft::accepted_save(&mut runtime.review_edit,&submitted,8);
+        let current=runtime.review_edit.as_ref().unwrap();
+        assert_eq!(current.index,3);assert_eq!(current.revision,8);assert!(current.creation.is_none());assert_eq!(current.text,"Created text and later typing");
+        let edited=current.clone();ReviewDraft::accepted_save(&mut runtime.review_edit,&edited,9);assert!(runtime.review_edit.is_none());
     }
 
     fn populated() -> ToolState {

@@ -6,6 +6,7 @@ use super::{Events, LoadError, MAIN_NAMESPACE, conditional};
 use crate::xml::{XmlElement, XmlEvent};
 
 /// The namespace of the `xm:f` and `xm:sqref` elements of Excel's extensions.
+const X14_NAMESPACE:&str="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
 const XM_NAMESPACE: &str = "http://schemas.microsoft.com/office/excel/2006/main";
 
 pub use calc_doc_model::Validation;
@@ -21,6 +22,7 @@ fn from_attributes(element: &XmlElement) -> Validation {
             .map(|s| String::from_utf16_lossy(&super::strings::decode(s)))
     };
     Validation {
+        authored_copy:false,
         source: None,
         areas: conditional::areas(element.attribute("sqref").unwrap_or_default()),
         kind: text("type").unwrap_or_else(|| "none".to_owned()),
@@ -51,12 +53,12 @@ pub(crate) fn read_validations(events: &mut Events<'_>) -> Result<Vec<Validation
                         Some(XmlEvent::Start(child))
                             if child.name.is(MAIN_NAMESPACE, "formula1") =>
                         {
-                            validation.formula1 = Some(events.text()?);
+                            validation.formula1 = Some(String::from_utf16_lossy(&super::strings::decode(&events.text()?)));
                         }
                         Some(XmlEvent::Start(child))
                             if child.name.is(MAIN_NAMESPACE, "formula2") =>
                         {
-                            validation.formula2 = Some(events.text()?);
+                            validation.formula2 = Some(String::from_utf16_lossy(&super::strings::decode(&events.text()?)));
                         }
                         Some(XmlEvent::Start(_)) => events.skip()?,
                         Some(XmlEvent::Text(_)) => {}
@@ -85,27 +87,27 @@ pub(crate) fn read_x14(
     let mut depth = 1u32;
     while depth > 0 {
         match events.next()? {
-            Some(XmlEvent::Start(child)) if child.name.local == "formula1" => {
+            Some(XmlEvent::Start(child)) if depth==1 && child.name.is(X14_NAMESPACE,"formula1") => {
                 slot = 1;
                 depth += 1;
             }
-            Some(XmlEvent::Start(child)) if child.name.local == "formula2" => {
+            Some(XmlEvent::Start(child)) if depth==1 && child.name.is(X14_NAMESPACE,"formula2") => {
                 slot = 2;
                 depth += 1;
             }
-            Some(XmlEvent::Start(child)) if child.name.is(XM_NAMESPACE, "f") => {
-                let text = events.text()?;
+            Some(XmlEvent::Start(child)) if depth==2 && slot>0 && child.name.is(XM_NAMESPACE, "f") => {
+                let text = String::from_utf16_lossy(&super::strings::decode(&events.text()?));
                 match slot {
                     1 => validation.formula1 = Some(text),
                     2 => validation.formula2 = Some(text),
                     _ => {}
                 }
             }
-            Some(XmlEvent::Start(child)) if child.name.is(XM_NAMESPACE, "sqref") => {
+            Some(XmlEvent::Start(child)) if depth==1 && child.name.is(XM_NAMESPACE, "sqref") => {
                 validation.areas = conditional::areas(&events.text()?);
             }
-            Some(XmlEvent::Start(_)) => depth += 1,
-            Some(XmlEvent::End(_)) => depth -= 1,
+            Some(XmlEvent::Start(_)) => events.skip()?,
+            Some(XmlEvent::End(_)) => {depth-=1;if depth==1{slot=0;}},
             Some(XmlEvent::Text(_)) => {}
             None => return Err(events.invalid("the part ends inside x14:dataValidation")),
         }

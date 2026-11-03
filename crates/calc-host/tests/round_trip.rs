@@ -13420,3 +13420,411 @@ fn dc_971p_40__raw_validation_edits_refuse_bad_coordinates_and_source_attribute_
     }
     let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let rule=&reopened.host().model().definitions().validations(rs)[0];assert!(!rule.allow_blank);assert!(rule.show_error);
 }
+fn review_action(
+    book: &mut HostSession,
+    at: CellKey,
+    action: calc_host::ReviewAction,
+) -> calc_host::IntentReceipt {
+    book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ReviewAction {
+            at,
+            revision: book.host().revision().get(),
+            action,
+        },
+    ))
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__new_notes_partial_rich_text_and_imported_run_properties_round_trip() {
+    use calc_host::{NoteStylePatch, ReviewAction as R};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    let a = at(s, "A1");
+    let depth = book.history_depth();
+    let receipt = review_action(
+        &mut book,
+        a,
+        R::Create {
+            parent: None,
+            threaded: false,
+            author: "Author & <Ω> _x0041_".into(),
+            text: "A🧬 bold tail".into(),
+            timestamp: String::new(),
+        },
+    );
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.history_depth().0, depth.0 + 1);
+    assert!(
+        review_action(
+            &mut book,
+            a,
+            R::Format {
+                index: 0,
+                text: "A🧬 bold tail".into(),
+                start: 4,
+                end: 8,
+                patch: NoteStylePatch {
+                    bold: Some(true),
+                    italic: Some(true),
+                    color: Some("#123456".into()),
+                    ..Default::default()
+                }
+            }
+        )
+        .accepted()
+    );
+    let note = &book.host().model().definitions().review_notes(s)[0];
+    assert_eq!(note.spans.len(), 1);
+    assert_eq!((note.spans[0].start, note.spans[0].end), (4, 8));
+    assert!(note.spans[0].style.bold && note.spans[0].style.italic);
+    let revision = book.host().revision();
+    assert!(
+        !review_action(
+            &mut book,
+            a,
+            R::Format {
+                index: 0,
+                text: "A🧬 bold tail".into(),
+                start: 2,
+                end: 3,
+                patch: NoteStylePatch {
+                    underline: Some(true),
+                    ..Default::default()
+                }
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(
+        book.host().model().definitions().review_notes(s)[0]
+            .spans
+            .is_empty()
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let note = &reopened.host().model().definitions().review_notes(rs)[0];
+    assert_eq!(note.text, "A🧬 bold tail");
+    assert_eq!(note.author, "Author & <Ω> _x0041_");
+    assert!(note.style_at(4).bold);
+    assert!(!note.style_at(3).bold);
+    assert_eq!(note.style_at(4).color.as_deref(), Some("FF123456"));
+    let part = note.source.as_ref().unwrap().part().to_owned();
+    let comments = part_text(&saved, &part);
+    assert!(comments.contains("<b") && comments.contains("<i") && comments.contains("123456"));
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("legacyDrawing"));
+    assert!(part_text(&saved, "xl/worksheets/_rels/sheet1.xml.rels").contains("vmlDrawing"));
+    let note=comments.replace("</rPr>","<rFont val=\"Cambria\"/><charset val=\"1\"/><meta:flag xmlns:meta=\"urn:retained\" value=\"keep\"/></rPr>");
+    let augmented = package_with_part_from(&saved, &part, |_| note.clone());
+    reopened = session(&augmented);
+    let rs = reopened.host().sheets()[0].id();
+    assert!(
+        review_action(
+            &mut reopened,
+            at(rs, "A1"),
+            R::Edit {
+                index: 0,
+                text: "A🧬 bold appended tail".into()
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    reopened.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, &part);
+    for fragment in ["Cambria", "charset", "meta:flag", "keep"] {
+        assert!(xml.contains(fragment), "{xml}");
+    }
+    let reopened = session(&saved);
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .review_notes(reopened.host().sheets()[0].id())[0]
+            .style_at(4)
+            .bold
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__new_thread_replies_resolution_and_repeated_saves_retain_people_and_ids() {
+    use calc_host::ReviewAction as R;
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    let a = at(s, "C3");
+    let create = |parent, author: &str, text: &str| R::Create {
+        parent,
+        threaded: true,
+        author: author.into(),
+        text: text.into(),
+        timestamp: "2026-11-03T20:00:00.000Z".into(),
+    };
+    let receipt = review_action(&mut book, a, create(None, "Alice & Ω", "Root <text>"));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let index = book.host().model().definitions().review_notes(s).len() as u32;
+    assert!(review_action(&mut book, a, create(Some(0), "Bob", "Reply one")).accepted());
+    assert!(review_action(&mut book, a, create(Some(index), "Alice & Ω", "Reply two")).accepted());
+    assert!(
+        review_action(
+            &mut book,
+            a,
+            R::Resolve {
+                index,
+                resolved: true
+            }
+        )
+        .accepted()
+    );
+    assert!(!review_action(&mut book, a, create(Some(0), "Bob", "Blocked reply")).accepted());
+    assert!(
+        review_action(
+            &mut book,
+            a,
+            R::Resolve {
+                index: 0,
+                resolved: false
+            }
+        )
+        .accepted()
+    );
+    let before = book.host().model().definitions().review_notes(s).to_vec();
+    let ids = before
+        .iter()
+        .filter_map(|n| match &n.source {
+            Some(calc_doc_model::ReviewSource::Thread { id, .. }) => Some(id.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let notes = reopened.host().model().definitions().review_notes(rs);
+    assert_eq!(notes.iter().filter(|n| !n.compatibility).count(), 3);
+    assert_eq!(notes.iter().filter(|n| n.compatibility).count(), 1);
+    assert_eq!(
+        notes
+            .iter()
+            .filter_map(|n| match &n.source {
+                Some(calc_doc_model::ReviewSource::Thread { id, .. }) => Some(id.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        ids
+    );
+    assert!(
+        notes
+            .iter()
+            .any(|n| n.author == "Alice & Ω" && n.text == "Reply two")
+    );
+    let root_index = notes
+        .iter()
+        .position(|n| {
+            matches!(
+                &n.source,
+                Some(calc_doc_model::ReviewSource::Thread { parent: None, .. })
+            )
+        })
+        .unwrap() as u32;
+    let receipt = review_action(
+        &mut reopened,
+        at(rs, "C3"),
+        R::Edit {
+            index: root_index,
+            text: "Edited root".into(),
+        },
+    );
+    assert!(receipt.accepted(), "{receipt:?}");
+    let mut twice = Vec::new();
+    reopened.save(&SavePolicy::default(), &mut twice).unwrap();
+    let last = session(&twice);
+    let ls = last.host().sheets()[0].id();
+    let notes = last.host().model().definitions().review_notes(ls);
+    assert_eq!(notes.iter().filter(|n| !n.compatibility).count(), 3);
+    assert_eq!(last.host().loaded().review_people().len(), 2);
+    assert!(notes.iter().any(|n| n.compatibility
+        && n.text.contains("Edited root")
+        && n.text.contains("Reply two")));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__legacy_note_revision_ids_remain_unique_after_reopen_and_raw_forgeries_refuse() {
+    use calc_host::ReviewAction as R;
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Create {
+                parent: None,
+                threaded: false,
+                author: "A".into(),
+                text: "First".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut book = session(&saved);
+    let s = book.host().sheets()[0].id();
+    let first = book.host().model().definitions().review_notes(s)[0]
+        .source
+        .clone();
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "B1"),
+            R::Create {
+                parent: None,
+                threaded: false,
+                author: "B".into(),
+                text: "Second".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let notes = reopened.host().model().definitions().review_notes(rs);
+    let ids = notes
+        .iter()
+        .filter_map(|n| match &n.source {
+            Some(calc_doc_model::ReviewSource::Note { uid, .. }) => uid.clone(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(ids.len(), 2);
+    assert_ne!(ids[0], ids[1]);
+    assert!(
+        matches!(first,Some(calc_doc_model::ReviewSource::Note{uid:Some(uid),..})if uid==ids[0])
+    );
+    let before = book.host().revision();
+    let mut forged = book.host().model().definitions().review_notes(s).to_vec();
+    if let Some(calc_doc_model::ReviewSource::NewNote { part, .. }) = &mut forged[1].source {
+        *part = "xl/workbook.xml".into();
+    } else {
+        panic!("new note");
+    }
+    assert!(
+        !book
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::ReviewNotes {
+                    sheet: s,
+                    notes: forged
+                }]
+            })
+            .accepted()
+    );
+    assert_eq!(book.host().revision(), before);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__clipboard_all_copies_validation_notes_and_conditional_thresholds_atomically() {
+    use calc_host::{CopySnapshot,PasteSource,PasteMode,WorkbookCommand as W,ReviewAction as R,NoteStylePatch,ValidationStatus};
+    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="A1:A3"><formula1>A1&gt;$Z$1</formula1></dataValidation></dataValidations><conditionalFormatting sqref="A1:A3"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="formula" val="$Z$1"/><cfvo type="num" val="9"/><color rgb="FF123456"/></dataBar></cfRule></conditionalFormatting></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();for (a,v) in [("A1","2"),("A2","5"),("A3","9"),("Z1","3")] {enter(&mut book,at(s,a),v);}
+    assert!(review_action(&mut book,at(s,"A2"),R::Create{parent:None,threaded:false,author:"Local".into(),text:"Rich 🧬".into(),timestamp:String::new()}).accepted());
+    assert!(review_action(&mut book,at(s,"A2"),R::Format{index:0,text:"Rich 🧬".into(),start:0,end:4,patch:NoteStylePatch{bold:Some(true),..Default::default()}}).accepted());
+    let snapshot=CopySnapshot::capture(book.host(),GridArea::new(at(s,"A1"),at(s,"A3")).unwrap()).unwrap();let depth=book.history_depth();
+    let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&snapshot,cut:false},GridArea::cell(at(s,"C4")),PasteMode::All).unwrap();let receipt=book.dispatch(SkinIntent::Command(W::Paste(plan)));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(book.history_depth().0,depth.0+1);
+    assert!(matches!(book.host().validation_status(at(s,"C4")),Some(ValidationStatus::Invalid(_))));assert_eq!(book.host().validation_status(at(s,"C5")),Some(ValidationStatus::Valid));
+    let copied=book.host().model().definitions().review_notes(s).iter().find(|n|n.at==at(s,"C5")).unwrap();assert_eq!(copied.text,"Rich 🧬");assert!(copied.style_at(0).bold);
+    let source_id=book.host().model().definitions().review_notes(s).iter().find(|n|n.at==at(s,"A2")).unwrap().source.as_ref().unwrap();assert_ne!(source_id,copied.source.as_ref().unwrap());
+    assert!(book.host().model().definitions().conditional_rules(s).iter().any(|r|r.areas.iter().any(|a|a.contains(at(s,"C4")))&&r.threshold_formulas==["$Z$1"]));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().validation(at(s,"C4")).is_none());assert!(book.host().model().definitions().review_notes(s).iter().all(|n|n.at!=at(s,"C5")));assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
+    assert!(book.host().model().definitions().conditional_rules(s).iter().all(|r|r.threshold_formulas==["$Z$2"]));
+    let before=book.host().scan_validation(s);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let after=reopened.host().scan_validation(rs);assert_eq!((before.valid,before.invalid.len(),before.unavailable),(after.valid,after.invalid.len(),after.unavailable));assert_eq!(after.unavailable,0);assert!(reopened.host().model().definitions().review_notes(rs).iter().any(|n|n.at==at(rs,"C6")&&n.style_at(0).bold));assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains("val=\"$Z$2\""));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__clipboard_snapshot_restores_removed_metadata_at_same_or_new_cell() {
+    use calc_host::{CopySnapshot,PasteSource,PasteMode,WorkbookCommand as W,ReviewAction as R};
+    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="A1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations><conditionalFormatting sqref="A1"><cfRule type="dataBar" priority="3"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF123456"/></dataBar></cfRule></conditionalFormatting></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"5");assert!(review_action(&mut book,at(s,"A1"),R::Create{parent:None,threaded:false,author:"Retained".into(),text:"Captured note".into(),timestamp:String::new()}).accepted());let mut baseline=Vec::new();book.save(&SavePolicy::default(),&mut baseline).unwrap();
+    for target in ["A1","B1"] {
+        let mut book=session(&baseline);let s=book.host().sheets()[0].id();let captured=CopySnapshot::capture(book.host(),GridArea::cell(at(s,"A1"))).unwrap();let blank=CopySnapshot::capture(book.host(),GridArea::cell(at(s,"Z20"))).unwrap();
+        let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&blank,cut:false},GridArea::cell(at(s,"A1")),PasteMode::All).unwrap();assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());assert!(book.host().model().definitions().review_notes(s).is_empty());assert!(book.host().validation(at(s,"A1")).is_none());
+        let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&captured,cut:false},GridArea::cell(at(s,target)),PasteMode::All).unwrap();let receipt=book.dispatch(SkinIntent::Command(W::Paste(plan)));assert!(receipt.accepted(),"{target}: {receipt:?}");assert!(book.host().validation(at(s,target)).is_some());assert!(book.host().model().definitions().review_notes(s).iter().any(|n|n.at==at(s,target)&&n.text=="Captured note"));assert!(book.host().model().definitions().conditional_rules(s).iter().any(|r|r.areas.iter().any(|a|a.contains(at(s,target)))));
+        assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().definitions().review_notes(s).is_empty());assert!(book.dispatch(SkinIntent::Redo).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();assert!(reopened.host().model().definitions().review_notes(rs).iter().any(|n|n.at==at(rs,target)&&n.text=="Captured note"));assert!(reopened.host().validation(at(rs,target)).is_some());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__clipboard_cut_retains_note_uid_and_moves_external_rule_references() {
+    use calc_host::{CopySnapshot,PasteSource,PasteMode,WorkbookCommand as W,ReviewAction as R};
+    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="Z1"><formula1>A1&gt;0</formula1></dataValidation></dataValidations><conditionalFormatting sqref="Y1"><cfRule type="expression" priority="1"><formula>A1&gt;0</formula></cfRule></conditionalFormatting></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"5");assert!(review_action(&mut book,at(s,"A1"),R::Create{parent:None,threaded:false,author:"A".into(),text:"Move me".into(),timestamp:String::new()}).accepted());let mut baseline=Vec::new();book.save(&SavePolicy::default(),&mut baseline).unwrap();
+    for cross_sheet in [false,true] {
+        let mut book=session(&baseline);let s=book.host().sheets()[0].id();let old_uid=match &book.host().model().definitions().review_notes(s)[0].source {Some(calc_doc_model::ReviewSource::Note{uid:Some(id),..})=>id.clone(),_=>panic!("uid")};
+        let target=if cross_sheet{assert!(book.dispatch(SkinIntent::Command(W::Sheet{sheet:None,change:calc_host::SheetChange::Add{name:"Target".into()}})).accepted());book.host().sheets()[1].id()}else{s};
+        let snapshot=CopySnapshot::capture(book.host(),GridArea::cell(at(s,"A1"))).unwrap();let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&snapshot,cut:true},GridArea::cell(at(target,"C4")),PasteMode::All).unwrap();let receipt=book.dispatch(SkinIntent::Command(W::Paste(plan)));assert!(receipt.accepted(),"{receipt:?}");
+        assert!(book.host().model().definitions().review_notes(s).iter().all(|n|n.at!=at(s,"A1")));assert_eq!(book.host().model().definitions().review_notes(target).iter().find(|n|n.at==at(target,"C4")).unwrap().text,"Move me");
+        let dv=&book.host().model().definitions().validations(s)[0];assert!(dv.formula1.as_ref().unwrap().contains("C4"));assert!(book.host().model().definitions().conditional_rules(s)[0].formulas[0].contains("C4"));
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let target=sheet(reopened.host(),if cross_sheet{"Target"}else{"Sheet1"});let note=reopened.host().model().definitions().review_notes(target).iter().find(|n|n.at==at(target,"C4")).unwrap();assert!(matches!(&note.source,Some(calc_doc_model::ReviewSource::Note{uid:Some(id),..})if id==&old_uid));
+    }
+}
+
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__removing_imported_rgb_note_color_preserves_other_run_properties() {
+    use calc_host::{ReviewAction as R,NoteStylePatch};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    assert!(review_action(&mut book,at(s,"A1"),R::Create{parent:None,threaded:false,author:"A".into(),text:"Colored".into(),timestamp:String::new()}).accepted());
+    assert!(review_action(&mut book,at(s,"A1"),R::Format{index:0,text:"Colored".into(),start:0,end:7,patch:NoteStylePatch{bold:Some(true),color:Some("#123456".into()),..Default::default()}}).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut book=session(&saved);let s=book.host().sheets()[0].id();
+    let mut notes=book.host().model().definitions().review_notes(s).to_vec();let part=notes[0].source.as_ref().unwrap().part().to_owned();
+    assert!(notes[0].spans.iter().any(|span|span.style.color.is_some()));
+    for span in &mut notes[0].spans {span.style.color=None;}
+    let receipt=book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::ReviewNotes{sheet:s,notes}]});assert!(receipt.accepted(),"{receipt:?}");
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,&part);assert!(!xml.contains("123456"),"{xml}");
+    let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let note=&reopened.host().model().definitions().review_notes(rs)[0];assert!(note.style_at(0).bold);assert_eq!(note.style_at(0).color,None);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__unrelated_paste_keeps_imported_thread_fallback_exactly() {
+    use calc_host::{CopySnapshot,PasteSource,PasteMode,WorkbookCommand as W};
+    let bytes=include_bytes!("fixtures/d2/structural-base.xlsx");let mut book=session(bytes);let s=sheet(book.host(),"U");
+    let notes=book.host().model().definitions().review_notes(s).to_vec();assert!(notes.iter().any(|n|n.compatibility));
+    let snapshot=CopySnapshot::capture(book.host(),GridArea::cell(at(s,"X20"))).unwrap();let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&snapshot,cut:false},GridArea::cell(at(s,"Z20")),PasteMode::All).unwrap();assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());
+    assert_eq!(book.host().model().definitions().review_notes(s),notes);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();for n in &notes {if let Some(source)=&n.source {assert_eq!(part_text(bytes,source.part()),part_text(&saved,source.part()));}}
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__opaque_note_runs_never_become_visible_text_or_formatting() {
+    use calc_host::{ReviewAction as R,NoteStylePatch};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    assert!(review_action(&mut book,at(s,"A1"),R::Create{parent:None,threaded:false,author:"A".into(),text:"Visible".into(),timestamp:String::new()}).accepted());
+    assert!(review_action(&mut book,at(s,"A1"),R::Format{index:0,text:"Visible".into(),start:0,end:7,patch:NoteStylePatch{bold:Some(true),..Default::default()}}).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let part=book.host().model().definitions().review_notes(s)[0].source.as_ref().unwrap().part().to_owned();
+    let unknown=r#"<v:opaque xmlns:v="urn:retained"><r><rPr><i/></rPr><t>Hidden long text</t></r></v:opaque>"#;
+    let augmented=package_with_part_from(&saved,&part,|xml|xml.replacen("<text",&format!("{unknown}<text"),1));
+    assert!(part_text(&augmented,&part).contains(unknown));let mut book=session(&augmented);let s=book.host().sheets()[0].id();let note=&book.host().model().definitions().review_notes(s)[0];
+    assert_eq!(note.text,"Visible");assert!(note.valid_spans());assert!(note.style_at(0).bold);assert!(!note.style_at(0).italic);assert_eq!(calc_host::note_segments(note).iter().map(|(s,_)|s.as_str()).collect::<String>(),"Visible");
+    assert!(review_action(&mut book,at(s,"A1"),R::Edit{index:0,text:"Visible edited".into()}).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,&part).contains(unknown));
+    let annotated=package_with_part_from(&augmented,&part,|xml|xml.replacen("</text>",&format!("{unknown}</text>"),1));let mut book=session(&annotated);let s=book.host().sheets()[0].id();let note=&book.host().model().definitions().review_notes(s)[0];assert!(!note.editable);assert!(note.annotated);assert_eq!(note.text,"Visible");
+    let revision=book.host().revision();assert!(!review_action(&mut book,at(s,"A1"),R::Edit{index:0,text:"Changed".into()}).accepted());assert_eq!(book.host().revision(),revision);
+    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap())).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let note=&reopened.host().model().definitions().review_notes(rs)[0];assert_eq!(note.at,at(rs,"A2"));assert!(note.annotated);assert_eq!(part_text(&saved,&part).matches(unknown).count(),2);
+}

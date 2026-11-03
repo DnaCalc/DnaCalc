@@ -84,3 +84,25 @@ impl<'a> Reader<'a> {
         }
     }
 }
+
+/// Standalone source fragments retain the namespace declarations inherited from ancestors.
+pub(crate) fn element_sources(xml:&XmlPart,mut matches:impl FnMut(&XmlElement)->bool)->Result<Vec<Vec<u8>>,SaveRefusal>{
+    use super::text::RawTag;
+    let mut reader=Reader::new(xml);let mut parents:Vec<Vec<u8>>=Vec::new();let mut out=Vec::new();
+    while let Some((event,span))=reader.next()? {match event {
+        XmlEvent::Start(e)=>{
+            let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);
+            let opening=parents.last().map_or_else(||tag.rebuilt(&[],tag.is_empty()),|p|tag.with_inherited_namespaces(&RawTag::parse(p)));
+            if matches(&e){let end=reader.element_end()?;let mut bytes=opening;bytes.extend_from_slice(&xml.bytes()[span.1..end]);out.push(bytes);}else{parents.push(opening);}
+        },XmlEvent::End(_)=>{parents.pop();},_=>{}
+    }}Ok(out)
+}
+
+pub(crate) fn without_revision_ids(xml:&XmlPart)->Result<Vec<u8>,SaveRefusal>{
+    use super::text::{RawTag,Splice};let mut reader=Reader::new(xml);let mut splice=Splice::new(xml.bytes());
+    while let Some((event,span))=reader.next()?{if let XmlEvent::Start(e)=event{
+        let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);let raw=tag.attribute_names().filter(|n|*n!=b"xmlns"&&!n.starts_with(b"xmlns:")).collect::<Vec<_>>();
+        let changes=e.attributes.iter().zip(raw).filter(|(a,_)|a.name.is("http://schemas.microsoft.com/office/spreadsheetml/2014/revision","uid")).map(|(_,n)|(String::from_utf8_lossy(n).into_owned(),None)).collect::<Vec<(String,Option<String>)>>();
+        if !changes.is_empty(){let changes=changes.iter().map(|(n,v)|(n.as_str(),v.as_deref())).collect::<Vec<_>>();splice.replace(span,&tag.rebuilt(&changes,tag.is_empty()));}
+    }}Ok(splice.finish())
+}

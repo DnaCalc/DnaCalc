@@ -42,6 +42,7 @@ use std::sync::Arc;
 /// Why a copy made no edit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CopyRefusal {
+    Metadata(&'static str),
     /// The source and the target are on sheets the workbook does not hold.
     UnknownSheet,
     /// The target is not a whole multiple of the source's shape (Excel: "the copy area and the
@@ -85,6 +86,7 @@ pub enum CopyRefusal {
 impl fmt::Display for CopyRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Metadata(reason)=>write!(f,"{reason} (dc-971p.40); nothing changed"),
             Self::TransposeCut => f.write_str("Transposing a cut is not modelled (dc-971p.35); use Copy first"),
             Self::TransposeTable => f.write_str("Transposing table cells is not modelled (dc-971p.35); copy their Values to an ordinary range first"),
             Self::TransposeArray => f.write_str("Transposing array formulas is not modelled (dc-971p.35); choose Values or Cell formats instead"),
@@ -476,7 +478,6 @@ fn restore_styles(
     use calc_doc_model::StyleTable;
     if before.cell_style_formats != after.cell_style_formats
         || before.cell_styles != after.cell_styles
-        || before.differential_formats != after.differential_formats
         || before.table_styles != after.table_styles
         || before.colors != after.colors
         || before.unmodelled != after.unmodelled
@@ -1006,6 +1007,7 @@ fn copy_edits_from(
             }
         }
     }
+    crate::copy_metadata::append(host,source_model,from,to,mode,cut,transpose,&mut edits)?;
     Ok(edits)
 }
 
