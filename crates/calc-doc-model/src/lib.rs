@@ -69,7 +69,7 @@ pub use formula_block::{
 mod name_table;
 pub use name_table::{NameNode, NameOrigin, NameTable};
 mod layout;
-pub use axis_layout::{AxisFormat, AxisFormatEdit, AxisLayouts};
+pub use axis_layout::{AxisFormat, AxisFormatEdit, AxisLayouts, OutlineGroup};
 mod op;
 mod revision;
 mod root;

@@ -1874,6 +1874,10 @@ impl Controller {
             all.insert(sheet, index);
         });
     }
+    pub fn outline_geometry(&self) -> Option<wire::Geometry> {
+        self.grid_geometry.track();
+        self.sheet.get().and_then(|sheet|self.grid_geometry(sheet))
+    }
     pub fn grid_geometry(&self, sheet: SheetId) -> Option<wire::Geometry> {
         self.grid_geometry
             .with_value(|all| all.get(&sheet).cloned())
@@ -1902,6 +1906,28 @@ impl Controller {
         }
         self.grid_views.update_value(|all| {
             all.insert((sheet, index), view);
+        });
+    }
+    pub fn outline(&self, rows:bool, change:wire::OutlineChange) {
+        let controller=*self;
+        self.after_input(move || {
+            if controller.editing.get_untracked().is_some() {controller.say("Finish or cancel the current entry before outlining",true);return;}
+            let Some(sheet)=controller.sheet.get_untracked() else{return;};
+            controller.dispatch(Intent::Outline {sheet:wire::Sheet::of(sheet),rows,revision:controller.summary.get_untracked().revision,change},move |outcome|{if outcome.accepted {controller.say("Outline updated",false);}});
+        });
+    }
+    pub fn outline_selection(&self, rows:bool, action:u8) {
+        let controller=*self;
+        self.after_input(move || {
+            let areas=controller.areas.get_untracked();
+            if areas.len()!=1 {controller.say("Choose one rectangle before outlining",true);return;}
+            let area=areas[0];
+            let (first,last)=if rows {(area.first().row(),area.last().row())}else{(area.first().column(),area.last().column())};
+            let change=match action {
+                0=>wire::OutlineChange::Group{first,last},1=>wire::OutlineChange::Ungroup{first,last},
+                _=>wire::OutlineChange::Detail{first,last,level:None,show:action==3},
+            };
+            controller.outline(rows,change);
         });
     }
     pub fn axis_format(&self, rows: bool, size: Option<String>, hidden: Option<bool>) {

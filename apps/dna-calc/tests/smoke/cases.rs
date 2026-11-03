@@ -7495,6 +7495,37 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Text(cell!("A1"), "100"),
         ],
     },
+
+    Case {
+        name:"outline: selected detail rows form a group with a visible summary control",
+        actions:&[Action::ExternalClipboard("Amount\n10\n20\n30\n40\n50\n=SUM(A2:A6)",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Text(cell!("A7"),"150")),Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=SUBTOTAL(9,A2:A6)\u{E007}"),Action::Into("name-box","E1\u{E007}"),Action::Into(BAR,"=SUBTOTAL(109,A2:A6)\u{E007}"),Action::Into("name-box","A2:A6\u{E007}"),Action::OpenDetails("axis-tools"),Action::Click("outline-group"),Action::Click("[data-dnacalc=axis-tools] > summary")],
+        checks:&[Check::Count("outline-toggle",1),Check::Count("outline-gutter",1),Check::Attr("outline-toggle","aria-expanded","true"),Check::Text(cell!("D1"),"150"),Check::Text(cell!("E1"),"150")],
+    },
+    Case {
+        name:"outline: nested collapse retains independently hidden detail and calculated totals",
+        actions:&[Action::Into("name-box","A3\u{E007}"),Action::OpenDetails("axis-tools"),Action::Click("hide-rows"),Action::Wait(Check::PlanAbsent("A3")),Action::Into("name-box","A3:A4\u{E007}"),Action::Click("outline-group"),Action::Wait(Check::Count("outline-toggle",2)),Action::Click("[data-dnacalc=outline-toggle][data-first=\"3\"]")],
+        checks:&[Check::PlanAbsent("A3"),Check::PlanAbsent("A4"),Check::Text(cell!("A2"),"10"),Check::Text(cell!("D1"),"150"),Check::Text(cell!("E1"),"100"),Check::Attr("[data-dnacalc=outline-toggle][data-first=\"3\"]","aria-expanded","false")],
+    },
+    Case {
+        name:"outline: outer collapse Undo Redo and expansion preserve the nested state",
+        actions:&[Action::Click("[data-dnacalc=outline-toggle][data-first=\"2\"]"),Action::Wait(Check::Text(cell!("E1"),"0")),Action::Click("undo"),Action::Wait(Check::Text(cell!("E1"),"100")),Action::Click("redo"),Action::Wait(Check::Text(cell!("E1"),"0")),Action::Click("[data-dnacalc=outline-gutter][data-first=\"2\"]")],
+        checks:&[Check::Text(cell!("A2"),"10"),Check::PlanAbsent("A4"),Check::Text(cell!("E1"),"100"),Check::PlanCell("A7","provenance","calculated")],
+    },
+    Case {
+        name:"outline: summary above and independent manual hiding survive XLSX reopen",
+        actions:&[Action::OpenDetails("axis-tools"),Action::Click("outline-summary-after"),Action::Wait(Check::Attr("[data-dnacalc=outline-toggle][data-first=\"3\"]","aria-expanded","false")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("axis-tools"),Action::Wait(Check::Count("outline-toggle",2)),Action::Click("[data-dnacalc=outline-level][data-level=\"3\"]"),Action::Click("[data-dnacalc=axis-tools] > summary")],
+        checks:&[Check::Text(cell!("A4"),"30"),Check::PlanAbsent("A3"),Check::Text(cell!("E1"),"130"),Check::Text(cell!("A7"),"150"),Check::Count("[data-dnacalc=outline-summary-after]:not(:checked)",1)],
+    },
+    Case {
+        name:"outline: level controls and column groups share the authored visibility route",
+        actions:&[Action::OpenDetails("axis-tools"),Action::Click("[data-dnacalc=outline-level][data-level=\"1\"]"),Action::Wait(Check::PlanAbsent("A2")),Action::Wait(Check::Text(cell!("E1"),"0")),Action::Click("[data-dnacalc=outline-level][data-level=\"3\"]"),Action::Wait(Check::Text(cell!("E1"),"130")),Action::Into("name-box","G1\u{E007}"),Action::Into(BAR,"column detail\u{E007}"),Action::Into("name-box","G1:I1\u{E007}"),Action::OpenDetails("axis-tools"),Action::Choose("outline-axis","columns"),Action::Click("outline-group"),Action::Wait(Check::Count("outline-toggle",1)),Action::Click("outline-toggle"),Action::Click("[data-dnacalc=axis-tools] > summary")],
+        checks:&[Check::PlanAbsent("G1"),Check::Attr("outline-toggle","aria-expanded","false"),Check::Text(cell!("A7"),"150")],
+    },
+    Case {
+        name:"outline: column XLSX reopen and ungroup controls fit a phone",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("axis-tools"),Action::Choose("outline-axis","columns"),Action::Wait(Check::Attr("outline-toggle","aria-expanded","false")),Action::Click("outline-toggle"),Action::Wait(Check::Text(cell!("G1"),"column detail")),Action::Into("name-box","G1:I1\u{E007}"),Action::Click("outline-ungroup"),Action::Wait(Check::Count("outline-toggle",0)),Action::Click("undo"),Action::Wait(Check::Count("outline-toggle",1)),Action::Window(390,844),Action::Keys("outline-axis","\u{E004}\u{E004}\u{E004}\u{E004}\u{E004}")],
+        checks:&[Check::Text(cell!("G1"),"column detail"),Check::Fits,Check::Narrow(390),Check::Reachable("outline-axis"),Check::Reachable("outline-group"),Check::Focused("outline-summary-after"),Check::Reachable("outline-summary-after")],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -8218,4 +8249,5 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"autofilter",start:541,end:549,core:8,setup:&[]},
     CaseGroup {name:"general-sort",start:549,end:555,core:6,setup:&[]},
     CaseGroup {name:"session-view",start:555,end:560,core:5,setup:&[]},
+    CaseGroup {name:"axis-outline",start:560,end:566,core:6,setup:&[]},
 ];

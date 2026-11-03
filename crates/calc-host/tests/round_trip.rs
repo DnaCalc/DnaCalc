@@ -11998,3 +11998,187 @@ fn dc_971p_16__empty_view_elements_and_frozen_split_state_survive_window_save() 
         }
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__nested_outline_history_subtotals_and_xlsx_keep_independent_hiding() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (cell,input) in [("A1","Amount"),("A2","10"),("A3","20"),("A4","30"),("A5","40"),("A6","50"),("A7","=SUM(A2:A6)"),("C1","=SUBTOTAL(9,A2:A6)"),("D1","=SUBTOTAL(109,A2:A6)")] {assert!(enter(&mut book,at(s,cell),input).accepted());}
+    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}))};
+    for change in [O::Group{first:2,last:6},O::Group{first:3,last:4}] {let r=command(&mut book,change);assert!(r.accepted(),"{r:?}");}
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
+    let before=book.host().model().definitions().axis_layouts().clone();
+    assert!(command(&mut book,O::Detail{first:3,last:4,level:Some(2),show:false}).accepted());
+    assert_eq!(session_calculated(&book,at(s,"C1")).unwrap().as_number(),Some(150.));
+    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(100.));
+    let collapsed=book.host().model().definitions().axis_layouts().clone();
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&before);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&collapsed);
+    assert!(command(&mut book,O::Detail{first:2,last:6,level:Some(1),show:false}).accepted());
+    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(0.));
+    assert!(command(&mut book,O::Detail{first:2,last:6,level:Some(1),show:true}).accepted());
+    let g=book.host().sheet_geometry(s).unwrap();assert!(!g.rows[&2].hidden);assert!(g.rows[&3].hidden && g.rows[&4].hidden);assert!(!g.rows[&6].hidden);
+    assert!(command(&mut book,O::SummaryAfter(false)).accepted());
+    let final_layout=book.host().model().definitions().axis_layouts().clone();
+    assert!(!final_layout.summary_after(s,Axis::Rows));
+    assert!(final_layout.outline_groups(s,Axis::Rows).iter().any(|g|g.level==2 && g.summary==2 && g.collapsed));
+    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();
+    let xml=part_text(&bytes,"xl/worksheets/sheet1.xml");assert!(xml.contains("summaryBelow=\"0\""),"{xml}");assert!(xml.contains("outlineLevelRow=\"2\""));assert!(xml.contains("urn:dnacalc:outline:v1"));
+    let mut reopened=session(&bytes);let rs=reopened.host().sheets()[0].id();assert_eq!(rs,s);
+    assert_eq!(reopened.host().model().definitions().axis_layouts(),&final_layout);
+    assert!(reopened.dispatch(SkinIntent::Calculate{scope:calc_engine::CalcScope::Workbook,selection:calc_engine::EvalSelection::ForceAll}).accepted());
+    assert_eq!(session_calculated(&reopened,at(s,"D1")).unwrap().as_number(),Some(100.));
+    assert!(command(&mut reopened,O::ShowLevel(3)).accepted());
+    let g=reopened.host().sheet_geometry(s).unwrap();assert!(g.rows[&3].hidden);assert!(!g.rows[&4].hidden);
+    assert_eq!(session_calculated(&reopened,at(s,"D1")).unwrap().as_number(),Some(130.));
+    assert_eq!(session_calculated(&reopened,at(s,"A7")).unwrap().as_number(),Some(150.));
+    let mut twin=session(&calc_host::blank_package());let replayed=replay(book.intent_log(),&mut twin);assert!(replayed.mismatches.is_empty(),"{replayed:?}");assert_eq!(twin.host().model().definitions().axis_layouts(),&final_layout);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__shared_summary_controls_columns_and_seven_levels_round_trip() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    assert!(enter(&mut book,at(s,"B1"),"detail").accepted());
+    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:false,revision,change}))};
+    for change in [O::Group{first:2,last:5},O::Group{first:3,last:5},O::Detail{first:3,last:5,level:Some(2),show:false},O::Detail{first:2,last:5,level:Some(1),show:false}] {let r=command(&mut book,change);assert!(r.accepted(),"{r:?}");}
+    let layout=book.host().model().definitions().axis_layouts();assert_eq!(layout.get(s,Axis::Columns,6).collapsed(),3);
+    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let mut reopened=session(&bytes);
+    assert_eq!(reopened.host().model().definitions().axis_layouts(),book.host().model().definitions().axis_layouts());
+    assert!(command(&mut reopened,O::Detail{first:2,last:5,level:Some(1),show:true}).accepted());
+    let g=reopened.host().sheet_geometry(s).unwrap();assert!(!g.column(2).unwrap().hidden);assert!(g.column(3).unwrap().hidden);
+    assert!(command(&mut reopened,O::SummaryAfter(false)).accepted());let before=reopened.host().model().definitions().axis_layouts().clone();
+    assert!(reopened.dispatch(SkinIntent::Undo).accepted());assert!(reopened.host().model().definitions().axis_layouts().summary_after(s,Axis::Columns));assert!(reopened.dispatch(SkinIntent::Redo).accepted());assert_eq!(reopened.host().model().definitions().axis_layouts(),&before);
+    assert!(command(&mut reopened,O::Ungroup{first:3,last:5}).accepted());assert_eq!(reopened.host().model().definitions().axis_layouts().outline_groups(s,Axis::Columns).len(),1);
+    assert!(reopened.host().sheet_geometry(s).unwrap().column(3).unwrap().hidden);
+    assert!(reopened.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:false,first:3,count:3,size_bits:None,hidden:Some(false)})).accepted());
+    for _ in 0..6 {assert!(command(&mut reopened,O::Group{first:2,last:5}).accepted());}
+    let revision=reopened.host().revision();let history=reopened.history_depth();let refusal=command(&mut reopened,O::Group{first:2,last:5});assert!(!refusal.accepted());assert_eq!(reopened.host().revision(),revision);assert_eq!(reopened.history_depth(),history);
+    assert!(command(&mut reopened,O::ShowLevel(8)).accepted());assert!(!reopened.host().sheet_geometry(s).unwrap().column(3).unwrap().hidden);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__outline_and_filter_visibility_remain_separate_after_reopen() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O,FilterChange as F,FilterCriteria};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (cell,input) in [("A1","Category"),("A2","Alpha"),("A3","Beta"),("A4","Alpha"),("A5","Beta")] {assert!(enter(&mut book,at(s,cell),input).accepted());}
+    let outline=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}))};
+    let filter=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
+    assert!(outline(&mut book,O::Group{first:2,last:4}).accepted());assert!(outline(&mut book,O::Detail{first:2,last:4,level:None,show:false}).accepted());
+    assert!(filter(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A5")).unwrap()}).accepted());assert!(filter(&mut book,F::Column{column:1,criteria:Some(FilterCriteria::Values{values:vec!["Alpha".into()],blank:false})}).accepted());
+    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let mut reopened=session(&bytes);
+    assert_eq!(reopened.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![3,5]);
+    assert!(filter(&mut reopened,F::Clear).accepted());let g=reopened.host().sheet_geometry(s).unwrap();assert!(g.rows[&2].hidden && g.rows[&3].hidden && g.rows[&4].hidden);assert!(!g.rows.get(&5).is_some_and(|r|r.hidden));
+    assert!(outline(&mut reopened,O::ShowLevel(8)).accepted());let g=reopened.host().sheet_geometry(s).unwrap();assert!((2..=5).all(|r|!g.rows.get(&r).is_some_and(|f|f.hidden)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__foreign_outline_reads_and_unknown_metadata_survive_with_stale_extension_ignored() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis};
+    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("<sheetData/>","<sheetData><row r=\"2\" outlineLevel=\"1\" hidden=\"1\" customHeight=\"1\" ht=\"20\"/><row r=\"3\" outlineLevel=\"1\" hidden=\"1\"/><row r=\"4\" collapsed=\"1\"/></sheetData>").replace("<sheetData>","<sheetPr codeName=\"OutlineSheet\"><outlinePr summaryBelow=\"1\" applyStyles=\"1\"/><pageSetUpPr autoPageBreaks=\"0\"/></sheetPr><sheetData>"));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();assert_eq!(book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows).len(),1);
+    assert!(book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows)[0].collapsed);
+    let r=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision:r,change:O::ShowLevel(8)})).accepted());assert!(!book.host().sheet_geometry(s).unwrap().rows[&2].hidden);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("codeName=\"OutlineSheet\""));assert!(xml.contains("applyStyles=\"1\""));assert!(xml.contains("autoPageBreaks=\"0\""));
+    // External editing changes the physical outline, so stale independent-hiding metadata is discarded.
+    let edited=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|xml|xml.replace("r=\"3\" outlineLevel=\"1\"","r=\"3\" outlineLevel=\"1\" hidden=\"1\""));
+    let edited=session(&edited);assert!(edited.host().sheet_geometry(s).unwrap().rows[&3].hidden);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__grouping_existing_collapsed_detail_keeps_only_the_original_group_collapsed() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    let command=|book:&mut HostSession,revision,change|book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}));
+    for change in [O::Group{first:2,last:4},O::Detail{first:2,last:4,level:None,show:false},O::Group{first:2,last:4}] {let r=book.host().revision().get();assert!(command(&mut book,r,change).accepted());}
+    let layout=book.host().model().definitions().axis_layouts();let groups=layout.outline_groups(s,Axis::Rows);
+    assert!(!groups[0].collapsed);assert!(groups[1].collapsed);assert_eq!(layout.get(s,Axis::Rows,5).collapsed(),2);
+    let revision=book.host().revision();let before=book.host().model().definitions().axis_layouts().clone();let depth=book.history_depth();
+    for (r,change) in [(revision.get()-1,O::ShowLevel(8)),(revision.get(),O::Group{first:0,last:3}),(revision.get(),O::Group{first:1048576,last:1048576}),(revision.get(),O::ShowLevel(9))] {assert!(!command(&mut book,r,change).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().axis_layouts(),&before);}
+    assert!(command(&mut book,revision.get(),O::Ungroup{first:2,last:4}).accepted());assert!(book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows)[0].collapsed);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__axis_insert_delete_preserve_current_outline_visibility_and_remove_orphan_controls() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis,AxisChange,AxisEdit};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (cell,input) in [("A2","10"),("A3","20"),("A4","30"),("C1","=SUBTOTAL(109,A2:A4)")] {assert!(enter(&mut book,at(s,cell),input).accepted());}
+    for change in [O::Group{first:2,last:4},O::Detail{first:2,last:4,level:None,show:false}] {let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change})).accepted());}
+    let original=book.host().model().definitions().axis_layouts().clone();
+    let edit=|book:&mut HostSession,change,first,count|book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Axis(AxisEdit::new(s,Axis::Rows,change,first,count).unwrap())]});
+    assert!(edit(&mut book,AxisChange::Insert,3,1).accepted());let g=book.host().sheet_geometry(s).unwrap();assert!((2..=5).all(|r|g.rows[&r].hidden));assert_eq!(session_calculated(&book,at(s,"C1")).unwrap().as_number(),Some(0.));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&original);
+    assert!(edit(&mut book,AxisChange::Delete,2,3).accepted());assert!(book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows).is_empty());assert_eq!(book.host().model().definitions().axis_layouts().get(s,Axis::Rows,2).collapsed(),0);
+    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let reopened=session(&bytes);assert!(reopened.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows).is_empty());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__unmodelled_imported_outline_refuses_dimension_changes_and_retains_source() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O};
+    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("<sheetData/>","<sheetData><row r=\"2\" outlineLevel=\"8\" hidden=\"1\"/><row r=\"3\" collapsed=\"1\"/></sheetData>"));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision();
+    for command in [W::Outline{sheet:s,rows:true,revision:revision.get(),change:O::ShowLevel(8)},W::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(false)}] {let r=book.dispatch(SkinIntent::Command(command));assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision(),revision);}
+    let structural=book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Axis(calc_host::AxisEdit::new(s,calc_host::Axis::Rows,calc_host::AxisChange::Insert,3,1).unwrap())]});assert!(!structural.accepted());assert_eq!(book.host().revision(),revision);
+    assert!(enter(&mut book,at(s,"C1"),"unrelated").accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("outlineLevel=\"8\""));assert!(xml.contains("collapsed=\"1\""));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__inserting_outline_settings_preserves_tab_color_child_order_and_extensions() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O};
+    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("<sheetData/>","<sheetPr codeName=\"Outline\"><tabColor rgb=\"FFFF0000\"/><pageSetUpPr autoPageBreaks=\"0\"/></sheetPr><sheetData/><extLst><ext uri=\"urn:retained\"><keep xmlns=\"urn:retained\" text=\"unchanged\"/></ext></extLst>"));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change:O::Group{first:2,last:3}})).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/worksheets/sheet1.xml");
+    assert!(xml.find("<tabColor ").unwrap()<xml.find("<outlinePr ").unwrap(),"{xml}");assert!(xml.find("<outlinePr ").unwrap()<xml.find("<pageSetUpPr ").unwrap(),"{xml}");assert!(xml.contains("<keep xmlns=\"urn:retained\" text=\"unchanged\"/>"));assert_eq!(xml.matches("<extLst>").count(),1);
+    let saved=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|xml|xml.replace("manualRows=\"\"","manualRows=\"1\""));let reopened=session(&saved);assert!(!reopened.host().model().definitions().axis_layouts().get(s,calc_host::Axis::Rows,1).hidden());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__imported_table_filter_facts_survive_outline_visibility_refresh() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O};
+    let bytes=package_with_part_from(include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx"),"xl/worksheets/sheet1.xml",|xml|xml.replace("<row r=\"3\" ","<row r=\"3\" hidden=\"1\" "));
+    let mut book=session(&bytes);let s=book.host().model().definitions().tables()[0].sheet;
+    assert_eq!(book.host().model().definitions().hidden_rows(s,3,3).collect::<Vec<_>>(),vec![(3,calc_host::RowHidden::Filtered)]);
+    assert!(enter(&mut book,at(s,"H1"),"=SUBTOTAL(9,E2:E6)").accepted());assert_eq!(session_calculated(&book,at(s,"H1")).unwrap().as_number(),Some(130.));
+    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change:O::Group{first:9,last:10}})).accepted());
+    assert_eq!(session_calculated(&book,at(s,"H1")).unwrap().as_number(),Some(130.));let revision=book.host().revision();let refused=book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(false)}));assert!(!refused.accepted());assert_eq!(book.host().revision(),revision);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__summary_before_structural_boundaries_and_private_omissions_preserve_visibility() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis,AxisEdit,AxisChange};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}))};
+    for change in [O::Group{first:3,last:5},O::SummaryAfter(false),O::Detail{first:3,last:5,level:None,show:false}] {assert!(command(&mut book,change).accepted());}
+    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Axis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,3,1).unwrap())]}).accepted());
+    let groups=book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows);assert_eq!(groups.len(),1);assert_eq!((groups[0].first,groups[0].last,groups[0].summary),(4,6,3));assert!(groups[0].collapsed);
+    assert!((4..=6).all(|r|book.host().sheet_geometry(s).unwrap().rows[&r].hidden));
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:8,count:1,size_bits:None,hidden:Some(true)})).accepted());
+    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let changed=package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml|xml.replace("manualRows=\"8\"","manualRows=\"\""));
+    let mut reopened=session(&changed);assert!(reopened.host().sheet_geometry(s).unwrap().rows[&8].hidden);assert!(command(&mut reopened,O::ShowLevel(8)).accepted());assert!(reopened.host().sheet_geometry(s).unwrap().rows[&8].hidden);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_39__ungroup_final_collapsed_level_keeps_manual_hiding_through_history_and_xlsx() {
+    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis,RowHidden};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}))};
+    for change in [O::Group{first:2,last:4},O::Detail{first:2,last:4,level:None,show:false}] {assert!(command(&mut book,change).accepted());}
+    let grouped=book.host().model().definitions().axis_layouts().clone();
+    assert!(command(&mut book,O::Ungroup{first:2,last:4}).accepted());
+    let ungrouped=book.host().model().definitions().axis_layouts().clone();assert!(ungrouped.outline_groups(s,Axis::Rows).is_empty());
+    for row in 2..=4 {assert!(ungrouped.get(s,Axis::Rows,row).hidden());assert_eq!(book.host().model().definitions().hidden_rows(s,row,row).collect::<Vec<_>>(),vec![(row,RowHidden::Manual)]);}
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&grouped);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&ungrouped);
+    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let reopened=session(&bytes);assert_eq!(reopened.host().model().definitions().axis_layouts(),&ungrouped);assert!((2..=4).all(|r|reopened.host().sheet_geometry(s).unwrap().rows[&r].hidden));
+}

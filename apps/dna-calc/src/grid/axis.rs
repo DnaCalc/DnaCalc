@@ -25,7 +25,34 @@ pub fn controls(controller: Controller) -> impl IntoView {
                 <button data-dnacalc="hide-rows" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.axis_format(true,None,Some(true))>"Hide rows"</button>
                 <button data-dnacalc="show-rows" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.axis_format(true,None,Some(false))>"Show rows"</button>
             </div>
+            {outline_controls(controller)}
         </details>
+    }
+}
+
+fn outline_controls(controller:Controller)->impl IntoView {
+    let rows=RwSignal::new(true);
+    let geometry=move ||{controller.outline_geometry()};
+    view! {
+        <section class="dc-outline-tools" aria-label="Worksheet outline">
+            <h3>"Outline"</h3>
+            <p class="dc-note">"Group detail rows or columns; leave their summary band outside the selection. Group again to nest. Collapse keeps manual hiding and filters."</p>
+            <div class="dc-command-row">
+                <label>"Axis"<select data-dnacalc="outline-axis" prop:value=move ||if rows.get(){"rows"}else{"columns"} on:change=move |ev|rows.set(event_target_value(&ev)=="rows")><option value="rows">"Rows"</option><option value="columns">"Columns"</option></select></label>
+                <button data-dnacalc="outline-group" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.outline_selection(rows.get_untracked(),0)>"Group selection"</button>
+                <button data-dnacalc="outline-ungroup" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.outline_selection(rows.get_untracked(),1)>"Ungroup selection"</button>
+                <button data-dnacalc="outline-collapse" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.outline_selection(rows.get_untracked(),2)>"Hide detail"</button>
+                <button data-dnacalc="outline-expand" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.outline_selection(rows.get_untracked(),3)>"Show detail"</button>
+                <label><input type="checkbox" data-dnacalc="outline-summary-after" prop:checked=move ||geometry().is_none_or(|g|if rows.get(){g.summary_below}else{g.summary_right}) on:change=move |ev|controller.outline(rows.get_untracked(),crate::wire::OutlineChange::SummaryAfter(event_target_checked(&ev)))/>"Summary after detail"</label>
+            </div>
+            <div class="dc-command-row" aria-label="Show outline level">"Show level "
+                {(1u8..=8).map(move |level|view!{<button data-dnacalc="outline-level" data-level=level on:click=move |_|controller.outline(rows.get_untracked(),crate::wire::OutlineChange::ShowLevel(level))>{level}</button>}).collect_view()}
+            </div>
+            <ul class="dc-outline-groups">{move ||geometry().map(|g|g.outline.into_iter().filter(|g|g.rows==rows.get()).map(move |g|{
+                let label=format!("{} {}–{} · level {} · summary {}",if g.rows{"Rows"}else{"Columns"},g.first,g.last,g.level,g.summary);
+                view!{<li><button data-dnacalc="outline-toggle" data-first=g.first data-last=g.last data-level=g.level aria-expanded=(!g.collapsed).to_string() on:click=move |_|controller.outline(g.rows,crate::wire::OutlineChange::Detail{first:g.first,last:g.last,level:Some(g.level),show:g.collapsed})>{if g.collapsed{"+ "}else{"− "}}{label}</button></li>}
+            }).collect_view())}</ul>
+        </section>
     }
 }
 

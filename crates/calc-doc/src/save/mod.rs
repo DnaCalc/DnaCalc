@@ -18,6 +18,7 @@ pub use conditional::{conditional_rule, new_conditional_rule};
 mod diff;
 pub(crate) mod file_form;
 mod geometry;
+mod outline;
 mod filter;
 mod manifest;
 mod panes;
@@ -223,6 +224,7 @@ pub struct SaveViews {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
+    OutlineNotModelled { part:String, owner: &'static str },
     WindowView { detail: String, owner: &'static str },
     /// This rectangular style plane still needs too many individual blank-cell XML records.
     /// Row and column defaults have already been compacted; no bytes have been written.
@@ -323,6 +325,7 @@ impl fmt::Display for SaveRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::WindowView {detail,owner}=>write!(f,"{detail} ({owner})"),
+            Self::OutlineNotModelled {part,owner} => write!(f,"Outline metadata in {part} cannot be rewritten ({owner}); no bytes written"),
             Self::StyleExpansionNotModelled { cells, owner } => write!(
                 f,
                 "Saving this formatting needs {cells} individual blank-cell records; larger style expansion is not modelled ({owner})"

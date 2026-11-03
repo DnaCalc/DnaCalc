@@ -1226,6 +1226,13 @@ impl Server {
                 revision,
                 sizes,
             }),
+            Intent::Outline {sheet,rows,revision,change} => SkinIntent::Command(calc_host::WorkbookCommand::Outline {sheet:sheet.id(),rows,revision,change:match change {
+                wire::OutlineChange::Group{first,last}=>calc_host::OutlineChange::Group{first,last},
+                wire::OutlineChange::Ungroup{first,last}=>calc_host::OutlineChange::Ungroup{first,last},
+                wire::OutlineChange::Detail{first,last,level,show}=>calc_host::OutlineChange::Detail{first,last,level,show},
+                wire::OutlineChange::ShowLevel(level)=>calc_host::OutlineChange::ShowLevel(level),
+                wire::OutlineChange::SummaryAfter(after)=>calc_host::OutlineChange::SummaryAfter(after),
+            }}),
             Intent::AxisFormat {
                 sheet,
                 rows,
@@ -1750,6 +1757,7 @@ impl Server {
                 calc_host::WorkbookCommand::Sheet { .. }
                     | calc_host::WorkbookCommand::FitContents { .. }
                     | calc_host::WorkbookCommand::AxisFormat { .. }
+                    | calc_host::WorkbookCommand::Outline { .. }
                     | calc_host::WorkbookCommand::FreezePanes { .. }
                     | calc_host::WorkbookCommand::SplitPanes { .. }
                     | calc_host::WorkbookCommand::Paste(_)
@@ -2038,6 +2046,8 @@ impl Server {
             .sheet_geometry(sheet.id())
             .map(|g| wire::geometry_of(&g))
             .unwrap_or_default();
+        let layouts=self.book.host().model().definitions().axis_layouts();
+        geometry.outline=[calc_host::Axis::Rows,calc_host::Axis::Columns].into_iter().flat_map(|axis|layouts.outline_groups(sheet.id(),axis).into_iter().map(move |g|wire::OutlineGroup {rows:axis==calc_host::Axis::Rows,first:g.first,last:g.last,level:g.level,summary:g.summary,collapsed:g.collapsed})).collect();
         geometry.auto_filter=self.book.host().model().definitions().auto_filter(sheet.id()).map(|f|wire::FilterView{area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported});
         geometry.merges = self
             .book

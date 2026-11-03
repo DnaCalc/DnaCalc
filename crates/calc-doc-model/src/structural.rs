@@ -389,6 +389,10 @@ impl ModelRoot {
             next=next.with_auto_filter(sheet,Some(filter));
         }
 
+        if edit.axis()==Axis::Rows {
+            let edits:Vec<_>=next.axis_layouts().bands(edit.sheet(),Axis::Rows).map(|(i,f)|crate::AxisFormatEdit::new(edit.sheet(),Axis::Rows,i,f).unwrap()).collect();
+            next=next.with_axis_formats(edits);
+        }
         for (sheet, rules) in definitions.all_conditional_rules() {
             let rules = rules
                 .iter()
