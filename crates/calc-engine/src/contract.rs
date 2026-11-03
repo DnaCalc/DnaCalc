@@ -241,31 +241,87 @@ pub struct BoundaryReadSpan {
     pub imported: u64,
     pub imported_sources: Vec<std::sync::Arc<calc_doc_model::SourcePart>>,
 }
+/// Common dependency/freshness evidence stays inline. Other evidence is allocated only
+/// when used; field reads still expose the complete certificate through Deref.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ReadCertificate {
+    /// The calculation consumed a saved external-link cache without a versioned live input.
+    pub external_cache: bool,
+    /// An existing session boundary has calculation provenance but no invocation certificate.
+    pub legacy_boundary: bool,
+    pub uses_boundary_cache: bool,
+    pub uses_imported_cache: bool,
+    pub dependencies: Vec<ReadSpan>,
+    pub semantic_environment: u64,
+    pub bindings: u64,
+    pub volatile_inputs: Option<u64>,
+    pub(crate) details: OptionalReadDetails,
+}
+
+/// Less frequent read evidence. Absence, observation and callable proofs are retained
+/// in full when present; an unallocated instance has exactly the default contents.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ReadDetails {
     pub linked_inputs: Option<crate::LinkedInputStamp>,
     pub observations: Vec<CachedObservation>,
     pub external_inputs: Vec<calc_fml::UserInputRead>,
     pub callables: Vec<calc_fml::CallableBindingProof>,
     pub invocations: Vec<CallInvocation>,
     pub udf_volatile: Option<bool>,
-    /// The calculation consumed a saved external-link cache without a versioned live input
-    /// view. Arithmetic preserves this qualification; it is not a FreshFor guarantee.
-    pub external_cache: bool,
-    /// Reads cross an existing session boundary without an invocation certificate. This
-    /// records actual calculation provenance, but never provides a FreshFor guarantee.
-    pub legacy_boundary: bool,
-    pub uses_boundary_cache: bool,
-    pub uses_imported_cache: bool,
     pub boundary_caches: Vec<BoundaryReadSpan>,
-    pub dependencies: Vec<ReadSpan>,
     pub facts: Vec<FactStamp>,
     pub absences: Vec<AbsenceProof>,
-    pub semantic_environment: u64,
-    pub bindings: u64,
     /// Resolved identities/versions and scoped namespace probes, including misses.
     pub names: Vec<calc_fml::reference::NameBindingProof>,
-    pub volatile_inputs: Option<u64>,
+}
+static EMPTY_READ_DETAILS: ReadDetails = ReadDetails {
+    linked_inputs: None,
+    observations: Vec::new(),
+    external_inputs: Vec::new(),
+    callables: Vec::new(),
+    invocations: Vec::new(),
+    udf_volatile: None,
+    boundary_caches: Vec::new(),
+    facts: Vec::new(),
+    absences: Vec::new(),
+    names: Vec::new(),
+};
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct OptionalReadDetails(Option<Box<ReadDetails>>);
+impl std::ops::Deref for OptionalReadDetails {
+    type Target = ReadDetails;
+    fn deref(&self) -> &ReadDetails {
+        self.0.as_deref().unwrap_or(&EMPTY_READ_DETAILS)
+    }
+}
+impl std::ops::DerefMut for OptionalReadDetails {
+    fn deref_mut(&mut self) -> &mut ReadDetails {
+        self.0.get_or_insert_with(Box::default)
+    }
+}
+// Allocation history never changes certificate equality or a hash-table key.
+impl PartialEq for OptionalReadDetails {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+impl Eq for OptionalReadDetails {}
+impl std::hash::Hash for OptionalReadDetails {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&**self, state);
+    }
+}
+impl std::ops::Deref for ReadCertificate {
+    type Target = ReadDetails;
+    fn deref(&self) -> &ReadDetails {
+        &self.details
+    }
+}
+impl std::ops::DerefMut for ReadCertificate {
+    fn deref_mut(&mut self) -> &mut ReadDetails {
+        &mut self.details
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TargetCompletion {
@@ -1261,5 +1317,32 @@ mod scope_transform_tests {
             }),
             CalcScope::Range(Vec::new())
         );
+    }
+}
+
+#[cfg(test)]
+mod read_details_tests {
+    use super::ReadCertificate;
+    use std::hash::{Hash, Hasher};
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn empty_read_details_keep_content_equality_and_clone_isolation() {
+        let empty = ReadCertificate::default();
+        assert!(empty.details.0.is_none());
+        let mut used = empty.clone();
+        used.udf_volatile = Some(false);
+        let retained = used.clone();
+        used.udf_volatile = None;
+        assert!(used.details.0.is_some());
+        assert_eq!(empty, used);
+        assert_eq!(retained.udf_volatile, Some(false));
+        let hash = |value: &ReadCertificate| {
+            let mut state = std::collections::hash_map::DefaultHasher::new();
+            value.hash(&mut state);
+            state.finish()
+        };
+        assert_eq!(hash(&empty), hash(&used));
+        assert_ne!(empty, retained);
     }
 }
