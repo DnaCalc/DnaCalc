@@ -204,7 +204,8 @@ fn networkdays(
 fn return_type(site: &Site<'_>, a: &[CalcValue], strict: bool) -> Step<Option<f64>> {
     match a.get(1) {
         None => Ok(None),
-        Some(value) if value.is_missing() => Ok(None),
+        // WEEKDAY reads an explicit placeholder as zero; WEEKNUM keeps its default.
+        Some(value) if value.is_missing() && strict => Ok(None),
         Some(_) if strict => strict_num(site, a, 1).map(Some),
         Some(_) => num(site, a, 1).map(Some),
     }

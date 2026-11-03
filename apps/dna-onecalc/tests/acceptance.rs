@@ -249,6 +249,107 @@ fn recorded_address_omitted_column_differs_from_blank() {
     }
 }
 
+/// W111 date-typed 00155 and refinement 00772..00868; depreciation-options
+/// 00000/00011 and independent 00092/00208; locale-profile 00193 and 00252.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_optional_placeholders_are_supplied_values() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut profile = format_profile(LocaleId::EnZa);
+    profile.decimal_separator = ".";
+    profile.thousands_separator = " ";
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    let formulas = ["=WEEKDAY(0,)", "=WEEKDAY(1,)", "=WEEKDAY(FALSE,)",
+        "=WEEKDAY(TRUE,)", "=WEEKDAY(\"1\",)", "=WEEKDAY(,)",
+        "=DB(1000,100,10,2,)", "=DDB(1000,100,10,2,)"];
+    let mut actuals: Vec<_> = formulas.iter().map(|formula| {
+        session.set_formula(formula);
+        (*formula, session.calculate().result)
+    }).collect();
+    let mut expected: Vec<_> = formulas.iter().map(|formula| {
+        (*formula, Some(CalcValue::error(WorksheetErrorCode::Num)))
+    }).collect();
+    // Recorded missing-argument controls differ between these two format functions.
+    for (formula, shown) in [("=DOLLAR(1234.5,)", "R1 235"), ("=FIXED(1234.5,)", "1 234.50")] {
+        session.set_formula(formula);
+        actuals.push((formula, session.calculate().result));
+        expected.push((formula, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment(shown)))));
+    }
+    assert_eq!(actuals, expected);
+    // Leaving the return type out still uses WEEKDAY's default.
+    session.set_formula("=WEEKDAY(1)");
+    assert_eq!(session.calculate().result, Some(CalcValue::number(1.0)));
+}
+
+/// W111 locale-profile-20260929: 00145/00146/00151..00154, zero after currency rounding.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_dollar_retains_a_negative_sign_after_rounding() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut profile = format_profile(LocaleId::EnZa);
+    profile.decimal_separator = ".";
+    profile.thousands_separator = " ";
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    for (bits, places, expected) in [
+        (0xbf74_7ae1_47ae_147b, 0, "-R0"), (0xbf74_7ae1_47ae_147b, 1, "-R0.0"),
+        (0xc005_6666_6666_6666, -3, "R0"), (0xc005_6666_6666_6666, -1, "R0"),
+        (0xbf74_7ae1_47ae_147b, -3, "R0"), (0xbf74_7ae1_47ae_147b, -1, "R0"),
+    ] {
+        session.set_input("A100", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+        session.set_formula(&format!("=DOLLAR(A100,{places})"));
+        assert_eq!(session.calculate().result, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment(expected))));
+    }
+}
+
+/// W111 locale-profile-20260929: 00275/00287/00299/00311/00323.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_text_at_format_reads_numbers() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut profile = format_profile(LocaleId::EnZa);
+    profile.decimal_separator = ".";
+    profile.thousands_separator = " ";
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    session.set_formula("=TEXT(A100,\"@\")");
+    for (bits, expected) in [(0, "0"), (0x3ff0_0000_0000_0000, "1"),
+        (0xbff0_0000_0000_0000, "-1"), (0x4093_4a44_9ba5_e354, "1234.567"),
+        (0x40e6_1212_0000_0000, "45200.5625")] {
+        session.set_input("A100", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+        assert_eq!(session.calculate().result, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment(expected))), "{bits:#018x}");
+    }
+}
+
+/// The five recorded bare-@ values do not decide between cell General and full numeric text.
+/// Keep the different-precision case unanswered until the fn4 controls are captured.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unmeasured_text_at_precision_stays_refused() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(format_profile(LocaleId::CurrentExcelHost)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    session.set_input("A1", InputValue::number(123456789012345.0).unwrap()).unwrap();
+    session.set_formula("=TEXT(A1,\"@\")");
+    let result = session.calculate();
+    assert!(result.result.is_none());
+    assert!(format!("{:?}", result.diagnostics).contains("NotImplemented"));
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -142,7 +142,8 @@ fn fixed(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 fn dollar(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let (_, profile) = profile(site)?;
     let number = num(site, a, 0)?;
-    let places = places(site, a)?;
+    // W111 locale-profile 00193: unlike FIXED, an explicit placeholder means zero places.
+    let places = if a.get(1).is_some_and(CalcValue::is_missing) { 0 } else { places(site, a)? };
     rendered(site, Ok(format::dollar(profile, number, places)))
 }
 

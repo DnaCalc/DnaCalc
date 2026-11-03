@@ -10,7 +10,7 @@
 //!   written where it stands (`TEXT(1234567.891,"#,##0")` is `1234,568`).
 //! - Digits are those of the number rounded first to 15 significant digits and then, a half away
 //!   from zero, to the places the code shows; a negative number whose rounding is zero shows no
-//!   minus sign.
+//!   minus sign; DOLLAR retains the negative sign when its decimal places are non-negative.
 //! - Sections: one for every number; two for the non-negative and the negative numbers (the
 //!   second without a minus sign); three adding zero; a fourth for text; a condition in brackets
 //!   chooses its section. Colors in brackets are dropped; locale tags select date names; `[$R-1C09]` writes `R`.
@@ -166,7 +166,7 @@ pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> String
         CurrencyPlacement::Before => format!("{symbol}{spacing}{magnitude}"),
         CurrencyPlacement::After => format!("{magnitude}{spacing}{symbol}"),
     };
-    let negative = value < 0.0 && magnitude.chars().any(|c| c.is_ascii_digit() && c != '0');
+    let negative = value < 0.0 && (places >= 0 || magnitude.chars().any(|c| c.is_ascii_digit() && c != '0'));
     if !negative {
         return body;
     }
@@ -1169,6 +1169,15 @@ pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatC
 
 /// TEXT of a number under `code`.
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
+    // W111 locale-profile 00275..00323: a bare text format shows a numeric value.
+    if code == "@" {
+        let shown = general(profile, value);
+        let canonical = crate::number_text::text(value).ok_or(Failure::NotModelled)?
+            .replace('.', profile.decimal_separator);
+        // These observations do not distinguish cell General from full numeric text.
+        // Keep the different-precision cases unanswered until the fn4 controls are read.
+        return if shown == canonical { Ok(shown) } else { Err(Failure::NotModelled) };
+    }
     let sections = sections(code);
     let (section, signed_section) = choose(&sections, value)?;
     let (stripped, name_locale) = strip_tokens(&section)?;
