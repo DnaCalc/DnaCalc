@@ -115,48 +115,189 @@ fn event_budget_exhaustion_does_not_retry_the_handler_prefix() {
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn before_save_keeps_its_actual_boolean_signature_and_refuses_the_missing_carrier() {
+fn automatic_before_save_keeps_boolean_arguments_shared_state_and_reset_subscriptions() {
+    let modules = [
+        module(
+            "Api",
+            ModuleKind::Standard,
+            "Public Entries As Long\nPublic Last As Boolean\nPublic Function SaveState() As String\n SaveState = CStr(Entries) & \":\" & CStr(Last)\nEnd Function\n",
+        ),
+        module(
+            "ThisWorkbook",
+            ModuleKind::Workbook,
+            "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Entries = Entries + 1\n Last = SaveAsUI\n Cancel = SaveAsUI\nEnd Sub\n",
+        ),
+    ];
+    for backend in backends() {
+        let project = load_project(&modules, 10000, Some(backend)).unwrap();
+        let functions = project.functions();
+        assert!(
+            !functions
+                .names()
+                .any(|name| name.eq_ignore_ascii_case("Workbook_BeforeSave"))
+        );
+        let source = EventSource::workbook("Book");
+        project.attach_document("ThisWorkbook", &source).unwrap();
+        assert_eq!(source.subscription_count(), 1);
+        assert_eq!(source.before_save(false, &Read, 10000), Ok(false));
+        assert_eq!(source.before_save(true, &Read, 10000), Ok(true));
+        assert_eq!(
+            functions
+                .call("SaveState", &[])
+                .unwrap()
+                .as_text()
+                .unwrap()
+                .to_string_lossy(),
+            "2:True"
+        );
+        project.reset().unwrap();
+        assert_eq!(source.subscription_count(), 1);
+        assert_eq!(source.before_save(false, &Read, 10000), Ok(false));
+        assert_eq!(
+            functions
+                .call("SaveState", &[])
+                .unwrap()
+                .as_text()
+                .unwrap()
+                .to_string_lossy(),
+            "1:False"
+        );
+        drop(functions);
+        drop(project);
+        assert_eq!(source.subscription_count(), 0);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn automatic_before_save_rejects_a_non_boolean_handler_before_attachment() {
     let modules = [module(
         "ThisWorkbook",
         ModuleKind::Workbook,
-        "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Cancel = True\nEnd Sub\n",
+        "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Double, Cancel As Boolean)\n Cancel = True\nEnd Sub\n",
     )];
     let error = load_project(&modules, 1000, Some(Backend::Interpreter))
         .err()
-        .expect("runtime has no plain Boolean event argument carrier");
+        .expect("mismatched event signature");
     assert!(
-        error.contains("BeforeSave") && error.contains("carrier") && error.contains("dc-hsa5.12"),
+        error.contains("event handler")
+            && error.contains("signature does not match")
+            && error.contains("BeforeSave")
+            && error.contains("dc-hsa5.12"),
         "{error}"
     );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn unsupported_document_members_refuse_before_any_subscription_is_published() {
+fn automatic_before_save_drains_unhandled_and_budget_faults_without_repeating_entries() {
+    for backend in backends() {
+        for (failure, number) in [
+            ("Err.Raise 5", "5"),
+            ("For i = 1 To 100000\n i = i\nNext i", "-1"),
+        ] {
+            let modules = [
+                module(
+                    "Api",
+                    ModuleKind::Standard,
+                    "Public Entries As Long\nPublic Function EntryCount() As Long\n EntryCount = Entries\nEnd Function\n",
+                ),
+                module(
+                    "ThisWorkbook",
+                    ModuleKind::Workbook,
+                    &format!(
+                        "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Dim i As Long\n Entries = Entries + 1\n Cancel = True\n If Entries = 1 Then\n {failure}\n End If\nEnd Sub\n"
+                    ),
+                ),
+            ];
+            let project = load_project(&modules, 10000, Some(backend)).unwrap();
+            let source = EventSource::workbook("Book");
+            project.attach_document("ThisWorkbook", &source).unwrap();
+            // Keep the same event callsite; no UDF probe/reset may clear a leaked fault.
+            let outcomes: Vec<_> = (0..2)
+                .map(|_| source.before_save(false, &Read, 1000))
+                .collect();
+            let error = outcomes[0].as_ref().unwrap_err();
+            assert!(
+                error.contains("BeforeSave") && error.contains(&format!("({number}:")),
+                "{backend:?}: {error}"
+            );
+            assert_eq!(outcomes[1], Ok(true), "{backend:?}: {failure}");
+            assert_eq!(
+                project
+                    .functions()
+                    .call("EntryCount", &[])
+                    .unwrap()
+                    .as_number(),
+                Some(2.0)
+            );
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn automatic_before_save_allows_a_caught_ordinary_error_to_cancel() {
+    let modules = [module(
+        "ThisWorkbook",
+        ModuleKind::Workbook,
+        "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n On Error Resume Next\n Err.Raise 5\n Cancel = True\nEnd Sub\n",
+    )];
+    for backend in backends() {
+        let project = load_project(&modules, 10000, Some(backend)).unwrap();
+        let source = EventSource::workbook("Book");
+        project.attach_document("ThisWorkbook", &source).unwrap();
+        assert_eq!(source.before_save(false, &Read, 10000), Ok(true));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn document_sources_validate_the_interface_before_exposing_self_members() {
     let modules = [
         module(
             "Api",
             ModuleKind::Standard,
-            "Public Entries As Long\nPublic Function Probe() As Long\n Probe = Entries\nEnd Function\n",
+            "Public Entries As Long\nPublic Last As String\nPublic Function Probe() As Long\n Probe = Entries\nEnd Function\nPublic Function LastName() As String\n LastName = Last\nEnd Function\n",
         ),
         module(
             "Sheet1",
             ModuleKind::Worksheet,
-            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Dim s As String\n Entries = Entries + 1\n s = Me.Name\nEnd Sub\n",
+            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Entries = Entries + 1\n Last = Me.Name\nEnd Sub\n",
         ),
     ];
     for backend in backends() {
         let project = load_project(&modules, 10000, Some(backend)).unwrap();
-        let source = EventSource::worksheet("S");
-        let error = project.attach_document("Sheet1", &source).unwrap_err();
+        let wrong = EventSource::workbook("other");
+        let error = project.attach_document("Sheet1", &wrong).unwrap_err();
         assert!(
-            error.contains("unsupported") && error.contains("dc-hsa5.12"),
+            error.contains("automatic document attachment")
+                && error.contains("procedure argument count/type mismatch")
+                && error.contains("dc-hsa5.12"),
             "{error}"
         );
-        assert_eq!(source.subscription_count(), 0);
+        assert_eq!(wrong.subscription_count(), 0);
         assert_eq!(
             project.functions().call("Probe", &[]).unwrap().as_number(),
             Some(0.0)
+        );
+        let source = EventSource::worksheet("S");
+        project.attach_document("Sheet1", &source).unwrap();
+        assert_eq!(source.subscription_count(), 1);
+        source.change(target(), &Read, 10000).unwrap();
+        assert_eq!(
+            project.functions().call("Probe", &[]).unwrap().as_number(),
+            Some(1.0)
+        );
+        assert_eq!(
+            project
+                .functions()
+                .call("LastName", &[])
+                .unwrap()
+                .as_text()
+                .unwrap()
+                .to_string_lossy(),
+            "S"
         );
     }
 }

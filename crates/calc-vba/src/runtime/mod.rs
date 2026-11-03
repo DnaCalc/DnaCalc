@@ -200,7 +200,8 @@ impl Module {
                     native.parameter_types.iter().any(|ty| {
                         !matches!(
                             ty,
-                            oxvba_com::TypeLibParamType::Object
+                            oxvba_com::TypeLibParamType::Boolean
+                                | oxvba_com::TypeLibParamType::Object
                                 | oxvba_com::TypeLibParamType::ByRefBoolean
                         )
                     })

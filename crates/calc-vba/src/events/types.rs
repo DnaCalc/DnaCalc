@@ -1,5 +1,5 @@
 //! DNA nominal event interfaces, independent of installed Excel type libraries.
-//! Slot metadata follows OxVba953ece7f crates/oxvba-embed/src/provider.rs.
+//! Slot metadata follows OxVba7eb4fdd9 crates/oxvba-embed/src/provider.rs.
 use oxvba_com::{
     ComInterfaceIid, TypeLibEventDispatchPath, TypeLibEventMetadata, TypeLibMemberInvokeKind as K,
     TypeLibMemberMetadata, TypeLibMetadataBlob, TypeLibParamType as T, TypeLibResolveRequest,
@@ -154,6 +154,7 @@ impl TypeLibResolver for EventTypes {
             _ => return None,
         };
         Some(TypeLibMetadataBlob {
+            constants: Vec::new(),
             identity: TypeLibResolvedIdentity {
                 reference_name: request.reference_name.clone(),
                 requested_coclass: Some(class.into()),

@@ -118,8 +118,12 @@ impl HostObjectServices for Services {
                     }
                     _ => false,
                 }
+        } else if self.0.iid == types::BOOK {
+            descriptor.interface == types::BOOK_EVENTS
+                && descriptor.dispatch_id == 1
+                && descriptor.name.eq_ignore_ascii_case("BeforeSave")
+                && descriptor.parameters == [EventParameter::Boolean, EventParameter::BooleanByRef]
         } else {
-            // Exact BeforeSave includes a plain Boolean which this runtime API cannot describe.
             false
         };
         if !valid {
@@ -226,9 +230,21 @@ impl EventSource {
             })
         })
         .map_err(|e| format!("{e} (dc-hsa5.12)"));
-        match refused.into_inner() {
-            Some(reason) => Err(format!("{reason} (dc-hsa5.12)")),
-            None => result,
+        // Faults are keyed to this exact native context. Always drain before any return,
+        // including a caught unsupported read, so a later event cannot inherit the fault.
+        let fault = api::take_unhandled_event_fault(&budget);
+        match (refused.into_inner(), fault) {
+            (Some(reason), _) => Err(format!("{reason} (dc-hsa5.12)")),
+            (None, Some(fault)) => Err(format!(
+                "VBA {name} event failed ({}: {}{}, dc-hsa5.12)",
+                fault.number,
+                fault.description,
+                fault
+                    .source
+                    .map(|source| format!(" [{source}]"))
+                    .unwrap_or_default(),
+            )),
+            (None, None) => result,
         }
     }
     pub fn change(

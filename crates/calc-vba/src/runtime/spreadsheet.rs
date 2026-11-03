@@ -814,6 +814,7 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
             numeric.vtable_slot_bound = Some(1);
             numeric.is_default_member = true;
             return Some(TypeLibMetadataBlob {
+                constants: Vec::new(),
                 identity: TypeLibResolvedIdentity {
                     reference_name: request.reference_name.clone(),
                     requested_coclass: Some("Range".into()),
@@ -856,6 +857,7 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
             ]
         };
         Some(TypeLibMetadataBlob {
+            constants: Vec::new(),
             identity: TypeLibResolvedIdentity {
                 reference_name: request.reference_name.clone(),
                 requested_coclass: Some(class.into()),

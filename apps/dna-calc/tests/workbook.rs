@@ -2745,10 +2745,11 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
     let mut server = Server::new();
     let sheet = server.book().sheets()[0].id;
     let at = CellKey::new(sheet, 1, 1).unwrap();
-    let exchange = |server: &mut Server, request: Request| {
-        let (text, _) = answer_text(server, &wire::encode(&ToServer { id: 1, request }), None);
-        wire::decode::<FromServer>(&text).unwrap()
+    let exchange_full = |server: &mut Server, request: Request| {
+        let (text, bytes) = answer_text(server, &wire::encode(&ToServer { id: 1, request }), None);
+        (wire::decode::<FromServer>(&text).unwrap(), bytes)
     };
+    let exchange = |server: &mut Server, request: Request| exchange_full(server, request).0;
     let send = |server: &mut Server, request: Request| {
         let request = server.envelope(request);
         exchange(server, request)
@@ -2823,9 +2824,9 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
     send(&mut server, Request::SetVbaEventsEnabled { enabled: true });
     let before_save = send(&mut server, Request::LoadVbaProject { modules: vec![wire::VbaModule {
         name: "ThisWorkbook".into(), target: wire::VbaModuleTarget::Workbook,
-        source: "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Cancel = True\nEnd Sub\n".into(),
+        source: "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Double, Cancel As Boolean)\n Cancel = True\nEnd Sub\n".into(),
     }], max_steps: 1000 });
-    assert!(matches!(before_save, FromServer::Failed { message, .. } if message.contains("carrier") && message.contains("dc-hsa5.12")));
+    assert!(matches!(before_save, FromServer::Failed { message, .. } if message.contains("event handler") && message.contains("signature does not match") && message.contains("BeforeSave") && message.contains("dc-hsa5.12")));
     send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "13".into() }));
     assert_eq!(report(&mut server), "3:2:13", "failed preparation preserves the whole prior project");
     send(&mut server, Request::LoadVbaProject { modules: modules.clone(), max_steps: 100_000 });
@@ -2841,4 +2842,62 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
     assert_eq!(shown(server.book(), at).text, "15");
     let events = server.take_events();
     assert_eq!(events.iter().filter(|event| matches!(event, wire::Event::WorkbookEventFailed { event, .. } if event == "Worksheet_Change")).count(), 1, "handler failure is delivered once and does not undo the authored edit");
+
+    let save_modules = vec![
+        wire::VbaModule {
+            name: "SaveState".into(), target: wire::VbaModuleTarget::Standard,
+            source: "Public Saves As Long\nPublic LastSaveAsUI As Boolean\nPublic Function Probe() As String\n Probe = CStr(Saves) & \":\" & CStr(LastSaveAsUI)\nEnd Function\n".into(),
+        },
+        wire::VbaModule {
+            name: "ThisWorkbook".into(), target: wire::VbaModuleTarget::Workbook,
+            source: "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Saves = Saves + 1\n LastSaveAsUI = SaveAsUI\n Cancel = (Saves = 1)\nEnd Sub\n".into(),
+        },
+    ];
+    let loaded = send(&mut server, Request::LoadVbaProject { modules: save_modules.clone(), max_steps: 100_000 });
+    assert!(matches!(loaded, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted));
+    server.take_events();
+    let revision = server.book().host().revision();
+    let cancelled_request = server.envelope(Request::Save);
+    let cancelled = exchange_full(&mut server, cancelled_request.clone());
+    assert!(matches!(&cancelled.0, FromServer::Failed { message, .. } if message == "the BeforeSave handler cancelled the save"), "{cancelled:?}");
+    assert!(cancelled.1.is_none(), "a cancelled save emits no workbook bytes");
+    let retry = exchange_full(&mut server, cancelled_request);
+    assert_eq!(wire::encode(&cancelled.0), wire::encode(&retry.0));
+    assert_eq!(cancelled.1, retry.1);
+    assert_eq!(server.book().host().revision(), revision);
+    assert!(!server.take_events().iter().any(|event| matches!(event, wire::Event::WorkbookEventFailed { .. })), "cancellation is not a handler failure");
+
+    let allowed_request = server.envelope(Request::Save);
+    let allowed = exchange_full(&mut server, allowed_request.clone());
+    assert!(matches!(&allowed.0, FromServer::Reply { reply: Reply::Done { outcome, saved: Some(_), .. }, .. } if outcome.accepted), "{allowed:?}");
+    assert!(allowed.1.as_ref().is_some_and(|bytes| bytes.starts_with(b"PK")));
+    let retry = exchange_full(&mut server, allowed_request);
+    assert_eq!(wire::encode(&allowed.0), wire::encode(&retry.0));
+    assert_eq!(allowed.1, retry.1);
+    assert_eq!(report(&mut server), "2:False", "both save retries preserve the automatic handler's shared state");
+
+    send(&mut server, Request::SetVbaEventsEnabled { enabled: false });
+    let disabled = server.envelope(Request::Save);
+    assert!(exchange_full(&mut server, disabled).1.is_some());
+    assert_eq!(report(&mut server), "2:False", "disabled events also suppress BeforeSave");
+    send(&mut server, Request::SetVbaEventsEnabled { enabled: true });
+
+    let mut fail_once = save_modules;
+    fail_once[1].source = "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Saves = Saves + 1\n LastSaveAsUI = SaveAsUI\n If Saves = 1 Then\n  Err.Raise 5\n End If\nEnd Sub\n".into();
+    let loaded = send(&mut server, Request::LoadVbaProject { modules: fail_once, max_steps: 100_000 });
+    assert!(matches!(loaded, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted));
+    server.take_events();
+    // No UDF probe/reset may hide a sticky native event fault between these saves.
+    let mut outcomes = Vec::new();
+    for _ in 0..2 {
+        let request = server.envelope(Request::Save);
+        outcomes.push(exchange_full(&mut server, request));
+    }
+    assert!(matches!(&outcomes[0].0, FromServer::Failed { message, .. } if message.contains("BeforeSave") && message.contains("(5:")), "{:?}", outcomes[0]);
+    assert!(outcomes[0].1.is_none());
+    assert!(matches!(&outcomes[1].0, FromServer::Reply { reply: Reply::Done { outcome, saved: Some(_), .. }, .. } if outcome.accepted), "{:?}", outcomes[1]);
+    assert!(outcomes[1].1.as_ref().is_some_and(|bytes| bytes.starts_with(b"PK")));
+    let failures = server.take_events();
+    assert_eq!(failures.iter().filter(|event| matches!(event, wire::Event::WorkbookEventFailed { event, reason, .. } if event == "Workbook_BeforeSave" && reason.contains("(5:"))).count(), 1);
+    assert_eq!(report(&mut server), "2:False");
 }

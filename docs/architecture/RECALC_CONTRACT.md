@@ -597,7 +597,7 @@ through the existing command journal. The controller retains the download callba
 token and generation and drops it on replacement. Manual Save(false) stays noncalculating. These
 async save controls establish DNA behavior, not new Excel Save(true) measurements. P07's UI
 Save(false) cancellation profile remains open. The event hookup below covers explicit
-source projects; automatic BeforeSave and P22 parity remain open.
+source projects; broader P22 parity remains open.
 
 Workbook event hookup (dc-hsa5.12, 2026-11-03): an explicitly loaded source
 project supplies its standard/document module kinds and worksheet identities.
@@ -619,15 +619,19 @@ session, rather than an application-wide Excel EnableEvents property.
 
 A persistent BeforeSave owner enters the existing pre-pin authored-batch route;
 an explicit context owner overrides it, SaveCopyAs skips it, and disabled events
-suppress both. Handler edits survive cancellation. Exact automatic VBA
-BeforeSave is still unavailable: OxVba953ece7f's event API has Object and
-ByRefBoolean carriers but lacks the plain Boolean SaveAsUI argument in the
+suppress both. An explicit host owner's authored batch survives cancellation.
+Automatic VBA BeforeSave now uses OxVba7eb4fdd9's Boolean and BooleanByRef
+carriers for the real
 [documented signature](https://learn.microsoft.com/en-us/office/vba/api/excel.workbook.beforesave).
-Such a project returns a named dc-hsa5.12 refusal before replacing live code;
-the metadata keeps the real signature. The upstream request is in the engine9
-Windows packet. This is a host hookup, not a completed automatic BeforeSave claim.
+The runtime selects the private handler, shares its state with UDFs, and writes
+Cancel back before the host can pin a save image. Programmatic worker saves pass
+SaveAsUI=false. Handler errors fail the save; each invocation drains its native
+event fault before a later event can enter. The automatic VBA event view remains
+read-only, so workbook writes through that view still require object-model work.
+These controls establish the DNA hookup, not new P22 or UI-dialog measurements.
 
-The portable document projection supports explicit Target.Value2, Row, Column,
+The portable document projection resolves Me.Name from its attached document and
+supports explicit Target.Value2, Row, Column,
 Count and Address under one synchronous event view. Count returns Long and raises
 overflow for more than 2,147,483,647 cells, as the [Range.Count contract](https://learn.microsoft.com/en-us/office/vba/api/excel.range.count)
 requires. It uses DNA nominal
