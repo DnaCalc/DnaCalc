@@ -123,6 +123,54 @@ fn lifted_textsplit_preserves_the_recorded_spill() {
     assert!(calculated.diagnostics.is_empty());
 }
 
+/// OxFunc-Evidence w111-address-numeric-text-syntax-20260929 (0630..0695),
+/// w111-address-blank-numeric-text-20260929 (0057..0098) and the ABS numeric-text
+/// controls reject these Unicode spaces. The w111-locale-profile-20260929 VALUE
+/// controls 00118..00119 add NBSP and narrow NBSP within numeric text.
+/// They are not ASCII trimming characters.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn measured_unicode_numeric_text_spaces_return_value_errors() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(format_profile(LocaleId::EnZa)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    session.set_formula_cell("J70").unwrap();
+    for space in ['\u{00a0}', '\u{2003}', '\u{3000}'] {
+        for text in [format!("{space}1"), format!("1{space}"), format!("{space}1{space}"),
+            format!("1{space}%"), format!("({space}1)")] {
+            session.set_input("A1", InputValue::text(&text).unwrap()).unwrap();
+            for argument in ["A1".to_owned(), format!("\"{text}\"")] {
+                let formula = format!("=ADDRESS({argument},2,4,FALSE,\"Alpha\")");
+                session.set_formula(&formula);
+                let calculated = session.calculate();
+                assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::Value)),
+                    "{formula}: {:?}", calculated.diagnostics);
+                assert!(calculated.diagnostics.is_empty());
+            }
+        }
+    }
+    for text in ["\u{00a0}2", "2\u{00a0}"] {
+        session.set_input("A1", InputValue::text(text).unwrap()).unwrap();
+        for argument in ["A1".to_owned(), format!("\"{text}\"")] {
+            session.set_formula(&format!("=ABS({argument})"));
+            let calculated = session.calculate();
+            assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::Value)),
+                "ABS({argument}): {:?}", calculated.diagnostics);
+            assert!(calculated.diagnostics.is_empty());
+        }
+    }
+    for formula in ["=VALUE(\"1\u{00a0}234.5\")", "=VALUE(\"1\u{202f}234.5\")"] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::Value)),
+            "{formula}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;
 
