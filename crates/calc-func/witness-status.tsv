@@ -35,8 +35,8 @@ BAHTTEXT	full	20430	1983	1980	-	structural	ec9d4a91ff+changes
 BAHTTEXT	pinned	20430	120	120	-	exact	dd2d82c25f+changes
 BASE	full	20430	3560	3560	-	exact	ec9d4a91ff+changes
 BASE	pinned	20430	120	120	-	exact	dd2d82c25f+changes
-BESSELI	full	20430,20527	1318	493	116249594018323062	gross	ec9d4a91ff+changes
-BESSELI	pinned	20430	120	45	6886712239	gross	42caba52b4+changes
+BESSELI	full	20430,20527	1318	493	116249594018323062	gross	ac83861e41+changes
+BESSELI	pinned	20430	120	120	-	exact	ac83861e41+changes
 BESSELJ	full	20228,20527	946	42	802366603136	structural	ec9d4a91ff+changes
 BESSELJ	pinned	20228	120	0	802366603136	gross	dd2d82c25f+changes
 BESSELK	full	20430	1236	1235	2	last_bit	ec9d4a91ff+changes

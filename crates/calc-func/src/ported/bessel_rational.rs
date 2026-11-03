@@ -5,7 +5,13 @@
 //! functions, and a fixed grouping of the Y0 logarithm term.
 //! The fixed backward program and Y high-region tables retain the published
 //! constants and operation rules. See deploy/notices/ported.txt.
-use super::excel_numeric::{excel_cos, excel_log, excel_sin};
+//! The I0 and higher-I helpers also adapt ITK's Apache-2.0 GaussianOperator,
+//! Copyright NumFOCUS, at 311b7060ef39e371f3cd209ec135284ff5fde735.
+//! Their scalar operations use the existing RN53(RN64(operation)) helpers.
+use super::excel_numeric::{
+    excel_cos, excel_exp, excel_log, excel_sin, excel_sqrt_staged,
+    excel_x87_add, excel_x87_div, excel_x87_mul,
+};
 
 const J0_NUM: &[f64] = &[
     57568490574.0,
@@ -76,9 +82,18 @@ const Y1_DEN: &[f64] = &[
 const W: f64 = 0.636619772;
 
 fn polynomial(x: f64, coefficients: &[f64]) -> f64 {
+    polynomial_with(x, coefficients, |a, b| a * b, |a, b| a + b)
+}
+
+fn polynomial_with(
+    x: f64,
+    coefficients: &[f64],
+    multiply: impl Fn(f64, f64) -> f64,
+    add: impl Fn(f64, f64) -> f64,
+) -> f64 {
     let mut value = *coefficients.last().unwrap();
     for &coefficient in coefficients[..coefficients.len() - 1].iter().rev() {
-        value = x * value + coefficient;
+        value = add(multiply(x, value), coefficient);
     }
     value
 }
@@ -198,4 +213,48 @@ pub(super) fn y0_large(x: f64) -> f64 {
     let trailing = ((excel_cos(phase) * correction) * 8.0) / x;
     let scale = (W / x).sqrt();
     scale * (leading + trailing)
+}
+
+// ITK v5.4.0, itkGaussianOperator.hxx:ModifiedBesselI0 and ModifiedBesselI.
+// Copyright NumFOCUS. Apache-2.0; notice and licence in deploy/notices/ported.txt.
+// Rust scalar port with worksheet EXP and stored PC64 arithmetic. The existing
+// A&S I0 tables are identical to ITK's published coefficients; share those tables.
+pub(super) fn i0(x: f64, small: &[f64], large: &[f64]) -> f64 {
+    let magnitude = x.abs();
+    if magnitude < 3.75 {
+        let reduced = excel_x87_div(x, 3.75);
+        let square = excel_x87_mul(reduced, reduced);
+        polynomial_with(square, small, excel_x87_mul, excel_x87_add)
+    } else {
+        let reduced = excel_x87_div(3.75, magnitude);
+        let scale = excel_x87_div(excel_exp(magnitude), excel_sqrt_staged(magnitude));
+        excel_x87_mul(scale, polynomial_with(reduced, large, excel_x87_mul, excel_x87_add))
+    }
+}
+
+/// The published higher-order body; its caller owns order admission and parity.
+pub(super) fn in_(order: u32, magnitude: f64, normalizer: f64) -> f64 {
+    if magnitude == 0.0 {
+        return 0.0;
+    }
+    let twice_over_x = excel_x87_div(2.0, magnitude);
+    let mut next = 0.0;
+    let mut current = 1.0;
+    let mut answer = 0.0;
+    let start = 2 * (order + (40.0 * f64::from(order)).sqrt() as u32);
+    for j in (1..=start).rev() {
+        let coefficient = excel_x87_mul(f64::from(j), twice_over_x);
+        let previous = excel_x87_add(next, excel_x87_mul(coefficient, current));
+        next = current;
+        current = previous;
+        if current.abs() > 1e10 {
+            answer = excel_x87_mul(answer, 1e-10);
+            current = excel_x87_mul(current, 1e-10);
+            next = excel_x87_mul(next, 1e-10);
+        }
+        if j == order {
+            answer = next;
+        }
+    }
+    excel_x87_mul(answer, excel_x87_div(normalizer, current))
 }
