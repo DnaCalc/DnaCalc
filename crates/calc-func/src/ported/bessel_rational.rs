@@ -3,7 +3,7 @@
 //! Reference: bessel.js at 2e2331329891dc5c16bda3461db0b9fe590ff2e9.
 //! Changed for DNA Calc: Rust scalar helpers, existing worksheet elementary
 //! functions, and a fixed grouping of the Y0 logarithm term.
-//! The fixed backward program and Y1 high-region tables retain the published
+//! The fixed backward program and Y high-region tables retain the published
 //! constants and operation rules. See deploy/notices/ported.txt.
 use super::excel_numeric::{excel_cos, excel_log, excel_sin};
 
@@ -171,4 +171,31 @@ pub(super) fn y1_large(x: f64) -> f64 {
     let combined = leading + trailing;
     let scale = (W / x).sqrt();
     scale * combined
+}
+
+const AMP0: &[f64] = &[
+    1.0,
+    -0.1098628627e-2,
+    0.2734510407e-4,
+    -0.2073370639e-5,
+    0.2093887211e-6,
+];
+const PHASE_Y0: &[f64] = &[
+    -0.1562499995e-1,
+    0.1430488765e-3,
+    -0.6911147651e-5,
+    0.7621095161e-6,
+    -0.934945152e-7,
+];
+
+pub(super) fn y0_large(x: f64) -> f64 {
+    let square = x * x;
+    let phase = x - 0.785398164;
+    let reduction = 64.0 / square;
+    let amplitude = polynomial(reduction, AMP0);
+    let correction = polynomial(reduction, PHASE_Y0);
+    let leading = excel_sin(phase) * amplitude;
+    let trailing = ((excel_cos(phase) * correction) * 8.0) / x;
+    let scale = (W / x).sqrt();
+    scale * (leading + trailing)
 }
