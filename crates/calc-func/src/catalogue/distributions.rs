@@ -10,7 +10,7 @@
 //! kernels are the distributions' own.
 
 use super::aggregate::Held;
-use super::kit::{fail, flag, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal};
+use super::kit::{fail, flag, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal, reject_logical};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::ported::{
@@ -305,15 +305,21 @@ ported_family! {
     }
     // The error function.
     90 erf "ERF" (1, 2) [V "lower_limit", V "upper_limit"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let lower = num(s, a, 0)?;
         let upper = if a.len() > 1 { Some(num(s, a, 1)?) } else { None };
         out(s, sd::erf_kernel(lower, upper))
     }
     91 erf_precise "ERF.PRECISE" (1, 1) [V "x"] |s, a, sv| {
+        reject_logical(&a[0])?;
         out(s, sd::erf_precise_kernel(num(s, a, 0)?))
     }
-    92 erfc "ERFC" (1, 1) [V "x"] |s, a, sv| { out(s, sd::erfc_kernel(num(s, a, 0)?)) }
+    92 erfc "ERFC" (1, 1) [V "x"] |s, a, sv| {
+        reject_logical(&a[0])?;
+        out(s, sd::erfc_kernel(num(s, a, 0)?))
+    }
     93 erfc_precise "ERFC.PRECISE" (1, 1) [V "x"] |s, a, sv| {
+        reject_logical(&a[0])?;
         out(s, sd::erfc_precise_kernel(num(s, a, 0)?))
     }
     // The tests.

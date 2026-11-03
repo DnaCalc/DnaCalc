@@ -168,6 +168,87 @@ fn recorded_bahttext_retains_the_sign_of_a_negative_amount() {
     }
 }
 
+/// OxFunc-Evidence b028-agg-recheck-001 logical/text-number pairs; erf-arraylift-001
+/// erfrecheck-00005..00024; W089 seed 00255 and W092 successor 00209..00211.
+/// INTL calls: unswept-structural-sweep-001 cases 00445 and 00800.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_logical_scalar_admission() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment::dates(DateSystem::System1900)));
+    let cases = [
+        ("DELTA", "", 0x0000_0000_0000_0000),
+        ("FACTDOUBLE", "", 0x4000_0000_0000_0000),
+        ("GESTEP", "", 0x3ff0_0000_0000_0000),
+        ("MULTINOMIAL", "", 0x3ff0_0000_0000_0000),
+        ("NETWORKDAYS", ",2", 0x3ff0_0000_0000_0000),
+        ("SQRTPI", "", 0x4004_0d93_1ff6_2705),
+        ("WORKDAY", ",2", 0x4010_0000_0000_0000),
+        ("YEARFRAC", ",2", 0x0000_0000_0000_0000),
+        ("ERF", "", 0x3fef_d9ae_1427_95e3),
+        ("ERF.PRECISE", "", 0x3fef_d9ae_1427_95e3),
+        ("SERIESSUM", ",1,2,{1,2}", 0x4032_0000_0000_0000),
+    ];
+    // Run every retained logical case before the assertion, so a red run records each one.
+    let mut actuals: Vec<_> = cases.iter().map(|(name, rest, _)| {
+        session.set_formula(&format!("={name}(TRUE{rest})"));
+        (name, session.calculate().result)
+    }).collect();
+    let mut expected: Vec<_> = cases.iter().map(|(name, _, _)| {
+        (name, Some(CalcValue::error(WorksheetErrorCode::Value)))
+    }).collect();
+    // ERFC("2") has a retained numeric mismatch owned by the numeric lane. Its exact
+    // expected bits stay in the replay; these controls cover logical admission only.
+    let more = [("TBILLEQ", ",2,2"), ("TBILLPRICE", ",2,2"), ("TBILLYIELD", ",2,2"),
+        ("NETWORKDAYS.INTL", ",2"), ("WORKDAY.INTL", ",2"), ("ERFC", ""), ("ERFC.PRECISE", "")];
+    for (name, rest) in &more {
+        session.set_formula(&format!("={name}(TRUE{rest})"));
+        actuals.push((name, session.calculate().result));
+        expected.push((name, Some(CalcValue::error(WorksheetErrorCode::Value))));
+    }
+    assert_eq!(actuals, expected);
+    for (name, rest, bits) in cases {
+        let formula = format!("={name}(\"2\"{rest})");
+        session.set_formula(&formula);
+        assert_eq!(session.calculate().result, Some(CalcValue::number(f64::from_bits(bits))), "{formula}");
+    }
+    let row = CalcValue::array(calc_func::value::CalcArray::from_rows(vec![vec![
+        CalcValue::error(WorksheetErrorCode::Value), CalcValue::error(WorksheetErrorCode::Value),
+    ]]).unwrap());
+    for arguments in ["{TRUE,TRUE},1,2,{1,2}", "TRUE,{1,1},2,{1,2}", "TRUE,1,{2,2},{1,2}"] {
+        session.set_formula(&format!("=SERIESSUM({arguments})"));
+        assert_eq!(session.calculate().result, Some(row.clone()));
+    }
+}
+
+/// W111 address-blank-numeric-text-20260929 cases 0000/0002/0008/0010:
+/// an omitted column fails, while an omitted row and a blank column are allowed in R1C1.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_address_omitted_column_differs_from_blank() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J70").unwrap();
+    session.set_input("A1", InputValue::number(3.0).unwrap()).unwrap();
+    session.set_input("A2", InputValue::blank()).unwrap();
+    session.set_input("A11", InputValue::number(2.0).unwrap()).unwrap();
+    session.set_input("A12", InputValue::blank()).unwrap();
+    session.set_input("A21", InputValue::number(4.0).unwrap()).unwrap();
+    session.set_input("A31", InputValue::logical(false)).unwrap();
+    session.set_input("A41", InputValue::text("Alpha").unwrap()).unwrap();
+    session.set_formula("=ADDRESS(A1,,A21,A31,A41)");
+    assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)));
+    for (formula, expected) in [
+        ("=ADDRESS(,A11,A21,A31,A41)", "Alpha!RC[2]"),
+        ("=ADDRESS(A2,A11,A21,A31,A41)", "Alpha!RC[2]"),
+        ("=ADDRESS(A1,A12,A21,A31,A41)", "Alpha!R[3]C"),
+    ] {
+        session.set_formula(formula);
+        assert_eq!(session.calculate().result, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment(expected))), "{formula}");
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

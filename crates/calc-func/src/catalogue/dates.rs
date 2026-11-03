@@ -13,7 +13,7 @@
 //! logical and #N/A for an omitted argument; the WORKDAY and NETWORKDAYS dates give #VALUE! for
 //! a blank or omitted argument; a holiday list reads the numbers its cells hold.
 
-use super::kit::{fail, num, out, text_arg, values};
+use super::kit::{fail, num, out, reject_logical, text_arg, values};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::locale::{CalcEnvironment, DateSystem};
@@ -169,6 +169,7 @@ fn holidays(
 }
 
 fn workday(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, intl: bool) -> Step<CalcValue> {
+    reject_logical(&a[0])?;
     let start = to_1900(system(site)?, present_num(site, a, 0)?);
     let days = present_num(site, a, 1)?;
     let (mask, list) = if intl {
@@ -186,6 +187,7 @@ fn networkdays(
     sv: &mut EvalServices<'_>,
     intl: bool,
 ) -> Step<CalcValue> {
+    reject_logical(&a[0])?;
     let system = system(site)?;
     let start = to_1900(system, present_num(site, a, 0)?);
     let end = to_1900(system, present_num(site, a, 1)?);
@@ -323,6 +325,7 @@ ported_family! {
         networkdays(s, a, sv, true)
     }
     23 yearfrac_fn "YEARFRAC" (2, 3) [V "start_date", V "end_date", V "basis"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let start = date_arg(s, a, 0)?;
         let end = date_arg(s, a, 1)?;
         let basis = if a.len() > 2 && !a[2].is_missing() { num(s, a, 2)? } else { 0.0 };

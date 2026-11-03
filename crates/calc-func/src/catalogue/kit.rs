@@ -141,6 +141,16 @@ pub(super) fn num(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Ste
     site.number_argument(index, &arguments[index])
 }
 
+/// A kind check for positions whose recorded numeric admission excludes logicals.
+/// The caller keeps its existing number, blank, missing and error readers.
+pub(super) fn reject_logical(value: &CalcValue) -> Step<()> {
+    if matches!(value.core_ref(), CoreRef::Logical(_)) {
+        fail(WorksheetErrorCode::Value)
+    } else {
+        Ok(())
+    }
+}
+
 /// Number coercion for a kernel that implements its own measured subnormal input policy.
 /// Keep the ordinary coercions and refusals for every other kind of value.
 pub(super) fn num_with_subnormal(
