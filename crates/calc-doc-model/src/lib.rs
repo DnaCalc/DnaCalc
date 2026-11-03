@@ -61,7 +61,8 @@ mod formula_block;
 mod input;
 pub use calc_syntax::{FormulaForm, SemanticTemplateKey, TemplatePlacement};
 pub use formula_block::{
-    FormulaBlock, FormulaBlockId, FormulaMembership, FormulaSaveMode, FormulaTemplateSource,
+    FormulaBlock, FormulaBlockId, FormulaMembership, FormulaSaveMode, FormulaSourceStats,
+    FormulaTemplateSource,
 };
 mod name_table;
 pub use name_table::{NameNode, NameOrigin, NameTable};

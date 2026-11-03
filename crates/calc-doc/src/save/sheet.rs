@@ -184,6 +184,7 @@ struct Rewrite<'a, 'j> {
     strings: &'j mut SharedStrings,
     /// The shared formula groups (`si`) written as individual formulas.
     unshared: BTreeSet<u32>,
+    shared: BTreeMap<(u32, u32), SharedMember>,
     bounds: Bounds,
     /// The formula cells the edit did not change whose cached result the rewrite left out.
     caches_dropped: usize,
@@ -254,6 +255,245 @@ fn start_tag(prefix: &[u8], local: &[u8], out: &mut Vec<u8>) {
     out.push(b'>');
 }
 
+/// Only actual member coordinates get shared markers; a bounding ref allocates no cells.
+#[derive(Clone, Copy)]
+struct SharedMember {
+    index: u32,
+    master: bool,
+    extent: (u32, u32, u32, u32),
+}
+struct SharedCandidate {
+    block: std::sync::Arc<calc_doc_model::FormulaBlock>,
+    cells: Vec<CellKey>,
+    extent: calc_doc_model::value::GridArea,
+    original: Option<u32>,
+    unchanged: bool,
+}
+fn shared_members(job: &Job<'_>, unshared: &BTreeSet<u32>) -> BTreeMap<(u32, u32), SharedMember> {
+    let mut groups =
+        BTreeMap::<usize, (std::sync::Arc<calc_doc_model::FormulaBlock>, Vec<CellKey>)>::new();
+    for (at, input) in job.model.sheet_cells(job.loaded.id()).into_iter().flatten() {
+        let CellInput::Formula(text) = input else {
+            continue;
+        };
+        let Some(block) = text.block() else { continue };
+        if text.save_mode() != calc_doc_model::FormulaSaveMode::SharedGroup
+            || text.member_at() != Some(at)
+            || job.model.array_containing(at).is_some()
+            || job.model.definitions().data_table_containing(at).is_some()
+            || job
+                .model
+                .definitions()
+                .tables()
+                .iter()
+                .any(|table| table.area.contains(at))
+        {
+            continue;
+        }
+        groups
+            .entry(std::sync::Arc::as_ptr(block) as usize)
+            .or_insert_with(|| (block.clone(), Vec::new()))
+            .1
+            .push(at);
+    }
+    let mut candidates = Vec::new();
+    for (_, (block, mut cells)) in groups {
+        cells.sort_unstable();
+        let top = cells
+            .iter()
+            .map(|at| at.row())
+            .min()
+            .expect("nonempty group");
+        let bottom = cells
+            .iter()
+            .map(|at| at.row())
+            .max()
+            .expect("nonempty group");
+        let left = cells
+            .iter()
+            .map(|at| at.column())
+            .min()
+            .expect("nonempty group");
+        let right = cells
+            .iter()
+            .map(|at| at.column())
+            .max()
+            .expect("nonempty group");
+        let extent = calc_doc_model::value::GridArea::new(
+            CellKey::new(job.loaded.id(), top, left).expect("group inside grid"),
+            CellKey::new(job.loaded.id(), bottom, right).expect("group inside grid"),
+        )
+        .expect("one sheet");
+        let loaded_group = |at: CellKey| {
+            job.loaded_at(at.row(), at.column())
+                .and_then(|(row, column)| job.loaded.formula(row, column))
+                .and_then(|record| record.shared())
+        };
+        let original = loaded_group(cells[0])
+            .map(|group| group.index())
+            .filter(|index| {
+                cells
+                    .iter()
+                    .all(|at| loaded_group(*at).is_some_and(|group| group.index() == *index))
+            });
+        let unchanged = original.is_some_and(|index| {
+            index == block.id().local
+                && !unshared.contains(&index)
+                && job.moves.is_none()
+                && loaded_group(cells[0]).is_some_and(|group| {
+                    group.area() == block.extent() && group.master() == block.source().anchor()
+                })
+        });
+        candidates.push(SharedCandidate {
+            block,
+            cells,
+            extent,
+            original,
+            unchanged,
+        });
+    }
+    candidates.sort_by_key(|candidate| candidate.cells[0]);
+    // Shared-master rectangles may not overlap, even when their actual cells are sparse.
+    // Retain untouched file groups first; a conflicting new candidate stays individual.
+    let mut extents: Vec<_> = candidates
+        .iter()
+        .filter(|c| c.unchanged)
+        .map(|c| c.block.extent())
+        .collect();
+    extents.extend(
+        job.model
+            .definitions()
+            .arrays()
+            .filter(|array| array.area().sheet() == job.loaded.id())
+            .map(|array| array.area()),
+    );
+    extents.extend(
+        job.model
+            .definitions()
+            .data_tables()
+            .iter()
+            .filter(|table| table.area().sheet() == job.loaded.id())
+            .map(|table| table.area()),
+    );
+    extents.extend(
+        job.model
+            .definitions()
+            .tables()
+            .iter()
+            .filter(|table| table.sheet == job.loaded.id())
+            .map(|table| table.area),
+    );
+    for &(top, left, bottom, right) in job.spills.values() {
+        if let (Ok(first), Ok(last)) = (
+            CellKey::new(job.loaded.id(), top, left),
+            CellKey::new(job.loaded.id(), bottom, right),
+        ) {
+            if let Ok(area) = calc_doc_model::value::GridArea::new(first, last) {
+                extents.push(area);
+            }
+        }
+    }
+    let mut overlap_checks = 0usize;
+    let mut claimed: BTreeSet<_> = candidates
+        .iter()
+        .filter(|c| c.unchanged)
+        .filter_map(|c| c.original)
+        .collect();
+    let mut used: BTreeSet<_> = job
+        .loaded
+        .formulas()
+        .filter_map(|(_, _, record)| record.shared().map(|group| group.index()))
+        .collect();
+    let mut next = Some(0u32);
+    let mut members = BTreeMap::new();
+    for candidate in candidates {
+        if candidate.unchanged || candidate.cells.len() < 2 {
+            continue;
+        }
+        let mut overlap = false;
+        for extent in &extents {
+            if overlap_checks == 1_000_000 {
+                overlap = true;
+                break;
+            }
+            overlap_checks += 1;
+            if extent.intersection(candidate.extent).is_some() {
+                overlap = true;
+                break;
+            }
+        }
+        if overlap {
+            continue;
+        }
+        let index = if let Some(index) = candidate.original.filter(|index| !claimed.contains(index))
+        {
+            index
+        } else {
+            while next.is_some_and(|index| used.contains(&index)) {
+                next = next.and_then(|index| index.checked_add(1));
+            }
+            let Some(index) = next else { continue };
+            next = index.checked_add(1);
+            index
+        };
+        used.insert(index);
+        claimed.insert(index);
+        extents.push(candidate.extent);
+        let first = candidate.extent.first();
+        let last = candidate.extent.last();
+        let extent = (first.row(), first.column(), last.row(), last.column());
+        let master = candidate.cells[0];
+        for at in candidate.cells {
+            members.insert(
+                (at.row(), at.column()),
+                SharedMember {
+                    index,
+                    master: at == master,
+                    extent,
+                },
+            );
+        }
+    }
+    members
+}
+
+fn shared_formula(
+    prefix: &[u8],
+    source: Option<&RawTag<'_>>,
+    member: SharedMember,
+    text: &[u16],
+    dirty: Option<bool>,
+    out: &mut Vec<u8>,
+) {
+    let index = member.index.to_string();
+    let reference = member.master.then(|| area_text(member.extent));
+    let mut attributes = vec![
+        ("t", Some("shared")),
+        ("si", Some(index.as_str())),
+        ("ref", reference.as_deref()),
+    ];
+    if let Some(dirty) = dirty {
+        attributes.push(("ca", dirty.then_some("1")));
+    }
+    if let Some(source) = source {
+        out.extend(source.rebuilt(&attributes, !member.master));
+    } else {
+        out.push(b'<');
+        out.extend_from_slice(prefix);
+        out.extend_from_slice(b"f");
+        for (key, value) in attributes {
+            if let Some(value) = value {
+                out.extend_from_slice(format!(" {key}=\"{value}\"").as_bytes());
+            }
+        }
+        out.extend_from_slice(if member.master { b">" } else { b"/>" });
+    }
+    if member.master {
+        xstring(text, out);
+        end_tag(prefix, b"f", out);
+    }
+}
+
 /// The worksheet part `xml` rewritten for `job`'s changes.
 pub(super) fn rewrite(
     xml: &XmlPart,
@@ -276,12 +516,14 @@ pub(super) fn rewrite(
         .filter_map(|(_, _, record)| record.shared().map(|group| group.index()))
         .chain(job.cut_groups.iter().copied())
         .collect();
+    let shared = shared_members(job, &unshared);
     let rewrite = Rewrite {
         job,
         reader: Reader::new(xml),
         splice: Splice::new(xml.bytes()),
         strings,
         unshared,
+        shared,
         bounds: Bounds::default(),
         caches_dropped: 0,
         values_written: 0,
@@ -672,30 +914,42 @@ impl<'j> Rewrite<'_, 'j> {
             }
         }
         if let Some(form) = form {
-            if let Some(array) = legacy {
-                let (first, last) = (array.area().first(), array.area().last());
-                let reference = area_text((first.row(), first.column(), last.row(), last.column()));
-                out.push(b'<');
-                out.extend_from_slice(prefix);
-                out.extend_from_slice(format!("f t=\"array\" ref=\"{reference}\">").as_bytes());
-            } else if dynamic {
-                let reference = self
-                    .job
-                    .spills
-                    .get(&(row, column))
-                    .map_or_else(|| at.clone(), |area| area_text(*area));
-                out.push(b'<');
-                out.extend_from_slice(prefix);
-                out.extend_from_slice(format!("f t=\"array\" ref=\"{reference}\">").as_bytes());
-            } else if self.job.dirty_caches.contains(&(row, column)) {
-                out.push(b'<');
-                out.extend_from_slice(prefix);
-                out.extend_from_slice(b"f ca=\"1\">");
+            if let Some(member) = self.shared.get(&(row, column)).copied() {
+                shared_formula(
+                    prefix,
+                    None,
+                    member,
+                    &form.text,
+                    Some(self.job.dirty_caches.contains(&(row, column))),
+                    out,
+                );
             } else {
-                start_tag(prefix, b"f", out);
+                if let Some(array) = legacy {
+                    let (first, last) = (array.area().first(), array.area().last());
+                    let reference =
+                        area_text((first.row(), first.column(), last.row(), last.column()));
+                    out.push(b'<');
+                    out.extend_from_slice(prefix);
+                    out.extend_from_slice(format!("f t=\"array\" ref=\"{reference}\">").as_bytes());
+                } else if dynamic {
+                    let reference = self
+                        .job
+                        .spills
+                        .get(&(row, column))
+                        .map_or_else(|| at.clone(), |area| area_text(*area));
+                    out.push(b'<');
+                    out.extend_from_slice(prefix);
+                    out.extend_from_slice(format!("f t=\"array\" ref=\"{reference}\">").as_bytes());
+                } else if self.job.dirty_caches.contains(&(row, column)) {
+                    out.push(b'<');
+                    out.extend_from_slice(prefix);
+                    out.extend_from_slice(b"f ca=\"1\">");
+                } else {
+                    start_tag(prefix, b"f", out);
+                }
+                xstring(&form.text, out);
+                end_tag(prefix, b"f", out);
             }
-            xstring(&form.text, out);
-            end_tag(prefix, b"f", out);
             if let Some((_, text, _)) = &cache {
                 start_tag(prefix, b"v", out);
                 out.extend_from_slice(text);
@@ -1113,17 +1367,37 @@ impl<'j> Rewrite<'_, 'j> {
                 }
                 let dirty = self.job.dirty_caches.contains(&(row, column));
                 let unshared = group.is_some_and(|group| self.unshared.contains(&group));
+                let shared = self.shared.get(&(row, column)).copied();
                 let tracked = self.job.cache_state
                     && cache.is_some()
                     && formula_read.attribute("t") != Some("array");
-                if tracked && !unshared {
+                if tracked && !unshared && shared.is_none() {
                     edits.push((
                         formula_tag,
                         formula_raw
                             .rebuilt(&[("ca", dirty.then_some("1"))], formula_raw.is_empty()),
                     ));
                 }
-                if let Some(group) = group
+                if let Some(member) = shared {
+                    let key = CellKey::new(self.job.loaded.id(), row, column)
+                        .expect("a member is inside the grid");
+                    let Some(CellInput::Formula(text)) = self.job.model.cell(key) else {
+                        return Err(self.reader.invalid("a shared member lost its formula"));
+                    };
+                    let mut bytes = Vec::new();
+                    let rendered = member.master.then(|| text.rendered());
+                    shared_formula(
+                        formula_raw.prefix(),
+                        Some(&formula_raw),
+                        member,
+                        rendered
+                            .as_ref()
+                            .map_or(&[][..], |text| text.utf16_code_units()),
+                        tracked.then_some(dirty),
+                        &mut bytes,
+                    );
+                    edits.push((formula_element, bytes));
+                } else if let Some(group) = group
                     && self.unshared.contains(&group)
                 {
                     let key = CellKey::new(self.job.loaded.id(), row, column)
@@ -1139,7 +1413,7 @@ impl<'j> Rewrite<'_, 'j> {
                         attributes.push(("ca", dirty.then_some("1")));
                     }
                     let mut bytes = formula_raw.rebuilt(&attributes, false);
-                    xstring(text.text().utf16_code_units(), &mut bytes);
+                    xstring(text.rendered().utf16_code_units(), &mut bytes);
                     end_tag(prefix, b"f", &mut bytes);
                     edits.push((formula_element, bytes));
                 }

@@ -123,7 +123,7 @@ fn owner(source: Source) -> Option<NameId> {
 fn text_at(model: &ModelRoot, source: Source) -> Option<String> {
     match source {
         Source::Cell(at) => match model.cell(at)? {
-            CellInput::Formula(text) => String::from_utf16(text.text().utf16_code_units()).ok(),
+            CellInput::Formula(text) => String::from_utf16(text.rendered().utf16_code_units()).ok(),
             _ => None,
         },
         Source::Name(id) => Some(
@@ -205,7 +205,7 @@ impl EngineState {
             for (at, input) in model.sheet_cells(sheet.id()).into_iter().flatten() {
                 if let CellInput::Formula(text) = input {
                     let text =
-                        String::from_utf16(text.text().utf16_code_units()).map_err(|_| {
+                        String::from_utf16(text.rendered().utf16_code_units()).map_err(|_| {
                             Error::NotModelled("A formula source has unpaired UTF-16 units")
                         })?;
                     if relevant(&text) {

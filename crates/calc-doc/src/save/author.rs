@@ -191,7 +191,9 @@ fn file_forms(
         let Some(CellInput::Formula(formula)) = input else {
             continue;
         };
-        let form = file_form_with_links(formula, names, links).map_err(|error| {
+        let rendered = calc_doc_model::FormulaText::with_form(formula.rendered(), formula.form())
+            .expect("an admitted formula has nonempty source");
+        let form = file_form_with_links(&rendered, names, links).map_err(|error| {
             SaveRefusal::FormulaFileForm {
                 part: sheet_part.to_owned(),
                 row,

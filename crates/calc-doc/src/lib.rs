@@ -72,6 +72,8 @@
 
 mod blank;
 mod edit;
+mod formula_sources;
+pub use formula_sources::{FormulaSourceBudget, RegroupedFormulaSources, regroup_formula_sources};
 mod error;
 mod load;
 mod opc;

@@ -208,6 +208,10 @@ pub(crate) fn prepare_image(
     calculate_before_save: bool,
 ) -> Result<PreparedSave, SaveFailed> {
     let cache_policy = pin.cache_policy;
+    // Serialization may share proven-equal sources without changing the live authored
+    // root, results or the pin's revision. An exhausted budget keeps individual formulas.
+    let regrouped = calc_doc::regroup_formula_sources(model, Default::default());
+    let model = regrouped.as_ref().map_or(model, |grouped| &grouped.model);
     let stale = engine
         .stale(model)
         .expect("the host keeps its authored revision and its engine state at one revision");

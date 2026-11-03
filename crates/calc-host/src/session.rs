@@ -480,6 +480,17 @@ impl HostSession {
         self.host.engine.compact_result_storage(max_slots)
     }
 
+    /// Optional authored-source storage compaction at the same revision. No history,
+    /// calculation, effect, result view or existing pin is changed.
+    pub fn compact_formula_sources(
+        &mut self,
+        budget: calc_doc::FormulaSourceBudget,
+    ) -> Option<calc_doc::RegroupedFormulaSources> {
+        let regrouped = calc_doc::regroup_formula_sources(&self.host.model, budget)?;
+        self.host.model = regrouped.model.clone();
+        Some(regrouped)
+    }
+
     /// The host, to read: its sheets, revision and projections ([`crate::project`]).
     pub fn host(&self) -> &HostState {
         &self.host
