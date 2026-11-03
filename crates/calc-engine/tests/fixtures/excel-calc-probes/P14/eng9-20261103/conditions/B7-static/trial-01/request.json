@@ -1,0 +1,29 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "B7-static",
+    "formulas": {
+      "A1": "=IF(A1<2,B1,C1)+1",
+      "B1": "=A1/2"
+    },
+    "seeds": {
+      "A1": 0,
+      "B1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "values": {
+      "C1": 10
+    },
+    "input_sha256": "5dfe5fed6a095cabcd77dd08fbc685b6f86db43e73b2fb84cf638c2d944163df"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\B7-static.xlsx",
+  "input_sha256": "5dfe5fed6a095cabcd77dd08fbc685b6f86db43e73b2fb84cf638c2d944163df"
+}

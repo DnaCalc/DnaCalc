@@ -1,0 +1,30 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A1-sweeps-2-zero",
+    "formulas": {
+      "A1": "=B1+1",
+      "B1": "=A1+1",
+      "C1": "=C1+1",
+      "D1": "=SUM(A1:B1)"
+    },
+    "seeds": {
+      "A1": 0,
+      "B1": 0,
+      "C1": 0,
+      "D1": 0
+    },
+    "iterations": 2,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "465e91ebb0bcb1d360f0651911bb7956816d4bc48368f9c943f779bef12095a3"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A1-sweeps-2-zero.xlsx",
+  "input_sha256": "465e91ebb0bcb1d360f0651911bb7956816d4bc48368f9c943f779bef12095a3"
+}

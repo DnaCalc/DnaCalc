@@ -1,0 +1,15 @@
+{
+  "change_edit": false,
+  "calc_edit": false,
+  "save_edit": false,
+  "cancel_save": true,
+  "case": "manual-cancel-only",
+  "mode": "manual",
+  "events": true,
+  "operations": [
+    "write",
+    "saveas",
+    "calculate"
+  ],
+  "trial": 1
+}

@@ -1,0 +1,56 @@
+{
+  "condition": "A2-eighth-0000000000000000",
+  "worker": "C:\\Work\\DnaCalc\\DnaCalc-win\\tools\\excel-session\\iteration-job.ps1",
+  "trials": [
+    {
+      "trial": 1,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\01\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\01\\result.json"
+    },
+    {
+      "trial": 2,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\02\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\02\\result.json"
+    },
+    {
+      "trial": 3,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\03\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\03\\result.json"
+    },
+    {
+      "trial": 4,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\04\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\04\\result.json"
+    },
+    {
+      "trial": 5,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\05\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\05\\result.json"
+    },
+    {
+      "trial": 6,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\06\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\06\\result.json"
+    },
+    {
+      "trial": 7,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\07\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\07\\result.json"
+    },
+    {
+      "trial": 8,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\08\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\08\\result.json"
+    },
+    {
+      "trial": 9,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\09\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\09\\result.json"
+    },
+    {
+      "trial": 10,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\10\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A2-eighth-0000000000000000\\10\\result.json"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "B7-indirect",
+    "formulas": {
+      "A1": "=INDIRECT(IF(A1<2,\"B1\",\"C1\"))+1",
+      "B1": "=A1/2"
+    },
+    "seeds": {
+      "A1": 0,
+      "B1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "values": {
+      "C1": 10
+    },
+    "input_sha256": "6165be72247ed13087420948c0bf620435a2b57b25f2bfeca04fbb23b21bacb9"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\B7-indirect.xlsx",
+  "input_sha256": "6165be72247ed13087420948c0bf620435a2b57b25f2bfeca04fbb23b21bacb9"
+}

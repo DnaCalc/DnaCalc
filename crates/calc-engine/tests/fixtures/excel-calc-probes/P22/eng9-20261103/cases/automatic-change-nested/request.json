@@ -1,0 +1,14 @@
+{
+  "change_edit": true,
+  "calc_edit": false,
+  "save_edit": false,
+  "cancel_save": false,
+  "case": "automatic-change-nested",
+  "mode": "automatic",
+  "events": true,
+  "operations": [
+    "write",
+    "calculate"
+  ],
+  "trial": 1
+}

@@ -1,4 +1,4 @@
-//! One live capture: the work directory, the worker request, the isolated run and the conversion
+//! One live capture: the work directory, the worker request, the owned-session job and the conversion
 //! of the worker's result into a CaptureRecord version 2.
 //!
 //! The work directory a capture is given (it must not exist yet, or be empty) receives:

@@ -1,0 +1,255 @@
+{
+  "snapshot_utc": "2026-11-03T16:48:15.774094+00:00",
+  "complete": false,
+  "conditions": [
+    {
+      "condition": "A1-sweeps-1-asymmetric",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-007"
+    },
+    {
+      "condition": "A1-sweeps-1-zero",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-002"
+    },
+    {
+      "condition": "A1-sweeps-1-zero-Calculate",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-012"
+    },
+    {
+      "condition": "A1-sweeps-1-zero-Full",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-013"
+    },
+    {
+      "condition": "A1-sweeps-1-zero-Range",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-015"
+    },
+    {
+      "condition": "A1-sweeps-1-zero-reverse",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-016"
+    },
+    {
+      "condition": "A1-sweeps-1-zero-Sheet",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-014"
+    },
+    {
+      "condition": "A1-sweeps-100-asymmetric",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-011"
+    },
+    {
+      "condition": "A1-sweeps-100-zero",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-006"
+    },
+    {
+      "condition": "A1-sweeps-2-asymmetric",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-008"
+    },
+    {
+      "condition": "A1-sweeps-2-zero",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-003"
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-009"
+    },
+    {
+      "condition": "A1-sweeps-3-zero",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-004"
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-010"
+    },
+    {
+      "condition": "A1-sweeps-5-zero",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-005"
+    },
+    {
+      "condition": "A2-eighth-0000000000000000",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-020"
+    },
+    {
+      "condition": "A2-eighth-3fbfffffffffffff",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-017"
+    },
+    {
+      "condition": "A2-eighth-3fc0000000000000",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-018"
+    },
+    {
+      "condition": "A2-eighth-3fc0000000000001",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-019"
+    },
+    {
+      "condition": "A2-half-0000000000000000",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-024"
+    },
+    {
+      "condition": "A2-half-3fbfffffffffffff",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-021"
+    },
+    {
+      "condition": "A2-half-3fc0000000000000",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-022"
+    },
+    {
+      "condition": "A2-half-3fc0000000000001",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-023"
+    },
+    {
+      "condition": "A3-both-alone",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-026"
+    },
+    {
+      "condition": "A3-both-amplifiers",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-025"
+    },
+    {
+      "condition": "A3-eighth-alone",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-030"
+    },
+    {
+      "condition": "A3-eighth-amplifier",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-028"
+    },
+    {
+      "condition": "A3-half-alone",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-029"
+    },
+    {
+      "condition": "A3-half-amplifier",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-027"
+    },
+    {
+      "condition": "A4-pure",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-031"
+    },
+    {
+      "condition": "B6-boolean",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-034"
+    },
+    {
+      "condition": "B6-changing-error",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-036"
+    },
+    {
+      "condition": "B6-NA",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-035"
+    },
+    {
+      "condition": "B6-number-to-text",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-037"
+    },
+    {
+      "condition": "B6-stable-text",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-032"
+    },
+    {
+      "condition": "B6-toggle-text",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-033"
+    },
+    {
+      "condition": "B6-untaken-self",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-038"
+    },
+    {
+      "condition": "B7-indirect",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-039"
+    },
+    {
+      "condition": "B7-static",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-040"
+    },
+    {
+      "condition": "control-dc_10y_iteration",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-001"
+    },
+    {
+      "condition": "control-dc_86f",
+      "trials": 10,
+      "excel_launches": 1,
+      "job_id": "eng9-000"
+    }
+  ],
+  "completed_conditions": 41,
+  "completed_trials": 410,
+  "excel_launches": 41
+}

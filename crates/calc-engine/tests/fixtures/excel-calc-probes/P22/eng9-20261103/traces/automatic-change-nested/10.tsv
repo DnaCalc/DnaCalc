@@ -1,0 +1,115 @@
+automatic-change-nested	initialize	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+automatic-change-nested	initialize	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=False;precisionAsDisplayed=False;date1904=False;mtc=False;threads=1;automationSecurity=1
+automatic-change-nested	initialize	force-full-setting	False
+automatic-change-nested	initialize	addin	ANALYS32.XLL;installed=False
+automatic-change-nested	initialize	addin	ATPVBAEN.XLAM;installed=False
+automatic-change-nested	initialize	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+automatic-change-nested	initialize	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+automatic-change-nested	initialize	addin	EUROTOOL.XLAM;installed=False
+automatic-change-nested	initialize	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+automatic-change-nested	initialize	addin	ExcelDna.IntelliSense64.xll;installed=False
+automatic-change-nested	initialize	addin	GENERIC.xll;installed=False
+automatic-change-nested	initialize	addin	McpExcel-AddIn64.xll;installed=True
+automatic-change-nested	initialize	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+automatic-change-nested	initialize	addin	ExcelDna64.xll;installed=False
+automatic-change-nested	initialize	addin	RibbonTest-AddIn64.xll;installed=False
+automatic-change-nested	initialize	addin	SOLVER.XLAM;installed=False
+automatic-change-nested	initialize	addin	Test160rc1Local-AddIn64.xll;installed=False
+automatic-change-nested	initialize	addin	TestCrashGuard-AddIn64.xll;installed=True
+automatic-change-nested	initialize	addin	TestCs170rc2-AddIn64.xll;installed=False
+automatic-change-nested	initialize	addin	TestDoc170-AddIn64.xll;installed=False
+automatic-change-nested	initialize	addin	TestOpen16-AddIn64-packed.xll;installed=False
+automatic-change-nested	initialize	com-addin	Carousel.ExcelAddin;connected=False
+automatic-change-nested	initialize	com-addin	Dna_78b015d8b23f56a68ecce694f11f8794_3;connected=False
+automatic-change-nested	initialize	com-addin	ExcelPlugInShell.PowerMapConnect;connected=False
+automatic-change-nested	initialize	com-addin	ExcelVstoAddIn1;connected=False
+automatic-change-nested	initialize	com-addin	MicrosoftDataStreamerforExcel;connected=False
+automatic-change-nested	initialize	com-addin	MsoTDAddin.Connect.1;connected=False
+automatic-change-nested	initialize	com-addin	NativeShim.InquireConnector.1;connected=False
+automatic-change-nested	initialize	com-addin	OxVbaExcelAddin.ExcelAddin;connected=False
+automatic-change-nested	initialize	com-addin	PDFMaker.OfficeAddin;connected=False
+automatic-change-nested	initialize	com-addin	PowerPivotExcelClientAddIn.NativeEntry.1;connected=False
+automatic-change-nested	initialize	com-addin	TestComAddIn.ComAddIn;connected=False
+automatic-change-nested	initialize	com-addin	TestRibbonRegistration.MyCustomRibbon;connected=False
+automatic-change-nested	initialize	com-addin	VS15ExcelAdaptor;connected=True
+automatic-change-nested	initialize	com-addin	xlPerf;connected=False
+automatic-change-nested	enable-events	stage	enable-events
+automatic-change-nested	set-calculation-mode	stage	set-calculation-mode
+automatic-change-nested	set-calculation-mode	Worksheet_Calculate entry	
+automatic-change-nested	set-calculation-mode	cell	S!A1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-change-nested	set-calculation-mode	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-change-nested	set-calculation-mode	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+automatic-change-nested	set-calculation-mode	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	set-calculation-mode	Worksheet_Calculate exit	
+automatic-change-nested	set-calculation-mode	cell	S!A1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-change-nested	set-calculation-mode	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-change-nested	set-calculation-mode	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+automatic-change-nested	set-calculation-mode	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	set-calculation-mode	Workbook_SheetCalculate	S
+automatic-change-nested	set-calculation-mode	cell	S!A1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-change-nested	set-calculation-mode	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-change-nested	set-calculation-mode	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+automatic-change-nested	set-calculation-mode	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	set-calculation-mode	Application_SheetCalculate	S
+automatic-change-nested	set-calculation-mode	cell	S!A1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-change-nested	set-calculation-mode	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-change-nested	set-calculation-mode	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+automatic-change-nested	set-calculation-mode	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	COM write A1=5	stage	COM write A1=5
+automatic-change-nested	COM write A1=5	Worksheet_Calculate entry	
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	COM write A1=5	Worksheet_Calculate exit	
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	COM write A1=5	Workbook_SheetCalculate	S
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	COM write A1=5	Application_SheetCalculate	S
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	COM write A1=5	Worksheet_Change entry	A1
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-change-nested	COM write A1=5	Worksheet_Change entry	D1
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=5;type=Double;value=105;bits=405A400000000000
+automatic-change-nested	COM write A1=5	Worksheet_Change exit	D1
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=5;type=Double;value=105;bits=405A400000000000
+automatic-change-nested	COM write A1=5	Application_SheetChange	S!D1
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=5;type=Double;value=105;bits=405A400000000000
+automatic-change-nested	COM write A1=5	Worksheet_Change edit returned	D1
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=5;type=Double;value=105;bits=405A400000000000
+automatic-change-nested	COM write A1=5	Worksheet_Change exit	A1
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=5;type=Double;value=105;bits=405A400000000000
+automatic-change-nested	COM write A1=5	Application_SheetChange	S!A1
+automatic-change-nested	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-change-nested	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-change-nested	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-change-nested	COM write A1=5	cell	S!D1;vt=5;type=Double;value=105;bits=405A400000000000
+automatic-change-nested	COM Application.Calculate	stage	COM Application.Calculate
+automatic-change-nested	disable-events diagnostic boundary	stage	disable-events diagnostic boundary

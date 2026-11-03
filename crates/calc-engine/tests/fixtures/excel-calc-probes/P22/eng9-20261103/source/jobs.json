@@ -1,0 +1,492 @@
+[
+  {
+    "id": "p22-ac0dbbba06ca-00-01",
+    "case": "automatic-basic",
+    "trial": 1,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\01",
+    "request_sha256": "6a8b9c50cdd470f1a627217f15c468d12106c6626330061fd276d9e595c0107b"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-02",
+    "case": "automatic-basic",
+    "trial": 2,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\02",
+    "request_sha256": "37fdbd15988473de3686f6c88f68a9b95eee5df1fa932542e7626a540d192382"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-03",
+    "case": "automatic-basic",
+    "trial": 3,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\03",
+    "request_sha256": "ea5b288e6656802d2e74634c7a8531b942445d031159c70112f8f174f2ac38b5"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-04",
+    "case": "automatic-basic",
+    "trial": 4,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\04",
+    "request_sha256": "ad2cccc61b0e0502729f50fb00b3cd3d2c83c430921d1fa1ac386fb0f063493d"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-05",
+    "case": "automatic-basic",
+    "trial": 5,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\05",
+    "request_sha256": "5d888d20b15b0cf4cdfee74525829d858d6fd24b62afaefb17925e1437a4789e"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-06",
+    "case": "automatic-basic",
+    "trial": 6,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\06",
+    "request_sha256": "7b2b21507149a7d65bb9cb561e5d96377bfab6c186b5e5976c72ed96881f3d23"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-07",
+    "case": "automatic-basic",
+    "trial": 7,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\07",
+    "request_sha256": "2f14273971a495c875e82bdab412c1134da844e2d5ca5ab95135c2b9a119d6f9"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-08",
+    "case": "automatic-basic",
+    "trial": 8,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\08",
+    "request_sha256": "f6727a7d98f1f513b565074248c237fdabcdd2e11c270552329e71487887fec6"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-09",
+    "case": "automatic-basic",
+    "trial": 9,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\09",
+    "request_sha256": "80e80ed87bc5fd907740f320584823f5b95f1f30efd29f838937a478145f66f4"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-00-10",
+    "case": "automatic-basic",
+    "trial": 10,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-basic\\10",
+    "request_sha256": "643993b2754bc2ac6494e84bfd9ccf5c4dc1ff1e822ee75d7b984adf8306f78f"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-01",
+    "case": "manual-basic",
+    "trial": 1,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\01",
+    "request_sha256": "7e85ea613bd881ae58d79f726f2f8fcfd3987ce8003591ba4f4c9db8ba557861"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-02",
+    "case": "manual-basic",
+    "trial": 2,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\02",
+    "request_sha256": "6ab6ffbab496e93babfd94dbd8fad01974f73d879b8b08c8d709fc99a690c52a"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-03",
+    "case": "manual-basic",
+    "trial": 3,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\03",
+    "request_sha256": "7555810c9b3bd13d411e95500b3df187a0ecd11c911ba6dff3759656c9ff55b9"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-04",
+    "case": "manual-basic",
+    "trial": 4,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\04",
+    "request_sha256": "4a0e09fcc97fcef9a8efd3c5fd7262dbd4f0d2a7d7d51604e5df988b89ff2338"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-05",
+    "case": "manual-basic",
+    "trial": 5,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\05",
+    "request_sha256": "c9ff37f157156024e140cc157d33564941a853fbe5f3c2cf1f1f1b29ece881a7"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-06",
+    "case": "manual-basic",
+    "trial": 6,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\06",
+    "request_sha256": "c1919ce0262efc81ce2efa9c4d603f7b09fc6550b2c73f16e8141d76820b6366"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-07",
+    "case": "manual-basic",
+    "trial": 7,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\07",
+    "request_sha256": "50211df0674da10e200f92f8346f342ba1f473e13e18c9164f25910e0324a668"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-08",
+    "case": "manual-basic",
+    "trial": 8,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\08",
+    "request_sha256": "d2a5e9904018bad4e33cc8c950b08ae966cdd6219633bb8394e08bf76f86075d"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-09",
+    "case": "manual-basic",
+    "trial": 9,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\09",
+    "request_sha256": "68fc0cc12b25fb8b177df3c8deb11190ef6665b0d452963d659332c11d2679c1"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-01-10",
+    "case": "manual-basic",
+    "trial": 10,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-basic\\10",
+    "request_sha256": "5835af3817bcdfc3b30c9949062013c60098548ba2f1edae6c1c10d167cc8990"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-01",
+    "case": "manual-cancel-only",
+    "trial": 1,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\01",
+    "request_sha256": "48e3f366d570e63ee8633bbdf725f0a00b1e7d09c68a1a76e600283cab8110b0"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-02",
+    "case": "manual-cancel-only",
+    "trial": 2,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\02",
+    "request_sha256": "fd8a98263f76957a364922595c6ddccee46f204197192aefa4241ee7f882da55"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-03",
+    "case": "manual-cancel-only",
+    "trial": 3,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\03",
+    "request_sha256": "c9d4eee9aa61de88a6903b70598dc13e778b68c8cbf87956349ff9c168dc8497"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-04",
+    "case": "manual-cancel-only",
+    "trial": 4,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\04",
+    "request_sha256": "5b49d4619e0bece108764bd8b3fd42a576fd76d35580882ad4f98bb7a46d907d"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-05",
+    "case": "manual-cancel-only",
+    "trial": 5,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\05",
+    "request_sha256": "83f8471b56fe67df0b9e2a4329402da479866389bc30372319b3daef755399b5"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-06",
+    "case": "manual-cancel-only",
+    "trial": 6,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\06",
+    "request_sha256": "2e6ef9f854fd17d0374415994569490739dc65c455b9797adb41e827b2e88ae0"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-07",
+    "case": "manual-cancel-only",
+    "trial": 7,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\07",
+    "request_sha256": "3f89ef076f6818724c664089ac1a46bf9f9a438f1ab98587f253949a04232d88"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-08",
+    "case": "manual-cancel-only",
+    "trial": 8,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\08",
+    "request_sha256": "5f0547ad7215d5c6a4267c00e5b35e53932541b5ef457699998f79b66726d7aa"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-09",
+    "case": "manual-cancel-only",
+    "trial": 9,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\09",
+    "request_sha256": "e7e5539398b9e33f87998840c3cd8e966481386730358ecca8fb8c0978745aa1"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-02-10",
+    "case": "manual-cancel-only",
+    "trial": 10,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-cancel-only\\10",
+    "request_sha256": "8fbb2b6d9c59693b37f472b62b3ba03583831e517b7c44982985bbc3d7bfecfb"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-01",
+    "case": "manual-edit-cancel",
+    "trial": 1,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\01",
+    "request_sha256": "50ec09bb518ec7f378b4eff1150fb507687ff158f67aad0bbe6c050be179ede5"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-02",
+    "case": "manual-edit-cancel",
+    "trial": 2,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\02",
+    "request_sha256": "935adb785e6ae1d57931ed58fe8d7d85e8fdb9aef1758f9cf9c18fe647b7b7ea"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-03",
+    "case": "manual-edit-cancel",
+    "trial": 3,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\03",
+    "request_sha256": "29d17126b01c91f6efba789065da64a747a8c37bd9e7d24e1ed82fea37d793a6"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-04",
+    "case": "manual-edit-cancel",
+    "trial": 4,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\04",
+    "request_sha256": "3a6b80383450b81719c9a2475f736d7b3be68ba87fc537f5a47b5b9760510ee3"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-05",
+    "case": "manual-edit-cancel",
+    "trial": 5,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\05",
+    "request_sha256": "4692d4d434d314d4ff4e007be06c8883e04fdc672ab5c10558be86ced438608f"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-06",
+    "case": "manual-edit-cancel",
+    "trial": 6,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\06",
+    "request_sha256": "32c3b22466bee91f2cbc259054dc08f3c2c012c9c05cec95ab4cd42fe61fe1c7"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-07",
+    "case": "manual-edit-cancel",
+    "trial": 7,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\07",
+    "request_sha256": "1d56521d3c4ba5ea2914be9c4a00dcd2942d7a56e369edc42f100c6ddce4dac1"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-08",
+    "case": "manual-edit-cancel",
+    "trial": 8,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\08",
+    "request_sha256": "20290450fb05c22c0697c80207f9705913367c0320c0a92783834b38850f55d3"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-09",
+    "case": "manual-edit-cancel",
+    "trial": 9,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\09",
+    "request_sha256": "eee3002eb260089fe7a134759017eacbdddbebf4e53ca2257d0d86b3d3cb7ef7"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-03-10",
+    "case": "manual-edit-cancel",
+    "trial": 10,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\manual-edit-cancel\\10",
+    "request_sha256": "fc3e7addcf31a38621676f7ab03c9846fffd4b870b822484df43ac5529cc301a"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-01",
+    "case": "automatic-change-nested",
+    "trial": 1,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\01",
+    "request_sha256": "78513bf04d7d77b576f1c8ab500395197f188c65988588b7d69bbcc99f942a14"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-02",
+    "case": "automatic-change-nested",
+    "trial": 2,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\02",
+    "request_sha256": "39913f1e952f2a3dbc1e3b305b824f79a2c04ef1b431e141adc8cf04c9de036a"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-03",
+    "case": "automatic-change-nested",
+    "trial": 3,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\03",
+    "request_sha256": "3e33de790657dd9097a42b07d0a88c58c190641597bdb22204a0330fca02564d"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-04",
+    "case": "automatic-change-nested",
+    "trial": 4,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\04",
+    "request_sha256": "3889e5adfd38b9c4ab145f95d601b5287b8b3fdc45403289f04e495de3b8eaa5"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-05",
+    "case": "automatic-change-nested",
+    "trial": 5,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\05",
+    "request_sha256": "d3ce4f320a6e4a97c811460fead2699dcc33509fe6d8006fbc4e6bb9d7224384"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-06",
+    "case": "automatic-change-nested",
+    "trial": 6,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\06",
+    "request_sha256": "046273777e95957f370ac69222e7f84f27e407b110d9babf42542a6da7d1dfbe"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-07",
+    "case": "automatic-change-nested",
+    "trial": 7,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\07",
+    "request_sha256": "6b3ff42f44aa057393b0ed6edd22fdd6da522a4568247dc8258169cd50f60002"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-08",
+    "case": "automatic-change-nested",
+    "trial": 8,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\08",
+    "request_sha256": "126f1e64b6d88c47a2d83f821322b471ebb5a33143fe48bb5455ecdca210f611"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-09",
+    "case": "automatic-change-nested",
+    "trial": 9,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\09",
+    "request_sha256": "4493bac4f219694992826e3891c71f49597e03b516b8baa5ddefd2bf6888fd41"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-04-10",
+    "case": "automatic-change-nested",
+    "trial": 10,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-change-nested\\10",
+    "request_sha256": "50acc9f29310c694bdf6a65463e18addd90fc721b4e6d8e63210935709d14179"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-01",
+    "case": "automatic-calculate-nested",
+    "trial": 1,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\01",
+    "request_sha256": "5b6ffe5936b9737bdde7500d96716b48e9b1c87d60acd4074717c18f5627c9e3"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-02",
+    "case": "automatic-calculate-nested",
+    "trial": 2,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\02",
+    "request_sha256": "b25bd3fca9622d36a7f901e8e5110c43ff885252d30bc567ab9b7e99d92ee6c9"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-03",
+    "case": "automatic-calculate-nested",
+    "trial": 3,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\03",
+    "request_sha256": "c58e24a825427b752895cf575f8db854f7299f8705caa560626a929588bebd60"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-04",
+    "case": "automatic-calculate-nested",
+    "trial": 4,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\04",
+    "request_sha256": "a9fa95430305b5ecdc604f50afea2e328c7c31a488765c7461e680aa68f3442a"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-05",
+    "case": "automatic-calculate-nested",
+    "trial": 5,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\05",
+    "request_sha256": "157bddc1499b6e24993aaa8295836ab9e2cf570012914a8601692f44e4a373f2"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-06",
+    "case": "automatic-calculate-nested",
+    "trial": 6,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\06",
+    "request_sha256": "8e0e9d789aa0a7cb043d0f2220be890072c0e5a31463f656a7832baa03dc8aae"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-07",
+    "case": "automatic-calculate-nested",
+    "trial": 7,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\07",
+    "request_sha256": "3e86feacd6a69b16cd31543f3f78547933d6565c2ac903b5d778341edc85f3b3"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-08",
+    "case": "automatic-calculate-nested",
+    "trial": 8,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\08",
+    "request_sha256": "13054d78c5c4379a31ca4214b3c53e623a720836c534a4304ee8e660f5873990"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-09",
+    "case": "automatic-calculate-nested",
+    "trial": 9,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\09",
+    "request_sha256": "6cd2df8fb7ec93a0ee98a87d344861baf3e5e8374534440b211db412cdf138ab"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-05-10",
+    "case": "automatic-calculate-nested",
+    "trial": 10,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-calculate-nested\\10",
+    "request_sha256": "e7ef3e8a5820cc9debf914b1c084d75a10172859a6d7133ff9ad4ee105585995"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-01",
+    "case": "automatic-events-disabled",
+    "trial": 1,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\01",
+    "request_sha256": "716cdb2c34c03051b80a5a90eff416755368dc5b562bc98fcfe6034e0d9c3fb5"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-02",
+    "case": "automatic-events-disabled",
+    "trial": 2,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\02",
+    "request_sha256": "6da98a1a80d19b1b9d005531f924aaeb5f180ec1e56fda180c291acaa661169b"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-03",
+    "case": "automatic-events-disabled",
+    "trial": 3,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\03",
+    "request_sha256": "de5a09625c84b0342b99a32c75214cdbb15c347cdf6afb2a04d4784017d6fd0f"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-04",
+    "case": "automatic-events-disabled",
+    "trial": 4,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\04",
+    "request_sha256": "8cc8a74d8c070aa58f2bc876a438e19f616f4b5dcf6c9bb141e478ec859908f8"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-05",
+    "case": "automatic-events-disabled",
+    "trial": 5,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\05",
+    "request_sha256": "8dfbb7b8f8b2bfa5574d8739b81194d019c1af5f0a4205c56bfeda41d7893df3"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-06",
+    "case": "automatic-events-disabled",
+    "trial": 6,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\06",
+    "request_sha256": "1d3164895ccb26d960d4742de11433b7a3890f0573e9f0f5363c3c9f5d138bf3"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-07",
+    "case": "automatic-events-disabled",
+    "trial": 7,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\07",
+    "request_sha256": "6f45dba9b3eeaf5e42afbf724bfbdb8ae970adf3eaa49fbcffd2f8f00b799742"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-08",
+    "case": "automatic-events-disabled",
+    "trial": 8,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\08",
+    "request_sha256": "426b5669a0de0e67b1e79a64a5bf1e47ac0fc10582c2487c42cb66788333f369"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-09",
+    "case": "automatic-events-disabled",
+    "trial": 9,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\09",
+    "request_sha256": "02b32872ed41971f7c55c30480d495c003d3d10e7cc6f7914c9313b2b2759b3b"
+  },
+  {
+    "id": "p22-ac0dbbba06ca-06-10",
+    "case": "automatic-events-disabled",
+    "trial": 10,
+    "directory": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\p22-com\\automatic-events-disabled\\10",
+    "request_sha256": "879217350e02cc77e65a610c6f3d792610306857ae2d39f9bd14499591e9fef6"
+  }
+]

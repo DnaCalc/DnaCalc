@@ -1,0 +1,56 @@
+{
+  "condition": "A1-sweeps-1-zero-reverse",
+  "worker": "C:\\Work\\DnaCalc\\DnaCalc-win\\tools\\excel-session\\iteration-job.ps1",
+  "trials": [
+    {
+      "trial": 1,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\01\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\01\\result.json"
+    },
+    {
+      "trial": 2,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\02\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\02\\result.json"
+    },
+    {
+      "trial": 3,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\03\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\03\\result.json"
+    },
+    {
+      "trial": 4,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\04\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\04\\result.json"
+    },
+    {
+      "trial": 5,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\05\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\05\\result.json"
+    },
+    {
+      "trial": 6,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\06\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\06\\result.json"
+    },
+    {
+      "trial": 7,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\07\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\07\\result.json"
+    },
+    {
+      "trial": 8,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\08\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\08\\result.json"
+    },
+    {
+      "trial": 9,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\09\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\09\\result.json"
+    },
+    {
+      "trial": 10,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\10\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\A1-sweeps-1-zero-reverse\\10\\result.json"
+    }
+  ]
+}

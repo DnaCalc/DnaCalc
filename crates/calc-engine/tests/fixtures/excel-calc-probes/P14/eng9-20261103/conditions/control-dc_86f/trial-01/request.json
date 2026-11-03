@@ -1,0 +1,17 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "control-dc_86f",
+    "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\dc_86f\\oracle.xlsx",
+    "input_sha256": "7c8887848b182706ca8aefb53418ce66a234d768fec1bd48acfa39a525935da9",
+    "iteration": true,
+    "iterations": 1,
+    "change_bits": "3f50624dd2f1a9fc",
+    "operation": "Rebuild",
+    "commands": 1,
+    "range": "A1:D1"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\dc_86f\\oracle.xlsx",
+  "input_sha256": "7c8887848b182706ca8aefb53418ce66a234d768fec1bd48acfa39a525935da9"
+}

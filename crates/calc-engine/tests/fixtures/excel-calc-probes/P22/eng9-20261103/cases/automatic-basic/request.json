@@ -1,0 +1,25 @@
+{
+  "change_edit": false,
+  "calc_edit": false,
+  "save_edit": false,
+  "cancel_save": false,
+  "case": "automatic-basic",
+  "mode": "automatic",
+  "events": true,
+  "operations": [
+    "write",
+    "same",
+    "clear",
+    "write",
+    "calculate",
+    "full",
+    "rebuild",
+    "sheet",
+    "range",
+    "saveas",
+    "save",
+    "copy",
+    "undo"
+  ],
+  "trial": 1
+}

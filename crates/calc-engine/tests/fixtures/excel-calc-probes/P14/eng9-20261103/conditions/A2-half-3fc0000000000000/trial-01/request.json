@@ -1,0 +1,24 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A2-half-3fc0000000000000",
+    "formulas": {
+      "A1": "=A1/2+1"
+    },
+    "seeds": {
+      "A1": 0
+    },
+    "iterations": 100,
+    "change_bits": "3fc0000000000000",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "263587389f9010555b3ba3566f5f095224d5f982776bb3a6ebbb188279f99758"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A2-half-3fc0000000000000.xlsx",
+  "input_sha256": "263587389f9010555b3ba3566f5f095224d5f982776bb3a6ebbb188279f99758"
+}

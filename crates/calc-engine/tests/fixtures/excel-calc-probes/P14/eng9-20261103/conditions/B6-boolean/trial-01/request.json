@@ -1,0 +1,24 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "B6-boolean",
+    "formulas": {
+      "A1": "=NOT(A1)"
+    },
+    "seeds": {
+      "A1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "92454d1578129c57e292db88fd8f97c54cf614e9f5c0673f2d4622f12c4fdffb"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\B6-boolean.xlsx",
+  "input_sha256": "92454d1578129c57e292db88fd8f97c54cf614e9f5c0673f2d4622f12c4fdffb"
+}

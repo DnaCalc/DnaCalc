@@ -5,3 +5,6 @@ P08/**/*-native.tsv -text
 *.xlsx -text
 *.xlam -text
 *.xll -text
+# Eng9 receipts, sources and TSV observations retain their exact measured bytes.
+P14/eng9-20261103/** -text
+P22/eng9-20261103/** -text

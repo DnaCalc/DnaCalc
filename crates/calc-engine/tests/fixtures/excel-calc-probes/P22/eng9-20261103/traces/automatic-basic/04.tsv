@@ -1,0 +1,291 @@
+automatic-basic	initialize	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+automatic-basic	initialize	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=False;precisionAsDisplayed=False;date1904=False;mtc=False;threads=1;automationSecurity=1
+automatic-basic	initialize	force-full-setting	False
+automatic-basic	initialize	addin	ANALYS32.XLL;installed=False
+automatic-basic	initialize	addin	ATPVBAEN.XLAM;installed=False
+automatic-basic	initialize	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+automatic-basic	initialize	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+automatic-basic	initialize	addin	EUROTOOL.XLAM;installed=False
+automatic-basic	initialize	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+automatic-basic	initialize	addin	ExcelDna.IntelliSense64.xll;installed=False
+automatic-basic	initialize	addin	GENERIC.xll;installed=False
+automatic-basic	initialize	addin	McpExcel-AddIn64.xll;installed=True
+automatic-basic	initialize	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+automatic-basic	initialize	addin	ExcelDna64.xll;installed=False
+automatic-basic	initialize	addin	RibbonTest-AddIn64.xll;installed=False
+automatic-basic	initialize	addin	SOLVER.XLAM;installed=False
+automatic-basic	initialize	addin	Test160rc1Local-AddIn64.xll;installed=False
+automatic-basic	initialize	addin	TestCrashGuard-AddIn64.xll;installed=True
+automatic-basic	initialize	addin	TestCs170rc2-AddIn64.xll;installed=False
+automatic-basic	initialize	addin	TestDoc170-AddIn64.xll;installed=False
+automatic-basic	initialize	addin	TestOpen16-AddIn64-packed.xll;installed=False
+automatic-basic	initialize	com-addin	Carousel.ExcelAddin;connected=False
+automatic-basic	initialize	com-addin	Dna_78b015d8b23f56a68ecce694f11f8794_3;connected=False
+automatic-basic	initialize	com-addin	ExcelPlugInShell.PowerMapConnect;connected=False
+automatic-basic	initialize	com-addin	ExcelVstoAddIn1;connected=False
+automatic-basic	initialize	com-addin	MicrosoftDataStreamerforExcel;connected=False
+automatic-basic	initialize	com-addin	MsoTDAddin.Connect.1;connected=False
+automatic-basic	initialize	com-addin	NativeShim.InquireConnector.1;connected=False
+automatic-basic	initialize	com-addin	OxVbaExcelAddin.ExcelAddin;connected=False
+automatic-basic	initialize	com-addin	PDFMaker.OfficeAddin;connected=False
+automatic-basic	initialize	com-addin	PowerPivotExcelClientAddIn.NativeEntry.1;connected=False
+automatic-basic	initialize	com-addin	TestComAddIn.ComAddIn;connected=False
+automatic-basic	initialize	com-addin	TestRibbonRegistration.MyCustomRibbon;connected=False
+automatic-basic	initialize	com-addin	VS15ExcelAdaptor;connected=True
+automatic-basic	initialize	com-addin	xlPerf;connected=False
+automatic-basic	enable-events	stage	enable-events
+automatic-basic	set-calculation-mode	stage	set-calculation-mode
+automatic-basic	set-calculation-mode	Worksheet_Calculate entry	
+automatic-basic	set-calculation-mode	cell	S!A1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	set-calculation-mode	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	set-calculation-mode	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+automatic-basic	set-calculation-mode	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	set-calculation-mode	Worksheet_Calculate exit	
+automatic-basic	set-calculation-mode	cell	S!A1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	set-calculation-mode	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	set-calculation-mode	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+automatic-basic	set-calculation-mode	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	set-calculation-mode	Workbook_SheetCalculate	S
+automatic-basic	set-calculation-mode	cell	S!A1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	set-calculation-mode	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	set-calculation-mode	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+automatic-basic	set-calculation-mode	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	set-calculation-mode	Application_SheetCalculate	S
+automatic-basic	set-calculation-mode	cell	S!A1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	set-calculation-mode	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	set-calculation-mode	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+automatic-basic	set-calculation-mode	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	stage	COM write A1=5
+automatic-basic	COM write A1=5	Worksheet_Calculate entry	
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Worksheet_Calculate exit	
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Workbook_SheetCalculate	S
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Application_SheetCalculate	S
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Worksheet_Change entry	A1
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Worksheet_Change exit	A1
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Application_SheetChange	S!A1
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM same-value rewrite	stage	COM same-value rewrite
+automatic-basic	COM same-value rewrite	Worksheet_Calculate entry	
+automatic-basic	COM same-value rewrite	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM same-value rewrite	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM same-value rewrite	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM same-value rewrite	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM same-value rewrite	Worksheet_Calculate exit	
+automatic-basic	COM same-value rewrite	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM same-value rewrite	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM same-value rewrite	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM same-value rewrite	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM same-value rewrite	Workbook_SheetCalculate	S
+automatic-basic	COM same-value rewrite	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM same-value rewrite	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM same-value rewrite	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM same-value rewrite	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM same-value rewrite	Application_SheetCalculate	S
+automatic-basic	COM same-value rewrite	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM same-value rewrite	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM same-value rewrite	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM same-value rewrite	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM same-value rewrite	Worksheet_Change entry	A1
+automatic-basic	COM same-value rewrite	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM same-value rewrite	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM same-value rewrite	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM same-value rewrite	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM same-value rewrite	Worksheet_Change exit	A1
+automatic-basic	COM same-value rewrite	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM same-value rewrite	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM same-value rewrite	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM same-value rewrite	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM same-value rewrite	Application_SheetChange	S!A1
+automatic-basic	COM same-value rewrite	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM same-value rewrite	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM same-value rewrite	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM same-value rewrite	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	stage	COM ClearContents A1
+automatic-basic	COM ClearContents A1	Worksheet_Calculate entry	
+automatic-basic	COM ClearContents A1	cell	S!A1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	cell	S!B1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	COM ClearContents A1	cell	S!C1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	COM ClearContents A1	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	Worksheet_Calculate exit	
+automatic-basic	COM ClearContents A1	cell	S!A1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	cell	S!B1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	COM ClearContents A1	cell	S!C1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	COM ClearContents A1	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	Workbook_SheetCalculate	S
+automatic-basic	COM ClearContents A1	cell	S!A1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	cell	S!B1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	COM ClearContents A1	cell	S!C1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	COM ClearContents A1	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	Application_SheetCalculate	S
+automatic-basic	COM ClearContents A1	cell	S!A1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	cell	S!B1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	COM ClearContents A1	cell	S!C1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	COM ClearContents A1	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	Worksheet_Change entry	A1
+automatic-basic	COM ClearContents A1	cell	S!A1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	cell	S!B1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	COM ClearContents A1	cell	S!C1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	COM ClearContents A1	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	Worksheet_Change exit	A1
+automatic-basic	COM ClearContents A1	cell	S!A1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	cell	S!B1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	COM ClearContents A1	cell	S!C1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	COM ClearContents A1	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	Application_SheetChange	S!A1
+automatic-basic	COM ClearContents A1	cell	S!A1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM ClearContents A1	cell	S!B1;vt=5;type=Double;value=1;bits=3FF0000000000000
+automatic-basic	COM ClearContents A1	cell	S!C1;vt=5;type=Double;value=2;bits=4000000000000000
+automatic-basic	COM ClearContents A1	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	stage	COM write A1=5
+automatic-basic	COM write A1=5	Worksheet_Calculate entry	
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Worksheet_Calculate exit	
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Workbook_SheetCalculate	S
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Application_SheetCalculate	S
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Worksheet_Change entry	A1
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Worksheet_Change exit	A1
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM write A1=5	Application_SheetChange	S!A1
+automatic-basic	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM write A1=5	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM write A1=5	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Application.Calculate	stage	COM Application.Calculate
+automatic-basic	COM Application.CalculateFull	stage	COM Application.CalculateFull
+automatic-basic	COM Application.CalculateFull	Worksheet_Calculate entry	
+automatic-basic	COM Application.CalculateFull	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Application.CalculateFull	Worksheet_Calculate exit	
+automatic-basic	COM Application.CalculateFull	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Application.CalculateFull	Workbook_SheetCalculate	S
+automatic-basic	COM Application.CalculateFull	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Application.CalculateFull	Application_SheetCalculate	S
+automatic-basic	COM Application.CalculateFull	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Application.CalculateFull	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Application.CalculateFullRebuild	stage	COM Application.CalculateFullRebuild
+automatic-basic	COM Application.CalculateFullRebuild	Worksheet_Calculate entry	
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Application.CalculateFullRebuild	Worksheet_Calculate exit	
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Application.CalculateFullRebuild	Workbook_SheetCalculate	S
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Application.CalculateFullRebuild	Application_SheetCalculate	S
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Application.CalculateFullRebuild	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Worksheet.Calculate	stage	COM Worksheet.Calculate
+automatic-basic	COM Range.Calculate B1	stage	COM Range.Calculate B1
+automatic-basic	COM SaveAs	stage	COM SaveAs
+automatic-basic	COM SaveAs	Workbook BeforeSave entry	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+automatic-basic	COM SaveAs	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM SaveAs	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM SaveAs	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM SaveAs	Workbook BeforeSave exit	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+automatic-basic	COM SaveAs	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM SaveAs	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM SaveAs	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM SaveAs	Application BeforeSave entry	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+automatic-basic	COM SaveAs	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM SaveAs	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM SaveAs	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM SaveAs	Application BeforeSave exit	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+automatic-basic	COM SaveAs	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM SaveAs	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM SaveAs	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Save	stage	COM Save
+automatic-basic	COM Save	Workbook BeforeSave entry	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+automatic-basic	COM Save	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Save	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Save	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Save	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Save	Workbook BeforeSave exit	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+automatic-basic	COM Save	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Save	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Save	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Save	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Save	Application BeforeSave entry	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+automatic-basic	COM Save	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Save	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Save	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Save	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM Save	Application BeforeSave exit	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+automatic-basic	COM Save	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+automatic-basic	COM Save	cell	S!B1;vt=5;type=Double;value=6;bits=4018000000000000
+automatic-basic	COM Save	cell	S!C1;vt=5;type=Double;value=12;bits=4028000000000000
+automatic-basic	COM Save	cell	S!D1;vt=0;type=Empty;value=<Empty>
+automatic-basic	COM SaveCopyAs	stage	COM SaveCopyAs
+automatic-basic	COM Application.Undo	stage	COM Application.Undo
+automatic-basic	disable-events diagnostic boundary	stage	disable-events diagnostic boundary

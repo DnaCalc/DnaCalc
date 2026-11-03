@@ -191,8 +191,11 @@ def run(args):
         for ident,condition_id,trial,directory in jobs:
             queued=session/'queue'/(ident+'.json')
             if queued.exists():
-                queued.rename(queued.with_suffix('.unrun'))
-                unrun.append(dict(id=ident,condition=condition_id,trials=trial))
+                try:
+                    queued.rename(queued.with_suffix('.unrun'))
+                    unrun.append(dict(id=ident,condition=condition_id,trials=trial))
+                except FileNotFoundError:
+                    pass  # The host may have claimed it after the directory read.
         # Finish an already active condition; never interrupt a measured operation at the cutoff.
         for ident,condition_id,trial,directory in jobs:
             receipt=session/'completed'/ident/'receipt.json'
@@ -204,6 +207,12 @@ def run(args):
                     if record['id']!=ident or record['job'].get('packet_id')!=str(output) or Path(record['job']['parameters']['Request']).resolve()!=directory/'request.json':
                         raise ValueError('Final receipt is not bound to this campaign/request')
                     shutil.copytree(receipt.parent,directory/'session',dirs_exist_ok=True);completed.add(ident)
+        # A caller may already have deferred a request, or its queue file may be missing.
+        # Every requested job without a completed receipt still belongs in the unrun list.
+        unrun_ids={row.get('id') for row in unrun}
+        for ident,condition_id,trial,directory in jobs:
+            if ident not in completed and ident not in unrun_ids:
+                unrun.append(dict(id=ident,condition=condition_id,trials=trial,reason='No completed session receipt at cutoff; includes externally deferred or missing requests.'))
         receipts=[json.loads((directory/'session/receipt.json').read_text(encoding='utf-8-sig')) for ident,_,_,directory in jobs if ident in completed]
         trials=[]
         for ident,_,_,directory in jobs:
