@@ -22,7 +22,7 @@
 //! accent1 156082 at tint 0.6 shows as 83CCEB); an indexed colour by its index, for the caller's
 //! palette ([`LookColor::Indexed`]).
 //!
-//! Not modelled yet, each leaving the cell as it is: `aboveAverage` with `stdDev`, rules that only
+//! Not modelled yet, each leaving the cell as it is: rules that only
 //! Excel 2010's extension holds, a colour scale's or data bar's `formula` thresholds that give no
 //! number, and after a row or column is inserted or deleted in the session, a rule's formulas are
 //! not rewritten (its areas move, its formulas keep their text; the save rewrites them).
@@ -114,6 +114,8 @@ struct Prepared {
     /// Each threshold's formula, for colour scales, data bars and icon sets.
     threshold_formulas: Vec<Option<DetachedFormula>>,
     stats: Option<Stats>,
+    /// Aggregate threshold evaluated once through CalcFml, not once for every painted cell.
+    average: Option<Result<f64, ()>>,
     dxf: DxfLook,
 }
 
@@ -175,8 +177,7 @@ impl ConditionalFormats {
                     "Outside this cell".to_owned()
                 } else if stopped {
                     "Skipped after Stop if true".to_owned()
-                } else if p.rule.std_dev.is_some()
-                    || (p.condition.is_none()
+                } else if p.condition.is_none()
                         && !matches!(
                             p.rule.kind.as_str(),
                             "colorScale"
@@ -186,7 +187,7 @@ impl ConditionalFormats {
                                 | "aboveAverage"
                                 | "duplicateValues"
                                 | "uniqueValues"
-                        ))
+                        )
                 {
                     "Rule evaluation is unavailable (dc-971p.8)".to_owned()
                 } else {
@@ -338,20 +339,16 @@ impl ConditionalFormats {
                 held && dress(look, &prepared.dxf)
             }
             "aboveAverage" => {
-                let (Some(n), Some(stats)) = (number, prepared.stats.as_ref()) else {
+                let Some(n)=number else {return false;};
+                let Some(Ok(bound))=prepared.average else {
+                    self.refused.set(self.refused.get()+1);
                     return false;
                 };
-                if rule.std_dev.is_some() || stats.numbers.is_empty() {
-                    return false;
-                }
-                let mean = stats.numbers.iter().sum::<f64>() / stats.numbers.len() as f64;
-                let held = match (rule.above_average, rule.equal_average) {
-                    (true, false) => n > mean,
-                    (true, true) => n >= mean,
-                    (false, false) => n < mean,
-                    (false, true) => n <= mean,
+                let held=match (rule.above_average,rule.equal_average) {
+                    (true,false)=>n>bound,(true,true)=>n>=bound,
+                    (false,false)=>n<bound,(false,true)=>n<=bound,
                 };
-                held && dress(look, &prepared.dxf)
+                held && dress(look,&prepared.dxf)
             }
             "duplicateValues" | "uniqueValues" => {
                 let (Some(value), Some(stats)) = (value, prepared.stats.as_ref()) else {
@@ -806,10 +803,19 @@ impl HostState {
                 _ => None,
             })
             .collect();
-        let stats = (condition.is_none()).then(|| self.stats(areas));
+        let average = (rule.kind == "aboveAverage").then(|| {
+            let absolute = |at| {let text=a1(at);let split=text.find(|c:char|c.is_ascii_digit()).unwrap();format!("${}${}",&text[..split],&text[split..])};
+            let ranges=areas.iter().map(|a|format!("{}:{}",absolute(a.first()),absolute(a.last()))).collect::<Vec<_>>().join(",");
+            let mut bound=format!("AVERAGE({ranges})");
+            if let Some(deviation)=rule.std_dev {bound.push_str(&format!("{}({deviation}*STDEVP({ranges}))",if rule.above_average {"+"}else{"-"}));}
+            let formula=compile(&bound)?;
+            let value=formula.evaluate(&self.engine,&self.model,origin).map_err(|_|())?;
+            number_of(&value).ok_or(())
+        });
+        let stats = (condition.is_none() && average.is_none()).then(|| self.stats(areas));
         let dxf = rule
             .dxf
-            .and_then(|i| self.loaded.styles().differential_formats.get(i as usize))
+            .and_then(|i| self.styles().differential_formats.get(i as usize))
             .map(|d| DxfLook {
                 fill: d.fill.as_ref().and_then(|fill| {
                     let color = match fill.pattern_type.as_deref() {
@@ -840,6 +846,7 @@ impl HostState {
             condition,
             threshold_formulas,
             stats,
+            average,
             dxf,
         }
     }
@@ -855,6 +862,17 @@ impl HostState {
                     .flatten()
                     .map(|(at, _)| at),
             );
+        }
+        // Live spill members need not have authored cell inputs. Read their published values
+        // through the same projection as occupied cells, and count overlaps only once.
+        for spill in self.engine.spills() {
+            for area in areas.iter().filter_map(|area| area.intersection(spill.area())) {
+                for row in area.first().row()..=area.last().row() {
+                    for column in area.first().column()..=area.last().column() {
+                        cells.push(CellKey::new(area.sheet(), row, column).expect("valid spill area"));
+                    }
+                }
+            }
         }
         cells.sort();
         cells.dedup();

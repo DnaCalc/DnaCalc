@@ -67,6 +67,7 @@ mod recalc;
 mod result;
 mod results;
 pub use results::ResultStorageStats;
+mod slots;
 mod spill;
 mod state;
 mod structural;

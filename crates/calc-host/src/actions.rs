@@ -23,6 +23,17 @@ pub enum SheetChange {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConditionalChange {
+    /// Add a cell, formula, statistical or duplicate condition with a solid fill.
+    Condition {
+        kind: String,
+        applies: String,
+        color: String,
+        formulas: Vec<String>,
+        operator: String,
+        rank: u32,
+        percent: bool,
+        stop: bool,
+    },
     Add {
         kind: String,
         applies: String,
@@ -395,20 +406,30 @@ pub(crate) fn conditional_edits(
         }
         Ok(areas)
     };
-    if let ConditionalChange::Add {
-        kind,
-        applies,
-        color,
-    } = change
-    {
-        let mut source =
-            crate::new_conditional_rule(ranges(&applies)?, &kind, color.trim_start_matches('#'))?;
-        source.priority = rules
-            .iter()
-            .map(|r| r.priority)
-            .max()
-            .unwrap_or(0)
-            .saturating_add(1);
+    let mut staged_styles = None;
+    let added = match &change {
+        ConditionalChange::Add {kind,applies,color} => Some(crate::new_conditional_rule(ranges(applies)?,kind,color.trim_start_matches('#'))?),
+        ConditionalChange::Condition {kind,applies,color,formulas,operator,rank,percent,stop} => {
+            let areas=ranges(applies)?;
+            let color=crate::format::color(color)?.ok_or("Choose a fill colour")?;
+            let dxf=calc_doc_model::DifferentialFormat {fill:Some(calc_doc_model::Fill {pattern_type:Some("solid".into()),fg_color:Some(color),..Default::default()}),..Default::default()};
+            let mut styles=(**host.styles()).clone();
+            let id=styles.differential_formats.iter().position(|old|old==&dxf).unwrap_or_else(||{let id=styles.differential_formats.len();styles.differential_formats.push(dxf);id});
+            let mut converted=Vec::new();
+            for formula in formulas {
+                let text=crate::FormulaText::new(crate::value::ExcelText::from_utf16_code_units(formula.trim().trim_start_matches('=').encode_utf16().collect())).map_err(|e|e.to_string())?;
+                let form=crate::file_form_with_links(&text,host.model().definitions().names(),&host.model().definitions().external_file_names()).map_err(|e|format!("Conditional formula is unavailable: {e:?}"))?;
+                converted.push(String::from_utf16_lossy(&form.text).trim_start_matches('=').to_owned());
+            }
+            let mut source=calc_doc::new_condition_rule(areas,kind,operator,converted,*rank,*percent,id as u32)?;
+            source.stop=*stop;
+            staged_styles=Some(styles);
+            Some(source)
+        }
+        _=>None,
+    };
+    if let Some(mut source)=added {
+        source.priority=rules.iter().map(|r|r.priority).max().unwrap_or(0).saturating_add(1);
         rules.push(source);
     } else {
         let i = index
@@ -490,7 +511,9 @@ pub(crate) fn conditional_edits(
     for (rank, index) in order.into_iter().enumerate() {
         rules[index].priority = rank as i64 + 1;
     }
-    Ok(vec![CellEdit::ConditionalRules { sheet, rules }])
+    let mut edits=vec![CellEdit::ConditionalRules {sheet,rules}];
+    if let Some(styles)=staged_styles && &styles!=host.styles().as_ref() {edits.insert(0,CellEdit::Styles(std::sync::Arc::new(styles)));}
+    Ok(edits)
 }
 
 /// A bounded row permutation. Ordering comes from the existing evaluator; edits use the same

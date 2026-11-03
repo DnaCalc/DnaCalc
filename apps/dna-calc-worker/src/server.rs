@@ -3167,6 +3167,7 @@ fn conditional_change(change: wire::ConditionalChange) -> calc_host::Conditional
     use calc_host::ConditionalChange as H;
     use wire::ConditionalChange as W;
     match change {
+        W::Condition {kind,applies,color,formulas,operator,rank,percent,stop} => H::Condition {kind,applies,color,formulas,operator,rank,percent,stop},
         W::Add {
             kind,
             applies,

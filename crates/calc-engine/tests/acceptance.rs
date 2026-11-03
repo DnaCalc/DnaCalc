@@ -5017,10 +5017,10 @@ fn a_pass_pins_its_clock_across_steps() {
 
 // The single seven-cell SliceV1 fixture. D1 awaits the typed callback/P01/P03; the pure scope
 // never invents its value or evaluates it as part of these demonstrations.
-#[path = "fixtures/seven_cell.rs"]
-mod seven_cell;
 #[path = "fixtures/seven_cell_async.rs"]
 mod async_provider;
+#[path = "fixtures/seven_cell.rs"]
+mod seven_cell;
 struct SevenCellSlice {
     sheet: SheetId,
     root: Arc<ModelRoot>,
@@ -5231,6 +5231,74 @@ fn contract_repeated_dirtiness_advances_requirements_before_values() {
     assert_eq!(before.value_version, first.value_version);
     assert_eq!(first.value_version, second.value_version);
     assert!(book.state.validated_result(&book.root, c).is_none());
+}
+
+/// Edits at both ends of the slot space discharge exactly their three-node chain. A
+/// same-input write still invalidates the authored read proof, and a later force evaluates all.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn incremental_independent_chains_keep_unaffected_invocations_at_both_slot_extremes() {
+    let mut ids = IdAllocator::<SheetId>::new();
+    let sheet = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(sheet, row, column).unwrap();
+    let rows = 1024;
+    let cells = (1..=rows)
+        .flat_map(|row| {
+            [
+                (c(row, 1), number(1.0)),
+                (c(row, 2), formula(&format!("A{row}+1"))),
+                (c(row, 3), formula(&format!("B{row}+1"))),
+                (c(row, 4), formula(&format!("C{row}+1"))),
+            ]
+        })
+        .collect();
+    let mut root = l3_root(
+        &[(sheet, "Chains")],
+        cells,
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    for (row, input) in [(1, 7.0), (rows, 7.0), (rows, 7.0), (1, 1.0)] {
+        let untouched = if row == 1 { rows / 2 } else { 1 };
+        let before = state
+            .result(c(untouched, 4))
+            .unwrap()
+            .stamp()
+            .unwrap()
+            .computed_by
+            .clone();
+        root = edit(&mut state, &root, vec![set(c(row, 1), number(input))]);
+        let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+        assert_eq!(work.scheduled(), 3);
+        while matches!(
+            step(
+                &state,
+                &root,
+                &mut work,
+                WorkBudget::evaluations(1),
+                &mut Unobserved
+            ),
+            RecalcProgress::Pending { .. }
+        ) {}
+        let delta = finish(&mut state, &root, work).unwrap();
+        assert_eq!(delta.changes().len(), 3);
+        assert_eq!(l1_value(&state, c(row, 4)), CalcValue::number(input + 3.0));
+        assert_eq!(
+            state
+                .result(c(untouched, 4))
+                .unwrap()
+                .stamp()
+                .unwrap()
+                .computed_by,
+            before
+        );
+        assert!(state.validated_result(&root, c(untouched, 4)).is_some());
+    }
+    state.mark_all_pending();
+    let delta = recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(delta.changes().len(), rows as usize * 3);
+    assert!(state.stale(&root).unwrap().is_empty());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -7552,8 +7620,8 @@ fn contract_partial_callable_projection_preserves_refusals_and_rebinds_qualified
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_p07_intervening_same_revision_publication_revokes_the_engine_return() {
-    use calc_engine::{CalcScope, EvalSelection, begin_recalc_scoped};
     use async_provider::{Counts, Echo};
+    use calc_engine::{CalcScope, EvalSelection, begin_recalc_scoped};
     use std::{cell::RefCell, rc::Rc};
     let book = Workbook::new();
     let s = book.alpha;

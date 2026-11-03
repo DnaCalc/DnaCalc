@@ -406,6 +406,17 @@ pub enum Intent {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConditionalChange {
+    /// Add a cell, formula, statistical or duplicate condition with a solid fill.
+    Condition {
+        kind: String,
+        applies: String,
+        color: String,
+        formulas: Vec<String>,
+        operator: String,
+        rank: u32,
+        percent: bool,
+        stop: bool,
+    },
     Add {
         kind: String,
         applies: String,

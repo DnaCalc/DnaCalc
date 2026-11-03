@@ -402,9 +402,11 @@ Copyright (C) 2013-present SheetJS
 Reference: bessel.js at 2e2331329891dc5c16bda3461db0b9fe590ff2e9.
 Licensed under the Apache License, Version 2.0. The complete licence follows.
 
-Changed for DNA Calc: translated the low-argument J0/J1/Y0/Y1 rational seed
-helpers into Rust, retained the published coefficients, used the existing
-worksheet logarithm, and grouped Y0's logarithm term as J0 * (W * log(x)).
+Changed for DNA Calc: translated the low-argument J0/J1/Y0/Y1 rational seeds,
+the high-argument Y1 polynomial seed, and the published adaptive J backward
+recurrence into Rust. Retained the published coefficients and recurrence
+constants, used existing worksheet elementary functions, and grouped Y0's
+logarithm term as J0 * (W * log(x)).
 Product file: crates/calc-func/src/ported/bessel_rational.rs.
 ==============================================================================
 

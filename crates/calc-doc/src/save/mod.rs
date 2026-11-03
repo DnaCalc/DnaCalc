@@ -14,7 +14,7 @@
 mod array_metadata;
 mod author;
 pub(crate) mod conditional;
-pub use conditional::{conditional_rule, new_conditional_rule};
+pub use conditional::{conditional_rule, new_condition_rule, new_conditional_rule};
 mod diff;
 pub(crate) mod file_form;
 mod geometry;
