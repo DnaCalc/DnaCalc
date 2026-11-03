@@ -411,6 +411,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             _ => top + i as f64 * line_height,
         };
         ctx.save();
+        let (mut decoration_x, mut decoration_y) = (x, y);
         if s.rotation != 0 {
             let (rw, rh) = autofit::rotated_size(block_width, height, s.rotation);
             let cx = match horizontal {
@@ -425,11 +426,9 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             };
             let _ = ctx.translate(cx, cy);
             let _ = ctx.rotate(f64::from(s.rotation).to_radians());
-            let _ = ctx.fill_text(
-                line,
-                -block_width / 2.,
-                -height / 2. + i as f64 * line_height + baseline,
-            );
+            decoration_x = -block_width / 2.;
+            decoration_y = -height / 2. + i as f64 * line_height;
+            let _ = ctx.fill_text(line, decoration_x, decoration_y + baseline);
         } else if horizontal == "distributed" || (horizontal == "justify" && i + 1 < lines.len()) {
             let parts = if horizontal == "distributed" {
                 alignment::distributed_segments(line)
@@ -456,7 +455,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         } else {
             let _ = ctx.fill_text(line, x, y + baseline);
         }
-        if s.rotation == 0 && (c.underline || c.strike || s.underline || s.strike) {
+        if c.underline || c.strike || s.underline || s.strike {
             ctx.set_line_width(scale);
             for offset in [
                 (c.underline || s.underline).then_some(baseline + scale),
@@ -466,8 +465,8 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             .flatten()
             {
                 ctx.begin_path();
-                ctx.move_to(x, y + offset);
-                ctx.line_to(x + w, y + offset);
+                ctx.move_to(decoration_x, decoration_y + offset);
+                ctx.line_to(decoration_x + w, decoration_y + offset);
                 ctx.stroke();
             }
         }

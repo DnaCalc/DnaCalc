@@ -184,21 +184,22 @@ pub fn app_with_transport(
     }
     let result_details = NodeRef::<leptos::html::Details>::new();
     let result_open = RwSignal::new(false);
-    Effect::new(
-        move |previous: Option<(Option<calc_value::CellKey>, Option<cells::Provenance>)>| {
-            let cell = controller.active_cell();
-            let key = (
-                controller.active_key(),
-                cell.as_ref().map(|cell| cell.provenance),
-            );
+    // A late value publication may change provenance after a native disclosure toggle.
+    // An explicitly opened panel follows navigation; an explicit close holds for this selection.
+    type ResultTarget = (u64, Option<calc_value::CellKey>, u64);
+    let result_choice = StoredValue::new(None::<(ResultTarget, bool)>);
+    Effect::new(move |previous: Option<(ResultTarget, Option<cells::Provenance>, bool)>| {
+        let target = (controller.generation.get(), controller.active_key(), controller.reveal_epoch.get());
+        let cell = controller.active_cell();
+        let key = (target, cell.as_ref().map(|c| c.provenance), cell.as_ref().is_some_and(|c| c.kind == "error"));
+        if !result_choice.get_value().is_some_and(|(chosen, open)| chosen.0 == target.0 && (open || chosen == target)) {
+            result_choice.set_value(None);
             if previous.as_ref() != Some(&key) {
-                result_open.set(cell.as_ref().is_some_and(|cell| {
-                    cell.provenance == cells::Provenance::Refused || cell.kind == "error"
-                }));
+                result_open.set(key.1 == Some(cells::Provenance::Refused) || key.2);
             }
-            key
-        },
-    );
+        }
+        key
+    });
 
     // Array details come from the existing worker projection, just as Notebook's do.
     // A new selection, authored revision or committed value publication dismisses old details.
@@ -713,7 +714,10 @@ pub fn app_with_transport(
             </div>
             <details class="dc-result" node_ref=result_details prop:open=move || result_open.get()
                 data-dnacalc="result-details"
-                on:toggle=move |_| { if let Some(details) = result_details.get_untracked() { if details.open() != result_open.get_untracked() { result_open.set(details.open()); } } }>
+                on:toggle=move |_| { if let Some(details) = result_details.get_untracked() { if details.open() != result_open.get_untracked() {
+                    result_choice.set_value(Some(((controller.generation.get_untracked(), controller.active_key_untracked(), controller.reveal_epoch.get_untracked()), details.open())));
+                    result_open.set(details.open());
+                } } }>
                 <summary data-dnacalc="result-toggle">
                     <span class="dc-result-state" data-dnacalc="result-state">{move || controller.value_state().label()}</span>
                     <span class="dc-mono">{move || controller.active_key().map(|at| controller.cell_label(at)).unwrap_or_default()}</span>

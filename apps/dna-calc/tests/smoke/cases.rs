@@ -6593,6 +6593,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("format-size", "14"),
             Action::Choose("format-bold", "true"),
             Action::Choose("format-italic", "true"),
+            Action::Choose("format-strike", "true"),
+            Action::Wait(Check::Computed("format-preview", "text-decoration-line:line-through")),
             Action::Choose("format-underline", "true"),
             Action::Into("format-font-color", "#123456"),
             Action::Click("format-tab-fill"),
@@ -6608,6 +6610,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Text("format-preview", "1,234.50"),
+            Check::Computed("format-preview", "text-decoration-line:underline line-through"),
             Check::Text("format-message", ""),
             Check::PlanCell("A1", "text", "1234.5"),
         ],
@@ -6621,6 +6624,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::PlanCell("A1", "style.bold", "true"),
             Check::PlanCell("A1", "style.italic", "true"),
             Check::PlanCell("A1", "style.underline", "true"),
+            Check::PlanCell("A1", "style.strike", "true"),
             Check::PlanCell("A1", "style.horizontal", "left"),
             Check::PlanCell("A1", "style.vertical", "top"),
             Check::PlanCell("B2", "provenance", "empty"),
@@ -6673,6 +6677,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::PlanCell("A1", "text", "1,234.50"),
             Check::PlanCell("A1", "style.bold", "true"),
             Check::PlanCell("A1", "style.underline", "true"),
+            Check::PlanCell("A1", "style.strike", "true"),
             Check::PlanCell("B2", "style.fill", "#ffddaa"),
             Check::PlanCell("B2", "style.borders.0.color", "#cc0000"),
         ],
@@ -7977,6 +7982,30 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Action::Click("[data-name=Renamed] [data-dnacalc=name-select]"),Action::Into("name-name","FinalName"),Action::Click("name-save"),Action::Click("names-close"),Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("name-new"),Action::Into("name-name","Third"),Action::Into("name-formula","=4"),Action::PauseMillis(1200),
         ],
         checks:&[Check::Count("[data-name=FinalName]",1),Check::Value("name-name","Third"),Check::Value("name-formula","=4")],
+    },
+
+    Case {
+        name: "worker latency: opening array details before selection publication keeps the owner's query alive",
+        actions: &[
+            Action::Click("skin-grid"),Action::Click("new"),Action::DiscardReplacement,
+            Action::Wait(Check::Value("name-box","A1")),Action::PauseMillis(800),
+            Action::Into(BAR,"=SEQUENCE(3,2)\u{E007}"),Action::Wait(Check::Text(cell!("B2"),"4")),
+            Action::Into("name-box","D10\u{E007}"),Action::PauseMillis(800),
+            Action::Into("name-box","B2\u{E007}"),Action::Click("result-toggle"),
+            Action::Wait(Check::TextContains("array-detail-summary","Array anchor Sheet1!A1")),
+            Action::PauseMillis(700),
+        ],
+        checks: &[Check::Attr("result-details","open",""),Check::Text("selected-value","4"),Check::Rendered("array-owner",true)],
+    },
+    Case {
+        name: "worker latency: the retained array owner opens the real anchor and a new error still opens recovery",
+        actions: &[
+            Action::Click("array-owner"),Action::Wait(Check::Value("name-box","A1")),
+            Action::Click("result-toggle"),Action::PauseMillis(700),Action::Wait(Check::Absent("[data-dnacalc=result-details][open]")),
+            Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=1/0\u{E007}"),
+            Action::Into("name-box","D1\u{E007}"),Action::Wait(Check::Text("selected-value","#DIV/0!")),
+        ],
+        checks: &[Check::Attr("result-details","open",""),Check::Rendered("recover-edit",true)],
     },
 
 ];

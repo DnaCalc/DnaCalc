@@ -240,7 +240,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
                 let mut style=crate::grid::autofit::font_css(&cell.style,cell.conditional.as_ref(),false,1.);
                 if let Some(color)=cell.color.as_ref().or(cell.style.font_color.as_ref()){style.push_str(&format!(";color:{color}"));}
                 if let Some(fill)=&cell.style.fill{style.push_str(&format!(";background-color:{fill}"));}
-                if cell.style.underline{style.push_str(";text-decoration:underline");}
+                style.push_str(crate::grid::autofit::decoration_css(cell.style.underline,cell.style.strike));
                 view!{<output data-dnacalc="format-preview" use:css=style>{cell.text}</output><span class="dc-note">{if cell.format==crate::wire::FormatShown::NotModelled {"This format is preserved, but its display is not modelled"}else{""}}</span>}
             })}</div>
             <p class="dc-note">"Base format sample; conditional formatting can override the grid display."</p>

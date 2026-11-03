@@ -1537,12 +1537,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     if conditional.italic {
                         style.push_str(";font-style:italic");
                     }
-                    match (conditional.underline || cell.shown.style.underline, conditional.strike || cell.shown.style.strike) {
-                        (true, true) => style.push_str(";text-decoration:underline line-through"),
-                        (true, false) => style.push_str(";text-decoration:underline"),
-                        (false, true) => style.push_str(";text-decoration:line-through"),
-                        (false, false) => {}
-                    }
+                    style.push_str(autofit::decoration_css(conditional.underline || cell.shown.style.underline, conditional.strike || cell.shown.style.strike));
                     let italic=matches!(cell.shown.provenance,cells::Provenance::FileCache|cells::Provenance::Refused);
                     let mut display_style=cell.shown.style.clone();display_style.pixels=cell.paint_pixels;
                     style.push(';');style.push_str(&autofit::font_css(&display_style,Some(&conditional),italic,plan.scale));
