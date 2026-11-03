@@ -305,8 +305,8 @@ static void addModule(Address base, const std::wstring& path) {
     std::string file=basename(path), lower=file;
     std::transform(lower.begin(),lower.end(),lower.begin(),[](unsigned char c){return (char)tolower(c);});
     bool xll = lower.size()>=4 && lower.substr(lower.size()-4)==".xll";
-    if (xll || lower=="excel.exe" || lower=="xlcall32.dll" || lower=="oleacc.dll")
-        emit("\"event\":\"module\",\"name\":"+quote(file)+",\"base\":"+hex(base));
+    if (xll || lower=="xloil.dll" || lower.rfind("xloil_",0)==0 || lower=="excel.exe" || lower=="xlcall32.dll" || lower=="oleacc.dll")
+        emit("\"event\":\"module\",\"name\":"+quote(file)+",\"base\":"+hex(base)+",\"path\":"+quote(utf8(path)));
     if(xll) {
         size_t stubs=0;std::string names="[";bool first=true;
         for(auto& [name,addr]:m.exports) {
@@ -760,7 +760,7 @@ int wmain(int argc,wchar_t** argv) {
             break;
         }
         case LOAD_DLL_DEBUG_EVENT:{auto& d=ev.u.LoadDll;addModule((Address)d.lpBaseOfDll,filePath(d.hFile));if(d.hFile)CloseHandle(d.hFile);break;}
-        case UNLOAD_DLL_DEBUG_EVENT:{Address base=(Address)ev.u.UnloadDll.lpBaseOfDll;auto it=modules.find(base);if(it!=modules.end()){emit("\"event\":\"module_unload\",\"base\":"+hex(base));Address end=base+it->second.size;for(auto b=breakpoints.lower_bound(base);b!=breakpoints.end()&&b->first<end;)b=breakpoints.erase(b);modules.erase(it);}break;}
+        case UNLOAD_DLL_DEBUG_EVENT:{Address base=(Address)ev.u.UnloadDll.lpBaseOfDll;auto it=modules.find(base);if(it!=modules.end()){emit("\"event\":\"module_unload\",\"base\":"+hex(base)+",\"name\":"+quote(basename(it->second.path))+",\"path\":"+quote(utf8(it->second.path)));Address end=base+it->second.size;for(auto b=breakpoints.lower_bound(base);b!=breakpoints.end()&&b->first<end;)b=breakpoints.erase(b);modules.erase(it);}break;}
         case EXIT_THREAD_DEBUG_EVENT:liveThreads.erase(ev.dwThreadId);exitedThreads.insert(ev.dwThreadId);emit("\"event\":\"thread_exit\",\"thread\":"+std::to_string(ev.dwThreadId)+",\"exit_code\":"+std::to_string(ev.u.ExitThread.dwExitCode));if(stepping.count(ev.dwThreadId))finishStep(ev.dwThreadId);if(!calls[ev.dwThreadId].empty())healthy=false;break;
         case EXCEPTION_DEBUG_EVENT:{
             DWORD code=ev.u.Exception.ExceptionRecord.ExceptionCode;

@@ -12,7 +12,7 @@ use std::{
     rc::Rc,
     sync::{
         Mutex, OnceLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -29,7 +29,48 @@ unsafe extern "system" {
     fn LoadResource(module: *mut c_void, resource: *mut c_void) -> *mut c_void;
     fn LockResource(resource: *mut c_void) -> *const u8;
     pub(crate) fn GetCurrentThreadId() -> u32;
+    fn GetCurrentProcessId() -> u32;
     pub(crate) fn GetCurrentThreadStackLimits(low: *mut usize, high: *mut usize);
+}
+#[repr(C)]
+struct WindowClass {
+    style: u32,
+    procedure: usize,
+    class_extra: i32,
+    window_extra: i32,
+    instance: *mut c_void,
+    icon: *mut c_void,
+    cursor: *mut c_void,
+    background: *mut c_void,
+    menu: *const u16,
+    name: *const u16,
+}
+#[link(name = "user32")]
+unsafe extern "system" {
+    fn GetClassInfoW(instance: *mut c_void, name: *const u16, class: *mut WindowClass) -> i32;
+    fn UnregisterClassW(name: *const u16, instance: *mut c_void) -> i32;
+    fn EnumWindows(
+        callback: unsafe extern "system" fn(*mut c_void, isize) -> i32,
+        data: isize,
+    ) -> i32;
+    fn EnumChildWindows(
+        parent: *mut c_void,
+        callback: unsafe extern "system" fn(*mut c_void, isize) -> i32,
+        data: isize,
+    ) -> i32;
+    fn GetWindowThreadProcessId(window: *mut c_void, process: *mut u32) -> u32;
+    fn GetWindowLongPtrW(window: *mut c_void, index: i32) -> isize;
+    fn GetClassNameW(window: *mut c_void, name: *mut u16, length: i32) -> i32;
+    fn DestroyWindow(window: *mut c_void) -> i32;
+}
+#[link(name = "dbghelp")]
+unsafe extern "system" {
+    fn ImageDirectoryEntryToData(
+        base: *mut c_void,
+        mapped_as_image: u8,
+        directory: u16,
+        size: *mut u32,
+    ) -> *mut c_void;
 }
 
 pub(crate) fn wide(path: &std::ffi::OsStr) -> Vec<u16> {
@@ -41,9 +82,12 @@ pub(crate) struct Module {
     pub handle: *mut c_void,
     pub path: PathBuf,
     measured_xloil: bool,
+    qualified_native_profile: bool,
+    image_size: usize,
+    delay_cleanup: Cell<bool>,
 }
 
-// Compatibility refusal for the exact original PyPI xlOil 0.22.1 loader measured
+// Compatibility handling for the exact original PyPI xlOil 0.22.1 loader measured
 // in X3 (both wheel profiles contain this file). Its still-loaded core crashes
 // during plugin reinitialization after teardown. Do not extrapolate to other
 // releases or pretend that a refused reload is a compatibility pass (dc-snz.21).
@@ -52,12 +96,234 @@ const XLOIL_0221: [u8; 32] = [
     0x72, 0xd3, 0xcd, 0x62, 0x52, 0xf1, 0xa2, 0x6a, 0x11, 0x77, 0x18, 0x0c, 0x6d, 0xc7, 0xa8, 0xb0,
 ];
 static XLOIL_0221_REMOVED: AtomicBool = AtomicBool::new(false);
+static XLOIL_0221_CLEANED: AtomicBool = AtomicBool::new(false);
+static XLOIL_DELAY_RELEASES: AtomicUsize = AtomicUsize::new(0);
+const XLOIL_CORE_0221: [u8; 32] = [
+    0xb5, 0x3a, 0x0c, 0x36, 0x75, 0xc4, 0x9e, 0x5b, 0xa6, 0x13, 0x9f, 0xdc, 0x61, 0x1d, 0xc4, 0xbf,
+    0x58, 0x85, 0xb0, 0x35, 0xe6, 0xeb, 0xe6, 0xee, 0xa5, 0x5b, 0x10, 0x47, 0x66, 0xa2, 0x4a, 0xbf,
+];
 impl fmt::Debug for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Module").field(&self.path).finish()
     }
 }
 impl Module {
+    fn measured_native_profile(path: &Path) -> bool {
+        // Python and arbitrary plugins may own additional threads, extension
+        // modules or native UI. They retain the existing process-lifetime refusal.
+        if path.file_name().is_none_or(|name| name != "xlOil.xll")
+            || std::env::var_os("XLOIL_SETTINGS_DIR").is_some_and(|value| !value.is_empty())
+        {
+            return false;
+        }
+        let Some(appdata) = std::env::var_os("APPDATA") else {
+            return false;
+        };
+        if !matches!(
+            PathBuf::from(appdata).join("xlOil/xlOil.ini").try_exists(),
+            Ok(false)
+        ) {
+            return false;
+        }
+        [
+            (
+                "xlOil.ini",
+                "fc0efa4fcd582988425a94685249c28e217116f6bb321eef5e8e4d0b901b04c2",
+            ),
+            (
+                "xlOil_SQL.dll",
+                "3294a2525cfb1039bffb308261d2a3620b4f5ac63545dfcfd26eb0df055aff5d",
+            ),
+            (
+                "xlOil_Utils.dll",
+                "74a29dffb30d3827c5f2a8d9f2b1581a1c7bd6ec33ac44a4490ab5e0300f89ff",
+            ),
+        ]
+        .iter()
+        .all(|(name, expected)| {
+            std::fs::read(path.with_file_name(name))
+                .is_ok_and(|bytes| format!("{:x}", Sha256::digest(bytes)) == *expected)
+        })
+    }
+    fn release_native_window_classes(core: *mut c_void) -> bool {
+        // Successful xlAutoClose destroys its message window but leaves the
+        // xlOilHidden class registered against this host EXE. The log sink also
+        // leaves a window whose procedure lives in the core. Remove only that
+        // exact owner-thread UI while its object and code are still alive.
+        struct Windows {
+            core: *mut c_void,
+            process: u32,
+            thread: u32,
+            log: Vec<*mut c_void>,
+            valid: bool,
+        }
+        unsafe extern "system" fn visit(window: *mut c_void, data: isize) -> i32 {
+            let state = unsafe { &mut *(data as *mut Windows) };
+            let mut process = 0;
+            let thread = unsafe { GetWindowThreadProcessId(window, &mut process) };
+            if process != state.process {
+                return 1;
+            }
+            let procedure = unsafe { GetWindowLongPtrW(window, -4) };
+            let mut owner = std::ptr::null_mut();
+            if procedure == 0
+                || unsafe { GetModuleHandleExW(6, procedure as *const u16, &mut owner) } == 0
+            {
+                state.valid = false;
+                return 1;
+            }
+            if owner != state.core {
+                return 1;
+            }
+            let mut name = [0u16; 128];
+            let len = unsafe { GetClassNameW(window, name.as_mut_ptr(), name.len() as i32) };
+            if thread == state.thread
+                && len > 0
+                && String::from_utf16_lossy(&name[..len as usize]) == "xlOil_Log"
+                && unsafe { GetWindowLongPtrW(window, -6) } as *mut c_void == state.core
+            {
+                state.log.push(window);
+            } else {
+                state.valid = false;
+            }
+            1
+        }
+        unsafe extern "system" fn visit_root(window: *mut c_void, data: isize) -> i32 {
+            unsafe {
+                visit(window, data);
+            }
+            let state = unsafe { &*(data as *const Windows) };
+            let mut process = 0;
+            unsafe {
+                GetWindowThreadProcessId(window, &mut process);
+            }
+            if process == state.process {
+                unsafe {
+                    EnumChildWindows(window, visit, data);
+                }
+            }
+            1
+        }
+        let mut windows = Windows {
+            core,
+            process: unsafe { GetCurrentProcessId() },
+            thread: unsafe { GetCurrentThreadId() },
+            log: Vec::new(),
+            valid: true,
+        };
+        if unsafe { EnumWindows(visit_root, &mut windows as *mut Windows as isize) } == 0
+            || !windows.valid
+        {
+            return false;
+        }
+        // UnregisterClass refuses if any window still uses the class. Verify the
+        // procedure's module before touching either process-local registration.
+        // https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-unregisterclassw
+        let mut classes = Vec::new();
+        for (name, instance) in [
+            ("xlOilHidden", unsafe { GetModuleHandleW(std::ptr::null()) }),
+            ("xlOil_Log", core),
+        ] {
+            let name = wide(std::ffi::OsStr::new(name));
+            let mut class: WindowClass = unsafe { std::mem::zeroed() };
+            if unsafe { GetClassInfoW(instance, name.as_ptr(), &mut class) } == 0 {
+                return false;
+            }
+            let mut owner = std::ptr::null_mut();
+            if class.instance != instance
+                || unsafe { GetModuleHandleExW(6, class.procedure as *const u16, &mut owner) } == 0
+                || owner != core
+            {
+                return false;
+            }
+            classes.push((name, instance));
+        }
+        // The message class is first. Its removal must succeed before changing
+        // shared log UI: another live XLL context still has a message window and
+        // makes UnregisterClass fail without changing that window or its class.
+        for (index, (name, instance)) in classes.into_iter().enumerate() {
+            if index == 1 {
+                for window in &windows.log {
+                    if unsafe { DestroyWindow(*window) } == 0 {
+                        return false;
+                    }
+                }
+            }
+            if unsafe { UnregisterClassW(name.as_ptr(), instance) } == 0 {
+                return false;
+            }
+        }
+        true
+    }
+    fn delayed_core(&self) -> Option<*mut c_void> {
+        if !self.measured_xloil
+            || !self.delay_cleanup.get()
+            || self.image_size == 0
+            || !self.qualified_native_profile
+            || !Self::measured_native_profile(&self.path)
+        {
+            return None;
+        }
+        // This exact loader uses the documented PE32+ delay-load helper once for
+        // xlOil.dll and never releases that reference. Its unload table is absent.
+        // After successful teardown and final XLL unload, that orphaned reference
+        // prevents the core's static COM connector from being constructed again.
+        // https://learn.microsoft.com/windows/win32/debug/pe-format
+        static DBGHELP: Mutex<()> = Mutex::new(());
+        let _serial = DBGHELP.lock().ok()?;
+        let mut size = 0;
+        let directory = unsafe { ImageDirectoryEntryToData(self.handle, 1, 13, &mut size) };
+        let offset = (directory as usize).checked_sub(self.handle as usize)?;
+        if directory.is_null()
+            || size == 0
+            || size % 32 != 0
+            || offset.checked_add(size as usize)? > self.image_size
+        {
+            return None;
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(directory.cast::<u8>(), size as usize) };
+        for descriptor in bytes.chunks_exact(32) {
+            let word =
+                |at: usize| u32::from_le_bytes(descriptor[at..at + 4].try_into().unwrap()) as usize;
+            if word(0) == 0 {
+                break;
+            }
+            if word(0) != 1 {
+                return None;
+            }
+            let (name, slot) = (word(4), word(8));
+            if name.checked_add(10)? > self.image_size
+                || slot.checked_add(std::mem::size_of::<usize>())? > self.image_size
+            {
+                return None;
+            }
+            let base = self.handle.cast::<u8>();
+            let name = unsafe { std::slice::from_raw_parts(base.add(name), 10) };
+            if !name.eq_ignore_ascii_case(b"xlOil.dll\0") {
+                continue;
+            }
+            let core = unsafe { base.add(slot).cast::<*mut c_void>().read_unaligned() };
+            if core.is_null() {
+                return None;
+            }
+            let mut path = [0u16; 32768];
+            let len =
+                unsafe { GetModuleFileNameW(core, path.as_mut_ptr(), path.len() as u32) } as usize;
+            if len == 0 || len >= path.len() {
+                return None;
+            }
+            use std::os::windows::ffi::OsStringExt;
+            let path = PathBuf::from(std::ffi::OsString::from_wide(&path[..len]));
+            if std::fs::canonicalize(&path).ok()?
+                != std::fs::canonicalize(self.path.with_file_name("xlOil.dll")).ok()?
+                || Sha256::digest(std::fs::read(path).ok()?).as_slice() != XLOIL_CORE_0221
+            {
+                return None;
+            }
+            return Some(core);
+        }
+        None
+    }
     fn resource(&self, name: &str, kind: &str) -> Option<&[u8]> {
         unsafe {
             let resource = FindResourceW(
@@ -131,6 +397,41 @@ impl Module {
         } else {
             path
         };
+        let bytes = std::fs::read(&path);
+        let measured_xloil = bytes
+            .as_ref()
+            .is_ok_and(|bytes| Sha256::digest(bytes).as_slice() == XLOIL_0221);
+        // Qualification is fixed before native initialization: a sibling ini
+        // does not describe a runtime loaded through an override/user setting or
+        // a previously resident core. Rechecking at release can only withdraw it.
+        let qualified_native_profile = measured_xloil
+            && Self::measured_native_profile(&path)
+            && unsafe { GetModuleHandleW(wide(std::ffi::OsStr::new("xlOil.dll")).as_ptr()) }
+                .is_null();
+        // Reinitialization is permitted only after the old core has actually
+        // left the process. Retained registrations and Python's extension lease
+        // can keep it mapped, in which case the existing refusal still applies.
+        if measured_xloil
+            && XLOIL_0221_REMOVED.load(Ordering::Acquire)
+            && XLOIL_0221_CLEANED.load(Ordering::Acquire)
+            && unsafe { GetModuleHandleW(wide(std::ffi::OsStr::new("xlOil.dll")).as_ptr()) }
+                .is_null()
+        {
+            XLOIL_0221_REMOVED.store(false, Ordering::Release);
+            XLOIL_0221_CLEANED.store(false, Ordering::Release);
+        }
+        let image_size = bytes
+            .as_ref()
+            .ok()
+            .and_then(|bytes| {
+                let pe = u32::from_le_bytes(bytes.get(60..64)?.try_into().ok()?) as usize;
+                if bytes.get(pe..pe + 4)? != b"PE\0\0" {
+                    return None;
+                }
+                let at = pe.checked_add(24 + 56)?;
+                Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?) as usize)
+            })
+            .unwrap_or(0);
         // Search the XLL's directory and normal safe locations, never the current directory.
         let handle = unsafe {
             LoadLibraryExW(
@@ -146,14 +447,13 @@ impl Module {
                 std::io::Error::last_os_error()
             ));
         }
-        let bytes = std::fs::read(&path);
-        let measured_xloil = bytes
-            .as_ref()
-            .is_ok_and(|bytes| Sha256::digest(bytes).as_slice() == XLOIL_0221);
         Ok(Rc::new(Self {
             handle,
             path,
             measured_xloil,
+            qualified_native_profile,
+            image_size,
+            delay_cleanup: Cell::new(false),
         }))
     }
     pub(crate) fn loaded(name: &str) -> Result<Rc<Self>, String> {
@@ -177,6 +477,9 @@ impl Module {
             handle,
             path: std::ffi::OsString::from_wide(&path[..length]).into(),
             measured_xloil: false,
+            qualified_native_profile: false,
+            image_size: 0,
+            delay_cleanup: Cell::new(false),
         }))
     }
     pub(crate) fn address(&self, name: &str) -> Result<usize, String> {
@@ -203,8 +506,135 @@ impl Module {
 }
 impl Drop for Module {
     fn drop(&mut self) {
+        let delayed_core = self.delayed_core();
         unsafe {
-            FreeLibrary(self.handle);
+            let unloaded = FreeLibrary(self.handle) != 0
+                && GetModuleHandleW(wide(self.path.as_os_str()).as_ptr()).is_null();
+            if unloaded && let Some(core) = delayed_core {
+                // Balance only the measured loader's own delay-load reference,
+                // once its image is gone. Never decrement another live XLL's
+                // reference or remove a retained callable/async code lease.
+                if Self::release_native_window_classes(core) && FreeLibrary(core) != 0 {
+                    XLOIL_DELAY_RELEASES.fetch_add(1, Ordering::AcqRel);
+                    if GetModuleHandleW(
+                        wide(self.path.with_file_name("xlOil.dll").as_os_str()).as_ptr(),
+                    )
+                    .is_null()
+                    {
+                        XLOIL_0221_CLEANED.store(true, Ordering::Release);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod reload_tests {
+    use super::*;
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn RegisterClassW(class: *const WindowClass) -> u16;
+        fn CreateWindowExW(
+            ex: u32,
+            class: *const u16,
+            title: *const u16,
+            style: u32,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+            parent: *mut c_void,
+            menu: *mut c_void,
+            instance: *mut c_void,
+            parameter: *mut c_void,
+        ) -> *mut c_void;
+        fn DefWindowProcW(window: *mut c_void, message: u32, wparam: usize, lparam: isize)
+        -> isize;
+        fn IsWindow(window: *mut c_void) -> i32;
+    }
+    unsafe extern "system" fn procedure(
+        window: *mut c_void,
+        message: u32,
+        wparam: usize,
+        lparam: isize,
+    ) -> isize {
+        unsafe { DefWindowProcW(window, message, wparam, lparam) }
+    }
+    /// Native-only: exercises process-local Win32 window/class ownership without Excel.
+    #[test]
+    fn native_reload_ui_cleanup_preserves_live_or_unknown_contexts() {
+        let instance = unsafe { GetModuleHandleW(std::ptr::null()) };
+        let create = |name: &str, message_only: bool| {
+            let name = wide(std::ffi::OsStr::new(name));
+            let mut class: WindowClass = unsafe { std::mem::zeroed() };
+            class.instance = instance;
+            class.name = name.as_ptr();
+            class.procedure = procedure as usize;
+            assert_ne!(unsafe { RegisterClassW(&class) }, 0);
+            let window = unsafe {
+                CreateWindowExW(
+                    0,
+                    name.as_ptr(),
+                    name.as_ptr(),
+                    0,
+                    0,
+                    0,
+                    1,
+                    1,
+                    if message_only {
+                        -3isize as *mut c_void
+                    } else {
+                        std::ptr::null_mut()
+                    },
+                    std::ptr::null_mut(),
+                    instance,
+                    std::ptr::null_mut(),
+                )
+            };
+            assert!(!window.is_null());
+            window
+        };
+        let hidden = create("xlOilHidden", true);
+        let log = create("xlOil_Log", false);
+        assert!(!Module::release_native_window_classes(instance));
+        assert_ne!(
+            unsafe { IsWindow(log) },
+            0,
+            "live context lost shared log UI"
+        );
+        assert_ne!(unsafe { DestroyWindow(hidden) }, 0);
+        let unknown = create("DnaCalc.Reload.Unknown", false);
+        assert!(!Module::release_native_window_classes(instance));
+        assert_ne!(
+            unsafe { IsWindow(log) },
+            0,
+            "unknown core UI allowed partial teardown"
+        );
+        assert_ne!(unsafe { DestroyWindow(unknown) }, 0);
+        assert_ne!(
+            unsafe {
+                UnregisterClassW(
+                    wide(std::ffi::OsStr::new("DnaCalc.Reload.Unknown")).as_ptr(),
+                    instance,
+                )
+            },
+            0
+        );
+        assert!(Module::release_native_window_classes(instance));
+        assert_eq!(unsafe { IsWindow(log) }, 0);
+        for name in ["xlOilHidden", "xlOil_Log"] {
+            let mut class: WindowClass = unsafe { std::mem::zeroed() };
+            assert_eq!(
+                unsafe {
+                    GetClassInfoW(
+                        instance,
+                        wide(std::ffi::OsStr::new(name)).as_ptr(),
+                        &mut class,
+                    )
+                },
+                0
+            );
         }
     }
 }
@@ -465,6 +895,9 @@ impl XllHost {
     pub fn live_callback_allocations(&self) -> usize {
         self.state.borrow().allocations.len()
     }
+    pub fn runtime_delay_releases(&self) -> usize {
+        XLOIL_DELAY_RELEASES.load(Ordering::Acquire)
+    }
     /// Includes canceled tasks until native code acknowledges physical return.
     pub fn outstanding_native_calls(&self) -> usize {
         self.reap_cancelled_async();
@@ -594,6 +1027,9 @@ impl XllHost {
                 }
                 drop(guard);
             }
+        }
+        if failures.is_empty() {
+            module.delay_cleanup.set(true);
         }
         self.remove_module(module);
         if failures.is_empty() {

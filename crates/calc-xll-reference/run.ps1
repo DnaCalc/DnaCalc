@@ -363,6 +363,7 @@ try {
             } until ($terminated -or [DateTime]::UtcNow -gt $deadline)
             Note 'RTD termination before detach' $terminated
         }
+        Note 'AutomationSecurity unchanged before teardown' ([int]$excel.AutomationSecurity -eq $metadata.automation_security_before)
         Note 'ExecuteExcel4Macro UNREGISTER(managed)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
         if ($Reload) {
             # Repeat the same close/open sequence as the native host. Keep the

@@ -461,6 +461,97 @@ def framework_ownership(trace):
             "by_module": dict(by_module)}
 
 
+def verify_xloil_reload(excel, excel_control, host, host_control, cases_path, publication_path=None):
+    """Bounded host repair; Excel's original failed reload remains a failure."""
+    directories = (excel, excel_control, host, host_control)
+    envs = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    expected = [{"formula": c["formula"], "value": c["value"]} for c in cases]
+    require(len(expected) == 12, "Unqualified native reload cases")
+    for index, env in enumerate(envs):
+        require(env["fixture_files"] == envs[0]["fixture_files"], "Reload fixture files differ")
+        require(env["cases_sha256"] == digest(cases_path), "Reload cases differ")
+        if index >= 2:
+            require(env["reload"], "Host reload was not requested")
+    require(envs[0]["excel_file_version"] == envs[1]["excel_file_version"], "Excel control builds differ")
+    require(envs[0]["tracer_sha256"] == envs[2]["tracer_sha256"], "Reload tracer binaries differ")
+    require(envs[2]["executable_sha256"] == envs[3]["executable_sha256"] and envs[2]["shim_sha256"] == envs[3]["shim_sha256"], "Reload host binaries differ")
+    excel_failures = []
+    for path, env in zip(directories[:2], envs[:2]):
+        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
+        rows = jsonl(path / "controller.jsonl")
+        require([r["value"] for r in rows if r["operation"] == "AutomationSecurity unchanged before teardown"] == [True], "Excel security state was not verified before failing teardown")
+        values = [{"formula": r["operation"], "value": r["value"]} for r in rows if r["operation"].startswith("=")]
+        require(values == expected, "Excel pre-reload formula outcomes differ")
+        require(any(r["operation"] == "ExecuteExcel4Macro UNREGISTER(managed)" and r["value"] is True for r in rows), "Excel removal was not attempted")
+        failures = [r for r in rows if r["operation"] == "failure"]
+        require(len(failures) == 1 and "0x800706BE" in failures[0]["value"], "Original Excel reload failure changed")
+        require(not any(r["operation"].startswith("reload =") for r in rows), "Excel unexpectedly returned reload values")
+        require(any(r["operation"] == "cleanup" and r["value"] == "Owned Excel exited" for r in rows), "Failed Excel process remained live")
+        excel_failures.append({"pid": env["pid"], "status": "failed reload, not a compatibility pass", "failure": failures[0]})
+    raw = jsonl(excel / "boundary.jsonl")
+    require([e["seq"] for e in raw] == list(range(1, len(raw) + 1)), "Failed Excel trace sequence is incomplete")
+    require(any(e["event"] == "second_chance_exception" and e["code"] == "0xc0000005" for e in raw), "Original Excel access violation missing")
+    require(raw[-1]["event"] == "process_exit" and raw[-1]["code"] != 0, "Original Excel did not exit on failure")
+    excel_trace_errors = [e for e in raw if e["event"] in ("read_error", "debugger_error", "breakpoint_error", "unrecognized_breakpoint")]
+    excel_enters = {e["call"]: e for e in raw if e["event"] == "enter"}
+    opens = [e for e in excel_enters.values() if e["entry"] == "xlOil.xll!xlAutoOpen"]
+    require(len(opens) == 2, "Excel second initialization was not entered")
+    def phase(events, start, end):
+        selected = [e for e in events if start <= e["seq"] < end]
+        enters = {e["call"]: e for e in selected if e["event"] == "enter"}
+        leaves = {e["call"]: e for e in selected if e["event"] == "leave"}
+        require(enters.keys() == leaves.keys(), "Reload phase contains incomplete calls")
+        for call, entry in enters.items():
+            require(entry["entry"] == leaves[call]["entry"] and entry["thread"] == leaves[call]["thread"], "Reload phase call identity differs")
+            inspect_values(entry)
+            inspect_values(leaves[call])
+        return selected, enters, leaves
+    registrations = [e for e in excel_enters.values() if e["entry"] == "COM!Invoke" and e.get("dispid") == 30
+                     and opens[0]["seq"] < e["seq"] < opens[1]["seq"] and len(e.get("rgvarg", [])) == 1
+                     and e["rgvarg"][0].get("vt") == 8 and str(e["rgvarg"][0].get("value", "")).endswith("xlOil.xll")]
+    require(len(registrations) == 1, "Failed Excel RegisterXLL call was not identified")
+    first_excel = phase(raw, opens[0]["seq"], registrations[0]["seq"])
+    require(not any(e["seq"] < opens[1]["seq"] for e in excel_trace_errors), "Debugger failure obscures Excel's pre-reload comparison")
+    def native_records(trace):
+        return [{"name": e["entry"].rsplit(":", 1)[1], **invocation_record(trace, e)} for e in trace[1].values() if ":" in e["entry"]]
+    reference = native_records(first_excel)
+    require(len(reference) == 13, "Original native invocation set changed")
+    host_details = []
+    for path in directories[2:]:
+        status = json.loads((path / "host.exit.json").read_text(encoding="utf-8-sig"))
+        require(status == {"exit_code": 0, "finished": True}, "Reload host failed or did not finish")
+        require(not (path / "host.stderr").read_text(encoding="utf-8-sig").strip(), "Reload host reported diagnostics")
+        output = json.loads((path / "host.stdout").read_text(encoding="utf-8-sig"))
+        require(output["results"] == output["reload_results"] == expected, "Native host reload changed formula values")
+        require(output["runtime_delay_releases"] == 1 and output["live_callback_allocations"] == 0, "Qualified runtime cleanup missing or repeated")
+        require(output["closed_registration"] == "#NAME?", "Stale native callable was not rejected")
+        host_details.append({"results": output["results"], "reload_results": output["reload_results"], "runtime_delay_releases": output["runtime_delay_releases"], "exit": status})
+    trace = boundary(host)
+    host_opens = [e for e in trace[1].values() if e["entry"] == "xlOil.xll!xlAutoOpen"]
+    require(len(host_opens) == 2, "Host reload initialization missing or repeated")
+    phases = [phase(trace[0], host_opens[0]["seq"], host_opens[1]["seq"]), phase(trace[0], host_opens[1]["seq"], trace[0][-1]["seq"])]
+    records = [native_records(p) for p in phases]
+    require(records[0] == records[1] == reference, "Ordered native calls/arguments/results/callbacks changed after reload")
+    ownership = [framework_ownership(p) for p in [first_excel] + phases]
+    require(ownership[0] == ownership[1] == ownership[2], "Native reload ownership differs")
+    mapping = []
+    for name in ("xlOil.xll", "xlOil.dll", "xlOil_SQL.dll", "xlOil_Utils.dll"):
+        loads = [e for e in trace[0] if e["event"] == "module" and e.get("name") == name]
+        unloads = [e for e in trace[0] if e["event"] == "module_unload" and e.get("name") == name]
+        require(len(loads) == 2 and len(unloads) >= 1, "Native mapping cycle missing: " + name)
+        require(loads[0]["seq"] < unloads[0]["seq"] < loads[1]["seq"], "Native image reused without unmapping: " + name)
+        require(loads[0]["base"] == unloads[0]["base"] and loads[0]["path"] == unloads[0]["path"] == loads[1]["path"], "Native mapping identity differs: " + name)
+        mapping.append({"name": name, "first_load": loads[0], "first_unload": unloads[0], "second_load": loads[1]})
+    publications = verify_sources(envs, publication_path)
+    return {"status": "verified bounded native host reload; original Excel reload remains failed", "formula_cases": len(cases),
+            "native_invocations_each_phase": len(reference), "ordered_native_records": reference, "ownership_excel_host_first_host_second": ownership,
+            "mapping_cycles": mapping, "host_controls": host_details, "excel_reload_failures": excel_failures, "failed_excel_register_entry": registrations[0], "failed_excel_trace_errors": excel_trace_errors,
+            "new_host_object": [e["reload_new_host"] for e in envs[2:]], "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in envs),
+            "source_publication_revisions": [p["revision"] for p in publications],
+            "scope": "Exact xlOil0.22.1 native Utils/SQL profile only. Python and overrides retain reload refusal, counted as failure. Renamed loaders remain unqualified/unsupported; a renamed first-load crash is retained separately. Arbitrary runtime teardown remains open."}
+
+
 def verify_x2(excel, excel_control, host, host_control, cases_path, publication_path=None, x3=False, x4=False):
     directories = (excel, excel_control, host, host_control)
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
@@ -1173,6 +1264,7 @@ if __name__ == "__main__":
     parser.add_argument("--host-control", type=Path)
     parser.add_argument("--x2-cases", type=Path)
     parser.add_argument("--x3-cases", type=Path)
+    parser.add_argument("--xloil-reload-cases", type=Path)
     parser.add_argument("--x4-cases", type=Path)
     parser.add_argument("--rtd-cases", type=Path)
     parser.add_argument("--workbook-pool-cases", type=Path)
@@ -1190,7 +1282,8 @@ if __name__ == "__main__":
             result = verify_x2_controls(args.traced, args.control, args.identity)
         elif args.host:
             parser.error("--host requires --host-control") if args.host_control is None else None
-            result = (verify_workbook_pool(args.traced, args.control, args.host, args.host_control, args.workbook_pool_cases, args.source_publication) if args.workbook_pool_cases else
+            result = (verify_xloil_reload(args.traced, args.control, args.host, args.host_control, args.xloil_reload_cases, args.source_publication) if args.xloil_reload_cases else
+                      verify_workbook_pool(args.traced, args.control, args.host, args.host_control, args.workbook_pool_cases, args.source_publication) if args.workbook_pool_cases else
                       verify_rtd(args.traced, args.control, args.host, args.host_control, args.rtd_cases, args.source_publication) if args.rtd_cases else
                       verify_x2(args.traced, args.control, args.host, args.host_control, args.x4_cases or args.x3_cases or args.x2_cases, args.source_publication, x3=bool(args.x3_cases or args.x4_cases), x4=bool(args.x4_cases))
                       if args.x2_cases or args.x3_cases or args.x4_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
