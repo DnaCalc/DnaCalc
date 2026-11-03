@@ -417,7 +417,7 @@ mod arrays {
         );
     }
 
-    /// W111 typed cases 00742/743, 00748/749 and 00754/755: a scalar source error
+    /// W111 typed cases 00688/689, 00742/743, 00748/749 and 00754/755: a scalar source error
     /// remains scalar, instead of becoming one cell of a padded result.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
@@ -429,6 +429,7 @@ mod arrays {
                 format!("=HSTACK({error},CHOOSE({{1;2}},A100,A101))"),
                 format!("=VSTACK({error},CHOOSE({{1,2}},A100,A101))"),
                 format!("=EXPAND({error},3,3,\"pad\")"),
+                format!("=DROP({error},1)"),
             ] {
                 assert_eq!(book.dynamic(&formula), e(code), "{formula}");
             }
