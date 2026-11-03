@@ -4,13 +4,13 @@
 //! current spellings and the legacy ones (NORMDIST, CHIDIST, TDIST and the like), GAMMA, GAMMALN,
 //! GAUSS, PHI, the confidence intervals and the tests (CHISQ.TEST, F.TEST, T.TEST, Z.TEST). The
 //! numeric kernels are OxFunc's ([`crate::ported`]); every argument is read by worksheet number
-//! coercion, and a cumulative flag is a number read as TRUE when it is not 0.
+//! coercion, and a cumulative flag uses worksheet logical coercion.
 //!
 //! The error function is in this family too (ERF, ERF.PRECISE, ERFC, ERFC.PRECISE), since its
 //! kernels are the distributions' own.
 
 use super::aggregate::Held;
-use super::kit::{fail, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal};
+use super::kit::{fail, flag, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::ported::{
@@ -22,11 +22,6 @@ use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
 const CODE: u16 = 104;
-
-/// Argument `index` as a cumulative flag: a number, TRUE unless 0.
-fn flag(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
-    Ok(num(site, a, index)? != 0.0)
-}
 
 /// The first `count` arguments as numbers.
 fn nums<const N: usize>(site: &Site<'_>, a: &[CalcValue]) -> Step<[f64; N]> {

@@ -79,6 +79,42 @@ fn poisson_validates_raw_counts_before_the_zero_count_exponential() {
     }
 }
 
+/// OxFunc-Evidence w111-distribution-heldout-typed-20260929, NORM.S.DIST
+/// cases 00000..00206: the cumulative position reads logical text, not numeric text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn distribution_cumulative_flags_read_logical_text() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_input("A100", InputValue::number(0.0).unwrap()).unwrap();
+    for (flag, expected) in [
+        ("TrUe", CalcValue::number(0.5)),
+        ("FAlSE", CalcValue::number(f64::from_bits(0x3fd9_8845_33d4_3651))),
+        ("00", CalcValue::error(WorksheetErrorCode::Value)),
+        ("+0", CalcValue::error(WorksheetErrorCode::Value)),
+        ("1.0", CalcValue::error(WorksheetErrorCode::Value)),
+        ("0%", CalcValue::error(WorksheetErrorCode::Value)),
+        ("\u{b}TRUE", CalcValue::error(WorksheetErrorCode::Value)),
+        ("TRUE\r", CalcValue::error(WorksheetErrorCode::Value)),
+        ("\u{2003}TRUE", CalcValue::error(WorksheetErrorCode::Value)),
+        ("FAL\u{17f}E", CalcValue::error(WorksheetErrorCode::Value)),
+    ] {
+        session.set_input("C4", InputValue::text(flag).unwrap()).unwrap();
+        for argument in [format!("\"{flag}\""), "C4".to_owned()] {
+            let formula = format!("=NORM.S.DIST(A100,{argument})");
+            session.set_formula(&formula);
+            let calculated = session.calculate();
+            assert_eq!(calculated.result, Some(expected.clone()), "{formula:?}: {:?}", calculated.diagnostics);
+            assert!(calculated.diagnostics.is_empty());
+        }
+    }
+    session.set_formula("=NORM.S.DIST(A100,CHOOSE({1;2},TRUE,\"TrUe\"))");
+    let expected = CalcValue::array(calc_func::value::CalcArray::from_rows(vec![
+        vec![CalcValue::number(0.5)], vec![CalcValue::number(0.5)],
+    ]).unwrap());
+    assert_eq!(session.calculate().result, Some(expected));
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
