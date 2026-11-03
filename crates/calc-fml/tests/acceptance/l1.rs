@@ -605,9 +605,11 @@ mod arrays {
             numbers(&[&[1.0, 10.0], &[2.0, 20.0]])
         );
         assert_eq!(book.dynamic("=SUM(IF(A1:A3>1,1,0))"), n(2.0));
+        // The final-reference display boundary also applies to a bare range. The W111
+        // selected-reference regressions exercise its recorded blank-to-zero behavior.
         assert_eq!(
             book.dynamic("=A1:A4"),
-            rows(&[&[n(1.0)], &[n(2.0)], &[n(3.0)], &[CalcValue::empty()]])
+            numbers(&[&[1.0], &[2.0], &[3.0], &[0.0]])
         );
     }
 
