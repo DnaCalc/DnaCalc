@@ -1,0 +1,33 @@
+{
+  "format": "dnacalc-xll6-retained-failures/1",
+  "failed_rtd_capture": "failures/rtd-host-deadline",
+  "rtd_initial_rejected_empty": "C:/Work/DnaCalc/codex-runs/xll6/rtd/failure-complete",
+  "failed_excel_rtd_debugger": "C:/Work/DnaCalc/codex-runs/xll6/rtd-final/excel-traced",
+  "unarmed_pool_probe": "C:/Work/DnaCalc/codex-runs/xll6/pool",
+  "pool_current_full_profile": "pool-verification.json",
+  "logs": [
+    {
+      "path": "C:/Work/DnaCalc/codex-runs/xll6/check-integrated-reviewed.log",
+      "sha256": "87bcf89f31b0de847a656a1c2bfcd000494800d1d609870fe7d4278e67bd447e"
+    },
+    {
+      "path": "C:/Work/DnaCalc/codex-runs/xll6/check-integrated-serial-build.log",
+      "sha256": "1ca182fd5a4ce95a58c53669e36050b017c82282d0218b4cd1c8e78f43d3a64f"
+    },
+    {
+      "path": "C:/Work/DnaCalc/codex-runs/xll6/fml-acceptance-stack.log",
+      "sha256": "cd48efa1cfd815b14a8c4aea6ea6ce295747f20f891c2d28fbdf97901496d02e"
+    },
+    {
+      "path": "C:/Work/DnaCalc/codex-runs/xll6/workbook-pool-first-test.log",
+      "sha256": "447fb3daf705ac8741ca0fbe98f9d77d6a4051fae8916c499b44f10e9604c201"
+    },
+    {
+      "path": "C:/Work/DnaCalc/codex-runs/xll6/workbook-pool-portable-tests.log",
+      "sha256": "09031d570c77ab3be17458e8154de4662bf43485ca05ac29687af3dbbd41cb85"
+    }
+  ],
+  "scope": "Failures remain failures. Successful retry directories are distinct and never overwrite failed observations.",
+  "same_binary_rtd_retry": "diagnostics/rtd-same-binary-retry",
+  "same_executable_sha256": "BA5C0928F49D1775637FD90B0342969F0BED4E9EB91F7802F4560F2C75A28486"
+}

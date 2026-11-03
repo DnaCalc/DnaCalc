@@ -21,6 +21,9 @@ pub(crate) struct Pool {
     threads: Vec<JoinHandle<()>>,
 }
 impl Pool {
+    pub fn capacity(&self) -> usize {
+        self.threads.len()
+    }
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel::<Job>();
         let receiver = Arc::new(Mutex::new(receiver));
@@ -197,6 +200,7 @@ pub(crate) fn submit(
                     cif,
                 });
                 let adapter = XllFunction {
+                    parallel: 1,
                     state: state.clone(),
                     registration,
                     bound: false,

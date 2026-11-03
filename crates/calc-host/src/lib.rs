@@ -123,7 +123,7 @@ pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
     AxisFormat, AxisFormatEdit, AxisLayouts, BlockId, BlockKind, CachedValue, CellInput, CellText,
-    DefinedName, Definitions, FileCached, FiniteNumber, FormulaText, FrozenPanes,
+    DefinedName, Definitions, FileCached, FiniteNumber, FormulaForm, FormulaText, FrozenPanes,
     IterationSettings, ModelRoot, NameScope, PlacementId, RowHidden, SheetEdit, SheetEntry,
     SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, Spot, StyleColor, StyleTable,
     ViewKind,

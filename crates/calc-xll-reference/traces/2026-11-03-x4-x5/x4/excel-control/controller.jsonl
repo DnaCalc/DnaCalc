@@ -1,0 +1,17 @@
+{"utc":"2026-11-02T23:35:44.5804572Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-02T23:35:45.2121160Z","operation":"xlOil built-in Python startup complete","value":true}
+{"utc":"2026-11-02T23:35:45.3872151Z","operation":"=X3.PyAdd(3,4)","value":7.0}
+{"utc":"2026-11-02T23:35:45.3972639Z","operation":"=X4.PyCom()","value":"Book1|X0|1|True"}
+{"utc":"2026-11-02T23:35:45.4054218Z","operation":"=X4.PyEvents()","value":"X0|A1"}
+{"utc":"2026-11-02T23:35:45.4309493Z","operation":"=X4.PyEvents()","value":"X0|A1;X0|A1"}
+{"utc":"2026-11-02T23:35:45.4472970Z","operation":"=X4.PyEvents()","value":"X0|A1;X0|A1"}
+{"utc":"2026-11-02T23:35:45.4558936Z","operation":"=X4.PyCom()","value":"Book1|X0|1|False"}
+{"utc":"2026-11-02T23:35:45.4677874Z","operation":"=X4.PyEvents()","value":"X0|A1;X0|A1;X0|A1"}
+{"utc":"2026-11-02T23:35:45.4754620Z","operation":"=X4.PyQueued()","value":42.0}
+{"utc":"2026-11-02T23:35:45.4867212Z","operation":"=X4.PyBounds()","value":"0|0|(1, 1)|X0|$A$1"}
+{"utc":"2026-11-02T23:35:45.4949675Z","operation":"=X4.PyCall()","value":42.0}
+{"utc":"2026-11-02T23:35:45.5049825Z","operation":"=SUM(X3.PyArray(4))","value":20.0}
+{"utc":"2026-11-02T23:35:45.5131974Z","operation":"=X4.PyRelease()","value":3.0}
+{"utc":"2026-11-02T23:35:46.0259464Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-02T23:35:46.0333470Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-02T23:35:46.7903979Z","operation":"cleanup","value":"Stopped owned Excel PID 54796"}

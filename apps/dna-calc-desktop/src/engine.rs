@@ -15,10 +15,34 @@ use std::{
 };
 
 fn enter(book: &mut HostSession, at: CellKey, text: &str) -> Result<(), String> {
-    let receipt = book.dispatch(SkinIntent::EnterCell {
-        at,
-        text: text.to_owned(),
-    });
+    enter_as(book, at, text, false)
+}
+fn enter_as(book: &mut HostSession, at: CellKey, text: &str, legacy: bool) -> Result<(), String> {
+    let intent = if legacy {
+        SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::Set {
+                at,
+                input: calc_host::CellInput::Formula(
+                    calc_host::FormulaText::with_form(
+                        calc_value::ExcelText::from_utf16_code_units(
+                            text.strip_prefix('=')
+                                .ok_or("legacy entry needs a formula")?
+                                .encode_utf16()
+                                .collect(),
+                        ),
+                        calc_host::FormulaForm::Legacy,
+                    )
+                    .map_err(|e| format!("{e:?}"))?,
+                ),
+            }],
+        }
+    } else {
+        SkinIntent::EnterCell {
+            at,
+            text: text.to_owned(),
+        }
+    };
+    let receipt = book.dispatch(intent);
     if receipt.accepted() {
         Ok(())
     } else {
@@ -109,17 +133,19 @@ pub fn run(
         None => vec![serde_json::json!({"formula":formula,"value":null})],
     };
     let mut results = Vec::new();
+    let mut commands = Vec::new();
     let mut returns = Vec::new();
     let mut revoked = Vec::new();
     let mut rtd_updates = Vec::new();
     let mut rtd_retired = Vec::new();
     for case in cases {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
+        let legacy = case["legacy"].as_bool().unwrap_or(false);
         if let Some(dependent) = case["dependent"].as_str() {
-            enter(&mut book, c, dependent)?;
+            enter_as(&mut book, c, dependent, legacy)?;
             retire_rtd(&mut book, &rtd, &providers, c, &mut rtd_retired)?;
         }
-        enter(&mut book, b, formula)?;
+        enter_as(&mut book, b, formula, legacy)?;
         retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
         // Separate workbook commands retain separate read views and activations.
         // This lets the owner interleave them without moving either evaluator.
@@ -141,6 +167,14 @@ pub fn run(
             None
         };
         shell.projection()?.sheet_change(b.row(), b.column())?;
+        if let Some(command) = case["before_calculate"].as_str() {
+            let result = native.run(command, &[])?;
+            let actual = crate::value_json(&result);
+            if actual.as_f64() != case["before_calculate_value"].as_f64() {
+                return Err("precalculation command differs".into());
+            }
+            commands.push(serde_json::json!({"command":command,"value":actual}));
+        }
         book.dispatch(SkinIntent::Recalculate);
         let deadline = Instant::now() + Duration::from_secs(20);
         let mut replaced = false;
@@ -243,8 +277,8 @@ pub fn run(
                 case["value"]
             ));
         }
-        let dependent = if case.get("dependent").is_some() {
-            let (calculated, _) = value(&book, c)?;
+        let (dependent, dependent_provenance) = if case.get("dependent").is_some() {
+            let (calculated, proof) = value(&book, c)?;
             let actual = crate::value_json(&calculated);
             if !case["dependent_value"].is_null()
                 && actual != case["dependent_value"]
@@ -253,9 +287,9 @@ pub fn run(
             {
                 return Err("dependent value differs".into());
             }
-            Some(actual)
+            (Some(actual), Some(proof))
         } else {
-            None
+            (None, None)
         };
         let concurrent = concurrent
             .as_ref()
@@ -271,7 +305,7 @@ pub fn run(
                 Ok(serde_json::json!({"value":actual,"provenance":proof}))
             })
             .transpose()?;
-        results.push(serde_json::json!({"formula":formula,"value":actual,"dependent":dependent,"concurrent":concurrent,"provenance":proof}));
+        results.push(serde_json::json!({"formula":formula,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof}));
         shell.projection()?.after_calculate()?;
     }
     if !native.diagnostics().is_empty() {
@@ -298,6 +332,6 @@ pub fn run(
     }
     Ok(
         serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"results":results,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
-        "reload_results":[],"commands":[],"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
+        "reload_results":[],"commands":commands,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
     )
 }

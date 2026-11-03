@@ -7924,6 +7924,256 @@ mod async_contract {
         assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (2, 1));
     }
 
+    #[derive(Debug, Default)]
+    struct PoolProbeState {
+        active: usize,
+        maximum: usize,
+        entered: Vec<f64>,
+        release: bool,
+    }
+    #[derive(Debug)]
+    struct PoolProbe {
+        state: Rc<RefCell<PoolProbeState>>,
+        limit: usize,
+        serialized: bool,
+    }
+    #[derive(Debug)]
+    struct PoolProbeCall {
+        state: Rc<RefCell<PoolProbeState>>,
+        value: CalcValue,
+        finished: bool,
+    }
+    impl UserFunction for PoolProbe {
+        fn max_parallel_calls(&self) -> usize {
+            self.limit
+        }
+        fn state_lane(&self) -> Option<u64> {
+            self.serialized.then_some(7)
+        }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("cooperative entry required")
+        }
+        fn begin_call(
+            &self,
+            values: &[CalcValue],
+            _: UserInvocationFrame,
+            _: &mut dyn UserFunctionContext,
+        ) -> Result<Option<Box<dyn UserFunctionInvocation>>, String> {
+            let mut state = self.state.borrow_mut();
+            state.active += 1;
+            state.maximum = state.maximum.max(state.active);
+            state.entered.push(values[0].as_number().unwrap());
+            Ok(Some(Box::new(PoolProbeCall {
+                state: self.state.clone(),
+                value: values[0].clone(),
+                finished: false,
+            })))
+        }
+    }
+    impl Drop for PoolProbeCall {
+        fn drop(&mut self) {
+            if !self.finished {
+                self.state.borrow_mut().active -= 1;
+            }
+        }
+    }
+    impl UserFunctionInvocation for PoolProbeCall {
+        fn resume(
+            &mut self,
+            _: &mut dyn UserFunctionContext,
+            _: u64,
+        ) -> Result<UserFunctionStep, String> {
+            if !self.state.borrow().release {
+                return Ok(UserFunctionStep::Suspended);
+            }
+            self.state.borrow_mut().active -= 1;
+            self.finished = true;
+            Ok(UserFunctionStep::Complete(self.value.clone()))
+        }
+    }
+    #[derive(Debug)]
+    struct HiddenPoolRead(CellKey);
+    impl UserFunction for HiddenPoolRead {
+        fn max_parallel_calls(&self) -> usize {
+            2
+        }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("context required")
+        }
+        fn call_with_context(
+            &self,
+            _: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            context.argument_values_of(&calc_host::value::ReferenceLike::cell(self.0))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn scalar_pool_dynamic_callback_prerequisites_are_typed_refusals_not_cycles() {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let state = Rc::new(RefCell::new(PoolProbeState {
+            release: true,
+            ..Default::default()
+        }));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("HiddenPoolRead", Rc::new(HiddenPoolRead(at(s, "D1"))))
+            .unwrap();
+        functions
+            .register(
+                "PoolProbe",
+                Rc::new(PoolProbe {
+                    state: state.clone(),
+                    limit: 2,
+                    serialized: false,
+                }),
+            )
+            .unwrap();
+        book.set_user_functions(functions);
+        for (address, formula) in [
+            ("B1", "HiddenPoolRead()"),
+            ("C1", "HiddenPoolRead()"),
+            ("D1", "PoolProbe(3)"),
+        ] {
+            assert!(
+                book.dispatch(SkinIntent::Edit {
+                    edits: vec![CellEdit::Set {
+                        at: at(s, address),
+                        input: CellInput::Formula(
+                            calc_host::FormulaText::with_form(
+                                calc_host::value::ExcelText::from_utf16_code_units(
+                                    formula.encode_utf16().collect()
+                                ),
+                                calc_doc_model::FormulaForm::Legacy
+                            )
+                            .unwrap()
+                        )
+                    }]
+                })
+                .accepted()
+            );
+        }
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        for address in ["B1", "C1"] {
+            let result = value(book.host(), at(s, address));
+            let ProjectedValue::NotModeled {
+                refusal,
+                calculation,
+            } = result
+            else {
+                panic!("{result:?}");
+            };
+            assert!(format!("{refusal:?}").contains("dc-snz.23"), "{refusal:?}");
+            assert!(!calculation.held_by_circular_rule());
+        }
+        assert_eq!(
+            calculated(book.host(), at(s, "D1")),
+            Some(CalcValue::number(3.))
+        );
+        assert_eq!(state.borrow().entered, vec![3.]);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn scalar_pool_reserves_pure_prefixes_and_keeps_serial_lanes_ordered() {
+        for (limit, serialized, admitted) in [(2, false, 2), (1, false, 1), (2, true, 1)] {
+            let mut book = session(&calc_host::blank_package());
+            let s = book.host().sheets()[0].id();
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            let state = Rc::new(RefCell::new(PoolProbeState::default()));
+            let mut functions = calc_fml::CallableTable::new();
+            functions
+                .register(
+                    "PoolProbe",
+                    Rc::new(PoolProbe {
+                        state: state.clone(),
+                        limit,
+                        serialized,
+                    }),
+                )
+                .unwrap();
+            book.set_user_functions(functions);
+            for (address, formula) in [
+                ("B1", "PoolProbe(1)"),
+                ("C1", "SUM(SEQUENCE(100000))+PoolProbe(2)"),
+                ("D1", "PoolProbe(3)"),
+                ("E1", "B1+D1"),
+            ] {
+                assert!(
+                    book.dispatch(SkinIntent::Edit {
+                        edits: vec![CellEdit::Set {
+                            at: at(s, address),
+                            input: CellInput::Formula(
+                                calc_host::FormulaText::with_form(
+                                    calc_host::value::ExcelText::from_utf16_code_units(
+                                        formula.encode_utf16().collect()
+                                    ),
+                                    calc_doc_model::FormulaForm::Legacy
+                                )
+                                .unwrap()
+                            )
+                        }]
+                    })
+                    .accepted()
+                );
+            }
+            book.set_calculation_budget(WorkBudget::evaluations(1));
+            book.dispatch(SkinIntent::Recalculate);
+            for _ in 0..1000 {
+                if state.borrow().entered.len() == admitted {
+                    break;
+                }
+                assert!(book.has_pending_calculation());
+                assert!(!matches!(
+                    book.advance_calculation(),
+                    HostProgress::Failed(_)
+                ));
+            }
+            assert_eq!(
+                state.borrow().entered,
+                if admitted == 2 {
+                    vec![1., 2.]
+                } else {
+                    vec![1.]
+                }
+            );
+            for _ in 0..10 {
+                book.advance_calculation();
+            }
+            assert_eq!(state.borrow().maximum, admitted);
+            assert_eq!(
+                state.borrow().entered.len(),
+                admitted,
+                "a third cell cannot pass a suspended prefix"
+            );
+            state.borrow_mut().release = true;
+            for _ in 0..1000 {
+                if !book.has_pending_calculation() {
+                    break;
+                }
+                assert!(!matches!(
+                    book.advance_calculation(),
+                    HostProgress::Failed(_)
+                ));
+            }
+            assert!(!book.has_pending_calculation());
+            assert_eq!(state.borrow().maximum, admitted);
+            assert_eq!(state.borrow().active, 0);
+            assert_eq!(
+                calculated(book.host(), at(s, "C1")),
+                Some(CalcValue::number(5_000_050_002.))
+            );
+            assert_eq!(
+                calculated(book.host(), at(s, "E1")),
+                Some(CalcValue::number(4.))
+            );
+        }
+    }
+
     #[derive(Debug)]
     struct YieldLate {
         source: CellKey,

@@ -96,16 +96,17 @@ static std::vector<std::pair<std::wstring,Oper>> permissionRegistrations;
 static std::atomic<LONG> liveServers{0};
 static std::atomic<LONG> liveFactories{0},serverLocks{0};
 static std::mutex rtdLogLock;
-static void rtdLog(const wchar_t* event,LONG value){
+static void rtdLogText(const wchar_t* event,const std::wstring& value){
     std::lock_guard<std::mutex> lock(rtdLogLock);
     wchar_t path[32768];auto n=GetModuleFileNameW(module,path,32768);if(!n||n>=32768)return;
     std::wstring file(path,n);file.resize(file.find_last_of(L"\\/")+1);file+=L"rtd.tsv";
-    auto line=std::wstring(event)+L"\t"+std::to_wstring(GetCurrentThreadId())+L"\t"+std::to_wstring(value)+L"\n";
+    auto line=std::wstring(event)+L"\t"+std::to_wstring(GetCurrentThreadId())+L"\t"+value+L"\n";
     auto bytes=WideCharToMultiByte(CP_UTF8,0,line.data(),(int)line.size(),nullptr,0,nullptr,nullptr);
     std::string text(bytes,'\0');WideCharToMultiByte(CP_UTF8,0,line.data(),(int)line.size(),text.data(),bytes,nullptr,nullptr);
     HANDLE h=CreateFileW(file.c_str(),FILE_APPEND_DATA,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(h!=INVALID_HANDLE_VALUE){DWORD written;WriteFile(h,text.data(),(DWORD)text.size(),&written,nullptr);CloseHandle(h);}
 }
+static void rtdLog(const wchar_t* event,LONG value){rtdLogText(event,std::to_wstring(value));}
 struct NumericServer final:Rtd {
     std::atomic<ULONG> refs{1};std::atomic<LONG> value{1};std::atomic<bool> stopped{false};
     Update* update=nullptr;std::set<LONG> topics;std::thread worker;bool terminated=false;
@@ -201,6 +202,14 @@ static int permission(double code){
     else if(fn==16389){excel(89,0,nullptr,&caller);args={&caller};}
     auto rc=excel(fn,(int)args.size(),args.data(),&result);
     rtdLog(L"PermissionFunction",fn);rtdLog(L"PermissionCode",rc);
+    if(fn==257 && rc==0){
+        rtdLog(L"EvaluateResultType",result.type);
+        if((result.type&0xfff)==1){
+            unsigned long long bits;static_assert(sizeof(bits)==sizeof(result.value.number));
+            memcpy(&bits,&result.value.number,sizeof(bits));wchar_t encoded[17];
+            swprintf_s(encoded,L"%016llx",bits);rtdLogText(L"EvaluateResultBits",encoded);
+        }
+    }
     if(rc==0)freeResult(result);if(fn==16389)freeResult(caller);return rc;
 }
 extern "C" __declspec(dllexport) int __stdcall PermissionMain(double code){rtdLog(L"PermissionContext",1);return permission(code);}

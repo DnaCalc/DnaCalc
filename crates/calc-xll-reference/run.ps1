@@ -290,20 +290,33 @@ try {
         }
         $sheet.Range('A1').Value2 = 7
         foreach ($case in (Get-Content -LiteralPath $Cases -Raw | ConvertFrom-Json)) {
-            if ($case.PSObject.Properties['dependent']) { $sheet.Range('C3').Formula2=[string]$case.dependent }
+            if ($case.PSObject.Properties['manual'] -and $case.manual) { $excel.Calculation=-4135 }
+            if ($case.PSObject.Properties['dependent']) {
+                if ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('C3').Formula=[string]$case.dependent }
+                else { $sheet.Range('C3').Formula2=[string]$case.dependent }
+            }
             if ($case.PSObject.Properties['enable_events']) { $excel.EnableEvents=[bool]$case.enable_events }
             if ($case.PSObject.Properties['edit']) { $sheet.Range([string]$case.edit.cell).Value2=[double]$case.edit.value }
             # Assign the formula anchor directly, as the OneCalc controller does.
             # Excel removes the previous anchor's spill when replacing its formula.
-            $sheet.Range('B3').Formula2 = [string]$case.formula
+            if ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('B3').Formula = [string]$case.formula }
+            else { $sheet.Range('B3').Formula2 = [string]$case.formula }
+            if ($case.PSObject.Properties['before_calculate']) {
+                $commandValue=$excel.Run([string]$case.before_calculate)
+                Note ('before Calculate ' + [string]$case.before_calculate) $commandValue
+                if ($commandValue -ne $case.before_calculate_value) { throw 'Precalculation command differs.' }
+            }
+            if ($case.PSObject.Properties['manual'] -and $case.manual) { $excel.Calculate() }
             if ($case.formula -match 'X0.Async') {
                 $deadline=[DateTime]::UtcNow.AddSeconds(60)
                 do { Start-Sleep -Milliseconds 100; $value=$sheet.Range('B3').Value2 } until ($value -eq 42 -or [DateTime]::UtcNow -gt $deadline)
             }
             if ($case.PSObject.Properties['rtd_wait_value']) {
-                $deadline=[DateTime]::UtcNow.AddSeconds(60)
+                $deadline=[DateTime]::UtcNow.AddSeconds($(if($NoTrace){60}else{180}))
                 do {
-                    Start-Sleep -Milliseconds 50
+                    # A breakpoint-heavy Calculate loop must leave the original
+                    # provider's background Python task a scheduling interval.
+                    Start-Sleep -Milliseconds $(if($NoTrace){50}else{500})
                     try { [void]$excel.Ready; $excel.Calculate(); $value=$sheet.Range('B3').Value2 }
                     catch { if ($_.Exception.HResult -notin @(-2147418111,-2147417846)) { throw }; Note 'RTD COM retry' $_.Exception.HResult }
                 } until ($value -eq $case.rtd_wait_value -or [DateTime]::UtcNow -gt $deadline)
@@ -322,18 +335,24 @@ try {
             for($i=0;$i -lt 10;$i++){Start-Sleep -Milliseconds 100; [void]$excel.Ready}
             if ((Get-Content -LiteralPath (Join-Path $run 'fixture.tsv') -Raw) -notmatch "Outside 89`t") { throw 'Outside-context probes did not finish.' }
         }
-        Note 'ExecuteExcel4Macro UNREGISTER(managed)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
-        if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X5\.RtdValue') {
+        if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X5\.Rtd(?:Value)?\(') {
+            # Retire the workbook's RTD client while its server module is still
+            # loaded, as the host composition does before XLL teardown.
             $book.Close($false); $bookClosed=$true
             Note 'Close RTD workbook before detach' $true
             $deadline=[DateTime]::UtcNow.AddSeconds(5)
             do {
                 [void]$excel.Ready
-                $terminated=(Test-Path -LiteralPath (Join-Path $run 'rtd.tsv')) -and ((Get-Content -LiteralPath (Join-Path $run 'rtd.tsv') -Raw) -match '(?m)^ServerTerminate\t')
+                $terminated=if($XllFileName -ieq 'xlOil.xll') {
+                    (Test-Path -LiteralPath (Join-Path $run 'xlOil.log')) -and ((Get-Content -LiteralPath (Join-Path $run 'xlOil.log') -Raw) -match 'Server terminate received')
+                } else {
+                    (Test-Path -LiteralPath (Join-Path $run 'rtd.tsv')) -and ((Get-Content -LiteralPath (Join-Path $run 'rtd.tsv') -Raw) -match '(?m)^ServerTerminate\t')
+                }
                 if (-not $terminated) { Start-Sleep -Milliseconds 50 }
             } until ($terminated -or [DateTime]::UtcNow -gt $deadline)
             Note 'RTD termination before detach' $terminated
         }
+        Note 'ExecuteExcel4Macro UNREGISTER(managed)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
         if ($Reload) {
             # Repeat the same close/open sequence as the native host. Keep the
             # first and second worksheet observations separate in the trace.

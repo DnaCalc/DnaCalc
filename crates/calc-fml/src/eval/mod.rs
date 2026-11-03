@@ -109,6 +109,35 @@ impl CompiledPlan {
         })
     }
 
+    /// A conservative permission for independent scalar cells. Every user call,
+    /// including calls in unselected branches, must have a checked binding.
+    pub fn parallel_call_limit(&self, functions: &crate::CallableBindings) -> Option<usize> {
+        if self.callable_bindings.is_empty() {
+            return None;
+        }
+        if self.volatile() {
+            return None;
+        }
+        let mut limit = None;
+        for instruction in self.blocks.iter().flatten() {
+            if let Instruction::Function(target) = instruction
+                && VOLATILE_FUNCTIONS
+                    .iter()
+                    .any(|name| strip_future_prefix(target.0.spelling()).eq_ignore_ascii_case(name))
+            {
+                return None;
+            }
+            if let Instruction::UserCall { binding, .. } = instruction {
+                let next = functions.max_parallel_calls((*binding)?);
+                if next <= 1 {
+                    return None;
+                }
+                limit = Some(limit.map_or(next, |held: usize| held.min(next)));
+            }
+        }
+        limit
+    }
+
     /// Every callback in this plan uses the cached observation boundary. This does not
     /// declare callbacks pure or allow their invocation order to be interchanged.
     pub fn only_cached_user_calls(&self, bindings: &crate::CallableBindings) -> bool {

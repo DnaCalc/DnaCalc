@@ -1,0 +1,5745 @@
+{
+  "status": "verified X4 measured cases",
+  "fixture": "xlOil.xll",
+  "formula_cases": 12,
+  "matched_each_capture": 12,
+  "controls_match": true,
+  "source_revisions": [
+    "6b6821540636107e4b1dcd7c699400cc6ecfd849",
+    "da3a25039aae8f9e52d4bbc5264445fda2ac12ae"
+  ],
+  "source_publication_revisions": [
+    "3d8e3c798d322abc80e1111440b15380f93b4ff4"
+  ],
+  "same_fixture_files": {
+    "xlOil_Python.dll": "F0DE6A63045231B792FC30749D20BB328F5065022AD6C102EC219C296FC0B5B1",
+    "xlOil_Python312.pyd": "CDE7586ECC497FA0BA956731B69A80FDF476C634209D1E03E503F638AC9B087E",
+    "xlOil_SQL.dll": "3294A2525CFB1039BFFB308261D2A3620B4F5AC63545DFCFD26EB0DF055AFF5D",
+    "xlOil_Utils.dll": "74A29DFFB30D3827C5F2A8D9F2B1581A1C7BD6EC33AC44A4490AB5E0300F89FF",
+    "xlOil.dll": "B53A0C3675C49E5BA6139FDC611DC4BF5885B035E6EBE6EEA55B104766A24ABF",
+    "xlOil.ini": "C8C2D399400F043E5ECC61C0AFE811BD2893AC5CF1E23C5BF1ED3A49E0344ADE",
+    "xlOil.py": "E054205D3226EF1BD42259AB60DAD6A95285FC0772A8AD3D3EA26E7FE5346FC0",
+    "xlOil.xll": "F08E0B44EE61147B25BA153B4126435472D3CD6252F1A26A1177180C6DC7A8B0"
+  },
+  "registration_forms": {
+    "xloRunInXLLContext": {
+      "procedure": "xloRunInXLLContext",
+      "type": "U#",
+      "macro_type": 0
+    },
+    "xloVersion": {
+      "procedure": "xloVersion",
+      "type": "U$",
+      "macro_type": 1
+    },
+    "xloLog": {
+      "procedure": "xloLog",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloHelp": {
+      "procedure": "xloHelp",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloRef": {
+      "procedure": "xloRef",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloVal": {
+      "procedure": "xloVal",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "RegistrationInfo_<guid>": {
+      "procedure": "IntellisenseRegistrationInfo",
+      "type": "UQ",
+      "macro_type": 0
+    },
+    "X4.PyCom": {
+      "procedure": "xloil_stub",
+      "type": "U#",
+      "macro_type": 1
+    },
+    "X4.PyBounds": {
+      "procedure": "xloil_stub",
+      "type": "U#",
+      "macro_type": 1
+    },
+    "X4.PyQueued": {
+      "procedure": "xloil_stub",
+      "type": "U#",
+      "macro_type": 1
+    },
+    "X3.PyHello": {
+      "procedure": "xloil_stub",
+      "type": "UQ",
+      "macro_type": 1
+    },
+    "X4.PyRelease": {
+      "procedure": "xloil_stub",
+      "type": "U#",
+      "macro_type": 1
+    },
+    "X4.PyCall": {
+      "procedure": "xloil_stub",
+      "type": "U#",
+      "macro_type": 1
+    },
+    "X4.PyEvents": {
+      "procedure": "xloil_stub",
+      "type": "U#",
+      "macro_type": 1
+    },
+    "X3.PyAdd": {
+      "procedure": "xloil_stub",
+      "type": "UQQ",
+      "macro_type": 1
+    },
+    "X3.PyArray": {
+      "procedure": "xloil_stub",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloSql": {
+      "procedure": "xloSql",
+      "type": "UQQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSqlDB": {
+      "procedure": "xloSqlDB",
+      "type": "U$",
+      "macro_type": 1
+    },
+    "xloSqlQuery": {
+      "procedure": "xloSqlQuery",
+      "type": "UQQ$",
+      "macro_type": 1
+    },
+    "xloSqlTable": {
+      "procedure": "xloSqlTable",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSqlTables": {
+      "procedure": "xloSqlTables",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloBlock": {
+      "procedure": "xloBlock",
+      "type": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloConcat": {
+      "procedure": "xloConcat",
+      "type": "UQQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloFill": {
+      "procedure": "xloFill",
+      "type": "UQQQ$",
+      "macro_type": 1
+    },
+    "xloFillNA": {
+      "procedure": "xloFillNA",
+      "type": "UQQQ$",
+      "macro_type": 1
+    },
+    "xloIndex": {
+      "procedure": "xloIndex",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloPad": {
+      "procedure": "xloPad",
+      "type": "UQ$",
+      "macro_type": 1
+    },
+    "xloRegex": {
+      "procedure": "xloRegex",
+      "type": "UQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSearch": {
+      "procedure": "xloSearch",
+      "type": "UQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSort": {
+      "procedure": "xloSort",
+      "type": "UQQQQQQQQQQ$",
+      "macro_type": 1
+    },
+    "xloSplit": {
+      "procedure": "xloSplit",
+      "type": "UQQQ$",
+      "macro_type": 1
+    },
+    "xloPyDebug": {
+      "procedure": "xloil_stub",
+      "type": "UQ#",
+      "macro_type": 1
+    },
+    "xloImport": {
+      "procedure": "xloil_stub",
+      "type": "UQQQ",
+      "macro_type": 1
+    },
+    "xloAttr": {
+      "procedure": "xloil_stub",
+      "type": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#",
+      "macro_type": 1
+    },
+    "xloAttrObj": {
+      "procedure": "xloil_stub",
+      "type": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#",
+      "macro_type": 1
+    }
+  },
+  "native_invocations": {
+    "X3.PyAdd": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "X3.PyArray": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "X4.PyBounds": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "X4.PyCall": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": false,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        [
+          [
+            4,
+            [
+              {
+                "type": 2048,
+                "value": 19
+              },
+              {
+                "type": 2048,
+                "value": 23
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 42
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      ]
+    },
+    "X4.PyCom": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 2,
+      "same_ordered_callbacks": [
+        [],
+        []
+      ]
+    },
+    "X4.PyEvents": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 4,
+      "same_ordered_callbacks": [
+        [],
+        [],
+        [],
+        []
+      ]
+    },
+    "X4.PyQueued": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": false,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        [
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 42
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      ]
+    },
+    "X4.PyRelease": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        []
+      ]
+    },
+    "xloRunInXLLContext": {
+      "same_defined_arguments_and_result": true,
+      "same_raw_record_after_identity_normalization": true,
+      "invocations_each_host": 1,
+      "same_ordered_callbacks": [
+        [
+          [
+            4,
+            [
+              {
+                "type": 2048,
+                "value": 20
+              },
+              {
+                "type": 2048,
+                "value": 22
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ]
+        ]
+      ]
+    }
+  },
+  "excel_and_host": [
+    {
+      "records": 5269,
+      "paired_calls": 2514,
+      "c_api_calls": 373,
+      "trace_sha256": "A4215D1A21A7C8C22F1C6FFACD1CA77708F2ADE423A54DFC6A2F3D84B22825E7"
+    },
+    {
+      "records": 1742,
+      "paired_calls": 817,
+      "c_api_calls": 373,
+      "trace_sha256": "3FA8216A3ACA7F108FE56F509A1836686B8E9BA6BC20D16B9B39F0D467BC6E79"
+    }
+  ],
+  "x0_callback_code_pairs_observed": 0,
+  "callback_counts_excel_and_host": [
+    [
+      {
+        "function": 4,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 28
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 63
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 56
+      },
+      {
+        "function": 614,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 219
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16401,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16403,
+        "return_code": 0,
+        "count": 1
+      }
+    ],
+    [
+      {
+        "function": 4,
+        "return_code": 0,
+        "count": 2
+      },
+      {
+        "function": 88,
+        "return_code": 0,
+        "count": 28
+      },
+      {
+        "function": 149,
+        "return_code": 0,
+        "count": 63
+      },
+      {
+        "function": 186,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 201,
+        "return_code": 0,
+        "count": 56
+      },
+      {
+        "function": 614,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16384,
+        "return_code": 0,
+        "count": 219
+      },
+      {
+        "function": 16392,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16401,
+        "return_code": 0,
+        "count": 1
+      },
+      {
+        "function": 16403,
+        "return_code": 0,
+        "count": 1
+      }
+    ]
+  ],
+  "reload_checked": false,
+  "identity_normalization": "Opaque sheet/async identities, per-add-in GUID names and absolute XLL directories; X4 also replaces only the independently recorded blank-workbook name. xlFree has no defined result operand; raw differences remain in the trace and native raw-equality flags. Early COM object results check nonnull presence, not a complete identity graph. Other value/type/ownership bits and nested callback order remain exact.",
+  "scope": "Original xlOil Python; measured single-workbook properties, local single-cell event ranges, SheetChange delivery and context command. General COM, RTD, arbitrary Python teardown and safe reload remain open.",
+  "known_difference": null,
+  "pre_close_callbacks_each_host": 121,
+  "same_ordered_callback_numbers_and_codes": true,
+  "callbacks_equal_after_identity_normalization": 82,
+  "raw_callback_differences": [
+    {
+      "index": 8,
+      "excel": {
+        "function": 614,
+        "args": [
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2048,
+            "value": 1
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 64,
+          "value": {
+            "rows": 1,
+            "columns": 1,
+            "items": [
+              {
+                "type": 2048,
+                "value": 1
+              }
+            ],
+            "omitted": 0
+          }
+        }
+      },
+      "host": {
+        "function": 614,
+        "args": [
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2048,
+            "value": 1
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 64,
+          "value": {
+            "rows": 1,
+            "columns": 1,
+            "items": [
+              {
+                "type": 1,
+                "value": 1
+              }
+            ],
+            "omitted": 0
+          }
+        }
+      }
+    },
+    {
+      "index": 9,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4160,
+            "value": {
+              "rows": 1,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 2048,
+                  "value": 1
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4160,
+            "value": {
+              "rows": 1,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 1,
+                  "value": 1
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 31,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyCom"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyCom>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyRelease"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyRelease>"
+        }
+      }
+    },
+    {
+      "index": 32,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyCom>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyRelease>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 33,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyCom>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyRelease>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 34,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyBounds"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyBounds>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyHello"
+          },
+          {
+            "type": 2,
+            "value": "name"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyHello>"
+        }
+      }
+    },
+    {
+      "index": 35,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyBounds>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyHello>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 36,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyBounds>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyHello>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 37,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyQueued"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyQueued>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyEvents"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyEvents>"
+        }
+      }
+    },
+    {
+      "index": 38,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyQueued>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyEvents>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 39,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyQueued>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyEvents>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 40,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyHello"
+          },
+          {
+            "type": 2,
+            "value": "name"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyHello>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyCall"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyCall>"
+        }
+      }
+    },
+    {
+      "index": 41,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyHello>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyCall>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 42,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyHello>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyCall>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 43,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyRelease"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyRelease>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyQueued"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyQueued>"
+        }
+      }
+    },
+    {
+      "index": 44,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyRelease>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyQueued>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 45,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyRelease>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyQueued>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 46,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyCall"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyCall>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyCom"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyCom>"
+        }
+      }
+    },
+    {
+      "index": 47,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyCall>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyCom>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 48,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyCall>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyCom>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 49,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyEvents"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyEvents>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ$"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyArray"
+          },
+          {
+            "type": 2,
+            "value": "n"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyArray>"
+        }
+      }
+    },
+    {
+      "index": 50,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyEvents>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyArray>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 51,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyEvents>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyArray>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 55,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ$"
+          },
+          {
+            "type": 2,
+            "value": "X3.PyArray"
+          },
+          {
+            "type": 2,
+            "value": "n"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X3.PyArray>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "U#"
+          },
+          {
+            "type": 2,
+            "value": "X4.PyBounds"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:X4.PyBounds>"
+        }
+      }
+    },
+    {
+      "index": 56,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyArray>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyBounds>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 57,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X3.PyArray>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:X4.PyBounds>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 103,
+      "excel": {
+        "function": 16401,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlHandleCalculationCancelled"
+          },
+          {
+            "type": 2048,
+            "value": 2
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 2048,
+          "value": -1753808864
+        }
+      },
+      "host": {
+        "function": 16401,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlHandleCalculationCancelled"
+          },
+          {
+            "type": 2048,
+            "value": 2
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 2048,
+          "value": 1
+        }
+      }
+    },
+    {
+      "index": 105,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ#"
+          },
+          {
+            "type": 2,
+            "value": "xloPyDebug"
+          },
+          {
+            "type": 2,
+            "value": "[Debugger]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": "\n    Sets the user-code exception debugger. \n    Pdb opens in a new window.\n    "
+          },
+          {
+            "type": 2,
+            "value": "Choose from 'pdb', 'vscode', or empty string to disable  "
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:xloPyDebug>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#"
+          },
+          {
+            "type": 2,
+            "value": "xloAttrObj"
+          },
+          {
+            "type": 2,
+            "value": "Object,Name,Kwargs,Args,[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": "Returns the value of named attribute or the result of calling the attribute as a Cache object(cf `xloAttr`). This function is useful to stop default conversion to Excel values, for example when chaining xloAttr calls"
+          },
+          {
+            "type": 2,
+            "value": "The target object"
+          },
+          {
+            "type": 2,
+            "value": "The name of the attribute to be returned.  The attribute can be a bound method, member, property, method, function or class"
+          },
+          {
+            "type": 2,
+            "value": "If the attribute is callable, it will be called using these keyword arguments"
+          },
+          {
+            "type": 2,
+            "value": "If the attribute is callable, it will be called using these positional arguments"
+          },
+          {
+            "type": 2,
+            "value": "[Args-1]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-2]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-3]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-4]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-5]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-6]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-7]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-8]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-9]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-10]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-11]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-12]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-13]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-14]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-15]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-16]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-17]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-18]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-19]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-20]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-21]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-22]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-23]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-24]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-25]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-26]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-27]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-28]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-29]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-30]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-31]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-32]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-33]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-34]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-35]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-36]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-37]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-38]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-39]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-40]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-41]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-42]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-43]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-44]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-45]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-46]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-47]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-48]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-49]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-50]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-51]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-52]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-53]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-54]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-55]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-56]  "
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:xloAttrObj>"
+        }
+      }
+    },
+    {
+      "index": 106,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloPyDebug>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloAttrObj>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 107,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloPyDebug>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloAttrObj>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 108,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQQQ"
+          },
+          {
+            "type": 2,
+            "value": "xloImport"
+          },
+          {
+            "type": 2,
+            "value": "ModuleName,[From],[As]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": "Loads functions from a module and registers them in Excel. The functions do not have to be decorated. Provides an analogue of `from X import Y as Z`"
+          },
+          {
+            "type": 2,
+            "value": "A module name or a full path name to a target py file. If empty, the workbook module with the same name as the calling workbook is (re)loaded."
+          },
+          {
+            "type": 2,
+            "value": "If missing, imports the specified module as normal. If a value or array, register only the specified object names.  If \"*\", all objects are registered."
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:xloImport>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#"
+          },
+          {
+            "type": 2,
+            "value": "xloAttr"
+          },
+          {
+            "type": 2,
+            "value": "Object,Name,Kwargs,Args,[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": "Returns the named attribute value, or the result of calling it if possible. ie, `object.attr` or `object.attr(*args, *kwargs)`"
+          },
+          {
+            "type": 2,
+            "value": "The target object"
+          },
+          {
+            "type": 2,
+            "value": "The name of the attribute to be returned.  The attribute can be a bound method, member, property, method, function or class"
+          },
+          {
+            "type": 2,
+            "value": "If the attribute is callable, it will be called using these keyword arguments"
+          },
+          {
+            "type": 2,
+            "value": "If the attribute is callable, it will be called using these positional arguments"
+          },
+          {
+            "type": 2,
+            "value": "[Args-1]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-2]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-3]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-4]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-5]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-6]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-7]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-8]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-9]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-10]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-11]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-12]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-13]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-14]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-15]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-16]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-17]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-18]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-19]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-20]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-21]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-22]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-23]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-24]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-25]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-26]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-27]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-28]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-29]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-30]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-31]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-32]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-33]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-34]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-35]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-36]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-37]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-38]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-39]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-40]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-41]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-42]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-43]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-44]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-45]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-46]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-47]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-48]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-49]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-50]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-51]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-52]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-53]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-54]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-55]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-56]  "
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:xloAttr>"
+        }
+      }
+    },
+    {
+      "index": 109,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloImport>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloAttr>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 110,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloImport>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloAttr>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 111,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#"
+          },
+          {
+            "type": 2,
+            "value": "xloAttr"
+          },
+          {
+            "type": 2,
+            "value": "Object,Name,Kwargs,Args,[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": "Returns the named attribute value, or the result of calling it if possible. ie, `object.attr` or `object.attr(*args, *kwargs)`"
+          },
+          {
+            "type": 2,
+            "value": "The target object"
+          },
+          {
+            "type": 2,
+            "value": "The name of the attribute to be returned.  The attribute can be a bound method, member, property, method, function or class"
+          },
+          {
+            "type": 2,
+            "value": "If the attribute is callable, it will be called using these keyword arguments"
+          },
+          {
+            "type": 2,
+            "value": "If the attribute is callable, it will be called using these positional arguments"
+          },
+          {
+            "type": 2,
+            "value": "[Args-1]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-2]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-3]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-4]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-5]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-6]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-7]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-8]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-9]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-10]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-11]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-12]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-13]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-14]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-15]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-16]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-17]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-18]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-19]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-20]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-21]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-22]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-23]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-24]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-25]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-26]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-27]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-28]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-29]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-30]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-31]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-32]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-33]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-34]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-35]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-36]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-37]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-38]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-39]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-40]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-41]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-42]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-43]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-44]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-45]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-46]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-47]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-48]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-49]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-50]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-51]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-52]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-53]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-54]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-55]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-56]  "
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:xloAttr>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQ#"
+          },
+          {
+            "type": 2,
+            "value": "xloPyDebug"
+          },
+          {
+            "type": 2,
+            "value": "[Debugger]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": "\n    Sets the user-code exception debugger. \n    Pdb opens in a new window.\n    "
+          },
+          {
+            "type": 2,
+            "value": "Choose from 'pdb', 'vscode', or empty string to disable  "
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:xloPyDebug>"
+        }
+      }
+    },
+    {
+      "index": 112,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloAttr>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloPyDebug>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 113,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloAttr>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloPyDebug>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 114,
+      "excel": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#"
+          },
+          {
+            "type": 2,
+            "value": "xloAttrObj"
+          },
+          {
+            "type": 2,
+            "value": "Object,Name,Kwargs,Args,[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": "Returns the value of named attribute or the result of calling the attribute as a Cache object(cf `xloAttr`). This function is useful to stop default conversion to Excel values, for example when chaining xloAttr calls"
+          },
+          {
+            "type": 2,
+            "value": "The target object"
+          },
+          {
+            "type": 2,
+            "value": "The name of the attribute to be returned.  The attribute can be a bound method, member, property, method, function or class"
+          },
+          {
+            "type": 2,
+            "value": "If the attribute is callable, it will be called using these keyword arguments"
+          },
+          {
+            "type": 2,
+            "value": "If the attribute is callable, it will be called using these positional arguments"
+          },
+          {
+            "type": 2,
+            "value": "[Args-1]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-2]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-3]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-4]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-5]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-6]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-7]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-8]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-9]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-10]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-11]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-12]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-13]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-14]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-15]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-16]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-17]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-18]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-19]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-20]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-21]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-22]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-23]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-24]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-25]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-26]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-27]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-28]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-29]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-30]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-31]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-32]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-33]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-34]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-35]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-36]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-37]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-38]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-39]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-40]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-41]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-42]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-43]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-44]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-45]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-46]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-47]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-48]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-49]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-50]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-51]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-52]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-53]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-54]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-55]"
+          },
+          {
+            "type": 2,
+            "value": "[Args-56]  "
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:xloAttrObj>"
+        }
+      },
+      "host": {
+        "function": 149,
+        "args": [
+          {
+            "type": 2,
+            "value": "xlOil.dll"
+          },
+          {
+            "type": 2,
+            "value": "xloil_stub"
+          },
+          {
+            "type": 2,
+            "value": "UQQQ"
+          },
+          {
+            "type": 2,
+            "value": "xloImport"
+          },
+          {
+            "type": 2,
+            "value": "ModuleName,[From],[As]"
+          },
+          {
+            "type": 2048,
+            "value": 1
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 128,
+            "value": null
+          },
+          {
+            "type": 2,
+            "value": "Loads functions from a module and registers them in Excel. The functions do not have to be decorated. Provides an analogue of `from X import Y as Z`"
+          },
+          {
+            "type": 2,
+            "value": "A module name or a full path name to a target py file. If empty, the workbook module with the same name as the calling workbook is (re)loaded."
+          },
+          {
+            "type": 2,
+            "value": "If missing, imports the specified module as normal. If a value or array, register only the specified object names.  If \"*\", all objects are registered."
+          },
+          {
+            "type": 2,
+            "value": ""
+          }
+        ],
+        "return_code": 0,
+        "result": {
+          "type": 1,
+          "value": "<registration:xloImport>"
+        }
+      }
+    },
+    {
+      "index": 115,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloAttrObj>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloImport>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    },
+    {
+      "index": 116,
+      "excel": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloAttrObj>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      },
+      "host": {
+        "function": 16384,
+        "args": [
+          {
+            "type": 4097,
+            "value": "<registration:xloImport>"
+          }
+        ],
+        "return_code": 0,
+        "result": null
+      }
+    }
+  ],
+  "ownership_excel_and_host": [
+    {
+      "owned_returns": 12,
+      "free_calls": 12,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 12
+      }
+    },
+    {
+      "owned_returns": 12,
+      "free_calls": 12,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 12
+      }
+    }
+  ],
+  "rewritten_export_registrations_each_host": [
+    13,
+    13
+  ],
+  "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted.",
+  "nested_early_bound_com_calls": {
+    "xloRunInXLLContext": [
+      []
+    ],
+    "X3.PyAdd": [
+      []
+    ],
+    "X4.PyCom": [
+      [
+        {
+          "entry": "COM!early.application.ActiveWorkbook",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.application.Workbooks",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.workbooks.Application",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.application.ActiveWorkbook",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.workbook.Name",
+          "hresult": 0,
+          "value": "<workbook>"
+        },
+        {
+          "entry": "COM!early.application.ActiveSheet",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        },
+        {
+          "entry": "COM!early.application.Workbooks",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.workbooks.Count",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "entry": "COM!early.application.EnableEvents.get",
+          "hresult": 0,
+          "value": true
+        }
+      ],
+      [
+        {
+          "entry": "COM!early.application.ActiveWorkbook",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.application.Workbooks",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.workbooks.Application",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.application.ActiveWorkbook",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.workbook.Name",
+          "hresult": 0,
+          "value": "<workbook>"
+        },
+        {
+          "entry": "COM!early.application.ActiveSheet",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        },
+        {
+          "entry": "COM!early.application.Workbooks",
+          "hresult": 0,
+          "returned_object": true
+        },
+        {
+          "entry": "COM!early.workbooks.Count",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "entry": "COM!early.application.EnableEvents.get",
+          "hresult": 0,
+          "value": false
+        }
+      ]
+    ],
+    "X4.PyEvents": [
+      [],
+      [],
+      [],
+      []
+    ],
+    "X4.PyQueued": [
+      []
+    ],
+    "X4.PyBounds": [
+      [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    ],
+    "X4.PyCall": [
+      [
+        {
+          "entry": "COM!early.application.EnableEvents.get",
+          "hresult": 0,
+          "value": true
+        }
+      ]
+    ],
+    "X3.PyArray": [
+      []
+    ],
+    "X4.PyRelease": [
+      []
+    ]
+  },
+  "ordered_sheet_changes": [
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!A1"
+        },
+        {
+          "vt": 8,
+          "value": "A1"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        },
+        {
+          "entry": "COM!early.application.EnableEvents.get",
+          "hresult": 0,
+          "value": true
+        },
+        {
+          "entry": "COM!early.application.Run",
+          "hresult": 0,
+          "arguments": [
+            {
+              "vt": 8,
+              "value": "xloRunInXLLContext"
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            },
+            {
+              "vt": 10,
+              "value": -2147352572
+            }
+          ],
+          "result": {
+            "vt": 3,
+            "value": 1
+          }
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!A1"
+        },
+        {
+          "vt": 8,
+          "value": "A1"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!A1"
+        },
+        {
+          "vt": 8,
+          "value": "A1"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    },
+    {
+      "flags": 3,
+      "named_dispids": [
+        0,
+        1
+      ],
+      "argument_types": [
+        9,
+        9
+      ],
+      "addresses": [
+        {
+          "vt": 8,
+          "value": "[<workbook>]X0!B3"
+        },
+        {
+          "vt": 8,
+          "value": "B3"
+        }
+      ],
+      "early_bound_calls": [
+        {
+          "entry": "COM!early.worksheet.Name",
+          "hresult": 0,
+          "value": "X0"
+        }
+      ]
+    }
+  ],
+  "initialization_context_commands_excel_and_host": [
+    [
+      {
+        "arguments": [],
+        "result": {
+          "type": 2048,
+          "value": 1
+        },
+        "callbacks": [
+          [
+            149,
+            [
+              {
+                "type": 2,
+                "value": "xlOil.dll"
+              },
+              {
+                "type": 2,
+                "value": "xloil_stub"
+              },
+              {
+                "type": 2,
+                "value": "UQ#"
+              },
+              {
+                "type": 2,
+                "value": "xloPyDebug"
+              },
+              {
+                "type": 2,
+                "value": "[Debugger]"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "\n    Sets the user-code exception debugger. \n    Pdb opens in a new window.\n    "
+              },
+              {
+                "type": 2,
+                "value": "Choose from 'pdb', 'vscode', or empty string to disable  "
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": -1088356352
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": -1088356352
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": -1088356352
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            149,
+            [
+              {
+                "type": 2,
+                "value": "xlOil.dll"
+              },
+              {
+                "type": 2,
+                "value": "xloil_stub"
+              },
+              {
+                "type": 2,
+                "value": "UQQQ"
+              },
+              {
+                "type": 2,
+                "value": "xloImport"
+              },
+              {
+                "type": 2,
+                "value": "ModuleName,[From],[As]"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "Loads functions from a module and registers them in Excel. The functions do not have to be decorated. Provides an analogue of `from X import Y as Z`"
+              },
+              {
+                "type": 2,
+                "value": "A module name or a full path name to a target py file. If empty, the workbook module with the same name as the calling workbook is (re)loaded."
+              },
+              {
+                "type": 2,
+                "value": "If missing, imports the specified module as normal. If a value or array, register only the specified object names.  If \"*\", all objects are registered."
+              },
+              {
+                "type": 2,
+                "value": ""
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": -1088356319
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": -1088356319
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": -1088356319
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            149,
+            [
+              {
+                "type": 2,
+                "value": "xlOil.dll"
+              },
+              {
+                "type": 2,
+                "value": "xloil_stub"
+              },
+              {
+                "type": 2,
+                "value": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#"
+              },
+              {
+                "type": 2,
+                "value": "xloAttr"
+              },
+              {
+                "type": 2,
+                "value": "Object,Name,Kwargs,Args,[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.]"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "Returns the named attribute value, or the result of calling it if possible. ie, `object.attr` or `object.attr(*args, *kwargs)`"
+              },
+              {
+                "type": 2,
+                "value": "The target object"
+              },
+              {
+                "type": 2,
+                "value": "The name of the attribute to be returned.  The attribute can be a bound method, member, property, method, function or class"
+              },
+              {
+                "type": 2,
+                "value": "If the attribute is callable, it will be called using these keyword arguments"
+              },
+              {
+                "type": 2,
+                "value": "If the attribute is callable, it will be called using these positional arguments"
+              },
+              {
+                "type": 2,
+                "value": "[Args-1]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-2]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-3]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-4]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-5]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-6]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-7]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-8]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-9]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-10]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-11]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-12]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-13]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-14]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-15]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-16]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-17]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-18]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-19]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-20]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-21]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-22]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-23]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-24]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-25]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-26]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-27]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-28]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-29]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-30]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-31]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-32]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-33]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-34]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-35]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-36]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-37]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-38]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-39]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-40]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-41]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-42]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-43]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-44]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-45]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-46]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-47]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-48]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-49]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-50]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-51]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-52]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-53]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-54]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-55]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-56]  "
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": -1088356318
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": -1088356318
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": -1088356318
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            149,
+            [
+              {
+                "type": 2,
+                "value": "xlOil.dll"
+              },
+              {
+                "type": 2,
+                "value": "xloil_stub"
+              },
+              {
+                "type": 2,
+                "value": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#"
+              },
+              {
+                "type": 2,
+                "value": "xloAttrObj"
+              },
+              {
+                "type": 2,
+                "value": "Object,Name,Kwargs,Args,[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.]"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "Returns the value of named attribute or the result of calling the attribute as a Cache object(cf `xloAttr`). This function is useful to stop default conversion to Excel values, for example when chaining xloAttr calls"
+              },
+              {
+                "type": 2,
+                "value": "The target object"
+              },
+              {
+                "type": 2,
+                "value": "The name of the attribute to be returned.  The attribute can be a bound method, member, property, method, function or class"
+              },
+              {
+                "type": 2,
+                "value": "If the attribute is callable, it will be called using these keyword arguments"
+              },
+              {
+                "type": 2,
+                "value": "If the attribute is callable, it will be called using these positional arguments"
+              },
+              {
+                "type": 2,
+                "value": "[Args-1]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-2]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-3]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-4]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-5]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-6]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-7]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-8]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-9]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-10]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-11]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-12]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-13]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-14]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-15]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-16]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-17]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-18]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-19]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-20]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-21]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-22]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-23]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-24]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-25]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-26]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-27]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-28]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-29]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-30]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-31]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-32]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-33]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-34]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-35]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-36]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-37]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-38]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-39]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-40]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-41]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-42]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-43]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-44]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-45]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-46]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-47]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-48]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-49]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-50]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-51]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-52]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-53]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-54]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-55]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-56]  "
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": -1088356317
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": -1088356317
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": -1088356317
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "arguments": [],
+        "result": {
+          "type": 2048,
+          "value": 1
+        },
+        "callbacks": [
+          [
+            149,
+            [
+              {
+                "type": 2,
+                "value": "xlOil.dll"
+              },
+              {
+                "type": 2,
+                "value": "xloil_stub"
+              },
+              {
+                "type": 2,
+                "value": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#"
+              },
+              {
+                "type": 2,
+                "value": "xloAttrObj"
+              },
+              {
+                "type": 2,
+                "value": "Object,Name,Kwargs,Args,[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.]"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "Returns the value of named attribute or the result of calling the attribute as a Cache object(cf `xloAttr`). This function is useful to stop default conversion to Excel values, for example when chaining xloAttr calls"
+              },
+              {
+                "type": 2,
+                "value": "The target object"
+              },
+              {
+                "type": 2,
+                "value": "The name of the attribute to be returned.  The attribute can be a bound method, member, property, method, function or class"
+              },
+              {
+                "type": 2,
+                "value": "If the attribute is callable, it will be called using these keyword arguments"
+              },
+              {
+                "type": 2,
+                "value": "If the attribute is callable, it will be called using these positional arguments"
+              },
+              {
+                "type": 2,
+                "value": "[Args-1]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-2]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-3]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-4]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-5]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-6]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-7]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-8]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-9]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-10]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-11]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-12]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-13]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-14]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-15]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-16]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-17]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-18]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-19]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-20]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-21]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-22]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-23]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-24]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-25]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-26]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-27]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-28]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-29]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-30]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-31]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-32]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-33]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-34]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-35]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-36]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-37]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-38]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-39]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-40]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-41]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-42]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-43]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-44]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-45]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-46]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-47]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-48]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-49]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-50]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-51]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-52]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-53]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-54]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-55]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-56]  "
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 32
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 32
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 32
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            149,
+            [
+              {
+                "type": 2,
+                "value": "xlOil.dll"
+              },
+              {
+                "type": 2,
+                "value": "xloil_stub"
+              },
+              {
+                "type": 2,
+                "value": "UQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#"
+              },
+              {
+                "type": 2,
+                "value": "xloAttr"
+              },
+              {
+                "type": 2,
+                "value": "Object,Name,Kwargs,Args,[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.],[.]"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "Returns the named attribute value, or the result of calling it if possible. ie, `object.attr` or `object.attr(*args, *kwargs)`"
+              },
+              {
+                "type": 2,
+                "value": "The target object"
+              },
+              {
+                "type": 2,
+                "value": "The name of the attribute to be returned.  The attribute can be a bound method, member, property, method, function or class"
+              },
+              {
+                "type": 2,
+                "value": "If the attribute is callable, it will be called using these keyword arguments"
+              },
+              {
+                "type": 2,
+                "value": "If the attribute is callable, it will be called using these positional arguments"
+              },
+              {
+                "type": 2,
+                "value": "[Args-1]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-2]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-3]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-4]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-5]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-6]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-7]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-8]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-9]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-10]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-11]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-12]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-13]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-14]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-15]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-16]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-17]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-18]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-19]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-20]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-21]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-22]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-23]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-24]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-25]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-26]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-27]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-28]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-29]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-30]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-31]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-32]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-33]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-34]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-35]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-36]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-37]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-38]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-39]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-40]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-41]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-42]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-43]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-44]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-45]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-46]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-47]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-48]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-49]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-50]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-51]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-52]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-53]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-54]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-55]"
+              },
+              {
+                "type": 2,
+                "value": "[Args-56]  "
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 33
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 33
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 33
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            149,
+            [
+              {
+                "type": 2,
+                "value": "xlOil.dll"
+              },
+              {
+                "type": 2,
+                "value": "xloil_stub"
+              },
+              {
+                "type": 2,
+                "value": "UQ#"
+              },
+              {
+                "type": 2,
+                "value": "xloPyDebug"
+              },
+              {
+                "type": 2,
+                "value": "[Debugger]"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "\n    Sets the user-code exception debugger. \n    Pdb opens in a new window.\n    "
+              },
+              {
+                "type": 2,
+                "value": "Choose from 'pdb', 'vscode', or empty string to disable  "
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 34
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 34
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 34
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            149,
+            [
+              {
+                "type": 2,
+                "value": "xlOil.dll"
+              },
+              {
+                "type": 2,
+                "value": "xloil_stub"
+              },
+              {
+                "type": 2,
+                "value": "UQQQ"
+              },
+              {
+                "type": 2,
+                "value": "xloImport"
+              },
+              {
+                "type": 2,
+                "value": "ModuleName,[From],[As]"
+              },
+              {
+                "type": 2048,
+                "value": 1
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "Loads functions from a module and registers them in Excel. The functions do not have to be decorated. Provides an analogue of `from X import Y as Z`"
+              },
+              {
+                "type": 2,
+                "value": "A module name or a full path name to a target py file. If empty, the workbook module with the same name as the calling workbook is (re)loaded."
+              },
+              {
+                "type": 2,
+                "value": "If missing, imports the specified module as normal. If a value or array, register only the specified object names.  If \"*\", all objects are registered."
+              },
+              {
+                "type": 2,
+                "value": ""
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 35
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 35
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 35
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      }
+    ]
+  ],
+  "sheet_change_count_each_host": 13,
+  "a1_changes_each_host": 3,
+  "all_delivered_event_counts_excel_and_host": [
+    {
+      "1563": 11,
+      "1564": 13,
+      "2612": 14
+    },
+    {
+      "1564": 13,
+      "2612": 29
+    }
+  ],
+  "event_scope": "Ordered SheetChange calls and addresses agree; other event counts are retained separately. Retained Python COM objects/futures are explicitly released before teardown.",
+  "raw_workbook_names": [
+    "Book1",
+    "Book1",
+    "Book1",
+    "Book1"
+  ],
+  "timing": "Debugger timing is not uninstrumented performance evidence."
+}

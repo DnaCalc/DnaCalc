@@ -1,0 +1,86 @@
+{
+  "format": "dnacalc-xll6-validation/1",
+  "checks": [
+    {
+      "log": "C:/Work/DnaCalc/codex-runs/xll6/check-tracer-complete.log",
+      "sha256": "799d71447d3dfc867d3a43cd973be05fc3b673638ba8cae0bdf5c314e43462b7",
+      "status": "passed",
+      "counts": null
+    },
+    {
+      "log": "C:/Work/DnaCalc/codex-runs/xll6/check-final-implementation.log",
+      "sha256": "4c6b9a7562d7fd4ed60dd9b53506c0c0d4cff9551be96e78f1d47ea857de69f0",
+      "status": "passed",
+      "counts": {
+        "passed": 1318,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 1,
+        "harnesses": 67,
+        "packages": 15
+      }
+    },
+    {
+      "log": "C:/Work/DnaCalc/codex-runs/xll6/check-pulled-integration.log",
+      "sha256": "1e5d78c8feb6fde627bc8ad365b702a3ac849c5b7a316749e9ab0aa7dcecc4de",
+      "status": "passed",
+      "counts": {
+        "passed": 1326,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 1,
+        "harnesses": 67,
+        "packages": 15
+      }
+    },
+    {
+      "log": "C:/Work/DnaCalc/codex-runs/xll6/check-pool-merged.log",
+      "sha256": "600b508988a1cb366a4d88141bcf903c5209c5880f199aa33707281dc47d6610",
+      "status": "passed",
+      "counts": {
+        "passed": 1349,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 2,
+        "harnesses": 71,
+        "packages": 17
+      }
+    },
+    {
+      "log": "C:/Work/DnaCalc/codex-runs/xll6/check-final-publish-merge.log",
+      "sha256": "18ec105c0d5820f1d627aa309780b1f34bbc066ec7d0451a2a5d3a9aac47fe92",
+      "status": "passed",
+      "counts": {
+        "passed": 1335,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 2,
+        "harnesses": 69,
+        "packages": 16
+      }
+    },
+    {
+      "log": "C:/Work/DnaCalc/codex-runs/xll6/check-latest-master-merge.log",
+      "sha256": "46c108c34d5554da431d4f61b87b4e31660151bc75ce974cfd5c53ea8f64d916",
+      "status": "passed",
+      "counts": {
+        "passed": 1358,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 2,
+        "harnesses": 71,
+        "packages": 17
+      }
+    }
+  ],
+  "code_revisions": [
+    "540876988d9506b30d7ae4008c0847be4f45dad3",
+    "3d8e3c798d322abc80e1111440b15380f93b4ff4",
+    "0fec2f4f37cc13327c55cc3ee7b978ca6382e949"
+  ],
+  "full_sweep": false,
+  "linux_run": false,
+  "github_ci_dispatched": false,
+  "review": "Read-only final audit passed all302 retained hashes,39 permission packets,930 Git source bindings, validation counts, corpus comparisons, overlap/frees and retained strict failures.",
+  "latest_integrated_upstream": "084c5e29"
+}

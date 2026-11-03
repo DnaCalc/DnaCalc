@@ -43,12 +43,10 @@ fn wide(text: &str) -> Result<Vec<u16>, String> {
 }
 unsafe fn decode(value: &Value) -> Result<CalcValue, String> {
     Ok(match value.kind {
-        0 => {
-            return Err(
-                "dc-snz.23: empty RTD signaling/cache values are not modelled by immutable inputs"
-                    .into(),
-            );
-        }
+        // An empty value is also an RTD input. Its advancing sequence makes
+        // a signaling provider's separate result cache observable to the owner.
+        // The cached UDF result still has to declare this admitted input read.
+        0 => CalcValue::empty(),
         1 if value.number.is_finite() => CalcValue::number(value.number),
         2 => CalcValue::text(ExcelText::from_utf16_code_units(if value.length == 0 {
             Vec::new()

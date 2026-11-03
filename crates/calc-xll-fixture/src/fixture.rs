@@ -247,7 +247,10 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
             }
         }
     }
-    if std::env::var_os("DNA_XLL_WORKER_TESTS").is_some() {
+    let directory = std::path::Path::new(&module_name).parent();
+    if std::env::var_os("DNA_XLL_WORKER_TESTS").is_some()
+        || directory.is_some_and(|path| path.join("worker-tests.enable").is_file())
+    {
         for (procedure, signature, name) in [
             ("MyOwned", "Q$", "MyWorkerOwned"),
             ("MyReference", "QU$", "MyWorkerReference"),
@@ -271,10 +274,13 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
             }
         }
     }
-    if std::env::var_os("DNA_XLL_POOL_TESTS").is_some() {
+    if std::env::var_os("DNA_XLL_POOL_TESTS").is_some()
+        || directory.is_some_and(|path| path.join("pool-tests.enable").is_file())
+    {
         if !unsafe {
             register(&module, "MyOverlap", "QE$", "MyOverlap")
                 && register(&module, "MyOverlapMax", "J", "MyOverlapMax")
+                && register(&module, "MyOverlapReset", "J#", "MyOverlapReset")
         } {
             return 0;
         }
@@ -363,6 +369,15 @@ pub unsafe extern "system" fn MyOverlap(value: *const f64) -> *mut XlOper12 {
 #[unsafe(no_mangle)]
 pub extern "system" fn MyOverlapMax() -> i32 {
     OVERLAP.lock().unwrap().2 as i32
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyOverlapReset() -> i32 {
+    let mut held = OVERLAP.lock().unwrap();
+    if held.0 != 0 {
+        return 0;
+    }
+    *held = (0, 0, 0);
+    1
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyVolatile(value: *const f64) -> *mut XlOper12 {

@@ -621,10 +621,14 @@ controls. Excel's native UDF returns1 then42; the host first returns temporary
 #N/A before admitting its first input, then1 and42. This difference remains in the
 evidence. These are controlled numeric inputs, not general RTD compatibility.
 
-Empty RTD values are currently refused. Original xlOil Python uses empty RTD
-signals and a separate Python result cache; a numeric coincidence of55 without a
-retained RTD read was a failed qualification. Arrays, remote servers, nontext
-topics, general signaling-cache providers and arbitrary RTD teardown are open.
+The original qualification refused empty RTD values. Original xlOil Python uses
+empty RTD signals and a separate Python result cache; a numeric coincidence of55
+without a retained RTD read was a failed qualification. The client now admits an
+empty value with its sequence through the same P07 route. The C API projects that
+admitted value as numeric zero, as observed in Excel, while the certificate keeps
+the empty input. Heartbeat age follows the last UpdateNotify or heartbeat, with
+monotonic notification timestamps across provider threads. Arrays, remote servers,
+nontext topics, general signaling-cache providers and arbitrary teardown are open.
 
 ## 16. X4/X5 measured limits, 2026-11-01
 
@@ -654,3 +658,56 @@ tests exercise one engine activation, dependent publication, overwrite revocatio
 and a rejected late return through the application composition. Broader concurrent
 workbook scheduling, cancellation cases and provider teardown remain open under
 dc-snz.23. Safe xlOil reload remains open under dc-snz.21.
+
+## 17. Corrections to the X4/X5 observations
+
+The X4 tracer now discovers the worksheet and Range arguments of every
+SheetChange. The former global discovery flag missed later event objects; xlOil
+also uses the worksheet pointer without another QueryInterface. The verifier
+requires Worksheet.Name and both local and qualified Range.Address reads in each
+expected event, so equal incomplete traces cannot pass. RTD factory observations
+retain the actual requested IID, returned object and enclosing xlfRtd callback.
+Unrelated COM factories are not presumed to be RTD servers.
+
+EVALUATE can evaluate a constant expression through the current CalcFml compiler
+and block runner, including its ordinary array and LAMBDA operations. It uses the
+owning formula's services. References, defined names, registered calls, volatility
+and escaping callable values remain typed refusals; a native add-in cannot hide
+that refusal by discarding the callback result. The measured normal and `#`
+requests evaluate `1+1`; the measured `$` denial remains128. The native fixture
+retains the result type and exact double bits for comparison with Excel. Nested
+retained kernel calls live on the heap so the existing one-megabyte recursion test
+continues to exercise the full evaluator depth after the shared helper changes.
+
+The corrected X4 comparison checks all12 cases and13 SheetChange deliveries,
+including Worksheet.Name and both addresses in every event. The permission matrix
+now matches all39 requests, including result2 and its exact double bits for the
+normal and `#` EVALUATE calls. Original xlOil empty signals produce55/dependent110
+with a sequence3 P07 certificate, followed by replacement99/dependent198 and topic
+retirement. The strict RTD protocol comparison still fails: Excel makes11 client
+calls, including three Heartbeats, and the host makes eight. The other eight
+method occurrences and their payloads match. A traced completion deadline failure
+is retained beside a separate successful capture of the same executable.
+
+## 18. Within-workbook scalar pool calls (dc-snz.23)
+
+A callable opts into a fixed maximum of independent scalar activations when it
+registers. State lanes, cached reads, semantic reevaluation and reentry keep the
+default single activation. Synchronous `$` XLL adapters publish their pool's
+capacity. Only explicitly legacy scalar cells with eligible calls may share a
+segment. Dynamic spill formulas, legacy array producers and volatile plans remain
+ordered; iteration and data-table calculation retain their existing scheduling.
+
+The scheduler checks static prerequisites and shares service by age. A suspended
+pure prefix reserves capacity until its cell completes, so a later prefix cannot
+start another call beyond the limit. All fallback admissions check that limit.
+An additional prerequisite discovered inside a concurrent callback returns a
+typed dc-snz.23 refusal instead of consuming another slot or becoming a circular
+result. Native async continues to use its separate P07 completion route.
+
+The reference fixture selects legacy form and Manual calculation in both hosts.
+Excel also evaluates these formulas on its owner thread during entry. Its extra
+entry calls remain part of the strict comparison. The fixture resets its existing
+barrier after entry and before Calculate, in both hosts, to measure actual worker
+overlap independently. An overlap witness is not a full lifecycle compatibility
+pass; differing native invocation or owned-result counts remain failures.

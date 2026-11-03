@@ -113,6 +113,11 @@ pub enum UserReevaluationReason {
 /// returns worksheet errors as values and execution failures as diagnostics (mapped to #VALUE!).
 /// No Send/Sync promise is made: a desktop add-in may belong to its owning thread.
 pub trait UserFunction: fmt::Debug {
+    /// Maximum independent scalar-cell activations allowed together. This is
+    /// fixed when registering the callable; adapters opt in explicitly.
+    fn max_parallel_calls(&self) -> usize {
+        1
+    }
     fn reevaluation_policy(&self) -> Option<UserReevaluationReason> {
         None
     }
@@ -233,5 +238,14 @@ pub trait UserFunctionContext {
         _owner: &'static str,
     ) -> Result<CalcValue, String> {
         self.worksheet_function(name, arguments)
+    }
+    /// Compile and run a constant worksheet expression through the owning formula route.
+    /// References, defined names, nested user calls and volatility require a broader contract.
+    fn evaluate_constant_expression(
+        &mut self,
+        _expression: &str,
+        owner: &'static str,
+    ) -> Result<CalcValue, String> {
+        Err(self.refuse_by("constant expression evaluation without an owner", owner))
     }
 }

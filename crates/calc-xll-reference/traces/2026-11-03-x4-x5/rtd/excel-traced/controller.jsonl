@@ -1,0 +1,14 @@
+{"utc":"2026-11-02T23:36:39.5951860Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-02T23:37:11.2462332Z","operation":"xlOil built-in Python startup complete","value":true}
+{"utc":"2026-11-02T23:38:56.4697194Z","operation":"RTD COM retry","value":-2147418111}
+{"utc":"2026-11-02T23:39:41.3035763Z","operation":"RTD COM retry","value":-2147418111}
+{"utc":"2026-11-02T23:40:28.2336175Z","operation":"=10+X5.Rtd()+3","value":55.0}
+{"utc":"2026-11-02T23:41:06.9277876Z","operation":"dependent =10+X5.Rtd()+3","value":110.0}
+{"utc":"2026-11-02T23:42:13.4638892Z","operation":"=99","value":99.0}
+{"utc":"2026-11-02T23:42:27.9118064Z","operation":"dependent =99","value":198.0}
+{"utc":"2026-11-02T23:42:37.1379266Z","operation":"Close RTD workbook before detach","value":true}
+{"utc":"2026-11-02T23:42:38.9740139Z","operation":"RTD termination before detach","value":true}
+{"utc":"2026-11-02T23:44:04.5273227Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-02T23:44:04.7896935Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-02T23:44:14.9671701Z","operation":"tracer exit","value":0}
+{"utc":"2026-11-02T23:44:15.5956429Z","operation":"cleanup","value":"Stopped owned Excel PID 67824"}

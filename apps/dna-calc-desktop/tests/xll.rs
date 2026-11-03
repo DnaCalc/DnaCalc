@@ -282,14 +282,14 @@ fn failed_second_load_restores_previous_names_and_use_counts() {
     );
 }
 
-/// Native-only: EVALUATE must not invent #NAME? for an expression the host cannot evaluate.
+/// Native-only: unimplemented EVALUATE reads remain refusals through native swallowing and IFERROR.
 #[test]
-fn unimplemented_evaluate_expression_remains_a_typed_refusal() {
+fn unimplemented_evaluate_reference_remains_a_typed_refusal() {
     let fixture = Fixture::new();
     let output = fixture
         .command()
         .env("DNA_XLL_NEGATIVE_CALLBACK", "257")
-        .env("DNA_XLL_EVALUATE_TEXT", "1+1")
+        .env("DNA_XLL_EVALUATE_TEXT", "A1")
         .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
         .output()
         .unwrap();
@@ -299,6 +299,29 @@ fn unimplemented_evaluate_expression_remains_a_typed_refusal() {
         error.contains("NotModelled") && error.contains("dc-snz.2"),
         "{error}"
     );
+}
+
+/// Native-only: constant EVALUATE expressions execute through a real native callback in both compositions.
+#[test]
+fn constant_evaluate_callbacks_use_the_application_formula_route() {
+    for expression in ["1+1", "=SUM(3,4)*2", "SUM({1,2;3,4})"] {
+        for engine in [false, true] {
+            let fixture = Fixture::new();
+            let mut command = fixture.command();
+            command
+                .env("DNA_XLL_NEGATIVE_CALLBACK", "257")
+                .env("DNA_XLL_EVALUATE_TEXT", expression)
+                .args(["--formula", "=IFERROR(MyUnsupported(),123)"]);
+            if engine {
+                command.arg("--engine");
+            }
+            let result = checked(command.output().unwrap());
+            // This fixture deliberately discards the callback value. The
+            // portable context regression and Excel boundary compare its value.
+            assert_eq!(result["results"][0]["value"], 0.);
+            assert_eq!(result["live_callback_allocations"], 0);
+        }
+    }
 }
 
 /// Native-only: the product worker uses the evaluator's reference reader and function route,
@@ -366,6 +389,41 @@ fn engine_pool_overlaps_workbooks_and_services_borrowed_reads() {
         assert_eq!(proof["completed_invocations"], 1);
     }
     assert_eq!(result["results"][1]["value"], 2.);
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+
+/// Native-only: real XLL barriers and worker callbacks run through one workbook command.
+#[test]
+fn engine_pool_overlaps_independent_cells_in_one_workbook() {
+    let fixture = Fixture::new();
+    let cases = fixture.directory.join("workbook-pool.json");
+    std::fs::write(
+        &cases,
+        include_bytes!("../../../crates/calc-xll-reference/fixture/x5-workbook-pool-cases.json"),
+    )
+    .unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_POOL_TESTS", "1")
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .args(["--engine", "--cases"])
+            .arg(cases)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 41.);
+    assert_eq!(result["results"][0]["dependent"], 81.);
+    assert_eq!(result["results"][1]["value"], 2.);
+    for proof in [
+        &result["results"][0]["provenance"],
+        &result["results"][0]["dependent_provenance"],
+        &result["results"][2]["provenance"],
+        &result["results"][3]["provenance"],
+    ] {
+        assert_eq!(proof["cooperative_invocations"], 1);
+        assert_eq!(proof["completed_invocations"], 1);
+    }
     assert_eq!(result["live_callback_allocations"], 0);
 }
 

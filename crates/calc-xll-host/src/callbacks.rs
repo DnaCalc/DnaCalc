@@ -682,15 +682,19 @@ fn run(
         }
         XLF_EVALUATE => {
             require(1)?;
-            let name = calc_value::fold_workbook_name(&text(&values[0])?);
-            match frame.state.borrow().names.get(&name) {
-                Some(id) => CalcValue::number(*id as f64),
-                None => {
-                    return Err((
-                        INVALID_FUNCTION,
-                        "dc-snz.2: EVALUATE outside registered names is not modelled".into(),
-                    ));
-                }
+            let expression = text(&values[0])?;
+            let name = calc_value::fold_workbook_name(&expression);
+            let registered = frame.state.borrow().names.get(&name).copied();
+            if let Some(id) = registered {
+                CalcValue::number(id as f64)
+            } else if let Some(context) = frame.context.as_mut() {
+                context
+                    .evaluate_constant_expression(&expression, "dc-snz.2")
+                    .map_err(err)?
+            } else {
+                return Err(err(
+                    "dc-snz.2: EVALUATE expression requires an owning formula invocation",
+                ));
             }
         }
         XL_UDF => {
@@ -729,6 +733,7 @@ fn run(
                     "dc-snz.18: nested registered calls that change cached-read mode are not modelled".into()));
             }
             let adapter = crate::native::XllFunction {
+                parallel: 1,
                 state: frame.state.clone(),
                 registration,
                 bound: false,
@@ -774,7 +779,16 @@ fn run(
             context
                 .rtd_value(subscription)
                 .map_err(err)?
-                .map(|(_, value)| value)
+                // Excel exposes an empty COM RTD signal as numeric zero. The
+                // admitted input remains empty and its sequence stays in the
+                // invocation's certificate, including a cache-only UDF return.
+                .map(|(_, value)| {
+                    if value.is_empty() {
+                        CalcValue::number(0.)
+                    } else {
+                        value
+                    }
+                })
                 .unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::NA))
         }
         // Ftab numbers come from the existing file-formula table. Dispatch is through the
