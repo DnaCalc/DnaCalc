@@ -212,6 +212,21 @@ mod arrays {
         }
     }
 
+    /// Excel's full spill results, from OxFunc-Evidence's recorded Formula2 calls:
+    /// w111-broad-typed-20260929-002 / w111typed-00286-textsplit-arg1-row-array and
+    /// w092-array-successor-max3x9-all-cycle-001 / w090-successor-00187-munit-arg1.
+    /// A lifted call contributes its result's first cell, not a nested spill.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn lifted_array_results_contribute_their_first_cell() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=TEXTSPLIT(CHOOSE({1,2},\"a,b,c\",\"a,b,c\"),\",\")"),
+            rows(&[&[t("a"), t("a")]])
+        );
+        assert_eq!(book.dynamic("=MUNIT({3,3})"), numbers(&[&[1.0, 1.0]]));
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn operators_lift_over_arrays_as_oxfml_fixture_rows() {
