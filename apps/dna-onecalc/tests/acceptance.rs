@@ -350,6 +350,46 @@ fn unmeasured_text_at_precision_stays_refused() {
     assert!(format!("{:?}", result.diagnostics).contains("NotImplemented"));
 }
 
+/// W111 numeric-text-percent-bounds-20260929: zero coefficients, lower/upper exponent
+/// refusals, and the retained positive controls at the upper exponent boundary.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_zero_percentage_exponents_are_validated() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(format_profile(LocaleId::CurrentExcelHost)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    let forms = |coefficient: &str, exponent: i32| [
+        format!("{coefficient}e{exponent}%"), format!("% {coefficient}e{exponent}"),
+        format!("( {coefficient}e{exponent} % )"),
+    ];
+    for coefficient in ["0", "00", "0.0", "0.00"] {
+        for exponent in -311..=-307 {
+            for text in forms(coefficient, exponent) {
+                session.set_formula(&format!("=ABS(\"{text}\")"));
+                assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)), "{text}");
+            }
+        }
+    }
+    for coefficient in ["0", "00"] {
+        for text in forms(coefficient, 311) {
+            session.set_formula(&format!("=ABS(\"{text}\")"));
+            assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)), "{text}");
+        }
+    }
+    for (coefficient, exponent) in [("0", 310), ("00", 310), ("0.0", 311), ("0.00", 311)] {
+        for text in forms(coefficient, exponent) {
+            session.set_formula(&format!("=ABS(\"{text}\")"));
+            let result = session.calculate();
+            assert_eq!(result.result, Some(CalcValue::number(0.0)), "{text}");
+            assert!(result.diagnostics.is_empty());
+        }
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
