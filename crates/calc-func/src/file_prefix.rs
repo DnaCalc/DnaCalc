@@ -34,7 +34,7 @@ impl FilePrefix {
 
 /// Each named function of the catalogue by its spelling, in byte order of the spelling (checked
 /// below, since the lookup is a binary search), with the prefix a file writes before it.
-const FILE_PREFIXES: [(&str, FilePrefix); 499] = [
+const FILE_PREFIXES: [(&str, FilePrefix); 500] = [
     ("ABS", FilePrefix::Bare),
     ("ACCRINT", FilePrefix::Bare),
     ("ACCRINTM", FilePrefix::Bare),
@@ -172,6 +172,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 499] = [
     ("DURATION", FilePrefix::Bare),
     ("DVAR", FilePrefix::Bare),
     ("DVARP", FilePrefix::Bare),
+    ("ECMA.CEILING", FilePrefix::Bare),
     ("EDATE", FilePrefix::Bare),
     ("EFFECT", FilePrefix::Bare),
     ("ENCODEURL", FilePrefix::Xlfn),

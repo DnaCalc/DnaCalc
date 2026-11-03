@@ -453,6 +453,12 @@ fn push_singleton_or_original(out: &mut String, mapped: impl Iterator<Item = cha
 }
 
 fn push_upper(out: &mut String, ch: char) {
+    // Excel maps individual BMP code units. A supplementary letter's surrogate pair stays
+    // unchanged (fn1 UPPER, U+10428), as do non-expanding ligatures and sharp s.
+    if ch as u32 > 0xFFFF {
+        out.push(ch);
+        return;
+    }
     match ch {
         'ß' => out.push('ß'),
         'ά' => out.push('Α'),
@@ -498,10 +504,16 @@ pub(crate) fn upper(text: &ExcelText) -> ExcelText {
 pub(crate) fn lower(text: &ExcelText) -> ExcelText {
     let chars = text.to_string_lossy().chars().collect::<Vec<_>>();
     let mut out = String::new();
+    let mut previous_letter = false;
     for (index, ch) in chars.iter().copied().enumerate() {
-        let is_final_sigma =
-            ch == 'Σ' && adjacent_letter(&chars, index, -1) && !adjacent_letter(&chars, index, 1);
+        // The fn1 sigma controls skip preceding marks, while a following mark keeps the
+        // nonfinal form even at the end: ΆΣ -> άς; ΑΣ́ -> ασ́.
+        let is_final_sigma = ch == 'Σ' && previous_letter && !chars.get(index + 1)
+            .is_some_and(|&c| c.is_alphabetic() || calc_value::is_combining_mark(c));
         push_lower(&mut out, ch, is_final_sigma);
+        if !calc_value::is_combining_mark(ch) {
+            previous_letter = ch.is_alphabetic();
+        }
     }
     text_from_str(&out)
 }

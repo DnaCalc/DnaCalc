@@ -72,16 +72,14 @@ enum RegexClassPiece {
 }
 
 fn is_word_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || ch == '_'
+    ch.is_alphanumeric() || ch == '_'
 }
 
 fn chars_equal(lhs: char, rhs: char, case_sensitive: bool) -> bool {
     if case_sensitive {
         lhs == rhs
-    } else if lhs.is_ascii() && rhs.is_ascii() {
-        lhs.eq_ignore_ascii_case(&rhs)
     } else {
-        lhs == rhs
+        calc_value::unicode_simple_case_fold(lhs) == calc_value::unicode_simple_case_fold(rhs)
     }
 }
 
@@ -142,7 +140,7 @@ fn atom_consumes_input(atom: &RegexAtom) -> bool {
 fn consuming_atom_matches(atom: &RegexAtom, ch: char, case_sensitive: bool) -> bool {
     match atom {
         RegexAtom::Literal(expected) => chars_equal(ch, *expected, case_sensitive),
-        RegexAtom::Any => true,
+        RegexAtom::Any => ch != '\n',
         RegexAtom::Digit => ch.is_ascii_digit(),
         RegexAtom::NotDigit => !ch.is_ascii_digit(),
         RegexAtom::Word => is_word_char(ch),
@@ -465,12 +463,19 @@ pub(crate) fn regex_matches(
     case_sensitive: bool,
     first_only: bool,
 ) -> Result<(Vec<char>, Vec<(usize, usize)>), Unsupported> {
-    if !case_sensitive && !(text.is_ascii() && pattern.is_ascii()) {
-        // Case folding beyond ASCII is not modelled.
-        return Err(Unsupported);
-    }
     let haystack: Vec<char> = text.chars().collect();
     let tokens = parse_regex_pattern(pattern)?;
+    // The fn1 controls establish Unicode literal case equality, not closure of a Unicode
+    // range under casing. Keep those ranges refused until their rule is measured.
+    if !case_sensitive && tokens.iter().any(|token| match &token.atom {
+        RegexAtom::Class(class) => class.items.iter().any(|item| {
+            matches!(item, RegexClassItem::Range(start, end)
+                if !text.is_ascii() || !start.is_ascii() || !end.is_ascii())
+        }),
+        _ => false,
+    }) {
+        return Err(Unsupported);
+    }
     let found = if first_only {
         find_first_match_from(&haystack, &tokens, 0, case_sensitive)
             .into_iter()

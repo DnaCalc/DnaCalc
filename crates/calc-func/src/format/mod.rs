@@ -13,7 +13,7 @@
 //!   minus sign.
 //! - Sections: one for every number; two for the non-negative and the negative numbers (the
 //!   second without a minus sign); three adding zero; a fourth for text; a condition in brackets
-//!   chooses its section. Colors and locale tags in brackets are dropped; `[$R-1C09]` writes `R`.
+//!   chooses its section. Colors in brackets are dropped; locale tags select date names; `[$R-1C09]` writes `R`.
 //! - `General` writes at most 11 characters besides the sign, switching to `d.ddddE+xx` for a
 //!   number too large or too small for that.
 //! - Dates and times (y, m, d, h, s, AM/PM, elapsed [h], [m], [s]) through [`datetime`]; a negative
@@ -329,10 +329,11 @@ fn condition_of(section: &str) -> Option<String> {
     None
 }
 
-/// A section with its bracketed tokens resolved: colors and locale tags dropped, a currency tag
+/// A section with its bracketed tokens resolved: colors dropped, locale recorded for names, a currency tag
 /// `[$sym-xxxx]` written as its symbol (quoted), conditions dropped, elapsed-time tokens kept.
-fn strip_tokens(section: &str) -> Result<String, Failure> {
+fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId>), Failure> {
     let mut out = String::new();
+    let mut name_locale = None;
     let mut chars = section.chars().peekable();
     let (mut quoted, mut escaped) = (false, false);
     while let Some(ch) = chars.next() {
@@ -363,7 +364,13 @@ fn strip_tokens(section: &str) -> Result<String, Failure> {
                     out.push_str(&token);
                     out.push(']');
                 } else if let Some(body) = token.strip_prefix('$') {
-                    let symbol = body.split('-').next().unwrap_or("");
+                    let (symbol, locale) = body.split_once('-').unwrap_or((body, ""));
+                    if !locale.is_empty() {
+                        use crate::locale::LocaleId;
+                        name_locale = u16::from_str_radix(locale, 16).ok()
+                            .and_then(LocaleId::from_excel_lcid)
+                            .or_else(|| LocaleId::from_bcp47_language_tag(locale));
+                    }
                     if !symbol.is_empty() {
                         out.push('"');
                         out.push_str(symbol);
@@ -380,7 +387,7 @@ fn strip_tokens(section: &str) -> Result<String, Failure> {
             _ => out.push(ch),
         }
     }
-    Ok(out)
+    Ok((out, name_locale))
 }
 
 /// The section a number is rendered with, and whether that section shows the number's sign
@@ -1164,7 +1171,7 @@ pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatC
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
     let sections = sections(code);
     let (section, signed_section) = choose(&sections, value)?;
-    let stripped = strip_tokens(&section)?;
+    let (stripped, name_locale) = strip_tokens(&section)?;
     if stripped.trim().eq_ignore_ascii_case("general") {
         let shown = general(profile, if signed_section { value.abs() } else { value });
         return Ok(shown);
@@ -1179,11 +1186,12 @@ pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code
         }
         if datetime::without_subseconds(&stripped)
             .chars()
-            .any(|c| matches!(c, 'b' | 'B' | 'e' | 'g' | 'G' | '0'))
+            .any(|c| matches!(c, 'b' | 'B' | '0') ||
+                (matches!(c, 'e' | 'g' | 'G') && name_locale != Some(crate::locale::LocaleId::JaJp)))
         {
             return Err(Failure::NotModelled);
         }
-        return datetime::render_with_datetime_tokens(profile, system, value, &stripped)
+        return datetime::render_with_datetime_tokens(profile, system, value, &stripped, name_locale)
             .ok_or(Failure::NotModelled);
     }
     if let Some(fraction) = fraction_code(&stripped) {
@@ -1221,7 +1229,7 @@ pub(crate) fn text_of_text(text: &str, code: &str, profile: &FormatProfile) -> R
         None if sections.len() == 1 && sections[0].contains('@') => sections[0].clone(),
         None => return Ok(text.to_owned()),
     };
-    let stripped = strip_tokens(&section)?;
+    let (stripped, _) = strip_tokens(&section)?;
     let mut out = String::new();
     for part in stripped.split('@').enumerate() {
         if part.0 > 0 {

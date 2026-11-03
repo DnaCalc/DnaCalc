@@ -9,7 +9,6 @@
 //! the operand before a refused member selector, and the two operands of a trim reference, stay
 //! structured child nodes.
 
-mod combining_marks;
 mod lexer;
 mod parser;
 mod token;

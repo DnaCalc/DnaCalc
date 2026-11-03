@@ -200,6 +200,13 @@ fn text_delim(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, side:
     };
     let case_insensitive = binary_flag(site, a, 3)?;
     let match_end = binary_flag(site, a, 4)?;
+    // fn1 Excel 16.0.20527: an explicitly supplied instance is validated against the empty
+    // input before fallback/match_end. An empty delimiter still returns empty text.
+    if given(a, 2) && text.len_utf16_code_units() == 0
+        && !delimiters.iter().any(|d| d.len_utf16_code_units() == 0)
+    {
+        return fail(WorksheetErrorCode::Value);
+    }
     match k::delimited(side, &text, &delimiters, instance, case_insensitive, match_end) {
         Delimited::Text(found) => Ok(CalcValue::text(found)),
         Delimited::BadInstance => fail(WorksheetErrorCode::Value),

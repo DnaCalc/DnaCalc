@@ -14,7 +14,7 @@
 //! Generated from `CaseFolding-15.0.0.txt` (2022-02-02;
 //! `https://www.unicode.org/Public/15.0.0/ucd/CaseFolding.txt`, sha256
 //! `cdd49e55eae3bbf1f0a3f6580c974a0263cb86a6a08daa10fbf705b4808a56f7`) on
-//! 2026-09-15 — the same Unicode version as `syntax/combining_marks.rs`:
+//! 2026-09-15 — the same Unicode version as `combining_marks.rs`:
 //!
 //! ```text
 //! python gen.py CaseFolding-15.0.0.txt   # gen.py:

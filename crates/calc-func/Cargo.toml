@@ -26,6 +26,7 @@ sxd-xpath = "0.4.2"
 # verdict library's CaptureRecord and MissingCapture. Test-only: calc-verdict never depends on
 # calc-func, so the code under test is not part of its own judge.
 [dev-dependencies]
+serde_json = "1"
 calc-verdict = { path = "../../tools/calc-verdict" }
 # The dc-xrxb case reads the package Excel saved, whose parts Excel deflates, with the DEFLATE
 # decoder calc-doc already uses (pure Rust, so it builds for wasm32-unknown-unknown). Test-only.
