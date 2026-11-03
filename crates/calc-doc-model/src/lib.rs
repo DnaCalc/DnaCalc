@@ -91,7 +91,7 @@ pub use layout::{
     SkinLayout, SkinLayoutEdit, Spot, ViewKind,
 };
 pub use op::{
-    Axis, AxisChange, AxisEdit, AxisEditError, FrozenPanes, NameRestoration, OpBatch, RetainedName,
+    Axis, AxisChange, AxisEdit, AxisEditError, FrozenPanes, PaneLayout, SplitPanes, NameRestoration, OpBatch, RetainedName,
     SheetEdit, WorkbookOp,
 };
 pub use revision::AuthoredRevision;

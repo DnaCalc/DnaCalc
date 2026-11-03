@@ -296,7 +296,7 @@ pub struct Definitions {
     styles: std::sync::Arc<crate::StyleTable>,
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
     axis_layouts: crate::AxisLayouts,
-    panes: BTreeMap<SheetId, crate::FrozenPanes>,
+    panes: BTreeMap<SheetId, crate::PaneLayout>,
     filters: BTreeMap<SheetId, crate::AutoFilter>,
     arrays: BTreeMap<CellKey, ArrayFormula>,
     names: crate::NameTable,
@@ -397,25 +397,31 @@ impl Definitions {
         layouts
     }
     pub fn frozen_panes(&self, sheet: SheetId) -> Option<crate::FrozenPanes> {
-        self.panes.get(&sheet).copied()
+        match self.pane_layout(sheet) {Some(crate::PaneLayout::Frozen(p))=>Some(p),_=>None}
     }
     pub fn panes(&self) -> impl Iterator<Item = (SheetId, crate::FrozenPanes)> + '_ {
-        self.panes.iter().map(|(&s, &p)| (s, p))
+        self.panes.iter().filter_map(|(&s,&p)| match p {crate::PaneLayout::Frozen(p)=>Some((s,p)),_=>None})
     }
     pub fn with_panes(
         mut self,
         panes: impl IntoIterator<Item = (SheetId, crate::FrozenPanes)>,
     ) -> Self {
-        self.panes = panes.into_iter().collect();
+        self.panes = panes.into_iter().map(|(s,p)|(s,crate::PaneLayout::Frozen(p))).collect();
         self
     }
     pub fn with_frozen_panes(mut self, sheet: SheetId, panes: Option<crate::FrozenPanes>) -> Self {
         if let Some(panes) = panes {
-            self.panes.insert(sheet, panes);
+            self.panes.insert(sheet, crate::PaneLayout::Frozen(panes));
         } else {
             self.panes.remove(&sheet);
         }
         self
+    }
+    pub fn pane_layout(&self, sheet:SheetId)->Option<crate::PaneLayout> {self.panes.get(&sheet).copied()}
+    pub fn pane_layouts(&self)->impl Iterator<Item=(SheetId,crate::PaneLayout)>+'_ {self.panes.iter().map(|(&s,&p)|(s,p))}
+    pub fn with_pane_layouts(mut self, panes:impl IntoIterator<Item=(SheetId,crate::PaneLayout)>)->Self {self.panes=panes.into_iter().collect();self}
+    pub fn with_pane_layout(mut self, sheet:SheetId, layout:Option<crate::PaneLayout>)->Self {
+        if let Some(layout)=layout {self.panes.insert(sheet,layout);}else{self.panes.remove(&sheet);} self
     }
     pub fn new(
         arrays: impl IntoIterator<Item = ArrayFormula>,

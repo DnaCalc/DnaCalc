@@ -6,6 +6,7 @@ pub fn geometry_of(geometry: &calc_host::SheetGeometry) -> Geometry {
         auto_filter: None,
         merges: Vec::new(),
         edit_refusal: None,
+        zoom: None,
         top_left: None,
         pane_top_left: None,
         active_cell: None,

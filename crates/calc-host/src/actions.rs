@@ -70,6 +70,7 @@ pub enum WorkbookCommand {
         rows: u32,
         columns: u32,
     },
+    SplitPanes { sheet:SheetId, revision:u64, x:u64, y:u64, row:u32, column:u32 },
     Conditional {
         sheet: SheetId,
         revision: u64,
@@ -102,6 +103,14 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::SplitPanes {sheet,revision,x,y,row,column}=>{
+            if revision!=host.revision().get() {return Err("The workbook changed before splitting (dc-971p.16)".into());}
+            if host.model().sheet_by_id(sheet).is_none() {return Err("The worksheet no longer exists".into());}
+            let (x,y)=(f64::from_bits(x),f64::from_bits(y));
+            if x==0. && y==0. && !matches!(host.model().definitions().pane_layout(sheet),Some(calc_doc_model::PaneLayout::Split(_))) {return Ok(Vec::new());}
+            let layout=if x==0. && y==0. {None}else{Some(calc_doc_model::PaneLayout::Split(calc_doc_model::SplitPanes::new(x,y,row,column).ok_or("Invalid split position (dc-971p.16)")?))};
+            Ok(vec![CellEdit::PaneLayout{sheet,layout}])
+        }
         WorkbookCommand::AutoFilter { sheet,revision,change }=>crate::filter::prepare(host,sheet,revision,change),
         WorkbookCommand::SortRows {
             area,

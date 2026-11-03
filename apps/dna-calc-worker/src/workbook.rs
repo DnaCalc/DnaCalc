@@ -467,11 +467,12 @@ impl Workbook {
     pub fn begin_ordinary_save(
         &mut self,
         calculate_before_save: bool,
+        policy: &SavePolicy,
     ) -> Result<calc_host::OrdinarySave, String> {
         if !calculate_before_save {
             return self
                 .session
-                .begin_save(&SavePolicy::default())
+                .begin_save(policy)
                 .map_err(|error| error.to_string());
         }
         let active_sheet = self
@@ -483,7 +484,7 @@ impl Workbook {
             .ok_or("No active worksheet")?;
         self.session
             .begin_save_with_context(
-                &SavePolicy::default(),
+                policy,
                 calc_host::ExcelSaveContext {
                     operation: calc_host::SaveOperation::Save,
                     calculate_before_save,

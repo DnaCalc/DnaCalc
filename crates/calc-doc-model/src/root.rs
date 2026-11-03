@@ -847,8 +847,9 @@ impl ModelRoot {
                     panes: value,
                 } => {
                     self.position_of(operation, *sheet)?;
-                    panes.push((*sheet, *value));
+                    panes.push((*sheet, value.map(crate::PaneLayout::Frozen)));
                 }
+                WorkbookOp::SetPaneLayout {sheet,layout}=>{self.position_of(operation,*sheet)?;panes.push((*sheet,*layout));}
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),
                 WorkbookOp::EditSkinLayout(edit) => {
@@ -908,7 +909,7 @@ impl ModelRoot {
                 next = next.with_axis_format(edit);
             }
             for (sheet, panes) in panes {
-                next = next.with_frozen_panes(sheet, panes);
+                next = next.with_pane_layout(sheet, panes);
             }
             if let Some(settings) = iteration {
                 next = next.with_iteration(settings);

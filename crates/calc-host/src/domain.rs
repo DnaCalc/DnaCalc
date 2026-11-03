@@ -435,7 +435,7 @@ impl CalculationDomain {
             id,
             workbook,
             demand,
-            policy: *policy,
+            policy: policy.clone(),
             terminal: None,
         });
         if self.work.is_none() {

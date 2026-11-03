@@ -476,10 +476,12 @@ impl Server {
                     let calculate_before_save = matches!(
                         request,
                         Request::SaveWithContext {
-                            calculate_before_save: true
+                            calculate_before_save: true, ..
                         }
                     );
-                    let save = self.book.begin_ordinary_save(calculate_before_save)?;
+                    let views=match &request { Request::SaveWithContext{views:Some(v),..}=>Some(std::sync::Arc::new(self.save_window(v)?)),_=>None };
+                    let policy=calc_host::SavePolicy {views,..Default::default()};
+                    let save = self.book.begin_ordinary_save(calculate_before_save,&policy)?;
                     if save.progress() == calc_host::CalculatedSaveProgress::Ready {
                         let name = self.book.save_name();
                         match self.book.finish_ordinary_save(save) {
@@ -909,16 +911,10 @@ impl Server {
         Summary {
             workbook: self.workbook,
             session: self.clipboard_session.clone(),
-            initial_cell: self
-                .book
-                .host()
-                .sheets()
-                .iter()
-                .find(|s| s.visibility() == calc_host::SheetVisibility::Visible)
-                .and_then(|s| {
-                    let (row, col) = self.book.host().sheet_view(s.id())?.active_cell?;
-                    CellKey::new(s.id(), row, col).ok().map(Key::of)
-                }),
+            initial_cell: self.book.host().loaded().active_sheet()
+                .and_then(|id|self.book.host().sheets().iter().find(|s|s.id()==id && s.visibility()==calc_host::SheetVisibility::Visible))
+                .or_else(||self.book.host().sheets().iter().find(|s|s.visibility()==calc_host::SheetVisibility::Visible))
+                .and_then(|s| {let (r,c)=self.book.host().sheet_view(s.id()).and_then(|v|v.active_cell).unwrap_or((1,1));CellKey::new(s.id(),r,c).ok().map(Key::of)}),
             name: self.book.name().to_owned(),
             changed: self.book.changed(),
             undo: self.book.session().history_depth().0,
@@ -1245,6 +1241,7 @@ impl Server {
                 size_bits,
                 hidden,
             }),
+            Intent::SplitPanes {sheet,revision,x,y,row,column} => SkinIntent::Command(calc_host::WorkbookCommand::SplitPanes {sheet:sheet.id(),revision,x,y,row,column}),
             Intent::FreezePanes {
                 sheet,
                 rows,
@@ -1754,6 +1751,7 @@ impl Server {
                     | calc_host::WorkbookCommand::FitContents { .. }
                     | calc_host::WorkbookCommand::AxisFormat { .. }
                     | calc_host::WorkbookCommand::FreezePanes { .. }
+                    | calc_host::WorkbookCommand::SplitPanes { .. }
                     | calc_host::WorkbookCommand::Paste(_)
                     | calc_host::WorkbookCommand::ShiftCells { .. }
             )
@@ -1934,6 +1932,105 @@ impl Server {
         });
     }
 
+    fn save_window(&self, input: &wire::SaveWindow) -> Result<calc_host::SaveViews, String> {
+        let host = self.book.host();
+        if input.revision != host.revision().get() {
+            return Err("The workbook changed before saving its window".into());
+        }
+        let mut sheets = BTreeMap::new();
+        for saved in &input.sheets {
+            if host.model().sheet_by_id(saved.sheet.id()).is_none()
+                || sheets.contains_key(&saved.sheet.id())
+            {
+                return Err("Invalid saved worksheet".into());
+            }
+            let g = self.geometry(saved.sheet);
+            if g != saved.geometry {
+                return Err("The worksheet view is still updating; save again after it settles (dc-971p.16)".into());
+            }
+            let m = dna_calc_model::geometry::sheet_metrics(Some(&g));
+            let mut v = host.sheet_view(saved.sheet.id()).unwrap_or_default();
+            let mask = if let Some((x, y)) = g.split {
+                u8::from(f64::from_bits(x) > 0.) | (u8::from(f64::from_bits(y) > 0.) << 1)
+            } else {
+                u8::from(g.frozen_columns > 0) | (u8::from(g.frozen_rows > 0) << 1)
+            };
+            let first = g.top_left.unwrap_or((1, 1));
+            let bias = (
+                m.col_start(first.1.saturating_add(g.frozen_columns)) - m.col_start(first.1),
+                m.row_start(first.0.saturating_add(g.frozen_rows)) - m.row_start(first.0),
+            );
+            let mut starts = BTreeMap::new();
+            let mut zoom = None;
+            for pane in &saved.panes {
+                if pane.index > 3
+                    || starts.contains_key(&pane.index)
+                    || !pane.x.is_finite()
+                    || !pane.y.is_finite()
+                    || pane.x < 0.
+                    || pane.y < 0.
+                    || !pane.zoom.is_finite()
+                    || !(0.5..=4.).contains(&pane.zoom)
+                {
+                    return Err("Invalid saved pane position or zoom".into());
+                }
+                if pane.index & !mask != 0 {
+                    continue;
+                }
+                let cell = (
+                    m.row_at(pane.y / pane.zoom + bias.1, 1_048_576),
+                    m.col_at(pane.x / pane.zoom + bias.0, 16_384),
+                );
+                starts.insert(pane.index, cell);
+                if pane.index == saved.active_pane || zoom.is_none() {
+                    zoom = Some((pane.zoom * 100.).round() as u16);
+                }
+            }
+            if g.split_window {
+                let a = starts.get(&0).copied().unwrap_or(first);
+                let old = g.pane_top_left.unwrap_or(a);
+                let b = (
+                    starts
+                        .iter()
+                        .find(|(i, _)| **i & 2 != 0)
+                        .map_or(old.0, |(_, c)| c.0),
+                    starts
+                        .iter()
+                        .find(|(i, _)| **i & 1 != 0)
+                        .map_or(old.1, |(_, c)| c.1),
+                );
+                v.top_left = Some(a);
+                v.pane_top_left = Some(b);
+            } else if let Some(&cell) = starts.get(&0) {
+                v.top_left = Some((
+                    if g.frozen_rows > 0 { first.0 } else { cell.0 },
+                    if g.frozen_columns > 0 {
+                        first.1
+                    } else {
+                        cell.1
+                    },
+                ));
+                if mask != 0 {
+                    v.pane_top_left = Some(cell);
+                }
+            }
+            v.zoom = zoom.or(v.zoom);
+            v.active_cell = Some(saved.active);
+            v.active_pane = if g.split_window {
+                saved.active_pane & mask
+            } else {
+                u8::from(g.frozen_columns > 0 && saved.active.1 >= first.1 + g.frozen_columns)
+                    | (u8::from(g.frozen_rows > 0 && saved.active.0 >= first.0 + g.frozen_rows)
+                        << 1)
+            };
+            sheets.insert(saved.sheet.id(), v);
+        }
+        Ok(calc_host::SaveViews {
+            revision: input.revision,
+            active_sheet: Some(input.active_sheet.id()),
+            sheets,
+        })
+    }
     fn geometry(&self, sheet: Sheet) -> wire::Geometry {
         let mut geometry = self
             .book
@@ -1965,6 +2062,7 @@ impl Server {
             geometry.frozen_columns = panes.columns();
         }
         if let Some(view) = self.book.host().sheet_view(sheet.id()) {
+            geometry.zoom = view.zoom;
             geometry.top_left = view.top_left;
             geometry.pane_top_left = view.pane_top_left;
             geometry.active_cell = view.active_cell;
@@ -4123,6 +4221,7 @@ mod async_contract_tests {
                 drain(&mut server);
             }
             let request = server.envelope(Request::SaveWithContext {
+                views:None,
                 calculate_before_save: true,
             });
             let first = server.handle(request.clone(), None);
@@ -4855,5 +4954,156 @@ mod friendly_formula_tests {
             cells::display_input(reopened.book().host().model().cell(at)),
             shown.input
         );
+    }
+}
+
+#[cfg(test)]
+mod window_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn window_save_converts_zoomed_offsets_and_pins_the_ordinary_save_route() {
+        for zoom in [0.5, 1., 1.75, 4.] {
+            let mut server = Server::new();
+            let s = server.book.host().sheets()[0].id();
+            let sheet = Sheet::of(s);
+            let geometry = server.geometry(sheet);
+            let m = dna_calc_model::geometry::sheet_metrics(Some(&geometry));
+            let request = Request::SaveWithContext {
+                calculate_before_save: false,
+                views: Some(wire::SaveWindow {
+                    revision: server.book.host().revision().get(),
+                    active_sheet: sheet,
+                    sheets: vec![wire::SheetWindow {
+                        geometry: geometry.clone(),
+                        sheet,
+                        active: (101, 12),
+                        active_pane: 0,
+                        panes: vec![wire::PaneWindow {
+                            index: 0,
+                            x: m.col_start(10) * zoom,
+                            y: m.row_start(100) * zoom,
+                            zoom,
+                        }],
+                    }],
+                }),
+            };
+            let before = (
+                server.book.host().revision(),
+                server.book.session().history_depth(),
+            );
+            let answer = server.execute_current(request, None);
+            assert!(answer.reply.is_ok(), "{:?}", answer.reply);
+            let bytes = answer
+                .bytes
+                .expect("ordinary save returns the prepared image");
+            assert_eq!(
+                before,
+                (
+                    server.book.host().revision(),
+                    server.book.session().history_depth()
+                )
+            );
+            let mut reopened = Server::new();
+            assert!(
+                reopened
+                    .execute_current(
+                        Request::Open {
+                            name: "view.xlsx".into()
+                        },
+                        Some(bytes)
+                    )
+                    .reply
+                    .is_ok()
+            );
+            let s = reopened.book.host().sheets()[0].id();
+            let view = reopened.book.host().sheet_view(s).unwrap();
+            assert_eq!(view.top_left, Some((100, 10)));
+            assert_eq!(view.active_cell, Some((101, 12)));
+            assert_eq!(view.zoom, Some((zoom * 100.).round() as u16));
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn window_save_refuses_stale_geometry_and_converts_frozen_offsets() {
+        let mut server = Server::new();
+        let s = server.book.host().sheets()[0].id();
+        let sheet = Sheet::of(s);
+        let old = server.geometry(sheet);
+        assert!(
+            server
+                .book
+                .dispatch(SkinIntent::Command(
+                    calc_host::WorkbookCommand::FreezePanes {
+                        sheet: s,
+                        rows: 2,
+                        columns: 1
+                    }
+                ))
+                .accepted()
+        );
+        let input = wire::SaveWindow {
+            revision: server.book.host().revision().get(),
+            active_sheet: sheet,
+            sheets: vec![wire::SheetWindow {
+                geometry: old,
+                sheet,
+                active: (101, 12),
+                active_pane: 0,
+                panes: vec![wire::PaneWindow {
+                    index: 0,
+                    x: 0.,
+                    y: 0.,
+                    zoom: 2.,
+                }],
+            }],
+        };
+        let refused = server.execute_current(
+            Request::SaveWithContext {
+                calculate_before_save: false,
+                views: Some(input.clone()),
+            },
+            None,
+        );
+        assert!(refused.bytes.is_none());
+        assert!(
+            refused
+                .reply
+                .unwrap_err()
+                .contains("view is still updating")
+        );
+        let g = server.geometry(sheet);
+        let m = dna_calc_model::geometry::sheet_metrics(Some(&g));
+        let mut valid = input;
+        valid.sheets[0].geometry = g;
+        valid.sheets[0].panes[0].x = (m.col_start(10) - m.col_start(2)) * 2.;
+        valid.sheets[0].panes[0].y = (m.row_start(100) - m.row_start(3)) * 2.;
+        let answer = server.execute_current(
+            Request::SaveWithContext {
+                calculate_before_save: false,
+                views: Some(valid),
+            },
+            None,
+        );
+        let bytes = answer.bytes.unwrap();
+        let mut reopened = Server::new();
+        reopened
+            .execute_current(
+                Request::Open {
+                    name: "frozen.xlsx".into(),
+                },
+                Some(bytes),
+            )
+            .reply
+            .unwrap();
+        let view = reopened
+            .book
+            .host()
+            .sheet_view(reopened.book.host().sheets()[0].id())
+            .unwrap();
+        assert_eq!(view.top_left, Some((1, 1)));
+        assert_eq!(view.pane_top_left, Some((100, 10)));
+        assert_eq!(view.active_pane, 3);
+        assert_eq!(view.zoom, Some(200));
     }
 }

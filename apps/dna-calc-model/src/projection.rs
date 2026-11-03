@@ -332,6 +332,7 @@ pub enum Intent {
         size_bits: Option<u64>,
         hidden: Option<bool>,
     },
+    SplitPanes { sheet:Sheet, revision:u64, x:u64, y:u64, row:u32, column:u32 },
     FreezePanes {
         sheet: Sheet,
         rows: u32,
@@ -551,6 +552,8 @@ pub enum Request {
     /// Ordinary live save with Excel's CalculateBeforeSave setting.
     SaveWithContext {
         calculate_before_save: bool,
+        #[serde(default)]
+        views: Option<SaveWindow>,
     },
     Intent(Intent),
     /// Registers subscription `id` (the page's number for it); its cells come as events.
@@ -708,6 +711,29 @@ pub struct Outcome {
     pub summary: Summary,
 }
 
+/// Immutable UI viewport positions captured by one save request, in zoom-scaled pixels before browser scroll-surface compression.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SaveWindow {
+    pub revision: u64,
+    pub active_sheet: Sheet,
+    pub sheets: Vec<SheetWindow>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SheetWindow {
+    pub geometry: Geometry,
+    pub sheet: Sheet,
+    pub active: (u32, u32),
+    pub active_pane: u8,
+    pub panes: Vec<PaneWindow>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PaneWindow {
+    pub index: u8,
+    pub x: f64,
+    pub y: f64,
+    pub zoom: f64,
+}
+
 /// A sheet's sizes as the file states them (calc-host's sheet geometry).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
@@ -722,6 +748,8 @@ pub struct Geometry {
     /// The same sheet preflight refusal returned by CanEdit. Commit validation remains separate.
     #[serde(default)]
     pub edit_refusal: Option<String>,
+    #[serde(default)]
+    pub zoom: Option<u16>,
     pub top_left: Option<(u32, u32)>,
     pub pane_top_left: Option<(u32, u32)>,
     pub active_cell: Option<(u32, u32)>,

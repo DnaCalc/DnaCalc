@@ -1521,11 +1521,7 @@ pub fn load(
     let mut definitions = Definitions::new(arrays, names, tables, unloaded)
         .with_styles(Arc::clone(&styles))
         .with_axis_layouts(axis_layouts)
-        .with_panes(
-            sheets
-                .iter()
-                .filter_map(|s| s.view.frozen.map(|p| (s.id, p))),
-        )
+        .with_pane_layouts(sheets.iter().filter_map(|s|s.view.pane_layout().map(|p|(s.id,p))))
         .with_hidden_rows(hidden_rows)
         .with_macro_enabled(macro_enabled)
         .with_iteration(iteration)

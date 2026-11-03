@@ -115,7 +115,7 @@ pub use validation::{ErrorStyle, ValidationFailure, ValidationRule};
 
 pub use calc_doc::{
     CalcMode, CellError, EditError, FormulaSourceBudget, LoadError, MemorySource, OpenError,
-    OpenPolicy, PackageRead, PackageWrite, RegroupedFormulaSources, SaveFormat, SavePolicy,
+    OpenPolicy, PackageRead, PackageWrite, RegroupedFormulaSources, SaveFormat, SavePolicy, SaveViews,
     SaveReceipt, SaveRefusal, VbaModuleKind, VbaModuleSource, VbaProjectSource, VbaReadError,
     VbaReadPolicy, WriteError,
 };
@@ -128,7 +128,7 @@ pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
     AxisFormat, AxisFormatEdit, AxisLayouts, BlockId, BlockKind, CachedValue, CellInput, CellText,
-    DefinedName, Definitions, FileCached, FiniteNumber, FormulaForm, FormulaText, FrozenPanes,
+    DefinedName, Definitions, FileCached, FiniteNumber, FormulaForm, FormulaText, FrozenPanes, PaneLayout, SplitPanes,
     IterationSettings, ModelRoot, NameScope, PlacementId, RowHidden, SheetEdit, SheetEntry,
     SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, Spot, StyleColor, StyleTable,
     ViewKind,

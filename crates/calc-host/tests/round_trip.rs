@@ -11628,3 +11628,190 @@ fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomic
     assert!(!result.accepted(),"{result:?}");assert!(result.error.unwrap().to_string().contains("AutoFilter ranges"));assert_eq!(book.host().revision(),before);
     assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_16__split_layout_history_replay_and_xlsx_round_trip() {
+    use calc_host::{PaneLayout, WorkbookCommand as C};
+    let bytes = calc_host::blank_package();
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let split = calc_host::SplitPanes::new(2400., 1800., 20, 8).unwrap();
+    let r = book.dispatch(SkinIntent::Command(C::SplitPanes {
+        sheet,
+        revision: book.host().revision().get(),
+        x: 2400f64.to_bits(),
+        y: 1800f64.to_bits(),
+        row: 20,
+        column: 8,
+    }));
+    assert!(r.accepted(), "{:?}", r.error);
+    assert_eq!(
+        book.host().model().definitions().pane_layout(sheet),
+        Some(PaneLayout::Split(split))
+    );
+    assert!(
+        book.dispatch(SkinIntent::Command(C::FreezePanes {
+            sheet,
+            rows: 2,
+            columns: 1
+        }))
+        .accepted()
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        book.host().model().definitions().pane_layout(sheet),
+        Some(PaneLayout::Split(split))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(book.host().sheet_view(sheet).unwrap().frozen.is_some());
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let held = (book.host().revision(), book.history_depth());
+    let bad = book.dispatch(SkinIntent::Command(C::SplitPanes {
+        sheet,
+        revision: 0,
+        x: f64::NAN.to_bits(),
+        y: 0f64.to_bits(),
+        row: 1,
+        column: 1,
+    }));
+    assert!(!bad.accepted());
+    assert_eq!(held, (book.host().revision(), book.history_depth()));
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let s = reopened.sheets()[0].id();
+    assert_eq!(
+        reopened.model().definitions().pane_layout(s),
+        Some(PaneLayout::Split(split))
+    );
+    assert_eq!(
+        reopened.sheet_view(s).unwrap().split,
+        Some(split.positions())
+    );
+    let mut twin = session(&bytes);
+    let receipts = replay(book.intent_log(), &mut twin);
+    assert!(receipts.mismatches.is_empty());
+    assert_eq!(
+        twin.host().model().definitions().pane_layout(sheet),
+        book.host().model().definitions().pane_layout(sheet)
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_16__save_window_is_pinned_without_an_undo_entry_and_preserves_other_views() {
+    use calc_host::{SaveViews, WorkbookCommand as C};
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |s| {
+        s.replace("<sheetData",r#"<sheetViews><sheetView workbookViewId="0" tabSelected="1" zoomScale="100" showGridLines="0" xmlns:v="urn:view" v:flag="keep"><selection activeCell="A1" sqref="A1:B2"/><v:extra keep="yes"/></sheetView><sheetView workbookViewId="1" zoomScale="75"><selection activeCell="Z99" sqref="Z99"/></sheetView></sheetViews><sheetData"#)
+    });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Sheet {
+            sheet: None,
+            change: calc_host::SheetChange::Add {
+                name: "Second".into()
+            }
+        }))
+        .accepted()
+    );
+    let second = book.host().sheets()[1].id();
+    let mut v = book.host().sheet_view(sheet).unwrap();
+    v.top_left = Some((44, 7));
+    v.active_cell = Some((45, 8));
+    v.zoom = Some(175);
+    let mut v2 = book.host().sheet_view(second).unwrap();
+    v2.top_left = Some((70, 9));
+    v2.active_cell = Some((72, 11));
+    v2.zoom = Some(125);
+    let policy = SavePolicy {
+        views: Some(std::sync::Arc::new(SaveViews {
+            revision: book.host().revision().get(),
+            active_sheet: Some(second),
+            sheets: [(sheet, v), (second, v2)].into(),
+        })),
+        ..Default::default()
+    };
+    let held = (book.host().revision(), book.history_depth());
+    let prepared = book.prepare_save(&policy).unwrap();
+    assert_eq!(held, (book.host().revision(), book.history_depth()));
+    assert!(enter(&mut book, at(sheet, "A1"), "99").accepted());
+    let mut saved = Vec::new();
+    prepared.write(&mut saved).unwrap();
+    let reopened = open(&saved);
+    let a = reopened.sheets()[0].id();
+    let b = reopened.sheets()[1].id();
+    assert_eq!(reopened.sheet_view(a).unwrap(), v);
+    assert_eq!(reopened.sheet_view(b).unwrap(), v2);
+    assert_eq!(reopened.loaded().active_sheet(), Some(b));
+    let archive = existing_wire_support::parse_zip(&saved);
+    let entry = archive
+        .entries
+        .iter()
+        .find(|e| e.name == "xl/worksheets/sheet1.xml")
+        .unwrap();
+    let payload = entry.payload(&saved);
+    let data = if entry.method == 0 {
+        payload.to_vec()
+    } else {
+        miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+    };
+    let xml = String::from_utf8(data).unwrap();
+    for kept in [
+        "showGridLines=\"0\"",
+        "v:flag=\"keep\"",
+        "<v:extra keep=\"yes\"/>",
+        "workbookViewId=\"1\" zoomScale=\"75\"",
+        "activeCell=\"Z99\"",
+    ] {
+        assert!(xml.contains(kept), "missing {kept}: {xml}");
+    }
+    assert!(
+        book.prepare_save(&policy).is_err(),
+        "a stale view snapshot must be refused"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_16__empty_view_elements_and_frozen_split_state_survive_window_save() {
+    for view in [
+        "<sheetViews/>",
+        "<sheetViews><sheetView workbookViewId=\"0\"/></sheetViews>",
+        "<sheetViews><sheetView workbookViewId=\"0\"><pane state=\"frozenSplit\" xSplit=\"1\" ySplit=\"2\" topLeftCell=\"B3\" activePane=\"bottomRight\"/><selection pane=\"bottomRight\" activeCell=\"D9\" sqref=\"D9\"/></sheetView></sheetViews>",
+    ] {
+        let bytes = package_with_part("xl/worksheets/sheet1.xml", |s| {
+            s.replace("<sheetData", &format!("{view}<sheetData"))
+        });
+        let book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let mut state = book.host().sheet_view(sheet).unwrap();
+        state.zoom = Some(150);
+        state.active_cell = Some((9, 4));
+        state.top_left = Some((1, 1));
+        let policy = SavePolicy {
+            views: Some(std::sync::Arc::new(calc_host::SaveViews {
+                revision: book.host().revision().get(),
+                active_sheet: Some(sheet),
+                sheets: [(sheet, state)].into(),
+            })),
+            ..Default::default()
+        };
+        let mut bytes = Vec::new();
+        book.prepare_save(&policy)
+            .unwrap()
+            .write(&mut bytes)
+            .unwrap();
+        let reopened = open(&bytes);
+        let actual = reopened.sheet_view(reopened.sheets()[0].id()).unwrap();
+        assert_eq!(actual.zoom, Some(150));
+        assert_eq!(actual.active_cell, Some((9, 4)));
+        if view.contains("frozenSplit") {
+            assert!(
+                part_text(&bytes, "xl/worksheets/sheet1.xml").contains("state=\"frozenSplit\"")
+            );
+            assert_eq!(actual.frozen, state.frozen);
+        }
+    }
+}

@@ -2911,8 +2911,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 144,
-            "the two applications have 144 core cases including Paste Special, name changes, numeric sorting, shrink-to-fit AutoFilter and general sorting"
+            total, 149,
+            "the two applications have 149 core cases including Paste Special, name changes, numeric sorting, shrink-to-fit AutoFilter, general sorting and saved session views"
         );
     }
 

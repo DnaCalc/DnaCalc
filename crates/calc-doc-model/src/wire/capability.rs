@@ -578,7 +578,7 @@ impl WireOp {
             WorkbookOp::SetConditionalRules { .. } => {
                 unreachable!("conditional rules are refused before the wire codec")
             }
-            WorkbookOp::SetFrozenPanes { .. } => {
+            WorkbookOp::SetFrozenPanes { .. } | WorkbookOp::SetPaneLayout { .. } => {
                 unreachable!("encode_batch refuses frozen panes before it reaches here")
             }
         })
