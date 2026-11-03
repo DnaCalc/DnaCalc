@@ -7531,6 +7531,53 @@ pub(crate) const CALC_CASES: &[Case] = &[
         actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("axis-tools"),Action::Choose("outline-axis","columns"),Action::Wait(Check::Attr("outline-toggle","aria-expanded","false")),Action::Click("outline-toggle"),Action::Wait(Check::Text(cell!("G1"),"column detail")),Action::Into("name-box","G1:I1\u{E007}"),Action::Click("outline-ungroup"),Action::Wait(Check::Count("outline-toggle",0)),Action::Click("undo"),Action::Wait(Check::Count("outline-toggle",1)),Action::Window(390,844),Action::Keys("outline-axis","\u{E004}\u{E004}\u{E004}\u{E004}\u{E004}")],
         checks:&[Check::Text(cell!("G1"),"column detail"),Check::Fits,Check::Narrow(390),Check::Reachable("outline-axis"),Check::Reachable("outline-group"),Check::Focused("outline-summary-after"),Check::Reachable("outline-summary-after")],
     },
+    Case {
+        name:"date and top filters: top two uses numeric values and includes ties",
+        actions:&[Action::ExternalClipboard("Date\tAmount\n=DATE(2026,11,1)\t10\n=DATE(2026,11,3)+TIME(14,30,0)\t50\n=DATE(2025,11,3)\t50\n=DATE(2026,12,1)\t20\ntext\t99\n\t30",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("B7","text","30")),Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=SUBTOTAL(109,B2:B7)\u{E007}"),Action::Into("name-box","A1:B7\u{E007}"),Action::OpenDetails("filter-tools"),Action::Click("filter-enable"),Action::Wait(Check::TextContains("filter-summary","A1:B7")),Action::Into("filter-column","2"),Action::OpenDetails("filter-top-tools"),Action::Into("filter-top-count","2"),Action::Click("filter-top-apply")],
+        checks:&[Check::PlanCell("D1","text","199"),Check::PlanCell("D1","provenance","calculated"),Check::PlanAbsent("A2"),Check::PlanCell("B3","text","50"),Check::PlanCell("B4","text","50"),Check::PlanCell("B6","text","99"),Check::TextContains("filter-summary","3 rows filtered out")],
+    },
+    Case {
+        name:"date and top filters: Undo Redo restores the entire cutoff application",
+        actions:&[Action::Click("undo"),Action::Wait(Check::PlanCell("D1","text","259")),Action::Click("redo")],
+        checks:&[Check::PlanCell("D1","text","199"),Check::PlanAbsent("A2"),Check::TextContains("filter-summary","3 rows filtered out")],
+    },
+    Case {
+        name:"date and top filters: month groups combine with a cutoff over the whole numeric column",
+        actions:&[Action::Into("filter-column","1"),Action::OpenDetails("filter-date-tools"),Action::Into("filter-dates","2026-11"),Action::Click("filter-date-apply")],
+        checks:&[Check::PlanCell("D1","text","50"),Check::PlanCell("B3","text","50"),Check::PlanAbsent("A2"),Check::PlanAbsent("A4"),Check::TextContains("filter-summary","5 rows filtered out")],
+    },
+    Case {
+        name:"date and top filters: both criteria and their hidden rows survive real XLSX reopening",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("filter-tools"),Action::Click("filter-reapply")],
+        checks:&[Check::PlanCell("D1","text","50"),Check::PlanCell("D1","provenance","calculated"),Check::PlanAbsent("A2"),Check::TextContains("filter-summary","5 rows filtered out")],
+    },
+    Case {
+        name:"date and top filters: date-time precision and a percentage use the same authored commands",
+        actions:&[Action::Click("filter-clear"),Action::Into("filter-column","1"),Action::OpenDetails("filter-date-tools"),Action::Into("filter-dates","2026-11-03T14:30"),Action::Click("filter-date-apply"),Action::Wait(Check::PlanCell("D1","text","50")),Action::Click("filter-clear"),Action::Into("filter-column","2"),Action::OpenDetails("filter-top-tools"),Action::Choose("filter-top-direction","top"),Action::Choose("filter-top-unit","percent"),Action::Into("filter-top-count","50"),Action::Click("filter-top-apply")],
+        checks:&[Check::PlanCell("D1","text","199"),Check::TextContains("filter-summary","3 rows filtered out")],
+    },
+    Case {
+        name:"date and top filters: bottom items reject invalid requests without changing calculated visibility",
+        actions:&[Action::Choose("filter-top-direction","bottom"),Action::Choose("filter-top-unit","items"),Action::Into("filter-top-count","1"),Action::Click("filter-top-apply"),Action::Wait(Check::PlanCell("D1","text","10")),Action::Into("filter-top-count","0"),Action::Click("filter-top-apply"),Action::Window(390,844)],
+        checks:&[Check::PlanCell("D1","text","10"),Check::TextContains("status","criteria exceed supported limits"),Check::Fits,Check::Narrow(390),Check::TextContains("filter-summary","5 rows filtered out")],
+    },
+
+    Case {
+        name:"colour filters: solid fill criteria use authored styles and include every matching row",
+        actions:&[Action::Window(1440,1000),Action::Click("filter-clear"),Action::Click("[data-dnacalc=filter-tools] > summary"),Action::Into("name-box","B3\u{E007}"),Action::Click("format-cells"),Action::Click("format-tab-fill"),Action::Into("format-fill","#ff0000"),Action::Click("format-apply"),Action::Into("name-box","B6\u{E007}"),Action::Click("format-cells"),Action::Click("format-tab-fill"),Action::Into("format-fill","#ff0000"),Action::Click("format-apply"),Action::Into("name-box","B4\u{E007}"),Action::Click("format-cells"),Action::Click("format-tab-font"),Action::Into("format-font-color","#ff0000"),Action::Click("format-apply"),Action::OpenDetails("filter-tools"),Action::Into("filter-column","2"),Action::OpenDetails("filter-color-tools"),Action::Choose("filter-color-kind","fill"),Action::Into("filter-color","#ff0000"),Action::Click("filter-color-apply")],
+        checks:&[Check::PlanCell("D1","text","149"),Check::PlanCell("D1","provenance","calculated"),Check::PlanCell("B3","style.fill","#ff0000"),Check::PlanCell("B6","text","99"),Check::PlanAbsent("B4"),Check::TextContains("filter-summary","4 rows filtered out")],
+    },
+    Case {
+        name:"colour filters: one history step and actual XLSX reopen retain the differential colour reference",
+        actions:&[Action::Click("undo"),Action::Wait(Check::PlanCell("D1","text","259")),Action::Click("redo"),Action::Wait(Check::PlanCell("D1","text","149")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("filter-tools"),Action::Click("filter-reapply")],
+        checks:&[Check::PlanCell("D1","text","149"),Check::PlanCell("D1","provenance","calculated"),Check::PlanAbsent("B4"),Check::TextContains("filter-summary","4 rows filtered out")],
+    },
+    Case {
+        name:"colour filters: font colour and no fill use the same command on a phone",
+        actions:&[Action::Into("filter-column","2"),Action::OpenDetails("filter-color-tools"),Action::Choose("filter-color-kind","font"),Action::Into("filter-color","#ff0000"),Action::Click("filter-color-apply"),Action::Wait(Check::PlanCell("D1","text","50")),Action::Choose("filter-color-kind","fill"),Action::Into("filter-color",""),Action::Click("filter-color-apply"),Action::Window(390,844)],
+        checks:&[Check::PlanCell("D1","text","110"),Check::PlanCell("B4","style.font_color","#ff0000"),Check::PlanAbsent("B3"),Check::PlanAbsent("B6"),Check::TextContains("filter-summary","2 rows filtered out"),Check::Fits,Check::Narrow(390)],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8279,4 +8326,5 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"general-sort",start:549,end:555,core:6,setup:&[]},
     CaseGroup {name:"session-view",start:555,end:560,core:5,setup:&[]},
     CaseGroup {name:"axis-outline",start:560,end:566,core:6,setup:&[]},
+    CaseGroup {name:"date-top-filters",start:566,end:575,core:9,setup:&[]},
 ];

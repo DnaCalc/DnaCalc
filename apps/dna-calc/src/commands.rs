@@ -492,6 +492,13 @@ pub fn filter_controls(controller:Controller)->AnyView {
     let loaded=controller.tool_field(|s|&s.filter.loaded,|s|&mut s.filter.loaded);
     let message=controller.tool_field(|s|&s.filter.message,|s|&mut s.filter.message);
     let open=controller.tool_field(|s|&s.filter.open,|s|&mut s.filter.open);
+    let filter_color=RwSignal::new(String::new());
+    let filter_fill=RwSignal::new(true);
+    let date_groups=RwSignal::new(String::new());
+    let date_blank=RwSignal::new(false);
+    let top_direction=RwSignal::new(true);
+    let top_percent=RwSignal::new(false);
+    let top_count=RwSignal::new("10".to_owned());
     let current=move ||controller.filter_view();
     let options=||view!{<option value="equal">"Equals"</option><option value="notEqual">"Does not equal"</option><option value="greaterThan">"Greater than"</option><option value="greaterThanOrEqual">"Greater than or equal"</option><option value="lessThan">"Less than"</option><option value="lessThanOrEqual">"Less than or equal"</option>};
     view!{
@@ -526,6 +533,32 @@ pub fn filter_controls(controller:Controller)->AnyView {
                     </div>
                     <button data-dnacalc="filter-apply" on:click=move |_|controller.apply_filter(false)>"Apply selected values"</button>
                 </Show>
+                <details data-dnacalc="filter-color-tools">
+                    <summary>"Colour"</summary>
+                    <div class="dc-command-row">
+                        <label>"Match "<select data-dnacalc="filter-color-kind" on:change=move |ev|filter_fill.set(event_target_value(&ev)=="fill")><option value="fill">"Fill colour"</option><option value="font">"Font colour"</option></select></label>
+                        <label>"Colour (#rrggbb) "<input data-dnacalc="filter-color" placeholder="Empty: no fill or automatic font" prop:value=move ||filter_color.get() on:input=move |ev|filter_color.set(event_target_value(&ev))/></label>
+                        <button data-dnacalc="filter-color-apply" on:click=move |_|controller.color_filter(filter_fill.get_untracked(),filter_color.get_untracked())>"Apply colour"</button>
+                    </div>
+                </details>
+                <details data-dnacalc="filter-date-tools">
+                    <summary>"Date groups"</summary>
+                    <div class="dc-command-row">
+                        <label class="dc-filter-date-input">"One year, month, day or date/time per line"<textarea data-dnacalc="filter-dates" rows="3" placeholder="2026-11\n2026-12-25T14:30" prop:value=move ||date_groups.get() on:input=move |ev|date_groups.set(event_target_value(&ev))/></label>
+                        <label><input type="checkbox" data-dnacalc="filter-date-blank" prop:checked=move ||date_blank.get() on:change=move |ev|date_blank.set(event_target_checked(&ev))/>"Include blanks"</label>
+                        <button data-dnacalc="filter-date-apply" on:click=move |_|controller.special_filter(Some(date_groups.get_untracked()),true,false,String::new(),date_blank.get_untracked())>"Apply date groups"</button>
+                    </div>
+                </details>
+                <details data-dnacalc="filter-top-tools">
+                    <summary>"Top or bottom numbers"</summary>
+                    <div class="dc-command-row">
+                        <label>"Show "<select data-dnacalc="filter-top-direction" on:change=move |ev|top_direction.set(event_target_value(&ev)=="top")><option value="top">"Top"</option><option value="bottom">"Bottom"</option></select></label>
+                        <label>"Amount "<input type="number" min=move ||if top_percent.get(){"0"}else{"1"} max=move ||if top_percent.get(){"100"}else{"255"} step=move ||if top_percent.get(){"any"}else{"1"} data-dnacalc="filter-top-count" prop:value=move ||top_count.get() on:input=move |ev|top_count.set(event_target_value(&ev))/></label>
+                        <label>"Of "<select data-dnacalc="filter-top-unit" on:change=move |ev|top_percent.set(event_target_value(&ev)=="percent")><option value="items">"Items"</option><option value="percent">"Percent"</option></select></label>
+                        <button data-dnacalc="filter-top-apply" on:click=move |_|controller.special_filter(None,top_direction.get_untracked(),top_percent.get_untracked(),top_count.get_untracked(),false)>"Apply top or bottom"</button>
+                    </div>
+                    <p class="dc-muted">"Uses numeric values in this filter range; ties at the cutoff are included. Choose 1–255 whole items or a percentage greater than 0 and up to 100."</p>
+                </details>
                 <details data-dnacalc="filter-custom-tools">
                     <summary>"Custom number or text filter"</summary>
                     <p class="dc-muted">"Text accepts * and ? wildcards; ~ escapes them. Dates use their stored serial number. Both conditions apply to this column."</p>

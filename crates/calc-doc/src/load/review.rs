@@ -10,6 +10,8 @@ use calc_doc_model::value::{CellKey, GridArea, SheetId};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SheetReview {
+    /// Source conditional extensions need their own interpretation before colour filtering.
+    pub conditional_extensions: bool,
     pub notes: Vec<ReviewNote>,
     pub links: Vec<ReviewLink>,
     pub unsupported: Vec<String>,

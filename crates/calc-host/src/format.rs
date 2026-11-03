@@ -37,7 +37,7 @@ pub struct BorderPatch {
     pub color: String,
 }
 
-fn color(value: &str) -> Result<Option<StyleColor>, String> {
+pub(crate) fn color(value: &str) -> Result<Option<StyleColor>, String> {
     if value.is_empty() {
         return Ok(None);
     }

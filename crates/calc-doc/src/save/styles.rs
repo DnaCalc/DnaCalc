@@ -483,6 +483,63 @@ pub(super) fn rewrite(
         border,
     )
     .map_err(error)?;
+    // Colour filters append differential fonts/fills. Imported records, including their
+    // unread fields, remain the source prefix just as they do for ordinary cell styles.
+    for dxf in after
+        .differential_formats
+        .get(before.differential_formats.len()..)
+        .unwrap_or(&[])
+    {
+        if dxf.number_format.is_some()
+            || dxf.border.is_some()
+            || dxf.alignment.is_some()
+            || dxf.protection.is_some()
+            || dxf
+                .font
+                .as_ref()
+                .is_some_and(|f| !f.other_children.is_empty())
+            || dxf
+                .fill
+                .as_ref()
+                .is_some_and(|f| f.gradient.is_some() || !f.other_children.is_empty())
+        {
+            return Err(error(
+                "Authoring this differential format is not modelled (dc-971p.37)".into(),
+            ));
+        }
+    }
+    append(
+        &mut root,
+        "dxfs",
+        "dxf",
+        &before.differential_formats,
+        &after.differential_formats,
+        &empty,
+        |mut node, before, after| {
+            if let Some(f) = &after.font {
+                node.set_child(
+                    "font",
+                    Some(font(
+                        Node::new(&node.prefix(), "font"),
+                        &before.font.clone().unwrap_or_default(),
+                        f,
+                    )),
+                );
+            }
+            if let Some(f) = &after.fill {
+                node.set_child(
+                    "fill",
+                    Some(fill(
+                        Node::new(&node.prefix(), "fill"),
+                        &before.fill.clone().unwrap_or_default(),
+                        f,
+                    )),
+                );
+            }
+            node
+        },
+    )
+    .map_err(error)?;
     append(
         &mut root,
         "cellStyleXfs",
