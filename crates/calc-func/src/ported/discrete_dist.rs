@@ -279,17 +279,23 @@ pub fn binom_inv_kernel(trials: f64, p: f64, alpha: f64) -> R {
 
 /// `POISSON.DIST(x, mean, cumulative)`.
 pub fn poisson_dist_kernel(x: f64, mean: f64, cumulative: bool) -> R {
-    let x = x.trunc();
-    if x < 0.0 || mean < 0.0 {
+    // Recorded W111 count-domain controls reject a negative fractional count
+    // before truncation, but let a nonnegative count below one reach EXP even
+    // with a negative mean. The zero-count branch precedes mean validation.
+    if x < 0.0 {
         return Err(NUM);
     }
-    if mean == 0.0 {
-        return Ok(if cumulative || x == 0.0 { 1.0 } else { 0.0 });
-    }
+    let x = x.trunc();
     // P(X=0) = P(X<=0) = exp(-mean). The recorded zero-count branch retains
     // its subnormal exponential, while the nonzero-count branches flush below normal.
     if x == 0.0 {
         return Ok(excel_exp(-mean));
+    }
+    if mean < 0.0 {
+        return Err(NUM);
+    }
+    if mean == 0.0 {
+        return Ok(if cumulative { 1.0 } else { 0.0 });
     }
     if !cumulative {
         return finite(poisson_mass(x, mean));
@@ -318,8 +324,13 @@ fn hypergeom_mass(s: f64, n: f64, k: f64, big_n: f64) -> f64 {
 
 /// `HYPGEOM.DIST(sample_s, number_sample, population_s, number_pop, cumulative)`.
 pub fn hypergeom_dist_kernel(sample_s: f64, number_sample: f64, population_s: f64, number_pop: f64, cumulative: bool) -> R {
+    // W111 fractional-support controls validate the original signs. Truncating
+    // first would turn a negative count between -1 and 0 into a valid zero.
+    if sample_s < 0.0 || number_sample < 0.0 || population_s < 0.0 || number_pop < 0.0 {
+        return Err(NUM);
+    }
     let (s, n, k, big_n) = (sample_s.trunc(), number_sample.trunc(), population_s.trunc(), number_pop.trunc());
-    if s < 0.0 || n < 0.0 || k < 0.0 || big_n <= 0.0 || n > big_n || k > big_n {
+    if n > big_n || k > big_n {
         return Err(NUM);
     }
     if !cumulative {

@@ -56,6 +56,53 @@ fn caller_comes_from_the_formula_instance() {
     }
 }
 
+/// Recorded POISSON branch/control answers from OxFunc-Evidence's
+/// poisson.dist-branch-00128..00129, 00084..00085 and 00224..00225.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn poisson_validates_raw_counts_before_the_zero_count_exponential() {
+    let mut session = Session::new("Inputs").unwrap();
+    for function in ["POISSON.DIST", "POISSON"] {
+        for flag in ["FALSE", "TRUE"] {
+            for (count, mean, expected) in [
+                ("0", "-1", CalcValue::number(f64::from_bits(0x4005_bf0a_8b14_5769))),
+                ("-0.5", "0", CalcValue::error(WorksheetErrorCode::Num)),
+                ("1", "-1", CalcValue::error(WorksheetErrorCode::Num)),
+            ] {
+                let formula = format!("={function}({count},{mean},{flag})");
+                session.set_formula(&formula);
+                let calculated = session.calculate();
+                assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+                assert!(calculated.diagnostics.is_empty());
+            }
+        }
+    }
+}
+
+/// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
+/// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn hypergeometric_validates_raw_counts_and_admits_an_empty_population() {
+    let mut session = Session::new("Inputs").unwrap();
+    for function in ["HYPGEOM.DIST", "HYPGEOMDIST"] {
+        for (arguments, expected) in [
+            ("0,0,-0.1,8", CalcValue::error(WorksheetErrorCode::Num)),
+            ("0,0,0,0", CalcValue::number(1.0)),
+            ("1,0,0,0", CalcValue::number(0.0)),
+        ] {
+            let tail = if function == "HYPGEOM.DIST" { ",FALSE" } else { "" };
+            let formula = format!("={function}({arguments}{tail})");
+            session.set_formula(&formula);
+            let calculated = session.calculate();
+            assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+            assert!(calculated.diagnostics.is_empty());
+        }
+    }
+    session.set_formula("=HYPGEOM.DIST(1,0,0,0,TRUE)");
+    assert_eq!(session.calculate().result, Some(CalcValue::number(1.0)));
+}
+
 /// The recorded Formula2 TEXTSPLIT case w111typed-00286-textsplit-arg1-row-array,
 /// OxFunc-Evidence / w111-broad-typed-20260929-002, through the application controller.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
