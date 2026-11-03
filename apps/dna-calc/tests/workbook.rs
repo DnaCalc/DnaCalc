@@ -1964,7 +1964,7 @@ mod rule_review {
         let at = |r, c| CellKey::new(sheet, r, c).unwrap();
         let review = details(&mut server, at(1, 1));
         assert_eq!(review.notes.len(), 1);
-        assert_eq!(review.notes[0].1, "a comment");
+        assert_eq!(review.notes[0].text, "a comment");
         let link = details(&mut server, at(1, 11)).links.remove(0);
         assert_eq!(link.tooltip, "a tip");
         assert!(link.target.as_deref().unwrap().starts_with("https://"));
@@ -1982,7 +1982,7 @@ mod rule_review {
             .accepted
         );
         assert!(details(&mut server, at(1, 1)).notes.is_empty());
-        assert_eq!(details(&mut server, at(2, 1)).notes[0].1, "a comment");
+        assert_eq!(details(&mut server, at(2, 1)).notes[0].text, "a comment");
         assert_eq!(details(&mut server, at(2, 11)).links.len(), 1);
         let (bytes, _) = server.book_mut().save().unwrap();
         let reopened = Workbook::open("review.xlsx", bytes).unwrap();

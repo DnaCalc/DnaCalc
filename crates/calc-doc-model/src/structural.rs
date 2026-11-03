@@ -393,6 +393,17 @@ impl ModelRoot {
             let edits:Vec<_>=next.axis_layouts().bands(edit.sheet(),Axis::Rows).map(|(i,f)|crate::AxisFormatEdit::new(edit.sheet(),Axis::Rows,i,f).unwrap()).collect();
             next=next.with_axis_formats(edits);
         }
+        for (sheet, notes) in definitions.all_review_notes() {
+            let notes = notes
+                .iter()
+                .filter_map(|n| {
+                    let mut n = n.clone();
+                    n.at = moved_cell(edit, n.at)?;
+                    Some(n)
+                })
+                .collect();
+            next = next.with_review_notes(sheet, notes);
+        }
         for (sheet, rules) in definitions.all_conditional_rules() {
             let rules = rules
                 .iter()

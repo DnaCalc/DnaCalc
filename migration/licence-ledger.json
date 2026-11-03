@@ -4601,6 +4601,12 @@
    "surveyed_bytes": 19020
   },
   {
+   "path": "crates/calc-value/src/combining_marks.rs",
+   "class": "permissive-third-party",
+   "reason": "Unicode 15.0 Mn/Mc property ranges moved unchanged from calc-fml/src/syntax/combining_marks.rs; one shared table for the lexer and text casing. Unicode notice: deploy/notices/ported.txt.",
+   "parts": [{"class": "permissive-third-party", "source": "unicode", "what": "Unicode combining-mark ranges generated from Unicode 15.0 data", "shipped": "yes"}]
+  },
+  {
    "path": "crates/calc-value/src/grid.rs",
    "class": "own-work",
    "reason": "ported from this project's legacy repositories or written here",

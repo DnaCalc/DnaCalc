@@ -115,7 +115,8 @@ pub use session::{
     UNDO_LIMIT, replay,
 };
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
-pub use validation::{ErrorStyle, ValidationFailure, ValidationRule};
+pub use validation::{ErrorStyle, ValidationFailure, ValidationRule, ValidationScan, ValidationStatus,
+};
 
 pub use calc_doc::{
     CalcMode, CellError, EditError, FormulaSourceBudget, LoadError, MemorySource, OpenError,
@@ -133,7 +134,7 @@ pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
     AxisFormat, AxisFormatEdit, AxisLayouts, BlockId, BlockKind, CachedValue, CellInput, CellText,
     DefinedName, Definitions, FileCached, FiniteNumber, FormulaForm, FormulaText, FrozenPanes, PaneLayout, SplitPanes,
-    IterationSettings, ModelRoot, NameScope, PlacementId, RowHidden, SheetEdit, SheetEntry,
+    IterationSettings, ModelRoot, NameScope, PlacementId, ReviewNote, ReviewSource, RowHidden, SheetEdit, SheetEntry,
     SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, Spot, StyleColor, StyleTable,
     ViewKind,
 };

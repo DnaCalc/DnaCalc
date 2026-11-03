@@ -38,10 +38,9 @@
 //! Hangul conjoining jamo (which Windows composes with each other), U+30A0 (which
 //! `CompareStringEx` orders otherwise than its key), an isolated or medial form of Arabic marks
 //! (U+FC5E to U+FC63, U+FE71 and the like, into which the walk's runs are not modelled), or an
-//! iteration mark after a Han character (whose repeat Windows' key writes otherwise) or after a
-//! special: `CompareStringEx` departs from the key there, in ways not yet measured.
-//! For an unmodelled iteration context, [`leading_order`] can still use an earlier strict
-//! primary difference or a completed prefix. It never assigns the iteration mark a primary.
+//! iteration mark after a special: its comparison is not yet measured sufficiently.
+//! After Han, the measured REPEAT primary is used instead of the character's own primary;
+//! fn1 confirms this rule with 時, 人 and 漢, their suffixes and lookup/sort controls.
 //!
 //! `cargo xtask collation verify` compares the order these weights give with `CompareStringEx`
 //! over random texts of many scripts.
@@ -545,9 +544,8 @@ pub(super) struct Parts {
     starts: Vec<u32>,
 }
 
-/// Primary weights before an unmodelled unit. After a Han character an iteration mark still
-/// contributes a primary, although its value is unknown. Earlier primary differences and a
-/// completed primary prefix can therefore decide an order without assigning that mark a weight.
+/// Primary weights before an unmodelled unit. A guaranteed further primary permits an earlier
+/// primary difference or completed prefix to decide an order without assigning an unknown weight.
 pub(super) struct Unfinished {
     primary: Vec<u8>,
     continues: bool,
@@ -663,13 +661,10 @@ impl Gathered {
                                 .filter(|&(_, end, _)| unit <= end)
                                 .map(|(_, _, slot)| slot)
                         };
-                        // After a unit whose repeated primary Windows' key writes otherwise than the
-                        // unit's own (the Han characters' four-byte primaries), CompareStringEx
-                        // departs from the key: not modelled.
-                        if vowel.is_none() && repeat().is_some() {
-                            return None;
-                        }
-                        (vowel.copied().unwrap_or(own), kana)
+                        // A Han character's four-byte primary repeats as the separately measured
+                        // REPEAT slot, not as its own primary. Fn1's three Han bases and their
+                        // lookup/sort controls confirm this existing measurement.
+                        (vowel.copied().or_else(repeat).unwrap_or(own), kana)
                     }
                 };
                 self.primary.extend_from_slice(&bytes);
@@ -750,8 +745,8 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
             gathered.primary.truncate(primaries);
             return Err(Unfinished {
                 primary: gathered.primary,
-                // Failure after One is the repeated-Han context. After a special even a
-                // nonempty primary contribution has not been measured; leave it undecided.
+                // An iteration failure after One would still add a primary. After a special
+                // even a nonempty contribution has not been measured; leave it undecided.
                 continues: matches!(table.weights[usize::from(code)], Weight::Iteration(_))
                     && matches!(before, Before::One(..)),
             });
@@ -1010,10 +1005,8 @@ mod tests {
             "conjoining jamo"
         );
         assert!(parts(&units("\u{30a0}")).is_err(), "the double hyphen");
-        assert!(
-            parts(&units("\u{6642}\u{3005}")).is_err(),
-            "an iteration mark after a Han character"
-        );
+        // Excel fn1 D2, unlike a repetition of the Han character's own primary.
+        assert_eq!(order("時々", "時時"), Some(Ordering::Less));
         assert!(
             parts(&units("\u{fc5e}")).is_err(),
             "an isolated form of marks"

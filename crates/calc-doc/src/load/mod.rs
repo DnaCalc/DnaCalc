@@ -31,7 +31,7 @@ pub(crate) mod conditional;
 mod error;
 mod external;
 pub(crate) mod filter;
-mod review;
+pub(crate) mod review;
 pub use review::{ReviewLink, ReviewNote, SheetReview};
 pub(crate) mod geometry;
 pub(crate) mod outline;
@@ -1535,6 +1535,9 @@ pub fn load(
     for (sheet,filter,_) in auto_filters { definitions=definitions.with_auto_filter(sheet,Some(filter)); }
     let outline_edits:Vec<_>=sheets.iter().flat_map(|sheet|definitions.axis_layouts().bands(sheet.id,calc_doc_model::Axis::Rows).map(move |(i,f)|calc_doc_model::AxisFormatEdit::new(sheet.id,calc_doc_model::Axis::Rows,i,f).unwrap())).collect();
     definitions=definitions.with_axis_formats(outline_edits);
+    for sheet in &sheets {
+        definitions = definitions.with_review_notes(sheet.id, sheet.review.notes.clone());
+    }
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);
     }

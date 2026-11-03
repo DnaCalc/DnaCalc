@@ -575,6 +575,9 @@ impl WireOp {
             WorkbookOp::SetAxisFormat(_) => {
                 unreachable!("wire version 1 refuses physical dimensions before encoding")
             }
+            WorkbookOp::SetReviewNotes { .. } => {
+                unreachable!("review notes are refused before encoding")
+            }
             WorkbookOp::SetConditionalRules { .. } => {
                 unreachable!("conditional rules are refused before the wire codec")
             }

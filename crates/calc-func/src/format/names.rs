@@ -10,15 +10,26 @@ struct LocaleNames {
     weekdays_long: [&'static str; 7],
 }
 
-pub(crate) fn month_name(profile: &FormatProfile, month: i64, abbreviated: bool) -> &'static str {
+pub(crate) fn month_name(profile: &FormatProfile, month: i64, abbreviated: bool, tagged: bool) -> String {
     let Ok(index) = usize::try_from(month - 1) else {
-        return "";
+        return String::new();
     };
+    // Fn1's explicit locale tags use Windows' Mrz abbreviation and a capitalized Russian
+    // month. Reuse the existing locale data; untagged profile rendering keeps its own form.
+    if tagged && profile.id == LocaleId::DeDe && month == 3 && abbreviated {
+        return "Mrz".to_owned();
+    }
     let names = locale_names(profile.id);
-    if abbreviated {
+    let name = if abbreviated {
         names.months_short.get(index).copied().unwrap_or("")
     } else {
         names.months_long.get(index).copied().unwrap_or("")
+    };
+    if tagged && profile.id == LocaleId::RuRu {
+        let mut chars = name.chars();
+        chars.next().map(|first| first.to_uppercase().chain(chars).collect()).unwrap_or_default()
+    } else {
+        name.to_owned()
     }
 }
 

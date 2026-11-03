@@ -74,6 +74,11 @@ pub fn controls(controller: Controller) -> impl IntoView {
     let close = move || {
         open.set(false);
         if let Some(d) = dialog.get_untracked() {
+            // The browser restores the launch button while closing a modal. That is part of
+            // this command, not a newer user focus request that cancels its return to the grid.
+            #[cfg(target_arch = "wasm32")]
+            controller.restoring_editor(|| d.close());
+            #[cfg(not(target_arch = "wasm32"))]
             d.close();
         }
         controller.focus_active_skin();

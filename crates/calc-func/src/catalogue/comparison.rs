@@ -22,7 +22,7 @@
 //! comparison under the locale en-ZA ignoring case, over every code unit (dc-zsn.1, dc-zsn.2).
 //! Texts with the same code units are equal. Text the collation builds no weights for (see
 //! [`collation`]: U+0000, the Hangul conjoining jamo, U+30A0, the isolated and medial forms of
-//! Arabic marks, an iteration mark after a Han character or a special) is refused as not modelled,
+//! Arabic marks, an iteration mark after a special) is refused as not modelled,
 //! naming the operand that holds it ([`Beyond`]), unless the texts are the same.
 
 mod collation;

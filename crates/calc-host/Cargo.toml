@@ -28,6 +28,8 @@ calc-fml = { path = "../calc-fml" }
 [dev-dependencies]
 calc-vba = { path = "../calc-vba" }
 calc-verdict = { path = "../../tools/calc-verdict" }
+# Read the retained P14 raw observations without rewriting their expected values.
+serde_json = "=1.0.154"
 # Reuse CalcDoc's independent ZIP fixture reader for the actual Host XLSB save test.
 miniz_oxide = "=0.8.9"
 

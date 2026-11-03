@@ -52,6 +52,12 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    Review {
+        at: CellKey,
+        revision: u64,
+        index: u32,
+        text: String,
+    },
     Name(crate::NameEdit),
     AutoFilter { sheet:SheetId, revision:u64, change:crate::FilterChange },
     FormatCells {
@@ -115,6 +121,69 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::Review {
+            at,
+            revision,
+            index,
+            text,
+        } => {
+            if revision != host.revision().get() {
+                return Err("The workbook changed; reopen this note or comment".into());
+            }
+            if host
+                .loaded()
+                .sheet(at.sheet())
+                .is_none_or(|s| s.protected() || s.is_macro_sheet())
+            {
+                return Err("Review editing needs an editable worksheet".into());
+            }
+            if text.encode_utf16().count() > 32767 {
+                return Err("Use at most 32,767 characters".into());
+            }
+            let mut notes = host.model().definitions().review_notes(at.sheet()).to_vec();
+            let note = notes
+                .get_mut(index as usize)
+                .filter(|n| n.at == at)
+                .ok_or("This note or comment no longer belongs to the selected cell")?;
+            if !note.editable {
+                return Err("This comment has mentions or metadata whose editing is unavailable (dc-971p.40); it was preserved".into());
+            }
+            if let Some(source) = &note.source
+                && host
+                    .loaded()
+                    .sheets()
+                    .iter()
+                    .filter(|s| {
+                        s.review()
+                            .notes
+                            .iter()
+                            .any(|n| n.source.as_ref().is_some_and(|v| v.part() == source.part()))
+                    })
+                    .count()
+                    > 1
+            {
+                return Err(
+                    "Editing shared review parts is unavailable (dc-971p.40); nothing changed"
+                        .into(),
+                );
+            }
+            if note.text == text {
+                return Ok(Vec::new());
+            }
+            let threaded = note.source.as_ref().is_some_and(|s| s.threaded());
+            note.text = text;
+            if threaded {
+                let text = calc_doc_model::review_thread_text(&notes, at);
+                for note in notes.iter_mut().filter(|n| n.at == at && n.compatibility) {
+                    note.text = text.clone();
+                }
+            }
+            Ok(vec![CellEdit::ReviewNotes {
+                sheet: at.sheet(),
+                notes,
+            }])
+        }
+
         WorkbookCommand::Outline {sheet,rows,revision,change} => crate::outline::prepare(host,sheet,rows,revision,change),
         WorkbookCommand::SplitPanes {sheet,revision,x,y,row,column}=>{
             if revision!=host.revision().get() {return Err("The workbook changed before splitting (dc-971p.16)".into());}

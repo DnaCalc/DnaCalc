@@ -146,3 +146,31 @@ fn lambda_helpers_call_their_lambda() {
     );
     assert_eq!(book.dynamic("=MAP({1,0},LAMBDA(x,1/x))"), rows(&[&[n(1.0), e(W::Div0)]]));
 }
+
+/// The fn1 Han controls: three bases, three iteration/prolonged-sound marks, and
+/// MATCH/XMATCH/SORT/SORTBY follow-ups. Punctuation and jamo readings remain separate
+/// unresolved cases in the full corpus; no expectation here substitutes for them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn fn1_han_iteration_comparison_and_lookup_order() {
+    let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
+        "../../../calc-func/tests/captures/catalogue/sections/fn1_collation.capture.json"
+    )).unwrap();
+    let mut book = Book::new();
+    let mut checked = 0;
+    for formula in &capture.formulas {
+        if !matches!(formula.cell.row(), 1..=21 | 29..=52 | 61..=84 | 225..=232) {
+            continue;
+        }
+        let observation = capture.observations.iter().find(|o| o.cell == formula.cell).unwrap();
+        let calc_verdict::Observation::ExcelRaw(expected) = &observation.observation else {
+            panic!("fn1 requires a raw Excel observation");
+        };
+        let text = formula.formula.as_ref().unwrap();
+        let actual = book.eval_in(calc_fml::FormulaForm::Dynamic, text, &format!("D{}", formula.cell.row()));
+        assert!(matches!(&actual, Ok(Ok(value)) if super::same_value(expected, value)),
+            "D{} {text}: {actual:?}, Excel {expected:?}", formula.cell.row());
+        checked += 1;
+    }
+    assert_eq!(checked, 77, "all recorded Han controls must run");
+}

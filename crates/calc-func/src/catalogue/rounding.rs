@@ -62,6 +62,7 @@ const MOD: FunctionId = FunctionId::new(CODE, 11);
 const QUOTIENT: FunctionId = FunctionId::new(CODE, 12);
 const EVEN: FunctionId = FunctionId::new(CODE, 13);
 const ODD: FunctionId = FunctionId::new(CODE, 14);
+const ECMA_CEILING: FunctionId = FunctionId::new(CODE, 15);
 
 const NUMBER: &[Parameter] = &[Parameter::value("number")];
 const DIGITS: &[Parameter] = &[Parameter::value("number"), Parameter::value("num_digits")];
@@ -109,6 +110,7 @@ pub(super) const FAMILY: Family = Family {
         call(QUOTIENT, "QUOTIENT", 2, FRACTION, quotient),
         call(EVEN, "EVEN", 1, NUMBER, even),
         call(ODD, "ODD", 1, NUMBER, odd),
+        call(ECMA_CEILING, "ECMA.CEILING", 2, SIGNIFICANCE, ecma_ceiling),
     ],
 };
 
@@ -331,7 +333,23 @@ fn ceiling(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    numeric(CEILING, arguments, services, |site, n| {
+    ceiling_for(CEILING, arguments, services)
+}
+
+/// fn1 Excel 16.0.20527: this spelling uses CEILING's sign and zero rules.
+fn ecma_ceiling(
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+) -> Result<CalcValue, FunctionFault> {
+    ceiling_for(ECMA_CEILING, arguments, services)
+}
+
+fn ceiling_for(
+    id: FunctionId,
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+) -> Result<CalcValue, FunctionFault> {
+    numeric(id, arguments, services, |site, n| {
         let (number, significance) = (n[0], n[1]);
         if significance == 0.0 || number == 0.0 {
             Ok(0.0)

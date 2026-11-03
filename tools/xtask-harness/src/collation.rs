@@ -34,8 +34,9 @@
 //! conjoining jamo (which Windows composes with each other), U+30A0 (which `CompareStringEx` orders
 //! before a repeated unit, against its key) and the units compared as marks alone (isolated and
 //! medial forms of Arabic marks, into which calc-func's diacritic walk is not modelled); calc-func
-//! also refuses an iteration mark after a unit whose repeat the key writes otherwise (a Han
-//! character) or after a special, where `CompareStringEx` departs from the key. The diacritic level is not read from the keys: `CompareStringEx` walks it, and
+//! also refuses an iteration mark after a special. The measured repeat primary after Han is
+//! used, as fn1's Excel comparison and ordering controls confirm.
+//! The diacritic level is not read from the keys: `CompareStringEx` walks it, and
 //! calc-func's walk was measured with `verify` (see sort_key.rs).
 //!
 //! `generate` checks that the rules and the exceptions give every covered unit the weights
