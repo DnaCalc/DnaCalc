@@ -761,13 +761,6 @@ impl HostState {
         )
     }
 
-    /// Where the cell at `at` was when the workbook was opened, through the rows and columns
-    /// inserted and deleted since: an inserted cell's source is the cell before the inserted band
-    /// ([`calc_doc_model::source_position`]); `None` for one inserted at the start of an axis.
-    pub(crate) fn opened_position(&self, at: CellKey) -> Option<(u32, u32)> {
-        crate::facts::opened_position(&self.axis_edits, at)
-    }
-
     /// Imported merged ranges transformed through the current structural axis history.
     pub fn merged_areas(&self, sheet: SheetId) -> Vec<GridArea> {
         self.loaded

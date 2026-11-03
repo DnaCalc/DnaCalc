@@ -214,10 +214,16 @@ pub(super) fn new_part_name(
     workbook_part: &str,
     stem: &str,
 ) -> (String, String) {
+    let name=available_part_name(package,workbook_part,stem,"xml",&[]);
+    let parent=workbook_part.rsplit_once('/').map(|(p,_)|p);
+    let target=parent.and_then(|p|name.strip_prefix(&format!("{p}/"))).unwrap_or(&name).to_owned();
+    (name,target)
+}
+pub(crate) fn available_part_name(package:&Package,workbook_part:&str,stem:&str,extension:&str,reserved:&[String])->String {
     let folder = workbook_part.rsplit_once('/').map(|(folder, _)| folder);
     let mut suffix = String::new();
     for n in 1u32.. {
-        let target = format!("{stem}{suffix}.xml");
+        let target = format!("{stem}{suffix}.{extension}");
         let name = match folder {
             Some(folder) => format!("{folder}/{target}"),
             None => target.clone(),
@@ -226,8 +232,8 @@ pub(super) fn new_part_name(
             part.strip_prefix('/')
                 .is_some_and(|part| part.eq_ignore_ascii_case(&name))
         });
-        if package.part(&name).is_none() && !overridden {
-            return (name, target);
+        if package.part(&name).is_none() && !overridden && !reserved.iter().any(|n|n.eq_ignore_ascii_case(&name)) {
+            return name;
         }
         suffix = (n + 1).to_string();
     }
@@ -1134,69 +1140,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             out.rewritten.insert(sheet.part().name().to_owned(),bytes);
         }
     }
-    if review_changed {
-        let mut parts: BTreeMap<String, Vec<&calc_doc_model::ReviewNote>> = BTreeMap::new();
-        for (sheet, notes) in model.definitions().all_review_notes() {
-            for note in notes.iter().filter(|note| {
-                !base
-                    .definitions()
-                    .review_notes(sheet)
-                    .iter()
-                    .any(|original| {
-                        original.source == note.source
-                            && original.author == note.author
-                            && original.text == note.text
-                    })
-            }) {
-                let source = note
-                    .source
-                    .as_ref()
-                    .ok_or_else(|| SaveRefusal::InvalidPart {
-                        part: "review".into(),
-                        detail: "New note parts are not modelled (dc-971p.40)".into(),
-                    })?;
-                parts
-                    .entry(source.part().to_owned())
-                    .or_default()
-                    .push(note);
-            }
-        }
-        let retained: std::collections::BTreeSet<_> = model
-            .definitions()
-            .all_review_notes()
-            .flat_map(|(_, notes)| notes)
-            .filter_map(|n| match &n.source {
-                Some(calc_doc_model::ReviewSource::Thread { part, id, .. }) => {
-                    Some((part.clone(), id.clone()))
-                }
-                _ => None,
-            })
-            .collect();
-        let mut removed: BTreeMap<String, std::collections::BTreeSet<String>> = BTreeMap::new();
-        for (_, notes) in base.definitions().all_review_notes() {
-            for note in notes {
-                if let Some(calc_doc_model::ReviewSource::Thread { part, id, .. }) = &note.source
-                    && !retained.contains(&(part.clone(), id.clone()))
-                {
-                    removed.entry(part.clone()).or_default().insert(id.clone());
-                    parts.entry(part.clone()).or_default();
-                }
-            }
-        }
-        for (name, notes) in parts {
-            let original = super::strings::read_part(package, &name)?;
-            let current = out
-                .rewritten
-                .remove(&name)
-                .map(|bytes| original.with_bytes(bytes));
-            let bytes = super::review::rewrite(
-                current.as_ref().unwrap_or(&original),
-                &notes,
-                &removed.remove(&name).unwrap_or_default(),
-            )?;
-            out.rewritten.insert(name, bytes);
-        }
-    }
+    if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
     if sheets_changed {
         super::sheets::finish(package, workbook_part, base, model, sheets, &mut out)?;
     }

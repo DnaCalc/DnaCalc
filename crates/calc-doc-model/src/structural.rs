@@ -450,7 +450,7 @@ impl ModelRoot {
                     if rule.areas.is_empty() {
                         return None;
                     }
-                    for formula in &mut rule.formulas {
+                    for formula in rule.formulas.iter_mut().chain(&mut rule.threshold_formulas) {
                         let text = FormulaText::new(ExcelText::from_utf16_code_units(
                             formula.encode_utf16().collect(),
                         ))
@@ -497,7 +497,7 @@ impl ModelRoot {
             definitions=definitions.with_validations(sheet,rules);
         }
         for (sheet,rules) in self.definitions().all_conditional_rules() {
-            let mut rules=rules.to_vec();for rule in &mut rules {if let Some(at)=rule.origin(){for text in &mut rule.formulas{formula(text,at);}}}
+            let mut rules=rules.to_vec();for rule in &mut rules {if let Some(at)=rule.origin(){for text in rule.formulas.iter_mut().chain(&mut rule.threshold_formulas){formula(text,at);}}}
             definitions=definitions.with_conditional_rules(sheet,rules);
         }
         definitions

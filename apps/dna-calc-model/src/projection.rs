@@ -272,6 +272,9 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    CreateReview {at:Key,revision:u64,parent:Option<u32>,threaded:bool,author:String,text:String,timestamp:String},
+    FormatReview {at:Key,revision:u64,index:u32,text:String,start:u32,end:u32,patch:ReviewFormat},
+    ResolveReview {at:Key,revision:u64,index:u32,resolved:bool},
     EditReview {
         at: Key,
         revision: u64,
@@ -440,6 +443,7 @@ pub enum ConditionalChange {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Review {
+    pub next_index:u32,
     pub at: Option<Key>,
     pub revision: u64,
     pub rules: Vec<Rule>,
@@ -450,6 +454,7 @@ pub struct Review {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReviewItem {
+    pub runs:Vec<ReviewRun>,
     pub index: u32,
     pub author: String,
     pub text: String,
@@ -1434,3 +1439,8 @@ pub enum FillShown {
         stops: Vec<(f64, String)>,
     },
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReviewFormat {pub bold:Option<bool>,pub italic:Option<bool>,pub underline:Option<bool>,pub color:Option<String>,pub clear:bool}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReviewRun {pub text:String,pub bold:bool,pub italic:bool,pub underline:bool,pub strike:bool,pub color:Option<String>,pub size:Option<String>}

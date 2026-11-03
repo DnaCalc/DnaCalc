@@ -156,6 +156,10 @@ pub struct Controller {
 
 impl Controller {
     pub fn review_edit(&self)->ModelField<Option<dna_calc_model::ReviewDraft>> {self.review.get_value().edit}
+    pub fn begin_review_create(&self,at:wire::Key,revision:u64,index:u32,threaded:bool,parent:Option<u32>){
+        let timestamp=js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+        self.model.update(|m|m.runtime.begin_review_create(at,revision,index,threaded,parent,timestamp));
+    }
     pub fn begin_review_edit(&self, at:wire::Key, revision:u64, index:u32, text:String, threaded:bool) {
         self.model.update(|m|m.runtime.begin_review_edit(at,revision,index,text,threaded));
     }

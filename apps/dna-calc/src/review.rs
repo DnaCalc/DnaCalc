@@ -4,6 +4,7 @@ use crate::{
     wire::{self, ConditionalChange, Intent, Reply, Request, Sheet},
 };
 use leptos::prelude::*;
+use crate::style::css;
 
 /// Only user-activated web and mail links become navigable anchors.
 pub fn external_link(target: &str) -> Option<String> {
@@ -227,28 +228,60 @@ pub fn controls(controller: Controller) -> impl IntoView {
         view!{<li><button type="button" class="dc-rule-row" data-dnacalc="rule-row" data-index=index aria-pressed=move ||(selected.get()==Some(index)).to_string() on:click=move |_|choose(index)><strong>{title}</strong><span>{area}</span><small>{state}</small></button></li>}
     }).collect_view())
     };
+    let begin_new=move |threaded:bool,parent:Option<u32>| {
+        if note_edit.get_untracked().is_some(){return;}
+        if let Some(d)=data.get_untracked() && let Some(at)=d.at && at.cell()==controller.active_key_untracked(){controller.begin_review_create(at,d.revision,d.next_index,threaded,parent);}
+    };
+    let format_note=move |patch:wire::ReviewFormat| {
+        let Some(draft)=note_edit.get_untracked().filter(|d|!d.threaded&&d.creation.is_none())else{return;};
+        let Some(field)=note_field.get_untracked()else{return;};
+        let (mut start,mut end)=(field.selection_start().ok().flatten().unwrap_or(0),field.selection_end().ok().flatten().unwrap_or(0));
+        if start==end{start=0;end=draft.text.encode_utf16().count() as u32;}
+        let generation=controller.generation.get_untracked();
+        controller.dispatch(Intent::FormatReview{at:draft.at,revision:draft.revision,index:draft.index,text:draft.text.clone(),start,end,patch},move |outcome|{
+            if outcome.accepted&&controller.generation.get_untracked()==generation {note_edit.update(|current|{if let Some(current)=current&&current.session==draft.session&&current.at==draft.at&&current.index==draft.index&&current.revision==draft.revision{current.revision=outcome.summary.revision;}});}
+        });
+    };
     let notes = move || {
         data.get().map(|d|{
         if d.notes.is_empty(){return view!{<p class="dc-muted">"No note or comment on this cell."</p>}.into_any();}
         let at=d.at;let revision=d.revision;
             d.notes.into_iter().map(|n|{
                 let index=n.index;let threaded=n.threaded;let draft=n.text.clone();
-                view!{<article class="dc-review-note" data-dnacalc="review-note" data-note-index=index><h4>{n.author}<small>{if threaded {if n.reply {" · Reply"}else{" · Comment"}}else{" · Note"}}{n.resolved.then_some(" · Resolved")}</small></h4><p>{n.text}</p>{n.editable.then(||view!{<button data-dnacalc="note-edit" data-note-index=index disabled=move ||note_edit.get().is_some() on:click=move |_|{if let Some(at)=at {controller.begin_review_edit(at,revision,index,draft.clone(),threaded);}}>{if threaded {"Edit comment"}else{"Edit note"}}</button>})}
+                view!{<article class="dc-review-note" data-dnacalc="review-note" data-note-index=index><h4>{n.author}<small>{if threaded {if n.reply {" · Reply"}else{" · Comment"}}else{" · Note"}}{n.resolved.then_some(" · Resolved")}</small></h4><p class="dc-note-rich" data-dnacalc="note-body">{n.runs.into_iter().map(|run|{
+                    let decoration=match (run.underline,run.strike){(true,true)=>"underline line-through",(true,false)=>"underline",(false,true)=>"line-through",_=>"none"};
+                    let color=run.color.map(|c|format!("#{}",if c.len()==8{c[2..].to_owned()}else{c})).unwrap_or_else(||"inherit".into());
+                    let size=run.size.map(|s|format!("{s}pt")).unwrap_or_else(||"inherit".into());
+                    view!{<span data-dnacalc="note-run" use:css=format!("font-weight:{};font-style:{};text-decoration:{decoration};color:{color};font-size:{size}",if run.bold{"700"}else{"400"},if run.italic{"italic"}else{"normal"})>{run.text}</span>}
+                }).collect_view()}</p>{n.editable.then(||view!{<button data-dnacalc="note-edit" data-note-index=index disabled=move ||note_edit.get().is_some() on:click=move |_|{if let Some(at)=at {controller.begin_review_edit(at,revision,index,draft.clone(),threaded);}}>{if threaded {"Edit comment"}else{"Edit note"}}</button>})}
+                    {(threaded&&!n.resolved).then(||view!{<button data-dnacalc="note-reply" data-note-index=index disabled=move ||note_edit.get().is_some() on:click=move |_|begin_new(true,Some(index))>"Reply"</button>})}
+                    {(threaded&&!n.reply).then(||view!{<button data-dnacalc="note-resolve" disabled=move ||note_edit.get().is_some() on:click=move |_|{if let Some(at)=at{controller.dispatch(Intent::ResolveReview{at,revision,index,resolved:!n.resolved},|_|{});}}>{if n.resolved{"Reopen thread"}else{"Resolve thread"}}</button>})}
                     {(!n.editable).then(||view!{<p class="dc-muted">"Text editing is unavailable for this comment’s mentions or additional metadata; the file is preserved."</p>})}
                 </article>}}).collect_view().into_any()})
     };
     let note_editor = move || {
         note_identity.get().map(|(_session,at,_index,threaded)|{
-        let title=if threaded {"Edit comment"}else{"Edit note"};
+        let title=if threaded {"Comment"}else{"Note"};
         view!{<fieldset data-dnacalc="note-editor"><legend>{title}</legend>
             <p>{at.cell().map(|at|controller.cell_label(at))}</p>
-            {(!threaded).then(||view!{<p class="dc-muted">"Saved note text uses plain formatting."</p>})}
+            {move ||note_edit.get().and_then(|n|n.creation).map(|_|view!{<label>"Author"<input data-dnacalc="note-author" maxlength="255" prop:value=move ||note_edit.get().and_then(|n|n.creation).map(|c|c.author).unwrap_or_default() on:input=move |ev|note_edit.update(|n|{if let Some(n)=n&&let Some(c)=&mut n.creation{c.author=event_target_value(&ev);}})/></label>})}
+            {move ||note_edit.get().filter(|n|!n.threaded&&n.creation.is_none()).map(|_|view!{
+                <p class="dc-muted">"Select text to format, or format the whole note."</p>
+                <div class="dc-dialog-actions" aria-label="Note formatting">
+                    <button data-dnacalc="note-bold" on:mousedown=move |ev|ev.prevent_default() on:click=move |_|format_note(wire::ReviewFormat{bold:Some(true),..Default::default()})>"Bold"</button>
+                    <button data-dnacalc="note-italic" on:mousedown=move |ev|ev.prevent_default() on:click=move |_|format_note(wire::ReviewFormat{italic:Some(true),..Default::default()})>"Italic"</button>
+                    <button data-dnacalc="note-underline" on:mousedown=move |ev|ev.prevent_default() on:click=move |_|format_note(wire::ReviewFormat{underline:Some(true),..Default::default()})>"Underline"</button>
+                    <label>"Text colour"<input type="color" data-dnacalc="note-color" value="#123456" on:change=move |ev|format_note(wire::ReviewFormat{color:Some(event_target_value(&ev)),..Default::default()})/></label>
+                    <button data-dnacalc="note-clear-format" on:mousedown=move |ev|ev.prevent_default() on:click=move |_|format_note(wire::ReviewFormat{clear:true,..Default::default()})>"Clear formatting"</button>
+                </div>
+            })}
             <label>"Text"<textarea data-dnacalc="note-text" node_ref=note_field maxlength="32767" prop:value=move ||note_edit.get().map(|n|n.text).unwrap_or_default() on:input=move |ev|note_edit.update(|n|{if let Some(n)=n {n.text=event_target_value(&ev);}})></textarea></label>
             <div class="dc-dialog-actions"><button data-dnacalc="note-save" on:click=move |_|{
                 let Some(draft)=note_edit.get_untracked() else{return;};
                 if draft.at.cell()!=controller.active_key_untracked() {controller.say("Return to the note’s cell before saving; your text is retained",true);return;}
                 let generation=controller.generation.get_untracked();
-                controller.dispatch(Intent::EditReview {at:draft.at,revision:draft.revision,index:draft.index,text:draft.text.clone()},move |outcome|{
+                let intent=if let Some(c)=&draft.creation{Intent::CreateReview{at:draft.at,revision:draft.revision,parent:c.parent,threaded:draft.threaded,author:c.author.clone(),text:draft.text.clone(),timestamp:c.timestamp.clone()}}else{Intent::EditReview {at:draft.at,revision:draft.revision,index:draft.index,text:draft.text.clone()}};
+                controller.dispatch(intent,move |outcome|{
                     if outcome.accepted && controller.generation.get_untracked()==generation {
                         note_edit.update(|current|NoteDraft::accepted_save(current,&draft,outcome.summary.revision));
                     }
@@ -323,7 +356,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
                     </fieldset>
                     <div class="dc-dialog-actions"><button data-dnacalc="review-undo" disabled=move ||controller.summary.get().undo==0 || note_edit.get().is_some() on:click=move |_|controller.undo()>"Undo"</button><button data-dnacalc="review-redo" disabled=move ||controller.summary.get().redo==0 || note_edit.get().is_some() on:click=move |_|controller.redo()>"Redo"</button></div>
                 </section>
-                <section aria-labelledby="dc-notes-title"><h3 id="dc-notes-title">"Notes, comments & links"</h3>{circle_controls}{note_editor}{notes}{links}<p class="dc-muted">"Text changes use ordinary Undo and XLSX saving. Author identities, thread relationships and other imported review metadata are retained. New threaded replies are unavailable."</p>{move ||data.get().and_then(|d|d.validation).map(|v|view!{<h3>"Data validation"</h3><p data-dnacalc="review-validation">{v}</p>})}{move ||data.get().map(|d|d.unsupported.into_iter().map(|text|view!{<p>{text}</p>}).collect_view())}</section>
+                <section aria-labelledby="dc-notes-title"><h3 id="dc-notes-title">"Notes, comments & links"</h3>{circle_controls}<div class="dc-dialog-actions"><button data-dnacalc="note-new" disabled=move ||data.get().is_none_or(|d|!d.notes.is_empty())||note_edit.get().is_some() on:click=move |_|begin_new(false,None)>"New note"</button><button data-dnacalc="comment-new" disabled=move ||data.get().is_none_or(|d|!d.notes.is_empty())||note_edit.get().is_some() on:click=move |_|begin_new(true,None)>"New comment"</button></div>{note_editor}{notes}{links}<p class="dc-muted">"Notes, replies and formatting use Undo and XLSX saving. Imported author identities and thread relationships are retained."</p>{move ||data.get().and_then(|d|d.validation).map(|v|view!{<h3>"Data validation"</h3><p data-dnacalc="review-validation">{v}</p>})}{move ||data.get().map(|d|d.unsupported.into_iter().map(|text|view!{<p>{text}</p>}).collect_view())}</section>
             </div>
             <p class="dc-review-status" role="status" data-dnacalc="review-status">{move ||controller.status.get().text}</p>
         </dialog>

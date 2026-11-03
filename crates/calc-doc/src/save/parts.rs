@@ -683,3 +683,227 @@ pub(super) fn content_types(
     reader.end()?;
     Ok(splice.finish())
 }
+
+/// Read the latest bytes in this save plan, including parts authored earlier in the same plan.
+pub(super) fn current_part(
+    package: &crate::opc::Package,
+    out: &super::author::Changes,
+    name: &str,
+    empty: &[u8],
+) -> Result<XmlPart, SaveRefusal> {
+    if let Some(bytes) = out
+        .rewritten
+        .get(name)
+        .or_else(|| out.added.iter().find(|(n, _)| n == name).map(|(_, b)| b))
+    {
+        return Ok(XmlPart::new(
+            name.into(),
+            bytes.clone(),
+            crate::xml::XmlLimits::default(),
+        ));
+    }
+    if package.part(name).is_some() {
+        super::strings::read_part(package, name)
+    } else {
+        Ok(XmlPart::new(
+            name.into(),
+            empty.to_vec(),
+            crate::xml::XmlLimits::default(),
+        ))
+    }
+}
+pub(super) fn put_part(
+    package: &crate::opc::Package,
+    out: &mut super::author::Changes,
+    name: &str,
+    bytes: Vec<u8>,
+) {
+    if package.part(name).is_some() || out.rewritten.contains_key(name) {
+        out.rewritten.insert(name.into(), bytes);
+    } else if let Some((_, value)) = out.added.iter_mut().find(|(n, _)| n == name) {
+        *value = bytes;
+    } else {
+        out.added.push((name.into(), bytes));
+    }
+}
+pub(super) fn ensure_relationship(
+    package: &crate::opc::Package,
+    out: &mut super::author::Changes,
+    from: &str,
+    kind: &str,
+    to: &str,
+) -> Result<String, SaveRefusal> {
+    if let Some(id)=package.relationships_of(Some(from)).and_then(|r|r.items().iter().find(|r|r.kind==kind&&r.mode==crate::opc::TargetMode::Internal&&r.resolved.as_deref()==Some(to))).map(|r|r.id.clone()){return Ok(id);}
+    let (parent, file) = from.rsplit_once('/').map_or(("", from), |(p, f)| (p, f));
+    let name = if parent.is_empty() {
+        format!("_rels/{file}.rels")
+    } else {
+        format!("{parent}/_rels/{file}.rels")
+    };
+    let empty = format!("<Relationships xmlns=\"{RELATIONSHIPS_NAMESPACE}\"/>");
+    let xml = current_part(package, out, &name, empty.as_bytes())?;
+    let target = super::author::relative_target(from, to);
+    let mut ids = std::collections::BTreeSet::new();
+    let mut reader = Reader::new(&xml);
+    while let Some((event, _)) = reader.next()? {
+        if let XmlEvent::Start(e) = event
+            && e.name.is(RELATIONSHIPS_NAMESPACE, "Relationship")
+        {
+            if e.attribute("Type") == Some(kind)
+                && e.attribute("Target") == Some(target.as_str())
+                && e.attribute("TargetMode") != Some("External")
+            {
+                return Ok(e.attribute("Id").unwrap_or_default().into());
+            }
+            if let Some(id) = e.attribute("Id") {
+                ids.insert(id.to_owned());
+            }
+        }
+    }
+    let id = (1u32..)
+        .map(|n| format!("dnaRelationship{n}"))
+        .find(|id| !ids.contains(id))
+        .expect("relationship identity");
+    let bytes = relationships(
+        &xml,
+        None,
+        &[NewRelationship {
+            id: &id,
+            kind,
+            target: &target,
+        }],
+    )?;
+    put_part(package, out, &name, bytes);
+    Ok(id)
+}
+pub(super) fn ensure_content_type(
+    package: &crate::opc::Package,
+    out: &mut super::author::Changes,
+    name: &str,
+    kind: &str,
+) -> Result<(), SaveRefusal> {
+    let xml = if let Some(bytes) = &out.content_types {
+        XmlPart::new(
+            "[Content_Types].xml".into(),
+            bytes.clone(),
+            crate::xml::XmlLimits::default(),
+        )
+    } else {
+        package.content_types_xml().map_err(|error|SaveRefusal::Part{part:crate::opc::CONTENT_TYPES_ENTRY.into(),error})?
+    };
+    let part = format!("/{name}");
+    let mut reader = Reader::new(&xml);
+    while let Some((event, _)) = reader.next()? {
+        if let XmlEvent::Start(e) = event
+            && e.name.is(CONTENT_TYPES_NAMESPACE, "Override")
+            && e.attribute("PartName") == Some(part.as_str())
+        {
+            return if e.attribute("ContentType") == Some(kind) {
+                Ok(())
+            } else {
+                Err(reader.invalid("A new part collides with a different content type"))
+            };
+        }
+    }
+    out.content_types = Some(content_types(&xml, None, &[(name, kind)])?);
+    Ok(())
+}
+
+/// Append to the root without rewriting its other content or namespace declarations.
+pub(super) fn append_root(xml: &XmlPart, child: &[u8]) -> Result<Vec<u8>, SaveRefusal> {
+    append_root_before(xml, child, &[])
+}
+pub(super) fn append_root_before(
+    xml: &XmlPart,
+    child: &[u8],
+    before: &[&str],
+) -> Result<Vec<u8>, SaveRefusal> {
+    let mut reader = Reader::new(xml);
+    let mut splice = Splice::new(xml.bytes());
+    let (root, span) = match reader.expect()? {
+        (XmlEvent::Start(e), s) => (e, s),
+        _ => return Err(reader.invalid("Expected an XML document element")),
+    };
+    let tag = RawTag::parse(&xml.bytes()[span.0..span.1]);
+    if tag.is_empty() {
+        let mut bytes = tag.rebuilt(&[], false);
+        bytes.extend(child);
+        bytes.extend(
+            format!(
+                "</{}{}>",
+                String::from_utf8_lossy(tag.prefix()),
+                root.name.local
+            )
+            .as_bytes(),
+        );
+        splice.replace(span, &bytes);
+    } else {
+        let mut inserted = false;
+        loop {
+            match reader.expect()? {
+                (XmlEvent::Start(e), span) => {
+                    if !inserted
+                        && e.name.namespace == root.name.namespace
+                        && before.contains(&e.name.local.as_str())
+                    {
+                        splice.replace((span.0, span.0), child);
+                        inserted = true;
+                    }
+                    reader.element_end()?;
+                }
+                (XmlEvent::End(_), s) => {
+                    if !inserted {
+                        splice.replace((s.0, s.0), child);
+                    }
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(splice.finish())
+}
+/// Replace a top-level worksheet element, or insert at its schema position.
+pub(super) fn worksheet_child(
+    xml: &XmlPart,
+    local: &str,
+    body: &[u8],
+    before: &[&str],
+) -> Result<Vec<u8>, SaveRefusal> {
+    let mut reader = Reader::new(xml);
+    let (_, root) = reader.root("worksheet")?;
+    let tag = RawTag::parse(&xml.bytes()[root.0..root.1]);
+    let mut splice = Splice::new(xml.bytes());
+    if tag.is_empty() {
+        return append_root(xml, body);
+    }
+    let mut inserted = false;
+    loop {
+        match reader.expect()? {
+            (XmlEvent::Start(e), span) => {
+                if e.name.is(super::super::load::MAIN_NAMESPACE, local) {
+                    let end = reader.element_end()?;
+                    splice.replace((span.0, end), if inserted { &[] } else { body });
+                    inserted = true;
+                } else {
+                    if !inserted
+                        && e.name.namespace.as_deref() == Some(super::super::load::MAIN_NAMESPACE)
+                        && before.contains(&e.name.local.as_str())
+                    {
+                        splice.replace((span.0, span.0), body);
+                        inserted = true;
+                    }
+                    reader.element_end()?;
+                }
+            }
+            (XmlEvent::End(_), span) => {
+                if !inserted {
+                    splice.replace((span.0, span.0), body);
+                }
+                break;
+            }
+            _ => {}
+        }
+    }
+    Ok(splice.finish())
+}

@@ -41,7 +41,7 @@ pub(crate) fn decode(text: &str) -> Vec<u16> {
 /// The text of a string item whose start tag `events` has just read: the `<t>` elements directly
 /// inside it and inside its runs (`<r>`), in order, each decoded on its own. Phonetic runs
 /// (`<rPh>`), phonetic properties and run properties are not part of the text.
-pub(super) fn string_item(events: &mut Events<'_>) -> Result<Vec<u16>, LoadError> {
+pub(crate) fn string_item(events: &mut Events<'_>) -> Result<Vec<u16>, LoadError> {
     let mut text = Vec::new();
     loop {
         match events.next()? {
