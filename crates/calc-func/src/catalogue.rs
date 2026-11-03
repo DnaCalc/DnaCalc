@@ -592,6 +592,18 @@ impl<'c> FunctionCallTarget<'c> {
         self.entry.demand
     }
 
+    /// Whether an absent lifted coordinate produces #N/A before the eager kernel runs.
+    /// W111's independent padding controls retain this policy for DB/DDB/VDB and the two
+    /// directed rounding functions, whose full validation order differs from argument order.
+    /// Operators retain their existing policy until their error/padding order is measured.
+    pub fn padding_precedes_call(self) -> bool {
+        self.entry.notation != Notation::Call
+            || matches!(
+                self.entry.spelling,
+                "DB" | "DDB" | "VDB" | "ROUNDUP" | "ROUNDDOWN"
+            )
+    }
+
     /// Whether a scalar IFS/SWITCH selector returns its chosen result whole instead of
     /// lifting over result arrays. Invalid IFS conditions retain the array error shape.
     /// This inspects values only; it neither invokes a kernel nor evaluates an argument.
