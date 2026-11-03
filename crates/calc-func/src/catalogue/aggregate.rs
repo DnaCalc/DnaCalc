@@ -69,7 +69,7 @@ const ARRAYS: &[Parameter] = &[
     Parameter::value_or_reference("array1"),
     Parameter::value_or_reference("array2"),
 ];
-const RANGE: &[Parameter] = &[Parameter::reference("range")];
+const RANGE: &[Parameter] = &[Parameter::value_or_reference("range")];
 
 
 /// An eager named call that takes 1 to 255 arguments, the last parameter repeating.
@@ -417,6 +417,8 @@ fn finite(site: &Site<'_>, index: usize, n: f64) -> Step<()> {
 /// reader's visits and not the area's size, and a blank cell the reader visits as Empty counts
 /// as blank. A reader that visits more such cells than the area holds breaks its contract and
 /// cannot supply the area. A reference of several areas is #VALUE! (dc-bd5: COUNTBLANK((A5,A6))).
+/// A computed scalar is #VALUE!; calc-fml lifts computed arrays over this scalar rule (W111
+/// count-family and w089-axis-reference-vs-array-variant readings in OxFunc-Evidence).
 fn countblank(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -430,11 +432,20 @@ fn blanks(
     argument: &CalcValue,
     services: &mut EvalServices<'_>,
 ) -> Step<CalcValue> {
-    let CoreRef::Reference(reference) = argument.core_ref() else {
-        return Err(Exit::Fault(FunctionFault::ReferenceRequired {
-            id: site.id(),
-            index: 0,
-        }));
+    if argument.callable_value().is_some() {
+        return Err(site.not_modelled(Some(0)));
+    }
+    let reference = match argument.core_ref() {
+        CoreRef::Reference(reference) => reference,
+        CoreRef::Error(code) => return Err(Exit::Error(code)),
+        // Array evaluation belongs to calc-fml; explicit omission is still unmeasured.
+        CoreRef::Array(_) | CoreRef::Missing => {
+            return Err(Exit::Fault(FunctionFault::ReferenceRequired {
+                id: site.id(),
+                index: 0,
+            }));
+        }
+        _ => return Err(Exit::Error(WorksheetErrorCode::Value)),
     };
     let [area] = reference.areas() else {
         return Err(Exit::Error(WorksheetErrorCode::Value));

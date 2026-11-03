@@ -55,7 +55,7 @@ pub(super) const FAMILY: Family = Family {
             spelling: "ISOMITTED",
             notation: Notation::Call,
             arity: CallableArityShape::exact(1),
-            parameters: &[Parameter::value("argument")],
+            parameters: &[Parameter::value_or_reference("argument")],
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(isomitted),
         },

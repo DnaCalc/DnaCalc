@@ -548,6 +548,9 @@ pub enum Request {
         source: String,
         max_steps: u64,
     },
+    /// Explicit source module kinds and document identities for automatic VBA events.
+    LoadVbaProject { modules: Vec<VbaModule>, max_steps: u64 },
+    SetVbaEventsEnabled { enabled: bool },
     /// Saves the workbook: its bytes travel back beside the reply.
     Save,
     /// Ordinary live save with Excel's CalculateBeforeSave setting.
@@ -642,6 +645,19 @@ pub enum Request {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VbaModuleTarget {
+    Standard,
+    Worksheet(Sheet),
+    Workbook,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VbaModule {
+    pub name: String,
+    pub source: String,
+    pub target: VbaModuleTarget,
+}
+
 impl Request {
     pub fn is_command(&self) -> bool {
         matches!(
@@ -656,6 +672,8 @@ impl Request {
                 | Self::CancelSave { .. }
                 | Self::Intent(_)
                 | Self::LoadVbaModule { .. }
+                | Self::LoadVbaProject { .. }
+                | Self::SetVbaEventsEnabled { .. }
         )
     }
 }
@@ -1115,6 +1133,7 @@ impl Cell {
 /// use the binary codec on worker transports.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Event {
+    WorkbookEventFailed { workbook: u64, sequence: u64, event: String, reason: String, omitted: u64 },
     SaveReady {
         workbook: u64,
         token: u64,

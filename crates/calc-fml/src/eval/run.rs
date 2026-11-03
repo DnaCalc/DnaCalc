@@ -36,9 +36,9 @@ use calc_func::value::{
     WorksheetErrorCode,
 };
 use calc_func::{
-    CallAbandoned, CallableInvoker, EvalServices, FunctionCallScratch, FunctionFault,
-    ParameterClass, PreparedArguments, RandomSource, ReferenceText, TextReference, invoke,
-    invoke_slice,
+    ArgumentDemand, CallAbandoned, CallableInvoker, EvalServices, FunctionCallScratch,
+    FunctionFault, ParameterClass, PreparedArguments, RandomSource, ReferenceText, TextReference,
+    invoke, invoke_slice,
 };
 use std::cell::RefCell;
 
@@ -1133,6 +1133,17 @@ impl Run<'_, '_> {
         if target.0.parameter_class(index) != Some(ParameterClass::Value) {
             return Ok(value);
         }
+        // The W111 MROUND/QUOTIENT reference controls distinguish a true multi-cell
+        // reference from an array materialized by unary plus. Formula2 rejects the former
+        // even when the caller aligns with it; a one-cell reference still supplies its value.
+        if self.instance.plan.form == FormulaForm::Dynamic
+            && rejects_multi_cell_reference(target)
+            && let CoreRef::Reference(reference) = value.core_ref()
+            && let [area] = reference.areas()
+            && area.cell_count() > 1
+        {
+            return Ok(CalcValue::error(WorksheetErrorCode::Value));
+        }
         self.admit_value(value, admission)
     }
 
@@ -1255,6 +1266,11 @@ impl Run<'_, '_> {
             arguments.extend_from_slice(&self.stack[start..]);
         } else {
             arguments.extend(self.stack.drain(start..));
+        }
+        // A scalar IFS/SWITCH selection returns the chosen result whole. Unused result
+        // arrays must not enlarge it (the recorded w090 successor cases).
+        if lifted && target.0.selects_whole_result(&arguments, self.numeric) {
+            lifted = false;
         }
         if !lifted && target.0.is_resumable() {
             let call = Box::new(PendingCall {
@@ -1453,10 +1469,8 @@ impl Run<'_, '_> {
 
     /// Runs `target` on each element of the arrays among `arguments` at its single-value
     /// parameters, the other arguments as they are, and gives the array of the results. An
-    /// element no array is large enough for is #N/A. A result that is a reference or an array is
-    /// refused: the arrays of references Excel lifts into (`=OFFSET(A1,{0;1},0)` is #VALUE! in a
-    /// cell yet `=SUM(OFFSET(A1,{0;1;2},0))` is 6, Excel 16.0, 2026-10-23) and nested arrays are
-    /// not modelled.
+    /// element no array is large enough for is #N/A. An array-valued result contributes its
+    /// first cell. Reference results retain their references for the consumer.
     fn lifted(
         &mut self,
         target: Target,
@@ -1480,7 +1494,7 @@ impl Run<'_, '_> {
         let mut element: Vec<CalcValue> = arguments.to_vec();
         for row in 0..shape.rows {
             for col in 0..shape.cols {
-                let mut short = false;
+                let mut short = None;
                 let mut held = None;
                 for index in &lifted {
                     let array = arguments[*index].as_array().expect("a lifted array");
@@ -1498,21 +1512,47 @@ impl Run<'_, '_> {
                                 element[*index] =
                                     self.admit_value(value.clone(), Admission::Lift)?;
                             } else {
-                                held = held.or(Some(CalcValue::error(WorksheetErrorCode::Value)));
+                                let error = CalcValue::error(WorksheetErrorCode::Value);
+                                element[*index] = error.clone();
+                                held = held.or(Some(error));
                             }
                         }
                         Some(value) => {
                             match held_array_element(target, self.instance.plan.form, value) {
                                 None => element[*index] = value.clone(),
                                 Some(Ok(first)) => element[*index] = first,
-                                Some(Err(error)) => held = held.or(Some(error)),
+                                Some(Err(error)) => {
+                                    element[*index] = error.clone();
+                                    held = held.or(Some(error));
+                                }
                             }
                         }
-                        None => short = true,
+                        // A function's missing coordinate is an error in this argument.
+                        // The scalar kernel owns the order in which arguments are read
+                        // (the W111 MOD, text-slice and depreciation padding controls).
+                        None if !target.0.padding_precedes_call() => {
+                            element[*index] = CalcValue::error(WorksheetErrorCode::NA);
+                        }
+                        None => {
+                            element[*index] = CalcValue::error(WorksheetErrorCode::NA);
+                            short.get_or_insert(*index);
+                        }
                     }
                 }
-                if short {
-                    cells.push(CalcValue::error(WorksheetErrorCode::NA));
+                if let Some(index) = short {
+                    // W111's independent depreciation controls: a formed earlier error
+                    // precedes padding, while a later optional error and text coercion do
+                    // not. Operators keep their separately measured padding policy.
+                    let prior = (target.0.notation() == calc_func::Notation::Call)
+                        .then(|| {
+                            element[..index].iter().find(|value| {
+                                value.callable_value().is_none()
+                                    && matches!(value.core_ref(), CoreRef::Error(_))
+                            })
+                        })
+                        .flatten()
+                        .cloned();
+                    cells.push(prior.unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::NA)));
                     continue;
                 }
                 if let Some(error) = held {
@@ -1527,7 +1567,7 @@ impl Run<'_, '_> {
                     },
                     _ => value,
                 };
-                cells.push(lifted_element(value)?);
+                cells.push(lifted_element(value));
             }
         }
         Ok(CalcValue::array(
@@ -1615,12 +1655,18 @@ impl Run<'_, '_> {
                 call.wanted = None;
                 call.cursor = BlockCursor::default();
             }
-            if is_lifted(
+            let lifted = is_lifted(
                 target,
                 self.instance.plan.form,
                 0,
                 call.values[0].as_ref().expect("first argument"),
-            ) {
+            ) || (target.0.argument_demand() == ArgumentDemand::FallbackOnError
+                && call
+                    .values
+                    .get(1)
+                    .and_then(Option::as_ref)
+                    .is_some_and(|value| is_lifted(target, self.instance.plan.form, 1, value)));
+            if lifted {
                 if let Some(index) = call.values.iter().position(Option::is_none) {
                     call.wanted = Some(index);
                     continue;
@@ -1713,8 +1759,6 @@ impl Run<'_, '_> {
         let mut element: Vec<CalcValue> = arguments.to_vec();
         for row in 0..shape.rows {
             for col in 0..shape.cols {
-                let mut short = false;
-                let mut held = None;
                 for (index, argument) in arguments.iter().enumerate() {
                     if let Some(array) = lifted_array(argument) {
                         match lift::element(array, row, col) {
@@ -1722,23 +1766,27 @@ impl Run<'_, '_> {
                                 match held_array_element(target, self.instance.plan.form, value) {
                                     None => element[index] = value.clone(),
                                     Some(Ok(first)) => element[index] = first,
-                                    Some(Err(error)) => held = held.or(Some(error)),
+                                    Some(Err(error)) => element[index] = error,
                                 }
                             }
-                            None => short = true,
+                            // Padding belongs to this argument. The lazy kernel may ignore
+                            // it or catch it as #N/A, rather than losing the selection first.
+                            None => element[index] = CalcValue::error(WorksheetErrorCode::NA),
                         }
                     }
                 }
-                if short {
-                    cells.push(CalcValue::error(WorksheetErrorCode::NA));
-                    continue;
-                }
-                if let Some(error) = held {
-                    cells.push(error);
-                    continue;
-                }
                 let value = self.lazy_once(target, &element)?;
-                cells.push(lifted_element(value)?);
+                // W111's lifted IF/IFERROR/IFNA positions turn selected blanks into zero.
+                // Scalar calls retain their kernels' blank policy (dc-ibp2 controls).
+                let value = if (target.0.argument_demand() == ArgumentDemand::FallbackOnError
+                    || target.0.spelling() == "IF")
+                    && value.is_empty()
+                {
+                    CalcValue::number(0.0)
+                } else {
+                    value
+                };
+                cells.push(lifted_element(value));
             }
         }
         Ok(CalcValue::array(
@@ -1988,9 +2036,18 @@ impl Run<'_, '_> {
 /// Whether argument `index` of `target`, as admitted, is lifted over: an array at a parameter
 /// that takes one value, or an array of references given to a function that lifts over one.
 fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue) -> bool {
-    (target.0.parameter_class(index) == Some(ParameterClass::Value)
+    ((target.0.parameter_class(index) == Some(ParameterClass::Value)
+        // COUNTBLANK consumes a reference whole but a computed array cell by cell (the
+        // W111 count-family readings and w089-axis-reference-vs-array-variant).
+        || target.0.spelling() == "COUNTBLANK")
         && lifted_array(value).is_some())
         || (reference_array(value) && lifts_over_references(target, form))
+}
+
+/// The measured reference-origin policy of these binary functions (OxFunc-Evidence,
+/// W111 MROUND/QUOTIENT reference controls).
+fn rejects_multi_cell_reference(target: Target) -> bool {
+    matches!(target.0.spelling(), "MROUND" | "QUOTIENT")
 }
 
 /// Whether `target` runs once per reference of an array of references in a formula of `form`.
@@ -2085,16 +2142,16 @@ fn lifted_array(value: &CalcValue) -> Option<&CalcArray> {
     value.as_array()
 }
 
-/// One element's result of a lifted call, as the array of results holds it.
-fn lifted_element(value: CalcValue) -> Result<CalcValue, EvalFault> {
+/// One element's result of a lifted call, as the array of results holds it. Excel takes the
+/// first cell of an array-valued kernel result (OxFunc-Evidence's recorded Formula2 calls:
+/// w111typed-00286-textsplit-arg1-row-array and w090-successor-00187-munit-arg1). The lifted
+/// arguments determine the output shape; each kernel result does not add another dimension.
+fn lifted_element(value: CalcValue) -> CalcValue {
     match value.core_ref() {
-        // dc-b1l: OFFSET or INDIRECT lifted over an array gives an array of references.
-        CoreRef::Reference(_) => Ok(value),
-        CoreRef::Array(_) if value.callable_value().is_none() => Err(not_modelled(
-            "a function lifted over an array whose result is an array",
-        )),
-        CoreRef::Missing => Ok(CalcValue::empty()),
-        _ => Ok(value),
+        // dc-b1l: OFFSET or INDIRECT's reference results stay references for their consumer.
+        CoreRef::Array(array) if value.callable_value().is_none() => first_element(array),
+        CoreRef::Missing => CalcValue::empty(),
+        _ => value,
     }
 }
 

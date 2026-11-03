@@ -2694,9 +2694,15 @@ fn smoke_selected(
         core: 0,
         setup: &[],
     }];
-    const LATENCY_GROUPS: [CaseGroup; 1] = [CaseGroup {
+    const LATENCY_GROUPS: [CaseGroup; 2] = [CaseGroup {
         name: "worker-latency",
         start: 0,
+        end: 22,
+        core: 0,
+        setup: &[],
+    }, CaseGroup {
+        name: "array-detail-latency",
+        start: 22,
         end: CALC_LATENCY_CASES.len(),
         core: 0,
         setup: &[],

@@ -212,6 +212,273 @@ mod arrays {
         }
     }
 
+    /// Excel's full spill results, from OxFunc-Evidence's recorded Formula2 calls:
+    /// w111-broad-typed-20260929-002 / w111typed-00286-textsplit-arg1-row-array and
+    /// w092-array-successor-max3x9-all-cycle-001 / w090-successor-00187-munit-arg1.
+    /// A lifted call contributes its result's first cell, not a nested spill.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn lifted_array_results_contribute_their_first_cell() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=TEXTSPLIT(CHOOSE({1,2},\"a,b,c\",\"a,b,c\"),\",\")"),
+            rows(&[&[t("a"), t("a")]])
+        );
+        assert_eq!(book.dynamic("=MUNIT({3,3})"), numbers(&[&[1.0, 1.0]]));
+    }
+
+    /// OxFunc-Evidence's w111-mround-reference-controls-run-typed-20260929 and
+    /// w111-quotient-reference-controls-run-typed-20260929 record these Formula2 calls at
+    /// J1:J4 and J20. A caller aligned with the range still gets #VALUE!; unary plus
+    /// materializes an array, which lifts. INDEX and IF preserve the rejected reference.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn binary_numeric_calls_keep_reference_origin() {
+        let mut book = Book::new();
+        book.number("B1", 5.0)
+            .number("B2", 7.0)
+            .number("B3", 9.0)
+            .number("A100", 2.0);
+        for (function, expected) in [
+            ("MROUND", numbers(&[&[6.0], &[8.0], &[10.0]])),
+            ("QUOTIENT", numbers(&[&[2.0], &[3.0], &[4.0]])),
+        ] {
+            for at in ["J1", "J2", "J3", "J4", "J20"] {
+                assert_eq!(
+                    book.dynamic_at(&format!("={function}(B1:B3,A100)"), at),
+                    e(W::Value),
+                    "{function} at {at}"
+                );
+                assert_eq!(
+                    book.dynamic_at(&format!("={function}(+B1:B3,A100)"), at),
+                    expected,
+                    "materialized {function} at {at}"
+                );
+            }
+            for reference in ["INDEX(B1:B3,0)", "IF(TRUE,B1:B3,B1:B3)"] {
+                assert_eq!(
+                    book.dynamic_at(&format!("={function}({reference},A100)"), "J2"),
+                    e(W::Value)
+                );
+            }
+        }
+    }
+
+    /// Recorded MROUND/QUOTIENT typed controls (OxFunc-Evidence, W111, 2026-09-29): logicals
+    /// are #VALUE!, explicit omissions #N/A. Padding remains an error at its own argument
+    /// position, so an earlier error wins (MROUND's prepared-value impact assessment).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn binary_numeric_argument_errors_keep_their_order() {
+        let mut book = Book::new();
+        for formula in ["=MROUND(7,TRUE)", "=QUOTIENT(TRUE,2)"] {
+            assert_eq!(book.dynamic(formula), e(W::Value), "{formula}");
+        }
+        for formula in ["=MROUND(7,)", "=QUOTIENT(,2)"] {
+            assert_eq!(book.dynamic(formula), e(W::NA), "{formula}");
+        }
+        assert_eq!(
+            book.dynamic("=MROUND({7,7,#REF!},{2,#NUM!})"),
+            rows(&[&[n(8.0), e(W::Num), e(W::Ref)]])
+        );
+        // w111quotientpaddingheldout-00001-quotient-asymmetric-0-0-1.
+        book.number("A100", f64::from_bits(0x409307e000000000));
+        assert_eq!(
+            book.dynamic("=QUOTIENT(CHOOSE({1,2,3,4,5},#N/A,#DIV/0!,#REF!,A100,TRUE),CHOOSE({1,2},#N/A,FALSE))"),
+            rows(&[&[e(W::NA), e(W::Div0), e(W::Ref), e(W::NA), e(W::Value)]])
+        );
+    }
+
+    /// OxFunc-Evidence w089-axis-witness-20260501-002 records this LET result as two #VALUE!
+    /// cells. COUNTBLANK takes a reference whole and lifts over a computed array's cells.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn countblank_lifts_over_computed_arrays() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=LET(d,{\"\";1},COUNTBLANK(d))"),
+            rows(&[&[e(W::Value)], &[e(W::Value)]])
+        );
+        // w111countholdout-01525-countblank-array-5.
+        book.number("A100", 0.0);
+        assert_eq!(
+            book.dynamic("=COUNTBLANK(CHOOSE({1,2,3},\" \",A100,#REF!))"),
+            rows(&[&[e(W::Value), e(W::Value), e(W::Ref)]])
+        );
+    }
+
+    /// Recorded W111 conditional cases: IFERROR's 00222 mixed-shape case in the first
+    /// heldout run, and IFNA's 00602 shape case in the surface run (2026-09-29).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_fallbacks_select_each_array_position() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=IFERROR(CHOOSE({1;2},\"fAlSe\",#NUM!),CHOOSE({1;2;3;4},\"FALSE \",\" TRUE\",\"tRuE\",#NUM!))"),
+            rows(&[&[t("fAlSe")], &[t(" TRUE")], &[t("tRuE")], &[e(W::Num)]])
+        );
+        book.number("A100", 11.0)
+            .number("A101", 12.0)
+            .number("A102", 13.0);
+        assert_eq!(
+            book.dynamic("=IFNA(#N/A,CHOOSE({1,2,3},A100,A101,A102))"),
+            numbers(&[&[11.0, 12.0, 13.0]])
+        );
+    }
+
+    /// w111typed-00008-if-fresh-mixed-shape in the first heldout conditional run: an
+    /// invalid condition stays #VALUE! even where an unselected branch has no coordinate.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_errors_precede_unselected_array_gaps() {
+        let mut book = Book::new();
+        book.number("A100", -2.0);
+        assert_eq!(
+            book.dynamic("=IF(CHOOSE({1,2,3,4},TRUE,FALSE,A100,\"\"),CHOOSE({1,2},#REF!,FALSE),CHOOSE({1},\"tRuE\"))"),
+            rows(&[&[e(W::Ref), t("tRuE"), e(W::NA), e(W::Value)]])
+        );
+    }
+
+    /// W111 conditional heldout cases 00227 (IFERROR) and 00010 (IF) record zero for a
+    /// selected blank, including a blank that CHOOSE's omitted argument contributes.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_selected_blanks_are_zero() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic(
+                "=IFERROR(CHOOSE({1,2,3;4,5,6},#REF!,,\" TRUE\",\"FALSE \",\"0\",#REF!),\"FALSE\")"
+            ),
+            rows(&[
+                &[t("FALSE"), n(0.0), t(" TRUE")],
+                &[t("FALSE "), t("0"), t("FALSE")]
+            ])
+        );
+        book.set("F1", CalcValue::empty())
+            .set("K1", t("tRuE"))
+            .set("L1", e(W::Num))
+            .number("M1", -2.0)
+            .set("N1", e(W::Num));
+        assert_eq!(
+            book.dynamic("=IF(CHOOSE({1,2},#NULL!,\"tRuE\"),F1:F1,K1:N1)"),
+            rows(&[&[e(W::Null), n(0.0), e(W::NA), e(W::NA)]])
+        );
+    }
+
+    /// dc-ibp2 error_fallback!D38,D44,D45: scalar blanks remain empty text on
+    /// concatenation, even though the W111 lifted blank positions become zero.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_scalar_fallback_blanks_concatenate_as_empty() {
+        let mut book = Book::new();
+        for formula in [
+            "=IFERROR(A4,1)&\"|\"",
+            "=IFERROR(#N/A,)&\"|\"",
+            "=IFERROR(,1)&\"|\"",
+        ] {
+            assert_eq!(book.dynamic(formula), t("|"), "{formula}");
+        }
+    }
+
+    /// Recorded w090-successor-00117-switch-arg3 and -00123-ifs-arg2: unused result
+    /// arrays do not enlarge a scalar selection's shape.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_scalar_selections_ignore_unused_array_shapes() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=SWITCH(2,1,{\"a\",\"a\"},2,\"b\",\"other\")"),
+            t("b")
+        );
+        assert_eq!(book.dynamic("=IFS(FALSE,{1,1},TRUE,2)"), n(2.0));
+    }
+
+    /// w090-successor-00183-switch-arg4: the first scalar case matches before
+    /// an unused later array case, so that case does not enlarge the selection.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_unused_switch_cases_do_not_enlarge_a_scalar_match() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=SWITCH(\"A\",\"a\",1,{\"A\",\"A\"},2)"),
+            n(1.0)
+        );
+    }
+
+    /// w090-successor-00179-ifs-arg2 records both error cells: an invalid scalar
+    /// condition retains the shape contributed by its array result.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_invalid_scalar_condition_keeps_the_array_shape() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=IFS(\"2\",{\"hit\",\"hit\"})"),
+            rows(&[&[e(W::Value), e(W::Value)]])
+        );
+    }
+
+    /// W111 typed cases 00742/743, 00748/749 and 00754/755: a scalar source error
+    /// remains scalar, instead of becoming one cell of a padded result.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn array_functions_preserve_scalar_source_errors() {
+        let mut book = Book::new();
+        book.number("A100", 8.0).number("A101", 9.0);
+        for (error, code) in [("#N/A", W::NA), ("#VALUE!", W::Value)] {
+            for formula in [
+                format!("=HSTACK({error},CHOOSE({{1;2}},A100,A101))"),
+                format!("=VSTACK({error},CHOOSE({{1,2}},A100,A101))"),
+                format!("=EXPAND({error},3,3,\"pad\")"),
+            ] {
+                assert_eq!(book.dynamic(&formula), e(code), "{formula}");
+            }
+        }
+    }
+
+    /// w090-successor-00071-expand-arg4 records #VALUE! for an array pad.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn expand_padding_array_is_one_argument() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=EXPAND({1,2;3,4},3,4,{\"x\",\"x\"})"),
+            e(W::Value)
+        );
+        // Keep the existing admission of a scalar cell pad while changing the array role.
+        book.number("A100", 7.0);
+        assert_eq!(
+            book.dynamic("=EXPAND({1,2},2,3,A100)"),
+            numbers(&[&[1.0, 2.0, 7.0], &[7.0, 7.0, 7.0]])
+        );
+    }
+
+    /// W111 typed cases 00766-00770: scalar WRAPCOLS vectors retain their value
+    /// and do not acquire the padding rows that an actual array acquires.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn wrapcols_preserves_scalar_vectors() {
+        let mut book = Book::new();
+        book.number("A100", 2.0);
+        for (value, expected) in [
+            ("#N/A", e(W::NA)),
+            ("#VALUE!", e(W::Value)),
+            ("\"\"", t("")),
+            ("\"2\"", t("2")),
+            ("TRUE", CalcValue::logical(true)),
+        ] {
+            let formula = format!("=WRAPCOLS({value},A100,\"pad\")");
+            assert_eq!(book.dynamic(&formula), expected, "{formula}");
+        }
+    }
+
+    /// unswept-00303-isomitted-arg0_array_lift records one FALSE for the argument.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn isomitted_does_not_lift_over_an_array() {
+        let mut book = Book::new();
+        assert_eq!(book.dynamic("=ISOMITTED({2;3})"), CalcValue::logical(false));
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn operators_lift_over_arrays_as_oxfml_fixture_rows() {
@@ -330,6 +597,209 @@ mod arrays {
         assert_eq!(
             book.dynamic("=A1:A4"),
             rows(&[&[n(1.0)], &[n(2.0)], &[n(3.0)], &[CalcValue::empty()]])
+        );
+    }
+
+    /// W111 independent MOD padding case 00008: the third dividend's #VALUE!
+    /// precedes the divisor's absent third coordinate.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_padding_keeps_earlier_argument_errors() {
+        let mut book = Book::new();
+        book.number("A100", f64::from_bits(0x4027b5c108bb5758))
+            .number("A101", f64::from_bits(0xc02c90d8b901f086))
+            .number("A102", f64::from_bits(0x402b94685e64e5f0));
+        assert_eq!(
+            book.dynamic("=MOD(CHOOSE({1;2;3},A100,A101,#VALUE!),CHOOSE({1;2},#NAME?,A102))"),
+            rows(&[
+                &[e(W::Name)],
+                &[n(f64::from_bits(0x402a97f803c7db5a))],
+                &[e(W::Value)]
+            ])
+        );
+    }
+
+    /// W111 text discovery cases 01616 and 01720 preserve the earlier text error
+    /// when a later argument has no element at that position.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_text_padding_keeps_argument_order() {
+        let mut book = Book::new();
+        book.number("A100", 123.0)
+            .number("A101", -0.5)
+            .number("A102", 1.0)
+            .number("A103", 1.0)
+            .number("A104", 2.0);
+        assert_eq!(
+            book.dynamic("=MID(CHOOSE({1,2,3;4,5,6},#N/A,#DIV/0!,#DIV/0!,FALSE,#N/A,A100),CHOOSE({1,2;3,4},#REF!,\"2\",A101,A102),CHOOSE({1,2,3},\"2\",A103,A104))"),
+            rows(&[
+                &[e(W::NA), e(W::Div0), e(W::Div0)],
+                &[e(W::Value), e(W::NA), e(W::NA)]
+            ])
+        );
+        book.number("A101", 123.0).number("A102", 123.0);
+        assert_eq!(
+            book.dynamic("=EXACT(CHOOSE({1,2;3,4;5,6},\"abc\",\"abc\",\"\",A100,\"\",#DIV/0!),CHOOSE({1,2;3,4},A101,A102,\"\",\"\"))"),
+            rows(&[
+                &[CalcValue::logical(false), CalcValue::logical(false)],
+                &[CalcValue::logical(true), CalcValue::logical(false)],
+                &[e(W::NA), e(W::Div0)]
+            ])
+        );
+    }
+
+    /// W111 depreciation padding case 00000: a missing salvage coordinate does
+    /// not hide the earlier cost error. The scalar depreciation kernel is unchanged.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_three_argument_padding_keeps_argument_order() {
+        let mut book = Book::new();
+        for cell in ["A100", "A101", "A102", "A103"] {
+            book.number(cell, 1000.0);
+        }
+        for cell in ["A104", "A105", "A106", "A107"] {
+            book.number(cell, 100.0);
+        }
+        book.number("A108", 10.0);
+        assert_eq!(
+            book.dynamic("=SLN(CHOOSE({1,2,3;4,5,6},A100,A101,#REF!,A102,A103,#REF!),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108)"),
+            rows(&[
+                &[n(90.0), n(90.0), e(W::Ref)],
+                &[n(90.0), n(90.0), e(W::Ref)]
+            ])
+        );
+    }
+
+    /// Independent W111 depreciation padding cases 00209/00334/00459 keep
+    /// #N/A before a later optional argument's error. Preserve these controls
+    /// while extending argument-order padding to the other measured functions.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_padding_preserves_optional_argument_controls() {
+        let mut book = Book::new();
+        for cell in ["A100", "A101", "A102", "A103"] {
+            book.number(cell, f64::from_bits(0x40957c0000000000));
+        }
+        book.number("A104", 125.0)
+            .number("A105", 9.75)
+            .number("A106", 3.125);
+        for (function, optional, expected) in [
+            ("DB", 4.5, 0x406b2be01a63a02a),
+            ("DDB", 1.5, 0x40628a73e06e783b),
+        ] {
+            for cell in ["A107", "A108", "A109", "A110"] {
+                book.number(cell, optional);
+            }
+            let formula = format!(
+                "={function}(CHOOSE({{1,2;3,4}},A100,A101,A102,A103),A104,A105,A106,CHOOSE({{1,2,3;4,5,6}},A107,A108,#NULL!,A109,A110,#NULL!))"
+            );
+            let result = n(f64::from_bits(expected));
+            assert_eq!(
+                book.dynamic(&formula),
+                rows(&[
+                    &[result.clone(), result.clone(), e(W::NA)],
+                    &[result.clone(), result, e(W::NA)]
+                ]),
+                "{formula}"
+            );
+        }
+        book.number("A106", 1.125)
+            .number("A107", 3.375)
+            .number("A108", 1.5);
+        let result = n(f64::from_bits(0x40764227a2b5d435));
+        assert_eq!(
+            book.dynamic("=VDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,A107,A108,CHOOSE({1,2,3;4,5,6},TRUE,TRUE,#NULL!,TRUE,TRUE,#NULL!))"),
+            rows(&[
+                &[result.clone(), result.clone(), e(W::NA)],
+                &[result.clone(), result, e(W::NA)]
+            ])
+        );
+    }
+
+    /// W111 depreciation padding cases 00030/00045/00060: an already formed
+    /// cost error precedes a later padded salvage coordinate, even for functions
+    /// whose optional argument validation otherwise precedes their kernel call.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_padding_keeps_formed_prefix_errors() {
+        let mut book = Book::new();
+        for cell in ["A100", "A101", "A102", "A103"] {
+            book.number(cell, 1000.0);
+        }
+        for cell in ["A104", "A105", "A106", "A107"] {
+            book.number(cell, 100.0);
+        }
+        book.number("A108", 10.0).number("A109", 2.0);
+        for (function, optional, expected) in [
+            ("DB", 6.0, 0x4067190624dd2f1a),
+            ("DDB", 2.0, 0x4064000000000000),
+        ] {
+            book.number("A110", optional);
+            let formula = format!(
+                "={function}(CHOOSE({{1,2,3;4,5,6}},A100,A101,#REF!,A102,A103,#REF!),CHOOSE({{1,2;3,4}},A104,A105,A106,A107),A108,A109,A110)"
+            );
+            let result = n(f64::from_bits(expected));
+            assert_eq!(
+                book.dynamic(&formula),
+                rows(&[
+                    &[result.clone(), result.clone(), e(W::Ref)],
+                    &[result.clone(), result, e(W::Ref)]
+                ]),
+                "{formula}"
+            );
+        }
+        book.number("A109", 1.0)
+            .number("A110", 2.0)
+            .number("A111", 2.0);
+        assert_eq!(
+            book.dynamic("=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,#REF!,A102,A103,#REF!),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110,A111,TRUE)"),
+            rows(&[
+                &[n(160.0), n(160.0), e(W::Ref)],
+                &[n(160.0), n(160.0), e(W::Ref)]
+            ])
+        );
+    }
+
+    /// W111 prepared rounding cases 00424/00661 record padded #N/A before
+    /// coercion of the earlier text "(1.5)". No rounding algorithm changes here.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn eager_padding_preserves_rounding_coercion_controls() {
+        let mut book = Book::new();
+        for (cell, value) in [
+            ("B200", 0xc068880000000000),
+            ("C200", 0xc085f40000000000),
+            ("B201", 0xc069f40000000000),
+            ("C201", 0xc0be4f0000000000),
+            ("A100", 0x401e000000000000),
+        ] {
+            book.number(cell, f64::from_bits(value));
+        }
+        book.set("D200", t("(1.5)")).set("D201", t("(1.5)"));
+        assert_eq!(
+            book.dynamic("=ROUNDDOWN(B200:D201,CHOOSE({1,2},A100,#DIV/0!))"),
+            rows(&[
+                &[n(f64::from_bits(0xc068880000000000)), e(W::Div0), e(W::NA)],
+                &[n(f64::from_bits(0xc069f40000000000)), e(W::Div0), e(W::NA)]
+            ])
+        );
+        book.set("B200", CalcValue::empty())
+            .number("C200", f64::from_bits(0xc0a0a00000000000))
+            .number("D200", f64::from_bits(0x4089b80000000000))
+            .number("B201", f64::from_bits(0x4086f00000000000))
+            .number("C201", f64::from_bits(0xc081390000000000))
+            .set("G200", CalcValue::empty())
+            .number("H200", -2.0);
+        assert_eq!(
+            book.dynamic("=ROUNDUP(B200:D201,G200:H200)"),
+            rows(&[
+                &[n(0.0), n(f64::from_bits(0xc0a1300000000000)), e(W::NA)],
+                &[
+                    n(f64::from_bits(0x4086f00000000000)),
+                    n(f64::from_bits(0xc082c00000000000)),
+                    e(W::NA)
+                ]
+            ])
         );
     }
 

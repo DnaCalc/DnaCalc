@@ -1519,7 +1519,7 @@ pub fn supersede_recalc_scoped(
             .or_else(|| previous.blocked_spills.get(&at).copied());
         let output_ok = output_region.is_none_or(|region| {
             // Reuse does not choose a winner against another unresolved spill producer.
-            !state.bindings.iter().any(|(&other, binding)| {
+            !state.bindings.spill_iter().any(|(&other, binding)| {
                 other != node
                     && next.progress.is_scheduled(other)
                     && !next.progress.is_evaluated(other)

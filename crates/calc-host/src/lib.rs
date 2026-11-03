@@ -68,6 +68,8 @@ mod command;
 mod domain;
 pub use domain::{CalculationDomain, DomainError, DomainProgress, DomainSaveId, DomainWorkbookId};
 mod envelope;
+mod events;
+pub use events::{WorkbookEvent, WorkbookEventFailure, WorkbookEventFailures, WorkbookEventHandler};
 pub use envelope::{CommandJournal, CommandRefusal, CommandStamp};
 mod paste;
 pub mod search;

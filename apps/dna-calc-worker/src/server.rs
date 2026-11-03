@@ -469,6 +469,15 @@ impl Server {
                     self.collect();
                     Ok(self.done(true, None, 0.0))
                 }
+                Request::LoadVbaProject { modules, max_steps } => {
+                    self.book.load_vba_project(&modules, max_steps)?;
+                    self.collect();
+                    Ok(self.done(true, None, 0.0))
+                }
+                Request::SetVbaEventsEnabled { enabled } => {
+                    self.book.set_vba_events_enabled(enabled);
+                    Ok(self.done(true, None, 0.0))
+                }
                 request @ (Request::Save | Request::SaveWithContext { .. }) => {
                     if self.pending_save.is_some() {
                         return Err("Finish or cancel the pending save first".into());
@@ -1936,7 +1945,7 @@ impl Server {
             Event::Tiles(batch) => batch.stamp.id != id,
             Event::TileCompletion(barrier) => barrier.id != id,
             Event::ProjectionFailed { id: failed, .. } => *failed != id,
-            Event::Calculation { .. } | Event::SaveReady { .. } => true,
+            Event::Calculation { .. } | Event::SaveReady { .. } | Event::WorkbookEventFailed { .. } => true,
         });
     }
 
@@ -2087,6 +2096,15 @@ impl Server {
     /// evaluation here. Geometry-only revisions also publish, keeping value/style/layout roots
     /// related even when no displayed text changed.
     fn collect(&mut self) {
+        let failures = self.book.take_workbook_event_failures();
+        for (index, failure) in failures.failures.into_iter().enumerate() {
+            let event = match failure.event {
+                calc_host::WorkbookEvent::WorksheetChange { .. } => "Worksheet_Change",
+                calc_host::WorkbookEvent::WorksheetCalculate { .. } => "Worksheet_Calculate",
+                calc_host::WorkbookEvent::BeforeSave { .. } => "Workbook_BeforeSave",
+            };
+            self.events.push(Event::WorkbookEventFailed { workbook: self.workbook, sequence: failure.sequence, event: event.into(), reason: failure.reason, omitted: if index == 0 { failures.omitted } else { 0 } });
+        }
         let mut terminal = Vec::new();
         for event in self.book.take_calculation_events() {
             if matches!(
@@ -3433,7 +3451,7 @@ mod tile_tests {
                     barrier = Some(b);
                 }
                 Event::ProjectionFailed { reason, .. } => panic!("{reason}"),
-                Event::Calculation { .. } | Event::SaveReady { .. } => {
+                Event::Calculation { .. } | Event::SaveReady { .. } | Event::WorkbookEventFailed { .. } => {
                     unreachable!("projection helper removes owner controls")
                 }
             }

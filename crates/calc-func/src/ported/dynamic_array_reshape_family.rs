@@ -579,8 +579,14 @@ pub fn eval_wraprows_prepared(
 pub fn eval_wrapcols_prepared(
     args: &[CalcValue],
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    let source = materialize_array_arg(&args[0]);
     let wrap_count = parse_positive_integer(&args[1])?;
+    match args[0].core_ref() {
+        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => {
+            return Ok(args[0].clone());
+        }
+        CoreRef::Array(_) | CoreRef::Reference(_) | CoreRef::Missing | CoreRef::Empty => {}
+    }
+    let source = materialize_array_arg(&args[0]);
     let pad_cell = args
         .get(2)
         .map(scalar_cell)

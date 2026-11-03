@@ -51,6 +51,15 @@ pub(super) fn family_css(family: Option<&str>) -> String {
         })
         .unwrap_or("system-ui".into())
 }
+/// Shared by the grid text and the Format Cells sample.
+pub(crate) fn decoration_css(underline: bool, strike: bool) -> &'static str {
+    match (underline, strike) {
+        (true, true) => ";text-decoration:underline line-through",
+        (true, false) => ";text-decoration:underline",
+        (false, true) => ";text-decoration:line-through",
+        (false, false) => "",
+    }
+}
 /// One font declaration for rendering, measurement, and the font-presence probes.
 pub fn font_css(
     style: &TextStyle,

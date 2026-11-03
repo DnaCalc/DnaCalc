@@ -7,6 +7,7 @@ use calc_func::value::{CellKey, ReferenceLike};
 use calc_func::{UserFunction, UserFunctionContext};
 pub use oxvba_embed::Backend;
 mod runtime;
+pub mod events;
 use runtime::{CodeCache, Module, OwnedSession, Range, SpreadsheetContext, Value};
 use std::{cell::RefCell, fmt, rc::Rc};
 
@@ -62,6 +63,10 @@ fn load_module_selected(
     backend: Option<Backend>,
 ) -> Result<UserFunctions, String> {
     let module = Module::load_spreadsheet(name, source).map_err(|e| e.to_string())?;
+    Ok(prepare_project(module, max_steps, backend)?.functions)
+}
+
+fn prepare_project(module: Module, max_steps: u64, backend: Option<Backend>) -> Result<events::LoadedProject, String> {
     let metadata = module.functions().cloned().collect::<Vec<_>>();
     let session = if let Some(backend) = backend {
         prepare_module(module, backend).map_err(|e| e.to_string())?
@@ -97,7 +102,7 @@ fn load_module_selected(
         functions.register(&metadata.name, function.clone())?;
         functions.register(&metadata.qualified_name, function)?;
     }
-    Ok(functions)
+    Ok(events::LoadedProject { session, functions })
 }
 
 struct VbaFunction {
@@ -613,13 +618,16 @@ mod tests {
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn admission_fallback_starts_once_and_preserves_rich_errors_in_the_interpreter() {
+    fn selected_backends_start_once_and_preserve_rich_errors() {
         let source = "Private n As Long\nPublic Function RichError()\n n = n + 1\n On Error GoTo Failed\n Err.Raise 5, \"probe\", \"detail\"\n Exit Function\nFailed:\n RichError = CStr(n) & \":\" & Err.Source & \":\" & Err.Description\nEnd Function\n";
         let selected = load_module("Fallback", source, 1000).unwrap();
         let interpreter =
             load_module_with_backend("Fallback", source, 1000, Backend::Interpreter).unwrap();
         #[cfg(not(target_arch = "wasm32"))]
-        assert!(load_module_with_backend("Fallback", source, 1000, Backend::Jit).is_err());
+        let jit = load_module_with_backend("Fallback", source, 1000, Backend::Jit).unwrap();
+        #[cfg(not(target_arch = "wasm32"))]
+        assert!(format!("{selected:?}").contains("Jit"));
+        #[cfg(target_arch = "wasm32")]
         assert!(format!("{selected:?}").contains("Interpreter"));
         for n in 1..=2 {
             let expected = CalcValue::text(ExcelText::from_utf16_code_units(
@@ -627,6 +635,8 @@ mod tests {
             ));
             assert_eq!(selected.call("RichError", &[]).unwrap(), expected);
             assert_eq!(interpreter.call("RichError", &[]).unwrap(), expected);
+            #[cfg(not(target_arch = "wasm32"))]
+            assert_eq!(jit.call("RichError", &[]).unwrap(), expected);
         }
     }
 }
@@ -654,6 +664,45 @@ impl Sheets {
             )
             .cloned()
             .ok_or_else(|| runtime::ContextError::Vba(424, "unknown Range identity".into()))
+    }
+}
+fn range_metadata(reference: &ReferenceLike) -> runtime::RangeInfo {
+    let first = reference.areas()[0];
+    fn cell(at: CellKey) -> String {
+        let mut col = at.column();
+        let mut name = Vec::new();
+        while col > 0 {
+            col -= 1;
+            name.push(b'A' + (col % 26) as u8);
+            col /= 26;
+        }
+        name.reverse();
+        format!(
+            "${}${}",
+            String::from_utf8(name).expect("ASCII column"),
+            at.row()
+        )
+    }
+    let address = reference
+        .areas()
+        .iter()
+        .map(|area| {
+            if area.cell_count() == 1 {
+                cell(area.first())
+            } else {
+                format!("{}:{}", cell(area.first()), cell(area.last()))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    runtime::RangeInfo {
+        row: first.first().row(),
+        column: first.first().column(),
+        rows: first.row_count(),
+        columns: first.column_count(),
+        cells: reference.areas().iter().map(|area| area.cell_count()).sum(),
+        areas: reference.area_count() as u32,
+        address,
     }
 }
 struct ContextBridge<'a> {
@@ -743,44 +792,7 @@ impl SpreadsheetContext for ContextBridge<'_> {
         self.range(&ReferenceLike::cell(caller)).ok()
     }
     fn metadata(&self, range: Range) -> Result<runtime::RangeInfo, runtime::ContextError> {
-        let reference = self.reference(range)?;
-        let first = reference.areas()[0];
-        fn cell(at: CellKey) -> String {
-            let mut col = at.column();
-            let mut name = Vec::new();
-            while col > 0 {
-                col -= 1;
-                name.push(b'A' + (col % 26) as u8);
-                col /= 26;
-            }
-            name.reverse();
-            format!(
-                "${}${}",
-                String::from_utf8(name).expect("ASCII column"),
-                at.row()
-            )
-        }
-        let address = reference
-            .areas()
-            .iter()
-            .map(|area| {
-                if area.cell_count() == 1 {
-                    cell(area.first())
-                } else {
-                    format!("{}:{}", cell(area.first()), cell(area.last()))
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(",");
-        Ok(runtime::RangeInfo {
-            row: first.first().row(),
-            column: first.first().column(),
-            rows: first.row_count(),
-            columns: first.column_count(),
-            cells: reference.areas().iter().map(|area| area.cell_count()).sum(),
-            areas: reference.area_count() as u32,
-            address,
-        })
+        Ok(range_metadata(&self.reference(range)?))
     }
     fn cell(&self, range: Range, row: u32, column: u32) -> Result<Range, runtime::ContextError> {
         let reference = self.reference(range)?;

@@ -86,6 +86,7 @@ pub struct Module {
     engine: oxvba_embed::Module,
     functions: Vec<(Function, oxvba_embed::Procedure)>,
     spreadsheet: Option<Arc<spreadsheet::SpreadsheetHost>>,
+    event_project: bool,
 }
 impl Module {
     pub fn load_spreadsheet(module_name: &str, source: &str) -> Result<Self, Error> {
@@ -96,15 +97,59 @@ impl Module {
         source: &str,
         spreadsheet_objects: bool,
     ) -> Result<Self, Error> {
-        let manifest = sym::SymbolProjectManifest {
-            project_name: "UdfProject".into(),
-            project_kind: sym::ProjectKind::Library,
-            modules: vec![sym::ModuleUnit {
+        Self::load_modules(
+            vec![sym::ModuleUnit {
                 module_name: module_name.into(),
                 module_kind: sym::ModuleKind::Procedural,
                 attributes: sym::ModuleAttributes::named(module_name),
                 source: source.into(),
             }],
+            spreadsheet_objects,
+            false,
+        )
+    }
+    pub(crate) fn load_event_project(
+        modules: &[crate::events::ProjectModule],
+    ) -> Result<Self, Error> {
+        let modules = modules
+            .iter()
+            .map(|module| {
+                let host = match module.kind {
+                    crate::events::ModuleKind::Standard => None,
+                    crate::events::ModuleKind::Worksheet => Some("Excel.Worksheet"),
+                    crate::events::ModuleKind::Workbook => Some("Excel.Workbook"),
+                };
+                let mut attributes = sym::ModuleAttributes::named(&module.name);
+                attributes.host_document_type = host.map(str::to_owned);
+                attributes.vb_predeclared_id = host.is_some();
+                sym::ModuleUnit {
+                    module_name: module.name.clone(),
+                    module_kind: if host.is_some() {
+                        sym::ModuleKind::Document
+                    } else {
+                        sym::ModuleKind::Procedural
+                    },
+                    attributes,
+                    source: module.source.clone(),
+                }
+            })
+            .collect();
+        Self::load_modules(modules, true, true)
+    }
+    fn load_modules(
+        modules: Vec<sym::ModuleUnit>,
+        spreadsheet_objects: bool,
+        events: bool,
+    ) -> Result<Self, Error> {
+        let procedural: std::collections::HashSet<_> = modules
+            .iter()
+            .filter(|m| m.module_kind == sym::ModuleKind::Procedural)
+            .map(|m| m.module_name.to_ascii_lowercase())
+            .collect();
+        let manifest = sym::SymbolProjectManifest {
+            project_name: "UdfProject".into(),
+            project_kind: sym::ProjectKind::Library,
+            modules,
             references: if spreadsheet_objects {
                 vec![
                     sym::ProjectReference::HostInjected {
@@ -137,18 +182,41 @@ impl Module {
             conditional_constants: Default::default(),
             conditional_compilation_target: Default::default(),
         };
-        let resolver: &dyn oxvba_symbol::TypeLibResolver = if spreadsheet_objects {
+        let resolver: &dyn oxvba_symbol::TypeLibResolver = if events {
+            &crate::events::types::EventTypes
+        } else if spreadsheet_objects {
             &spreadsheet::SpreadsheetTypes
         } else {
             &oxvba_symbol::CatalogTypeLibResolver
         };
         let engine =
             oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
-        let functions = engine
+        if events
+            && let Some(route) = engine
+                .event_routes()
+                .iter()
+                .filter_map(|route| route.native.as_ref())
+                .find(|native| {
+                    native.parameter_types.iter().any(|ty| {
+                        !matches!(
+                            ty,
+                            oxvba_com::TypeLibParamType::Object
+                                | oxvba_com::TypeLibParamType::ByRefBoolean
+                        )
+                    })
+                })
+        {
+            return Err(Error::UnsupportedSignature(format!(
+                "automatic {} needs an event argument carrier unavailable in this runtime (dc-hsa5.12)",
+                route.name
+            )));
+        }
+        let functions: Vec<_> = engine
             .procedures()
             .filter(|p| {
                 p.visibility == oxvba_embed::Visibility::Public
                     && p.kind == oxvba_embed::ProcedureKind::Function
+                    && procedural.contains(&p.module.to_ascii_lowercase())
             })
             .map(|p| {
                 (
@@ -172,6 +240,37 @@ impl Module {
                 )
             })
             .collect();
+        if events
+            && functions.iter().any(|(_, procedure)| {
+                procedure
+                    .parameters
+                    .iter()
+                    .any(|p| matches!(p.ty, OxTy::Object(_)))
+                    || procedure
+                        .return_type
+                        .as_ref()
+                        .is_some_and(|ty| matches!(ty, OxTy::Object(_)))
+            })
+        {
+            return Err(Error::UnsupportedSignature("object-valued worksheet UDF signatures in document projects require the shared Range projection (dc-hsa5.12)".into()));
+        }
+        if events
+            && functions.iter().any(|(_, procedure)| {
+                procedure.parameters.iter().any(|p| {
+                    !matches!(
+                        p.ty,
+                        OxTy::Long | OxTy::Double | OxTy::Bool | OxTy::Str | OxTy::Variant
+                    )
+                }) || !procedure.return_type.as_ref().is_some_and(|ty| {
+                    matches!(
+                        ty,
+                        OxTy::Long | OxTy::Double | OxTy::Bool | OxTy::Str | OxTy::Variant
+                    )
+                })
+            })
+        {
+            return Err(Error::UnsupportedSignature("worksheet UDF signature outside the document project's owning value carriers (dc-hsa5.12)".into()));
+        }
         let spreadsheet =
             spreadsheet_objects.then(|| Arc::new(spreadsheet::SpreadsheetHost::new()));
         let engine = if let Some(host) = &spreadsheet {
@@ -183,6 +282,7 @@ impl Module {
             engine,
             functions,
             spreadsheet,
+            event_project: events,
         })
     }
     pub fn functions(&self) -> impl ExactSizeIterator<Item = &Function> {
@@ -351,7 +451,7 @@ fn type_name(ty: &OxTy) -> String {
     .into()
 }
 
-fn to_variant(value: &Value) -> Result<Variant, Error> {
+pub(crate) fn to_variant(value: &Value) -> Result<Variant, Error> {
     Ok(match value {
         Value::Range(_) => {
             return Err(Error::ValueConversion(
