@@ -2,11 +2,15 @@
 //! memos cache read projections for the lifetime of the mounted view.
 use leptos::prelude::*;
 
+struct Accessors<M, T> {
+    get: Box<dyn for<'a> Fn(&'a M) -> &'a T + Send + Sync>,
+    get_mut: Box<dyn for<'a> Fn(&'a mut M) -> &'a mut T + Send + Sync>,
+}
+
 pub struct Field<M: Send + Sync + 'static, T: Send + Sync + 'static> {
     source: RwSignal<M>,
     read: Memo<T>,
-    get: StoredValue<Box<dyn for<'a> Fn(&'a M) -> &'a T + Send + Sync>>,
-    get_mut: StoredValue<Box<dyn for<'a> Fn(&'a mut M) -> &'a mut T + Send + Sync>>,
+    access: StoredValue<Accessors<M, T>>,
 }
 impl<M: Send + Sync, T: Send + Sync> Copy for Field<M, T> {}
 impl<M: Send + Sync, T: Send + Sync> Clone for Field<M, T> {
@@ -21,14 +25,17 @@ impl<M: Send + Sync + 'static, T: Clone + PartialEq + Send + Sync + 'static> Fie
         get_mut: impl for<'a> Fn(&'a mut M) -> &'a mut T + Send + Sync + 'static,
     ) -> Self {
         let initial = source.with_untracked(|model| get(model).clone());
-        let get: StoredValue<Box<dyn for<'a> Fn(&'a M) -> &'a T + Send + Sync>> =
-            StoredValue::new(Box::new(get));
-        let get_mut: StoredValue<Box<dyn for<'a> Fn(&'a mut M) -> &'a mut T + Send + Sync>> =
-            StoredValue::new(Box::new(get_mut));
+        // The getters have one owner and retire together. One arena handle keeps fields small
+        // when grid event closures capture the controller on the wasm stack.
+        let access = StoredValue::new(Accessors {
+            get: Box::new(get),
+            get_mut: Box::new(get_mut),
+        });
         let read = Memo::new(move |previous: Option<&T>| {
             // A dependent can retain this memo briefly while its view is being torn down.
             // Its getter belongs to that view; do not read a disposed getter or model.
-            get.try_with_value(|get| source.try_with(|model| get(model).clone()))
+            access
+                .try_with_value(|a| source.try_with(|model| (a.get)(model).clone()))
                 .flatten()
                 .or_else(|| previous.cloned())
                 .unwrap_or_else(|| initial.clone())
@@ -36,15 +43,13 @@ impl<M: Send + Sync + 'static, T: Clone + PartialEq + Send + Sync + 'static> Fie
         Self {
             source,
             read,
-            get,
-            get_mut,
+            access,
         }
     }
     /// Retire accessors before removing the model entry they address. Retained reactive
     /// dependencies can finish with their previous snapshot while cleanup removes that entry.
     pub(crate) fn retire(&self) {
-        self.get.dispose();
-        self.get_mut.dispose();
+        self.access.dispose();
     }
     pub fn get_value(&self) -> T {
         self.get_untracked()
@@ -72,7 +77,7 @@ impl<M: Send + Sync + 'static, T: Send + Sync + 'static> DefinedAt for Field<M, 
 }
 impl<M: Send + Sync + 'static, T: Send + Sync + 'static> IsDisposed for Field<M, T> {
     fn is_disposed(&self) -> bool {
-        self.source.is_disposed() || self.get.is_disposed() || self.get_mut.is_disposed()
+        self.source.is_disposed() || self.access.is_disposed()
     }
 }
 impl<M: Send + Sync + 'static, T: Send + Sync + 'static> Track for Field<M, T> {
@@ -95,8 +100,8 @@ impl<M: Send + Sync + 'static, T: Send + Sync + 'static> WithUntracked for Field
         if self.is_disposed() {
             return None;
         }
-        self.get
-            .try_with_value(|get| self.source.try_with_untracked(|model| f(get(model))))
+        self.access
+            .try_with_value(|a| self.source.try_with_untracked(|model| f((a.get)(model))))
             .flatten()
     }
 }
@@ -106,8 +111,8 @@ impl<M: Send + Sync + 'static, T: Send + Sync + 'static> Update for Field<M, T> 
         if self.is_disposed() {
             return None;
         }
-        self.get_mut
-            .try_with_value(|get| self.source.try_maybe_update(|model| f(get(model))))
+        self.access
+            .try_with_value(|a| self.source.try_maybe_update(|model| f((a.get_mut)(model))))
             .flatten()
     }
 }

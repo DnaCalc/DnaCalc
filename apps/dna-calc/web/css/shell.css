@@ -207,3 +207,5 @@ html,body{height:100%}
 [data-dnacalc=array-detail-failure]:empty{display:none}
 
 .dc-doc[data-changed=true]::before{content:"● ";color:var(--dna-amber);font-size:10px}
+
+.dc-invalid-links{display:flex;flex-wrap:wrap;gap:6px}.dc-review-note button{margin-top:8px}.dc-review-note h4 small{font-weight:400}

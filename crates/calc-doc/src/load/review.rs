@@ -1,4 +1,4 @@
-//! Read-only note and hyperlink content; the package remains the source for saved review parts.
+//! Note, threaded-comment and hyperlink content; unchanged fields remain in their source parts.
 use super::{
     Events, LoadError, MAIN_NAMESPACE, RELATIONSHIP_ATTRIBUTES, address, read_xml, strings,
 };
@@ -16,12 +16,12 @@ pub struct SheetReview {
     pub links: Vec<ReviewLink>,
     pub unsupported: Vec<String>,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReviewNote {
-    pub at: CellKey,
-    pub author: String,
-    pub text: String,
-}
+pub use calc_doc_model::ReviewNote ;
+use calc_doc_model::ReviewSource;
+
+pub (crate) const THREAD_NAMESPACE: &str =
+    "http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments";
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReviewLink {
     pub area: GridArea,
@@ -47,9 +47,37 @@ pub(crate) fn read(package: &Package, part: &str, sheet: SheetId) -> SheetReview
                         .unsupported
                         .push(format!("Notes could not be read: {e}")),
                 }
-            } else if rel.kind.ends_with("/threadedComment") {
-                review.unsupported.push("Threaded comments are preserved in the file; reading and replying are unavailable (dc-971p.8)".into());
+            } else if rel.kind.ends_with("/threadedComment") && rel.mode == TargetMode::Internal {
+                match rel
+                    .resolved
+                    .as_deref()
+                    .ok_or_else(|| "Threaded comment relationship has no part".to_owned())
+                    .and_then(|p| threaded(package, p, sheet).map_err(|e| e.to_string()))
+                {
+                    Ok(notes) => review.notes.extend(notes),
+                    Err(error) => review
+                        .unsupported.push(format!("Threaded comments could not be read: {error}")),
+                }
             }
+        }
+    }
+    let thread_ids: std::collections::BTreeSet<_> = review
+        .notes
+        .iter()
+        .filter_map(|n| match &n.source {
+            Some(ReviewSource::Thread { id, .. }) => Some((n.at, id.to_ascii_lowercase())),
+            _ => None,
+        })
+        .collect();
+    for note in &mut review.notes {
+        if note.source.as_ref().is_some_and(|s| !s.threaded())
+            && note
+                .author
+                .strip_prefix("tc=")
+                .is_some_and(|id| thread_ids.contains(&(note.at, id.to_ascii_lowercase())))
+        {
+            note.compatibility = true;
+            note.editable = false;
         }
     }
     review
@@ -97,7 +125,157 @@ fn notes(package: &Package, part: &str, sheet: SheetId) -> Result<Vec<ReviewNote
                 .cloned()
                 .unwrap_or_else(|| "Unknown author".into()),
             text,
+        source: Some(ReviewSource::Note {
+                part: part.to_owned(),
+                origin: at,
+            }),
+            editable: true,
+            compatibility: false,
         })
+        .collect())
+}
+/// Authors are read by relationship, never by assuming a package path.
+fn persons(package: &Package) -> std::collections::BTreeMap<String, String> {
+    let mut people = std::collections::BTreeMap::new();
+    for rel in package.relationships().iter().flat_map(|r| r.items()) {
+        if !rel.kind.ends_with("/person") || rel.mode != TargetMode::Internal {
+            continue;
+        }
+        let Some(xml) = rel
+            .resolved
+            .as_deref()
+            .and_then(|p| read_xml(package, p).ok())
+        else {
+            continue;
+        };
+        let mut events = Events::new(&xml);
+        while let Ok(Some(event)) = events.next() {
+            if let XmlEvent::Start(e) = event
+                && e.name.is(THREAD_NAMESPACE, "person")
+                && let (Some(id), Some(name)) = (e.attribute("id"), e.attribute("displayName"))
+            {
+                people.insert(
+                    id.to_ascii_lowercase(),
+                    String::from_utf16_lossy(&strings::decode(name)),
+                );
+            }
+        }
+    }
+    people
+}
+fn threaded(package: &Package, part: &str, sheet: SheetId) -> Result<Vec<ReviewNote>, LoadError> {
+    let xml = read_xml(package, part)?;
+    let mut events = Events::new(&xml);
+    let people = persons(package);
+    match events.next()? {
+        Some(XmlEvent::Start(e)) if e.name.is(THREAD_NAMESPACE, "ThreadedComments") => {}
+        _ => return Err(events.invalid("the part is not ThreadedComments")),
+    }
+    let mut held = Vec::new();
+    while let Some(event) = events.next()? {
+        if let XmlEvent::Start(e) = event {
+            if !e.name.is(THREAD_NAMESPACE, "threadedComment") {
+                events.skip()?;
+                continue;
+            }
+            let at = e
+                .attribute("ref")
+                .and_then(address::cell)
+                .and_then(|(r, c)| CellKey::new(sheet, r, c).ok());
+            let id = e
+                .attribute("id")
+                .ok_or_else(|| events.invalid("a threaded comment has no id"))?
+                .to_owned();
+            let person = e
+                .attribute("personId")
+                .ok_or_else(|| events.invalid("a threaded comment has no personId"))?
+                .to_owned();
+            let parent = e.attribute("parentId").map(str::to_owned);
+            let timestamp = e.attribute("dT").map(str::to_owned);
+            let resolved = matches!(e.attribute("done"), Some("1" | "true"));
+            let mut text = String::new();
+            let mut editable = true;
+            loop {
+                match events.next()? {
+                    Some(XmlEvent::Start(e)) if e.name.is(THREAD_NAMESPACE, "text") => {
+                        text = String::from_utf16_lossy(&strings::decode(&events.text()?))
+                    }
+                    Some(XmlEvent::Start(_)) => {
+                        editable = false;
+                        events.skip()?;
+                    }
+                    Some(XmlEvent::End(_)) => break,
+                    Some(XmlEvent::Text(_)) => {}
+                    None => return Err(events.invalid("the part ends inside a threaded comment")),
+                }
+            }
+            let author = people
+                .get(&person.to_ascii_lowercase())
+                .cloned()
+                .unwrap_or_else(|| "Unknown author".into());
+            held.push((
+                at,
+                ReviewNote {
+                    at: at.unwrap_or_else(|| CellKey::new(sheet, 1, 1).unwrap()),
+                    author,
+                    text,
+                    source: Some(ReviewSource::Thread {
+                        part: part.into(),
+                        id,
+                        parent,
+                        person,
+                        timestamp,
+                        resolved,
+                    }),
+                    editable,
+                    compatibility: false,
+                },
+            ));
+        }
+    }
+    // A reply may omit ref and inherit the cell of its parent, even when it precedes the parent.
+    let mut addresses: std::collections::BTreeMap<String, CellKey> = held
+        .iter()
+        .filter_map(|(at, n)| match (&n.source, at) {
+            (Some(ReviewSource::Thread { id, .. }), Some(at)) => {
+                Some((id.to_ascii_lowercase(), *at))
+            }
+            _ => None,
+        })
+        .collect();
+    for _ in 0..held.len() {
+        let mut changed = false;
+        for (at, n) in &mut held {
+            if at.is_none()
+                && let Some(ReviewSource::Thread {
+                    id,
+                    parent: Some(parent),
+                    ..
+                }) = &n.source
+                && let Some(found) = addresses.get(&parent.to_ascii_lowercase()).copied()
+            {
+                *at = Some(found);
+                n.at = found;
+                addresses.insert(id.to_ascii_lowercase(), found);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    if held.iter().any(|(at, _)| at.is_none()) {
+        return Err(events.invalid("a threaded reply has no cell or resolvable parent"));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for (_, n) in &held {
+        if let Some(ReviewSource::Thread { id, .. }) = &n.source
+            && !seen.insert(id.to_ascii_lowercase())
+        {
+            return Err(events.invalid("threaded comment ids are duplicated"));
+        }
+    }
+    Ok(held.into_iter().map(|(_, n)| n)
         .collect())
 }
 pub(super) fn links(
