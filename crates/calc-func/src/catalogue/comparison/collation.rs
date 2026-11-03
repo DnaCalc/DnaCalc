@@ -31,9 +31,12 @@
 //! not decided ([`Beyond`]), whichever pass would decide it: U+0000, the Hangul conjoining jamo,
 //! U+30A0, the isolated and medial forms of Arabic marks, and an iteration mark after a Han
 //! character or a special (see [`super::sort_key`]).
+//! For iteration after Han, an earlier primary difference or a completed primary prefix can
+//! still decide the order: 時々 follows 時 (catalogue dczsn2_collation!D61). The mark's unknown
+//! primary is never assigned a guessed value. Iteration after a special remains undecided.
 
 use super::Beyond;
-use super::sort_key::{diacritic_order, parts, refused};
+use super::sort_key::{diacritic_order, leading_order, parts, refused};
 use std::cmp::Ordering;
 
 /// The last code unit the first pass reads itself.
@@ -68,8 +71,15 @@ pub(super) fn compare(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
 /// The second pass: the two texts' primary weights, then their diacritics as `CompareStringEx`
 /// walks them ([`diacritic_order`]), then the rest of their sort keys (case, kana, specials).
 fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
-    let left = parts(a).ok_or(Beyond { operand: 0 })?;
-    let right = parts(b).ok_or(Beyond { operand: 1 })?;
+    let left = parts(a);
+    let right = parts(b);
+    if left.is_err() || right.is_err() {
+        return leading_order(&left, &right).ok_or(Beyond {
+            operand: usize::from(left.is_ok()),
+        });
+    }
+    let left = left.map_err(|_| Beyond { operand: 0 })?;
+    let right = right.map_err(|_| Beyond { operand: 1 })?;
     Ok(left
         .primary
         .cmp(&right.primary)

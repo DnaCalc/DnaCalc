@@ -9,6 +9,66 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Value};
 use f1_support::*;
 
+/// Excel 16.0.20430, recorded typed Value2 observations, not legacy expected values:
+/// OxFunc-Evidence/runs/w111-broad-typed-20260929-002/outcomes/excel.jsonl.gz, cases
+/// w111typed-00266-textafter-arg1-empty-text, -00274-textbefore-arg1-empty-text and
+/// -00282-textsplit-arg1-empty-text. Raw source SHA-256:
+/// bd0276ca12ea325000d5ef4ec3536071a53b4efa8a0c9f0518b866634db6d671.
+/// These scalar inputs have no compatibility-version ambiguity.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn empty_text_delimiter_errors_match_the_recorded_excel_values() {
+    error(call("TEXTBEFORE", vec![t(""), t("-")]), NA);
+    error(call("TEXTAFTER", vec![t(""), t("-")]), NA);
+    error(call("TEXTSPLIT", vec![t(""), t(",")]), Value);
+}
+
+/// Excel 16.0.20527, en-ZA: the catalogue's recorded iteration-mark prefix comparison. The
+/// enclosing operator reaches the same kernel as a formula; the corpus also exercises the
+/// workbook through calc-host, calc-engine and calc-fml.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn an_unknown_iteration_weight_can_follow_a_completed_primary_prefix() {
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+    use calc_verdict::{CaptureRecord, Observation};
+
+    let capture = CaptureRecord::decode(include_bytes!(
+        "captures/catalogue/sections/dczsn2_collation.capture.json"
+    ))
+    .expect("the committed Excel capture");
+    let observed = capture
+        .observations
+        .iter()
+        .find(|o| {
+            o.cell.sheet() == "dczsn2_collation" && o.cell.row() == 61 && o.cell.column() == 4
+        })
+        .expect("D61 was read from Excel");
+    let Observation::ExcelRaw(value) = &observed.observation else {
+        panic!("this test needs an Excel Value2 observation");
+    };
+    let expected = value.as_logical().expect("Excel returned a logical");
+    assert!(expected);
+    let target = catalogue().resolve_surface(Notation::Infix, ">").unwrap();
+    let mode = NumericMode::Fast;
+    let result = invoke(
+        target,
+        &mut Given(vec![t("時々"), t("時")]),
+        &mut EvalServices::new(&mode),
+        &mut FunctionCallScratch::new(),
+    )
+    .expect("the strict primary prefix decides this comparison");
+    assert_eq!(result.as_logical(), Some(expected));
+    // Neither the unknown mark's relative weight nor its behavior after a special is inferred
+    // from that prefix observation. These retain typed refusal until measured.
+    let order = |a: &str, b: &str| calc_func::text_order(
+        &a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>()
+    );
+    assert_eq!(order("時々", "時時"), None);
+    assert_eq!(order("カ-ゝ", "カ-"), None);
+}
+
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn char_code_unichar_unicode() {
