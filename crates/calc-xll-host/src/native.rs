@@ -931,6 +931,20 @@ impl XllHost {
     pub fn diagnostics(&self) -> Vec<String> {
         self.state.borrow().diagnostics.clone()
     }
+    /// Read-only qualification for COM classes registered by an already loaded XLL.
+    pub fn contains_loaded_module(&self, path: &Path) -> bool {
+        if !path.is_absolute() {
+            return false;
+        }
+        let handle = unsafe { GetModuleHandleW(wide(path.as_os_str()).as_ptr()) };
+        !handle.is_null()
+            && self
+                .state
+                .borrow()
+                .modules
+                .iter()
+                .any(|m| m.handle == handle)
+    }
     pub fn status_message(&self) -> Option<String> {
         self.state.borrow().status_message.clone()
     }
@@ -1121,6 +1135,7 @@ pub(crate) fn refuse_native_error(context: &mut dyn UserFunctionContext, why: &s
     for (prefix, owner) in [
         ("dc-snz.2:", "dc-snz.2"),
         ("dc-snz.18:", "dc-snz.18"),
+        ("dc-snz.20:", "dc-snz.20"),
         ("dc-snz.23:", "dc-snz.23"),
     ] {
         if why.starts_with(prefix) {
@@ -1146,13 +1161,7 @@ impl UserFunction for XllFunction {
         frame: calc_func::UserInvocationFrame,
         context: &mut dyn UserFunctionContext,
     ) -> Result<Option<Box<dyn calc_func::UserFunctionInvocation>>, String> {
-        if frame.formula_entry {
-            if self.registration.info.signature.asynchronous {
-                return Err(context.refuse_by(
-                    "native async formula-entry evaluation is not modelled",
-                    "dc-snz.23",
-                ));
-            }
+        if frame.formula_entry && !self.registration.info.signature.asynchronous {
             return Ok(None);
         }
         if !self.state.borrow().async_continuations {

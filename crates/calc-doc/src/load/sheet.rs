@@ -1128,6 +1128,12 @@ pub(super) fn load_sheet(
 /// start tag was just read (dc-uar). The active cell is the `activeCell` of the `<selection>`
 /// of the pane `<pane activePane>` names (the top left pane when it names none); a value that is
 /// not a cell reference is passed over.
+pub(crate) fn view_from_xml(xml:&crate::xml::XmlPart)->Result<super::geometry::SheetView,LoadError> {
+    let mut events=Events::new(xml);
+    while let Some(event)=events.next()? {if let XmlEvent::Start(e)=event {if e.name.is(MAIN_NAMESPACE,"sheetViews") {return read_view(&mut events);}}}
+    Ok(Default::default())
+}
+
 fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, LoadError> {
     let mut view = super::geometry::SheetView::default();
     let mut first = true;
@@ -1137,6 +1143,7 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                 if first && element.name.is(MAIN_NAMESPACE, "sheetView") =>
             {
                 first = false;
+                view.zoom=element.attribute("zoomScale").and_then(|s|s.parse::<u16>().ok()).filter(|n|(10..=400).contains(n));
                 view.top_left = element.attribute("topLeftCell").and_then(address::cell);
                 let mut active_pane = "topLeft".to_owned();
                 let mut selections: Vec<(String, Option<(u32, u32)>)> = Vec::new();

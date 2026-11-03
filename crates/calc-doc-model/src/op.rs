@@ -83,6 +83,7 @@ pub enum WorkbookOp {
         sheet: SheetId,
         panes: Option<FrozenPanes>,
     },
+    SetPaneLayout { sheet: SheetId, layout: Option<PaneLayout> },
     /// Insert or delete rows or columns of one sheet.
     EditAxis(AxisEdit),
     /// Insert, rename, move, remove or show or hide a sheet.
@@ -97,6 +98,67 @@ pub enum WorkbookOp {
 pub struct FrozenPanes {
     rows: u32,
     columns: u32,
+}
+
+/// One first-window pane layout; frozen bands and separate splits are mutually exclusive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PaneLayout {
+    Frozen(FrozenPanes),
+    Split(SplitPanes),
+}
+
+/// Separate-window splits in twentieths of a point, and the initial right/bottom origin.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SplitPanes {
+    x: u64,
+    y: u64,
+    row: u32,
+    column: u32,
+}
+impl SplitPanes {
+    pub fn new(x: f64, y: f64, row: u32, column: u32) -> Option<Self> {
+        (x.is_finite()
+            && y.is_finite()
+            && x >= 0.
+            && y >= 0.
+            && (x > 0. || y > 0.)
+            && (1..=MAX_ROWS).contains(&row)
+            && (1..=MAX_COLUMNS).contains(&column))
+        .then_some(Self {
+            x: x.to_bits(),
+            y: y.to_bits(),
+            row,
+            column,
+        })
+    }
+    pub fn positions(self) -> (u64, u64) {
+        (self.x, self.y)
+    }
+    pub fn origin(self) -> (u32, u32) {
+        (self.row, self.column)
+    }
+}
+impl PaneLayout {
+    pub fn moved(self, edit: AxisEdit) -> Option<Self> {
+        Some(match self {
+            Self::Frozen(p) => Self::Frozen(p.moved(edit)?),
+            Self::Split(mut p) => {
+                let old = if edit.axis() == Axis::Rows {
+                    p.row
+                } else {
+                    p.column
+                };
+                let next = crate::moved_position(edit, old)
+                    .unwrap_or(edit.first().min(edit.axis().size()));
+                if edit.axis() == Axis::Rows {
+                    p.row = next;
+                } else {
+                    p.column = next;
+                }
+                Self::Split(p)
+            }
+        })
+    }
 }
 
 impl FrozenPanes {

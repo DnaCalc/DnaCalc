@@ -31,6 +31,7 @@ pub enum CellEdit {
     /// Changes a physical row height, column width or hidden flag.
     AxisFormat(calc_doc_model::AxisFormatEdit),
     /// Changes a worksheet window's frozen leading bands without changing cells.
+    PaneLayout { sheet: calc_value::SheetId, layout: Option<calc_doc_model::PaneLayout> },
     FrozenPanes {
         sheet: calc_doc_model::value::SheetId,
         panes: Option<calc_doc_model::FrozenPanes>,
@@ -84,6 +85,7 @@ impl CellEdit {
             }
             CellEdit::Sheet(edit) => WorkbookOp::EditSheet(edit),
             CellEdit::AxisFormat(edit) => WorkbookOp::SetAxisFormat(edit),
+            CellEdit::PaneLayout {sheet,layout}=>WorkbookOp::SetPaneLayout {sheet,layout},
             CellEdit::FrozenPanes { sheet, panes } => WorkbookOp::SetFrozenPanes { sheet, panes },
             CellEdit::Set { at, input } => WorkbookOp::SetCell { at, input },
             CellEdit::Clear { area } => WorkbookOp::Clear { area },

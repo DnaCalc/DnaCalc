@@ -828,7 +828,8 @@ impl HostState {
     /// Review content follows physical axis edits, without inheriting notes on inserted cells.
     /// The current first window's imported origins. Authored freeze commands use leading bands.
     pub fn sheet_view(&self, sheet: SheetId) -> Option<calc_doc::SheetView> {
-        let mut view = self.loaded.sheet(sheet)?.view();
+        self.model.sheet_by_id(sheet)?;
+        let mut view = self.loaded.sheet(sheet).map(|s|s.view()).unwrap_or_default();
         for edit in self.axis_edits.iter().filter(|e| e.sheet() == sheet) {
             let move_at = |(row, col): (u32, u32)| {
                 let old = if edit.axis() == calc_doc_model::Axis::Rows {
@@ -853,11 +854,8 @@ impl HostState {
             view.pane_top_left = view.pane_top_left.map(move_at);
             view.active_cell = view.active_cell.map(move_at);
         }
-        if self.model.definitions().frozen_panes(sheet) != view.frozen {
-            view.top_left = Some((1, 1));
-            view.pane_top_left = None;
-            view.split_window = false;
-            view.split = None;
+        if self.model.definitions().pane_layout(sheet) != self.loaded.model().definitions().pane_layout(sheet) {
+            view=view.with_pane_layout(self.model.definitions().pane_layout(sheet));
         }
         Some(view)
     }

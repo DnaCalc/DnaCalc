@@ -80,7 +80,7 @@ struct Server {
     Rtd* object=nullptr;
     Sink* sink=nullptr;
     std::shared_ptr<Notices> notices=std::make_shared<Notices>();
-    std::set<LONG> topics;
+    std::set<LONG> topics,retired;
     ULONGLONG refresh=0,heartbeat=GetTickCount64();
     bool terminated=false;
     bool stop_attempted=false;
@@ -130,7 +130,7 @@ struct Client {
         if(SUCCEEDED(hr)){
             held->topics.insert(topic);topics.emplace(topic,held);
             hr=flatten(initial,out);
-            if(FAILED(hr)){held->object->DisconnectData(topic);held->topics.erase(topic);topics.erase(topic);}
+            if(FAILED(hr)){held->object->DisconnectData(topic);held->topics.erase(topic);held->retired.insert(topic);topics.erase(topic);}
         }
         VariantClear(&initial);return hr;
     }
@@ -157,9 +157,13 @@ struct Client {
             for(LONG i=0;i<count&&SUCCEEDED(hr);++i){LONG index[]={a,c+i};VARIANT id{},value{};
                 hr=SafeArrayGetElement(array,index,&id);index[0]=a+1;
                 if(SUCCEEDED(hr))hr=SafeArrayGetElement(array,index,&value);
-                if(SUCCEEDED(hr)&&(id.vt!=VT_I4||!server.topics.count(id.lVal)))hr=E_INVALIDARG;
-                Value copied{};if(SUCCEEDED(hr))hr=flatten(value,&copied);
-                if(SUCCEEDED(hr))hr=publish(context,id.lVal,&copied);
+                if(SUCCEEDED(hr)&&id.vt!=VT_I4)hr=DISP_E_TYPEMISMATCH;
+                // A refresh queued before DisconnectData may still name its old
+                // transport. It cannot publish into a later connection.
+                bool active=SUCCEEDED(hr)&&server.topics.count(id.lVal);
+                if(SUCCEEDED(hr)&&!active&&!server.retired.count(id.lVal))hr=E_INVALIDARG;
+                Value copied{};if(active)hr=flatten(value,&copied);
+                if(active&&SUCCEEDED(hr))hr=publish(context,id.lVal,&copied);
                 if(copied.kind==2)SysFreeString((BSTR)copied.text);
                 VariantClear(&id);VariantClear(&value);
             }
@@ -167,7 +171,7 @@ struct Client {
         }return S_OK;
     }
     HRESULT disconnect(LONG topic){auto hr=check();if(FAILED(hr))return hr;auto found=topics.find(topic);if(found==topics.end())return E_INVALIDARG;
-        auto* server=found->second;hr=server->object->DisconnectData(topic);if(FAILED(hr))return hr;server->topics.erase(topic);topics.erase(found);
+        auto* server=found->second;hr=server->object->DisconnectData(topic);if(FAILED(hr))return hr;server->topics.erase(topic);server->retired.insert(topic);topics.erase(found);
         if(server->topics.empty()){
             hr=server->stop();if(FAILED(hr)){close_error=hr;closed=true;return hr;}
             for(auto entry=servers.begin();entry!=servers.end();++entry)if(entry->second.get()==server){servers.erase(entry);break;}
@@ -185,3 +189,47 @@ extern "C" HRESULT dna_rtd_disconnect(void* client,LONG topic){try{return ((Clie
 extern "C" HRESULT dna_rtd_close(void* client){try{return ((Client*)client)->close();}catch(...){return E_FAIL;}}
 extern "C" void dna_rtd_destroy(void* client){delete (Client*)client;}
 extern "C" void dna_rtd_value_clear(Value* value){if(value->kind==2)SysFreeString((BSTR)value->text);*value={};}
+
+namespace {
+// Controlled server for the real client's queued-refresh regression test.
+class QueuedRtd final : public Rtd {
+    ULONG references=1;
+public:
+    bool unknown=false;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** out) override {if(!out)return E_POINTER;*out=nullptr;if(iid!=IID_IUnknown&&iid!=IID_IDispatch&&iid!=server_iid)return E_NOINTERFACE;*out=static_cast<Rtd*>(this);AddRef();return S_OK;}
+    ULONG STDMETHODCALLTYPE AddRef() override{return ++references;}
+    ULONG STDMETHODCALLTYPE Release() override{auto n=--references;if(!n)delete this;return n;}
+    HRESULT STDMETHODCALLTYPE GetTypeInfoCount(UINT* out) override{if(!out)return E_POINTER;*out=0;return S_OK;}
+    HRESULT STDMETHODCALLTYPE GetTypeInfo(UINT,LCID,ITypeInfo**) override{return E_NOTIMPL;}
+    HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR*,UINT,LCID,DISPID*) override{return E_NOTIMPL;}
+    HRESULT STDMETHODCALLTYPE Invoke(DISPID,REFIID,LCID,WORD,DISPPARAMS*,VARIANT*,EXCEPINFO*,UINT*) override{return E_NOTIMPL;}
+    HRESULT STDMETHODCALLTYPE ServerStart(Update*,LONG* out) override{if(!out)return E_POINTER;*out=1;return S_OK;}
+    HRESULT STDMETHODCALLTYPE ConnectData(LONG id,SAFEARRAY**,VARIANT_BOOL* fresh,VARIANT* out) override{if(!fresh||!out)return E_POINTER;*fresh=VARIANT_TRUE;VariantInit(out);out->vt=VT_R8;out->dblVal=id*11.;return S_OK;}
+    HRESULT STDMETHODCALLTYPE RefreshData(LONG* count,SAFEARRAY** out) override {
+        if(!count||!out)return E_POINTER;*count=3;SAFEARRAYBOUND bounds[]={{2,0},{3,0}};*out=SafeArrayCreate(VT_VARIANT,2,bounds);if(!*out)return E_OUTOFMEMORY;
+        for(LONG row=0;row<3;++row){LONG index[]={0,row};VARIANT id{};id.vt=VT_I4;id.lVal=unknown&&row==0?4:row+1;auto hr=SafeArrayPutElement(*out,index,&id);if(FAILED(hr))return hr;
+            index[0]=1;VARIANT value{};value.vt=VT_R8;value.dblVal=11.*(row+1);hr=SafeArrayPutElement(*out,index,&value);if(FAILED(hr))return hr;}
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE DisconnectData(LONG) override{return S_OK;}
+    HRESULT STDMETHODCALLTYPE Heartbeat(LONG* out) override{if(!out)return E_POINTER;*out=1;return S_OK;}
+    HRESULT STDMETHODCALLTYPE ServerTerminate() override{return S_OK;}
+};
+}
+extern "C" HRESULT dna_rtd_test_obsolete_transport() noexcept {
+    try {
+        Client client;client.throttle=0;
+        auto server=std::make_unique<Server>();server->object=new QueuedRtd();server->topics={1,2};auto held=server.get();
+        client.servers.emplace(L"fixture",std::move(server));client.topics.emplace(1,held);client.topics.emplace(2,held);
+        auto hr=client.disconnect(1);if(FAILED(hr))return hr;
+        const wchar_t* strings[]={L"reconnect"};Value initial{};hr=client.connect(L"fixture",3,strings,1,&initial);if(FAILED(hr)||initial.number!=33)return E_FAIL;
+        held->notices->dirty.store(true);
+        std::vector<std::pair<LONG,double>> values;
+        auto publish=+[](void* context,LONG topic,const Value* value)->HRESULT {if(value->kind!=1)return DISP_E_TYPEMISMATCH;static_cast<std::vector<std::pair<LONG,double>>*>(context)->emplace_back(topic,value->number);return S_OK;};
+        hr=client.poll(publish,&values);if(FAILED(hr))return hr;
+        if(values!=std::vector<std::pair<LONG,double>>{{2,22},{3,33}})return E_FAIL;
+        static_cast<QueuedRtd*>(held->object)->unknown=true;held->notices->dirty.store(true);
+        if(client.poll(publish,&values)!=E_INVALIDARG)return E_FAIL;
+        return client.close();
+    }catch(...){return E_OUTOFMEMORY;}
+}

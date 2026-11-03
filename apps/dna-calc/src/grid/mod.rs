@@ -213,8 +213,9 @@ fn grid_workspace(controller: Controller) -> impl IntoView {
                     if active.get_untracked() != selected {
                         active.set(selected);
                     }
-                    if first {
-                        let m = sheet_metrics(Some(&g.geometry()));
+                    if first || panes::split_slots(&layout.get_untracked()) != slots {
+                        let initial_zoom=controller.grid_view_for(sheet,selected).map_or_else(||g.zoom.map_or(1.,|z|viewport::clamp_zoom(f64::from(z)/100.)),|v|v.zoom);
+                        let m = sheet_metrics(Some(&g.geometry())).scaled(initial_zoom);
                         let a = g.top_left.unwrap_or((1, 1));
                         let b = g.pane_top_left.unwrap_or(a);
                         let mut initial = SplitAxes {
@@ -228,11 +229,7 @@ fn grid_workspace(controller: Controller) -> impl IntoView {
                             }
                         }
                         axes.set(initial);
-                        zoom.set(
-                            controller
-                                .grid_view_for(sheet, active.get_untracked())
-                                .map_or(1., |v| v.zoom),
-                        );
+                        zoom.set(initial_zoom);
                         held.set(Some((generation, sheet)));
                     }
                     if layout.get_untracked() != g {
@@ -278,6 +275,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         .and_then(|s| controller.grid_geometry(s));
     let zoom = ctx.zoom;
     let zoom_text = RwSignal::new(String::new());
+    let split_x=RwSignal::new("120".to_owned());let split_y=RwSignal::new("90".to_owned());
     Effect::new(move |_| zoom_text.set(format!("{:.0}", zoom.get() * 100.0)));
     let apply_zoom = move |text: String| match viewport::parse_zoom_percent(&text) {
         Ok(value) => zoom.set(value),
@@ -745,7 +743,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         );
         split_window.set(cached_geometry.as_ref().is_some_and(|g| g.split_window));
         let cached = controller.grid_view_for(sheet, ctx.index);
-        zoom.set(cached.map_or(1.0, |view| view.zoom));
+        zoom.set(cached.map_or_else(||ctx.layout.get_untracked().zoom.map_or(1.,|z|viewport::clamp_zoom(f64::from(z)/100.)), |view| view.zoom));
         let imported = Panes::from_geometry(&ctx.layout.get_untracked()).imported_scroll(
             &ctx.layout.get_untracked(),
             &metrics.get_untracked(),
@@ -2130,6 +2128,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         on:change=move |ev|{let enabled=event_target_value(&ev)=="canvas";painter::remember(enabled);ctx.canvas.set(enabled);}>
                         <option value="dom">"DOM"</option><option value="canvas">"Canvas2D"</option>
                     </select></label>
+                    <label>"Split across (pt) "<input data-dnacalc="split-x" aria-label="Horizontal split position in points" type="number" min="0" max="10000" prop:value=move ||split_x.get() on:input=move |ev|split_x.set(event_target_value(&ev))/></label>
+                    <label>"Split down (pt) "<input data-dnacalc="split-y" aria-label="Vertical split position in points" type="number" min="0" max="10000" prop:value=move ||split_y.get() on:input=move |ev|split_y.set(event_target_value(&ev))/></label>
+                    <button data-dnacalc="split-apply" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.split_panes(split_x.get_untracked(),split_y.get_untracked())>"Split"</button>
+                    <button data-dnacalc="split-remove" disabled=move ||controller.editing.get().is_some() || !ctx.layout.get().split_window on:click=move |_|controller.split_panes("0".into(),"0".into())>"Remove split"</button>
                     <button data-dnacalc="freeze-active" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("active")>"Freeze above & left of active cell"</button>
                     <button data-dnacalc="freeze-row" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("first-row")>"Freeze first row"</button>
                     <button data-dnacalc="freeze-column" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.freeze_panes("first-column")>"Freeze first column"</button>

@@ -330,7 +330,7 @@ pub(super) fn relative_target(from: &str, to: &str) -> String {
 
 /// The changes an authored save makes to the package for `edit`; none when the edited model's
 /// cells and skin layout are the loaded ones and no cache-state write was requested.
-pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefusal> {
+pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveViews>) -> Result<Changes, SaveRefusal> {
     let Edited {
         workbook_part,
         sheets,
@@ -345,6 +345,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     if !model.same_lineage(base) {
         return Err(SaveRefusal::ForeignModel);
     }
+    if let Some(views)=views {super::panes::validate(views,model)?;}
     let sheets_changed = model.sheets() != base.sheets();
     let original_sheets = sheets;
     let expanded = super::sheets::expanded(package, workbook_part, sheets, model);
@@ -411,7 +412,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         .ne(model.definitions().all_conditional_rules());
     let filters_changed = base.definitions().auto_filters().ne(model.definitions().auto_filters());
     let visibility_changed = base.definitions().hidden_rows_all().ne(model.definitions().hidden_rows_all());
-    let panes_changed = base.definitions().panes().ne(model.definitions().panes());
+    let panes_changed = base.definitions().pane_layouts().ne(model.definitions().pane_layouts());
     let dimensions_changed =
         base.definitions().axis_layouts() != model.definitions().axis_layouts();
     // The iterative-calculation settings an edit changed (dc-y2o.2), written to the `calcPr`.
@@ -422,6 +423,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         && layout.is_none()
         && !names_changed
         && !conditional_changed
+        && views.is_none()
         && !panes_changed
         && !dimensions_changed
         && !filters_changed
@@ -1066,22 +1068,35 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             out.rewritten.insert(sheet.part().name().to_owned(),bytes);
         }
     }
-    if panes_changed {
-        for sheet in sheets.iter().filter(|s| {
-            base.definitions().frozen_panes(s.id()) != model.definitions().frozen_panes(s.id())
-        }) {
-            let original = super::sheets::read_sheet(package, sheet.part().name())?;
-            let current = out
-                .rewritten
-                .remove(sheet.part().name())
-                .map(|bytes| original.with_bytes(bytes));
-            let xml = current.as_ref().unwrap_or(&original);
-            let bytes = super::panes::rewrite(
-                xml,
-                model.definitions().frozen_panes(sheet.id()),
-                sheet.view().active_cell.unwrap_or((1, 1)),
-            )?;
-            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+    if panes_changed || views.is_some() {
+        for sheet in sheets.iter().filter(|s| model.sheet_by_id(s.id()).is_some()) {
+            let changed=base.definitions().pane_layout(sheet.id())!=model.definitions().pane_layout(sheet.id());
+            let override_view=views.and_then(|v|v.sheets.get(&sheet.id())).copied();
+            let selected=views.and_then(|v|v.active_sheet).map(|active|active==sheet.id());
+            if !changed && override_view.is_none() && selected.is_none() {continue;}
+            if sheet.is_macro_sheet() && !changed && override_view.is_none(){continue;}
+            if sheets.iter().any(|other| other.id()!=sheet.id() && other.part().name().eq_ignore_ascii_case(sheet.part().name())) {
+                return Err(SaveRefusal::SharedSheetPart{part:sheet.part().name().to_owned()});
+            }
+            if sheet.is_macro_sheet(){return Err(SaveRefusal::MacroSheetChanged{part:sheet.part().name().to_owned()});}
+
+            let original=super::sheets::read_sheet(package,sheet.part().name())?;
+            let current=out.rewritten.remove(sheet.part().name()).map(|bytes|original.with_bytes(bytes));
+            let xml=current.as_ref().unwrap_or(&original);
+            let view = if let Some(view) = override_view {Some(view)} else if changed {
+                Some(crate::load::sheet::view_from_xml(xml)
+                    .map_err(|e| SaveRefusal::WindowView {detail:e.to_string(),owner:"dc-971p.16"})?
+                    .with_pane_layout(model.definitions().pane_layout(sheet.id())))
+            } else {None};
+            let bytes=super::panes::rewrite(xml,view,selected)?;
+            out.rewritten.insert(sheet.part().name().to_owned(),bytes);
+        }
+        if let Some(active)=views.and_then(|v|v.active_sheet) {
+            let original=super::strings::read_part(package,workbook_part)?;
+            let current=out.rewritten.remove(workbook_part).map(|bytes|original.with_bytes(bytes));
+            let xml=current.as_ref().unwrap_or(&original);
+            let index=model.sheets().iter().position(|s|s.id()==active).expect("validated sheet");
+            out.rewritten.insert(workbook_part.to_owned(),super::panes::workbook(xml,index)?);
         }
     }
     if conditional_changed {

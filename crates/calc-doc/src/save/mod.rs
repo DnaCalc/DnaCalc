@@ -190,8 +190,10 @@ pub enum SaveFormat {
 }
 
 /// The format and bounds a save is planned under.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SavePolicy {
+    /// Immutable first-window state captured by the application for this save only.
+    pub views: Option<Arc<SaveViews>>,
     pub format: SaveFormat,
     /// The longest package written, in bytes. A package past 4 GiB - 1 byte, the most a ZIP
     /// archive without ZIP64 records addresses, is refused whatever this says, since this writer
@@ -202,10 +204,18 @@ pub struct SavePolicy {
 impl Default for SavePolicy {
     fn default() -> Self {
         SavePolicy {
+            views: None,
             format: SaveFormat::Xml,
             max_package_bytes: u64::from(u32::MAX),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaveViews {
+    pub revision: u64,
+    pub active_sheet: Option<calc_doc_model::value::SheetId>,
+    pub sheets: BTreeMap<calc_doc_model::value::SheetId, crate::SheetView>,
 }
 
 /// Why [`prepare_save`] refused a snapshot. A refusal is decided before any byte is written: no
@@ -213,6 +223,7 @@ impl Default for SavePolicy {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
+    WindowView { detail: String, owner: &'static str },
     /// This rectangular style plane still needs too many individual blank-cell XML records.
     /// Row and column defaults have already been compacted; no bytes have been written.
     StyleExpansionNotModelled { cells: u64, owner: &'static str },
@@ -311,6 +322,7 @@ pub enum SaveRefusal {
 impl fmt::Display for SaveRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::WindowView {detail,owner}=>write!(f,"{detail} ({owner})"),
             Self::StyleExpansionNotModelled { cells, owner } => write!(
                 f,
                 "Saving this formatting needs {cells} individual blank-cell records; larger style expansion is not modelled ({owner})"
@@ -746,7 +758,8 @@ pub fn prepare_save(
 ) -> Result<SavePlan, SaveRefusal> {
     let converted = &snapshot.package;
     let changes = match &snapshot.edit {
-        Some(edit) => author::plan(converted, edit)?,
+        Some(edit) => author::plan(converted, edit, policy.views.as_deref())?,
+        None if policy.views.is_some()=>return Err(SaveRefusal::WindowView{detail:"Window saving needs a loaded model".into(),owner:"dc-971p.16"}),
         None => author::Changes::default(),
     };
     let package = match policy.format {

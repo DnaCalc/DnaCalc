@@ -107,7 +107,7 @@ pub use save::file_form::{
     FileForm, FileFormError, file_form, file_form_with_links, file_form_with_lookup,
 };
 pub use save::{
-    DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, StructuralEdits,
+    DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveViews, SaveReceipt, SaveRefusal, StructuralEdits,
     WriteError, conditional_rule, new_conditional_rule, prepare_save, write,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};

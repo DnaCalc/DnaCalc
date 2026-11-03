@@ -1,0 +1,89 @@
+[
+  {
+    "formula": "=MyAsyncHello(\"world\",50)",
+    "value": "Hello async world",
+    "rtd_wait_value": "Hello async world",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 17,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  },
+  {
+    "formula": "=MyAsyncTaskHello(\"world\",50)",
+    "value": "Hello async task world",
+    "rtd_wait_value": "Hello async task world",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 22,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  },
+  {
+    "formula": "=MyTaskHello(\"world\")",
+    "value": "Hello task world",
+    "rtd_wait_value": "Hello task world",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 16,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  },
+  {
+    "formula": "=MyStringObservable(\"observable\")",
+    "value": "observable",
+    "rtd_wait_value": "observable",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 10,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  },
+  {
+    "formula": "=MyAsyncHello(\"a\",50)&\"/\"&MyAsyncHello(\"b\",50)",
+    "value": "Hello async a/Hello async b",
+    "rtd_wait_value": "Hello async a/Hello async b",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 27,
+    "expected_rtd_inputs": 2,
+    "expected_completed_invocations": 2,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  },
+  {
+    "formula": "=MyAsyncHello(\"shared\",50)",
+    "value": "Hello async shared",
+    "rtd_wait_value": "Hello async shared",
+    "dependent": "=MyAsyncHello(\"shared\",50)",
+    "dependent_value": "Hello async shared",
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 1,
+    "expected_dependent_completed_invocations": 1
+  },
+  {
+    "formula": "=MyAsyncHello(\"shared\",50)&\"!\"",
+    "value": "Hello async shared!",
+    "rtd_wait_value": "Hello async shared!",
+    "dependent": "=MyAsyncHello(\"shared\",50)",
+    "dependent_value": "Hello async shared",
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 1,
+    "expected_dependent_completed_invocations": 1
+  },
+  {
+    "formula": "=99",
+    "value": 99,
+    "dependent": "=B3*2",
+    "dependent_value": 198,
+    "expected_rtd_inputs": 0,
+    "expected_completed_invocations": 0,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  }
+]

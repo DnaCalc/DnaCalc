@@ -274,7 +274,7 @@ impl fmt::Display for EncodeError {
             ),
             EncodeError::FrozenPanes { operation } => write!(
                 f,
-                "operation {operation} sets frozen panes, which wire version 1 has no form for"
+                "operation {operation} sets worksheet panes, which wire version 1 has no form for"
             ),
             EncodeError::UnknownSheet { sheet } => {
                 write!(f, "the root holds no sheet {sheet:?}")
@@ -339,7 +339,7 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         if matches!(operation, WorkbookOp::SetConditionalRules { .. }) {
             return Err(EncodeError::ConditionalRules { operation: index });
         }
-        if matches!(operation, WorkbookOp::SetFrozenPanes { .. }) {
+        if matches!(operation, WorkbookOp::SetFrozenPanes { .. } | WorkbookOp::SetPaneLayout { .. }) {
             return Err(EncodeError::FrozenPanes { operation: index });
         }
         operations.push(WireOp::from_op(operation, root, &mut claimed)?);

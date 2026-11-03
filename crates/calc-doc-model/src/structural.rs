@@ -349,7 +349,7 @@ impl ModelRoot {
             } else {
                 Arc::clone(definitions.styles())
             })
-            .with_panes(definitions.panes().filter_map(|(sheet, panes)| {
+            .with_pane_layouts(definitions.pane_layouts().filter_map(|(sheet, panes)| {
                 Some((
                     sheet,
                     if sheet == edit.sheet() {

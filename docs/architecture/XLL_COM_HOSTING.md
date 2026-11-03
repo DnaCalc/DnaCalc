@@ -780,3 +780,77 @@ HKLM key, Trust Center or macro setting is written. Python and settings-override
 reload controls retain explicit failures. A renamed-loader control crashed and
 remains unqualified. Arbitrary plugins, Python teardown and general safe reload
 remain open under dc-snz.21.
+
+## 20. Excel-DNA scalar and private COM support (dc-snz.2)
+
+Native typed arguments now use the existing coercion and text-rendering path.
+An incoming worksheet error in a numeric native argument becomes #VALUE!, as
+measured independently with the same unchanged native fixture in Excel. REFTEXT
+uses the shared ADDRESS implementation for a single rectangular reference;
+unsupported reference shapes retain a typed refusal.
+
+The existing Application projection now exposes a bounded COMAddIns and
+CommandBars model. COM discovery reads only private HKCU classes whose in-process
+server is an XLL already owned by this host. Activation uses the real
+IDTExtensibility2 interface, and ribbon inspection calls IRibbonExtensibility
+GetCustomUI on the owner STA. The returned XML is retained by the application.
+This does not render a ribbon or implement arbitrary button actions. Unsupported
+Office members return an error. No Excel registration or security setting is
+written by the host. The reference runner requires a nonadministrator token and
+an unchanged AutomationSecurity value of 1 before the original Excel-DNA helper
+can register its temporary private classes.
+
+COM providers may reenter while connecting, querying a ribbon or disconnecting.
+Stable object references, generation checks and a shutdown flag protect those
+transitions. Failed or incomplete teardown retains the provider and module leases
+rather than unloading callable native code. Native tests exercise vector growth,
+self-disconnection in QueryInterface and GetCustomUI, retained disconnected
+controls and calls from the wrong thread.
+
+Reference comparisons retain teardown separately: Excel's UNREGISTER(path) and
+the host's Remove+Close are different operations. xlFree has no defined output
+operand. Identity normalization of its input now follows the callback's operand
+address and recorded value, rather than treating any matching number as a
+registration ID. Raw pointer values and every callback remain in the capture.
+
+## 21. R8 reference comparisons and RTD ownership (dc-snz.2, dc-snz.23)
+
+Clean captures at 5ae95bf6 compare the unchanged Registration sample on net462
+and net6.0-windows, local runtime-test binaries with an explicit net8/noncollectible
+configuration, the built net10 Native AOT runtime tests, and the net6 ribbon
+sample. Their 114 formula cases match in both traced and untraced controls.
+All 110 ordered native entries and 606 pre-teardown C callbacks match after the
+recorded identity normalization. The ribbon comparison includes seven helper
+property calls and exact XML. Teardown remains different and separately counted.
+The rebuilt original xlw sample and the existing xlw generated type fixture each
+match ten cases. These are bounded comparisons, not whole-framework qualification.
+
+The default local runtime-test configuration fails in both Excel and the host;
+its failure is retained. The net8 configuration changes only the external DNA
+configuration and uses unchanged rebuilt binaries. The local Excel-DNA checkout
+was already dirty; source hashes and build inputs are retained separately from
+its HEAD. The shared scalar cases use Framework's "12.3" formatting; the recorded
+net6 variant expects "12.2", as observed in both hosts. No framework binary is
+patched, and no upstream source tree was edited for these comparisons.
+
+RTD transport declarations now reconcile over all completed invocations in the
+cell's producing certificate. One native call cannot disconnect a sibling's
+topic. Records selected by a reused certificate stay available; partial or aborted
+invocations cannot keep a transport alive. Replacing a formula retires its old
+logical inputs after the edit succeeds and before formula-entry evaluation.
+A disconnected transport can reconnect while its logical input remains leased:
+the logical subscription and increasing input sequence survive. Each connection
+gets a fresh native transport ID. Queued updates from a known retired transport
+cannot reach the new connection; an unknown transport ID still fails validation.
+The native client test covers that distinction with another topic still active.
+
+Native asynchronous formula entry uses the existing CalcHost P07 token route and
+owner message pump. Its completion resumes the producing activation and its
+dependents. Manual Calculate is a separate invocation. Reference cases wait for
+the assigned formula's completion before requesting that calculation. Ordinary
+OneCalc calls without an admitted continuation retain a typed refusal.
+The broader RTD verifier checks ordered formula occurrences, including edits that
+keep the formula, exact admitted input sequences and producing certificates.
+It retains every native/client call and reports unequal traffic as a strict
+comparison failure even when final values match. Arrays, remote RTD, ribbon
+painting, button actions and general COM remain outside the scalar observations.

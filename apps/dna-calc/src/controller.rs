@@ -810,7 +810,7 @@ impl Controller {
         self.save_download.set_value(None);
         self.grid_geometry.update_value(|all| all.clear());
         self.mirrors.update_value(BTreeMap::clear);
-        let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
+        let first = summary.initial_cell.and_then(Key::cell).map(|at|at.sheet()).filter(|id|summary.sheets.iter().any(|(s,_)|s.id()==*id)).or_else(||summary.sheets.first().map(|(sheet,_)|sheet.id()));
         let initial = summary
             .initial_cell
             .and_then(Key::cell)
@@ -2210,13 +2210,60 @@ impl Controller {
             let column=controller.model.with_untracked(|m|m.runtime.tools.sort_column.parse::<u32>());
             let Ok(column)=column else {controller.say("Enter a column number within the selection",true);return;};
             if column==0 || column>area.column_count() {controller.say("The sort column must be within the selected range (1 is its first column)",true);return;}
-            let header=controller.model.with_untracked(|m|m.runtime.tools.sort_header);
-            controller.dispatch(Intent::SortRows{area:Area::of(area),column:area.first().column()+column-1,header,descending,revision:controller.summary.get_untracked().revision},move |outcome| {
+            let (header,levels)=controller.model.with_untracked(|m|(m.runtime.tools.sort_header,m.runtime.tools.sort_levels.clone()));
+            let mut keys=vec![(area.first().column()+column-1,descending)];
+            for (text,reverse) in levels {
+                let Some(column)=text.parse::<u32>().ok().filter(|c|*c>0 && *c<=area.column_count()) else {controller.say("Every sort key must be a column within the selection",true);return;};
+                keys.push((area.first().column()+column-1,reverse));
+            }
+            controller.dispatch(Intent::SortRows{area:Area::of(area),keys,header,revision:controller.summary.get_untracked().revision},move |outcome| {
                 if outcome.accepted {controller.say(format!("Sorted {} {}",controller.area_label(area),if descending {"largest to smallest"}else{"smallest to largest"}),false);}
             });
         });
     }
 
+    pub fn split_panes(&self, x: String, y: String) {
+        let controller = *self;
+        self.after_input(move || {
+            if controller.editing.get_untracked().is_some() {
+                return;
+            }
+            let (Ok(x), Ok(y)) = (x.trim().parse::<f64>(), y.trim().parse::<f64>()) else {
+                controller.say("Enter nonnegative split positions in points", true);
+                return;
+            };
+            if !x.is_finite() || !y.is_finite() || x < 0. || y < 0. || x > 10000. || y > 10000. {
+                controller.say("Split positions must be from 0 to 10000 points", true);
+                return;
+            }
+            let Some(sheet) = controller.sheet.get_untracked() else {
+                return;
+            };
+            let (row, column) = controller.active.get_untracked();
+            controller.dispatch(
+                Intent::SplitPanes {
+                    sheet: wire::Sheet::of(sheet),
+                    revision: controller.summary.get_untracked().revision,
+                    x: (x * 20.).to_bits(),
+                    y: (y * 20.).to_bits(),
+                    row,
+                    column,
+                },
+                move |o| {
+                    if o.accepted {
+                        controller.say(
+                            if x == 0. && y == 0. {
+                                "Split removed"
+                            } else {
+                                "Worksheet split"
+                            },
+                            false,
+                        );
+                    }
+                },
+            );
+        });
+    }
     pub fn freeze_panes(&self, choice: &'static str) {
         let controller = *self;
         self.after_input(move || {
@@ -3057,7 +3104,52 @@ impl Controller {
         }
         let controller = *self;
         let generation = self.generation.get_untracked();
-        self.send_command(Request::Save, None, move |reply, bytes| {
+        let Some(active_sheet) = self.sheet.get_untracked() else {
+            return;
+        };
+        let views = self.grid_views.with_value(|all| {
+            let mut grouped: BTreeMap<SheetId, Vec<wire::PaneWindow>> = BTreeMap::new();
+            for (&(sheet, index), v) in all {
+                grouped.entry(sheet).or_default().push(wire::PaneWindow {
+                    index,
+                    x: v.viewport.scroll_x,
+                    y: v.viewport.scroll_y,
+                    zoom: v.zoom,
+                });
+            }
+            grouped
+                .into_iter()
+                .filter(|(sheet, _)| {
+                    self.summary
+                        .with_untracked(|all| all.sheets.iter().any(|(s, _)| s.id() == *sheet))
+                })
+                .filter_map(|(sheet, panes)| {
+                    let active = if sheet == active_sheet {
+                        self.active.get_untracked()
+                    } else {
+                        self.sheet_selections
+                            .with_value(|a| a.get(&sheet).map(|(at, _)| (at.row(), at.column())))
+                            .unwrap_or((1, 1))
+                    };
+                    Some(wire::SheetWindow {
+                        geometry: self.grid_geometry(sheet)?,
+                        sheet: wire::Sheet::of(sheet),
+                        active,
+                        active_pane: self.active_grid_pane(sheet).unwrap_or(0),
+                        panes,
+                    })
+                })
+                .collect()
+        });
+        let request = Request::SaveWithContext {
+            calculate_before_save: false,
+            views: Some(wire::SaveWindow {
+                revision: self.summary.get_untracked().revision,
+                active_sheet: wire::Sheet::of(active_sheet),
+                sheets: views,
+            }),
+        };
+        self.send_command(request, None, move |reply, bytes| {
             if controller.generation.get_untracked() == generation {
                 controller.save_reply(reply, bytes, Box::new(saved));
             }

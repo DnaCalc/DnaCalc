@@ -464,6 +464,7 @@ fn describe_input(input: &CellInput) -> String {
 /// own equality.
 fn describe(op: &WorkbookOp) -> String {
     match op {
+        WorkbookOp::SetPaneLayout {sheet,layout} => format!("panes {sheet:?} {layout:?}"),
         WorkbookOp::SetAutoFilter {sheet,filter} => format!("filter {sheet:?} {:?}",filter.as_ref().map(|f|(f.area,&f.columns,&f.filtered_rows,f.unsupported))),
         WorkbookOp::SetConditionalRules { sheet, rules } => format!(
             "conditional {sheet:?} {:?}",
@@ -621,6 +622,7 @@ fn describe_all(ops: &[WorkbookOp]) -> Vec<String> {
 fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
     let feature = match op {
         // Wire version 1 refuses AutoFilter state as EncodeError::AutoFilter.
+        WorkbookOp::SetPaneLayout {..} => "op:set_pane_layout".into(),
         WorkbookOp::SetAutoFilter { .. } => "op:auto_filter".to_owned(),
         // Wire version 1 refuses conditional-rule state as EncodeError::ConditionalRules.
         WorkbookOp::SetConditionalRules { .. } => "op:conditional_rules".to_owned(),
@@ -8245,6 +8247,7 @@ fn cdoc_m1_3__save_refusal() {
     let small = SavePolicy {
         format: calc_doc::SaveFormat::Xml,
         max_package_bytes: 1_000,
+        ..Default::default()
     };
     let too_large = m1_3_refused(
         &fresh.snapshot(&fresh_model),

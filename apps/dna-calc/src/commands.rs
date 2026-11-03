@@ -445,17 +445,34 @@ mod browser_tests {
 pub fn sort_controls(controller: Controller) -> AnyView {
     let header=controller.tool_field(|s| &s.sort_header,|s| &mut s.sort_header);
     let column=controller.tool_field(|s| &s.sort_column,|s| &mut s.sort_column);
+    let levels=controller.tool_field(|s| &s.sort_levels,|s| &mut s.sort_levels);
     view! {
         <details class="dc-clipboard-tools" data-dnacalc="sort-tools" name="worksheet-tools">
             <summary>"Sort rows"</summary>
-            <p class="dc-note">"Select the complete data rectangle. Only selected cells move. Choose a numeric or date column; blank keys stay last and equal keys keep their order."</p>
+            <p class="dc-note">"Select the complete data rectangle. Only selected cells move. Text uses case-insensitive en-ZA order. Blank keys stay last and equal keys keep their order."</p>
             <div class="dc-command-row">
                 <label>"Column within selection "<input data-dnacalc="sort-column" type="number" min="1" step="1" inputmode="numeric" prop:value=move ||column.get() on:input=move |ev|column.set(event_target_value(&ev))/></label>
                 <label><input data-dnacalc="sort-header" type="checkbox" prop:checked=move ||header.get() on:change=move |ev|header.set(event_target_checked(&ev))/><span>"First row is a header"</span></label>
-                <button data-dnacalc="sort-ascending" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.sort_rows(false)>"Smallest to largest"</button>
-                <button data-dnacalc="sort-descending" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.sort_rows(true)>"Largest to smallest"</button>
+                <button data-dnacalc="sort-ascending" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.sort_rows(false)>"A to Z / smallest to largest"</button>
+                <button data-dnacalc="sort-descending" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.sort_rows(true)>"Z to A / largest to smallest"</button>
             </div>
-            <p class="dc-muted">"Formula cells, hidden rows, tables, merged cells, rich text and attached rules, notes or links need additional sort support. One Undo restores the sorted range."</p>
+            <For each={move ||(0..levels.get().len()).collect::<Vec<_>>()} key=|i|*i children={move |i|view! {
+                <div class="dc-command-row">
+                    <label>{format!("Then column {} ",i+2)}<input data-dnacalc=format!("sort-level-column-{}",i+2) type="number" min="1" step="1" inputmode="numeric"
+                        prop:value=move ||levels.get().get(i).map(|v|v.0.clone()).unwrap_or_default()
+                        on:input=move |ev|levels.update(|all|if let Some(v)=all.get_mut(i){v.0=event_target_value(&ev);})/></label>
+                    <label>"Order "<select data-dnacalc=format!("sort-level-order-{}",i+2)
+                        prop:value=move ||if levels.get().get(i).is_some_and(|v|v.1){"desc"}else{"asc"}
+                        on:change=move |ev|levels.update(|all|if let Some(v)=all.get_mut(i){v.1=event_target_value(&ev)=="desc";})>
+                        <option value="asc">"Ascending"</option><option value="desc">"Descending"</option>
+                    </select></label>
+                    <button data-dnacalc=format!("sort-level-remove-{}",i+2) aria-label=format!("Remove sort key {}",i+2)
+                        on:click=move |_|levels.update(|all|{if i<all.len(){all.remove(i);}})>"Remove key"</button>
+                </div>
+            }}/>
+            <button data-dnacalc="sort-add-key" disabled={move ||levels.get().len()>=31}
+                on:click=move |_|levels.update(|all|{if all.len()<31 {all.push(((all.len()+2).to_string(),false));}})>"Add sort key"</button>
+            <p class="dc-muted">"Keys are applied from top to bottom. One Undo restores the sorted range. Hidden rows, tables, merges, rich text, attached rules, notes, links and sheet-qualified formulas need additional sort support."</p>
         </details>
     }.into_any()
 }

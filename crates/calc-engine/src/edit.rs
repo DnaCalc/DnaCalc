@@ -314,6 +314,7 @@ pub fn prepare_edit<'s, 'r>(
             WorkbookOp::SetAxisFormat(edit) => require_sheet(inputs, operation, edit.sheet())?,
             WorkbookOp::SetAutoFilter { sheet, .. }
             | WorkbookOp::SetConditionalRules { sheet, .. }
+            | WorkbookOp::SetPaneLayout { sheet, .. }
             | WorkbookOp::SetFrozenPanes { sheet, .. } => require_sheet(inputs, operation, *sheet)?,
         }
     }
@@ -627,6 +628,7 @@ fn structural_moves(
                 | WorkbookOp::SetAxisFormat(_)
                 | WorkbookOp::SetConditionalRules { .. }
                 | WorkbookOp::SetAutoFilter { .. }
+                | WorkbookOp::SetPaneLayout { .. }
                 | WorkbookOp::SetFrozenPanes { .. }
         )
     }) {
@@ -652,7 +654,8 @@ fn structural_moves(
             | WorkbookOp::SetAxisFormat(_)
             | WorkbookOp::SetConditionalRules { .. }
             | WorkbookOp::SetAutoFilter { .. }
-            | WorkbookOp::SetFrozenPanes { .. } => unreachable!("refused above"),
+            | WorkbookOp::SetPaneLayout { .. }
+                | WorkbookOp::SetFrozenPanes { .. } => unreachable!("refused above"),
             WorkbookOp::EditAxis(edit) => {
                 require_sheet(inputs, operation, edit.sheet())?;
                 for (_, anchor) in &mut moves {

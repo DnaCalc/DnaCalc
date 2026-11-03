@@ -26,6 +26,7 @@ pub struct ColumnSpan {
 /// pane), each as (row, column). INFO("origin") and CELL without a reference read them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SheetView {
+    pub zoom: Option<u16>,
     pub top_left: Option<(u32, u32)>,
     pub active_cell: Option<(u32, u32)>,
     pub frozen: Option<calc_doc_model::FrozenPanes>,
@@ -37,6 +38,47 @@ pub struct SheetView {
     pub active_pane: u8,
     /// A separate split window, whose positions are stored in twips rather than band counts.
     pub split_window: bool,
+}
+impl SheetView {
+    pub fn pane_layout(self) -> Option<calc_doc_model::PaneLayout> {
+        use calc_doc_model::{PaneLayout, SplitPanes};
+        if let Some(p) = self.frozen {
+            return Some(PaneLayout::Frozen(p));
+        }
+        let (x, y) = self.split?;
+        let (r, c) = self.pane_top_left.unwrap_or((1, 1));
+        SplitPanes::new(f64::from_bits(x), f64::from_bits(y), r, c).map(PaneLayout::Split)
+    }
+    pub fn with_pane_layout(mut self, layout: Option<calc_doc_model::PaneLayout>) -> Self {
+        use calc_doc_model::PaneLayout;
+        self.frozen = None;
+        self.split = None;
+        self.split_window = false;
+        match layout {
+            Some(PaneLayout::Frozen(p)) => {
+                self.frozen = Some(p);
+                self.top_left = Some((1, 1));
+                self.pane_top_left = Some((p.rows() + 1, p.columns() + 1));
+                let (r, c) = self.active_cell.unwrap_or((1, 1));
+                self.active_pane = u8::from(c > p.columns() && p.columns() > 0)
+                    | (u8::from(r > p.rows() && p.rows() > 0) << 1);
+            }
+            Some(PaneLayout::Split(p)) => {
+                self.split = Some(p.positions());
+                self.split_window = true;
+                self.pane_top_left = Some(p.origin());
+                let (x, y) = p.positions();
+                self.active_pane &=
+                    u8::from(f64::from_bits(x) > 0.) | (u8::from(f64::from_bits(y) > 0.) << 1);
+            }
+            None => {
+                self.top_left = Some((1, 1));
+                self.pane_top_left = None;
+                self.active_pane = 0;
+            }
+        }
+        self
+    }
 }
 
 /// One row's `ht` and `hidden`.

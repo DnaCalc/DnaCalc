@@ -197,6 +197,8 @@ static void watchObject(Address p,const std::string& label,const std::string& ki
     else if(kind=="worksheet") early(18,"Name","bstr1");
     else if(kind=="rtdserver"){early(7,"ServerStart","rtdstart");early(8,"ConnectData","rtdconnect");early(9,"RefreshData","rtdrefresh");early(10,"DisconnectData","rtddisconnect");early(11,"Heartbeat","int1");early(12,"ServerTerminate","rtdterminate");}
     else if(kind=="rtdsink"){early(7,"UpdateNotify","rtdnotify");early(8,"HeartbeatInterval.get","int1");early(9,"HeartbeatInterval.put","rtdinterval");early(10,"Disconnect","rtdterminate");}
+    else if(kind=="extensibility"){early(7,"OnConnection","addinconnect");early(8,"OnDisconnection","addindisconnect");early(9,"OnAddInsUpdate","addinarray");early(10,"OnStartupComplete","addinarray");early(11,"OnBeginShutdown","addinarray");}
+    else if(kind=="ribbon")early(7,"GetCustomUI","bstr2");
     emit("\"event\":\"com_object\",\"object\":"+hex(p)+",\"label\":"+quote(label)+",\"interface\":"+quote(kind));
 }
 static std::string variantArray(Address p);
@@ -370,6 +372,8 @@ static double doubleArgument(const CONTEXT& c,int i) {
 static std::string typed(const std::string& t, Address v) {
     if(t=="Q"||t=="U"||t=="X") return oper(v);
     if(t=="E") return number(read<double>(v));
+    if(t=="L"||t=="M") return std::to_string(read<int16_t>(v));
+    if(t=="N") return std::to_string(read<int32_t>(v));
     if(t=="D%") return quote(utf8(wide(v+2,read<uint16_t>(v))));
     if(t=="K%") {
         int32_t rows=read<int32_t>(v),cols=read<int32_t>(v+4);
@@ -440,6 +444,13 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
             if(entry.signature=="rtdconnect")fields+=",\"topic\":"+std::to_string((int32_t)ctx.Rdx)+",\"strings\":"+variantArray(read<Address>(ctx.R8))+",\"new_values\":"+std::string(read<int16_t>(ctx.R9)?"true":"false");
             if(entry.signature=="rtddisconnect")fields+=",\"topic\":"+std::to_string((int32_t)ctx.Rdx);
             if(entry.signature=="rtdinterval")fields+=",\"value\":"+std::to_string((int32_t)ctx.Rdx);
+            if(entry.signature=="addinconnect") {
+                fields+=",\"application\":"+hex(ctx.Rdx)+",\"mode\":"+std::to_string((int32_t)ctx.R8)+",\"instance\":"+hex(ctx.R9)+",\"custom\":"+variantArray(read<Address>(c.raw[4]));
+                watchObject(ctx.Rdx,"COM add-in Application","application");watchObject(ctx.R9,"COM add-in instance","dispatch");
+            }
+            if(entry.signature=="addindisconnect")fields+=",\"mode\":"+std::to_string((int32_t)ctx.Rdx)+",\"custom\":"+variantArray(read<Address>(ctx.R8));
+            if(entry.signature=="addinarray")fields+=",\"custom\":"+variantArray(read<Address>(ctx.Rdx));
+            if(entry.name=="COM!early.ribbon.GetCustomUI")fields+=",\"ribbon_id\":"+quote(utf8(wideZ(ctx.Rdx)));
             if(entry.name=="COM!early.workbooks.Item")fields+=",\"index\":"+variant(ctx.Rdx);
             if(entry.signature=="run") {
                 fields+=",\"arguments\":[";
@@ -498,7 +509,9 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
         c.fn=(int)ctx.Rcx; c.count=(int)ctx.Rdx;
         fields+=",\"function\":"+std::to_string(c.fn)+",\"args\":[";
         for(int i=0;i<c.count&&i<256;++i) { if(i)fields+=","; fields+=oper(read<Address>(c.args+i*8)); }
-        fields+="]";
+        fields+="],\"argument_addresses\":[";
+        for(int i=0;i<c.count&&i<256;++i){if(i)fields+=",";fields+=hex(read<Address>(c.args+i*8));}
+        fields+="],\"result_address\":"+hex(c.result);
         registerEntry(c);
     } else fields+=",\"signature\":"+quote(entry.signature)+",\"args\":"+entryArgs(entry,ctx);
     emit(fields);
@@ -546,7 +559,7 @@ static void leave(const Call& c,const CONTEXT& ctx) {
             else if(kind=="COM!CreateInstance"){
                 auto iid=guid(c.raw[2]);auto object=read<Address>(c.raw[3]);fields+=",\"object\":"+hex(object);
                 bool rtd=iid=="ec0e6191-db51-11d3-8f3e-00c04f3651b8";
-                watchObject(object,rtd?"RTD server":"COM class instance",rtd?"rtdserver":iid=="00020400-0000-0000-c000-000000000046"?"dispatch":"unknown");
+                watchObject(object,rtd?"RTD server":"COM class instance",rtd?"rtdserver":iid=="b65ad801-abaf-11d0-bb8b-00a0c90f2744"?"extensibility":iid=="00020400-0000-0000-c000-000000000046"?"dispatch":"unknown");
                 instanceClasses[object]=c.clsid;
                 if(c.rtd_call && !rtd)rtdCandidates[object]={c.rtd_call,c.thread,c.clsid,iid};
             }else if(kind=="COM!GetIDsOfNames") {
@@ -569,6 +582,8 @@ static void leave(const Call& c,const CONTEXT& ctx) {
                 else if(iid=="00020846-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"range");
                 else if(iid=="ec0e6191-db51-11d3-8f3e-00c04f3651b8")watchObject(p,objects[c.raw[0]],"rtdserver");
                 else if(iid=="a43788c1-d91b-11d3-8f39-00c04f3651b8")watchObject(p,objects[c.raw[0]],"rtdsink");
+                else if(iid=="b65ad801-abaf-11d0-bb8b-00a0c90f2744")watchObject(p,objects[c.raw[0]],"extensibility");
+                else if(iid=="000c0396-0000-0000-c000-000000000046")watchObject(p,objects[c.raw[0]],"ribbon");
                 else watchObject(p,objects[c.raw[0]],"unknown");
             }else if(kind=="COM!FindConnectionPoint")watchObject(read<Address>(c.raw[2]),objects[c.raw[0]]+".ConnectionPoint","point");
             else if(kind=="COM!Advise"){

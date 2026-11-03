@@ -520,9 +520,18 @@ impl LoadedWorkbook {
                                                 )
                                             })
                                     }
-                                    // Formula payloads are refused by the host. A formula elsewhere
-                                    // on this sheet keeps its original source and is not moved.
-                                    "f" => parent == Some("c"),
+                                    // Shared groups are modelled formula storage; the copy route
+                                    // materialises each member before relocation. Other source
+                                    // formula attributes must remain at their source.
+                                    "f" => parent == Some("c") && e.attributes.iter().all(|a| {
+                                        a.name.namespace.is_none() && match (e.attribute("t"), a.name.local.as_str()) {
+                                            (Some("shared"), "t") => true,
+                                            (Some("shared"), "si") => a.value.parse::<u32>().is_ok(),
+                                            (Some("shared"), "ref") => address::area(&a.value).is_some(),
+                                            (Some("normal"), "t") => true,
+                                            _ => false,
+                                        }
+                                    }),
                                     _ => false,
                                 };
                             if !allowed {
@@ -1512,11 +1521,7 @@ pub fn load(
     let mut definitions = Definitions::new(arrays, names, tables, unloaded)
         .with_styles(Arc::clone(&styles))
         .with_axis_layouts(axis_layouts)
-        .with_panes(
-            sheets
-                .iter()
-                .filter_map(|s| s.view.frozen.map(|p| (s.id, p))),
-        )
+        .with_pane_layouts(sheets.iter().filter_map(|s|s.view.pane_layout().map(|p|(s.id,p))))
         .with_hidden_rows(hidden_rows)
         .with_macro_enabled(macro_enabled)
         .with_iteration(iteration)

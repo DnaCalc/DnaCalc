@@ -113,6 +113,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::Axis(_)
             | CellEdit::Sheet(_)
             | CellEdit::AxisFormat(_)
+            | CellEdit::PaneLayout { .. }
             | CellEdit::FrozenPanes { .. }
             | CellEdit::SetFormat { .. }
             | CellEdit::SetName { .. }
@@ -256,12 +257,12 @@ pub(crate) fn inverse(
                     .expect("a validated band"),
             ));
         }
-        if let CellEdit::FrozenPanes { sheet, .. } = edit
+        if let CellEdit::FrozenPanes { sheet, .. } | CellEdit::PaneLayout {sheet,..} = edit
             && panes.insert(*sheet)
         {
-            inverse.push(CellEdit::FrozenPanes {
+            inverse.push(CellEdit::PaneLayout {
                 sheet: *sheet,
-                panes: definitions.frozen_panes(*sheet),
+                layout: definitions.pane_layout(*sheet),
             });
         }
         if let CellEdit::SetFormat { at, .. } = edit

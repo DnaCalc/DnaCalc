@@ -46,24 +46,68 @@ fn enter_as(book: &mut HostSession, at: CellKey, text: &str, legacy: bool) -> Re
     if !receipt.accepted() {
         return Err(format!("cell entry refused: {:?}", receipt.error));
     }
-    if legacy {
-        // Formula assignment is an evaluation of this cell on its owner even
-        // in Manual. The later Calculate remains a separate native invocation.
-        let entry = book.dispatch(SkinIntent::Calculate {
-            scope: calc_host::CalcScope::Range(vec![calc_value::GridArea::cell(at)]),
-            selection: calc_host::EvalSelection::FormulaEntry,
-        });
-        if !entry.accepted() {
-            return Err(format!(
-                "formula-entry evaluation refused: {:?}",
-                entry.error
-            ));
+
+    Ok(())
+}
+fn evaluate_entry(book: &mut HostSession, at: CellKey) -> Result<(), String> {
+    // Formula assignment is an evaluation of this cell on its owner even
+    // in Manual. The later Calculate remains a separate native invocation.
+    let entry = book.dispatch(SkinIntent::Calculate {
+        scope: calc_host::CalcScope::Range(vec![calc_value::GridArea::cell(at)]),
+        selection: calc_host::EvalSelection::FormulaEntry,
+    });
+    if !entry.accepted() {
+        return Err(format!(
+            "formula-entry evaluation refused: {:?}",
+            entry.error
+        ));
+    }
+    while book.has_pending_calculation() && book.host().pending_async().is_empty() {
+        if let HostProgress::Failed(why) = book.advance_calculation() {
+            return Err(why.to_string());
         }
-        while book.has_pending_calculation() {
+    }
+    Ok(())
+}
+// All native publications, including formula entry, use this one P07 token route.
+fn deliver_native_returns(
+    native: &XllHost,
+    book: &mut HostSession,
+    returns: &mut Vec<serde_json::Value>,
+) -> Result<(), String> {
+    for returned in native.take_async_returns() {
+        let token = book
+            .host()
+            .pending_async()
+            .into_iter()
+            .find(|token| token.request == returned.request)
+            .ok_or("native return has no current P07 token")?;
+        let disposition = book.complete_async(&token, returned.value?);
+        if disposition != calc_host::AsyncDisposition::Accepted {
+            return Err(format!("native return rejected: {disposition:?}"));
+        }
+        returns.push(serde_json::json!({"request":returned.request,"token":format!("{token:?}"),"disposition":format!("{disposition:?}")}));
+    }
+    Ok(())
+}
+fn settle_entry(
+    shell: &Shell,
+    native: &XllHost,
+    book: &mut HostSession,
+    returns: &mut Vec<serde_json::Value>,
+) -> Result<(), String> {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while book.has_pending_calculation() || !book.host().pending_async().is_empty() {
+        deliver_native_returns(native, book, returns)?;
+        if book.has_pending_calculation() {
             if let HostProgress::Failed(why) = book.advance_calculation() {
                 return Err(why.to_string());
             }
         }
+        if Instant::now() > deadline {
+            return Err("native formula-entry completion deadline expired".into());
+        }
+        shell.pump_for(Duration::from_millis(2));
     }
     Ok(())
 }
@@ -80,6 +124,38 @@ fn retire_rtd(
             return Err(format!("RTD disconnect was not admitted: {disposition:?}"));
         }
         retired.push(serde_json::json!({"provider":format!("{provider:?}"),"subscription":subscription,"disposition":format!("{disposition:?}")}));
+    }
+    Ok(())
+}
+fn reconcile_rtd(
+    book: &HostSession,
+    rtd: &calc_com_host::RtdClient,
+    providers: &BTreeSet<calc_xll_host::RtdProvider>,
+    cells: &[CellKey],
+) -> Result<(), String> {
+    let page = calc_host::project(
+        book.host(),
+        &ProjectionRequest {
+            cells: cells.to_vec(),
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    for cell in page.cells() {
+        if let ProjectedValue::Calculated { calculation, .. } = cell.value() {
+            let stamp = calculation
+                .stamp()
+                .ok_or("RTD reconciliation needs a producing stamp")?;
+            rtd.reconcile_evaluation(
+                providers,
+                cell.at(),
+                &stamp
+                    .reads
+                    .invocations
+                    .iter()
+                    .map(|call| call.runtime)
+                    .collect(),
+            )?;
+        }
     }
     Ok(())
 }
@@ -158,23 +234,57 @@ pub fn run(
     let mut rtd_updates = Vec::new();
     let mut rtd_retired = Vec::new();
     let mut formula_entries = Vec::new();
+    let mut current_formula: Option<String> = None;
     for case in cases {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
         let legacy = case["legacy"].as_bool().unwrap_or(false);
         if let Some(dependent) = case["dependent"].as_str() {
             enter_as(&mut book, c, dependent, legacy)?;
+            retire_rtd(&mut book, &rtd, &providers, c, &mut rtd_retired)?;
             if legacy {
+                evaluate_entry(&mut book, c)?;
+                settle_entry(shell, native, &mut book, &mut returns)?;
                 let (calculated, proof) = value(&book, c)?;
                 formula_entries.push(serde_json::json!({"formula":dependent,"cell":"C3","value":crate::value_json(&calculated),"provenance":proof}));
             }
-            retire_rtd(&mut book, &rtd, &providers, c, &mut rtd_retired)?;
         }
-        enter_as(&mut book, b, formula, legacy)?;
-        if legacy {
-            let (calculated, proof) = value(&book, b)?;
-            formula_entries.push(serde_json::json!({"formula":formula,"cell":"B3","value":crate::value_json(&calculated),"provenance":proof}));
+        if let Some(edit) = case.get("edit") {
+            let address = edit["cell"].as_str().ok_or("edit needs cell")?;
+            let calc_host::ReferenceTarget::Area(area) =
+                book.host().resolve_reference_text(b, address)
+            else {
+                return Err("edit needs a local cell reference".into());
+            };
+            if area.cell_count() != 1 || area.sheet() != sheet {
+                return Err("edit needs one local cell".into());
+            }
+            let number = edit["value"].as_f64().ok_or("edit needs a number")?;
+            let receipt = book.dispatch(SkinIntent::EnterCell {
+                at: area.first(),
+                text: number.to_string(),
+            });
+            if !receipt.accepted() {
+                return Err(format!("input edit refused: {:?}", receipt.error));
+            }
+            shell
+                .projection()?
+                .sheet_change(area.first().row(), area.first().column())?;
         }
-        retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
+        let keep_formula = case["keep_formula"].as_bool().unwrap_or(false);
+        if keep_formula && current_formula.as_deref() != Some(formula) {
+            return Err("retained formula differs from selected case".into());
+        }
+        if !keep_formula {
+            current_formula = Some(formula.to_owned());
+            enter_as(&mut book, b, formula, legacy)?;
+            retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
+            if legacy {
+                evaluate_entry(&mut book, b)?;
+                settle_entry(shell, native, &mut book, &mut returns)?;
+                let (calculated, proof) = value(&book, b)?;
+                formula_entries.push(serde_json::json!({"formula":formula,"cell":"B3","value":crate::value_json(&calculated),"provenance":proof}));
+            }
+        }
         // Separate workbook commands retain separate read views and activations.
         // This lets the owner interleave them without moving either evaluator.
         let mut concurrent = if let Some(formula) = case["concurrent_formula"].as_str() {
@@ -194,7 +304,9 @@ pub fn run(
         } else {
             None
         };
-        shell.projection()?.sheet_change(b.row(), b.column())?;
+        if !keep_formula {
+            shell.projection()?.sheet_change(b.row(), b.column())?;
+        }
         if let Some(command) = case["before_calculate"].as_str() {
             let result = native.run(command, &[])?;
             let actual = crate::value_json(&result);
@@ -239,21 +351,7 @@ pub fn run(
                 // The notification itself never completes an activation.
                 book.dispatch(SkinIntent::Recalculate);
             }
-            // The complete token, including workbook/target/provider generations,
-            // comes from CalcHost. A native request number alone never publishes.
-            for returned in native.take_async_returns() {
-                let token = book
-                    .host()
-                    .pending_async()
-                    .into_iter()
-                    .find(|token| token.request == returned.request)
-                    .ok_or("native return has no current P07 token")?;
-                let disposition = book.complete_async(&token, returned.value?);
-                if disposition != calc_host::AsyncDisposition::Accepted {
-                    return Err(format!("native return rejected: {disposition:?}"));
-                }
-                returns.push(serde_json::json!({"request":returned.request,"token":format!("{token:?}"),"disposition":format!("{disposition:?}")}));
-            }
+            deliver_native_returns(native, &mut book, &mut returns)?;
             if book.has_pending_calculation() {
                 let progress = book.advance_calculation();
                 if let HostProgress::Failed(why) = progress {
@@ -284,6 +382,12 @@ pub fn run(
                 }
                 revoked.push(serde_json::json!({"token":format!("{token:?}"),"disposition":format!("{disposition:?}")}));
                 replaced = true;
+            }
+            if !book.has_pending_calculation()
+                && book.host().pending_async().is_empty()
+                && native.outstanding_native_calls() == 0
+            {
+                reconcile_rtd(&book, &rtd, &providers, &[b, c])?;
             }
             let complete = !book.has_pending_calculation()
                 && book.host().pending_async().is_empty()
@@ -322,7 +426,8 @@ pub fn run(
             }
             shell.pump_for(Duration::from_millis(2));
         }
-        let idle_observed_ms = idle_until.map(|until| (Instant::now() - (until - idle)).as_millis());
+        let idle_observed_ms =
+            idle_until.map(|until| (Instant::now() - (until - idle)).as_millis());
         let (calculated, proof) = value(&book, b)?;
         if case.get("replace_pending").is_some() && !replaced {
             return Err("native call completed before overwrite was exercised".into());
@@ -365,7 +470,7 @@ pub fn run(
                 Ok(serde_json::json!({"value":actual,"provenance":proof}))
             })
             .transpose()?;
-        results.push(serde_json::json!({"formula":formula,"calculation":calculation,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms}));
+        results.push(serde_json::json!({"formula":formula,"calculation":calculation,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms,"rtd_updates_through":rtd_updates.len()}));
         shell.projection()?.after_calculate()?;
     }
     if !native.diagnostics().is_empty() {

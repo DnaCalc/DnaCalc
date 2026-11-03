@@ -250,6 +250,8 @@ impl GridMetrics {
         self.cols.visible(self.col_width, index, forward, limit)
     }
 
+    pub fn col_at(&self, offset:f64, limit:u32)->u32 { self.cols.band_at(self.col_width,offset.max(0.0),limit).unwrap_or(limit) }
+
     pub fn row_at(&self, offset: f64, limit: u32) -> u32 {
         self.rows
             .band_at(self.row_height, offset.max(0.0), limit)

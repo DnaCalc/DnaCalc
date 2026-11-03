@@ -84,12 +84,21 @@ struct Topic {
     // callers that still declare RTD keep its native transport connected.
     active_callers: BTreeSet<CellKey>,
     connected: bool,
+    transport: i32,
     sequence: u64,
+}
+struct Declaration {
+    provider: RtdProvider,
+    caller: CellKey,
+    subscriptions: BTreeSet<u64>,
 }
 struct State {
     pointer: *mut c_void,
     topics: BTreeMap<u64, Topic>,
+    declarations: BTreeMap<u64, Declaration>,
     next: u64,
+    next_transport: i32,
+    transports: BTreeMap<i32, u64>,
     updates: Vec<RtdInput>,
     closed: bool,
     failure: Option<String>,
@@ -110,7 +119,10 @@ impl RtdClient {
             state: RefCell::new(State {
                 pointer,
                 topics: BTreeMap::new(),
+                declarations: BTreeMap::new(),
                 next: 1,
+                next_transport: 1,
+                transports: BTreeMap::new(),
                 updates: Vec::new(),
                 closed: false,
                 failure: None,
@@ -144,6 +156,9 @@ impl RtdClient {
             .state
             .try_borrow_mut()
             .map_err(|_| "dc-snz.23: reentrant RTD disconnect")?;
+        state
+            .declarations
+            .retain(|_, call| call.caller != caller || !providers.contains(&call.provider));
         let ids = state
             .topics
             .iter_mut()
@@ -164,6 +179,35 @@ impl RtdClient {
         }
         Ok(retired)
     }
+    /// Reconcile only after this cell has a successful producing certificate and
+    /// no live evaluation. Reused certificates keep their recorded declarations;
+    /// aborted or skipped native calls cannot keep a transport connected.
+    pub fn reconcile_evaluation(
+        &self,
+        providers: &BTreeSet<RtdProvider>,
+        caller: CellKey,
+        invocations: &BTreeSet<u64>,
+    ) -> Result<(), String> {
+        let mut state = self
+            .state
+            .try_borrow_mut()
+            .map_err(|_| "dc-snz.23: reentrant RTD evaluation reconciliation")?;
+        state.declarations.retain(|id, call| {
+            call.caller != caller || !providers.contains(&call.provider) || invocations.contains(id)
+        });
+        let declared: BTreeSet<_> = state
+            .declarations
+            .values()
+            .filter(|call| call.caller == caller && providers.contains(&call.provider))
+            .flat_map(|call| call.subscriptions.iter().copied())
+            .collect();
+        for (&id, topic) in &mut state.topics {
+            if providers.contains(&topic.provider) && !declared.contains(&id) {
+                topic.active_callers.remove(&caller);
+            }
+        }
+        Self::disconnect_inactive(&mut state)
+    }
     pub fn subscriptions(&self) -> usize {
         self.state.borrow().topics.len()
     }
@@ -177,10 +221,13 @@ impl RtdClient {
             .collect();
         for id in ids {
             checked(
-                unsafe { dna_rtd_disconnect(state.pointer, id as i32) },
+                unsafe { dna_rtd_disconnect(state.pointer, state.topics[&id].transport) },
                 "disconnect",
             )?;
-            state.topics.get_mut(&id).unwrap().connected = false;
+            let topic = state.topics.get_mut(&id).unwrap();
+            topic.connected = false;
+            let transport = topic.transport;
+            state.transports.remove(&transport);
         }
         Ok(())
     }
@@ -204,19 +251,24 @@ impl RtdService for RtdClient {
         &self,
         provider: RtdProvider,
         caller: CellKey,
+        invocation: u64,
         declared: &[u64],
     ) -> Result<(), String> {
         let mut state = self
             .state
             .try_borrow_mut()
             .map_err(|_| "dc-snz.23: reentrant RTD declaration reconciliation")?;
-        for (&id, topic) in &mut state.topics {
-            if topic.provider == provider && !declared.contains(&id) {
-                topic.active_callers.remove(&caller);
-            }
-        }
-        Self::disconnect_inactive(&mut state)
+        state.declarations.insert(
+            invocation,
+            Declaration {
+                provider,
+                caller,
+                subscriptions: declared.iter().copied().collect(),
+            },
+        );
+        Ok(())
     }
+
     fn subscribe(
         &self,
         provider: RtdProvider,
@@ -231,22 +283,42 @@ impl RtdService for RtdClient {
         if state.closed {
             return Err("dc-snz.23: RTD client is closed".into());
         }
-        if let Some((&id, topic)) = state.topics.iter_mut().find(|(_, topic)| {
-            topic.provider == provider && topic.progid == progid && topic.strings == strings
-        }) {
-            if !topic.connected {
-                return Err("dc-snz.23: reconnecting a completed RTD transport before retiring its input is not modelled".into());
+        let existing = state.topics.iter().find_map(|(&id, topic)| {
+            (topic.provider == provider && topic.progid == progid && topic.strings == strings)
+                .then_some(id)
+        });
+        if let Some(id) = existing {
+            let topic = state.topics.get_mut(&id).unwrap();
+            if topic.connected {
+                topic.callers.insert(caller);
+                topic.active_callers.insert(caller);
+                return Ok(id);
             }
-            topic.callers.insert(caller);
-            topic.active_callers.insert(caller);
-            return Ok(id);
         }
-        let id = state.next;
-        state.next = state
-            .next
+        // A completed transport can reconnect while an older producing input is
+        // still leased. Keep its logical ID and advance, never rewind, its cut.
+        let (id, sequence) = if let Some(id) = existing {
+            (
+                id,
+                state.topics[&id]
+                    .sequence
+                    .checked_add(1)
+                    .ok_or("dc-snz.23: RTD sequence exhausted")?,
+            )
+        } else {
+            let id = state.next;
+            state.next = state
+                .next
+                .checked_add(1)
+                .filter(|n| *n <= i32::MAX as u64)
+                .ok_or("dc-snz.23: RTD subscription identity exhausted")?;
+            (id, 1)
+        };
+        let transport = state.next_transport;
+        state.next_transport = state
+            .next_transport
             .checked_add(1)
-            .filter(|n| *n <= i32::MAX as u64)
-            .ok_or("dc-snz.23: RTD subscription identity exhausted")?;
+            .ok_or("dc-snz.23: RTD transport identity exhausted")?;
         let progid_w = wide(progid)?;
         let strings_w = strings
             .iter()
@@ -264,7 +336,7 @@ impl RtdService for RtdClient {
             dna_rtd_connect(
                 state.pointer,
                 progid_w.as_ptr(),
-                id as i32,
+                transport,
                 pointers.as_ptr(),
                 pointers.len(),
                 &mut initial,
@@ -280,27 +352,31 @@ impl RtdService for RtdClient {
             Ok(value) => value,
             Err(why) => {
                 if result >= 0 {
-                    unsafe { dna_rtd_disconnect(state.pointer, id as i32) };
+                    unsafe { dna_rtd_disconnect(state.pointer, transport) };
                 }
                 return Err(why);
             }
         };
-        state.topics.insert(
-            id,
-            Topic {
-                provider,
-                progid: progid.into(),
-                strings: strings.to_vec(),
-                callers: [caller].into(),
-                active_callers: [caller].into(),
-                connected: true,
-                sequence: 1,
-            },
-        );
+        let topic = state.topics.entry(id).or_insert_with(|| Topic {
+            provider,
+            progid: progid.into(),
+            strings: strings.to_vec(),
+            callers: BTreeSet::new(),
+            active_callers: BTreeSet::new(),
+            connected: false,
+            transport,
+            sequence: 0,
+        });
+        topic.callers.insert(caller);
+        topic.active_callers.insert(caller);
+        topic.connected = true;
+        topic.transport = transport;
+        topic.sequence = sequence;
+        state.transports.insert(transport, id);
         state.updates.push(RtdInput {
             provider,
             subscription: id,
-            sequence: 1,
+            sequence,
             value,
         });
         Ok(id)
@@ -320,13 +396,18 @@ impl RtdService for RtdClient {
             return Err(why);
         }
         state.topics.clear();
+        state.transports.clear();
+        state.declarations.clear();
         state.updates.clear();
         checked(result, "terminate")
     }
 }
 unsafe extern "system" fn publish(context: *mut c_void, id: i32, value: *const Value) -> i32 {
     let state = unsafe { &mut *context.cast::<State>() };
-    let Some(topic) = state.topics.get_mut(&(id as u64)) else {
+    let Some(&subscription) = state.transports.get(&id) else {
+        return 0;
+    };
+    let Some(topic) = state.topics.get_mut(&subscription) else {
         return 0;
     };
     let value = match unsafe { decode(&*value) } {
@@ -343,7 +424,7 @@ unsafe extern "system" fn publish(context: *mut c_void, id: i32, value: *const V
     topic.sequence = sequence;
     state.updates.push(RtdInput {
         provider: topic.provider,
-        subscription: id as u64,
+        subscription,
         sequence,
         value,
     });
@@ -355,4 +436,14 @@ impl Drop for RtdClient {
             unsafe { dna_rtd_destroy(self.state.get_mut().pointer) };
         }
     }
+}
+
+/// Native-only: runs the COM client's disconnect/reconnect and queued SAFEARRAY refresh route.
+#[test]
+fn obsolete_transport_updates_cannot_reach_a_reconnected_topic() {
+    unsafe extern "C" {
+        fn dna_rtd_test_obsolete_transport() -> i32;
+    }
+    let status = unsafe { dna_rtd_test_obsolete_transport() };
+    assert_eq!(status, 0, "queued obsolete RTD transport: {status:#x}");
 }
