@@ -1,0 +1,9 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.42s
+     Running `target\debug\xtask.exe check --all`
+CHECK passed provenance-scan: 558 tracked files under crates/calc-func and crates/calc-value against 562 ledger entries; 0 markers of 5 families in 0 of 3545 text files under crates, apps, platform, tools, deploy, allowances 0 in 0 files
+CHECK running cargo build --workspace
+CHECK passed build: log target/check/build.log
+CHECK testing every package (--all)
+CHECK running one cargo test over 27 packages: calc-com-host, calc-doc, calc-doc-model, calc-engine, calc-fml, calc-func, calc-host, calc-oracle-excel, calc-platform-desktop, calc-syntax, calc-value, calc-vba, calc-verdict, calc-xll-abi, calc-xll-fixture, calc-xll-host, calc-xll-shim, dna-calc, dna-calc-desktop, dna-calc-model, dna-calc-protocol, dna-calc-worker, dna-formula-ui, dna-onecalc, dna-strand, xtask, xtask-harness
+CHECK passed tests: 1660 passed, 0 failed, 5 ignored, 1 not run in 93 harnesses of 27 packages; log target/check/test.log
+CHECK RESULT passed: the provenance markers, the build and tests of 27 packages (5 min 1 s)

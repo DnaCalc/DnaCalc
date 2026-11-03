@@ -1,0 +1,1364 @@
+{
+  "status": "verified bounded native host reload; original Excel reload remains failed",
+  "formula_cases": 12,
+  "native_invocations_each_phase": 13,
+  "ordered_native_records": [
+    {
+      "name": "xloVersion",
+      "arguments": [],
+      "result": {
+        "type": 16448,
+        "value": {
+          "rows": 2,
+          "columns": 2,
+          "items": [
+            {
+              "type": 2,
+              "value": "Version"
+            },
+            {
+              "type": 2,
+              "value": "0.22.1"
+            },
+            {
+              "type": 2,
+              "value": "BuildDate"
+            },
+            {
+              "type": 2,
+              "value": "\"May 10 2026\""
+            }
+          ],
+          "omitted": 0
+        }
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloConcat",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "-"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "a"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "b"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 1,
+            "value": 3
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16386,
+        "value": "a-b-3"
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloSplit",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "alpha,beta"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": ","
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16448,
+        "value": {
+          "rows": 2,
+          "columns": 1,
+          "items": [
+            {
+              "type": 2,
+              "value": "alpha"
+            },
+            {
+              "type": 2,
+              "value": "beta"
+            }
+          ],
+          "omitted": 0
+        }
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloFill",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 1,
+            "value": 2
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 1,
+            "value": 3
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 1,
+            "value": 4
+          }
+        }
+      ],
+      "result": {
+        "type": 16448,
+        "value": {
+          "rows": 3,
+          "columns": 4,
+          "items": [
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 2
+            }
+          ],
+          "omitted": 0
+        }
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloFill",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "tag"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 1,
+            "value": 2
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 1,
+            "value": 2
+          }
+        }
+      ],
+      "result": {
+        "type": 16448,
+        "value": {
+          "rows": 2,
+          "columns": 2,
+          "items": [
+            {
+              "type": 2,
+              "value": "tag"
+            },
+            {
+              "type": 2,
+              "value": ""
+            },
+            {
+              "type": 2,
+              "value": ""
+            },
+            {
+              "type": 2,
+              "value": ""
+            }
+          ],
+          "omitted": 0
+        }
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloRegex",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "Alpha123"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "[0-9]+"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16388,
+        "value": true
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloRegex",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "Alpha123"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "([0-9]+)"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "[$1]"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16386,
+        "value": "[123]"
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloSort",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 64,
+            "value": {
+              "rows": 3,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 1,
+                  "value": 3
+                },
+                {
+                  "type": 1,
+                  "value": 1
+                },
+                {
+                  "type": 1,
+                  "value": 2
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 64,
+        "value": {
+          "rows": 3,
+          "columns": 1,
+          "items": [
+            {
+              "type": 1,
+              "value": 1
+            },
+            {
+              "type": 1,
+              "value": 2
+            },
+            {
+              "type": 1,
+              "value": 3
+            }
+          ],
+          "omitted": 0
+        }
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloSplit",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "a,b"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": ","
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16448,
+        "value": {
+          "rows": 2,
+          "columns": 1,
+          "items": [
+            {
+              "type": 2,
+              "value": "a"
+            },
+            {
+              "type": 2,
+              "value": "b"
+            }
+          ],
+          "omitted": 0
+        }
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloConcat",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": ","
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 64,
+            "value": {
+              "rows": 2,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 2,
+                  "value": "a"
+                },
+                {
+                  "type": 2,
+                  "value": "b"
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16386,
+        "value": "a,b"
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloSplit",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 64,
+            "value": {
+              "rows": 2,
+              "columns": 1,
+              "items": [
+                {
+                  "type": 2,
+                  "value": "a,b"
+                },
+                {
+                  "type": 2,
+                  "value": "c,d"
+                }
+              ],
+              "omitted": 0
+            }
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": ","
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16448,
+        "value": {
+          "rows": 2,
+          "columns": 2,
+          "items": [
+            {
+              "type": 2,
+              "value": "a"
+            },
+            {
+              "type": 2,
+              "value": "b"
+            },
+            {
+              "type": 2,
+              "value": "c"
+            },
+            {
+              "type": 2,
+              "value": "d"
+            }
+          ],
+          "omitted": 0
+        }
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloConcat",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "-"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 1,
+            "value": 7
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16386,
+        "value": "7"
+      },
+      "callbacks": []
+    },
+    {
+      "name": "xloSql",
+      "arguments": [
+        {
+          "code": "Q",
+          "value": {
+            "type": 2,
+            "value": "SELECT 2 + 3"
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        },
+        {
+          "code": "Q",
+          "value": {
+            "type": 128,
+            "value": null
+          }
+        }
+      ],
+      "result": {
+        "type": 16448,
+        "value": {
+          "rows": 1,
+          "columns": 1,
+          "items": [
+            {
+              "type": 2048,
+              "value": 5
+            }
+          ],
+          "omitted": 0
+        }
+      },
+      "callbacks": []
+    }
+  ],
+  "ownership_excel_host_first_host_second": [
+    {
+      "owned_returns": 12,
+      "free_calls": 12,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 1,
+        "xlOil_Utils.dll": 10,
+        "xlOil_SQL.dll": 1
+      }
+    },
+    {
+      "owned_returns": 12,
+      "free_calls": 12,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 1,
+        "xlOil_Utils.dll": 10,
+        "xlOil_SQL.dll": 1
+      }
+    },
+    {
+      "owned_returns": 12,
+      "free_calls": 12,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 1,
+        "xlOil_Utils.dll": 10,
+        "xlOil_SQL.dll": 1
+      }
+    }
+  ],
+  "mapping_cycles": [
+    {
+      "name": "xlOil.xll",
+      "first_load": {
+        "seq": 5,
+        "qpc": 14788089163910,
+        "event": "module",
+        "name": "xlOil.xll",
+        "base": "0x7ffa0f680000",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil.xll"
+      },
+      "first_unload": {
+        "seq": 910,
+        "qpc": 14788104068008,
+        "event": "module_unload",
+        "base": "0x7ffa0f680000",
+        "name": "xlOil.xll",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil.xll"
+      },
+      "second_load": {
+        "seq": 913,
+        "qpc": 14788104809586,
+        "event": "module",
+        "name": "xlOil.xll",
+        "base": "0x7ffa0f680000",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil.xll"
+      }
+    },
+    {
+      "name": "xlOil.dll",
+      "first_load": {
+        "seq": 8,
+        "qpc": 14788089766923,
+        "event": "module",
+        "name": "xlOil.dll",
+        "base": "0x7ff9fe030000",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil.dll"
+      },
+      "first_unload": {
+        "seq": 912,
+        "qpc": 14788104103448,
+        "event": "module_unload",
+        "base": "0x7ff9fe030000",
+        "name": "xlOil.dll",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil.dll"
+      },
+      "second_load": {
+        "seq": 916,
+        "qpc": 14788105138254,
+        "event": "module",
+        "name": "xlOil.dll",
+        "base": "0x7ff9fe030000",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil.dll"
+      }
+    },
+    {
+      "name": "xlOil_SQL.dll",
+      "first_load": {
+        "seq": 78,
+        "qpc": 14788092478286,
+        "event": "module",
+        "name": "xlOil_SQL.dll",
+        "base": "0x7ff9fb590000",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil_SQL.dll"
+      },
+      "first_unload": {
+        "seq": 909,
+        "qpc": 14788103062127,
+        "event": "module_unload",
+        "base": "0x7ff9fb590000",
+        "name": "xlOil_SQL.dll",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil_SQL.dll"
+      },
+      "second_load": {
+        "seq": 986,
+        "qpc": 14788107567011,
+        "event": "module",
+        "name": "xlOil_SQL.dll",
+        "base": "0x7ff9fb590000",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil_SQL.dll"
+      }
+    },
+    {
+      "name": "xlOil_Utils.dll",
+      "first_load": {
+        "seq": 114,
+        "qpc": 14788092640189,
+        "event": "module",
+        "name": "xlOil_Utils.dll",
+        "base": "0x7ffa12ea0000",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil_Utils.dll"
+      },
+      "first_unload": {
+        "seq": 908,
+        "qpc": 14788103056593,
+        "event": "module_unload",
+        "base": "0x7ffa12ea0000",
+        "name": "xlOil_Utils.dll",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil_Utils.dll"
+      },
+      "second_load": {
+        "seq": 1022,
+        "qpc": 14788107708085,
+        "event": "module",
+        "name": "xlOil_Utils.dll",
+        "base": "0x7ffa12ea0000",
+        "path": "\\\\?\\C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\host-traced\\xlOil_Utils.dll"
+      }
+    }
+  ],
+  "host_controls": [
+    {
+      "results": [
+        {
+          "formula": "=INDEX(xloVersion(),1,2)",
+          "value": "0.22.1"
+        },
+        {
+          "formula": "=xloConcat(\"-\",\"a\",\"b\",3)",
+          "value": "a-b-3"
+        },
+        {
+          "formula": "=INDEX(xloSplit(\"alpha,beta\",\",\"),2,1)",
+          "value": "beta"
+        },
+        {
+          "formula": "=SUM(xloFill(2,3,4))",
+          "value": 24.0
+        },
+        {
+          "formula": "=INDEX(xloFill(\"tag\",2,2),2,2)",
+          "value": ""
+        },
+        {
+          "formula": "=xloRegex(\"Alpha123\",\"[0-9]+\")",
+          "value": true
+        },
+        {
+          "formula": "=xloRegex(\"Alpha123\",\"([0-9]+)\",\"[$1]\")",
+          "value": "[123]"
+        },
+        {
+          "formula": "=INDEX(xloSort({3;1;2}),1,1)",
+          "value": 1.0
+        },
+        {
+          "formula": "=xloConcat(\",\",xloSplit(\"a,b\",\",\"))",
+          "value": "a,b"
+        },
+        {
+          "formula": "=INDEX(xloSplit({\"a,b\";\"c,d\"},\",\"),2,2)",
+          "value": "d"
+        },
+        {
+          "formula": "=xloConcat(\"-\",A1)",
+          "value": "7"
+        },
+        {
+          "formula": "=INDEX(xloSql(\"SELECT 2 + 3\"),1,1)",
+          "value": 5.0
+        }
+      ],
+      "reload_results": [
+        {
+          "formula": "=INDEX(xloVersion(),1,2)",
+          "value": "0.22.1"
+        },
+        {
+          "formula": "=xloConcat(\"-\",\"a\",\"b\",3)",
+          "value": "a-b-3"
+        },
+        {
+          "formula": "=INDEX(xloSplit(\"alpha,beta\",\",\"),2,1)",
+          "value": "beta"
+        },
+        {
+          "formula": "=SUM(xloFill(2,3,4))",
+          "value": 24.0
+        },
+        {
+          "formula": "=INDEX(xloFill(\"tag\",2,2),2,2)",
+          "value": ""
+        },
+        {
+          "formula": "=xloRegex(\"Alpha123\",\"[0-9]+\")",
+          "value": true
+        },
+        {
+          "formula": "=xloRegex(\"Alpha123\",\"([0-9]+)\",\"[$1]\")",
+          "value": "[123]"
+        },
+        {
+          "formula": "=INDEX(xloSort({3;1;2}),1,1)",
+          "value": 1.0
+        },
+        {
+          "formula": "=xloConcat(\",\",xloSplit(\"a,b\",\",\"))",
+          "value": "a,b"
+        },
+        {
+          "formula": "=INDEX(xloSplit({\"a,b\";\"c,d\"},\",\"),2,2)",
+          "value": "d"
+        },
+        {
+          "formula": "=xloConcat(\"-\",A1)",
+          "value": "7"
+        },
+        {
+          "formula": "=INDEX(xloSql(\"SELECT 2 + 3\"),1,1)",
+          "value": 5.0
+        }
+      ],
+      "runtime_delay_releases": 1,
+      "exit": {
+        "exit_code": 0,
+        "finished": true
+      }
+    },
+    {
+      "results": [
+        {
+          "formula": "=INDEX(xloVersion(),1,2)",
+          "value": "0.22.1"
+        },
+        {
+          "formula": "=xloConcat(\"-\",\"a\",\"b\",3)",
+          "value": "a-b-3"
+        },
+        {
+          "formula": "=INDEX(xloSplit(\"alpha,beta\",\",\"),2,1)",
+          "value": "beta"
+        },
+        {
+          "formula": "=SUM(xloFill(2,3,4))",
+          "value": 24.0
+        },
+        {
+          "formula": "=INDEX(xloFill(\"tag\",2,2),2,2)",
+          "value": ""
+        },
+        {
+          "formula": "=xloRegex(\"Alpha123\",\"[0-9]+\")",
+          "value": true
+        },
+        {
+          "formula": "=xloRegex(\"Alpha123\",\"([0-9]+)\",\"[$1]\")",
+          "value": "[123]"
+        },
+        {
+          "formula": "=INDEX(xloSort({3;1;2}),1,1)",
+          "value": 1.0
+        },
+        {
+          "formula": "=xloConcat(\",\",xloSplit(\"a,b\",\",\"))",
+          "value": "a,b"
+        },
+        {
+          "formula": "=INDEX(xloSplit({\"a,b\";\"c,d\"},\",\"),2,2)",
+          "value": "d"
+        },
+        {
+          "formula": "=xloConcat(\"-\",A1)",
+          "value": "7"
+        },
+        {
+          "formula": "=INDEX(xloSql(\"SELECT 2 + 3\"),1,1)",
+          "value": 5.0
+        }
+      ],
+      "reload_results": [
+        {
+          "formula": "=INDEX(xloVersion(),1,2)",
+          "value": "0.22.1"
+        },
+        {
+          "formula": "=xloConcat(\"-\",\"a\",\"b\",3)",
+          "value": "a-b-3"
+        },
+        {
+          "formula": "=INDEX(xloSplit(\"alpha,beta\",\",\"),2,1)",
+          "value": "beta"
+        },
+        {
+          "formula": "=SUM(xloFill(2,3,4))",
+          "value": 24.0
+        },
+        {
+          "formula": "=INDEX(xloFill(\"tag\",2,2),2,2)",
+          "value": ""
+        },
+        {
+          "formula": "=xloRegex(\"Alpha123\",\"[0-9]+\")",
+          "value": true
+        },
+        {
+          "formula": "=xloRegex(\"Alpha123\",\"([0-9]+)\",\"[$1]\")",
+          "value": "[123]"
+        },
+        {
+          "formula": "=INDEX(xloSort({3;1;2}),1,1)",
+          "value": 1.0
+        },
+        {
+          "formula": "=xloConcat(\",\",xloSplit(\"a,b\",\",\"))",
+          "value": "a,b"
+        },
+        {
+          "formula": "=INDEX(xloSplit({\"a,b\";\"c,d\"},\",\"),2,2)",
+          "value": "d"
+        },
+        {
+          "formula": "=xloConcat(\"-\",A1)",
+          "value": "7"
+        },
+        {
+          "formula": "=INDEX(xloSql(\"SELECT 2 + 3\"),1,1)",
+          "value": 5.0
+        }
+      ],
+      "runtime_delay_releases": 1,
+      "exit": {
+        "exit_code": 0,
+        "finished": true
+      }
+    }
+  ],
+  "excel_reload_failures": [
+    {
+      "pid": 14732,
+      "status": "failed reload, not a compatibility pass",
+      "failure": {
+        "utc": "2026-11-03T05:07:32.9869294Z",
+        "operation": "failure",
+        "value": "System.Runtime.InteropServices.COMException (0x800706BE): The remote procedure call failed. (0x800706BE)\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, Object)\r\n   at System.Dynamic.UpdateDelegates.UpdateAndExecute2[T0,T1,TRet](CallSite site, T0 arg0, T1 arg1)\r\n   at System.Management.Automation.Interpreter.DynamicInstruction`3.Run(InterpretedFrame frame)\r\n   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)"
+      }
+    },
+    {
+      "pid": 64376,
+      "status": "failed reload, not a compatibility pass",
+      "failure": {
+        "utc": "2026-11-03T05:08:23.0754438Z",
+        "operation": "failure",
+        "value": "System.Runtime.InteropServices.COMException (0x800706BE): The remote procedure call failed. (0x800706BE)\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, Object)\r\n   at System.Dynamic.UpdateDelegates.UpdateAndExecute2[T0,T1,TRet](CallSite site, T0 arg0, T1 arg1)\r\n   at System.Management.Automation.Interpreter.DynamicInstruction`3.Run(InterpretedFrame frame)\r\n   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)"
+      }
+    }
+  ],
+  "failed_excel_register_entry": {
+    "seq": 4101,
+    "qpc": 14785018327653,
+    "event": "enter",
+    "call": 2454,
+    "thread": 24584,
+    "entry": "COM!Invoke",
+    "from": {
+      "module": "oleaut32.dll",
+      "rva": 236600
+    },
+    "object": "0x1a946dc56c0",
+    "object_label": "COM!early.workbook.Application",
+    "dispid": 30,
+    "member": "",
+    "flags": 3,
+    "rgvarg": [
+      {
+        "vt": 8,
+        "value": "C:\\Work\\DnaCalc\\codex-runs\\xll7\\reload-published\\excel-traced\\xlOil.xll"
+      }
+    ],
+    "named_dispids": []
+  },
+  "failed_excel_trace_errors": [
+    {
+      "seq": 4107,
+      "qpc": 14785018453412,
+      "event": "unrecognized_breakpoint",
+      "address": "0x7ffa51764f78",
+      "thread": 24584,
+      "first_chance": true
+    }
+  ],
+  "new_host_object": [
+    false,
+    false
+  ],
+  "source_bindings_checked": 1868,
+  "source_publication_revisions": [
+    "93ad8caa2008753550b185a44efaa5c0ba8c37ae",
+    "93ad8caa2008753550b185a44efaa5c0ba8c37ae",
+    "93ad8caa2008753550b185a44efaa5c0ba8c37ae",
+    "5e7533e8cd885aaf98967d8f132b2c44309dbdfa",
+    "5e7533e8cd885aaf98967d8f132b2c44309dbdfa",
+    "5e7533e8cd885aaf98967d8f132b2c44309dbdfa",
+    "0aac4a2bc43045491ddc31da3ef1d7d198bb0ea1",
+    "0aac4a2bc43045491ddc31da3ef1d7d198bb0ea1",
+    "0aac4a2bc43045491ddc31da3ef1d7d198bb0ea1",
+    "8f252cc1fbbacf4b81456f73bf11f6bd4b28ba00",
+    "8f252cc1fbbacf4b81456f73bf11f6bd4b28ba00",
+    "8f252cc1fbbacf4b81456f73bf11f6bd4b28ba00"
+  ],
+  "scope": "Exact xlOil0.22.1 native Utils/SQL profile only. Python and overrides retain reload refusal, counted as failure. Renamed loaders remain unqualified/unsupported; a renamed first-load crash is retained separately. Arbitrary runtime teardown remains open."
+}

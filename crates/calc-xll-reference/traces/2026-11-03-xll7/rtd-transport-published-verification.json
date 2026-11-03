@@ -1,0 +1,2911 @@
+{
+  "status": "verified original xlOil signaling RTD protocol",
+  "formula_cases": 2,
+  "matched_each_capture": 2,
+  "controls_match": true,
+  "client_protocol_each_host": [
+    {
+      "method": "ServerStart",
+      "hresult": 0,
+      "started": 1
+    },
+    {
+      "method": "ConnectData",
+      "hresult": 0,
+      "topic": "<subscription>",
+      "strings": {
+        "dimensions": 1,
+        "element_bytes": 24,
+        "bounds": [
+          {
+            "count": 1,
+            "lower": 0
+          }
+        ],
+        "values": [
+          {
+            "vt": 8,
+            "value": "<async-topic>"
+          }
+        ],
+        "truncated": false
+      },
+      "new_before": true,
+      "new_after": true,
+      "initial": {
+        "vt": 0,
+        "value": null
+      }
+    },
+    {
+      "method": "UpdateNotify",
+      "hresult": 0
+    },
+    {
+      "method": "RefreshData",
+      "hresult": 0,
+      "count": 1,
+      "data": {
+        "dimensions": 2,
+        "element_bytes": 24,
+        "bounds": [
+          {
+            "count": 1,
+            "lower": 0
+          },
+          {
+            "count": 2,
+            "lower": 0
+          }
+        ],
+        "values": [
+          {
+            "vt": 3,
+            "value": "<subscription>"
+          },
+          {
+            "vt": 0,
+            "value": null
+          }
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "method": "UpdateNotify",
+      "hresult": 0
+    },
+    {
+      "method": "RefreshData",
+      "hresult": 0,
+      "count": 1,
+      "data": {
+        "dimensions": 2,
+        "element_bytes": 24,
+        "bounds": [
+          {
+            "count": 1,
+            "lower": 0
+          },
+          {
+            "count": 2,
+            "lower": 0
+          }
+        ],
+        "values": [
+          {
+            "vt": 3,
+            "value": "<subscription>"
+          },
+          {
+            "vt": 0,
+            "value": null
+          }
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "method": "DisconnectData",
+      "hresult": 0,
+      "topic": "<subscription>"
+    },
+    {
+      "method": "ServerTerminate",
+      "hresult": 0
+    }
+  ],
+  "raw_client_protocols_excel_and_host": [
+    [
+      {
+        "method": "ServerStart",
+        "hresult": 0,
+        "started": 1
+      },
+      {
+        "method": "ConnectData",
+        "hresult": 0,
+        "topic": 1,
+        "strings": {
+          "dimensions": 1,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 8,
+              "value": "{7ADD0B58-46A9-40D2-B975-FD364251F5F3}"
+            }
+          ],
+          "truncated": false
+        },
+        "new_before": true,
+        "new_after": true,
+        "initial": {
+          "vt": 0,
+          "value": null
+        }
+      },
+      {
+        "method": "UpdateNotify",
+        "hresult": 0
+      },
+      {
+        "method": "RefreshData",
+        "hresult": 0,
+        "count": 1,
+        "data": {
+          "dimensions": 2,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            },
+            {
+              "count": 2,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 3,
+              "value": 1
+            },
+            {
+              "vt": 0,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      },
+      {
+        "method": "UpdateNotify",
+        "hresult": 0
+      },
+      {
+        "method": "RefreshData",
+        "hresult": 0,
+        "count": 1,
+        "data": {
+          "dimensions": 2,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            },
+            {
+              "count": 2,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 3,
+              "value": 1
+            },
+            {
+              "vt": 0,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      },
+      {
+        "method": "DisconnectData",
+        "hresult": 0,
+        "topic": 1
+      },
+      {
+        "method": "ServerTerminate",
+        "hresult": 0
+      }
+    ],
+    [
+      {
+        "method": "ServerStart",
+        "hresult": 0,
+        "started": 1
+      },
+      {
+        "method": "ConnectData",
+        "hresult": 0,
+        "topic": 1,
+        "strings": {
+          "dimensions": 1,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 8,
+              "value": "{96651BFB-B5FC-417A-8E8D-33569C33A932}"
+            }
+          ],
+          "truncated": false
+        },
+        "new_before": true,
+        "new_after": true,
+        "initial": {
+          "vt": 0,
+          "value": null
+        }
+      },
+      {
+        "method": "UpdateNotify",
+        "hresult": 0
+      },
+      {
+        "method": "RefreshData",
+        "hresult": 0,
+        "count": 1,
+        "data": {
+          "dimensions": 2,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            },
+            {
+              "count": 2,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 3,
+              "value": 1
+            },
+            {
+              "vt": 0,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      },
+      {
+        "method": "UpdateNotify",
+        "hresult": 0
+      },
+      {
+        "method": "RefreshData",
+        "hresult": 0,
+        "count": 1,
+        "data": {
+          "dimensions": 2,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            },
+            {
+              "count": 2,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 3,
+              "value": 1
+            },
+            {
+              "vt": 0,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      },
+      {
+        "method": "DisconnectData",
+        "hresult": 0,
+        "topic": 1
+      },
+      {
+        "method": "ServerTerminate",
+        "hresult": 0
+      }
+    ]
+  ],
+  "client_protocol_comparison": [
+    {
+      "position": 0,
+      "excel": {
+        "method": "ServerStart",
+        "hresult": 0,
+        "started": 1
+      },
+      "host": {
+        "method": "ServerStart",
+        "hresult": 0,
+        "started": 1
+      },
+      "matched": true
+    },
+    {
+      "position": 1,
+      "excel": {
+        "method": "ConnectData",
+        "hresult": 0,
+        "topic": "<subscription>",
+        "strings": {
+          "dimensions": 1,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 8,
+              "value": "<async-topic>"
+            }
+          ],
+          "truncated": false
+        },
+        "new_before": true,
+        "new_after": true,
+        "initial": {
+          "vt": 0,
+          "value": null
+        }
+      },
+      "host": {
+        "method": "ConnectData",
+        "hresult": 0,
+        "topic": "<subscription>",
+        "strings": {
+          "dimensions": 1,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 8,
+              "value": "<async-topic>"
+            }
+          ],
+          "truncated": false
+        },
+        "new_before": true,
+        "new_after": true,
+        "initial": {
+          "vt": 0,
+          "value": null
+        }
+      },
+      "matched": true
+    },
+    {
+      "position": 2,
+      "excel": {
+        "method": "UpdateNotify",
+        "hresult": 0
+      },
+      "host": {
+        "method": "UpdateNotify",
+        "hresult": 0
+      },
+      "matched": true
+    },
+    {
+      "position": 3,
+      "excel": {
+        "method": "RefreshData",
+        "hresult": 0,
+        "count": 1,
+        "data": {
+          "dimensions": 2,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            },
+            {
+              "count": 2,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 3,
+              "value": "<subscription>"
+            },
+            {
+              "vt": 0,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      },
+      "host": {
+        "method": "RefreshData",
+        "hresult": 0,
+        "count": 1,
+        "data": {
+          "dimensions": 2,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            },
+            {
+              "count": 2,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 3,
+              "value": "<subscription>"
+            },
+            {
+              "vt": 0,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      },
+      "matched": true
+    },
+    {
+      "position": 4,
+      "excel": {
+        "method": "UpdateNotify",
+        "hresult": 0
+      },
+      "host": {
+        "method": "UpdateNotify",
+        "hresult": 0
+      },
+      "matched": true
+    },
+    {
+      "position": 5,
+      "excel": {
+        "method": "RefreshData",
+        "hresult": 0,
+        "count": 1,
+        "data": {
+          "dimensions": 2,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            },
+            {
+              "count": 2,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 3,
+              "value": "<subscription>"
+            },
+            {
+              "vt": 0,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      },
+      "host": {
+        "method": "RefreshData",
+        "hresult": 0,
+        "count": 1,
+        "data": {
+          "dimensions": 2,
+          "element_bytes": 24,
+          "bounds": [
+            {
+              "count": 1,
+              "lower": 0
+            },
+            {
+              "count": 2,
+              "lower": 0
+            }
+          ],
+          "values": [
+            {
+              "vt": 3,
+              "value": "<subscription>"
+            },
+            {
+              "vt": 0,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      },
+      "matched": true
+    },
+    {
+      "position": 6,
+      "excel": {
+        "method": "DisconnectData",
+        "hresult": 0,
+        "topic": "<subscription>"
+      },
+      "host": {
+        "method": "DisconnectData",
+        "hresult": 0,
+        "topic": "<subscription>"
+      },
+      "matched": true
+    },
+    {
+      "position": 7,
+      "excel": {
+        "method": "ServerTerminate",
+        "hresult": 0
+      },
+      "host": {
+        "method": "ServerTerminate",
+        "hresult": 0
+      },
+      "matched": true
+    }
+  ],
+  "client_calls_by_method": [
+    {
+      "method": "ServerStart",
+      "occurrence": 1,
+      "excel": {
+        "position": 0,
+        "payload": {
+          "method": "ServerStart",
+          "hresult": 0,
+          "started": 1
+        }
+      },
+      "host": {
+        "position": 0,
+        "payload": {
+          "method": "ServerStart",
+          "hresult": 0,
+          "started": 1
+        }
+      },
+      "matched": true
+    },
+    {
+      "method": "ConnectData",
+      "occurrence": 1,
+      "excel": {
+        "position": 1,
+        "payload": {
+          "method": "ConnectData",
+          "hresult": 0,
+          "topic": "<subscription>",
+          "strings": {
+            "dimensions": 1,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 8,
+                "value": "<async-topic>"
+              }
+            ],
+            "truncated": false
+          },
+          "new_before": true,
+          "new_after": true,
+          "initial": {
+            "vt": 0,
+            "value": null
+          }
+        }
+      },
+      "host": {
+        "position": 1,
+        "payload": {
+          "method": "ConnectData",
+          "hresult": 0,
+          "topic": "<subscription>",
+          "strings": {
+            "dimensions": 1,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 8,
+                "value": "<async-topic>"
+              }
+            ],
+            "truncated": false
+          },
+          "new_before": true,
+          "new_after": true,
+          "initial": {
+            "vt": 0,
+            "value": null
+          }
+        }
+      },
+      "matched": true
+    },
+    {
+      "method": "UpdateNotify",
+      "occurrence": 1,
+      "excel": {
+        "position": 2,
+        "payload": {
+          "method": "UpdateNotify",
+          "hresult": 0
+        }
+      },
+      "host": {
+        "position": 2,
+        "payload": {
+          "method": "UpdateNotify",
+          "hresult": 0
+        }
+      },
+      "matched": true
+    },
+    {
+      "method": "RefreshData",
+      "occurrence": 1,
+      "excel": {
+        "position": 3,
+        "payload": {
+          "method": "RefreshData",
+          "hresult": 0,
+          "count": 1,
+          "data": {
+            "dimensions": 2,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              },
+              {
+                "count": 2,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 3,
+                "value": "<subscription>"
+              },
+              {
+                "vt": 0,
+                "value": null
+              }
+            ],
+            "truncated": false
+          }
+        }
+      },
+      "host": {
+        "position": 3,
+        "payload": {
+          "method": "RefreshData",
+          "hresult": 0,
+          "count": 1,
+          "data": {
+            "dimensions": 2,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              },
+              {
+                "count": 2,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 3,
+                "value": "<subscription>"
+              },
+              {
+                "vt": 0,
+                "value": null
+              }
+            ],
+            "truncated": false
+          }
+        }
+      },
+      "matched": true
+    },
+    {
+      "method": "UpdateNotify",
+      "occurrence": 2,
+      "excel": {
+        "position": 4,
+        "payload": {
+          "method": "UpdateNotify",
+          "hresult": 0
+        }
+      },
+      "host": {
+        "position": 4,
+        "payload": {
+          "method": "UpdateNotify",
+          "hresult": 0
+        }
+      },
+      "matched": true
+    },
+    {
+      "method": "RefreshData",
+      "occurrence": 2,
+      "excel": {
+        "position": 5,
+        "payload": {
+          "method": "RefreshData",
+          "hresult": 0,
+          "count": 1,
+          "data": {
+            "dimensions": 2,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              },
+              {
+                "count": 2,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 3,
+                "value": "<subscription>"
+              },
+              {
+                "vt": 0,
+                "value": null
+              }
+            ],
+            "truncated": false
+          }
+        }
+      },
+      "host": {
+        "position": 5,
+        "payload": {
+          "method": "RefreshData",
+          "hresult": 0,
+          "count": 1,
+          "data": {
+            "dimensions": 2,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              },
+              {
+                "count": 2,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 3,
+                "value": "<subscription>"
+              },
+              {
+                "vt": 0,
+                "value": null
+              }
+            ],
+            "truncated": false
+          }
+        }
+      },
+      "matched": true
+    },
+    {
+      "method": "DisconnectData",
+      "occurrence": 1,
+      "excel": {
+        "position": 6,
+        "payload": {
+          "method": "DisconnectData",
+          "hresult": 0,
+          "topic": "<subscription>"
+        }
+      },
+      "host": {
+        "position": 6,
+        "payload": {
+          "method": "DisconnectData",
+          "hresult": 0,
+          "topic": "<subscription>"
+        }
+      },
+      "matched": true
+    },
+    {
+      "method": "ServerTerminate",
+      "occurrence": 1,
+      "excel": {
+        "position": 7,
+        "payload": {
+          "method": "ServerTerminate",
+          "hresult": 0
+        }
+      },
+      "host": {
+        "position": 7,
+        "payload": {
+          "method": "ServerTerminate",
+          "hresult": 0
+        }
+      },
+      "matched": true
+    }
+  ],
+  "server_bindings": [
+    {
+      "object": "0x16590fd52e0",
+      "callback_object": "0x165bda7ddc8",
+      "creation": {
+        "seq": 762,
+        "qpc": 14722383103179,
+        "event": "enter",
+        "call": 409,
+        "thread": 61764,
+        "entry": "COM!CreateInstance",
+        "from": {
+          "module": "combase.dll",
+          "rva": 94739
+        },
+        "object": "0x165acd08d50",
+        "object_label": "registered COM class factory",
+        "iid": "ec0e6191-db51-11d3-8f3e-00c04f3651b8",
+        "factory_clsid": "cddc973a-64e0-49b4-96fc-574afccfc19e",
+        "xlfRtd_call": 406
+      },
+      "returned": {
+        "seq": 764,
+        "qpc": 14722383113188,
+        "event": "leave",
+        "call": 409,
+        "thread": 61764,
+        "entry": "COM!CreateInstance",
+        "elapsed_qpc": 7656,
+        "rax": "0x0",
+        "hresult": 0,
+        "object": "0x16590fd52e0"
+      },
+      "xlfRtd": {
+        "seq": 757,
+        "qpc": 14722383012574,
+        "event": "enter",
+        "call": 406,
+        "thread": 61764,
+        "entry": "EXCEL.EXE!MdCallBack12",
+        "from": {
+          "module": "xlOil.dll",
+          "rva": 441431
+        },
+        "function": 379,
+        "args": [
+          {
+            "type": 2,
+            "value": "XlOil.6KKLasuL5R4Dd3jRve09qw"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": "{7ADD0B58-46A9-40D2-B975-FD364251F5F3}"
+          }
+        ]
+      }
+    },
+    {
+      "object": "0x14d7f5a09c0",
+      "callback_object": "0x14d1c21ac80",
+      "creation": {
+        "seq": 758,
+        "qpc": 14749935789096,
+        "event": "enter",
+        "call": 350,
+        "thread": 68604,
+        "entry": "COM!CreateInstance",
+        "from": {
+          "module": "combase.dll",
+          "rva": 94739
+        },
+        "object": "0x14d7f5393c0",
+        "object_label": "registered COM class factory",
+        "iid": "ec0e6191-db51-11d3-8f3e-00c04f3651b8",
+        "factory_clsid": "30eaef60-e4d4-4979-a8c1-121182e8bcc0",
+        "xlfRtd_call": 346
+      },
+      "returned": {
+        "seq": 760,
+        "qpc": 14749935795770,
+        "event": "leave",
+        "call": 350,
+        "thread": 68604,
+        "entry": "COM!CreateInstance",
+        "elapsed_qpc": 4550,
+        "rax": "0x0",
+        "hresult": 0,
+        "object": "0x14d7f5a09c0"
+      },
+      "xlfRtd": {
+        "seq": 752,
+        "qpc": 14749935752064,
+        "event": "enter",
+        "call": 346,
+        "thread": 68604,
+        "entry": "dna-calc-desktop.exe!MdCallBack12",
+        "from": {
+          "module": "xlOil.dll",
+          "rva": 441431
+        },
+        "function": 379,
+        "args": [
+          {
+            "type": 2,
+            "value": "XlOil.6J6vnjHnVseGXwFCxLMyfA"
+          },
+          {
+            "type": 2,
+            "value": ""
+          },
+          {
+            "type": 2,
+            "value": "{96651BFB-B5FC-417A-8E8D-33569C33A932}"
+          }
+        ]
+      }
+    }
+  ],
+  "native_invocations_excel_and_host": [
+    [
+      {
+        "arguments": [],
+        "result": {
+          "type": 16400,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            16388,
+            [
+              {
+                "type": 2,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4104,
+                "value": {
+                  "sheet": "<sheet>",
+                  "null_reference_table": true
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "XlOil.6KKLasuL5R4Dd3jRve09qw"
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 2,
+                "value": "{7ADD0B58-46A9-40D2-B975-FD364251F5F3}"
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 0
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 0
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      },
+      {
+        "arguments": [],
+        "result": {
+          "type": 18432,
+          "value": 1
+        },
+        "callbacks": [
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            16388,
+            [
+              {
+                "type": 2,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4104,
+                "value": {
+                  "sheet": "<sheet>",
+                  "null_reference_table": true
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "XlOil.6KKLasuL5R4Dd3jRve09qw"
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 2,
+                "value": "{7ADD0B58-46A9-40D2-B975-FD364251F5F3}"
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 0
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 0
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      },
+      {
+        "arguments": [],
+        "result": {
+          "type": 18432,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            16388,
+            [
+              {
+                "type": 2,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4104,
+                "value": {
+                  "sheet": "<sheet>",
+                  "null_reference_table": true
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "arguments": [],
+        "result": {
+          "type": 16400,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            16388,
+            [
+              {
+                "type": 2,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4104,
+                "value": {
+                  "sheet": "<sheet>",
+                  "null_reference_table": true
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "XlOil.6J6vnjHnVseGXwFCxLMyfA"
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 2,
+                "value": "{96651BFB-B5FC-417A-8E8D-33569C33A932}"
+              }
+            ],
+            0,
+            {
+              "type": 16,
+              "value": 42
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4112,
+                "value": 42
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      },
+      {
+        "arguments": [],
+        "result": {
+          "type": 16400,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            16388,
+            [
+              {
+                "type": 2,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4104,
+                "value": {
+                  "sheet": "<sheet>",
+                  "null_reference_table": true
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "XlOil.6J6vnjHnVseGXwFCxLMyfA"
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 2,
+                "value": "{96651BFB-B5FC-417A-8E8D-33569C33A932}"
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 0
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 0
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      },
+      {
+        "arguments": [],
+        "result": {
+          "type": 18432,
+          "value": 1
+        },
+        "callbacks": [
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            16388,
+            [
+              {
+                "type": 2,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4104,
+                "value": {
+                  "sheet": "<sheet>",
+                  "null_reference_table": true
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "XlOil.6J6vnjHnVseGXwFCxLMyfA"
+              },
+              {
+                "type": 2,
+                "value": ""
+              },
+              {
+                "type": 2,
+                "value": "{96651BFB-B5FC-417A-8E8D-33569C33A932}"
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 0
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4097,
+                "value": 0
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      },
+      {
+        "arguments": [],
+        "result": {
+          "type": 18432,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            89,
+            [],
+            0,
+            {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  2,
+                  2,
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          [
+            16389,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 2,
+              "value": "[Book1]X0"
+            }
+          ],
+          [
+            16388,
+            [
+              {
+                "type": 2,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            {
+              "type": 8,
+              "value": {
+                "sheet": "<sheet>",
+                "null_reference_table": true
+              }
+            }
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4104,
+                "value": {
+                  "sheet": "<sheet>",
+                  "null_reference_table": true
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 4098,
+                "value": "[Book1]X0"
+              }
+            ],
+            0,
+            null
+          ],
+          [
+            16384,
+            [
+              {
+                "type": 5120,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    2,
+                    2,
+                    1,
+                    1
+                  ]
+                }
+              }
+            ],
+            0,
+            null
+          ]
+        ]
+      }
+    ]
+  ],
+  "native_ownership_excel_and_host": [
+    {
+      "owned_returns": 3,
+      "free_calls": 3,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 3
+      }
+    },
+    {
+      "owned_returns": 4,
+      "free_calls": 4,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "xlOil.dll": 4
+      }
+    }
+  ],
+  "internal_server_body_observations": [
+    [
+      {
+        "entry": {
+          "seq": 774,
+          "qpc": 14722383217527,
+          "event": "enter",
+          "call": 415,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.ServerStart",
+          "from": {
+            "module": "oleaut32.dll",
+            "rva": 655199
+          },
+          "object": "0x16590fd52e0",
+          "object_label": "RTD server",
+          "result_abi": "rtdstart",
+          "callback": "0x165bda7ddc8"
+        },
+        "returned": {
+          "seq": 775,
+          "qpc": 14722383228373,
+          "event": "leave",
+          "call": 415,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.ServerStart",
+          "elapsed_qpc": 11122,
+          "rax": "0x0",
+          "hresult": 0,
+          "started": 1
+        }
+      },
+      {
+        "entry": {
+          "seq": 784,
+          "qpc": 14722383313446,
+          "event": "enter",
+          "call": 420,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.ConnectData",
+          "from": {
+            "module": "oleaut32.dll",
+            "rva": 655199
+          },
+          "object": "0x16590fd52e0",
+          "object_label": "RTD server",
+          "result_abi": "rtdconnect",
+          "topic": 1,
+          "strings": {
+            "dimensions": 1,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 8,
+                "value": "{7ADD0B58-46A9-40D2-B975-FD364251F5F3}"
+              }
+            ],
+            "truncated": false
+          },
+          "new_values": true
+        },
+        "returned": {
+          "seq": 785,
+          "qpc": 14722383322400,
+          "event": "leave",
+          "call": 420,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.ConnectData",
+          "elapsed_qpc": 9245,
+          "rax": "0x0",
+          "hresult": 0,
+          "result": {
+            "vt": 0,
+            "value": null
+          },
+          "new_values": true
+        }
+      },
+      {
+        "entry": {
+          "seq": 989,
+          "qpc": 14722390635419,
+          "event": "enter",
+          "call": 544,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.RefreshData",
+          "from": {
+            "module": "oleaut32.dll",
+            "rva": 655199
+          },
+          "object": "0x16590fd52e0",
+          "object_label": "RTD server",
+          "result_abi": "rtdrefresh"
+        },
+        "returned": {
+          "seq": 990,
+          "qpc": 14722390644365,
+          "event": "leave",
+          "call": 544,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.RefreshData",
+          "elapsed_qpc": 8931,
+          "rax": "0x0",
+          "hresult": 0,
+          "count": 1,
+          "data": {
+            "dimensions": 2,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              },
+              {
+                "count": 2,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 3,
+                "value": 1
+              },
+              {
+                "vt": 0,
+                "value": null
+              }
+            ],
+            "truncated": false
+          }
+        }
+      },
+      {
+        "entry": {
+          "seq": 1402,
+          "qpc": 14722410629263,
+          "event": "enter",
+          "call": 785,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.RefreshData",
+          "from": {
+            "module": "oleaut32.dll",
+            "rva": 655199
+          },
+          "object": "0x16590fd52e0",
+          "object_label": "RTD server",
+          "result_abi": "rtdrefresh"
+        },
+        "returned": {
+          "seq": 1403,
+          "qpc": 14722410641128,
+          "event": "leave",
+          "call": 785,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.RefreshData",
+          "elapsed_qpc": 11937,
+          "rax": "0x0",
+          "hresult": 0,
+          "count": 1,
+          "data": {
+            "dimensions": 2,
+            "element_bytes": 24,
+            "bounds": [
+              {
+                "count": 1,
+                "lower": 0
+              },
+              {
+                "count": 2,
+                "lower": 0
+              }
+            ],
+            "values": [
+              {
+                "vt": 3,
+                "value": 1
+              },
+              {
+                "vt": 0,
+                "value": null
+              }
+            ],
+            "truncated": false
+          }
+        }
+      },
+      {
+        "entry": {
+          "seq": 1460,
+          "qpc": 14722412878715,
+          "event": "enter",
+          "call": 817,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.DisconnectData",
+          "from": {
+            "module": "oleaut32.dll",
+            "rva": 655199
+          },
+          "object": "0x16590fd52e0",
+          "object_label": "RTD server",
+          "result_abi": "rtddisconnect",
+          "topic": 1
+        },
+        "returned": {
+          "seq": 1461,
+          "qpc": 14722412889304,
+          "event": "leave",
+          "call": 817,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.DisconnectData",
+          "elapsed_qpc": 11070,
+          "rax": "0x0",
+          "hresult": 0
+        }
+      },
+      {
+        "entry": {
+          "seq": 1466,
+          "qpc": 14722412936820,
+          "event": "enter",
+          "call": 820,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.ServerTerminate",
+          "from": {
+            "module": "oleaut32.dll",
+            "rva": 655199
+          },
+          "object": "0x16590fd52e0",
+          "object_label": "RTD server",
+          "result_abi": "rtdterminate"
+        },
+        "returned": {
+          "seq": 1472,
+          "qpc": 14722412998940,
+          "event": "leave",
+          "call": 820,
+          "thread": 61764,
+          "entry": "COM!early.rtdserver.ServerTerminate",
+          "elapsed_qpc": 62449,
+          "rax": "0x0",
+          "hresult": 0
+        }
+      }
+    ],
+    []
+  ],
+  "notification_threads": [
+    [
+      {
+        "thread": 61764,
+        "from": {
+          "module": "xlOil.dll",
+          "rva": 212484
+        },
+        "hresult": 0
+      },
+      {
+        "thread": 61764,
+        "from": {
+          "module": "xlOil.dll",
+          "rva": 212484
+        },
+        "hresult": 0
+      }
+    ],
+    [
+      {
+        "thread": 68604,
+        "from": {
+          "module": "xlOil.dll",
+          "rva": 212484
+        },
+        "hresult": 0
+      },
+      {
+        "thread": 68604,
+        "from": {
+          "module": "xlOil.dll",
+          "rva": 212484
+        },
+        "hresult": 0
+      }
+    ]
+  ],
+  "host_results": [
+    {
+      "async_returns": [],
+      "closed_name": "xloVersion",
+      "closed_registration": "#NAME?",
+      "commands": [],
+      "formula_entries": [],
+      "host": "DNA Calc / CalcHost P07",
+      "live_callback_allocations": 0,
+      "registrations": 4,
+      "reload_results": [],
+      "results": [
+        {
+          "concurrent": null,
+          "dependent": 110.0,
+          "dependent_provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 2, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(6), inputs: 3 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [ReadSpan { region: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 3, left: 2, bottom: 3, right: 2 }, request: ReadRequest { purpose: FormulaValue, policy: DependencyWithinCommand, facets: Value }, versions: SpanVersions { authored: 9, value: Some(CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }), required: 16, satisfied: 16, formulas: 1, pending: 0, uncertified: 0, legacy_tick: 0, boundary_cache: 0, imported_cache: 0 }, boundary_caches: [] }], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 3 }, required: 16 }, completion: Value }"
+          },
+          "formula": "=10+X5.Rtd()+3",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [
+              {
+                "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+                "sequence": 3,
+                "subscription": 1
+              }
+            ],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(5), inputs: 3 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [UserInputRead { key: UserInputKey { callable: UserCallableIdentity { table: 2, slot: 10, generation: 1 }, subscription: 1 }, sequence: 3 }], callables: [CallableBindingProof { provider: None, name: \"x5.rtd\", bound: Some(UserCallableIdentity { table: 2, slot: 10, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 8, parent: Some(7), callable: UserCallableIdentity { table: 2, slot: 10, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"x5.rtd\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"x5.rtd\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 3 }, required: 16 }, completion: Value }"
+          },
+          "value": 55.0
+        },
+        {
+          "concurrent": null,
+          "dependent": 198.0,
+          "dependent_provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 4, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(7), inputs: 4 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [ReadSpan { region: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 3, left: 2, bottom: 3, right: 2 }, request: ReadRequest { purpose: FormulaValue, policy: DependencyWithinCommand, facets: Value }, versions: SpanVersions { authored: 19, value: Some(CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }), required: 19, satisfied: 19, formulas: 1, pending: 0, uncertified: 0, legacy_tick: 0, boundary_cache: 0, imported_cache: 0 }, boundary_caches: [] }], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 4 }, required: 18 }, completion: Value }"
+          },
+          "formula": "=99",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 5, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(7), inputs: 4 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 4 }, required: 19 }, completion: Value }"
+          },
+          "value": 99.0
+        }
+      ],
+      "revoked_tokens": [],
+      "rtd_retired": [
+        {
+          "disposition": "Accepted",
+          "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+          "subscription": 1
+        }
+      ],
+      "rtd_subscriptions_after_close": 0,
+      "rtd_updates": [
+        {
+          "disposition": "Accepted",
+          "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+          "sequence": 1,
+          "subscription": 1,
+          "value": null
+        },
+        {
+          "disposition": "Accepted",
+          "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+          "sequence": 2,
+          "subscription": 1,
+          "value": null
+        },
+        {
+          "disposition": "Accepted",
+          "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+          "sequence": 3,
+          "subscription": 1,
+          "value": null
+        }
+      ],
+      "status_message": null
+    },
+    {
+      "async_returns": [],
+      "closed_name": "xloVersion",
+      "closed_registration": "#NAME?",
+      "commands": [],
+      "formula_entries": [],
+      "host": "DNA Calc / CalcHost P07",
+      "live_callback_allocations": 0,
+      "registrations": 4,
+      "reload_results": [],
+      "results": [
+        {
+          "concurrent": null,
+          "dependent": 110.0,
+          "dependent_provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 2, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(6), inputs: 3 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [ReadSpan { region: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 3, left: 2, bottom: 3, right: 2 }, request: ReadRequest { purpose: FormulaValue, policy: DependencyWithinCommand, facets: Value }, versions: SpanVersions { authored: 9, value: Some(CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }), required: 16, satisfied: 16, formulas: 1, pending: 0, uncertified: 0, legacy_tick: 0, boundary_cache: 0, imported_cache: 0 }, boundary_caches: [] }], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 3 }, required: 16 }, completion: Value }"
+          },
+          "formula": "=10+X5.Rtd()+3",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [
+              {
+                "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+                "sequence": 3,
+                "subscription": 1
+              }
+            ],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(5), inputs: 3 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [UserInputRead { key: UserInputKey { callable: UserCallableIdentity { table: 2, slot: 10, generation: 1 }, subscription: 1 }, sequence: 3 }], callables: [CallableBindingProof { provider: None, name: \"x5.rtd\", bound: Some(UserCallableIdentity { table: 2, slot: 10, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 8, parent: Some(7), callable: UserCallableIdentity { table: 2, slot: 10, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"x5.rtd\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"x5.rtd\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 3 }, required: 16 }, completion: Value }"
+          },
+          "value": 55.0
+        },
+        {
+          "concurrent": null,
+          "dependent": 198.0,
+          "dependent_provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 4, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(7), inputs: 4 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [ReadSpan { region: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 3, left: 2, bottom: 3, right: 2 }, request: ReadRequest { purpose: FormulaValue, policy: DependencyWithinCommand, facets: Value }, versions: SpanVersions { authored: 19, value: Some(CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }), required: 19, satisfied: 19, formulas: 1, pending: 0, uncertified: 0, legacy_tick: 0, boundary_cache: 0, imported_cache: 0 }, boundary_caches: [] }], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 4 }, required: 18 }, completion: Value }"
+          },
+          "formula": "=99",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 5, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(7), inputs: 4 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 4 }, required: 19 }, completion: Value }"
+          },
+          "value": 99.0
+        }
+      ],
+      "revoked_tokens": [],
+      "rtd_retired": [
+        {
+          "disposition": "Accepted",
+          "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+          "subscription": 1
+        }
+      ],
+      "rtd_subscriptions_after_close": 0,
+      "rtd_updates": [
+        {
+          "disposition": "Accepted",
+          "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+          "sequence": 1,
+          "subscription": 1,
+          "value": null
+        },
+        {
+          "disposition": "Accepted",
+          "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+          "sequence": 2,
+          "subscription": 1,
+          "value": null
+        },
+        {
+          "disposition": "Accepted",
+          "provider": "UserCallableIdentity { table: 2, slot: 10, generation: 1 }",
+          "sequence": 3,
+          "subscription": 1,
+          "value": null
+        }
+      ],
+      "status_message": null
+    }
+  ],
+  "source_publication_revisions": [
+    "93ad8caa2008753550b185a44efaa5c0ba8c37ae",
+    "93ad8caa2008753550b185a44efaa5c0ba8c37ae",
+    "93ad8caa2008753550b185a44efaa5c0ba8c37ae",
+    "5e7533e8cd885aaf98967d8f132b2c44309dbdfa",
+    "5e7533e8cd885aaf98967d8f132b2c44309dbdfa",
+    "5e7533e8cd885aaf98967d8f132b2c44309dbdfa",
+    "0aac4a2bc43045491ddc31da3ef1d7d198bb0ea1",
+    "0aac4a2bc43045491ddc31da3ef1d7d198bb0ea1",
+    "0aac4a2bc43045491ddc31da3ef1d7d198bb0ea1",
+    "8f252cc1fbbacf4b81456f73bf11f6bd4b28ba00",
+    "8f252cc1fbbacf4b81456f73bf11f6bd4b28ba00",
+    "8f252cc1fbbacf4b81456f73bf11f6bd4b28ba00"
+  ],
+  "source_bindings_checked": 1868,
+  "transport": "Excel IDispatch vs host early-bound. Compare the external client method payloads; retain internal fixture body hits separately. SAFEARRAY bounds retain descriptor order.",
+  "initial_difference": "The host's first RTD callback returns temporary #N/A before admission; subsequent empty signals return numeric zero as in Excel. All Python UDF invocations, defined ownership bits and callbacks are retained; invocation counts may differ with asynchronous publication.",
+  "scope": "Original xlOil 0.22.1 async generator and separate Python cache; empty sequenced inputs, exact P07 certificate, formula replacement and finite client protocol. General providers, arrays, remote servers and arbitrary teardown remain open."
+}

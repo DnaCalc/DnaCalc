@@ -1,0 +1,36 @@
+   Compiling calc-engine v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-engine)
+   Compiling calc-doc v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-doc)
+   Compiling calc-host v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\crates\calc-host)
+warning: method `opened_position` is never used
+   --> crates\calc-host\src\state.rs:740:19
+    |
+162 | impl HostState {
+    | -------------- method in this implementation
+...
+740 |     pub(crate) fn opened_position(&self, at: CellKey) -> Option<(u32, u32)> {
+    |                   ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `calc-host` (lib) generated 1 warning
+   Compiling xtask-harness v0.1.0 (C:\Work\DnaCalc\DnaCalc-win\tools\xtask-harness)
+warning: field `driver_pid` is never read
+   --> tools\xtask-harness\src\app.rs:797:5
+    |
+793 | struct Session {
+    |        ------- field in this struct
+...
+797 |     driver_pid: u32,
+    |     ^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `xtask-harness` (bin "xtask-harness" test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 36.59s
+     Running unittests src\main.rs (target/xtask-accept\debug\deps\xtask_harness-f613e239b96744d0.exe)
+
+running 1 test
+test compare::tests::dc_ylr_available_source_is_calculated_and_missing_source_stays_qualified ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 125 filtered out; finished in 0.08s
+

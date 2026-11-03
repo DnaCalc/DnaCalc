@@ -634,7 +634,7 @@ nontext topics, general signaling-cache providers and arbitrary teardown are ope
 
 Evidence and exact source bindings are retained under
 `crates/calc-xll-reference/traces/2026-11-01-x4-x5`. The original xlOil Python
-fixture agrees on all12 formula cases and the defined operands and callbacks of
+fixture agrees on all 12 formula cases and the defined operands and callbacks of
 13 measured native invocations. Raw undefined xlFree result operands still differ.
 Both hosts deliver13 SheetChange calls with the measured argument types and order,
 but nested COM property calls differ at three event positions. The strict
@@ -679,7 +679,7 @@ retains the result type and exact double bits for comparison with Excel. Nested
 retained kernel calls live on the heap so the existing one-megabyte recursion test
 continues to exercise the full evaluator depth after the shared helper changes.
 
-The corrected X4 comparison checks all12 cases and13 SheetChange deliveries,
+The corrected X4 comparison checks all 12 cases and13 SheetChange deliveries,
 including Worksheet.Name and both addresses in every event. The permission matrix
 now matches all39 requests, including result2 and its exact double bits for the
 normal and `#` EVALUATE calls. Original xlOil empty signals produce55/dependent110
@@ -711,3 +711,72 @@ entry calls remain part of the strict comparison. The fixture resets its existin
 barrier after entry and before Calculate, in both hosts, to measure actual worker
 overlap independently. An overlap witness is not a full lifecycle compatibility
 pass; differing native invocation or owned-result counts remain failures.
+
+## 19. R7 pool, RTD and bounded native reload observations
+
+The new captures in `crates/calc-xll-reference/traces/2026-11-03-xll7`
+supersede the strict RTD and pool failures recorded in sections 17 and 18. The
+earlier failed captures remain unchanged. Formula entry now uses an explicit
+single-cell selection through the existing engine. Its native calls run on the
+owner even for a `$` function; a later Manual Calculate uses the worker pool.
+The full pool comparison matches all 15 ordered native calls and two owned frees,
+including arguments, results, nested callbacks, thread placement and module/pointer
+ownership. It retains the two-worker overlap witness. Asynchronous native formula
+entry remains a typed refusal.
+
+The tracer now maintains thread IDs from debugger thread events instead of taking
+a machine-wide thread snapshot at every breakpoint. The original signaling RTD
+case has eight ordered client calls in both hosts, with equal payloads. The earlier
+11-versus-eight failure is retained. An explicit 22-second idle extension exposed
+an orphan transport: the host kept its native topic after the generator completed.
+Completed synchronous invocations now reconcile their actual RTD declarations,
+disconnecting an unused transport while retaining the final P07 input certificate
+until formula replacement. Both hosts disconnect the completed generator before
+the idle interval, with no Heartbeat. A persistent numeric topic instead receives
+exactly one Heartbeat in that interval: seven client calls in each host.
+
+The numeric fixture also calls its idempotent ServerTerminate body from its final
+Release destructor. The verifier retains that body and requires a same-object,
+same-thread, zero-reference Release from the client, following successful external
+termination. It does not invent a second client call. A copied trace changed to
+report one remaining reference is rejected. General topic reuse after completion,
+arrays, remote RTD, spill concurrency and broader cancellation remain open under
+dc-snz.23; a completed transport cannot reconnect before its logical input retires.
+
+The original xlOil 0.22.1 native Utils/SQL profile can now reopen in the DNA Calc
+process, with both the same host object and a replacement host object. All12
+formula outcomes and all 13 ordered native calls agree with Excel's complete first
+load and with the host's second load. Owned returns are freed by the same module,
+pointer and thread before the next native entry. The trace establishes actual
+unmapping and remapping of the XLL, core and both plugins, rather than reuse of a
+partly torn-down runtime. Old callable snapshots return #NAME? after removal.
+The original Excel UNREGISTER/RegisterXLL controls still fail with RPC loss and a
+traced second-chance access violation. Their failed reload and debugger diagnostics
+remain failures. Security is read as unchanged before teardown; after the process
+crashes it cannot be read again.
+
+The repair is a compatibility adjustment for exact hashes in
+`fixture/x3-upstream.json`, informed by xlOil 6aff3a4f
+`src/xlOil-Loader/LoaderEntryPoint.cpp`, `src/xlOil/Loaders/AddinLoader.cpp`,
+`src/xlOil-COM/API/ExcelThread.cpp`, `src/xlOil-XLL/LogWindow.cpp` and
+`src/xlOilHelpers/Settings.cpp`. No framework binary is patched. A pre-load
+qualification rejects settings overrides, a user settings file, a renamed loader
+and an already resident core. It requires the native ini and both plugin hashes;
+release-time checks can only withdraw that qualification. After successful
+teardown and release of every originating XLL lease, the host validates the two
+process-local window classes and their procedures' exact owning core. A live
+message window prevents any log-UI mutation. Unknown core UI or a foreign owner
+also prevents cleanup. Only then does it remove the abandoned log window/classes
+and balance the measured loader's orphaned PE delay-load reference. Reopening
+requires recorded successful cleanup and confirmation that the core really left
+the process. A native test checks preservation of live and unknown window contexts.
+
+This follows the documented
+[PE delay-import layout](https://learn.microsoft.com/windows/win32/debug/pe-format),
+[FreeLibrary reference count](https://learn.microsoft.com/windows/win32/api/libloaderapi/nf-libloaderapi-freelibrary)
+and [UnregisterClass ownership/lifetime rules](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-unregisterclassw).
+These window classes are private to the host process; no Excel COM registration,
+HKLM key, Trust Center or macro setting is written. Python and settings-override
+reload controls retain explicit failures. A renamed-loader control crashed and
+remains unqualified. Arbitrary plugins, Python teardown and general safe reload
+remain open under dc-snz.21.

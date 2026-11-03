@@ -1,0 +1,231 @@
+{
+  "snapshots": [
+    {
+      "snapshot": "corpus-before",
+      "summary_sha256": "7f8e31d20f85a7e245e4e6dbe215d6a0ab90bcf160dae5c6ba35cf7e31dcd431",
+      "run": {
+        "cache": "C:\\Work\\DnaCalc\\corpus\\captures-cache",
+        "command": "cargo xtask corpus --oracle --out C:\\Work\\DnaCalc\\codex-runs\\xll7\\corpus-before",
+        "compare_process": "a release build of xtask in target/xtask-corpus",
+        "excel_build": "not read (no capture needed it)",
+        "finished_utc": "2026-11-03T03:01:44Z",
+        "listing_failures": [],
+        "repository": "2132f5f10c8412365918eb1cafcac3523365dd43",
+        "wall_time_s": 69.8418022
+      },
+      "totals": {
+        "compared": 21,
+        "counts": {
+          "awaiting_capture": 2443,
+          "circular_rule": 14,
+          "external_links": 73,
+          "fail": 1055,
+          "failed_or_missing": 1,
+          "failed_or_missing_by_verdict": {
+            "not_run": 1
+          },
+          "formula_cells": 20840,
+          "mismatched": 1050,
+          "pass": 17255,
+          "pass_rate": 0.8279750479846449,
+          "refused": 4
+        },
+        "not_compared": 0,
+        "wall_time_s": {
+          "capture": null,
+          "compare_process": 3.0339764,
+          "judge": 0.049816599999999996,
+          "open": 0.0959684,
+          "project": 0.015468100000000002,
+          "recalculation": 1.0216154
+        },
+        "whole_run_failed": 0,
+        "workbooks": 21
+      }
+    },
+    {
+      "snapshot": "corpus-after-capture",
+      "summary_sha256": "a2b1438d9e1348abdb04c0e47fbaa4e23cacb3991d2673ae4160aed849a622cb",
+      "run": {
+        "cache": "C:\\Work\\DnaCalc\\corpus\\captures-cache",
+        "command": "cargo xtask corpus --oracle --out C:\\Work\\DnaCalc\\codex-runs\\xll7\\corpus-after-capture",
+        "compare_process": "a release build of xtask in target/xtask-corpus",
+        "excel_build": "not read (no capture needed it)",
+        "finished_utc": "2026-11-03T03:07:54Z",
+        "listing_failures": [],
+        "repository": "2132f5f10c8412365918eb1cafcac3523365dd43+dirty",
+        "wall_time_s": 9.4863351
+      },
+      "totals": {
+        "compared": 21,
+        "counts": {
+          "awaiting_capture": 0,
+          "circular_rule": 14,
+          "external_links": 73,
+          "fail": 1362,
+          "failed_or_missing": 1,
+          "failed_or_missing_by_verdict": {
+            "not_run": 1
+          },
+          "formula_cells": 20840,
+          "mismatched": 1355,
+          "pass": 19391,
+          "pass_rate": 0.9304702495201536,
+          "refused": 6
+        },
+        "not_compared": 0,
+        "wall_time_s": {
+          "capture": null,
+          "compare_process": 4.9953081,
+          "judge": 0.0675129,
+          "open": 0.26248830000000006,
+          "project": 0.035693200000000015,
+          "recalculation": 2.9897837999999997
+        },
+        "whole_run_failed": 0,
+        "workbooks": 21
+      }
+    },
+    {
+      "snapshot": "corpus-integrated",
+      "summary_sha256": "749d2ff4a1f3b7b034fb3532c0c42d40feb635bd7b8bc9aea9f1896f8187470d",
+      "run": {
+        "cache": "C:\\Work\\DnaCalc\\corpus\\captures-cache",
+        "command": "cargo xtask corpus --oracle --out C:\\Work\\DnaCalc\\codex-runs\\xll7\\corpus-integrated",
+        "compare_process": "a release build of xtask in target/xtask-corpus",
+        "excel_build": "not read (no capture needed it)",
+        "finished_utc": "2026-11-03T03:57:29Z",
+        "listing_failures": [],
+        "repository": "93ad8caa2008753550b185a44efaa5c0ba8c37ae+dirty",
+        "wall_time_s": 117.8444164
+      },
+      "totals": {
+        "compared": 21,
+        "counts": {
+          "awaiting_capture": 0,
+          "circular_rule": 14,
+          "external_links": 73,
+          "fail": 1206,
+          "failed_or_missing": 1,
+          "failed_or_missing_by_verdict": {
+            "not_run": 1
+          },
+          "formula_cells": 20840,
+          "mismatched": 1199,
+          "pass": 19547,
+          "pass_rate": 0.9379558541266795,
+          "refused": 6
+        },
+        "not_compared": 0,
+        "wall_time_s": {
+          "capture": null,
+          "compare_process": 5.971916399999999,
+          "judge": 0.0723348,
+          "open": 0.2913077999999999,
+          "project": 0.0360354,
+          "recalculation": 3.1775716000000007
+        },
+        "whole_run_failed": 0,
+        "workbooks": 21
+      }
+    },
+    {
+      "snapshot": "corpus-final",
+      "summary_sha256": "a013c4077e4cd09276b8770012707ded2091a1e78203e8a7042bb83d2727f426",
+      "run": {
+        "cache": "C:\\Work\\DnaCalc\\corpus\\captures-cache",
+        "command": "cargo xtask corpus --oracle --no-capture --out C:\\Work\\DnaCalc\\codex-runs\\xll7\\corpus-final",
+        "compare_process": "a release build of xtask in target/xtask-corpus",
+        "excel_build": "not read (no capture needed it)",
+        "finished_utc": "2026-11-03T05:05:22Z",
+        "listing_failures": [],
+        "repository": "f36fa45af6e370c6159400f1f3f73543c3530fcc+dirty",
+        "wall_time_s": 117.4398271
+      },
+      "totals": {
+        "compared": 21,
+        "counts": {
+          "awaiting_capture": 0,
+          "circular_rule": 14,
+          "external_links": 73,
+          "fail": 1159,
+          "failed_or_missing": 1,
+          "failed_or_missing_by_verdict": {
+            "not_run": 1
+          },
+          "formula_cells": 20840,
+          "mismatched": 1152,
+          "pass": 19594,
+          "pass_rate": 0.94021113243762,
+          "refused": 6
+        },
+        "not_compared": 0,
+        "wall_time_s": {
+          "capture": null,
+          "compare_process": 6.049610199999999,
+          "judge": 0.0878798,
+          "open": 0.27938769999999996,
+          "project": 0.0420895,
+          "recalculation": 3.278567
+        },
+        "whole_run_failed": 0,
+        "workbooks": 21
+      }
+    },
+    {
+      "snapshot": "corpus-post-pull",
+      "summary_sha256": "dabf5a1009dcd1baa7c99ff4f545d5077ef94f0ae41e80a1bc6daa5177785bf8",
+      "run": {
+        "cache": "C:\\Work\\DnaCalc\\corpus\\captures-cache",
+        "command": "cargo xtask corpus --oracle --no-capture --out C:\\Work\\DnaCalc\\codex-runs\\xll7\\corpus-post-pull",
+        "compare_process": "this xtask, a release build",
+        "excel_build": "not read (no capture needed it)",
+        "finished_utc": "2026-11-03T05:34:06Z",
+        "listing_failures": [],
+        "repository": "a06df12777263a0cfd9588e403af680603650197+dirty",
+        "wall_time_s": 19.0758901
+      },
+      "totals": {
+        "compared": 21,
+        "counts": {
+          "awaiting_capture": 0,
+          "circular_rule": 14,
+          "external_links": 0,
+          "fail": 1159,
+          "failed_or_missing": 1,
+          "failed_or_missing_by_verdict": {
+            "not_run": 1
+          },
+          "formula_cells": 20840,
+          "mismatched": 1152,
+          "pass": 19667,
+          "pass_rate": 0.9437140115163147,
+          "refused": 6
+        },
+        "not_compared": 0,
+        "wall_time_s": {
+          "capture": null,
+          "compare_process": 15.390806799999998,
+          "judge": 0.16916230000000002,
+          "open": 0.6668308000000001,
+          "project": 0.15205500000000002,
+          "recalculation": 8.592285000000002
+        },
+        "whole_run_failed": 0,
+        "workbooks": 21
+      }
+    }
+  ],
+  "capture_only_match_gain": 2136,
+  "incoming_master_match_gain": 276,
+  "denominator": "all formula cells; every category remains explicit",
+  "incoming_function_match_gain": 203,
+  "incoming_linked_workbook_match_gain": 73,
+  "actual_linked_sources_opened": [
+    {
+      "sha256": "5236ce7aa171c1c32b1c6f93dbc964b6066f929bcdb7eb0bb9a64c7584d017fb",
+      "source": "\\\\?\\C:\\Work\\DnaCalc\\cw-ceng\\ylr\\ylr-source.xlsx",
+      "status": "opened for engine calculation"
+    }
+  ]
+}
