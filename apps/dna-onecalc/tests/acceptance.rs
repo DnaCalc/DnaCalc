@@ -115,6 +115,59 @@ fn distribution_cumulative_flags_read_logical_text() {
     assert_eq!(session.calculate().result, Some(expected));
 }
 
+/// OxFunc-Evidence w111-numeric-text-core-heldout-20260929, INT direct/reference
+/// pairs 00600/00601, 01092/01093, 01112/01113 and 01122/01123.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_parenthesized_percent_text_keeps_its_suffix() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut profile = format_profile(LocaleId::EnZa);
+    // Actual separators retained in the Excel captures, independent of locale defaults.
+    profile.decimal_separator = ".";
+    profile.thousands_separator = " ";
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    for text in ["(19.811671778304706)%", "(2e-2)%", "(2e-2) %", "(200e-2)%"] {
+        session.set_input("B1", InputValue::text(text).unwrap()).unwrap();
+        for argument in [format!("\"{text}\""), "B1".to_owned()] {
+            let formula = format!("=INT({argument})");
+            session.set_formula(&formula);
+            let calculated = session.calculate();
+            assert_eq!(calculated.result, Some(CalcValue::number(-1.0)), "{formula}: {:?}", calculated.diagnostics);
+            assert!(calculated.diagnostics.is_empty());
+        }
+    }
+}
+
+/// OxFunc-Evidence cache/oracle-20430/build-20430/BAHTTEXT.jsonl,
+/// oc1210/1211/1849 with zero, signed-zero and satang boundary controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_bahttext_retains_the_sign_of_a_negative_amount() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_formula("=BAHTTEXT(B1)");
+    for (bits, expected) in [
+        (0xbf50_624d_d2f1_a9fc, "ลบศูนย์บาทถ้วน"),
+        (0xbf70_624d_d2f1_a9fc, "ลบศูนย์บาทถ้วน"),
+        (0xbf72_ec6b_ce85_33b1, "ลบศูนย์บาทถ้วน"),
+        (0x0000_0000_0000_0000, "ศูนย์บาทถ้วน"),
+        (0x8000_0000_0000_0000, "ศูนย์บาทถ้วน"),
+        (0x3f70_624d_d2f1_a9fc, "ศูนย์บาทถ้วน"),
+        (0x3f74_7ae1_47ae_147b, "หนึ่งสตางค์"),
+        (0xbf74_7ae1_47ae_147b, "ลบหนึ่งสตางค์"),
+    ] {
+        session.set_input("B1", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+        let calculated = session.calculate();
+        let expected = CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(expected));
+        assert_eq!(calculated.result, Some(expected), "{bits:#018x}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

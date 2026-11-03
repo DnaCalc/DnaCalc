@@ -11,8 +11,9 @@
 //!
 //! - Number text: ASCII spaces around it and between its parts; at most one sign (`+`, `-`, or
 //!   parentheses around the whole), one currency symbol before the digits (before or after the
-//!   sign), one `%` before or after; digits with the group separator, each group after the first
-//!   at least three digits long; one decimal point; an exponent `E` with an optional sign. More
+//!   sign), one `%` before or after (also after closing parentheses); digits with the group
+//!   separator, each group after the first at least three digits long; one decimal point; an
+//!   exponent `E` with an optional sign. More
 //!   than 15 significant digits are cut to 15 (`12345678901234567` reads as 1.23456789012345E+16).
 //! - A whole number, spaces and a fraction `n/d` (`1 3/2` is 2.5); a zero denominator is #VALUE!.
 //! - Dates: three numbers in the locale's short-date order separated by `/` or `-` (a two-digit
@@ -247,6 +248,13 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
         }
         at += 1;
         negative = true;
+        skip(&mut at);
+    }
+    // W111 numeric-text-core-heldout: the percent may follow the complete parenthesized
+    // amount, with ASCII spaces between. The same flag rejects a second percent.
+    if bytes.get(at) == Some(&b'%') && !percent {
+        percent = true;
+        at += 1;
         skip(&mut at);
     }
     if at != bytes.len() {
