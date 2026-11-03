@@ -31,7 +31,7 @@ AVERAGE	full	20430,20527	1222	1222	-	exact	ec9d4a91ff+changes
 AVERAGE	pinned	20430	120	120	-	exact	dd2d82c25f+changes
 AVERAGEA	full	20430	1212	1212	-	exact	ec9d4a91ff+changes
 AVERAGEA	pinned	20430	120	120	-	exact	dd2d82c25f+changes
-BAHTTEXT	full	20430	1983	1980	-	structural	ec9d4a91ff+changes
+BAHTTEXT	full	20430	1983	1983	-	exact	efe89d6bcb+changes
 BAHTTEXT	pinned	20430	120	120	-	exact	dd2d82c25f+changes
 BASE	full	20430	3560	3560	-	exact	ec9d4a91ff+changes
 BASE	pinned	20430	120	120	-	exact	dd2d82c25f+changes

@@ -6,7 +6,7 @@
 //!
 //! POWER is the `^` operator's rule ([`super::arithmetic::raise`]).
 
-use super::kit::{Grid, fail, given, grid, num, num_with_subnormal, out, out_matrix, out_text, text, values};
+use super::kit::{Grid, fail, given, grid, num, num_with_subnormal, out, out_matrix, out_text, reject_logical, text, values};
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::real_policy::ExcelRealPolicy;
 use crate::ported::{self as k};
@@ -103,7 +103,10 @@ ported_family! {
     }
     28 log10 "LOG10" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::log10_fn::log10_kernel) }
     29 sqrt "SQRT" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::sqrt_fn::sqrt_kernel) }
-    30 sqrtpi "SQRTPI" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::sqrtpi::sqrtpi_kernel) }
+    30 sqrtpi "SQRTPI" (1, 1) [V "number"] |s, a, sv| {
+        reject_logical(&a[0])?;
+        unary(s, a, k::sqrtpi::sqrtpi_kernel)
+    }
     31 power "POWER" (2, 2) [V "number", V "power"] |s, a, sv| {
         let x = num(s, a, 0)?;
         let y = num(s, a, 1)?;
@@ -111,6 +114,7 @@ ported_family! {
     }
     32 fact "FACT" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::fact::fact_kernel) }
     33 factdouble "FACTDOUBLE" (1, 1) [V "number"] |s, a, sv| {
+        reject_logical(&a[0])?;
         unary(s, a, k::factdouble::factdouble_kernel)
     }
     34 combin "COMBIN" (2, 2) [V "number", V "number_chosen"] |s, a, sv| {
@@ -134,6 +138,7 @@ ported_family! {
         out(s, k::lcm_fn::lcm_kernel(&items))
     }
     40 multinomial "MULTINOMIAL" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        reject_logical(&a[0])?;
         // Every value, held or direct, is read as a number and truncated; a blank cell is
         // skipped.
         let mut items = Vec::new();
@@ -181,6 +186,7 @@ ported_family! {
         out(s, k::decimal_fn::decimal_kernel(&t, radix))
     }
     45 seriessum "SERIESSUM" (4, 4) [V "x", V "n", V "m", R "coefficients"] |s, a, sv| {
+        reject_logical(&a[0])?;
         let x = num(s, a, 0)?;
         let n = num(s, a, 1)?;
         let m = num(s, a, 2)?;

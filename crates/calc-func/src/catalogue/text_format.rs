@@ -544,12 +544,13 @@ fn thai_number(digits: &str) -> String {
 }
 
 /// BAHTTEXT: the number rounded to satang (two places, from its 15-digit reading, a half away
-/// from zero) in Thai words, as Excel gave on this machine for 17 numbers.
+/// from zero) in Thai words. Retained BAHTTEXT readings keep the original negative sign
+/// even when rounding leaves zero baht and zero satang; signed zero itself has no minus word.
 fn bahttext(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let n = num(site, a, 0)?;
     let (whole, fraction) = format::digits(n, 2);
     let satang = fraction.trim_start_matches('0');
-    let negative = n < 0.0 && !(whole.is_empty() && satang.is_empty());
+    let negative = n < 0.0;
     let mut out = String::new();
     if negative {
         out.push_str(THAI_MINUS);
