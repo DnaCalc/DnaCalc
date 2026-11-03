@@ -3,6 +3,9 @@ $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Excel session host requires -STA.' }
 $root = [IO.Path]::GetFullPath($SessionDirectory)
 [void][IO.Directory]::CreateDirectory($root)
+$stdout=[IO.StreamWriter]::new((Join-Path $root 'host.stdout'),$true,[Text.UTF8Encoding]::new($false));$stdout.AutoFlush=$true
+$stderr=[IO.StreamWriter]::new((Join-Path $root 'host.stderr'),$true,[Text.UTF8Encoding]::new($false));$stderr.AutoFlush=$true
+[Console]::SetOut($stdout);[Console]::SetError($stderr)
 foreach ($name in 'queue','running','completed','launches') { [void][IO.Directory]::CreateDirectory((Join-Path $root $name)) }
 $lock = [IO.File]::Open((Join-Path $root 'host.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
 $script:hostSource=[IO.File]::ReadAllBytes($PSCommandPath)
@@ -10,6 +13,7 @@ $script:hostSha=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
 $script:app = $null
 $script:owned = $null
 $script:baseline = $null
+$global:DnaExcelSessionState=[pscustomobject]@{App=$null;Baseline=$null;Root=$root}
 $script:launches = 0
 $script:sequence = 0
 $script:ordinarySequence = 0
@@ -80,7 +84,7 @@ function Read-Property($Object, [string]$Name) {
     $Object.GetType().InvokeMember($Name, [Reflection.BindingFlags]::GetProperty, $null, $Object, $null)
 }
 function Snapshot {
-    $a = $script:app
+    $a = $global:DnaExcelSessionState.App
     $s = [ordered]@{}
     foreach ($key in 'Visible','DisplayAlerts','ScreenUpdating','EnableEvents','Interactive','AutomationSecurity','Calculation','Iteration','MaxIterations','MaxChange','UseSystemSeparators','DecimalSeparator','ThousandsSeparator','CalculateBeforeSave','StatusBar','CutCopyMode') {
         $value = Read-Property $a $key
@@ -98,8 +102,13 @@ function Snapshot {
     return $s
 }
 function Same($Left, $Right) { (ConvertTo-Json -InputObject $Left -Depth 30 -Compress) -ceq (ConvertTo-Json -InputObject $Right -Depth 30 -Compress) }
+function Read-TraceObservations([string]$Path) {
+    @(Get-Content -LiteralPath $Path -Encoding utf8|ForEach-Object { $_|ConvertFrom-Json }|Where-Object {
+        $_.operation -like '=*' -or $_.operation -like 'Value2 *' -or $_.operation -like 'Application.Run *'
+    }|ForEach-Object { @{operation=$_.operation;value=$_.value} })
+}
 function Reset-Baseline {
-    $a = $script:app
+    $a = $global:DnaExcelSessionState.App
     $a.EnableEvents = $false
     $a.DisplayAlerts = $false
     $a.CutCopyMode = 0
@@ -111,17 +120,30 @@ function Reset-Baseline {
     $a.MaxIterations = 100
     $a.MaxChange = 0.001
     $a.CalculateBeforeSave = $false
-    if ($script:baseline) {
-        foreach ($key in 'Visible','DisplayAlerts','ScreenUpdating','EnableEvents','Interactive','AutomationSecurity','UseSystemSeparators','DecimalSeparator','ThousandsSeparator','StatusBar') { $a.$key = $script:baseline[$key] }
-        $a.MultiThreadedCalculation.Enabled = $script:baseline['mtc_enabled']
-        $a.MultiThreadedCalculation.ThreadMode = $script:baseline['mtc_mode']
-        if ($script:baseline['mtc_mode'] -eq 1) { $a.MultiThreadedCalculation.ThreadCount = $script:baseline['mtc_count'] }
+    $baseline=$global:DnaExcelSessionState.Baseline
+    if ($baseline) {
+        foreach ($key in 'Visible','DisplayAlerts','ScreenUpdating','EnableEvents','Interactive','AutomationSecurity','UseSystemSeparators','DecimalSeparator','ThousandsSeparator','StatusBar') { $a.$key = $baseline[$key] }
+        $a.MultiThreadedCalculation.Enabled = $baseline['mtc_enabled']
+        $a.MultiThreadedCalculation.ThreadMode = $baseline['mtc_mode']
+        if ($baseline['mtc_mode'] -eq 1) { $a.MultiThreadedCalculation.ThreadCount = $baseline['mtc_count'] }
     } else {
         $a.Visible=$false; $a.ScreenUpdating=$false; $a.Interactive=$false; $a.StatusBar=$false
     }
-    $sentinel.SaveAs((Join-Path $root 'baseline.xlsx'),51)
+    $sentinel.SaveAs((Join-Path $global:DnaExcelSessionState.Root 'baseline.xlsx'),51)
     [GC]::Collect(); [GC]::WaitForPendingFinalizers()
     Snapshot
+}
+function Restore-JobBaseline {
+    # A condition may contain multiple independently seeded workbook trials.
+    $state=Reset-Baseline
+    if(-not (Same $state $global:DnaExcelSessionState.Baseline)){throw 'Baseline drift between trials; condition refused.'}
+    return $state
+}
+function Start-JobTrial {
+    $state=Snapshot
+    if(-not(Same $state $global:DnaExcelSessionState.Baseline)){throw 'Baseline drift before a workbook trial; condition refused.'}
+    $global:DnaExcelSessionState.App.Workbooks.Item(1).Close($false)
+    return $state
 }
 function Stop-Owned([string]$Reason) {
     if (-not $script:owned) { return }
@@ -129,6 +151,7 @@ function Stop-Owned([string]$Reason) {
     Event 'stop' @{reason=$Reason;excel=$identity}
     try { $script:app.DisplayAlerts=$false; $script:app.EnableEvents=$false; $script:app.Quit() } catch { Event 'quit-error' $_.Exception.Message }
     $script:app=$null
+    $global:DnaExcelSessionState.App=$null
     [GC]::Collect(); [GC]::WaitForPendingFinalizers()
     $p=Get-Process -Id $identity.pid -ErrorAction SilentlyContinue
     if ($p -and -not $p.WaitForExit(5000)) {
@@ -137,6 +160,7 @@ function Stop-Owned([string]$Reason) {
         [void]$p.WaitForExit(5000)
     }
     $script:owned=$null; $script:baseline=$null
+    $global:DnaExcelSessionState.Baseline=$null
     [DnaSessionDeadline]::Own(0,0)
     Status
 }
@@ -144,6 +168,7 @@ function Start-Owned([string]$Reason) {
     $before=@(Get-Process EXCEL -ErrorAction SilentlyContinue | ForEach-Object Id)
     $script:launches++
     Event 'launch-attempt' @{launch=$script:launches;reason=$Reason;preexisting_pids=$before}
+    Status
     $a=New-Object -ComObject Excel.Application
     [uint32]$newPid=0
     [void][DnaSessionWindows]::GetWindowThreadProcessId([IntPtr]$a.Hwnd,[ref]$newPid)
@@ -151,11 +176,13 @@ function Start-Owned([string]$Reason) {
     $command=(Get-CimInstance Win32_Process -Filter "ProcessId=$newPid").CommandLine
     if (-not $newPid -or $newPid -eq 3144 -or $newPid -in $before -or $process.ProcessName -ine 'EXCEL' -or $command -match '(?i)/restore') { throw "Excel activation is not owned ($newPid); it will not be quit or terminated." }
     $script:app=$a
+    $global:DnaExcelSessionState.App=$a
     $script:owned=[ordered]@{pid=[int]$newPid;start_ticks=$process.StartTime.ToUniversalTime().Ticks;command_line=$command;launch=$script:launches}
     [DnaSessionDeadline]::Own([int]$newPid,$script:owned.start_ticks)
     # Publish ownership before any further COM calls, including baseline setup.
     Status
     $script:baseline=Reset-Baseline
+    $global:DnaExcelSessionState.Baseline=$script:baseline
     $sourceName=$script:launches.ToString()+'-host.ps1'
     [IO.File]::WriteAllBytes((Join-Path $root ('launches/'+$sourceName)),$script:hostSource)
     Write-Json (Join-Path $root ('launches/'+$script:launches+'.json')) @{excel=$script:owned;baseline=$script:baseline;reason=$Reason;version=[string]$a.Version;build=[string]$a.Build;host_script=$sourceName;host_script_sha256=$script:hostSha}
@@ -188,8 +215,8 @@ function Run-Script($Job, [string]$Directory, [switch]$Repeat) {
     }
     if ($parameters.ContainsKey('RunDirectory')) {
         $controller=Join-Path $parameters.RunDirectory 'controller.jsonl'
-        $values=@(Get-Content -LiteralPath $controller -Encoding utf8|ForEach-Object { $_|ConvertFrom-Json }|Where-Object { $_.operation -like 'Value2 *' -or $_.operation -like 'Application.Run *' }|ForEach-Object { @{operation=$_.operation;value=$_.value} })
-        return @{result=$controller;data=@{trace_values=$values};eligible=$true}
+        $values=@(Read-TraceObservations $controller)
+        return @{result=$controller;data=@{trace_values=$values};eligible=($values.Count -gt 0)}
     }
     return @{result=$null;data=$null;eligible=$false}
 }
@@ -220,14 +247,18 @@ Event 'host-start' @{pid=$PID;start_ticks=$hostTicks;leak_every=$LeakEvery;scrip
 try {
     while (-not (Test-Path -LiteralPath (Join-Path $root 'shutdown.request'))) {
         $candidates=@(Get-ChildItem -LiteralPath (Join-Path $root 'queue') -Filter '*.json' | ForEach-Object {
-            $j=Get-Content -LiteralPath $_.FullName -Raw -Encoding utf8|ConvertFrom-Json
-            [pscustomobject]@{file=$_;job=$j;fresh=[bool]$j.fresh_required;group=([string]$j.environment -cne $script:environment)}
+            $candidateFile=$_
+            try {
+                $j=Get-Content -LiteralPath $candidateFile.FullName -Raw -Encoding utf8 -ErrorAction Stop|ConvertFrom-Json
+                [pscustomobject]@{file=$candidateFile;job=$j;fresh=[bool]$j.fresh_required;group=([string]$j.environment -cne $script:environment)}
+            }catch{if(Test-Path -LiteralPath $candidateFile.FullName){throw}}
         } | Sort-Object fresh,group,@{Expression={$_.job.environment}},@{Expression={$_.file.Name}})
         if (-not $candidates.Count) { Start-Sleep -Milliseconds 100; continue }
         $candidate=$candidates[0]; $job=$candidate.job
         if ($job.id -notmatch '^[A-Za-z0-9_-]+$' -or [int]$job.timeout_seconds -lt 1) { throw 'Invalid job ID or deadline.' }
         $destination=Join-Path $root ('running/'+$candidate.file.Name)
-        Move-Item -LiteralPath $candidate.file.FullName -Destination $destination
+        try{Move-Item -LiteralPath $candidate.file.FullName -Destination $destination -ErrorAction Stop}
+        catch{if(-not(Test-Path -LiteralPath $candidate.file.FullName)){continue};throw}
         $directory=Join-Path $root ('completed/'+$job.id)
         [void][IO.Directory]::CreateDirectory($directory)
         $script:sequence++
@@ -273,6 +304,7 @@ try {
                 finally { Status $job.id }
             }
         } catch {
+            $receipt.success=$false
             $receipt.error=$_.Exception.ToString()
             Event 'job-error' @{id=$job.id;error=$receipt.error}
             try {

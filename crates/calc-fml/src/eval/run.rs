@@ -558,6 +558,32 @@ fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
     EvalFault::NotModelled { construct, owner }
 }
 
+// Run after lazy argument evaluation. Keep array-conversion temporaries out of the
+// recursive scalar IF frame, including in unoptimised one-megabyte-stack builds.
+#[inline(never)]
+fn zero_if_array_blanks(target: Target, value: CalcValue) -> CalcValue {
+    if target.0.spelling() == "IF"
+        && value.callable_value().is_none()
+        && let Some(array) = value.as_array()
+        && !array.is_boxed()
+        && array.iter_row_major().any(CalcValue::is_empty)
+    {
+        let cells = array
+            .iter_row_major()
+            .map(|cell| {
+                if cell.is_empty() {
+                    CalcValue::number(0.0)
+                } else {
+                    cell.clone()
+                }
+            })
+            .collect();
+        CalcValue::array(CalcArray::new(array.shape(), cells).expect("unchanged shape"))
+    } else {
+        value
+    }
+}
+
 impl Run<'_, '_> {
     fn finish_user(
         &mut self,
@@ -672,7 +698,11 @@ impl Run<'_, '_> {
                     .map(|frame| frame.read_view.clone())
                     .unwrap_or_else(|| std::rc::Rc::new(())),
             )
-            .with_formula_entry(self.invocation.as_ref().is_some_and(|frame| frame.formula_entry));
+            .with_formula_entry(
+                self.invocation
+                    .as_ref()
+                    .is_some_and(|frame| frame.formula_entry),
+            );
             let id = frame.id;
             let record = self.user_function_effects.as_deref_mut().map(|effects| {
                 effects.calls += 1;
@@ -1723,20 +1753,7 @@ impl Run<'_, '_> {
             // w111typed-00016: a scalar IF selector can return a whole computed array.
             // Its blank cells become zero, just as the lifted IF positions do below.
             // Scalar blanks and reference results retain their existing policies.
-            let value = if target.0.spelling() == "IF"
-                && value.callable_value().is_none()
-                && let Some(array) = value.as_array()
-                && !array.is_boxed()
-                && array.iter_row_major().any(CalcValue::is_empty)
-            {
-                let cells = array
-                    .iter_row_major()
-                    .map(|cell| if cell.is_empty() { CalcValue::number(0.0) } else { cell.clone() })
-                    .collect();
-                CalcValue::array(CalcArray::new(array.shape(), cells).expect("unchanged shape"))
-            } else {
-                value
-            };
+            let value = zero_if_array_blanks(target, value);
             self.stack.push(value);
             *pending = None;
             return Ok(true);

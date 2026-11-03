@@ -33,12 +33,22 @@ can differ legitimately. The fresh repeat's clean process is kept for later jobs
 all launch attempts, including fresh repeats and recovery; launch records survive host restarts.
 
 Ownership requires a new Excel PID absent from the prelaunch list, its start time and Excel image.
-PID 3144 and `/restore` processes are refused. Cleanup checks that exact tuple. A client timeout
-may stop only its active host and that host's owned Excel; a queued job never authorizes stopping
-another active job. No process-wide Excel kill or security/registry option change is used.
+PID 3144 and `/restore` processes are refused. Cleanup checks that exact tuple. Only the host's
+serialized deadline may stop an active job and its owned Excel. A client can cancel its own
+still-queued request; it never terminates a process based on a stale status read. No process-wide
+Excel kill or security/registry option change is used. Launch attempts are persisted before COM
+activation; a failed activation can therefore be counted without claiming a confirmed new PID.
 
 `run-packet.ps1 -PacketDirectory <packet> -OutputDirectory <new-directory>` generalizes the
 supplied RUN-R16 runner. It validates packet hashes, freezes product predictions through the
 existing witness reader, retains new canonical readings and raw worker files, and reports launches.
 `-CapturePending` also uses the existing sectioned catalogue capture. The adaptive R19 script
 uses the same route without modification and inherits the selected session directory.
+
+The eng9 runner uses a fresh-required job per pure condition and resets/verifies the baseline
+between ten separately seeded workbook trials. It retains trial order and explicitly records
+shared process memory. P06 event lifecycle trials each get a fresh process. Inputs must match
+their frozen source/preparation hashes, declared formulas and seeds, live initial values and
+post-open application settings before a calculation command runs. Preparation failures retain
+their error and setting readback and do not discard other prepared conditions. The result
+distinguishes completion of planned jobs from the broader packet's unrun requirements.

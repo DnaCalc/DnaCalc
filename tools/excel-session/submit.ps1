@@ -1,7 +1,8 @@
 param([string]$SessionDirectory=$env:DNACALC_EXCEL_SESSION, [string]$Script, [string]$Parameters='{}',
     [string]$Environment='default', [string]$WorkingDirectory=(Get-Location).Path,
     [int]$TimeoutSeconds=900, [switch]$FreshRequired, [switch]$Stop, [switch]$Status,
-    [ValidateRange(1,1000000)][int]$LeakEvery=50, [switch]$Start)
+    [ValidateRange(1,1000000)][int]$LeakEvery=50, [switch]$Start,
+    [string]$PacketId=$env:DNACALC_EXCEL_PACKET)
 $ErrorActionPreference='Stop'
 if (-not $SessionDirectory) { $SessionDirectory=Join-Path $PSScriptRoot '../../target/excel-session' }
 $root=[IO.Path]::GetFullPath($SessionDirectory)
@@ -41,7 +42,9 @@ try {
         }
         Remove-Item -LiteralPath (Join-Path $root 'shutdown.request') -ErrorAction SilentlyContinue
         $hostScript=Join-Path $PSScriptRoot 'host.ps1'
-        $hostProcess=Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -WindowStyle Hidden -PassThru -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-STA','-File',('"'+$hostScript+'"'),'-SessionDirectory',('"'+$root+'"'),'-LeakEvery',"$LeakEvery") -RedirectStandardOutput (Join-Path $root 'host.stdout') -RedirectStandardError (Join-Path $root 'host.stderr')
+        # ShellExecute creates a detached hidden console without inheriting the client's pipes.
+        # RedirectStandardOutput on Start-Process made Rust's wait-for-EOF outlive the client.
+        $hostProcess=Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -WindowStyle Hidden -PassThru -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-STA','-File',('"'+$hostScript+'"'),'-SessionDirectory',('"'+$root+'"'),'-LeakEvery',"$LeakEvery")
         $deadline=[DateTime]::UtcNow.AddSeconds(45)
         do {
             if ($hostProcess.HasExited) { throw ('Session host exited: '+(Get-Content (Join-Path $root 'host.stderr') -Raw)) }
@@ -53,7 +56,7 @@ try {
 } finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
 if($Start){Read-Status|ConvertTo-Json -Depth 15;return}
 $id=[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff')+'-'+[Guid]::NewGuid().ToString('N')
-$job=[ordered]@{id=$id;script=$scriptPath;parameters=$parametersObject;environment=$Environment;working_directory=[IO.Path]::GetFullPath($WorkingDirectory);fresh_required=[bool]$FreshRequired;timeout_seconds=$TimeoutSeconds}
+$job=[ordered]@{id=$id;script=$scriptPath;parameters=$parametersObject;environment=$Environment;working_directory=[IO.Path]::GetFullPath($WorkingDirectory);fresh_required=[bool]$FreshRequired;timeout_seconds=$TimeoutSeconds;packet_id=$PacketId}
 $jobFile=Join-Path $root ('queue/'+$id+'.json')
 $temp=$jobFile+'.tmp'
 [IO.File]::WriteAllText($temp,($job|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
@@ -62,16 +65,11 @@ $receipt=Join-Path $root ('completed/'+$id+'/receipt.json')
 $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
 while (-not (Test-Path -LiteralPath $receipt)) {
     if ([DateTime]::UtcNow -gt $deadline) {
-        $state=Read-Status
-        if ((Live $state) -and $state.active_job -ceq $id) {
-            if ($state.excel -and $state.excel.pid -ne 3144 -and (Identity $state.excel 'EXCEL')) {
-                $command=(Get-CimInstance Win32_Process -Filter "ProcessId=$($state.excel.pid)").CommandLine
-                if ($command -notmatch '(?i)/restore') { Stop-Process -Id $state.excel.pid }
-            }
-            if (Live $state) { Stop-Process -Id $state.host_pid }
-        } else {
-            # A waiting job never gives this client permission to stop another active job.
-            if (Test-Path -LiteralPath $jobFile) { Move-Item -LiteralPath $jobFile -Destination ($jobFile+'.cancelled') }
+        # Only the host's serialized deadline timer may stop an active job. Reading status and
+        # then killing its process could race completion and terminate the next queued job.
+        if (Test-Path -LiteralPath $jobFile) {
+            try { Move-Item -LiteralPath $jobFile -Destination ($jobFile+'.cancelled') -ErrorAction Stop }
+            catch { if(Test-Path -LiteralPath $jobFile){throw} }
         }
         throw "Excel session job timed out; evidence retained: $id"
     }

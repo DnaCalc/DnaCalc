@@ -37,10 +37,12 @@ if(-not $env:DNACALC_EXCEL_SESSION){$env:DNACALC_EXCEL_SESSION=Join-Path $checko
 $session=[IO.Path]::GetFullPath($env:DNACALC_EXCEL_SESSION)
 $receiptsBefore=@{};if(Test-Path (Join-Path $session 'completed')){Get-ChildItem (Join-Path $session 'completed') -Filter receipt.json -Recurse|ForEach-Object{$receiptsBefore[$_.FullName]=$true}}
 $oldLegacy=$env:DNACALC_LEGACY_ROOT
+$oldPacket=$env:DNACALC_EXCEL_PACKET
 $failure=$null;$completed=@();$batchFailures=@()
 Push-Location $checkout
 try {
     $env:DNACALC_LEGACY_ROOT=Split-Path -Parent $evidence
+    $env:DNACALC_EXCEL_PACKET=$output
     if($CapturePending){Invoke-RecordedCargo @('xtask','capture','--pending','--timeout','900','--attempts','1') (Join-Path $output 'capture-console.txt')}
     foreach($batch in $batches){
         try{
@@ -52,6 +54,7 @@ try {
 finally {
     Pop-Location
     $env:DNACALC_LEGACY_ROOT=$oldLegacy
+    $env:DNACALC_EXCEL_PACKET=$oldPacket
     foreach($name in $roots.Keys){
         if(-not(Test-Path $roots[$name])){continue}
         Get-ChildItem -LiteralPath $roots[$name] -Recurse -File|Where-Object{-not $before[$name].ContainsKey($_.FullName)}|ForEach-Object{
@@ -61,9 +64,11 @@ finally {
     }
     $receipts=@();$launches=@{}
     if(Test-Path (Join-Path $session 'completed')){Get-ChildItem (Join-Path $session 'completed') -Filter receipt.json -Recurse|Where-Object{-not $receiptsBefore.ContainsKey($_.FullName)}|ForEach-Object{
-        $r=Get-Content $_.FullName -Raw|ConvertFrom-Json;$receipts+=$r
+        $r=Get-Content $_.FullName -Raw|ConvertFrom-Json
+        if($r.job.packet_id -cne $output){return}
+        $receipts+=$r
         for($n=$r.launches_before+1;$n -le $r.launches_after;$n++){$launches[$n]=$true}
-        $dest=Join-Path $output ('session/'+$r.id);[void][IO.Directory]::CreateDirectory($dest);Copy-Item -LiteralPath $_.Directory.FullName -Destination $dest -Recurse
+        $parent=Join-Path $output 'session';[void][IO.Directory]::CreateDirectory($parent);Copy-Item -LiteralPath $_.Directory.FullName -Destination $parent -Recurse
     }}
     if(Test-Path (Join-Path $session 'launches')){Copy-Item -LiteralPath (Join-Path $session 'launches') -Destination (Join-Path $output 'session-launches') -Recurse}
     $canonical=@();$counts=@{};$unread=0
