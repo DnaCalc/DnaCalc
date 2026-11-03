@@ -12707,3 +12707,91 @@ fn dc_971p_38__opaque_and_extension_conditional_rules_stay_attached_on_refused_s
         assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(raw));
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__conditions_share_evaluation_history_styles_and_xlsx() {
+    use calc_host::{ConditionalChange,WorkbookCommand};
+    for (kind,formula,expected) in [
+        ("cellIs",vec!["6"],vec![7,8,9,10]),
+        ("expression",vec!["A1>=8"],vec![8,9,10]),
+        ("top10",vec![],vec![9,10]),
+        ("bottom10",vec![],vec![1,2]),
+        ("aboveAverage",vec![],vec![6,7,8,9,10]),
+        ("belowAverage",vec![],vec![1,2,3,4,5]),
+        ("duplicateValues",vec![],vec![]),
+        ("uniqueValues",vec![],(1..=10).collect()),
+    ] {
+        let bytes=calc_host::blank_package();
+        let mut book=session(&bytes);
+        let sheet=book.host().sheets()[0].id();
+        for row in 1..=10 {enter(&mut book,CellKey::new(sheet,row,1).unwrap(),&row.to_string());}
+        let old=book.host().styles().clone();
+        let change=ConditionalChange::Condition {kind:kind.into(),applies:"A1:A10".into(),color:"#123456".into(),formulas:formula.iter().map(|s|s.to_string()).collect(),operator:"greaterThan".into(),rank:20,percent:true,stop:true};
+        let revision=book.host().revision().get();
+        let receipt=book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional {sheet,revision,index:None,change}));
+        assert!(receipt.accepted(),"{kind}: {receipt:?}");
+        let check=|host:&calc_host::HostState| {
+            let sheet=host.sheets()[0].id();
+            let formats=host.conditional_formats(sheet);
+            let filled=(1..=10).filter(|row|formats.look(host,CellKey::new(sheet,*row,1).unwrap()).and_then(|l|l.fill).is_some()).collect::<Vec<_>>();
+            assert_eq!(filled,expected,"{kind}");
+            assert_eq!(formats.refused(),0,"{kind}");
+        };
+        check(book.host());
+        assert_eq!(book.host().styles().differential_formats.len(),old.differential_formats.len()+1);
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert!(book.host().model().definitions().conditional_rules(sheet).is_empty());
+        assert_eq!(book.host().styles(),&old);
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        check(book.host());
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+        let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(reopened.host());
+        let mut twin=session(&bytes);
+        assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(twin.host());
+        let revision=book.host().revision();let depth=book.history_depth();let styles=book.host().styles().clone();
+        let refused=book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional {sheet,revision:revision.get(),index:None,change:ConditionalChange::Condition {kind:"cellIs".into(),applies:"A1:A10".into(),color:"#ff0000".into(),formulas:vec!["1".into()],operator:"invalid".into(),rank:1,percent:false,stop:false}}));
+        assert!(!refused.accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().styles(),&styles);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__average_standard_deviation_uses_the_existing_evaluator() {
+    let original=include_bytes!("fixtures/dc_6yw/conditional-formats.xlsx");
+    let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|xml.replace("type=\"aboveAverage\"","type=\"aboveAverage\" stdDev=\"1\""));
+    let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let sheet=book.host().sheets()[0].id();
+    let formats=book.host().conditional_formats(sheet);
+    let rule=book.host().model().definitions().conditional_rules(sheet).iter().find(|r|calc_host::conditional_rule(r).unwrap().kind=="aboveAverage").unwrap();
+    let area=rule.areas[0];
+    let rows=(1..=10).filter(|r|formats.look(book.host(),CellKey::new(sheet,*r,area.first().column()).unwrap()).is_some()).collect::<Vec<_>>();
+    assert_eq!(rows,vec![2,6]); // values 9 and 10 exceed 5.5 + STDEV.P(1..10).
+    assert_eq!(formats.refused(),0);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let reopened=session(&saved);let sheet=reopened.host().sheets()[0].id();
+    assert!(reopened.host().model().definitions().conditional_rules(sheet).iter().any(|r|calc_host::conditional_rule(r).unwrap().std_dev==Some(1)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__conditional_statistics_include_calculated_spill_members() {
+    use calc_host::{ConditionalChange,WorkbookCommand,LookColor};
+    for kind in ["top10","colorScale","dataBar","iconSet","duplicateValues"] {
+        let mut book=session(&calc_host::blank_package());let sheet=book.host().sheets()[0].id();
+        enter(&mut book,at(sheet,"A1"),if kind=="duplicateValues" {"={\"North\";\"north\";\"South\"}"}else{"=SEQUENCE(3)"});
+        let revision=book.host().revision().get();
+        let change=if matches!(kind,"top10"|"duplicateValues") {ConditionalChange::Condition{kind:kind.into(),applies:"A1:A3".into(),color:"#123456".into(),formulas:vec![],operator:String::new(),rank:1,percent:false,stop:false}}else{ConditionalChange::Add {kind:kind.into(),applies:"A1:A3".into(),color:"123456".into()}};
+        let receipt=book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional{sheet,revision,index:None,change}));assert!(receipt.accepted(),"{kind}: {receipt:?}");
+        let formats=book.host().conditional_formats(sheet);
+        let look=|address|formats.look(book.host(),at(sheet,address)).unwrap_or_default();
+        match kind {
+            "top10"=>{assert!(look("A1").fill.is_none());assert!(look("A2").fill.is_none());assert!(look("A3").fill.is_some());}
+            "colorScale"=>assert_eq!(look("A2").fill,Some(LookColor::Rgb("#cfdeeb".into()))),
+            "dataBar"=>assert_eq!(look("A2").bar.unwrap().fraction,0.5),
+            "iconSet"=>{assert_eq!(look("A1").icon.unwrap().index,0);assert_eq!(look("A2").icon.unwrap().index,1);assert_eq!(look("A3").icon.unwrap().index,2);}
+            "duplicateValues"=>{assert!(look("A1").fill.is_some());assert!(look("A2").fill.is_some());assert!(look("A3").fill.is_none());}
+            _=>unreachable!(),
+        }
+    }
+}

@@ -41,6 +41,11 @@ pub fn controls(controller: Controller) -> impl IntoView {
     let stop = RwSignal::new(false);
     let kind = RwSignal::new("dataBar".to_owned());
     let color = RwSignal::new("327A94".to_owned());
+    let new_formulas = RwSignal::new("0".to_owned());
+    let operator = RwSignal::new("greaterThan".to_owned());
+    let rank = RwSignal::new("10".to_owned());
+    let percent = RwSignal::new(false);
+    let new_stop = RwSignal::new(false);
     Effect::new(move |_| {
         controller.generation.track();
         controller.review_open.set(false);
@@ -188,7 +193,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
             </div>
         </dialog>
         <dialog class="dc-replace dc-review-dialog" node_ref=dialog data-dnacalc="review-dialog" aria-labelledby="dc-review-title" on:cancel=move |ev:leptos::ev::Event|{ev.prevent_default();close();}>
-            <div class="dc-review-heading"><div><h2 id="dc-review-title">"Rules & review"</h2><p>{move ||controller.active_key().map(|at|controller.cell_label(at)).unwrap_or_default()}</p></div><button data-dnacalc="review-close" on:click=move |_|close()>"Close"</button></div>
+            <div class="dc-review-heading"><div><h2 id="dc-review-title">"Manage Rules & review"</h2><p>{move ||controller.active_key().map(|at|controller.cell_label(at)).unwrap_or_default()}</p></div><button data-dnacalc="review-close" on:click=move |_|close()>"Close"</button></div>
             {move ||data.get().is_none().then(||view!{<p role="status">"Loading this cell’s rules and review details…"</p>})}
             <div class="dc-review-layout" aria-busy=move ||data.get().is_none().to_string()>
                 <section aria-labelledby="dc-rules-title"><h3 id="dc-rules-title">"Conditional formats"</h3><p class="dc-muted">"Supported rules appear below; other imported rules remain preserved. Lowest priority number runs first."</p>
@@ -201,7 +206,31 @@ pub fn controls(controller: Controller) -> impl IntoView {
                     {move ||current.get().filter(|r|!r.visual).map(|_|view!{<label class="dc-inline-label"><input type="checkbox" data-dnacalc="rule-stop" prop:checked=move ||stop.get() on:change=move |ev|stop.set(event_target_checked(&ev))/ >"Stop if true"</label>})}
                     {move ||current.get().filter(|r|!r.editable).map(|_|view!{<p>"This extension-backed rule is preserved. Its range, condition and removal cannot be edited yet."</p>})}
                     <button data-dnacalc="rule-apply" disabled=move ||current.get().is_none_or(|r|!r.editable) on:click=move |_|submit(ConditionalChange::Update {applies:applies.get_untracked(),formulas:formulas.get_untracked().lines().map(str::to_owned).collect(),stop:stop.get_untracked()})>"Apply rule changes"</button>
-                    <fieldset><legend>"Add a visual rule"</legend><label>"Rule type"<select data-dnacalc="rule-kind" prop:value=move ||kind.get() on:change=move |ev|kind.set(event_target_value(&ev))><option value="dataBar">"Data bar"</option><option value="colorScale">"Colour scale"</option><option value="iconSet">"Three arrows"</option></select></label><label>"RGB colour"<input data-dnacalc="rule-color" maxlength="7" prop:value=move ||color.get() on:input=move |ev|color.set(event_target_value(&ev))/></label><button data-dnacalc="rule-add" disabled=move ||data.get().is_none() on:click=move |_|submit(ConditionalChange::Add {kind:kind.get_untracked(),applies:applies.get_untracked(),color:color.get_untracked()})>"Add rule"</button></fieldset>
+                    <fieldset><legend>"New conditional format"</legend>
+                        <label>"Rule type"<select data-dnacalc="rule-kind" prop:value=move ||kind.get() on:change=move |ev|kind.set(event_target_value(&ev))>
+                            <option value="cellIs">"Cell value"</option><option value="expression">"Formula is true"</option>
+                            <option value="top10">"Top values"</option><option value="bottom10">"Bottom values"</option>
+                            <option value="aboveAverage">"Above average"</option><option value="belowAverage">"Below average"</option>
+                            <option value="duplicateValues">"Duplicate values"</option><option value="uniqueValues">"Unique values"</option>
+                            <option value="dataBar">"Data bar"</option><option value="colorScale">"Colour scale"</option><option value="iconSet">"Three arrows"</option>
+                        </select></label>
+                        {move ||(kind.get()=="cellIs").then(||view!{<label>"Comparison"<select data-dnacalc="rule-operator" prop:value=move ||operator.get() on:change=move |ev|operator.set(event_target_value(&ev))>
+                            <option value="greaterThan">"Greater than"</option><option value="lessThan">"Less than"</option><option value="equal">"Equal to"</option><option value="notEqual">"Not equal to"</option><option value="greaterThanOrEqual">"Greater than or equal to"</option><option value="lessThanOrEqual">"Less than or equal to"</option><option value="between">"Between"</option><option value="notBetween">"Not between"</option>
+                        </select></label>})}
+                        {move ||matches!(kind.get().as_str(),"cellIs"|"expression").then(||view!{<label>"Condition formulas, one per line"<textarea data-dnacalc="rule-new-formulas" prop:value=move ||new_formulas.get() on:input=move |ev|new_formulas.set(event_target_value(&ev))></textarea></label><p class="dc-muted">"Relative references start at the first cell of Applies to. Between comparisons need two lines."</p>})}
+                        {move ||matches!(kind.get().as_str(),"top10"|"bottom10").then(||view!{<label>"Rank"<input data-dnacalc="rule-rank" inputmode="numeric" prop:value=move ||rank.get() on:input=move |ev|rank.set(event_target_value(&ev))/></label><label class="dc-inline-label"><input type="checkbox" data-dnacalc="rule-percent" prop:checked=move ||percent.get() on:change=move |ev|percent.set(event_target_checked(&ev))/ >"Percent"</label>})}
+                        <label>"RGB colour"<input data-dnacalc="rule-color" maxlength="7" prop:value=move ||color.get() on:input=move |ev|color.set(event_target_value(&ev))/></label>
+                        {move ||(!matches!(kind.get().as_str(),"dataBar"|"colorScale"|"iconSet")).then(||view!{<label class="dc-inline-label"><input type="checkbox" data-dnacalc="rule-new-stop" prop:checked=move ||new_stop.get() on:change=move |ev|new_stop.set(event_target_checked(&ev))/ >"Stop if true"</label>})}
+                        <button data-dnacalc="rule-add" disabled=move ||data.get().is_none() on:click=move |_|{
+                            let kind=kind.get_untracked();
+                            if matches!(kind.as_str(),"dataBar"|"colorScale"|"iconSet") {submit(ConditionalChange::Add {kind,applies:applies.get_untracked(),color:color.get_untracked()});}
+                            else {
+                                let number=if matches!(kind.as_str(),"top10"|"bottom10") {match rank.get_untracked().trim().parse::<u32>() {Ok(n)=>n,Err(_)=>{controller.say("Enter a whole-number rank",true);return;}}}else{10};
+                                let formulas=if matches!(kind.as_str(),"cellIs"|"expression") {new_formulas.get_untracked().lines().map(str::to_owned).collect()}else{Vec::new()};
+                                submit(ConditionalChange::Condition {kind,applies:applies.get_untracked(),color:color.get_untracked(),formulas,operator:operator.get_untracked(),rank:number,percent:percent.get_untracked(),stop:new_stop.get_untracked()});
+                            }
+                        }>"Add rule"</button>
+                    </fieldset>
                     <div class="dc-dialog-actions"><button data-dnacalc="review-undo" disabled=move ||controller.summary.get().undo==0 on:click=move |_|controller.undo()>"Undo"</button><button data-dnacalc="review-redo" disabled=move ||controller.summary.get().redo==0 on:click=move |_|controller.redo()>"Redo"</button></div>
                 </section>
                 <section aria-labelledby="dc-notes-title"><h3 id="dc-notes-title">"Notes & links"</h3>{notes}{links}<p class="dc-muted">"Imported notes and links are preserved on save. Editing notes and replying to comments are unavailable."</p>{move ||data.get().and_then(|d|d.validation).map(|v|view!{<h3>"Data validation"</h3><p data-dnacalc="review-validation">{v}</p>})}{move ||data.get().map(|d|d.unsupported.into_iter().map(|text|view!{<p>{text}</p>}).collect_view())}</section>

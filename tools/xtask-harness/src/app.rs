@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (169 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (177 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1909,6 +1909,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::DoubleClickEdge(name, rows) => {
             let selector = serde_json::to_string(&select(app, name)).unwrap();
+            session.script(&format!(r#"window.__dcResizeTrace=[];
+                var selector={selector},node=document.querySelector(selector),grid=node.closest('[data-dnacalc=grid]');
+                function capture(e){{var r=document.querySelector(selector)?.getBoundingClientRect(),g=grid.getBoundingClientRect(),hit=document.elementFromPoint(e.clientX,e.clientY);window.__dcResizeTrace.push({{type:e.type,x:e.clientX,y:e.clientY,header:r?.toJSON(),grid:g.toJSON(),target:e.target?.getAttribute('data-dnacalc'),hit:hit?.getAttribute('data-dnacalc'),hitColumn:hit?.getAttribute('data-column'),resizing:grid.dataset.resizing,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent}});if(e.type==='mouseup'){{document.removeEventListener('mousedown',capture,true);document.removeEventListener('mouseup',capture,true);}}}}
+                document.addEventListener('mousedown',capture,true);document.addEventListener('mouseup',capture,true);return null;"#))?;
             let xy = session.script(&format!(
                 "var r=document.querySelector({selector}).getBoundingClientRect();return [{},{}];",
                 if *rows {
@@ -1962,6 +1966,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::ResizeHeader(name, rows, delta, cancel) => {
             let selector = serde_json::to_string(&select(app, name)).unwrap();
+            session.script(&format!(r#"window.__dcResizeTrace=[];
+                var selector={selector},node=document.querySelector(selector),grid=node.closest('[data-dnacalc=grid]');
+                function capture(e){{var r=document.querySelector(selector)?.getBoundingClientRect(),g=grid.getBoundingClientRect(),hit=document.elementFromPoint(e.clientX,e.clientY);window.__dcResizeTrace.push({{type:e.type,x:e.clientX,y:e.clientY,header:r?.toJSON(),grid:g.toJSON(),target:e.target?.getAttribute('data-dnacalc'),hit:hit?.getAttribute('data-dnacalc'),hitColumn:hit?.getAttribute('data-column'),resizing:grid.dataset.resizing,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent}});if(e.type==='mouseup'){{document.removeEventListener('mousedown',capture,true);document.removeEventListener('mouseup',capture,true);}}}}
+                document.addEventListener('mousedown',capture,true);document.addEventListener('mouseup',capture,true);return null;"#))?;
             let xy = session.script(&format!(
                 "var r=document.querySelector({selector}).getBoundingClientRect();return [{},{}];",
                 if *rows {
@@ -1991,6 +1999,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 session.keys(&select(app, "grid"), "\u{E00C}")?;
             }
             session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerUp","button":0}]}]}))?;
+            println!("{} RESIZE {}: {}",app.label,name,session.script("return window.__dcResizeTrace;")?);
             Ok(())
         }
         Action::DragToCell(from, row, col) => {
@@ -2917,8 +2926,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 169,
-            "the two applications have 169 core cases including Paste Special, name changes, numeric sorting, shrink-to-fit AutoFilter, general sorting saved session views and outlines"
+            total, 177,
+            "the two applications have 177 core cases including conditional-rule authoring, outlines and the existing editing routes"
         );
     }
 
