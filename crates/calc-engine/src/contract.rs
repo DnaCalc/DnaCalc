@@ -710,7 +710,7 @@ pub(crate) fn producer_version_at(
 ) -> u64 {
     state
         .bindings
-        .iter()
+        .spill_iter()
         .filter_map(|(&node, binding)| {
             if node == except || !matches!(binding, Binding::Placed(_, ArrayRole::Spill)) {
                 return None;
@@ -768,7 +768,7 @@ pub(crate) fn producer_pending_in(
 ) -> usize {
     state
         .bindings
-        .iter()
+        .spill_iter()
         .filter(|(node, binding)| {
             **node != except && matches!(binding, Binding::Placed(_, ArrayRole::Spill))
         })

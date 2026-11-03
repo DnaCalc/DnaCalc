@@ -225,6 +225,9 @@ impl AnchorIndex {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Bindings {
     slots: Vec<Option<(NodeId, Binding)>>,
+    /// Slots whose current binding can spill, in the same order as `iter`.
+    /// Range reads inspect these producers rather than every scalar formula.
+    spill_slots: BTreeSet<u32>,
 }
 
 impl Bindings {
@@ -241,6 +244,16 @@ impl Bindings {
         }
     }
 
+    pub(crate) fn spill_iter(&self) -> impl Iterator<Item = (&NodeId, &Binding)> {
+        self.spill_slots.iter().map(|slot| {
+            let (node, binding) = self.slots[*slot as usize]
+                .as_ref()
+                .expect("spill slot holds its current binding");
+            debug_assert!(matches!(binding, Binding::Placed(_, ArrayRole::Spill)));
+            (node, binding)
+        })
+    }
+
     pub(crate) fn contains_key(&self, node: &NodeId) -> bool {
         self.get(node).is_some()
     }
@@ -250,6 +263,11 @@ impl Bindings {
         if slot >= self.slots.len() {
             self.slots.resize_with(slot + 1, || None);
         }
+        if matches!(binding, Binding::Placed(_, ArrayRole::Spill)) {
+            self.spill_slots.insert(node.slot());
+        } else {
+            self.spill_slots.remove(&node.slot());
+        }
         self.slots[slot] = Some((node, binding));
     }
 
@@ -257,6 +275,7 @@ impl Bindings {
         if let Some(entry) = self.slots.get_mut(node.slot() as usize)
             && entry.as_ref().is_some_and(|(held, _)| held == node)
         {
+            self.spill_slots.remove(&node.slot());
             *entry = None;
         }
     }
@@ -1520,4 +1539,61 @@ impl EngineState {
 /// refusal.
 pub(crate) fn issue_node_id(ids: &mut IdAllocator<NodeId>) -> NodeId {
     ids.issue().expect("every node ID slot is live or retired")
+}
+
+#[cfg(test)]
+mod binding_tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn spill_members_follow_replacement_clone_and_node_slot_reuse() {
+        let sheet = IdAllocator::<SheetId>::new().issue().unwrap();
+        let anchor = calc_fml::reference::FormulaAnchor::new(CellKey::new(sheet, 1, 1).unwrap());
+        let root = ModelRoot::new(AuthoredRevision::new(0), vec![]).unwrap();
+        let plan = calc_fml::compile(
+            &calc_fml::parse_formula("=1"),
+            calc_fml::reference::ReferenceNotation::A1,
+            anchor,
+            &crate::read::SnapshotCatalog::new(&root),
+            &mut PlanCache::new(),
+        )
+        .unwrap();
+        let placed = |role| Binding::Placed(calc_fml::instantiate(&plan, anchor), role);
+        let members = |bindings: &Bindings| {
+            let indexed: Vec<_> = bindings.spill_iter().map(|(node, _)| *node).collect();
+            let scanned: Vec<_> = bindings
+                .iter()
+                .filter(|(_, binding)| matches!(binding, Binding::Placed(_, ArrayRole::Spill)))
+                .map(|(node, _)| *node)
+                .collect();
+            assert_eq!(indexed, scanned);
+            indexed
+        };
+        let mut ids = IdAllocator::<NodeId>::new();
+        let first = ids.issue().unwrap();
+        let second = ids.issue().unwrap();
+        let mut bindings = Bindings::default();
+        bindings.insert(second, placed(ArrayRole::Spill));
+        bindings.insert(first, placed(ArrayRole::Spill));
+        assert_eq!(members(&bindings), vec![first, second]);
+        let pinned = bindings.clone();
+        bindings.insert(first, placed(ArrayRole::Cell));
+        assert_eq!(members(&bindings), vec![second]);
+        bindings.insert(first, placed(ArrayRole::Spill));
+        bindings.insert(first, Binding::Refused(NotModeled::FormulaText));
+        assert_eq!(members(&bindings), vec![second]);
+        bindings.remove(&first);
+        ids.release(first).unwrap();
+        let reused = ids.issue().unwrap();
+        assert_eq!(reused.slot(), first.slot());
+        assert_ne!(reused, first);
+        bindings.insert(reused, placed(ArrayRole::Spill));
+        bindings.remove(&first);
+        assert_eq!(members(&bindings), vec![reused, second]);
+        assert_eq!(members(&pinned), vec![first, second]);
+        bindings.remove(&reused);
+        bindings.remove(&second);
+        assert!(members(&bindings).is_empty());
+    }
 }

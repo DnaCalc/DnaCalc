@@ -7578,6 +7578,35 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks:&[Check::PlanCell("D1","text","110"),Check::PlanCell("B4","style.font_color","#ff0000"),Check::PlanAbsent("B3"),Check::PlanAbsent("B6"),Check::TextContains("filter-summary","2 rows filtered out"),Check::Fits,Check::Narrow(390)],
     },
 
+    Case {
+        name:"qualified sort: fixed other-sheet cells remain fixed while local formulas follow their rows",
+        actions:&[
+            Action::Click("[data-dnacalc=sheet-tools] summary"),Action::Into("sheet-new-name","Tax rates"),Action::Click("sheet-add"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Tax rates")),Action::Click("[data-dnacalc=sheet-tools] summary"),Action::Into(BAR,"10\u{E007}"),Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=Sheet1!B2\u{E007}"),Action::Click("[data-dnacalc=sheet-tab][data-sheet=Sheet1]"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Sheet1")),Action::Into("name-box","A1\u{E007}"),
+            Action::ExternalClipboard("Key\tAmount\tTotal\n3\t30\t=B2*'Tax rates'!$A$1\n1\t10\t=B3*'Tax rates'!$A$1\n2\t20\t=B4*'Tax rates'!$A$1",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("C4","text","200")),Action::Into("name-box","E1\u{E007}"),Action::Into(BAR,"=B2\u{E007}"),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("C2","text","100")),Action::Into("name-box","C2\u{E007}"),
+        ],
+        checks:&[Check::Text(cell!("A2"),"1"),Check::Text(cell!("C4"),"300"),Check::Text(cell!("E1"),"10"),Check::PlanCell("C2","provenance","calculated"),Check::Value(BAR,"=B2*'Tax rates'!$A$1")],
+    },
+    Case {
+        name:"qualified sort: Undo and Redo restore formulas and dependent calculations together",
+        actions:&[Action::Click("undo"),Action::Wait(Check::PlanCell("C2","text","300")),Action::Wait(Check::PlanCell("E1","text","30")),Action::Click("redo")],
+        checks:&[Check::Text(cell!("C2"),"100"),Check::Text(cell!("C4"),"300"),Check::Text(cell!("E1"),"10")],
+    },
+    Case {
+        name:"qualified sort: actual XLSX reopening and reverse sort retain fixed coordinates",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("C2","text","300")),Action::Into("name-box","C2\u{E007}")],
+        checks:&[Check::Text(cell!("A2"),"3"),Check::Text(cell!("E1"),"30"),Check::Value(BAR,"=B2*'Tax rates'!$A$1"),Check::PlanCell("C2","provenance","calculated")],
+    },
+    Case {
+        name:"qualified sort: relative qualifiers refuse without changing row order",
+        actions:&[Action::Into(BAR,"=B2*'Tax rates'!A1\u{E007}"),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","qualified or unsupported formula references")),Action::Into("name-box","C2\u{E007}")],
+        checks:&[Check::Text(cell!("A2"),"3"),Check::Text(cell!("C2"),"300"),Check::Text(cell!("E1"),"30"),Check::Value(BAR,"=B2*'Tax rates'!A1")],
+    },
+    Case {
+        name:"qualified sort: expanded outlines refuse atomically until their grouping is undone",
+        actions:&[Action::Click("undo"),Action::Into("name-box","A2:A3\u{E007}"),Action::OpenDetails("axis-tools"),Action::Click("outline-group"),Action::Wait(Check::Count("outline-toggle",1)),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","outline")),Action::Wait(Check::PlanCell("A2","text","3")),Action::Click("undo"),Action::Wait(Check::Count("outline-toggle",0)),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","Sorted"))],
+        checks:&[Check::Text(cell!("A2"),"1"),Check::Text(cell!("C2"),"100"),Check::Text(cell!("E1"),"10"),Check::Count("outline-toggle",0)],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8327,4 +8356,5 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"session-view",start:555,end:560,core:5,setup:&[]},
     CaseGroup {name:"axis-outline",start:560,end:566,core:6,setup:&[]},
     CaseGroup {name:"date-top-filters",start:566,end:575,core:9,setup:&[]},
+    CaseGroup {name:"qualified-sort",start:575,end:580,core:5,setup:&[]},
 ];

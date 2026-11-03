@@ -1453,10 +1453,8 @@ impl Run<'_, '_> {
 
     /// Runs `target` on each element of the arrays among `arguments` at its single-value
     /// parameters, the other arguments as they are, and gives the array of the results. An
-    /// element no array is large enough for is #N/A. A result that is a reference or an array is
-    /// refused: the arrays of references Excel lifts into (`=OFFSET(A1,{0;1},0)` is #VALUE! in a
-    /// cell yet `=SUM(OFFSET(A1,{0;1;2},0))` is 6, Excel 16.0, 2026-10-23) and nested arrays are
-    /// not modelled.
+    /// element no array is large enough for is #N/A. An array-valued result contributes its
+    /// first cell. Reference results retain their references for the consumer.
     fn lifted(
         &mut self,
         target: Target,
@@ -1527,7 +1525,7 @@ impl Run<'_, '_> {
                     },
                     _ => value,
                 };
-                cells.push(lifted_element(value)?);
+                cells.push(lifted_element(value));
             }
         }
         Ok(CalcValue::array(
@@ -1738,7 +1736,7 @@ impl Run<'_, '_> {
                     continue;
                 }
                 let value = self.lazy_once(target, &element)?;
-                cells.push(lifted_element(value)?);
+                cells.push(lifted_element(value));
             }
         }
         Ok(CalcValue::array(
@@ -2085,16 +2083,16 @@ fn lifted_array(value: &CalcValue) -> Option<&CalcArray> {
     value.as_array()
 }
 
-/// One element's result of a lifted call, as the array of results holds it.
-fn lifted_element(value: CalcValue) -> Result<CalcValue, EvalFault> {
+/// One element's result of a lifted call, as the array of results holds it. Excel takes the
+/// first cell of an array-valued kernel result (OxFunc-Evidence's recorded Formula2 calls:
+/// w111typed-00286-textsplit-arg1-row-array and w090-successor-00187-munit-arg1). The lifted
+/// arguments determine the output shape; each kernel result does not add another dimension.
+fn lifted_element(value: CalcValue) -> CalcValue {
     match value.core_ref() {
-        // dc-b1l: OFFSET or INDIRECT lifted over an array gives an array of references.
-        CoreRef::Reference(_) => Ok(value),
-        CoreRef::Array(_) if value.callable_value().is_none() => Err(not_modelled(
-            "a function lifted over an array whose result is an array",
-        )),
-        CoreRef::Missing => Ok(CalcValue::empty()),
-        _ => Ok(value),
+        // dc-b1l: OFFSET or INDIRECT's reference results stay references for their consumer.
+        CoreRef::Array(array) if value.callable_value().is_none() => first_element(array),
+        CoreRef::Missing => CalcValue::empty(),
+        _ => value,
     }
 }
 

@@ -56,6 +56,26 @@ fn caller_comes_from_the_formula_instance() {
     }
 }
 
+/// The recorded Formula2 TEXTSPLIT case w111typed-00286-textsplit-arg1-row-array,
+/// OxFunc-Evidence / w111-broad-typed-20260929-002, through the application controller.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lifted_textsplit_preserves_the_recorded_spill() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    session.set_formula("=TEXTSPLIT(CHOOSE({1,2},\"a,b,c\",\"a,b,c\"),\",\")");
+    let calculated = session.calculate();
+    let expected = CalcValue::array(
+        calc_func::value::CalcArray::from_rows(vec![vec![
+            CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("a")),
+            CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("a")),
+        ]])
+        .unwrap(),
+    );
+    assert_eq!(calculated.result, Some(expected), "{:?}", calculated.diagnostics);
+    assert!(calculated.diagnostics.is_empty());
+}
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;
 
