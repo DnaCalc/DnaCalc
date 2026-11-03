@@ -140,6 +140,7 @@ pub(crate) fn prepare(
             Some(f)
         }
     };
+    if host.loaded().sheet(sheet).is_some_and(|s|s.geometry().outline_unsupported) {return Err("AutoFilter visibility with this imported outline is not modelled (dc-971p.39); nothing changed".into());}
     // Removal is explicit; protected sheets still refuse before changing any authored state.
     if host
         .loaded()

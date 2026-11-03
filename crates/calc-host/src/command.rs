@@ -293,8 +293,20 @@ pub fn dispatch(
             _ => None,
         })
         .collect();
+    let mut outline_layouts=host.model.definitions().axis_layouts().clone();
     let mut filter_areas=host.model.definitions().auto_filters().map(|(s,f)|(s,f.area)).collect::<std::collections::BTreeMap<_,_>>();
     for edit in &axis_edits {
+        if host.loaded.sheet(edit.sheet()).is_some_and(|s|s.geometry().outline_unsupported) {return Err(CommandError::Document(EditError::SheetOperation("Structural edits of imported outline metadata are not modelled (dc-971p.39); nothing changed".into())));}
+        let next_outlines=outline_layouts.moved(*edit);
+        let next_groups=next_outlines.outline_groups(edit.sheet(),edit.axis());
+        if next_groups.iter().any(|g|g.summary<1 || g.summary>edit.axis().size()) {return Err(CommandError::Document(EditError::SheetOperation("This edit moves an outline summary outside the worksheet (dc-971p.39); nothing changed".into())));}
+        for group in outline_layouts.outline_groups(edit.sheet(),edit.axis()).into_iter().filter(|g|g.collapsed) {
+            if let Some((first,mut last))=calc_doc_model::moved_run(*edit,group.first,group.last) {
+                if edit.change()==calc_doc_model::AxisChange::Insert && edit.first()==group.last+1 {last=last.saturating_add(edit.count()).min(edit.axis().size());}
+                if !next_groups.iter().any(|g|g.first==first && g.last==last && g.level==group.level && g.collapsed) {return Err(CommandError::Document(EditError::SheetOperation("This edit merges or clips collapsed outline groups (dc-971p.39); expand them first; nothing changed".into())));}
+            }
+        }
+        outline_layouts=next_outlines;
         if edit.axis()==calc_doc_model::Axis::Rows && host.model.definitions().auto_filter(edit.sheet()).is_some_and(|f|f.unsupported && host.model.definitions().axis_layouts().bands(edit.sheet(),calc_doc_model::Axis::Rows).any(|(r,v)|r>f.area.first().row() && r<=f.area.last().row() && v.hidden())) {
             return Err(CommandError::Document(EditError::SheetOperation("Row edits with independent manual hiding in an imported filter are not modelled (dc-971p.37); nothing changed".into())));
         }

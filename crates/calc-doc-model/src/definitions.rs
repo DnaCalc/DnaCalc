@@ -353,18 +353,33 @@ impl Definitions {
         self.axis_layouts = layouts;
         self
     }
-    pub fn with_axis_format(mut self, edit: crate::AxisFormatEdit) -> Self {
-        self.axis_layouts.set(edit);
-        if edit.axis() == crate::Axis::Rows {
-            let key = (edit.sheet(), edit.index());
-            if edit.format().hidden() {
-                self.hidden_rows.entry(key).or_insert(RowHidden::Manual);
-            } else {
-                self.hidden_rows.remove(&key);
+    pub fn with_axis_format(self, edit: crate::AxisFormatEdit) -> Self {
+        self.with_axis_formats([edit])
+    }
+    pub fn with_axis_formats(mut self, edits: impl IntoIterator<Item=crate::AxisFormatEdit>) -> Self {
+        let mut rows=std::collections::BTreeSet::new();
+        let mut outline_sheets=std::collections::BTreeSet::new();
+        for edit in edits {
+            if edit.axis()==crate::Axis::Rows {
+                let old=self.axis_layouts.get(edit.sheet(),edit.axis(),edit.index());
+                rows.insert((edit.sheet(),edit.index()));
+                if old.outline_level()!=edit.format().outline_level() || old.collapsed()!=edit.format().collapsed() || edit.summary_after().is_some() {
+                    outline_sheets.insert(edit.sheet());
+                }
             }
-            if self.filters.get(&edit.sheet()).is_some_and(|f|f.filtered_rows.contains(&edit.index())) {
-                self.hidden_rows.insert(key, RowHidden::Filtered);
-            }
+            self.axis_layouts.set(edit);
+        }
+        for sheet in outline_sheets {
+            rows.extend(self.axis_layouts.bands(sheet,crate::Axis::Rows).map(|(r,_)|(sheet,r)));
+            rows.extend(self.hidden_rows.range((sheet,1)..=(sheet,1048576)).map(|(key,_)|*key));
+        }
+        let outlined=self.axis_layouts.outlined();
+        for (sheet,row) in rows {
+            if self.filters.get(&sheet).is_some_and(|f|f.filtered_rows.contains(&row)) || (self.hidden_rows.get(&(sheet,row))==Some(&RowHidden::Filtered) && self.tables().iter().any(|t|t.sheet==sheet && row>t.area.first().row() && row<=t.area.last().row())) {
+                self.hidden_rows.insert((sheet,row),RowHidden::Filtered);
+            } else if outlined.get(sheet,crate::Axis::Rows,row).hidden() {
+                self.hidden_rows.insert((sheet,row),RowHidden::Manual);
+            } else { self.hidden_rows.remove(&(sheet,row)); }
         }
         self
     }
@@ -372,10 +387,11 @@ impl Definitions {
     pub fn auto_filter(&self, sheet: SheetId) -> Option<&crate::AutoFilter> { self.filters.get(&sheet) }
     pub fn auto_filters(&self) -> impl Iterator<Item=(SheetId, &crate::AutoFilter)> { self.filters.iter().map(|(s,f)|(*s,f)) }
     pub fn with_auto_filter(mut self, sheet: SheetId, filter: Option<crate::AutoFilter>) -> Self {
+        let outlined=self.axis_layouts.outlined();
         if let Some(old) = self.filters.remove(&sheet) {
             for row in old.filtered_rows {
                 let key=(sheet,row);
-                if self.axis_layouts.get(sheet, crate::Axis::Rows, row).hidden() { self.hidden_rows.insert(key, RowHidden::Manual); }
+                if outlined.get(sheet, crate::Axis::Rows, row).hidden() { self.hidden_rows.insert(key, RowHidden::Manual); }
                 else { self.hidden_rows.remove(&key); }
             }
         }
@@ -387,7 +403,7 @@ impl Definitions {
     }
     /// Physical visibility includes filtering; the authored axis table retains manual hiding.
     pub fn visible_axis_layouts(&self) -> crate::AxisLayouts {
-        let mut layouts=self.axis_layouts.clone();
+        let mut layouts=self.axis_layouts.outlined();
         for ((sheet,row),why) in &self.hidden_rows {
             if *why == RowHidden::Filtered {
                 let format=layouts.get(*sheet,crate::Axis::Rows,*row).with_hidden(true);

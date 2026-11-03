@@ -324,6 +324,7 @@ pub enum Intent {
         revision: u64,
         sizes: Vec<(u32, u64)>,
     },
+    Outline { sheet: Sheet, rows: bool, revision: u64, change: OutlineChange },
     AxisFormat {
         sheet: Sheet,
         rows: bool,
@@ -735,8 +736,24 @@ pub struct PaneWindow {
 }
 
 /// A sheet's sizes as the file states them (calc-host's sheet geometry).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OutlineChange {
+    Group { first:u32, last:u32 },
+    Ungroup { first:u32, last:u32 },
+    Detail { first:u32, last:u32, level:Option<u8>, show:bool },
+    ShowLevel(u8),
+    SummaryAfter(bool),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OutlineGroup { pub rows:bool, pub first:u32, pub last:u32, pub level:u8, pub summary:u32, pub collapsed:bool }
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
+    #[serde(default)]
+    pub outline: Vec<OutlineGroup>,
+    #[serde(default = "outline_after")]
+    pub summary_below: bool,
+    #[serde(default = "outline_after")]
+    pub summary_right: bool,
     #[serde(default)]
     pub auto_filter: Option<FilterView>,
     /// Areas whose absent cells are known empty in this committed subscription root.
@@ -766,6 +783,8 @@ pub struct Geometry {
     /// Rows: row, height in points, hidden.
     pub rows: Vec<(u32, Option<f64>, bool)>,
 }
+
+fn outline_after()->bool {true}
 
 impl Geometry {
     pub fn merge_at(&self, at: CellKey) -> Option<GridArea> {

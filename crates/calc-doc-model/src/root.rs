@@ -905,9 +905,7 @@ impl ModelRoot {
             for (sheet, rules) in conditional {
                 next = next.with_conditional_rules(sheet, rules);
             }
-            for edit in axis_formats {
-                next = next.with_axis_format(edit);
-            }
+            next = next.with_axis_formats(axis_formats);
             for (sheet, panes) in panes {
                 next = next.with_pane_layout(sheet, panes);
             }

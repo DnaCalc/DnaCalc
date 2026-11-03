@@ -1099,6 +1099,8 @@ pub(super) fn load_sheet(
     sheet.load.formulas = std::mem::take(&mut sheet.formulas).into_iter().collect();
     sheet.load.styles = std::mem::take(&mut sheet.styles).into_iter().collect();
     let mut load = sheet.load;
+    super::outline::read(&xml, &mut load.geometry)?;
+    if load.geometry.outline_unsupported {load.review.unsupported.push("Imported outline metadata cannot be edited here (dc-971p.39); its source is retained".into());}
     let unread = bars
         .keys()
         .filter(|id| {

@@ -2,6 +2,9 @@
 pub use dna_calc_protocol::*;
 pub fn geometry_of(geometry: &calc_host::SheetGeometry) -> Geometry {
     Geometry {
+        outline: Vec::new(),
+        summary_below: geometry.summary_below.unwrap_or(true),
+        summary_right: geometry.summary_right.unwrap_or(true),
         coverage: Vec::new(),
         auto_filter: None,
         merges: Vec::new(),

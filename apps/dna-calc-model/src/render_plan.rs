@@ -218,7 +218,7 @@ pub fn build_render_plan_with<'a>(
                 col_span: merged.map_or(1, |a| a.column_count()),
                 editability: Editability::from_geometry(options.geometry),
                 text_advance: measured
-                    .unwrap_or_else(|| text_width(&shown.text, m) - 5.0 * m.header_h / 22.0),
+                    .unwrap_or_else(|| text_width(&shown.text, m) - 5.0 * m.scale),
                 text_measured: measured.is_some(),
                 paint_pixels: shown.style.pixels,
                 clip: None,
@@ -262,7 +262,7 @@ pub fn build_render_plan_with<'a>(
 
     RenderPlan {
         viewport: *v,
-        scale: m.header_h / 22.,
+        scale: m.scale,
         publication: None,
         presentation: Default::default(),
         semantic_rows: Vec::new(),
@@ -281,7 +281,7 @@ pub fn build_render_plan_with<'a>(
 /// The width a cell's text takes, estimated from Excel's default font: each character the maximum
 /// digit width (7 pixels at 100%, scaled with the grid) and the cell's padding (dc-09v).
 pub fn text_width(text: &str, m: &GridMetrics) -> f64 {
-    let scale = m.header_h / 22.0;
+    let scale = m.scale;
     (text.chars().count() as f64 * 7.0 + 5.0) * scale
 }
 
@@ -347,7 +347,7 @@ fn fit(
     {
         return;
     }
-    let scale = m.header_h / 22.0;
+    let scale = m.scale;
     let insets = if cell.text_measured {
         let indent = if cell.shown.style.indent == 0
             || !matches!(

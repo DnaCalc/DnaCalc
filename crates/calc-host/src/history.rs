@@ -253,8 +253,8 @@ pub(crate) fn inverse(
                 .axis_layouts()
                 .get(edit.sheet(), edit.axis(), edit.index());
             inverse.push(CellEdit::AxisFormat(
-                calc_doc_model::AxisFormatEdit::new(edit.sheet(), edit.axis(), edit.index(), old)
-                    .expect("a validated band"),
+                { let inverse = calc_doc_model::AxisFormatEdit::new(edit.sheet(), edit.axis(), edit.index(), old).expect("a validated band");
+                  if edit.summary_after().is_some() { inverse.with_summary_after(definitions.axis_layouts().summary_after(edit.sheet(),edit.axis())) } else { inverse } },
             ));
         }
         if let CellEdit::FrozenPanes { sheet, .. } | CellEdit::PaneLayout {sheet,..} = edit

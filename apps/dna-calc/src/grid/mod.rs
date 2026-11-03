@@ -490,7 +490,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             .unwrap_or_else(|| panes.get());
         let fonts = controller.font_revision.get();
         let measure_text = |cell: &cells::CellShown, text: &str| {
-            autofit::plan_advance(cell, text, presentation.metrics.header_h / 22.0, fonts)
+            autofit::plan_advance(cell, text, presentation.metrics.scale, fonts)
         };
         let published = published_geometry.get();
         let options = render_plan::PlanOptions {
@@ -1705,6 +1705,15 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             view!{<button class="dc-filter-header" data-dnacalc="filter-header" data-filter-column=column aria-label=format!("Filter column {}{}",column,if applied{" (filtered)"}else{""}) aria-expanded=move ||filter_open.get() title=if applied{"Filter applied"}else{"Filter column"} use:css=style on:pointerdown=move |ev|ev.stop_propagation() on:keydown=move |ev:leptos::ev::KeyboardEvent|ev.stop_propagation() on:click=move |ev|{ev.stop_propagation();controller.open_filter(column);}>{if applied{"◆"}else{"▾"}}</button>}
         }).collect_view()
     };
+    let outline_controls = move || {
+        let geometry=ctx.layout.get();let plan=plan.get();let scale=metrics.get().scale;
+        geometry.outline.into_iter().filter_map(move |group|{
+            let rect=if group.rows {plan.row_headers.iter().find(|h|h.row==group.summary).map(|h|h.rect)}else{plan.col_headers.iter().find(|h|h.col==group.summary).map(|h|h.rect)}?;
+            let style=if group.rows {format!("left:{};top:{}",px((f64::from(group.level-1)*16.+1.)*scale),px(rect.y+2.*scale))}else{format!("left:{};top:{}",px(rect.x+2.*scale),px((f64::from(group.level-1)*16.+1.)*scale))};
+            let style=format!("{style};width:{};height:{};font-size:{};line-height:{}",px(14.*scale),px(16.*scale),px(12.*scale),px(12.*scale));
+            Some(view!{<button type="button" class="dc-outline-control" data-dnacalc="outline-gutter" data-first=group.first data-last=group.last data-level=group.level aria-expanded=(!group.collapsed).to_string() aria-label=format!("{} {} {} through {}, outline level {}",if group.collapsed{"Expand"}else{"Collapse"},if group.rows{"rows"}else{"columns"},group.first,group.last,group.level) use:css=style on:pointerdown=move |ev|ev.stop_propagation() on:mousedown=move |ev|ev.stop_propagation() on:keydown=move |ev:leptos::ev::KeyboardEvent|ev.stop_propagation() on:click=move |ev|{ev.stop_propagation();controller.outline(group.rows,wire::OutlineChange::Detail{first:group.first,last:group.last,level:Some(group.level),show:group.collapsed});}>{if group.collapsed{"+"}else{"−"}}</button>})
+        }).collect_view()
+    };
     let copy_outline = move || {
         controller.clipboard.get().filter(|area|Some(area.sheet())==controller.sheet.get()).map(|area|panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(|rect|view!{
             <div class="dc-copy-outline" data-dnacalc="copy-outline" data-cut=move ||controller.cut.get().to_string() use:css=rect_style(&rect)></div>
@@ -2101,6 +2110,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                             let (columns, rows) = headers_view();
                             view! { {columns}{rows} }
                         }}
+                        {outline_controls}
                         <div class="dc-corner" style:width=move || px(metrics.get().header_w) style:height=move || px(metrics.get().header_h)></div>
                         {move ||resizing.get().map(|drag| {
                             let v=viewport.get();let edge=drag.edge();

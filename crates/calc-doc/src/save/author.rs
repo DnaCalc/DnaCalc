@@ -1023,9 +1023,11 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                             .bands(sheet.id(), axis)
                             .ne(model.definitions().axis_layouts().bands(sheet.id(), axis))
                     });
-            if !changed {
+            let outline_settings_changed=[calc_doc_model::Axis::Rows,calc_doc_model::Axis::Columns].into_iter().any(|axis|base.definitions().axis_layouts().summary_after(sheet.id(),axis)!=model.definitions().axis_layouts().summary_after(sheet.id(),axis));
+            if !changed && !outline_settings_changed {
                 continue;
             }
+            if sheet.geometry().outline_unsupported {return Err(SaveRefusal::OutlineNotModelled{part:sheet.part().name().to_owned(),owner:"dc-971p.39"});}
             if sheets.iter().any(|other| {
                 other.id() != sheet.id()
                     && other
@@ -1056,6 +1058,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                 &model.definitions().visible_axis_layouts(),
                 style_plan.as_ref(),
             )?;
+            let bytes=super::outline::rewrite(&xml.with_bytes(bytes),sheet.id(),model.definitions().axis_layouts())?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
     }

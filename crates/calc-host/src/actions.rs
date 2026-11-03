@@ -51,6 +51,7 @@ pub enum WorkbookCommand {
         sheet: Option<SheetId>,
         change: SheetChange,
     },
+    Outline { sheet: SheetId, rows: bool, revision: u64, change: crate::OutlineChange },
     AxisFormat {
         sheet: SheetId,
         rows: bool,
@@ -103,6 +104,7 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::Outline {sheet,rows,revision,change} => crate::outline::prepare(host,sheet,rows,revision,change),
         WorkbookCommand::SplitPanes {sheet,revision,x,y,row,column}=>{
             if revision!=host.revision().get() {return Err("The workbook changed before splitting (dc-971p.16)".into());}
             if host.model().sheet_by_id(sheet).is_none() {return Err("The worksheet no longer exists".into());}
@@ -298,6 +300,7 @@ pub(crate) fn axis_format_edits(
         .loaded()
         .sheet(sheet)
         .ok_or("The sheet is unavailable")?;
+    if loaded.geometry().outline_unsupported {return Err("Imported outline metadata is not modelled for dimension edits (dc-971p.39); nothing changed".into());}
     if loaded.protected() {
         return Err("Dimensions on a protected sheet are not available here".to_owned());
     }
@@ -336,12 +339,12 @@ pub(crate) fn axis_format_edits(
         if let Some(size) = size {
             new = match size {
                 None => old.with_hidden(true),
-                Some(n) => crate::AxisFormat::new(Some(n), false, !rows).expect("a checked size"),
+                Some(n) => old.with_size(Some(n), !rows).expect("a checked size").with_hidden(false),
             };
         }
         if let Some(hidden) = hidden {
             new = if !hidden && new.size() == Some(0.0) {
-                crate::AxisFormat::default()
+                new.with_size(None,false).expect("default size").with_hidden(false)
             } else {
                 new.with_hidden(hidden)
             };

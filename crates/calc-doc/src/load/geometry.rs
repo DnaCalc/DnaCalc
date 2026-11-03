@@ -19,6 +19,8 @@ pub struct ColumnSpan {
     /// `customWidth`: the span's width is its own rather than the sheet's default (dc-uar:
     /// CELL("width") reports it).
     pub custom_width: bool,
+    pub outline_level: u8,
+    pub collapsed: bool,
 }
 
 /// What a worksheet's first window (`<sheetView>`) shows as the file states it (dc-uar): its top
@@ -87,6 +89,8 @@ pub struct RowFormat {
     /// The height in points; `None` when the row states none.
     pub height: Option<f64>,
     pub hidden: bool,
+    pub outline_level: u8,
+    pub collapsed: bool,
 }
 
 /// A worksheet's geometry as the file states it.
@@ -102,6 +106,10 @@ pub struct SheetGeometry {
     pub columns: Vec<ColumnSpan>,
     /// The rows that state a height or are hidden.
     pub rows: BTreeMap<u32, RowFormat>,
+    pub summary_below: Option<bool>,
+    pub outline_unsupported: bool,
+    pub summary_right: Option<bool>,
+    pub(crate) outline_state: Option<super::outline::OutlineState>,
 }
 
 impl SheetGeometry {
@@ -116,6 +124,10 @@ impl SheetGeometry {
     pub fn row(&self, row: u32) -> Option<&RowFormat> {
         self.rows.get(&row)
     }
+}
+
+fn invalid_outline(element:&XmlElement)->bool {
+    element.attribute("outlineLevel").is_some_and(|s|s.parse::<u8>().ok().is_none_or(|n|n>7)) || element.attribute("collapsed").is_some_and(|s|!matches!(s,"0"|"1"|"false"|"true"))
 }
 
 fn number(element: &XmlElement, name: &str) -> Option<f64> {
@@ -142,6 +154,7 @@ impl SheetGeometry {
 
     /// Reads one `<col>`; an element without a valid span is passed over.
     pub(crate) fn read_column(&mut self, element: &XmlElement) {
+        self.outline_unsupported |= invalid_outline(element);
         let (Some(first), Some(last)) = (index(element, "min"), index(element, "max")) else {
             return;
         };
@@ -154,14 +167,19 @@ impl SheetGeometry {
             width: number(element, "width"),
             hidden: super::manifest::is_true(element.attribute("hidden")),
             custom_width: super::manifest::is_true(element.attribute("customWidth")),
+            outline_level: element.attribute("outlineLevel").and_then(|n|n.parse::<u8>().ok()).unwrap_or(0).min(7),
+            collapsed: super::manifest::is_true(element.attribute("collapsed")),
         });
     }
 
     /// Reads one `<row>`'s height and hidden flag.
     pub(crate) fn read_row(&mut self, row: u32, element: &XmlElement) {
+        self.outline_unsupported |= invalid_outline(element);
         let format = RowFormat {
             height: number(element, "ht"),
             hidden: super::manifest::is_true(element.attribute("hidden")),
+            outline_level: element.attribute("outlineLevel").and_then(|n|n.parse::<u8>().ok()).unwrap_or(0).min(7),
+            collapsed: super::manifest::is_true(element.attribute("collapsed")),
         };
         if format != RowFormat::default() {
             self.rows.insert(row, format);
@@ -198,6 +216,7 @@ impl SheetGeometry {
                             RowFormat {
                                 height: Some(height),
                                 hidden: false,
+                                ..RowFormat::default()
                             },
                         );
                     }
@@ -270,6 +289,8 @@ impl SheetGeometry {
                         width: source.width,
                         hidden: false,
                         custom_width: source.custom_width,
+                        outline_level: source.outline_level,
+                        collapsed: false,
                     });
                 }
                 columns.sort_by_key(|span| span.first);
@@ -296,6 +317,8 @@ impl SheetGeometry {
                     RowFormat {
                         height: format.size(),
                         hidden: format.hidden(),
+                        outline_level: format.outline_level(),
+                        collapsed: format.collapsed()!=0,
                     },
                 )
             })
@@ -308,12 +331,16 @@ impl SheetGeometry {
                 width: format.size(),
                 hidden: format.hidden(),
                 custom_width: format.custom(),
+                outline_level: format.outline_level(),
+                collapsed: format.collapsed()!=0,
             };
             if let Some(last) = columns.last_mut()
                 && last.last + 1 == index
                 && last.width == span.width
                 && last.hidden == span.hidden
                 && last.custom_width == span.custom_width
+                && last.outline_level == span.outline_level
+                && last.collapsed == span.collapsed
             {
                 last.last = index;
             } else {
@@ -326,6 +353,10 @@ impl SheetGeometry {
             base_column_width: self.base_column_width,
             columns,
             rows,
+            summary_below: Some(layouts.summary_after(sheet,calc_doc_model::Axis::Rows)),
+            summary_right: Some(layouts.summary_after(sheet,calc_doc_model::Axis::Columns)),
+            outline_state: None,
+            outline_unsupported: self.outline_unsupported,
         }
     }
     pub(crate) fn add_to_model(
@@ -336,7 +367,7 @@ impl SheetGeometry {
         use calc_doc_model::{Axis, AxisFormat, AxisFormatEdit};
         for (&index, row) in &self.rows {
             let format = AxisFormat::new(row.height, row.hidden, false)
-                .expect("finite loaded row dimensions");
+                .expect("finite loaded row dimensions").with_outline(row.outline_level,0).unwrap();
             layouts
                 .set(AxisFormatEdit::new(sheet, Axis::Rows, index, format).expect("a loaded row"));
         }
@@ -346,12 +377,41 @@ impl SheetGeometry {
             for index in span.first..=span.last {
                 if seen.insert(index) {
                     let format = AxisFormat::new(span.width, span.hidden, span.custom_width)
-                        .expect("finite loaded column dimensions");
+                        .expect("finite loaded column dimensions").with_outline(span.outline_level,0).unwrap();
                     layouts.set(
                         AxisFormatEdit::new(sheet, Axis::Columns, index, format)
                             .expect("a loaded column"),
                     );
                 }
+            }
+        }
+        for (axis,after) in [(Axis::Rows,self.summary_below.unwrap_or(true)),(Axis::Columns,self.summary_right.unwrap_or(true))] {
+            let f=layouts.get(sheet,axis,1);
+            layouts.set(AxisFormatEdit::new(sheet,axis,1,f).unwrap().with_summary_after(after));
+            let groups=layouts.outline_groups(sheet,axis);
+            let mut markers=std::collections::BTreeSet::new();
+            match axis {
+                Axis::Rows=>markers.extend(self.rows.iter().filter(|(_,f)|f.collapsed).map(|(i,_)|*i)),
+                Axis::Columns=>markers.extend(self.columns.iter().filter(|f|f.collapsed).flat_map(|f|f.first..=f.last)),
+            }
+            // A foreign XLSX has one collapsed flag per summary. Select the outermost group
+            // sharing that control; DNA's source-checked extension can restore every bit.
+            for index in markers {
+                if let Some(level)=groups.iter().filter(|g|g.summary==index && (g.first..=g.last).all(|i|match axis {Axis::Rows=>self.rows.get(&i).is_some_and(|f|f.hidden),Axis::Columns=>self.column(i).is_some_and(|f|f.hidden)})).map(|g|g.level).min() {
+                    let f=layouts.get(sheet,axis,index);
+                    layouts.set(AxisFormatEdit::new(sheet,axis,index,f.with_outline(f.outline_level(),1<<(level-1)).unwrap()).unwrap());
+                }
+            }
+        }
+        if let Some(state)=&self.outline_state { state.restore(sheet,layouts); }
+        else {
+            // Imported physical hiding beneath a collapsed group belongs to that outline.
+            // XLSX cannot also identify manual hiding there without DNA's extension.
+            let outlined=layouts.outlined();
+            for axis in [Axis::Rows,Axis::Columns] {
+                let groups=layouts.outline_groups(sheet,axis);
+                let indices:Vec<_>=layouts.bands(sheet,axis).filter(|(i,_)|groups.iter().any(|g|g.collapsed && *i>=g.first && *i<=g.last)).map(|(i,_)|i).collect();
+                for index in indices { let f=layouts.get(sheet,axis,index);if outlined.get(sheet,axis,index).hidden() {layouts.set(AxisFormatEdit::new(sheet,axis,index,f.with_hidden(false)).unwrap());} }
             }
         }
     }

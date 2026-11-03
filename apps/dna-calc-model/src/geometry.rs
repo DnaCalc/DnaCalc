@@ -172,6 +172,8 @@ impl Sizes {
 /// sits at `(header_w, header_h)` in the unscrolled viewport.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GridMetrics {
+    /// Display zoom, independent of the size of outline gutters.
+    pub scale: f64,
     /// Height of a data row the workbook does not size, in pixels.
     pub row_height: f64,
     /// Width of a data column the workbook does not size, in pixels.
@@ -189,6 +191,7 @@ pub struct GridMetrics {
 impl Default for GridMetrics {
     fn default() -> Self {
         Self {
+            scale: 1.0,
             row_height: 22.0,
             col_width: 80.0,
             header_h: 22.0,
@@ -212,6 +215,7 @@ impl GridMetrics {
             return self.clone();
         }
         Self {
+            scale: self.scale * factor,
             row_height: self.row_height * factor,
             col_width: self.col_width * factor,
             header_h: self.header_h * factor,
@@ -497,6 +501,7 @@ mod tests {
         assert_eq!(
             m.scaled(2.0),
             GridMetrics {
+                scale: 2.0,
                 row_height: 44.0,
                 col_width: 160.0,
                 header_h: 44.0,
@@ -985,11 +990,30 @@ pub fn sheet_metrics(geometry: Option<&crate::projection::Geometry>) -> GridMetr
         None => (Vec::new(), Vec::new()),
     };
     GridMetrics {
+        scale: 1.0,
         row_height,
         col_width,
-        header_h: 22.0,
-        header_w: 64.0,
+        header_h: 22.0 + geometry.map_or(0.,|g|f64::from(g.outline.iter().filter(|g|!g.rows).map(|g|g.level).max().unwrap_or(0))*16.),
+        header_w: 64.0 + geometry.map_or(0.,|g|f64::from(g.outline.iter().filter(|g|g.rows).map(|g|g.level).max().unwrap_or(0))*16.),
         rows: Sizes::new(row_height, rows),
         cols: Sizes::new(col_width, columns),
+    }
+}
+
+#[cfg(test)]
+mod outline_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn outline_gutters_leave_cell_sizes_text_metrics_and_zoom_unchanged() {
+        use crate::projection::{Geometry,OutlineGroup};
+        let geometry=Geometry{outline:vec![OutlineGroup{rows:false,first:2,last:4,summary:5,level:7,collapsed:false},OutlineGroup{rows:true,first:2,last:4,summary:5,level:3,collapsed:false}],..Geometry::default()};
+        let plain=sheet_metrics(None);let grouped=sheet_metrics(Some(&geometry));
+        for scale in [0.5,1.,1.75,4.] {
+            let a=plain.scaled(scale);let b=grouped.scaled(scale);
+            assert_eq!(a.scale,b.scale);assert_eq!(a.width(2),b.width(2));assert_eq!(a.height(2),b.height(2));
+            assert_eq!(crate::render_plan::text_width("outline typography",&a),crate::render_plan::text_width("outline typography",&b));
+            assert_eq!(b.header_h-a.header_h,112.*scale);assert_eq!(b.header_w-a.header_w,48.*scale);
+        }
     }
 }

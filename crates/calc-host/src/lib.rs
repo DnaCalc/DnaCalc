@@ -54,6 +54,8 @@
 //! no way around these calls to change the authored revision or the engine state.
 
 mod actions;
+mod outline;
+pub use outline::OutlineChange;
 mod format;
 mod filter;
 pub use filter::{AutoFilter,FilterCriteria,FilterOperator,FilterPredicate,FilterChange,filter_values};

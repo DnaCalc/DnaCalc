@@ -34,6 +34,7 @@ pub(crate) mod filter;
 mod review;
 pub use review::{ReviewLink, ReviewNote, SheetReview};
 pub(crate) mod geometry;
+pub(crate) mod outline;
 pub(crate) mod manifest;
 pub(crate) mod metadata;
 pub(crate) mod sheet;
@@ -1404,7 +1405,9 @@ pub fn load(
                 );
                 if let Some(mut filter)=loaded.filter {
                     let physically_hidden=loaded.hidden_rows.iter().copied().filter(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()).collect::<std::collections::BTreeSet<_>>();
-                    let manual=loaded.filter_manual.filter(|m| m.union(&filter.filtered_rows).copied().collect::<std::collections::BTreeSet<_>>()==physically_hidden && m.iter().all(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()));
+                    let mut outline_layout=calc_doc_model::AxisLayouts::default();loaded.geometry.add_to_model(id,&mut outline_layout);
+                    let outlined=outline_layout.outline_groups(id,calc_doc_model::Axis::Rows).into_iter().filter(|g|g.collapsed).flat_map(|g|g.first..=g.last).filter(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()).collect::<std::collections::BTreeSet<_>>();
+                    let manual=loaded.filter_manual.filter(|m| m.union(&filter.filtered_rows).copied().chain(outlined.iter().copied()).collect::<std::collections::BTreeSet<_>>()==physically_hidden && m.iter().all(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()));
                     if manual.is_none() {filter.filtered_rows=if filter.columns.is_empty() && !filter.unsupported {Default::default()} else {physically_hidden};}
                     auto_filters.push((id,filter,manual));
                 }
@@ -1529,6 +1532,8 @@ pub fn load(
         .with_workbook_name(package.source_name().map(str::to_owned))
         .with_external_books(external_books);
     for (sheet,filter,_) in auto_filters { definitions=definitions.with_auto_filter(sheet,Some(filter)); }
+    let outline_edits:Vec<_>=sheets.iter().flat_map(|sheet|definitions.axis_layouts().bands(sheet.id,calc_doc_model::Axis::Rows).map(move |(i,f)|calc_doc_model::AxisFormatEdit::new(sheet.id,calc_doc_model::Axis::Rows,i,f).unwrap())).collect();
+    definitions=definitions.with_axis_formats(outline_edits);
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);
     }
