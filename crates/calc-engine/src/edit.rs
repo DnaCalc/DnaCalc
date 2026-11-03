@@ -120,6 +120,7 @@ pub struct PreparedEngineChange<'s, 'r> {
     state: &'s mut EngineState,
     invalidated: Vec<NodeId>,
     regions: Vec<GridArea>,
+    certificate_candidates: BTreeSet<NodeId>,
     schema_changed: bool,
     base: AuthoredRevision,
     next: AuthoredRevision,
@@ -226,6 +227,7 @@ pub fn prepare_edit<'s, 'r>(
         return Ok(PreparedEngineChange {
             invalidated,
             regions: Vec::new(),
+            certificate_candidates: BTreeSet::new(),
             schema_changed: true,
             state,
             base: change.base,
@@ -464,7 +466,12 @@ pub fn prepare_edit<'s, 'r>(
     let dimensions_pending = change
         .operations
         .iter()
-        .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. }))
+        .any(|op| {
+            matches!(
+                op,
+                WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. }
+            )
+        })
         .then(|| state.nodes().map(|node| node.id()).collect());
     let schema_changed = change
         .operations
@@ -522,7 +529,7 @@ pub fn prepare_edit<'s, 'r>(
             dependents: users.into_iter().collect(),
         });
     }
-    let regions = change
+    let regions: Vec<GridArea> = change
         .operations
         .iter()
         .filter_map(|op| match op {
@@ -534,6 +541,12 @@ pub fn prepare_edit<'s, 'r>(
             _ => None,
         })
         .collect();
+    let mut certificate_candidates = BTreeSet::new();
+    for region in &regions {
+        state
+            .index
+            .dependents_of_area(inputs, *region, &mut certificate_candidates);
+    }
     let mut roots: std::collections::BTreeSet<NodeId> = seeds
         .iter()
         .flat_map(|seed| match seed {
@@ -565,6 +578,7 @@ pub fn prepare_edit<'s, 'r>(
     Ok(PreparedEngineChange {
         invalidated,
         regions,
+        certificate_candidates,
         schema_changed,
         state,
         base: change.base,
@@ -655,7 +669,7 @@ fn structural_moves(
             | WorkbookOp::SetConditionalRules { .. }
             | WorkbookOp::SetAutoFilter { .. }
             | WorkbookOp::SetPaneLayout { .. }
-                | WorkbookOp::SetFrozenPanes { .. } => unreachable!("refused above"),
+            | WorkbookOp::SetFrozenPanes { .. } => unreachable!("refused above"),
             WorkbookOp::EditAxis(edit) => {
                 require_sheet(inputs, operation, edit.sheet())?;
                 for (_, anchor) in &mut moves {
@@ -727,6 +741,9 @@ impl CommitReceipt {
 pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     let node_changes = std::mem::take(&mut change.node_changes);
     let state = &mut *change.state;
+    state
+        .certificate_candidates
+        .extend(std::mem::take(&mut change.certificate_candidates));
     let epoch = state.contract.advance();
     state
         .contract

@@ -290,42 +290,32 @@ impl WorkBudget {
 /// recalculation runs, since a commit cancels it.
 #[derive(Debug)]
 struct BySlot<T> {
-    entries: Vec<Option<(NodeId, T)>>,
+    entries: crate::slots::Slots<(NodeId, T)>,
 }
 
 impl<T> Default for BySlot<T> {
     fn default() -> Self {
         BySlot {
-            entries: Vec::new(),
+            entries: crate::slots::Slots::default(),
         }
     }
 }
 
 impl<T> BySlot<T> {
     fn get(&self, node: NodeId) -> Option<&T> {
-        match self.entries.get(node.slot() as usize) {
-            Some(Some((held, value))) if *held == node => Some(value),
-            _ => None,
-        }
+        self.entries
+            .get(node.slot())
+            .filter(|(held, _)| *held == node)
+            .map(|(_, value)| value)
     }
-
     fn reserve_slots(&mut self, slots: usize) {
-        if self.entries.len() < slots {
-            self.entries.resize_with(slots, || None);
-        }
+        self.entries.reserve_dense(slots);
     }
-
     fn insert(&mut self, node: NodeId, value: T) {
-        let slot = node.slot() as usize;
-        if slot >= self.entries.len() {
-            self.entries.resize_with(slot + 1, || None);
-        }
-        self.entries[slot] = Some((node, value));
+        self.entries.insert(node.slot(), (node, value));
     }
-
-    /// Every entry, in slot order (the order of the node IDs).
     fn into_entries(self) -> impl Iterator<Item = (NodeId, T)> {
-        self.entries.into_iter().flatten()
+        self.entries.into_values()
     }
 }
 
@@ -349,7 +339,7 @@ pub struct RecalcWork {
     root_reason: ReevaluationReason,
     admission: AdmissionReceipt,
     pass: CalcPassId,
-    requirements: BTreeMap<NodeId, RequirementState>,
+    requirements: RequirementCut,
     facts_version: u64,
     events: Vec<CalcEvent>,
     reused: usize,
@@ -489,7 +479,7 @@ pub(crate) struct EvalShared<'a> {
     pass: CalcPassId,
     root_reason: ReevaluationReason,
     evaluations: &'a BTreeMap<NodeId, (u64, ReevaluationReason)>,
-    requirements: &'a BTreeMap<NodeId, RequirementState>,
+    requirements: &'a RequirementCut,
     facts_version: u64,
     volatile_inputs: u64,
     boundary_caches: &'a crate::read::BoundarySnapshot,
@@ -1051,33 +1041,68 @@ fn begin_with_scope(
     // Required versions are authoritative demand, including transitive invalidation that
     // arrived before the next scheduler cut. A stale producer cannot remain unscheduled.
     let empty = Progress::new(0);
-    let invalid: Vec<_> = state
-        .nodes()
+    let context = (state.contract.environment, state.contract.bindings);
+    let mut candidates = std::mem::take(&mut state.certificate_candidates);
+    candidates.extend(state.certificate_watch.iter().copied());
+    if !state.contract.facility_roots.is_empty() {
+        candidates.extend(
+            dirty_closure(
+                state,
+                inputs,
+                state.contract.facility_roots.clone(),
+                &|node| invalidation_areas(state, inputs, node),
+            )
+            .members()
+            .iter()
+            .copied(),
+        );
+    }
+    if state.certificate_context != Some(context) {
+        candidates.extend(state.nodes().map(|node| node.id()));
+    }
+    let invalid: Vec<_> = candidates
+        .into_iter()
         .filter(|node| {
-            let requirement = state.contract.requirement(node.id());
+            let requirement = state.contract.requirement(*node);
             requirement.required == requirement.satisfied
+                && state.node(*node).is_some()
                 && state
                     .results
-                    .of(node.id())
+                    .of(*node)
                     .and_then(FormulaResult::stamp)
                     .is_some_and(|stamp| {
                         !certificate_valid(state, inputs, &empty, stamp, state.contract.facts)
                     })
         })
-        .map(|node| node.id())
         .collect();
+    #[cfg(debug_assertions)]
+    {
+        let expected: Vec<_> = state
+            .nodes()
+            .filter_map(|node| {
+                let requirement = state.contract.requirement(node.id());
+                (requirement.required == requirement.satisfied
+                    && state
+                        .results
+                        .of(node.id())
+                        .and_then(FormulaResult::stamp)
+                        .is_some_and(|stamp| {
+                            !certificate_valid(state, inputs, &empty, stamp, state.contract.facts)
+                        }))
+                .then_some(node.id())
+            })
+            .collect();
+        debug_assert_eq!(
+            invalid.iter().copied().collect::<BTreeSet<_>>(),
+            expected.into_iter().collect(),
+            "certificate candidates cover every invalid clean result"
+        );
+    }
+    state.certificate_context = Some(context);
     if !invalid.is_empty() {
         state.contract.invalidate(invalid);
     }
-    let required: Vec<_> = state
-        .nodes()
-        .filter(|node| {
-            let requirement = state.contract.requirement(node.id());
-            requirement.required != requirement.satisfied
-        })
-        .map(|node| node.id())
-        .collect();
-    let demanded: BTreeSet<_> = required.into_iter().collect();
+    let demanded = state.contract.demanded.clone();
     let mut unbound: Vec<(NodeId, CellKey, Option<&FormulaText>)> = Vec::new();
     for &node in &state.pending {
         if state.bindings.contains_key(&node) {
@@ -1225,7 +1250,7 @@ fn begin_with_scope(
     {
         order = full_observation_order(state, inputs, order);
     }
-    let mut progress = Progress::new(state.nodes.len());
+    let mut progress = Progress::with_capacity(state.nodes.len(), order.len());
     for node in &order {
         progress.schedule(*node);
     }
@@ -1294,7 +1319,7 @@ fn begin_with_scope(
                             .plan()
                             .parallel_call_limit(&state.callables)
                             .is_some();
-                    parallel |= allowed;
+                    parallel |= allowed && instance.plan().has_user_calls();
                     instance.plan().has_user_calls() && !allowed
                 }
                 Some(Binding::Refused(NotModeled::Compile(
@@ -2456,9 +2481,9 @@ pub fn finish(
     let mut changes: Vec<(CellKey, ValueChange)> = Vec::with_capacity(work.progress.scheduled());
     let mut spill_changes = Vec::new();
     let mut installed = Vec::new();
-    let mut published = vec![false; state.nodes.len()];
+    let mut published = crate::slots::Slots::new(state.nodes.len(), work.progress.scheduled());
     for (node, result) in std::mem::take(&mut work.progress).into_staged() {
-        published[node.slot() as usize] = true;
+        published.insert(node.slot(), ());
         let at = live_anchor(state, node);
         installed.push(node);
         if work.early_published.get(&node) == Some(&result.stamp().cloned()) {
@@ -2499,12 +2524,9 @@ pub fn finish(
         state.publish_result(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
     }
-    state.range_redemand.retain(|node| {
-        !published
-            .get(node.slot() as usize)
-            .copied()
-            .unwrap_or(false)
-    });
+    state
+        .range_redemand
+        .retain(|node| published.get(node.slot()).is_none());
     if work.admission.range_post_state == crate::contract::RangePostState::StillRequired {
         state.range_redemand.extend(installed.iter().copied());
     }
@@ -2513,10 +2535,7 @@ pub fn finish(
     // rather than by removing the published nodes one at a time.
     let stays = |node: &NodeId| {
         state.contract.requirement(*node).required != state.contract.requirement(*node).satisfied
-            || !published
-                .get(node.slot() as usize)
-                .copied()
-                .unwrap_or(false)
+            || published.get(node.slot()).is_none()
     };
     state.pending = std::mem::take(&mut state.pending)
         .into_iter()
@@ -2844,11 +2863,12 @@ fn readers_into(
 /// member's slot (dc-10d9: in place of a map from node to readers, which ordering a closure of
 /// every formula built anew for every recalculation).
 pub(crate) struct Closure {
+    slots: usize,
     /// The members, in ID order.
     members: Vec<NodeId>,
     /// Where each member's readers lie in `edges` (start and count), at the member's slot; no
     /// readers at any other slot.
-    readers: Vec<(u32, u32)>,
+    readers: crate::slots::Slots<(u32, u32)>,
     /// Every member's readers, each member's run in ID order, one after the other.
     edges: Vec<NodeId>,
 }
@@ -2861,7 +2881,7 @@ impl Closure {
 
     /// The readers of the member `node`, in ID order.
     fn readers(&self, node: NodeId) -> &[NodeId] {
-        let (start, count) = self.readers[node.slot() as usize];
+        let &(start, count) = self.readers.get(node.slot()).expect("a closure member");
         &self.edges[start as usize..(start + count) as usize]
     }
 
@@ -3029,12 +3049,12 @@ fn closure_with(
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Closure {
     let slots = state.nodes.len();
-    let mut member = vec![false; slots];
-    let mut readers: Vec<(u32, u32)> = vec![(0, 0); slots];
+    let mut member = crate::slots::Slots::new(slots, roots.len());
+    let mut readers = crate::slots::Slots::new(slots, roots.len());
     let mut edges: Vec<NodeId> = Vec::new();
     let mut members: Vec<NodeId> = Vec::with_capacity(roots.len());
     for node in &roots {
-        member[node.slot() as usize] = true;
+        member.insert(node.slot(), ());
         members.push(*node);
     }
     let mut stack = members.clone();
@@ -3060,20 +3080,21 @@ fn closure_with(
             }
         }
         for &reader in &found {
-            let slot = reader.slot() as usize;
-            if !member[slot] {
-                member[slot] = true;
+            let slot = reader.slot();
+            if member.get(slot).is_none() {
+                member.insert(slot, ());
                 members.push(reader);
                 stack.push(reader);
             }
         }
         let start = u32::try_from(edges.len()).expect("fewer than 2^32 edges in a closure");
         let count = u32::try_from(found.len()).expect("fewer than 2^32 readers of a node");
-        readers[node.slot() as usize] = (start, count);
+        readers.insert(node.slot(), (start, count));
         edges.extend_from_slice(&found);
     }
     members.sort_unstable();
     Closure {
+        slots,
         members,
         readers,
         edges,
@@ -3345,6 +3366,12 @@ fn full_observation_order(
     inputs: &ModelRoot,
     previous: Vec<NodeId>,
 ) -> Vec<NodeId> {
+    if !previous.iter().any(|node| {
+        matches!(state.bindings.get(node), Some(Binding::Placed(instance, _))
+        if instance.plan().only_cached_user_calls(&state.callables))
+    }) {
+        return previous;
+    }
     let mut segment = 0usize;
     let mut observers = false;
     let keys: BTreeMap<_, _> = previous
@@ -3400,7 +3427,7 @@ fn range_reference_order(
     areas: &[GridArea],
 ) -> Vec<NodeId> {
     let members: BTreeSet<_> = previous.iter().copied().collect();
-    let mut readers = vec![(0, 0); state.nodes.len()];
+    let mut readers = crate::slots::Slots::new(state.nodes.len(), members.len());
     let mut edges = Vec::new();
     let mut found = Vec::new();
     let provisional: BTreeMap<_, _> = previous
@@ -3458,12 +3485,16 @@ fn range_reference_order(
                     !direct
                 }),
         );
-        readers[producer.slot() as usize] = (
-            u32::try_from(first).expect("bounded edges"),
-            u32::try_from(edges.len() - first).expect("bounded edges"),
+        readers.insert(
+            producer.slot(),
+            (
+                u32::try_from(first).expect("bounded edges"),
+                u32::try_from(edges.len() - first).expect("bounded edges"),
+            ),
         );
     }
     let closure = Closure {
+        slots: state.nodes.len(),
         members: previous.clone(),
         readers,
         edges,
@@ -3494,23 +3525,26 @@ fn order<K: Ord + Copy>(
     key: impl Fn(NodeId) -> K,
     anchor: impl Fn(NodeId) -> CellKey,
 ) -> Result<Vec<NodeId>, Vec<CellKey>> {
-    let mut waiting = vec![0u32; closure.readers.len()];
+    let mut waiting = crate::slots::Slots::new(closure.slots, closure.members().len());
+    for node in closure.members() {
+        waiting.insert(node.slot(), 0u32);
+    }
     for node in closure.members() {
         for reader in closure.readers(*node) {
-            waiting[reader.slot() as usize] += 1;
+            *waiting.get_mut(reader.slot()).expect("a closure reader") += 1;
         }
     }
     let mut ready: BinaryHeap<Reverse<(K, NodeId)>> = closure
         .members()
         .iter()
-        .filter(|node| waiting[node.slot() as usize] == 0)
+        .filter(|node| waiting.get(node.slot()) == Some(&0))
         .map(|node| Reverse((key(*node), *node)))
         .collect();
     let mut order = Vec::with_capacity(closure.members().len());
     while let Some(Reverse((_, node))) = ready.pop() {
         order.push(node);
         for &reader in closure.readers(node) {
-            let count = &mut waiting[reader.slot() as usize];
+            let count = waiting.get_mut(reader.slot()).expect("a closure reader");
             *count -= 1;
             if *count == 0 {
                 ready.push(Reverse((key(reader), reader)));
@@ -3521,7 +3555,7 @@ fn order<K: Ord + Copy>(
         let mut cells: Vec<CellKey> = closure
             .members()
             .iter()
-            .filter(|node| waiting[node.slot() as usize] > 0)
+            .filter(|node| waiting.get(node.slot()).is_some_and(|count| *count > 0))
             .map(|node| anchor(*node))
             .collect();
         cells.sort();

@@ -523,7 +523,10 @@ impl BoundarySnapshot {
     ) -> Self {
         let mut entries = BTreeMap::new();
         let mut spills = SpillIndex::default();
-        for node in state.nodes() {
+        // A workbook command has no out-of-scope cache. Do not visit every formula merely
+        // to discover that, particularly for an edit whose dirty closure has three cells.
+        let outside_limit = if matches!(scope, crate::CalcScope::Workbook) { 0 } else { usize::MAX };
+        for node in state.nodes().take(outside_limit) {
             let at = node.anchor();
             if scope.contains(at) || !matches!(inputs.cell(at), Some(CellInput::Formula(_))) {
                 continue;
@@ -655,8 +658,8 @@ pub(crate) struct RecalcView<'a> {
 /// next keeps its staged result until it is evaluated again.
 #[derive(Debug, Default)]
 pub(crate) struct Progress {
-    status: Vec<u8>,
-    staged: Vec<Option<(NodeId, FormulaResult)>>,
+    status: crate::slots::Slots<u8>,
+    staged: crate::slots::Slots<(NodeId, FormulaResult)>,
     scheduled: usize,
     pub(crate) footprints: BTreeMap<NodeId, GridArea>,
 }
@@ -666,69 +669,42 @@ const EVALUATED: u8 = 2;
 
 impl Progress {
     pub(crate) fn new(slots: usize) -> Self {
+        Self::with_capacity(slots, 0)
+    }
+    pub(crate) fn with_capacity(slots: usize, expected: usize) -> Self {
         Progress {
-            status: vec![0; slots],
-            staged: Vec::new(),
+            status: crate::slots::Slots::new(slots, expected),
+            staged: crate::slots::Slots::new(slots, expected),
             scheduled: 0,
             footprints: BTreeMap::new(),
         }
     }
-
-    fn slot(node: NodeId) -> usize {
-        node.slot() as usize
-    }
-
-    /// Makes room for the staged results of the nodes of slots below `slots` at once (dc-dxm), so
-    /// that staging does not grow the storage, moving what it staged, as it goes.
     pub(crate) fn reserve_slots(&mut self, slots: usize) {
-        if self.staged.len() < slots {
-            self.staged.resize_with(slots, || None);
-        }
+        self.staged.reserve_dense(slots);
     }
-
-    /// Schedules `node`, which then stands as not yet evaluated.
     pub(crate) fn schedule(&mut self, node: NodeId) {
-        let slot = Self::slot(node);
-        if slot >= self.status.len() {
-            self.status.resize(slot + 1, 0);
-        }
-        if self.status[slot] == 0 {
+        if !self.is_scheduled(node) {
             self.scheduled += 1;
         }
-        self.status[slot] = SCHEDULED;
+        self.status.insert(node.slot(), SCHEDULED);
     }
-
     pub(crate) fn is_scheduled(&self, node: NodeId) -> bool {
-        self.status
-            .get(Self::slot(node))
-            .is_some_and(|status| *status != 0)
+        self.status(node) != 0
     }
-
-    /// The node's status: 0 when this recalculation does not calculate it, else scheduled or
-    /// evaluated.
     fn status(&self, node: NodeId) -> u8 {
-        self.status.get(Self::slot(node)).copied().unwrap_or(0)
+        self.status.get(node.slot()).copied().unwrap_or(0)
     }
-
     pub(crate) fn is_evaluated(&self, node: NodeId) -> bool {
-        self.status.get(Self::slot(node)) == Some(&EVALUATED)
+        self.status(node) == EVALUATED
     }
-
-    /// Stages `result` for the scheduled `node`, which then stands as evaluated.
     pub(crate) fn stage(&mut self, node: NodeId, result: FormulaResult) {
-        let slot = Self::slot(node);
-        if slot >= self.staged.len() {
-            self.staged.resize_with(slot + 1, || None);
-        }
-        self.staged[slot] = Some((node, result));
-        self.status[slot] = EVALUATED;
+        self.staged.insert(node.slot(), (node, result));
+        self.status.insert(node.slot(), EVALUATED);
     }
-
-    /// The staged result of an evaluated node.
     pub(crate) fn staged(&self, node: NodeId) -> Option<&FormulaResult> {
         self.staged
-            .get(Self::slot(node))
-            .and_then(Option::as_ref)
+            .get(node.slot())
+            .filter(|(held, _)| *held == node)
             .map(|(_, result)| result)
     }
 
@@ -738,15 +714,12 @@ impl Progress {
     }
 
     pub(crate) fn staged_results(&self) -> impl Iterator<Item = (NodeId, &FormulaResult)> {
-        self.staged
-            .iter()
-            .flatten()
-            .map(|(node, result)| (*node, result))
+        self.staged.iter().map(|(node, result)| (*node, result))
     }
 
     /// Every staged result, with its node, in slot order.
     pub(crate) fn into_staged(self) -> impl Iterator<Item = (NodeId, FormulaResult)> {
-        self.staged.into_iter().flatten()
+        self.staged.into_values()
     }
 }
 
