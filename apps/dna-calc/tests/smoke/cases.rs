@@ -7620,6 +7620,67 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks:&[Check::Text(cell!("A2"),"1"),Check::Text(cell!("C2"),"100"),Check::Text(cell!("E1"),"10"),Check::Count("outline-toggle",0)],
     },
 
+    Case {
+        name:"conditional authoring: cell-value conditions paint through the shared command",
+        actions:&[
+            Action::ExternalClipboard("1\n2\n3\n4\n5\n6\n7\n8\n9\n10",false),Action::Keys("grid","\u{E009}v\u{E000}"),
+            Action::Wait(Check::Text(cell!("A10"),"10")),Action::Into("name-box","A1:A10\u{E007}"),Action::Click("review-tools"),
+            Action::Choose("rule-kind","cellIs"),Action::Into("rule-new-formulas","6"),Action::Into("rule-color","123456"),Action::Click("rule-add"),
+        ],
+        checks:&[Check::Count("rule-row",1),Check::Style("[data-dnacalc=cell-decoration][data-cell=A7]","background-color:#123456"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=A1]")],
+    },
+    Case {
+        name:"conditional authoring: Undo and Redo restore both the condition and its fill",
+        actions:&[
+            Action::Click("review-undo"),Action::Wait(Check::Count("rule-row",0)),Action::Wait(Check::Absent("[data-dnacalc=cell-decoration][data-cell=A7]")),
+            Action::Click("review-redo"),
+        ],
+        checks:&[Check::Count("rule-row",1),Check::Style("[data-dnacalc=cell-decoration][data-cell=A7]","background-color:#123456")],
+    },
+    Case {
+        name:"conditional authoring: a relative formula highlights its own rows",
+        actions:&[
+            Action::Click("review-undo"),Action::Wait(Check::Count("rule-row",0)),Action::Choose("rule-kind","expression"),Action::Into("rule-new-formulas","A1>=8"),Action::Click("rule-add"),
+        ],
+        checks:&[Check::Count("rule-row",1),Check::Style("[data-dnacalc=cell-decoration][data-cell=A8]","background-color:#123456"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=A7]")],
+    },
+    Case {
+        name:"conditional authoring: top-percent conditions include the highest values",
+        actions:&[
+            Action::Click("review-undo"),Action::Wait(Check::Count("rule-row",0)),Action::Choose("rule-kind","top10"),Action::Into("rule-rank","20"),Action::Click("rule-percent"),Action::Click("rule-add"),
+        ],
+        checks:&[Check::Count("rule-row",1),Check::Style("[data-dnacalc=cell-decoration][data-cell=A9]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=A10]","background-color:#123456"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=A8]")],
+    },
+    Case {
+        name:"conditional authoring: the added condition and differential fill survive XLSX",
+        actions:&[
+            Action::Click("review-close"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,
+            Action::Wait(Check::Text(cell!("A10"),"10")),Action::Click("review-tools"),
+        ],
+        checks:&[Check::Count("rule-row",1),Check::Style("[data-dnacalc=cell-decoration][data-cell=A9]","background-color:#123456"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=A8]")],
+    },
+    Case {
+        name:"conditional authoring: average conditions use the published workbook values",
+        actions:&[
+            Action::Choose("rule-kind","belowAverage"),Action::Into("rule-applies","A1:A10"),Action::Into("rule-color","56789a"),Action::Click("rule-add"),
+        ],
+        checks:&[Check::Count("rule-row",2),Check::Style("[data-dnacalc=cell-decoration][data-cell=A5]","background-color:#56789a"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=A6]")],
+    },
+    Case {
+        name:"conditional authoring: duplicate text matches case and updates with ordinary edits",
+        actions:&[
+            Action::Click("review-close"),Action::ExternalClipboard("North\nnorth\nSouth",false),Action::Into("name-box","B1\u{E007}"),Action::Keys("grid","\u{E009}v\u{E000}"),
+            Action::Wait(Check::Text(cell!("B3"),"South")),Action::Into("name-box","B1:B3\u{E007}"),Action::Click("review-tools"),
+            Action::Choose("rule-kind","duplicateValues"),Action::Into("rule-color","56789a"),Action::Click("rule-add"),
+        ],
+        checks:&[Check::Count("rule-row",3),Check::Style("[data-dnacalc=cell-decoration][data-cell=B1]","background-color:#56789a"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B2]","background-color:#56789a"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=B3]")],
+    },
+    Case {
+        name:"conditional authoring: Manage Rules stays usable at phone width",
+        actions:&[Action::Window(390,844),Action::Wait(Check::Reachable("rule-kind")),Action::Wait(Check::Reachable("review-close")),Action::Keys("rule-kind","\u{E004}\u{E004}\u{E004}")],
+        checks:&[Check::Fits,Check::Focused("rule-add"),Check::Reachable("rule-add")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8370,4 +8431,5 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {name:"axis-outline",start:560,end:566,core:6,setup:&[]},
     CaseGroup {name:"date-top-filters",start:566,end:575,core:9,setup:&[]},
     CaseGroup {name:"qualified-sort",start:575,end:580,core:5,setup:&[]},
+    CaseGroup {name:"conditional-authoring",start:580,end:588,core:8,setup:&[]},
 ];

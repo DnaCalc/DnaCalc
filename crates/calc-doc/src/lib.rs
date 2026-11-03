@@ -108,7 +108,7 @@ pub use save::file_form::{
 };
 pub use save::{
     DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveViews, SaveReceipt, SaveRefusal, StructuralEdits,
-    WriteError, conditional_rule, new_conditional_rule, prepare_save, write,
+    WriteError, conditional_rule, new_condition_rule, new_conditional_rule, prepare_save, write,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use vba::{VbaModuleKind, VbaModuleSource, VbaProjectSource, VbaReadError, VbaReadPolicy};

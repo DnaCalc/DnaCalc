@@ -266,6 +266,34 @@ pub fn new_conditional_rule(
     })
 }
 
+/// A standard non-visual rule, whose formulas have already passed the host formula route.
+pub fn new_condition_rule(
+    areas: Vec<GridArea>, kind: &str, operator: &str, formulas: Vec<String>,
+    rank: u32, percent: bool, dxf: u32,
+) -> Result<ConditionalRuleSource, String> {
+    let (kind, extra) = match kind {
+        "cellIs" => {
+            if !matches!(operator,"between"|"notBetween"|"equal"|"notEqual"|"greaterThan"|"lessThan"|"greaterThanOrEqual"|"lessThanOrEqual") {return Err("Choose a supported comparison".into());}
+            let count=if matches!(operator,"between"|"notBetween") {2}else{1};
+            if formulas.len()!=count {return Err(format!("This comparison needs {count} formula(s)"));}
+            (kind,format!(" operator=\"{operator}\""))
+        }
+        "expression" if formulas.len()==1 => (kind,String::new()),
+        "top10"|"bottom10" if formulas.is_empty() && (1..=if percent {100}else{1000}).contains(&rank) =>
+            ("top10",format!(" rank=\"{rank}\" percent=\"{}\" bottom=\"{}\"",u8::from(percent),u8::from(kind=="bottom10"))),
+        "aboveAverage"|"belowAverage" if formulas.is_empty() =>
+            ("aboveAverage",format!(" aboveAverage=\"{}\"",u8::from(kind=="aboveAverage"))),
+        "duplicateValues"|"uniqueValues" if formulas.is_empty() => (kind,String::new()),
+        _=>return Err("Choose a supported rule and its required formulas or rank (dc-971p.40)".into()),
+    };
+    if areas.is_empty() {return Err("Choose a rule range".into());}
+    let mut body=Vec::new();
+    for formula in &formulas {write_formula(b"",formula,&mut body);}
+    let body=String::from_utf8(body).expect("XML writer emits UTF-8");
+    let source=format!("<worksheet xmlns=\"{MAIN_NAMESPACE}\"><conditionalFormatting sqref=\"{}\"><cfRule type=\"{kind}\" dxfId=\"{dxf}\" priority=\"1\"{extra}>{body}</cfRule></conditionalFormatting></worksheet>",sqref(&areas)).into_bytes();
+    Ok(ConditionalRuleSource {source:source.into(),areas,priority:1,stop:false,formulas,authored:true})
+}
+
 /// Replaces standard blocks in the same worksheet, retaining all unrelated elements.
 pub(super) fn rewrite(
     xml: &XmlPart,
