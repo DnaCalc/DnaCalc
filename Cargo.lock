@@ -278,6 +278,7 @@ dependencies = [
  "calc-vba",
  "calc-verdict",
  "miniz_oxide",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

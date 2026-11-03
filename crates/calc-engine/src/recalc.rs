@@ -54,9 +54,11 @@
 //!   evaluates A1 before B1, A5 before A6 and B5 before C5, and the sheets by name, letter case
 //!   ignored, whatever the order the formulas were entered in, the saved calc chain, the tab order
 //!   or the sheet IDs; dc-86f, Excel 16.0.20527 2026-10-30, tests/fixtures/dc_86f). The current
-//!   DNA stopping policy compares each cyclic value after a complete sweep and stops when the
-//!   largest change is strictly below MaxChange, or MaxIterations sweeps have run. Threshold
-//!   equality, independent SCC stopping and nonnumeric convergence await P14 recordings. Excel
+//!   stopping policy compares evaluated scalar values, including downstream readers, after a
+//!   complete sweep and stops when the largest change is strictly below MaxChange, or
+//!   MaxIterations sweeps have run. P14's partial 2026-11-03 recordings confirm strict equality,
+//!   downstream amplifier influence and the recorded text/error outputs. Observer counts,
+//!   intermediate caches and the remaining command/topology variants remain open. Excel
 //!   16.0 (2026-10-23, 100 iterations, maximum change 0.001) added 200 to A1 `=B1+1` and B1
 //!   `=A1+1` and 100 to C1 `=C1+1` on each recalculation, and converged D3 `=E3/2+1` with E3
 //!   `=D3` to 2 and F3 `=F3*0.5+5` to 10. Every recalculation calculates the formulas on a cycle
@@ -118,6 +120,12 @@ const MAX_SIZING_EVALUATIONS: u32 = 8;
 /// nothing; its pending nodes stay pending.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StartError {
+    /// A scope whose Excel calculation policy is not implemented. No target
+    /// result is produced; the named work package owns the missing profile.
+    NotModeledScope {
+        construct: &'static str,
+        owner: &'static str,
+    },
     /// An exact scope is empty or names a sheet outside the workbook.
     InvalidScope { sheet: Option<SheetId> },
     /// The caller must transform the admitted scope after moving worksheet addresses.
@@ -141,6 +149,9 @@ pub enum StartError {
 impl fmt::Display for StartError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            StartError::NotModeledScope { construct, owner } => {
+                write!(f, "{construct} is not modelled ({owner})")
+            }
             StartError::ScopeTransformRequired => {
                 f.write_str("the scoped successor needs an address transform (dc-hsa5)")
             }
@@ -458,7 +469,8 @@ pub struct RecalcWork {
     /// its value at the end of the last pass, or its new value once evaluated in this pass;
     /// `None` when its result is no value.
     iterates: BTreeMap<NodeId, Option<CalcValue>>,
-    /// With iteration on, the values of `iterates` when the current pass began.
+    /// With iteration on, the evaluated formulas' values when the current pass began.
+    /// Downstream formulas participate in stopping without becoming cyclic read seeds.
     pass_start: BTreeMap<NodeId, Option<CalcValue>>,
     /// How many passes over the order have ended.
     passes: u32,
@@ -1296,6 +1308,19 @@ fn begin_with_scope(
     state.readers_cache = cache;
     order.retain(|node| scope.contains(live_anchor(state, *node)));
     cyclic.retain(|node| scope.contains(live_anchor(state, *node)));
+    if iteration.enabled()
+        && !cyclic.is_empty()
+        && matches!(&scope, CalcScope::Range(_))
+        && selection != EvalSelection::FormulaEntry
+    {
+        // P14's Range.Calculate kept its seeds, unlike the workbook commands.
+        // Mixed targets and dynamic cyclic ranges still need qualification;
+        // refuse this profile before any target can be called calculated.
+        return Err(StartError::NotModeledScope {
+            construct: "iterative range calculation with circular formulas",
+            owner: "dc-hsa5.11",
+        });
+    }
     if cyclic.is_empty()
         && selection.forces_all()
         && let CalcScope::Range(areas) = &scope
@@ -3256,6 +3281,19 @@ fn schedule(
     }
 }
 
+/// The same graph's temporary integer indices for Tarjan, used by initial
+/// ordering and by a dynamic edge that joins an existing cyclic component.
+fn indexed_readers(readers_of: &BTreeMap<NodeId, Vec<NodeId>>) -> (Vec<NodeId>, Vec<Vec<usize>>) {
+    let nodes: Vec<NodeId> = readers_of.keys().copied().collect();
+    let index_of: BTreeMap<NodeId, usize> =
+        nodes.iter().enumerate().map(|(i, n)| (*n, i)).collect();
+    let edges: Vec<Vec<usize>> = nodes
+        .iter()
+        .map(|node| readers_of[node].iter().map(|r| index_of[r]).collect())
+        .collect();
+    (nodes, edges)
+}
+
 /// The nodes of `readers_of` with its cycles: each strongly connected component (found by an
 /// iterative Tarjan, ported from OxCalc's `cycle_groups`) in the order of the ready queue over
 /// the components, a component ready once every component it reads is ordered and the one whose
@@ -3266,13 +3304,7 @@ fn order_with_cycles(
     inputs: &ModelRoot,
     readers_of: &BTreeMap<NodeId, Vec<NodeId>>,
 ) -> Scheduled {
-    let nodes: Vec<NodeId> = readers_of.keys().copied().collect();
-    let index_of: BTreeMap<NodeId, usize> =
-        nodes.iter().enumerate().map(|(i, n)| (*n, i)).collect();
-    let edges: Vec<Vec<usize>> = nodes
-        .iter()
-        .map(|node| readers_of[node].iter().map(|r| index_of[r]).collect())
-        .collect();
+    let (nodes, edges) = indexed_readers(readers_of);
     let component = tarjan(&edges);
     let count = component.iter().copied().max().map_or(0, |max| max + 1);
     let mut members: Vec<Vec<usize>> = vec![Vec::new(); count];
@@ -3978,7 +4010,7 @@ fn active_segment(work: &RecalcWork) -> Option<usize> {
         .min()
 }
 
-/// Ends a pass of an iterating recalculation: when it changed the value of a formula on a cycle
+/// Ends a pass of an iterating recalculation: when it changed an evaluated formula's value
 /// by the maximum change or more and fewer passes than the maximum have run, begins the next
 /// pass, every node of the order no longer evaluated (its staged result stands until it is
 /// evaluated again), and returns true.
@@ -3988,12 +4020,27 @@ fn next_pass(work: &mut RecalcWork) -> bool {
     }
     work.passes += 1;
     let change = work
-        .cyclic
+        .order
         .iter()
         .map(|node| {
-            let before = work.pass_start.get(node).cloned().flatten();
-            let after = work.iterates.get(node).cloned().flatten();
-            change_between(before.as_ref(), after.as_ref())
+            let before = work.pass_start.get(node).and_then(Option::as_ref);
+            let after = work
+                .progress
+                .staged(*node)
+                .and_then(FormulaResult::calculated)
+                .map(|(value, _)| value);
+            // P14 measures scalar downstream changes. Array/spill repair keeps
+            // its separate wave boundary rather than extending the scalar sweep.
+            if !work.cyclic.contains(node)
+                && (work.filled.get(*node).is_some_and(Option::is_some)
+                    || after.is_none_or(|value| {
+                        value.as_array().is_some() || value.as_reference().is_some()
+                    }))
+            {
+                0.0
+            } else {
+                change_between(before, after)
+            }
         })
         .fold(0.0f64, f64::max);
     if work.passes >= work.iteration.max_iterations() || change < work.iteration.max_change() {
@@ -4001,7 +4048,11 @@ fn next_pass(work: &mut RecalcWork) -> bool {
         return false;
     }
     work.open_pass(PassReason::IterationSweep(work.passes));
-    work.pass_start = work.iterates.clone();
+    work.pass_start = work
+        .progress
+        .staged_results()
+        .map(|(node, result)| (node, result.calculated().map(|(value, _)| value.clone())))
+        .collect();
     for node in &work.order {
         work.progress.schedule(*node);
     }
@@ -4009,12 +4060,22 @@ fn next_pass(work: &mut RecalcWork) -> bool {
     true
 }
 
-/// How much a formula's value changed in a pass: the difference of two numbers, nothing for two
-/// equal values, and without bound for any other change.
+/// P14's text/error outputs do not keep a sweep running. A numeric or logical
+/// output compares with the previous scalar number (zero for a text/error seed).
+/// Other result shapes retain the conservative unequal-value rule.
 fn change_between(before: Option<&CalcValue>, after: Option<&CalcValue>) -> f64 {
+    let number = |value: &CalcValue| {
+        value.as_number().or_else(|| {
+            value
+                .as_logical()
+                .map(|value| if value { 1.0 } else { 0.0 })
+        })
+    };
     match (before, after) {
-        (Some(a), Some(b)) => match (a.as_number(), b.as_number()) {
+        (Some(_), Some(b)) if b.as_text().is_some() || b.as_error().is_some() => 0.0,
+        (Some(a), Some(b)) => match (number(a), number(b)) {
             (Some(x), Some(y)) => (x - y).abs(),
+            (None, Some(y)) if a.as_text().is_some() || a.as_error().is_some() => y.abs(),
             _ if a == b => 0.0,
             _ => f64::INFINITY,
         },
@@ -4177,6 +4238,34 @@ fn refused_by(calculation: &Calculation, refusal: NotModeled) -> Done {
 /// cycle only the evaluations found: with iteration on its formulas join the formulas on a cycle
 /// and are evaluated again at once, and with iteration off `node` is staged as not modelled.
 fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: NodeId, on: NodeId) {
+    if work.iteration.enabled() && work.cyclic.contains(&node) {
+        // An existing cyclic seed can let a static reader finish before the
+        // reverse dynamic edge exposes their larger SCC (P14 B7). Find that SCC
+        // using the same graph and Tarjan as ordinary ordering, with this pending
+        // edge included. Do not admit participants outside the current scope.
+        let closure = dirty_closure(state, inputs, BTreeSet::from([node]), &|member| {
+            published_areas(state, inputs, member)
+        });
+        if closure.members().binary_search(&on).is_ok() {
+            let mut readers = closure.to_map();
+            readers
+                .get_mut(&on)
+                .expect("the awaited node is in the closure")
+                .push(node);
+            let (nodes, edges) = indexed_readers(&readers);
+            let components = tarjan(&edges);
+            let group = components[nodes.binary_search(&node).expect("the closure root")];
+            let chain: Vec<_> = nodes
+                .iter()
+                .enumerate()
+                .filter_map(|(i, node)| (components[i] == group).then_some(*node))
+                .collect();
+            if chain.iter().all(|node| work.progress.is_scheduled(*node)) {
+                resume_cycle(state, inputs, work, chain);
+                return;
+            }
+        }
+    }
     let mut cursor = on;
     loop {
         if cursor == node {
@@ -4189,24 +4278,7 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
                     None => break,
                 };
             }
-            for member in &chain {
-                if let Some(awaited) = work.waits_on.remove(member)
-                    && let Some(waiters) = work.waiting.get_mut(&awaited)
-                {
-                    waiters.retain(|waiter| waiter != member);
-                }
-            }
-            sort_members(state, inputs, &mut chain);
-            if work.iteration.enabled() {
-                // Evaluated again in cell order, as the members of a cycle the order found are.
-                work.add_cyclic(state, chain.iter().copied());
-                work.ready.extend(chain);
-            } else {
-                // With iteration off no formula of the cycle is calculated (dc-10y).
-                for member in chain {
-                    keep(state, inputs, work, member);
-                }
-            }
+            resume_cycle(state, inputs, work, chain);
             return;
         }
         match work.waits_on.get(&cursor) {
@@ -4222,6 +4294,53 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
     }
     work.waits_on.insert(node, on);
     work.waiting.entry(on).or_default().push(node);
+}
+
+/// Resume a discovered component in the same cell order as a statically found
+/// component. Keep that order on subsequent sweeps, without evaluating a member
+/// twice in the discovery sweep if its existing seed already let it finish.
+fn resume_cycle(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    work: &mut RecalcWork,
+    mut chain: Vec<NodeId>,
+) {
+    for member in &chain {
+        if let Some(awaited) = work.waits_on.remove(member)
+            && let Some(waiters) = work.waiting.get_mut(&awaited)
+        {
+            waiters.retain(|waiter| waiter != member);
+        }
+    }
+    sort_members(state, inputs, &mut chain);
+    if work.iteration.enabled() {
+        work.add_cyclic(state, chain.iter().copied());
+        let members: BTreeSet<_> = chain.iter().copied().collect();
+        let placed: BTreeSet<_> = work
+            .order
+            .iter()
+            .copied()
+            .filter(|node| members.contains(node))
+            .collect();
+        let mut ordered = chain.iter().filter(|node| placed.contains(node));
+        for node in &mut work.order {
+            if members.contains(node) {
+                *node = *ordered.next().expect("one place for each component member");
+            }
+        }
+        let progress = &work.progress;
+        let queued: BTreeSet<_> = work.ready.iter().copied().collect();
+        work.ready.extend(
+            chain
+                .into_iter()
+                .filter(|node| !progress.is_evaluated(*node) && !queued.contains(node)),
+        );
+    } else {
+        // With iteration off no formula of the cycle is calculated (dc-10y).
+        for member in chain {
+            keep(state, inputs, work, member);
+        }
+    }
 }
 
 /// Stages an evaluated node's result, spill and dynamic prerequisites, releases the nodes that
@@ -4324,9 +4443,14 @@ fn stage(
     if let Some(area) = after {
         work.progress.footprints.insert(node, area);
     }
-    if work.iteration.enabled() && work.cyclic.contains(&node) {
-        let value = done.result.calculated().map(|(value, _)| value.clone());
-        work.iterates.insert(node, value);
+    if work.iteration.enabled() {
+        work.pass_start
+            .entry(node)
+            .or_insert_with(|| Some(starting_value(state, node)));
+        if work.cyclic.contains(&node) {
+            let value = done.result.calculated().map(|(value, _)| value.clone());
+            work.iterates.insert(node, value);
+        }
     }
     work.progress.stage(node, done.result);
     work.dynamic.insert(node, done.dynamic);

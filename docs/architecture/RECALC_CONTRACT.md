@@ -178,11 +178,24 @@ Previously a finite budget could publish after one sweep while an unlimited
 budget performed all required sweeps. Staged cyclic values stay private until
 the session finishes; that publication boundary is a DNA policy pending P14,
 not an observation of Excel's intermediate caches. Current stopping compares
-the largest cyclic value change strictly below MaxChange, limiting ordinary
-iteration sweeps by MaxIterations. Existing spill/dependency repair waves keep
+the largest evaluated scalar change strictly below MaxChange, including
+downstream readers, and limits ordinary iteration sweeps by MaxIterations.
+Existing spill/dependency repair waves keep
 their separate bound and reopen the stopping decision; their evaluations are
-not evidence of Excel's iteration count. Threshold equality, stopping across independent SCCs,
-nonnumeric convergence and changing topology still need recordings. The recorded
+not evidence of Excel's iteration count. The partial P14 delivery under
+`calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103` has 41 conditions,
+ten trials in one owned process per condition. The host replays 40 recorded inputs
+at unlimited and one-evaluation budgets: 219 command/value observations, 438
+comparisons. Rebuild's threshold equality is strict; downstream amplifiers can
+keep the scalar sweep running. A dynamic read joining an existing cycle uses the
+same Tarjan analysis and cyclic read seeds as static ordering. Text/error outputs
+do not drive another scalar sweep; a numeric value after such a seed compares
+with zero. This model reproduces the recorded B6 outputs without measuring
+individual SCC execution counts. The 41st condition, cyclic Range.Calculate,
+has a typed dc-hsa5.11 scope refusal before evaluation: its eight command/value
+observations are nonpasses, and its retained caches are never counted as calculated.
+Its mixed/dynamic variants, other threshold commands, observer counts, mid-cycle caches,
+mixed topology and cross-workbook behavior remain open. The recorded
 dc_86f and dc_10y_iteration first-calculation values cover order, held seeds and
 the recorded limits; their reopen observations describe later calculations.
 Cross-workbook cyclic requests retain their named refusal before admission.
