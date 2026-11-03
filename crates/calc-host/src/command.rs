@@ -125,11 +125,17 @@ pub struct CommandReceipt {
     revision: AuthoredRevision,
     changed_cells: Vec<CellKey>,
     cleared_areas: Vec<GridArea>,
+    input_writes: Vec<GridArea>,
     pending: Vec<CellKey>,
     superseded_recalc: Option<CalcTick>,
 }
 
 impl CommandReceipt {
+    /// Explicit authored cell writes, including same-value rewrites and clears of blanks.
+    /// Formats, calculation results and workbook settings are not worksheet Change targets.
+    pub fn input_writes(&self) -> &[GridArea] {
+        &self.input_writes
+    }
     /// The revision the command was based on.
     pub fn base(&self) -> AuthoredRevision {
         self.base
@@ -535,6 +541,12 @@ pub fn dispatch(
         revision: committed.revision(),
         changed_cells,
         cleared_areas,
+        input_writes: batch.operations.iter().filter_map(|op| match op {
+            WorkbookOp::SetCell { at, .. } => Some(GridArea::cell(*at)),
+            WorkbookOp::Clear { area } => Some(*area),
+            WorkbookOp::SetArray { array, .. } => Some(array.area()),
+            _ => None,
+        }).collect(),
         pending,
         superseded_recalc,
     })
@@ -669,6 +681,7 @@ pub(crate) fn restore(
         revision: host.model.revision(),
         changed_cells: Vec::new(),
         cleared_areas: Vec::new(),
+        input_writes: Vec::new(),
         pending,
         superseded_recalc,
     })

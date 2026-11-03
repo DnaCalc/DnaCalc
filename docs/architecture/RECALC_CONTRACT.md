@@ -596,7 +596,59 @@ while waiting for a provider, and emit one SaveReady notification. PollSave retu
 through the existing command journal. The controller retains the download callback by workbook,
 token and generation and drops it on replacement. Manual Save(false) stays noncalculating. These
 async save controls establish DNA behavior, not new Excel Save(true) measurements. P07's UI
-Save(false) cancellation profile and automatic VBA event registration remain open.
+Save(false) cancellation profile remains open. The event hookup below covers explicit
+source projects; automatic BeforeSave and P22 parity remain open.
+
+Workbook event hookup (dc-hsa5.12, 2026-11-03): an explicitly loaded source
+project supplies its standard/document module kinds and worksheet identities.
+The compiler/runtime select private handlers and subscribe the host's canonical
+document sources. Standard-module UDFs and handlers retain the same project
+state. This does not execute a file's VBA automatically or register handler
+procedure names in a second catalogue. OneCalc retains its engine-free route.
+
+The host delivers Change after an authored cell-write commit, before automatic
+calculation. Same-value writes and clears retain explicit targets; formats and
+calculated values do not become Change targets. It gathers calculated sheets
+across prefix publications and delivers Calculate only at terminal command
+publication. These distinguish the documented [Change](https://learn.microsoft.com/en-us/office/vba/api/excel.worksheet.change)
+and [Calculate](https://learn.microsoft.com/en-us/office/vba/api/excel.worksheet.calculate(even))
+events. Waiting for the whole command is a conservative DNA boundary; per-sheet
+timing, multi-sheet order, no-op commands, external updates and reentrant edits
+still need P22 recordings. The event switch currently belongs to this workbook
+session, rather than an application-wide Excel EnableEvents property.
+
+A persistent BeforeSave owner enters the existing pre-pin authored-batch route;
+an explicit context owner overrides it, SaveCopyAs skips it, and disabled events
+suppress both. Handler edits survive cancellation. Exact automatic VBA
+BeforeSave is still unavailable: OxVba953ece7f's event API has Object and
+ByRefBoolean carriers but lacks the plain Boolean SaveAsUI argument in the
+[documented signature](https://learn.microsoft.com/en-us/office/vba/api/excel.workbook.beforesave).
+Such a project returns a named dc-hsa5.12 refusal before replacing live code;
+the metadata keeps the real signature. The upstream request is in the engine9
+Windows packet. This is a host hookup, not a completed automatic BeforeSave claim.
+
+The portable document projection supports explicit Target.Value2, Row, Column,
+Count and Address under one synchronous event view. Count returns Long and raises
+overflow for more than 2,147,483,647 cells, as the [Range.Count contract](https://learn.microsoft.com/en-us/office/vba/api/excel.range.count)
+requires. It uses DNA nominal
+interface identities, not Excel COM IIDs. Reads use the host's existing projected
+caches and add no graph demand. Target handles expire with that view; catching
+their refusal in VBA cannot turn it into a calculated result. General object
+UDF signatures, stored event Targets, Me members, event writes and WorksheetFunction
+callbacks remain unavailable in this profile. Document-project UDF entries use
+the runtime's owning value calls so an older Variant entry cannot swallow these
+capability refusals. Long, Double, Boolean, String and Variant signatures are
+admitted explicitly within the runtime's four-argument and owning-slot limits;
+other signatures or unsupported owning bodies return a named refusal during preparation.
+The existing standard-module loader retains its wider adapter.
+
+Reset reattaches the same sources; replacement prepares and attaches all new
+sources before publishing registrations. Callback tables release their borrow
+before entering user code and unsubscribe on owner drop. Event delivery is
+synchronous and budgeted. A runtime busy/error/budget refusal is recorded once,
+without retrying effects or undoing the authored edit. The bounded failure queue
+counts omitted older failures, and the worker reports them through the ordinary
+wire route. P22's Excel traces and the broader macro object model remain open.
 
 
 Defined-name implementation update (dc-hsa5.5, 2026-11-01): the canonical `NameTable` stores

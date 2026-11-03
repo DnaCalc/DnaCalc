@@ -12,21 +12,21 @@ portability = "portable"
 [dependencies]
 scoped-tls-hkt = "0.1.5"
 thiserror = "2"
-oxvba-oxir = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
-oxvba-eval = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
-oxvba-bundle = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
-oxvba-symbol = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
-oxvba-hal = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
-oxvba-com = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
-oxvba-runtime = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
-calcvba-host-api = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1" }
+oxvba-oxir = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444" }
+oxvba-eval = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444" }
+oxvba-bundle = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444" }
+oxvba-symbol = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444" }
+oxvba-hal = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444" }
+oxvba-com = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444" }
+oxvba-runtime = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444" }
+calcvba-host-api = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444" }
 calc-fml = { path = "../calc-fml" }
 calc-func = { path = "../calc-func" }
 # Reviewed embedding contract UDF_EMBEDDING_V1. Native selects JIT at admission.
-oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1", default-features = false }
+oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1", default-features = false, features = ["jit"] }
+oxvba-embed = { git = "https://github.com/DnaCalc/OxVba.git", rev = "953ece7f8aadf158e175ca36439171ba6ce5f444", default-features = false, features = ["jit"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"
