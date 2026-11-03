@@ -1,0 +1,149 @@
+{
+  "required_checks": [
+    {
+      "revision": "221549e3",
+      "command": "cargo xtask check",
+      "counts": {
+        "passed": 1351,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 1,
+        "harnesses": 67,
+        "packages": 15
+      },
+      "log": "validation/check-captures.txt",
+      "sha256": "daaa68202f0f362229abf98dde3800bbdb016ffdc9fa6ffeb10dc693268916b4"
+    },
+    {
+      "revision": "93ad8caa",
+      "command": "cargo xtask check",
+      "counts": {
+        "passed": 1354,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 1,
+        "harnesses": 67,
+        "packages": 15
+      },
+      "log": "validation/check-captures-merged.txt",
+      "sha256": "0c8e1ad5802c0ea3c1e57e19c504856fff1be145ce39fd39bd650a4680bf40eb"
+    },
+    {
+      "revision": "5e7533e8",
+      "command": "cargo xtask check",
+      "counts": {
+        "passed": 1451,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 1,
+        "harnesses": 71,
+        "packages": 17
+      },
+      "log": "validation/check-entry-after-ice-clean.txt",
+      "sha256": "23f543c76f318989f87a9fb12a426ec2ea04caee3551ccca0cac49a4444db2d6"
+    },
+    {
+      "revision": "0aac4a2b",
+      "command": "cargo xtask check",
+      "counts": {
+        "passed": 27,
+        "failed": 0,
+        "ignored": 0,
+        "not_run": 0,
+        "harnesses": 6,
+        "packages": 3
+      },
+      "log": "validation/check-rtd-retirement.txt",
+      "sha256": "b064443b83a2728d6712cc005a178e6a20a9b2481201e9d70d50ebeb359e09e7"
+    },
+    {
+      "revision": "8f252cc1",
+      "command": "cargo xtask check",
+      "counts": {
+        "passed": 28,
+        "failed": 0,
+        "ignored": 0,
+        "not_run": 0,
+        "harnesses": 6,
+        "packages": 3
+      },
+      "log": "validation/check-reload-published.txt",
+      "sha256": "8f0bfa490fd776623c99f5589e86d4247447ad9fc5d9a49d5da6ec8fd2d957b9"
+    },
+    {
+      "revision": "e9a55ec7",
+      "command": "cargo xtask check",
+      "status": "passed",
+      "counts": {
+        "passed": 126,
+        "failed": 0,
+        "ignored": 0,
+        "not_run": 0,
+        "harnesses": 1,
+        "packages": 1
+      },
+      "log": "validation/check-linked-source-fix.txt",
+      "sha256": "819f574b8323614e464a01d69d74bff4dd1c0d21ec70a1f120a38b9500d46070"
+    },
+    {
+      "revision": "e9a55ec7",
+      "command": "cargo xtask check --all",
+      "status": "passed",
+      "counts": {
+        "passed": 1660,
+        "failed": 0,
+        "ignored": 5,
+        "not_run": 1,
+        "harnesses": 93,
+        "packages": 27
+      },
+      "log": "validation/check-final-integration-all-corrected.txt",
+      "sha256": "0f8897abf45345b00fe7e510d9c5017016c61156c9c1318b009144f0e121005d"
+    }
+  ],
+  "not_run": [
+    "full sweep",
+    "Linux",
+    "GitHub CI"
+  ],
+  "source_publication": "source-publication.json; exact same-path Git blobs with LF/CRLF normalization only",
+  "failed_attempts": "All original raw/failed runs remain outside the repository in C:/Work/DnaCalc/codex-runs/xll7. The original R16 default-output launch failed before producing results; retry used its documented explicit output argument. Build, first formula-entry test, compiler ICE, provisional publication checks, old idle-transport mismatch and reload prototypes remain failures. Renamed-loader control crashed; Python/override controls typed-refuse. Original Excel reload still crashes in both controls.",
+  "negative_rtd_release": "Only final RTD server COM Release reference count changed from0 to1 in a copied Excel trace; verifier rejects it. Original trace unchanged.",
+  "safety": "Only owned Excel PIDs stopped; no Excel COM registration, HKLM, Trust Center or macro-setting writes; protected directories and unrelated Excel untouched.",
+  "failed_integration_checks": [
+    {
+      "revision": "a06df127",
+      "command": "cargo xtask check --all",
+      "status": "failed; retained before correction",
+      "counts": {
+        "passed": 1659,
+        "failed": 1,
+        "ignored": 5,
+        "not_run": 1,
+        "harnesses": 93,
+        "packages": 27
+      },
+      "log": "validation/check-final-integration-all.txt",
+      "sha256": "26f1ecf9e53a9103a0c00c5815b152ab6d3a2881e1d66ec87ecb5e4fc1c441e8"
+    }
+  ],
+  "integration_failure_correction": "The missing-source test could read its original absolute source on this machine. Only its in-memory test copy relationship paths were relocated to its own temporary source. All 74/73/1 assertions remain; exact source identity and no-opened-source-after-removal checks strengthen provenance. Original fixture/capture/answers and production code are unchanged.",
+  "tracker_integration": {
+    "issues": 263,
+    "all_fields_text_authors_timestamps_and_comments_retained": true,
+    "br_comment_id_remaps": [
+      {
+        "issue": "dc-j9k",
+        "text_sha256": "26b1f5e25191e951c1a62322f4201dfeab054ad7865a5f86ba50dc761e6968cb",
+        "old_id": 9160,
+        "new_id": 9161
+      },
+      {
+        "issue": "dc-j9k",
+        "text_sha256": "3fea7b2c4ca9dee1becdf87b7e9ae359759fa5fa72c478a22fb7618296b1d838",
+        "old_id": 9161,
+        "new_id": 9162
+      }
+    ]
+  }
+}

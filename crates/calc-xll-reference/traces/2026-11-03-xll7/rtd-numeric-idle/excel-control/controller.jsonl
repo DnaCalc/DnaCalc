@@ -1,0 +1,13 @@
+{"utc":"2026-11-03T04:09:18.6969056Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-03T04:09:19.1195327Z","operation":"RTD COM retry","value":-2147418111}
+{"utc":"2026-11-03T04:09:19.1941432Z","operation":"RTD idle begin =10+X5.RtdValue()+3","value":22000}
+{"utc":"2026-11-03T04:09:41.2482315Z","operation":"RTD idle complete =10+X5.RtdValue()+3","value":22056}
+{"utc":"2026-11-03T04:09:41.2522829Z","operation":"=10+X5.RtdValue()+3","value":55.0}
+{"utc":"2026-11-03T04:09:41.2589354Z","operation":"dependent =10+X5.RtdValue()+3","value":110.0}
+{"utc":"2026-11-03T04:09:41.2741448Z","operation":"=99","value":99.0}
+{"utc":"2026-11-03T04:09:41.2776276Z","operation":"dependent =99","value":198.0}
+{"utc":"2026-11-03T04:09:41.3088472Z","operation":"Close RTD workbook before detach","value":true}
+{"utc":"2026-11-03T04:09:42.2142365Z","operation":"RTD termination before detach","value":true}
+{"utc":"2026-11-03T04:09:42.2442141Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-03T04:09:42.2481505Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-03T04:09:45.1234534Z","operation":"cleanup","value":"Owned Excel exited"}

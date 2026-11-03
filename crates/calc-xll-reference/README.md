@@ -318,3 +318,35 @@ DNA Calc has three UI failures in each browser (dc-971p.6). The unchanged worker
 WASM passes all 23 cases in a focused Chrome retry. OneCalc passes 52 cases in
 each browser. The long acceptance suite was skipped. The validation records keep
 the initial file-lock failure, runner failure, retry and exact UI failure messages.
+
+## R7: strict pool/RTD traffic and bounded native xlOil reload
+
+The [R7 evidence](traces/2026-11-03-xll7/) supersedes the earlier strict pool and
+RTD failures. The pool profile matches all 15 native entries and two owned frees.
+The original signaling RTD profile matches eight client calls. Its 22-second idle
+extension disconnects the completed transport before idle; a separate persistent
+numeric provider has seven calls including exactly one Heartbeat on each host.
+The final admitted P07 input remains certified until formula replacement.
+
+Use the existing four-directory verifier with `--workbook-pool-cases` or
+`--rtd-cases`; the retained idle case files add `rtd_idle_ms: 22000` to the first
+case. The numeric destructor's internal ServerTerminate body is retained under
+its final owning Release, not counted as another client request. The negative
+trace with a nonzero final reference count is rejected.
+
+For the exact original native Utils/SQL profile, run `run.ps1 -Reload` or
+`-ReloadNewHost` with `fixture/x3-xloil-cases.json`. Pass the Excel traced/control
+and host traced/control directories to `verify.py --xloil-reload-cases`, with
+`--source-publication` naming the retained publication. The verifier compares 12
+formula outcomes and 13 ordered native calls before/after host reload, ownership
+and actual DLL unload/reload cycles. Original Excel reload still crashes: that
+failed lifecycle, its debugger diagnostics and both RPC failures remain explicit.
+Only its complete first-load calls are used as the native reference.
+
+The host repair requires exact loader/core/ini/plugin hashes, no settings override
+or prior core, successful teardown, drained originating module leases and checked
+process-local window ownership. It never changes framework binaries or Excel COM
+registrations. Python and settings-override reload controls still refuse. A
+renamed-loader control crashed and remains unqualified. Broader runtime teardown
+and general safe reload stay open under dc-snz.21; the finite X5 results do not
+close the remaining concurrency, cancellation and RTD scope of dc-snz.23.

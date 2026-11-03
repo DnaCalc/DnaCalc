@@ -1,0 +1,14 @@
+{"utc":"2026-11-03T03:41:21.2544230Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-03T03:41:32.9770328Z","operation":"before Calculate MyOverlapReset","value":1.0}
+{"utc":"2026-11-03T03:41:33.0043903Z","operation":"=MyOverlap(40)","value":41.0}
+{"utc":"2026-11-03T03:41:33.0080600Z","operation":"dependent =MyOverlap(40)","value":81.0}
+{"utc":"2026-11-03T03:41:33.0459582Z","operation":"=MyOverlapMax()","value":2.0}
+{"utc":"2026-11-03T03:41:33.0497702Z","operation":"dependent =MyOverlapMax()","value":0.0}
+{"utc":"2026-11-03T03:41:33.0876795Z","operation":"=MyWorkerCallbacks(19,23)","value":42.0}
+{"utc":"2026-11-03T03:41:33.1248170Z","operation":"=MyWorkerReference(A1)","value":7.0}
+{"utc":"2026-11-03T03:41:33.1744674Z","operation":"=MyWorkerOwned()","value":"native owned"}
+{"utc":"2026-11-03T03:41:33.2000154Z","operation":"=MyFreeCount()","value":2.0}
+{"utc":"2026-11-03T03:41:33.5426696Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-03T03:41:33.5485372Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-03T03:41:33.6650285Z","operation":"tracer exit","value":0}
+{"utc":"2026-11-03T03:41:34.8732076Z","operation":"cleanup","value":"Stopped owned Excel PID 60820"}

@@ -1,0 +1,13 @@
+[
+  {
+    "sha256": "5236ce7aa171c1c32b1c6f93dbc964b6066f929bcdb7eb0bb9a64c7584d017fb",
+    "source": "\\\\?\\C:\\Work\\DnaCalc\\cw-ceng\\ylr\\ylr-source.xlsx",
+    "status": "opened for engine calculation"
+  },
+  {
+    "link": 1,
+    "referrer": "\\\\?\\C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-host\\tests\\fixtures\\dc_ylr\\oracle.xlsx",
+    "source": "\\\\?\\C:\\Work\\DnaCalc\\cw-ceng\\ylr\\ylr-source.xlsx",
+    "status": "connected"
+  }
+]

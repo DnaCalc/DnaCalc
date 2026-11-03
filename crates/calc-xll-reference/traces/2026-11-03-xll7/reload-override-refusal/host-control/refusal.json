@@ -1,0 +1,5 @@
+{
+  "status": "typed refusal, not a compatibility pass",
+  "exit_code": 1,
+  "message": "dna-calc-desktop: dc-snz.21: reopening the measured xlOil 0.22.1 runtime after teardown is not modelled; restart the host"
+}

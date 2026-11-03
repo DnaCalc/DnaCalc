@@ -1,0 +1,957 @@
+{
+  "status": "verified within-workbook legacy scalar pool",
+  "formula_cases": 6,
+  "native_invocations_each_host": 15,
+  "native_records": {
+    "MyOverlap": [
+      {
+        "arguments": [
+          {
+            "code": "E",
+            "value": 40
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 41
+        },
+        "callbacks": [],
+        "execution_context": "owner"
+      },
+      {
+        "arguments": [
+          {
+            "code": "E",
+            "value": 40
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 41
+        },
+        "callbacks": [],
+        "execution_context": "worker"
+      },
+      {
+        "arguments": [
+          {
+            "code": "E",
+            "value": 80
+          }
+        ],
+        "result": {
+          "type": 16,
+          "value": 15
+        },
+        "callbacks": [],
+        "execution_context": "owner"
+      },
+      {
+        "arguments": [
+          {
+            "code": "E",
+            "value": 80
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 81
+        },
+        "callbacks": [],
+        "execution_context": "worker"
+      }
+    ],
+    "MyOverlapMax": [
+      {
+        "arguments": [],
+        "result": 2,
+        "callbacks": [],
+        "execution_context": "owner"
+      },
+      {
+        "arguments": [],
+        "result": 2,
+        "callbacks": [],
+        "execution_context": "owner"
+      }
+    ],
+    "MyOverlapReset": [
+      {
+        "arguments": [],
+        "result": 1,
+        "callbacks": [],
+        "execution_context": "owner"
+      }
+    ],
+    "MyWorkerCallbacks": [
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 1,
+              "value": 19
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 1,
+              "value": 23
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            4,
+            [
+              {
+                "type": 1,
+                "value": 19
+              },
+              {
+                "type": 1,
+                "value": 23
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ]
+        ],
+        "execution_context": "owner"
+      },
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 1,
+              "value": 19
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 1,
+              "value": 23
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            4,
+            [
+              {
+                "type": 1,
+                "value": 19
+              },
+              {
+                "type": 1,
+                "value": 23
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ]
+        ],
+        "execution_context": "worker"
+      }
+    ],
+    "MyWorkerReference": [
+      {
+        "arguments": [
+          {
+            "code": "U",
+            "value": {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        ],
+        "result": {
+          "type": 4097,
+          "value": 7
+        },
+        "callbacks": [
+          [
+            16386,
+            [
+              {
+                "type": 1024,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 7
+            }
+          ]
+        ],
+        "execution_context": "owner"
+      },
+      {
+        "arguments": [
+          {
+            "code": "U",
+            "value": {
+              "type": 1024,
+              "value": {
+                "count": 1,
+                "rect": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        ],
+        "result": {
+          "type": 4097,
+          "value": 7
+        },
+        "callbacks": [
+          [
+            16386,
+            [
+              {
+                "type": 1024,
+                "value": {
+                  "count": 1,
+                  "rect": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 7
+            }
+          ]
+        ],
+        "execution_context": "worker"
+      }
+    ],
+    "MyWorkerOwned": [
+      {
+        "arguments": [],
+        "result": {
+          "type": 16386,
+          "value": "native owned"
+        },
+        "callbacks": [],
+        "execution_context": "owner"
+      },
+      {
+        "arguments": [],
+        "result": {
+          "type": 16386,
+          "value": "native owned"
+        },
+        "callbacks": [],
+        "execution_context": "worker"
+      }
+    ],
+    "MyFreeCount": [
+      {
+        "arguments": [],
+        "result": 2,
+        "callbacks": [],
+        "execution_context": "owner"
+      },
+      {
+        "arguments": [],
+        "result": 2,
+        "callbacks": [],
+        "execution_context": "owner"
+      }
+    ]
+  },
+  "overlap_excel_and_host": [
+    {
+      "owner_thread": 64684,
+      "entries": [
+        {
+          "seq": 215,
+          "qpc": 14733564757996,
+          "event": "enter",
+          "call": 199,
+          "thread": 46176,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "from": {
+            "module": "EXCEL.EXE",
+            "rva": 41523720
+          },
+          "signature": "QE$",
+          "args": [
+            {
+              "code": "E",
+              "value": 80
+            }
+          ]
+        },
+        {
+          "seq": 216,
+          "qpc": 14733564767663,
+          "event": "enter",
+          "call": 200,
+          "thread": 55992,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "from": {
+            "module": "EXCEL.EXE",
+            "rva": 41523720
+          },
+          "signature": "QE$",
+          "args": [
+            {
+              "code": "E",
+              "value": 40
+            }
+          ]
+        }
+      ],
+      "returns": [
+        {
+          "seq": 217,
+          "qpc": 14733564775251,
+          "event": "leave",
+          "call": 199,
+          "thread": 46176,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "elapsed_qpc": 17444,
+          "rax": "0x243901527e8",
+          "result": {
+            "type": 1,
+            "value": 81
+          }
+        },
+        {
+          "seq": 218,
+          "qpc": 14733564783022,
+          "event": "leave",
+          "call": 200,
+          "thread": 55992,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "elapsed_qpc": 15476,
+          "rax": "0x24390152728",
+          "result": {
+            "type": 1,
+            "value": 41
+          }
+        }
+      ]
+    },
+    {
+      "owner_thread": 29768,
+      "entries": [
+        {
+          "seq": 193,
+          "qpc": 14734547061311,
+          "event": "enter",
+          "call": 77,
+          "thread": 61148,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "from": {
+            "module": "dna-calc-desktop.exe",
+            "rva": 17587873
+          },
+          "signature": "QE$",
+          "args": [
+            {
+              "code": "E",
+              "value": 40
+            }
+          ]
+        },
+        {
+          "seq": 194,
+          "qpc": 14734547065617,
+          "event": "enter",
+          "call": 78,
+          "thread": 52228,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "from": {
+            "module": "dna-calc-desktop.exe",
+            "rva": 17587873
+          },
+          "signature": "QE$",
+          "args": [
+            {
+              "code": "E",
+              "value": 80
+            }
+          ]
+        }
+      ],
+      "returns": [
+        {
+          "seq": 196,
+          "qpc": 14734547072890,
+          "event": "leave",
+          "call": 77,
+          "thread": 61148,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "elapsed_qpc": 11737,
+          "rax": "0x29f59635928",
+          "result": {
+            "type": 1,
+            "value": 41
+          }
+        },
+        {
+          "seq": 195,
+          "qpc": 14734547068512,
+          "event": "leave",
+          "call": 78,
+          "thread": 52228,
+          "entry": "Pool.xll!MyOverlap:MyOverlap",
+          "elapsed_qpc": 3042,
+          "rax": "0x29f596359f8",
+          "result": {
+            "type": 1,
+            "value": 81
+          }
+        }
+      ]
+    }
+  ],
+  "ownership_excel_and_host": [
+    {
+      "owned_returns": 2,
+      "free_calls": 2,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "Pool.xll": 2
+      }
+    },
+    {
+      "owned_returns": 2,
+      "free_calls": 2,
+      "same_pointer_thread_and_module": true,
+      "by_module": {
+        "Pool.xll": 2
+      }
+    }
+  ],
+  "host_results": [
+    {
+      "async_returns": [],
+      "closed_name": "MyAdd",
+      "closed_registration": "#NAME?",
+      "commands": [
+        {
+          "command": "MyOverlapReset",
+          "value": 1.0
+        }
+      ],
+      "formula_entries": [
+        {
+          "cell": "C3",
+          "formula": "=MyOverlap(80)",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(3), formula_generation: 2, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(3), results: ReadViewId(0), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlap\", bound: Some(UserCallableIdentity { table: 2, slot: 15, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 1, occurrence: [0], reason: FormulaEntry }, runtime: 2, parent: Some(1), callable: UserCallableIdentity { table: 2, slot: 15, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlap\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlap\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(3), external_through: 0 }, required: 10 }, completion: WorksheetError }"
+          },
+          "value": {
+            "error": "#VALUE!"
+          }
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyOverlap(40)",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(1), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlap\", bound: Some(UserCallableIdentity { table: 2, slot: 15, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: FormulaEntry }, runtime: 4, parent: Some(3), callable: UserCallableIdentity { table: 2, slot: 15, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlap\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlap\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 0 }, required: 13 }, completion: Value }"
+          },
+          "value": 41.0
+        },
+        {
+          "cell": "C3",
+          "formula": "=0",
+          "provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(5), formula_generation: 4, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(5), results: ReadViewId(3), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 4 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 4 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 4 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(5), external_through: 0 }, required: 18 }, completion: Value }"
+          },
+          "value": 0.0
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyOverlapMax()",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 5, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(4), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlapmax\", bound: Some(UserCallableIdentity { table: 2, slot: 16, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: FormulaEntry }, runtime: 10, parent: Some(9), callable: UserCallableIdentity { table: 2, slot: 16, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlapmax\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlapmax\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 0 }, required: 21 }, completion: Value }"
+          },
+          "value": 2.0
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyWorkerCallbacks(19,23)",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(7), formula_generation: 6, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(7), results: ReadViewId(7), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 7 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkercallbacks\", bound: Some(UserCallableIdentity { table: 2, slot: 24, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 7 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 2, occurrence: [0], reason: FormulaEntry }, runtime: 14, parent: Some(13), callable: UserCallableIdentity { table: 2, slot: 24, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkercallbacks\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkercallbacks\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 7 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 7 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(7), external_through: 0 }, required: 26 }, completion: Value }"
+          },
+          "value": 42.0
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyWorkerReference(A1)",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(8), formula_generation: 7, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(8), results: ReadViewId(9), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 9 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkerreference\", bound: Some(UserCallableIdentity { table: 2, slot: 27, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 9 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: FormulaEntry }, runtime: 18, parent: Some(17), callable: UserCallableIdentity { table: 2, slot: 27, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [ReadSpan { region: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 1, left: 1, bottom: 1, right: 1 }, request: ReadRequest { purpose: FormulaValue, policy: DependencyWithinCommand, facets: Value }, versions: SpanVersions { authored: 7, value: None, required: 0, satisfied: 0, formulas: 0, pending: 0, uncertified: 0, legacy_tick: 0, boundary_cache: 0, imported_cache: 0 }, boundary_caches: [] }], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkerreference\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkerreference\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 9 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 9 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(8), external_through: 0 }, required: 31 }, completion: Value }"
+          },
+          "value": 7.0
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyWorkerOwned()",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(9), formula_generation: 8, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(9), results: ReadViewId(11), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 11 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkerowned\", bound: Some(UserCallableIdentity { table: 2, slot: 26, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 11 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: FormulaEntry }, runtime: 22, parent: Some(21), callable: UserCallableIdentity { table: 2, slot: 26, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkerowned\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkerowned\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 11 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 11 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(9), external_through: 0 }, required: 36 }, completion: Value }"
+          },
+          "value": "native owned"
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyFreeCount()",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(10), formula_generation: 9, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(10), results: ReadViewId(13), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 13 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myfreecount\", bound: Some(UserCallableIdentity { table: 2, slot: 8, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 13 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: FormulaEntry }, runtime: 26, parent: Some(25), callable: UserCallableIdentity { table: 2, slot: 8, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myfreecount\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myfreecount\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 13 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 13 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(10), external_through: 0 }, required: 41 }, completion: Value }"
+          },
+          "value": 2.0
+        }
+      ],
+      "host": "DNA Calc / CalcHost P07",
+      "live_callback_allocations": 0,
+      "registrations": 0,
+      "reload_results": [],
+      "results": [
+        {
+          "concurrent": null,
+          "dependent": 81.0,
+          "dependent_provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 2, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(2), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlap\", bound: Some(UserCallableIdentity { table: 2, slot: 15, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 8, parent: Some(7), callable: UserCallableIdentity { table: 2, slot: 15, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlap\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlap\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 0 }, required: 15 }, completion: Value }"
+          },
+          "formula": "=MyOverlap(40)",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(2), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlap\", bound: Some(UserCallableIdentity { table: 2, slot: 15, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 6, parent: Some(5), callable: UserCallableIdentity { table: 2, slot: 15, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlap\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlap\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 0 }, required: 15 }, completion: Value }"
+          },
+          "value": 41.0
+        },
+        {
+          "concurrent": null,
+          "dependent": 0.0,
+          "dependent_provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 4, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(6), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 0 }, required: 23 }, completion: Value }"
+          },
+          "formula": "=MyOverlapMax()",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 5, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(5), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlapmax\", bound: Some(UserCallableIdentity { table: 2, slot: 16, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: NewCommandDemand }, runtime: 12, parent: Some(11), callable: UserCallableIdentity { table: 2, slot: 16, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlapmax\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlapmax\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 0 }, required: 23 }, completion: Value }"
+          },
+          "value": 2.0
+        },
+        {
+          "concurrent": null,
+          "dependent": null,
+          "dependent_provenance": null,
+          "formula": "=MyWorkerCallbacks(19,23)",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(7), formula_generation: 6, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(7), results: ReadViewId(8), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 8 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkercallbacks\", bound: Some(UserCallableIdentity { table: 2, slot: 24, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 8 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 2, occurrence: [0], reason: NewCommandDemand }, runtime: 16, parent: Some(15), callable: UserCallableIdentity { table: 2, slot: 24, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkercallbacks\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkercallbacks\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 8 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 8 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(7), external_through: 0 }, required: 28 }, completion: Value }"
+          },
+          "value": 42.0
+        },
+        {
+          "concurrent": null,
+          "dependent": null,
+          "dependent_provenance": null,
+          "formula": "=MyWorkerReference(A1)",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(8), formula_generation: 7, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(8), results: ReadViewId(10), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 10 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkerreference\", bound: Some(UserCallableIdentity { table: 2, slot: 27, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 10 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 20, parent: Some(19), callable: UserCallableIdentity { table: 2, slot: 27, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [ReadSpan { region: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 1, left: 1, bottom: 1, right: 1 }, request: ReadRequest { purpose: FormulaValue, policy: DependencyWithinCommand, facets: Value }, versions: SpanVersions { authored: 7, value: None, required: 0, satisfied: 0, formulas: 0, pending: 0, uncertified: 0, legacy_tick: 0, boundary_cache: 0, imported_cache: 0 }, boundary_caches: [] }], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkerreference\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkerreference\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 10 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 10 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(8), external_through: 0 }, required: 33 }, completion: Value }"
+          },
+          "value": 7.0
+        },
+        {
+          "concurrent": null,
+          "dependent": null,
+          "dependent_provenance": null,
+          "formula": "=MyWorkerOwned()",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(9), formula_generation: 8, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(9), results: ReadViewId(12), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 12 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkerowned\", bound: Some(UserCallableIdentity { table: 2, slot: 26, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 12 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: NewCommandDemand }, runtime: 24, parent: Some(23), callable: UserCallableIdentity { table: 2, slot: 26, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkerowned\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkerowned\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 12 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 12 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(9), external_through: 0 }, required: 38 }, completion: Value }"
+          },
+          "value": "native owned"
+        },
+        {
+          "concurrent": null,
+          "dependent": null,
+          "dependent_provenance": null,
+          "formula": "=MyFreeCount()",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(10), formula_generation: 9, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(10), results: ReadViewId(14), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 14 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myfreecount\", bound: Some(UserCallableIdentity { table: 2, slot: 8, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 14 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: NewCommandDemand }, runtime: 28, parent: Some(27), callable: UserCallableIdentity { table: 2, slot: 8, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myfreecount\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myfreecount\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 14 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 14 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(10), external_through: 0 }, required: 43 }, completion: Value }"
+          },
+          "value": 2.0
+        }
+      ],
+      "revoked_tokens": [],
+      "rtd_retired": [],
+      "rtd_subscriptions_after_close": 0,
+      "rtd_updates": [],
+      "status_message": null
+    },
+    {
+      "async_returns": [],
+      "closed_name": "MyAdd",
+      "closed_registration": "#NAME?",
+      "commands": [
+        {
+          "command": "MyOverlapReset",
+          "value": 1.0
+        }
+      ],
+      "formula_entries": [
+        {
+          "cell": "C3",
+          "formula": "=MyOverlap(80)",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(3), formula_generation: 2, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(3), results: ReadViewId(0), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlap\", bound: Some(UserCallableIdentity { table: 2, slot: 15, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 1, occurrence: [0], reason: FormulaEntry }, runtime: 2, parent: Some(1), callable: UserCallableIdentity { table: 2, slot: 15, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlap\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlap\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 1 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(3), external_through: 0 }, required: 10 }, completion: WorksheetError }"
+          },
+          "value": {
+            "error": "#VALUE!"
+          }
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyOverlap(40)",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(1), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlap\", bound: Some(UserCallableIdentity { table: 2, slot: 15, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: FormulaEntry }, runtime: 4, parent: Some(3), callable: UserCallableIdentity { table: 2, slot: 15, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlap\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlap\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 0 }, required: 13 }, completion: Value }"
+          },
+          "value": 41.0
+        },
+        {
+          "cell": "C3",
+          "formula": "=0",
+          "provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(5), formula_generation: 4, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(5), results: ReadViewId(3), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 4 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 4 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 4 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(5), external_through: 0 }, required: 18 }, completion: Value }"
+          },
+          "value": 0.0
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyOverlapMax()",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 5, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(4), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlapmax\", bound: Some(UserCallableIdentity { table: 2, slot: 16, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: FormulaEntry }, runtime: 10, parent: Some(9), callable: UserCallableIdentity { table: 2, slot: 16, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlapmax\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlapmax\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 5 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 0 }, required: 21 }, completion: Value }"
+          },
+          "value": 2.0
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyWorkerCallbacks(19,23)",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(7), formula_generation: 6, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(7), results: ReadViewId(7), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 7 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkercallbacks\", bound: Some(UserCallableIdentity { table: 2, slot: 24, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 7 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 2, occurrence: [0], reason: FormulaEntry }, runtime: 14, parent: Some(13), callable: UserCallableIdentity { table: 2, slot: 24, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkercallbacks\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkercallbacks\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 7 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 7 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(7), external_through: 0 }, required: 26 }, completion: Value }"
+          },
+          "value": 42.0
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyWorkerReference(A1)",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(8), formula_generation: 7, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(8), results: ReadViewId(9), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 9 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkerreference\", bound: Some(UserCallableIdentity { table: 2, slot: 27, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 9 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: FormulaEntry }, runtime: 18, parent: Some(17), callable: UserCallableIdentity { table: 2, slot: 27, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [ReadSpan { region: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 1, left: 1, bottom: 1, right: 1 }, request: ReadRequest { purpose: FormulaValue, policy: DependencyWithinCommand, facets: Value }, versions: SpanVersions { authored: 7, value: None, required: 0, satisfied: 0, formulas: 0, pending: 0, uncertified: 0, legacy_tick: 0, boundary_cache: 0, imported_cache: 0 }, boundary_caches: [] }], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkerreference\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkerreference\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 9 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 9 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(8), external_through: 0 }, required: 31 }, completion: Value }"
+          },
+          "value": 7.0
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyWorkerOwned()",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(9), formula_generation: 8, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(9), results: ReadViewId(11), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 11 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkerowned\", bound: Some(UserCallableIdentity { table: 2, slot: 26, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 11 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: FormulaEntry }, runtime: 22, parent: Some(21), callable: UserCallableIdentity { table: 2, slot: 26, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkerowned\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkerowned\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 11 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 11 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(9), external_through: 0 }, required: 36 }, completion: Value }"
+          },
+          "value": "native owned"
+        },
+        {
+          "cell": "B3",
+          "formula": "=MyFreeCount()",
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(10), formula_generation: 9, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(10), results: ReadViewId(13), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 13 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: FormulaEntry } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myfreecount\", bound: Some(UserCallableIdentity { table: 2, slot: 8, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 13 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: FormulaEntry }, runtime: 26, parent: Some(25), callable: UserCallableIdentity { table: 2, slot: 8, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myfreecount\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myfreecount\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 13 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 13 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(10), external_through: 0 }, required: 41 }, completion: Value }"
+          },
+          "value": 2.0
+        }
+      ],
+      "host": "DNA Calc / CalcHost P07",
+      "live_callback_allocations": 0,
+      "registrations": 0,
+      "reload_results": [],
+      "results": [
+        {
+          "concurrent": null,
+          "dependent": 81.0,
+          "dependent_provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 2, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(2), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlap\", bound: Some(UserCallableIdentity { table: 2, slot: 15, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 8, parent: Some(7), callable: UserCallableIdentity { table: 2, slot: 15, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlap\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlap\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 0 }, required: 15 }, completion: Value }"
+          },
+          "formula": "=MyOverlap(40)",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(2), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlap\", bound: Some(UserCallableIdentity { table: 2, slot: 15, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 6, parent: Some(5), callable: UserCallableIdentity { table: 2, slot: 15, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlap\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlap\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 3 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 0 }, required: 15 }, completion: Value }"
+          },
+          "value": 41.0
+        },
+        {
+          "concurrent": null,
+          "dependent": 0.0,
+          "dependent_provenance": {
+            "completed_invocations": 0,
+            "cooperative_invocations": 0,
+            "invocations": 0,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 4, node: NodeId { slot: 0, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(6), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 3 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [], invocations: [], udf_volatile: None, external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 0 }, required: 23 }, completion: Value }"
+          },
+          "formula": "=MyOverlapMax()",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(6), formula_generation: 5, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(6), results: ReadViewId(5), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myoverlapmax\", bound: Some(UserCallableIdentity { table: 2, slot: 16, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: NewCommandDemand }, runtime: 12, parent: Some(11), callable: UserCallableIdentity { table: 2, slot: 16, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myoverlapmax\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myoverlapmax\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 6 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(6), external_through: 0 }, required: 23 }, completion: Value }"
+          },
+          "value": 2.0
+        },
+        {
+          "concurrent": null,
+          "dependent": null,
+          "dependent_provenance": null,
+          "formula": "=MyWorkerCallbacks(19,23)",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(7), formula_generation: 6, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(7), results: ReadViewId(8), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 8 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkercallbacks\", bound: Some(UserCallableIdentity { table: 2, slot: 24, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 8 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 2, occurrence: [0], reason: NewCommandDemand }, runtime: 16, parent: Some(15), callable: UserCallableIdentity { table: 2, slot: 24, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkercallbacks\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkercallbacks\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 8 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 8 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(7), external_through: 0 }, required: 28 }, completion: Value }"
+          },
+          "value": 42.0
+        },
+        {
+          "concurrent": null,
+          "dependent": null,
+          "dependent_provenance": null,
+          "formula": "=MyWorkerReference(A1)",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(8), formula_generation: 7, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(8), results: ReadViewId(10), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 10 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkerreference\", bound: Some(UserCallableIdentity { table: 2, slot: 27, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 10 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 1, occurrence: [0], reason: NewCommandDemand }, runtime: 20, parent: Some(19), callable: UserCallableIdentity { table: 2, slot: 27, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [ReadSpan { region: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 1, left: 1, bottom: 1, right: 1 }, request: ReadRequest { purpose: FormulaValue, policy: DependencyWithinCommand, facets: Value }, versions: SpanVersions { authored: 7, value: None, required: 0, satisfied: 0, formulas: 0, pending: 0, uncertified: 0, legacy_tick: 0, boundary_cache: 0, imported_cache: 0 }, boundary_caches: [] }], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkerreference\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkerreference\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 10 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 10 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(8), external_through: 0 }, required: 33 }, completion: Value }"
+          },
+          "value": 7.0
+        },
+        {
+          "concurrent": null,
+          "dependent": null,
+          "dependent_provenance": null,
+          "formula": "=MyWorkerOwned()",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 1,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(9), formula_generation: 8, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(9), results: ReadViewId(12), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 12 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myworkerowned\", bound: Some(UserCallableIdentity { table: 2, slot: 26, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 12 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: NewCommandDemand }, runtime: 24, parent: Some(23), callable: UserCallableIdentity { table: 2, slot: 26, generation: 1 }, completed: true, non_preemptible: false }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myworkerowned\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myworkerowned\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 12 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 12 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(9), external_through: 0 }, required: 38 }, completion: Value }"
+          },
+          "value": "native owned"
+        },
+        {
+          "concurrent": null,
+          "dependent": null,
+          "dependent_provenance": null,
+          "formula": "=MyFreeCount()",
+          "idle_observed_ms": null,
+          "provenance": {
+            "completed_invocations": 1,
+            "cooperative_invocations": 0,
+            "invocations": 1,
+            "pass_reason": "Initial",
+            "rtd_inputs": [],
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(10), formula_generation: 9, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(10), results: ReadViewId(14), inputs: 0 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 14 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { observations: [], external_inputs: [], callables: [CallableBindingProof { provider: None, name: \"myfreecount\", bound: Some(UserCallableIdentity { table: 2, slot: 8, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 14 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [0], reason: NewCommandDemand }, runtime: 28, parent: Some(27), callable: UserCallableIdentity { table: 2, slot: 8, generation: 1 }, completed: true, non_preemptible: true }], udf_volatile: Some(false), external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, boundary_caches: [], dependencies: [], facts: [], absences: [], semantic_environment: 2, bindings: 4, names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"myfreecount\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"myfreecount\" }, found: None }], parent: None }], volatile_inputs: None }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 14 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 14 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(10), external_through: 0 }, required: 43 }, completion: Value }"
+          },
+          "value": 2.0
+        }
+      ],
+      "revoked_tokens": [],
+      "rtd_retired": [],
+      "rtd_subscriptions_after_close": 0,
+      "rtd_updates": [],
+      "status_message": null
+    }
+  ],
+  "source_bindings_checked": 1868,
+  "scope": "Two independent explicitly legacy scalar cells in one workbook, distinct worker entries, owner-serviced callbacks, exact P07 activations and same-thread frees. Dynamic spill formulas stay ordered; volatile plans and additional dynamic callback prerequisites are outside this concurrent route."
+}
