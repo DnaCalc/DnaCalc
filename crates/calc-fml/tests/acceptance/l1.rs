@@ -307,6 +307,166 @@ mod arrays {
         );
     }
 
+    /// Recorded W111 conditional cases: IFERROR's 00222 mixed-shape case in the first
+    /// heldout run, and IFNA's 00602 shape case in the surface run (2026-09-29).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_fallbacks_select_each_array_position() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=IFERROR(CHOOSE({1;2},\"fAlSe\",#NUM!),CHOOSE({1;2;3;4},\"FALSE \",\" TRUE\",\"tRuE\",#NUM!))"),
+            rows(&[&[t("fAlSe")], &[t(" TRUE")], &[t("tRuE")], &[e(W::Num)]])
+        );
+        book.number("A100", 11.0)
+            .number("A101", 12.0)
+            .number("A102", 13.0);
+        assert_eq!(
+            book.dynamic("=IFNA(#N/A,CHOOSE({1,2,3},A100,A101,A102))"),
+            numbers(&[&[11.0, 12.0, 13.0]])
+        );
+    }
+
+    /// w111typed-00008-if-fresh-mixed-shape in the first heldout conditional run: an
+    /// invalid condition stays #VALUE! even where an unselected branch has no coordinate.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_errors_precede_unselected_array_gaps() {
+        let mut book = Book::new();
+        book.number("A100", -2.0);
+        assert_eq!(
+            book.dynamic("=IF(CHOOSE({1,2,3,4},TRUE,FALSE,A100,\"\"),CHOOSE({1,2},#REF!,FALSE),CHOOSE({1},\"tRuE\"))"),
+            rows(&[&[e(W::Ref), t("tRuE"), e(W::NA), e(W::Value)]])
+        );
+    }
+
+    /// W111 conditional heldout cases 00227 (IFERROR) and 00010 (IF) record zero for a
+    /// selected blank, including a blank that CHOOSE's omitted argument contributes.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_selected_blanks_are_zero() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic(
+                "=IFERROR(CHOOSE({1,2,3;4,5,6},#REF!,,\" TRUE\",\"FALSE \",\"0\",#REF!),\"FALSE\")"
+            ),
+            rows(&[
+                &[t("FALSE"), n(0.0), t(" TRUE")],
+                &[t("FALSE "), t("0"), t("FALSE")]
+            ])
+        );
+        book.set("F1", CalcValue::empty())
+            .set("K1", t("tRuE"))
+            .set("L1", e(W::Num))
+            .number("M1", -2.0)
+            .set("N1", e(W::Num));
+        assert_eq!(
+            book.dynamic("=IF(CHOOSE({1,2},#NULL!,\"tRuE\"),F1:F1,K1:N1)"),
+            rows(&[&[e(W::Null), n(0.0), e(W::NA), e(W::NA)]])
+        );
+    }
+
+    /// dc-ibp2 error_fallback!D38,D44,D45: scalar blanks remain empty text on
+    /// concatenation, even though the W111 lifted blank positions become zero.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_scalar_fallback_blanks_concatenate_as_empty() {
+        let mut book = Book::new();
+        for formula in [
+            "=IFERROR(A4,1)&\"|\"",
+            "=IFERROR(#N/A,)&\"|\"",
+            "=IFERROR(,1)&\"|\"",
+        ] {
+            assert_eq!(book.dynamic(formula), t("|"), "{formula}");
+        }
+    }
+
+    /// Recorded w090-successor-00117-switch-arg3 and -00123-ifs-arg2: unused result
+    /// arrays do not enlarge a scalar selection's shape.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_scalar_selections_ignore_unused_array_shapes() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=SWITCH(2,1,{\"a\",\"a\"},2,\"b\",\"other\")"),
+            t("b")
+        );
+        assert_eq!(book.dynamic("=IFS(FALSE,{1,1},TRUE,2)"), n(2.0));
+    }
+
+    /// w090-successor-00179-ifs-arg2 records both error cells: an invalid scalar
+    /// condition retains the shape contributed by its array result.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn conditional_invalid_scalar_condition_keeps_the_array_shape() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=IFS(\"2\",{\"hit\",\"hit\"})"),
+            rows(&[&[e(W::Value), e(W::Value)]])
+        );
+    }
+
+    /// W111 typed cases 00742/743, 00748/749 and 00754/755: a scalar source error
+    /// remains scalar, instead of becoming one cell of a padded result.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn array_functions_preserve_scalar_source_errors() {
+        let mut book = Book::new();
+        book.number("A100", 8.0).number("A101", 9.0);
+        for (error, code) in [("#N/A", W::NA), ("#VALUE!", W::Value)] {
+            for formula in [
+                format!("=HSTACK({error},CHOOSE({{1;2}},A100,A101))"),
+                format!("=VSTACK({error},CHOOSE({{1,2}},A100,A101))"),
+                format!("=EXPAND({error},3,3,\"pad\")"),
+            ] {
+                assert_eq!(book.dynamic(&formula), e(code), "{formula}");
+            }
+        }
+    }
+
+    /// w090-successor-00071-expand-arg4 records #VALUE! for an array pad.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn expand_padding_array_is_one_argument() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=EXPAND({1,2;3,4},3,4,{\"x\",\"x\"})"),
+            e(W::Value)
+        );
+        // Keep the existing admission of a scalar cell pad while changing the array role.
+        book.number("A100", 7.0);
+        assert_eq!(
+            book.dynamic("=EXPAND({1,2},2,3,A100)"),
+            numbers(&[&[1.0, 2.0, 7.0], &[7.0, 7.0, 7.0]])
+        );
+    }
+
+    /// W111 typed cases 00766-00770: scalar WRAPCOLS vectors retain their value
+    /// and do not acquire the padding rows that an actual array acquires.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn wrapcols_preserves_scalar_vectors() {
+        let mut book = Book::new();
+        book.number("A100", 2.0);
+        for (value, expected) in [
+            ("#N/A", e(W::NA)),
+            ("#VALUE!", e(W::Value)),
+            ("\"\"", t("")),
+            ("\"2\"", t("2")),
+            ("TRUE", CalcValue::logical(true)),
+        ] {
+            let formula = format!("=WRAPCOLS({value},A100,\"pad\")");
+            assert_eq!(book.dynamic(&formula), expected, "{formula}");
+        }
+    }
+
+    /// unswept-00303-isomitted-arg0_array_lift records one FALSE for the argument.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn isomitted_does_not_lift_over_an_array() {
+        let mut book = Book::new();
+        assert_eq!(book.dynamic("=ISOMITTED({2;3})"), CalcValue::logical(false));
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn operators_lift_over_arrays_as_oxfml_fixture_rows() {

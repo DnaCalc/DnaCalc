@@ -11,7 +11,7 @@
 //! nothing is assembled at run time and no table is mutable.
 
 use crate::call::{EagerKernel, LazyKernel, StartKernel};
-use crate::value::CallableArityShape;
+use crate::value::{CalcValue, CallableArityShape};
 use std::cmp::Ordering;
 use std::fmt;
 
@@ -590,6 +590,14 @@ impl<'c> FunctionCallTarget<'c> {
 
     pub fn argument_demand(self) -> ArgumentDemand {
         self.entry.demand
+    }
+
+    /// Whether a scalar IFS/SWITCH selector returns its chosen result whole instead of
+    /// lifting over result arrays. Invalid IFS conditions retain the array error shape.
+    /// This inspects values only; it neither invokes a kernel nor evaluates an argument.
+    pub fn selects_whole_result(self, arguments: &[CalcValue]) -> bool {
+        self.entry.arity.accepts(arguments.len())
+            && logical_more::selects_whole_result(self.entry.id, arguments)
     }
 
     pub fn signature_help(self) -> SignatureHelp {
