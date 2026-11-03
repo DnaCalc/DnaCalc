@@ -16,7 +16,7 @@
 //! MAKEARRAY give #VALUE!. REDUCE's accumulator may be an array. MAKEARRAY's dimensions are
 //! positive integers, anything else #VALUE!.
 
-use super::kit::{fail, grid};
+use super::kit::{fail, grid, scalar_error};
 use crate::call::{CallAbandoned, EvalServices, FunctionFault, KernelTask};
 use crate::catalogue::FunctionId;
 use crate::kernel::{Site, Step};
@@ -111,7 +111,17 @@ fn map_task(
     for index in 0..inputs {
         sources.push(prepared(site, a, index, sv)?);
     }
-    let f = lambda(a, inputs, inputs)?;
+    let f = match lambda(a, inputs, inputs) {
+        Ok(f) => f,
+        Err(invalid_lambda) => {
+            // unswept-00382: a formed scalar source error precedes invalid-LAMBDA validation.
+            // A valid LAMBDA keeps receiving its input items through the existing helper route.
+            for source in &a[..inputs] {
+                scalar_error(source)?;
+            }
+            return Err(invalid_lambda);
+        }
+    };
     let lists: Vec<Vec<CalcValue>> = sources.iter().map(items).collect();
     let count = lists.iter().map(Vec::len).max().unwrap_or(1);
     let shape = sources
@@ -180,6 +190,9 @@ fn by_task(
     sv: &mut EvalServices<'_>,
     columns: bool,
 ) -> Step<Box<dyn KernelTask>> {
+    // unswept-00087/00093: direct scalar errors precede an invalid final argument. A reference
+    // held error still follows the existing preparation and LAMBDA validation order below.
+    scalar_error(&a[0])?;
     let source = prepared(site, a, 0, sv)?;
     let f = lambda(a, 1, 1)?;
     // An array argument that is one error value is the result (Excel 16.0.20430, 2026-10-25,
