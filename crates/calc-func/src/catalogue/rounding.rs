@@ -44,7 +44,7 @@ use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation
 use crate::call::{EagerKernel, EvalServices, FunctionFault};
 use crate::decimal::{self, Direction, ExactDecimal};
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CallableArityShape, WorksheetErrorCode};
+use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
 
 const CODE: u16 = 6;
 
@@ -132,6 +132,15 @@ fn numbers(site: &Site<'_>, arguments: &[CalcValue], flush_input: bool) -> Step<
         .iter()
         .enumerate()
         .map(|(index, argument)| {
+            // W111 typed MROUND/QUOTIENT readings: logicals are #VALUE!, an explicit
+            // omission #N/A. A referenced blank remains Empty and coerces to zero.
+            if matches!(site.id(), MROUND | QUOTIENT) {
+                match argument.core_ref() {
+                    CoreRef::Logical(_) => return Err(Exit::Error(WorksheetErrorCode::Value)),
+                    CoreRef::Missing => return Err(Exit::Error(WorksheetErrorCode::NA)),
+                    _ => {}
+                }
+            }
             if flush_input && argument.as_number().is_some_and(f64::is_subnormal) {
                 Ok(0.0)
             } else {
