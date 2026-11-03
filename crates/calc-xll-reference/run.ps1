@@ -322,6 +322,17 @@ try {
                 } until ($value -eq $case.rtd_wait_value -or [DateTime]::UtcNow -gt $deadline)
                 if ($value -ne $case.rtd_wait_value) { throw 'RTD value deadline expired.' }
             }
+            if ($case.PSObject.Properties['rtd_idle_ms']) {
+                # An explicit idle observation exercises the real heartbeat timer;
+                # debugger overhead must not supply the wait implicitly.
+                $idle = [Diagnostics.Stopwatch]::StartNew()
+                Note ('RTD idle begin ' + [string]$case.formula) ([long]$case.rtd_idle_ms)
+                while ($idle.ElapsedMilliseconds -lt [long]$case.rtd_idle_ms) {
+                    Start-Sleep -Milliseconds 50
+                    [void]$excel.Ready
+                }
+                Note ('RTD idle complete ' + [string]$case.formula) $idle.ElapsedMilliseconds
+            }
             Note ([string]$case.formula) $sheet.Range('B3').Value2
             if ($case.PSObject.Properties['dependent']) {
                 $dependent=$sheet.Range('C3').Value2

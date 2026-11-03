@@ -785,12 +785,17 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
         for case in cases:
             require(observed[case["formula"]] == case["value"], "Excel RTD formula differs")
             require(observed["dependent " + case["formula"]] == case["dependent_value"], "Excel RTD dependent differs")
+            if "rtd_idle_ms" in case:
+                require(observed["RTD idle begin " + case["formula"]] == case["rtd_idle_ms"] and observed["RTD idle complete " + case["formula"]] >= case["rtd_idle_ms"], "Excel RTD idle observation was shortened")
     for directory in directories[2:]:
         require(json.loads((directory / "host.exit.json").read_text()) == {"exit_code": 0, "finished": True}, "RTD host failed")
         require(not (directory / "host.stderr").read_text().strip(), "RTD host diagnostics")
         output = json.loads((directory / "host.stdout").read_text())
         require(output["live_callback_allocations"] == output["rtd_subscriptions_after_close"] == 0 and output["closed_registration"] == "#NAME?", "RTD teardown incomplete")
         require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c["dependent_value"]) for c in cases], "Host RTD outcomes differ")
+        for case, row in zip(cases, output["results"], strict=True):
+            if "rtd_idle_ms" in case:
+                require(row["idle_observed_ms"] >= case["rtd_idle_ms"], "Host RTD idle observation was shortened")
         updates = output["rtd_updates"]
         if signaling:
             require(len(updates) >= 2 and [(v["sequence"], v["value"], v["disposition"]) for v in updates] == [(i + 1, None, "Accepted") for i in range(len(updates))], "Empty RTD signals were not admitted as ordered inputs")
@@ -850,6 +855,16 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
                     require(outer["result"]["value"] == returned["data"] and outer["arguments_after"][0]["value"]["value"] == returned["count"], "Internal RTD refresh payload differs")
                 inner.append({"entry": entry, "returned": returned})
                 continue
+            if early and not signaling and entry["entry"].endswith(".ServerTerminate") and entry.get("from", {}).get("module") in environments[0]["fixture_files"]:
+                # This fixture's destructor calls its idempotent ServerTerminate
+                # body while the client performs final Release. Keep the body,
+                # but do not invent a second external ServerTerminate request.
+                releases = [e for e in trace[1].values() if e["entry"] == "COM!Release" and e.get("object") == entry["object"] and e["thread"] == entry["thread"] and e["seq"] < entry["seq"] < returned["seq"] < trace[2][e["call"]]["seq"]]
+                require(len(releases) == 1 and trace[2][releases[0]["call"]].get("references") == 0, "Internal RTD termination lacks the final owning Release")
+                require(releases[0].get("from", {}).get("module") == ("EXCEL.EXE" if index == 0 else "dna-calc-desktop.exe"), "Final RTD Release came from another owner")
+                require(protocol and protocol[-1] == {"method":"ServerTerminate", "hresult":0} and returned["hresult"] == 0, "Destructor termination lacks prior successful client termination")
+                inner.append({"entry":entry, "returned":returned, "reason":"final Release destructor", "release":releases[0], "release_returned":trace[2][releases[0]["call"]]})
+                continue
             require(dispatch and entry["from"].get("module") == "EXCEL.EXE" if index == 0 else early and entry["from"].get("module") == "dna-calc-desktop.exe", "Unexpected external RTD call transport/caller")
             method = method_names[entry["dispid"]] if dispatch else entry["entry"].rsplit(".", 1)[-1]
             row = {"method": method, "hresult": returned["hresult"]}
@@ -866,7 +881,13 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             methods = [r["method"] for r in protocol]
             require(methods[:2] == ["ServerStart", "ConnectData"] and methods[-2:] == ["DisconnectData", "ServerTerminate"] and "UpdateNotify" in methods and "RefreshData" in methods, "Incomplete signaling RTD protocol")
         else:
-            require([r["method"] for r in protocol] == ["ServerStart", "ConnectData", "UpdateNotify", "RefreshData", "DisconnectData", "ServerTerminate"], "Missing or additional RTD client calls")
+            expected_methods = ["ServerStart", "ConnectData", "UpdateNotify", "RefreshData"]
+            idle_intervals = [case.get("rtd_idle_ms", 0) for case in cases]
+            if any(idle_intervals):
+                require(idle_intervals == [22000, 0], "Numeric RTD idle interval has no qualified heartbeat expectation")
+                expected_methods.append("Heartbeat")
+            expected_methods += ["DisconnectData", "ServerTerminate"]
+            require([r["method"] for r in protocol] == expected_methods, "Missing or additional RTD client calls")
         require(all(r["hresult"] == 0 for r in protocol), "RTD protocol call failed")
         if not signaling:
             require(protocol[3]["count"] == 1 and protocol[3]["data"]["values"] == [{"vt": 3, "value": 1}, {"vt": 5, "value": 42}] and not protocol[3]["data"]["truncated"], "RTD array data differs")
@@ -920,6 +941,8 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
         if index: expected.insert(0, {"type": 16, "value": 42})
         require([r["result"] for r in records] == expected, "RTD native result sequence differs")
         native.append(records)
+    if not signaling:
+        require([sum(row.get("reason") == "final Release destructor" for row in rows) for rows in internals] == [1, 1], "Numeric RTD destructor observation missing or repeated")
     protocol_pairs = [{"position": i, "excel": a, "host": b, "matched": a == b} for i, (a, b) in enumerate(zip_longest(*protocols))]
     # Diagnose scheduling differences without relaxing the ordered verdict. Pair
     # each occurrence of each method, keeping every extra call as a failure.
@@ -1012,7 +1035,9 @@ def verify_workbook_pool(excel, excel_control, host, host_control, cases_path, p
     if not all(r["matched"] for r in outcomes): failures.append("Excel formula outcomes differ")
     if entry_counts[0] != entry_counts[1]: failures.append("Native invocation counts differ")
     if records[0] != records[1]: failures.append("Native arguments/results/ordered nested callbacks differ")
-    if not all(o["owned_returns"] == o["free_calls"] == 1 for o in ownership): failures.append("Owned result/free counts differ")
+    expected_entries = {"MyOverlap":4, "MyOverlapMax":2, "MyOverlapReset":1, "MyWorkerCallbacks":2, "MyWorkerReference":2, "MyWorkerOwned":2, "MyFreeCount":2}
+    if not all(counts == expected_entries for counts in entry_counts): failures.append("Entry and calculation occurrences missing or repeated")
+    if not all(o["owned_returns"] == o["free_calls"] == 2 for o in ownership): failures.append("Owned result/free counts differ")
     require(worker_calls[0] == worker_calls[1], "Calculation-phase barrier calls differ")
     require(not failures, "; ".join(failures))
     return {"status":"verified within-workbook legacy scalar pool", "formula_cases":len(cases), "native_invocations_each_host":sum(entry_counts[0].values()),

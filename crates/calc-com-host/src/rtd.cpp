@@ -167,7 +167,12 @@ struct Client {
         }return S_OK;
     }
     HRESULT disconnect(LONG topic){auto hr=check();if(FAILED(hr))return hr;auto found=topics.find(topic);if(found==topics.end())return E_INVALIDARG;
-        auto* server=found->second;hr=server->object->DisconnectData(topic);if(FAILED(hr))return hr;server->topics.erase(topic);topics.erase(found);return S_OK;}
+        auto* server=found->second;hr=server->object->DisconnectData(topic);if(FAILED(hr))return hr;server->topics.erase(topic);topics.erase(found);
+        if(server->topics.empty()){
+            hr=server->stop();if(FAILED(hr)){close_error=hr;closed=true;return hr;}
+            for(auto entry=servers.begin();entry!=servers.end();++entry)if(entry->second.get()==server){servers.erase(entry);break;}
+        }
+        return S_OK;}
     HRESULT close(){if(GetCurrentThreadId()!=owner)return RPC_E_WRONG_THREAD;if(closed)return close_error;closed=true;HRESULT first=S_OK;
         for(auto& entry:servers){auto hr=entry.second->stop();if(FAILED(hr)&&SUCCEEDED(first))first=hr;}if(SUCCEEDED(first)){topics.clear();servers.clear();}close_error=first;return first;}
     ~Client(){if(FAILED(close()))for(auto& entry:servers)entry.second.release();}

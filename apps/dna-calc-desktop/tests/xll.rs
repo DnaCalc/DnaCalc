@@ -415,6 +415,18 @@ fn engine_pool_overlaps_independent_cells_in_one_workbook() {
     assert_eq!(result["results"][0]["value"], 41.);
     assert_eq!(result["results"][0]["dependent"], 81.);
     assert_eq!(result["results"][1]["value"], 2.);
+    assert_eq!(result["results"][5]["value"], 2.);
+    let entries = result["formula_entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 8);
+    for row in entries {
+        assert!(
+            row["provenance"]["stamp"]
+                .as_str()
+                .unwrap()
+                .contains("reason: FormulaEntry")
+        );
+        assert_eq!(row["provenance"]["cooperative_invocations"], 0);
+    }
     for proof in [
         &result["results"][0]["provenance"],
         &result["results"][0]["dependent_provenance"],

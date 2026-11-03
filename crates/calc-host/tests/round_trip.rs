@@ -7935,6 +7935,94 @@ mod async_contract {
         release: bool,
     }
     #[derive(Debug)]
+    struct EntryProbe(Rc<RefCell<Vec<bool>>>);
+    impl UserFunction for EntryProbe {
+        fn max_parallel_calls(&self) -> usize {
+            2
+        }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("entry context required")
+        }
+        fn call_with_context(
+            &self,
+            values: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            let entry = context.invocation().unwrap().formula_entry;
+            self.0.borrow_mut().push(entry);
+            Ok(CalcValue::number(
+                values[0].as_number().unwrap() + if entry { 10. } else { 20. },
+            ))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn formula_entry_is_scoped_inherits_its_context_and_remains_required_in_manual() {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        let entries = Rc::new(RefCell::new(Vec::new()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("EntryProbe", Rc::new(EntryProbe(entries.clone())))
+            .unwrap();
+        book.set_user_functions(functions);
+        assert!(enter(&mut book, at(s, "A1"), "5").accepted());
+        for (address, formula) in [
+            ("B1", "LAMBDA(x,EntryProbe(x))(A1+0)"),
+            ("C1", "EntryProbe(A1+0)"),
+        ] {
+            assert!(
+                book.dispatch(SkinIntent::Edit {
+                    edits: vec![CellEdit::Set {
+                        at: at(s, address),
+                        input: CellInput::Formula(
+                            calc_host::FormulaText::with_form(
+                                calc_host::value::ExcelText::from_utf16_code_units(
+                                    formula.encode_utf16().collect()
+                                ),
+                                calc_doc_model::FormulaForm::Legacy,
+                            )
+                            .unwrap()
+                        ),
+                    }],
+                })
+                .accepted()
+            );
+        }
+        assert!(
+            !book
+                .dispatch(SkinIntent::Calculate {
+                    scope: calc_host::CalcScope::Workbook,
+                    selection: calc_host::EvalSelection::FormulaEntry,
+                })
+                .accepted()
+        );
+        assert!(entries.borrow().is_empty());
+        assert!(
+            book.dispatch(SkinIntent::Calculate {
+                scope: calc_host::CalcScope::Range(vec![GridArea::cell(at(s, "B1"))]),
+                selection: calc_host::EvalSelection::FormulaEntry,
+            })
+            .accepted()
+        );
+        drain(&mut book);
+        assert_eq!(&*entries.borrow(), &[true]);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(15.))
+        );
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(&*entries.borrow(), &[true, false, false]);
+        for address in ["B1", "C1"] {
+            assert_eq!(
+                calculated(book.host(), at(s, address)),
+                Some(CalcValue::number(25.))
+            );
+        }
+    }
+    #[derive(Debug)]
     struct PoolProbe {
         state: Rc<RefCell<PoolProbeState>>,
         limit: usize,

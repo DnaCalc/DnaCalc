@@ -58,12 +58,18 @@ impl XllFunction {
         arguments: &[CalcValue],
         context: Option<&mut dyn UserFunctionContext>,
     ) -> Result<CalcValue, String> {
+        let formula_entry = context.as_ref().is_some_and(|context| {
+            context.invocation().is_some_and(|frame| frame.formula_entry)
+        });
+        if formula_entry && self.registration.info.signature.asynchronous {
+            return Err("dc-snz.23: native async formula-entry evaluation is not modelled".into());
+        }
         if self.registration.info.signature.thread_safe
             && self.registration.info.signature.asynchronous
         {
             return Err("dc-snz.23: thread-safe native async entry is not modelled".into());
         }
-        if self.registration.info.signature.thread_safe {
+        if self.registration.info.signature.thread_safe && !formula_entry {
             let pool = self.state.borrow().workers.clone();
             if let Some(pool) = pool {
                 return crate::worker::invoke(self, &pool, arguments, context);
@@ -212,6 +218,7 @@ impl XllFunction {
             context,
             signature: (!as_run && r.info.macro_type != 2).then(|| signature.clone()),
             provider,
+            rtd_subscriptions: Default::default(),
         };
         let guard = unsafe { callbacks::enter(&mut frame) };
         let mut returned = Returned::default();
@@ -242,6 +249,19 @@ impl XllFunction {
                 .map(|value| NativeReturn::Value(value, kind))
         };
         drop(guard);
+        if matches!(&result, Ok(NativeReturn::Value(..)))
+            && let Some(provider) = frame.provider
+            && let Some(caller) = frame.context.as_ref().and_then(|context| context.caller())
+        {
+            let service = frame.state.borrow().rtd.clone();
+            if let Some(service) = service {
+                service.finish_call(
+                    provider,
+                    caller,
+                    &frame.rtd_subscriptions.iter().copied().collect::<Vec<_>>(),
+                )?;
+            }
+        }
         result
     }
     unsafe fn convert_return(

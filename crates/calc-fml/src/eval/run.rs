@@ -671,7 +671,8 @@ impl Run<'_, '_> {
                     .as_ref()
                     .map(|frame| frame.read_view.clone())
                     .unwrap_or_else(|| std::rc::Rc::new(())),
-            );
+            )
+            .with_formula_entry(self.invocation.as_ref().is_some_and(|frame| frame.formula_entry));
             let id = frame.id;
             let record = self.user_function_effects.as_deref_mut().map(|effects| {
                 effects.calls += 1;
