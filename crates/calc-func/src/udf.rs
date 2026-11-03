@@ -234,4 +234,13 @@ pub trait UserFunctionContext {
     ) -> Result<CalcValue, String> {
         self.worksheet_function(name, arguments)
     }
+    /// Compile and run a constant worksheet expression through the owning formula route.
+    /// References, defined names, nested user calls and volatility require a broader contract.
+    fn evaluate_constant_expression(
+        &mut self,
+        _expression: &str,
+        owner: &'static str,
+    ) -> Result<CalcValue, String> {
+        Err(self.refuse_by("constant expression evaluation without an owner", owner))
+    }
 }

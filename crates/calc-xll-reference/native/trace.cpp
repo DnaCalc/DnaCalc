@@ -140,6 +140,8 @@ struct Call {
     std::array<Address,9> raw{};
     std::vector<std::string> names;
     Address run_result = 0;
+    uint64_t rtd_call = 0;
+    std::string clsid;
 };
 static std::map<Address, Breakpoint> breakpoints;
 static std::map<Address, Module> modules;
@@ -151,10 +153,15 @@ static std::vector<HANDLE> stoppedThreads;
 static std::map<Address,std::string> objects;
 static std::map<Address,std::string> interfaces;
 static std::map<Address,Address> objectTables;
+static std::map<Address,std::string> factoryClasses;
+static std::map<Address,std::string> instanceClasses;
+struct RtdCandidate { uint64_t call; DWORD thread; std::string clsid,iid; };
+static std::map<Address,RtdCandidate> rtdCandidates;
 static std::map<std::pair<Address,int32_t>,std::string> members;
 static void arm(Address p,const Entry* entry);
 static void forgetObject(Address p) {
     objects.erase(p);interfaces.erase(p);objectTables.erase(p);
+    factoryClasses.erase(p);instanceClasses.erase(p);rtdCandidates.erase(p);
     for(auto it=members.begin();it!=members.end();) {if(it->first.first==p)it=members.erase(it);else ++it;}
 }
 
@@ -263,6 +270,10 @@ static std::string location(Address p) {
     --it;
     if(p-it->first>=it->second.size)return "{\"unmapped\":"+hex(p)+"}";
     return "{\"module\":"+quote(basename(it->second.path))+",\"rva\":"+std::to_string(p-it->first)+"}";
+}
+static bool fromModule(Address p,const char* name) {
+    auto it=modules.upper_bound(p);if(it==modules.begin())return false;--it;
+    return p-it->first<it->second.size && _stricmp(basename(it->second.path).c_str(),name)==0;
 }
 static Module inspectModule(Address base, std::wstring path) {
     Module m{base, path};
@@ -395,9 +406,19 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
     }else if(entry.name.find("!CoRegisterClassObject")!=std::string::npos) {
         fields+=",\"clsid\":"+quote(guid(ctx.Rcx))+",\"class_context\":"+std::to_string((uint32_t)ctx.R8)+",\"flags\":"+std::to_string((uint32_t)ctx.R9);
         watchObject(ctx.Rdx,"registered COM class factory","classfactory");
+        factoryClasses[ctx.Rdx]=guid(ctx.Rcx);
     }else if(entry.name.rfind("COM!",0)==0) {
         if(!objects.count(ctx.Rcx))return; // Shared vtable code: observe only discovered objects.
         if(read<Address>(ctx.Rcx)!=objectTables[ctx.Rcx])watchObject(ctx.Rcx,"reused COM pointer","dispatch");
+        if(entry.name=="COM!Invoke" && rtdCandidates.count(ctx.Rcx) && members[{ctx.Rcx,(int32_t)ctx.Rdx}]=="ServerStart" && fromModule(c.ret,"EXCEL.EXE")) {
+            auto params=c.raw[5];auto values=read<Address>(params);
+            auto vt=read<uint16_t>(values);
+            if(read<uint32_t>(params+16)==1 && read<uint32_t>(params+20)==0 && c.raw[4]==1 && (vt==9 || vt==13) && read<Address>(values+8)) {
+                auto candidate=rtdCandidates.at(ctx.Rcx);
+                objects[ctx.Rcx]="RTD server";rtdCandidates.erase(ctx.Rcx);
+                emit("\"event\":\"rtd_dispatch_binding\",\"object\":"+hex(ctx.Rcx)+",\"clsid\":"+quote(candidate.clsid)+",\"creation_iid\":"+quote(candidate.iid)+",\"xlfRtd_call\":"+std::to_string(candidate.call)+",\"activation_thread\":"+std::to_string(candidate.thread)+",\"server_start_thread\":"+std::to_string(thread)+",\"server_start_dispid\":"+std::to_string((int32_t)ctx.Rdx)+",\"evidence\":\"Excel invoked ServerStart on the exact instance created during xlfRtd\"");
+            }
+        }
         if(entry.name.rfind("COM!early.",0)==0 && entry.name.rfind("COM!early."+interfaces[ctx.Rcx]+".",0)!=0)return;
         if(entry.name.rfind("COM!early.",0)==0) {
             // Excel's adjustor thunk can tail-forward to a second watched
@@ -426,7 +447,11 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
                 fields+="]";c.run_result=argument(ctx,32);
             }
         }else if(entry.name=="COM!QueryInterface")fields+=",\"iid\":"+quote(guid(ctx.Rdx));
-        else if(entry.name=="COM!CreateInstance")fields+=",\"iid\":"+quote(guid(ctx.R8));
+        else if(entry.name=="COM!CreateInstance") {
+            c.clsid=factoryClasses[ctx.Rcx];
+            for(auto it=calls[thread].rbegin();it!=calls[thread].rend();++it)if(it->fn==379 && it->entry.name.find("!MdCallBack12")!=std::string::npos){c.rtd_call=it->id;break;}
+            fields+=",\"iid\":"+quote(guid(ctx.R8))+",\"factory_clsid\":"+quote(c.clsid)+",\"xlfRtd_call\":"+std::to_string(c.rtd_call);
+        }
         else if(entry.name=="COM!GetTypeInfo")fields+=",\"index\":"+std::to_string((uint32_t)ctx.Rdx)+",\"lcid\":"+std::to_string((uint32_t)ctx.R8);
         else if(entry.name=="COM!GetIDsOfNames") {
             if(interfaces[ctx.Rcx]=="container"||interfaces[ctx.Rcx]=="point")return;
@@ -486,7 +511,7 @@ static void leave(const Call& c,const CONTEXT& ctx) {
         if((int32_t)ctx.Rax>=0){auto value=read<Address>(c.raw[4]);fields+=",\"object\":"+hex(value);watchObject(value,"RTD server","rtdserver");}
     }else if(c.entry.name.find("!CoRegisterClassObject")!=std::string::npos){
         fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);
-    }else if(c.entry.name.find("!DllGetClassObject")!=std::string::npos){fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);if((int32_t)ctx.Rax>=0)watchObject(read<Address>(c.raw[2]),"RTD class factory","classfactory");
+    }else if(c.entry.name.find("!DllGetClassObject")!=std::string::npos){fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax);if((int32_t)ctx.Rax>=0){auto factory=read<Address>(c.raw[2]);watchObject(factory,"DLL class factory","classfactory");factoryClasses[factory]=guid(c.raw[0]);}
     }else if(c.entry.name.find("!AccessibleObjectFromWindow")!=std::string::npos) {
         fields+=",\"hresult\":"+std::to_string((int32_t)ctx.Rax)+",\"object\":"+hex(read<Address>(c.raw[3]));
         if((int32_t)ctx.Rax>=0)watchObject(read<Address>(c.raw[3]),"AccessibleObjectFromWindow");
@@ -520,7 +545,10 @@ static void leave(const Call& c,const CONTEXT& ctx) {
             else if(kind=="COM!GetTypeInfo")fields+=",\"type_info\":"+hex(read<Address>(c.raw[3]));
             else if(kind=="COM!CreateInstance"){
                 auto iid=guid(c.raw[2]);auto object=read<Address>(c.raw[3]);fields+=",\"object\":"+hex(object);
-                watchObject(object,"RTD server",iid=="ec0e6191-db51-11d3-8f3e-00c04f3651b8"?"rtdserver":iid=="00020400-0000-0000-c000-000000000046"?"dispatch":"unknown");
+                bool rtd=iid=="ec0e6191-db51-11d3-8f3e-00c04f3651b8";
+                watchObject(object,rtd?"RTD server":"COM class instance",rtd?"rtdserver":iid=="00020400-0000-0000-c000-000000000046"?"dispatch":"unknown");
+                instanceClasses[object]=c.clsid;
+                if(c.rtd_call && !rtd)rtdCandidates[object]={c.rtd_call,c.thread,c.clsid,iid};
             }else if(kind=="COM!GetIDsOfNames") {
                 fields+=",\"dispids\":[";
                 for(size_t i=0;i<c.names.size();++i){int32_t id=read<int32_t>(c.raw[5]+i*4);members[{c.raw[0],id}]=c.names[i];if(i)fields+=",";fields+=std::to_string(id);}fields+="]";

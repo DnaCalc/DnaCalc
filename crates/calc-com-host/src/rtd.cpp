@@ -20,6 +20,7 @@ using namespace dna_rtd;
 struct Notices {
     std::atomic<bool> alive{true},dirty{false};
     std::atomic<LONG> heartbeat{15000};
+    std::atomic<ULONGLONG> notified{GetTickCount64()};
 };
 struct Sink final : Update {
     std::atomic<ULONG> refs{1};
@@ -49,7 +50,11 @@ struct Sink final : Update {
         if(id==11&&(flags&DISPATCH_PROPERTYPUT)){if(!args||args->cArgs!=1||args->rgvarg[0].vt!=VT_I4)return DISP_E_TYPEMISMATCH;return put_HeartbeatInterval(args->rgvarg[0].lVal);}
         return DISP_E_MEMBERNOTFOUND;
     }
-    HRESULT STDMETHODCALLTYPE UpdateNotify() override{if(notices->alive.load())notices->dirty.store(true);return S_OK;}
+    HRESULT STDMETHODCALLTYPE UpdateNotify() override{if(notices->alive.load()){
+        auto now=GetTickCount64(),held=notices->notified.load();
+        while(held<now&&!notices->notified.compare_exchange_weak(held,now)){}
+        notices->dirty.store(true);
+    }return S_OK;}
     HRESULT STDMETHODCALLTYPE get_HeartbeatInterval(LONG* n) override{if(!n)return E_POINTER;*n=notices->heartbeat.load();return S_OK;}
     HRESULT STDMETHODCALLTYPE put_HeartbeatInterval(LONG n) override{if(n<0)return E_INVALIDARG;notices->heartbeat.store(n);return S_OK;}
     HRESULT STDMETHODCALLTYPE Disconnect() override{notices->alive.store(false);return S_OK;}
@@ -135,7 +140,11 @@ struct Client {
         for(auto& entry:servers){auto& server=*entry.second;
             if(!server.notices->alive.load())return CO_E_OBJNOTCONNECTED;
             auto heartbeat=server.notices->heartbeat.load();
-            if(heartbeat>0&&now-server.heartbeat>=(ULONGLONG)heartbeat){LONG alive=0;hr=server.object->Heartbeat(&alive);server.heartbeat=now;if(FAILED(hr))return hr;if(alive<=0)return CO_E_OBJNOTCONNECTED;}
+            // Excel measures this interval from UpdateNotify, not just from
+            // ServerStart/the previous heartbeat. A background notice may be
+            // newer than this poll's sampled clock; do not underflow the age.
+            auto last=server.notices->notified.load();if(server.heartbeat>last)last=server.heartbeat;
+            if(heartbeat>0&&now>=last&&now-last>=(ULONGLONG)heartbeat){LONG alive=0;hr=server.object->Heartbeat(&alive);server.heartbeat=now;if(FAILED(hr))return hr;if(alive<=0)return CO_E_OBJNOTCONNECTED;}
             if(now-server.refresh<throttle||!server.notices->dirty.exchange(false))continue;
             LONG count=0;SAFEARRAY* array=nullptr;hr=server.object->RefreshData(&count,&array);server.refresh=now;
             if(FAILED(hr)){if(array)SafeArrayDestroy(array);return hr;}

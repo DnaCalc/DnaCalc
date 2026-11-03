@@ -11,6 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import struct
 import subprocess
 import zipfile
 import xml.etree.ElementTree as ET
@@ -768,6 +769,7 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
     directories = (excel, excel_control, host, host_control)
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    signaling = any("X5.Rtd()" in c["formula"] for c in cases)
     outputs = []
     for env in environments:
         require(env["fixture_files"] == environments[0]["fixture_files"], "Different RTD fixture binaries")
@@ -790,30 +792,65 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
         require(output["live_callback_allocations"] == output["rtd_subscriptions_after_close"] == 0 and output["closed_registration"] == "#NAME?", "RTD teardown incomplete")
         require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c["dependent_value"]) for c in cases], "Host RTD outcomes differ")
         updates = output["rtd_updates"]
-        require([(v["sequence"], v["value"], v["disposition"]) for v in updates] == [(1, 1, "Accepted"), (2, 42, "Accepted")], "RTD admissions differ")
-        require(output["results"][0]["provenance"]["rtd_inputs"] == [{"provider": updates[-1]["provider"], "subscription": updates[-1]["subscription"], "sequence": 2}], "RTD final certificate lacks its exact admitted input")
+        if signaling:
+            require(len(updates) >= 2 and [(v["sequence"], v["value"], v["disposition"]) for v in updates] == [(i + 1, None, "Accepted") for i in range(len(updates))], "Empty RTD signals were not admitted as ordered inputs")
+            require(len({(v["provider"], v["subscription"]) for v in updates}) == 1, "Signaling RTD changed subscription identity")
+        else:
+            require([(v["sequence"], v["value"], v["disposition"]) for v in updates] == [(1, 1, "Accepted"), (2, 42, "Accepted")], "RTD admissions differ")
+        require(output["results"][0]["provenance"]["rtd_inputs"] == [{"provider": updates[-1]["provider"], "subscription": updates[-1]["subscription"], "sequence": updates[-1]["sequence"]}], "RTD final certificate lacks its exact admitted input")
+        require(not output["results"][-1]["provenance"]["rtd_inputs"], "Replacement retained an RTD input")
         require(output["rtd_retired"] == [{"provider": updates[-1]["provider"], "subscription": updates[-1]["subscription"], "disposition": "Accepted"}], "RTD retirement differs")
         require(not output["async_returns"] and not output["revoked_tokens"], "RTD used the async-completion route")
         outputs.append(output)
     traces = [boundary(p) for p in (excel, host)]
-    protocols, native, internals, notifications = [], [], [], []
+    protocols, raw_protocols, native, internals, notifications, server_bindings, ownership = [], [], [], [], [], [], []
     method_names = {10: "ServerStart", 11: "ConnectData", 12: "RefreshData", 13: "DisconnectData", 14: "Heartbeat", 15: "ServerTerminate"}
     for index, trace in enumerate(traces):
         protocol, inner, notices = [], [], []
+        if signaling:
+            starts = [e for e in trace[1].values() if e["entry"] == "COM!Invoke" and e.get("object_label") == "RTD server" and e.get("dispid") == 10 or e["entry"] == "COM!early.rtdserver.ServerStart" and e.get("from", {}).get("module") == "dna-calc-desktop.exe"]
+            require(len(starts) == 1, "Signaling server startup was not observed once")
+            start = starts[0]
+            created = [e for e in trace[1].values() if (e["entry"] == "COM!CreateInstance" or e["entry"].endswith("!CoCreateInstance")) and e.get("iid") == "ec0e6191-db51-11d3-8f3e-00c04f3651b8" and trace[2][e["call"]].get("object") == start["object"] and trace[2][e["call"]]["seq"] < start["seq"]]
+            require(created, "RTD server identity lacks explicit interface activation")
+            creation = created[-1]
+            enclosing = [e for e in trace[1].values() if e.get("function") == 379 and e["thread"] == creation["thread"] == start["thread"] and e["seq"] < creation["seq"] < trace[2][e["call"]]["seq"]]
+            require(len(enclosing) == 1 and creation.get("xlfRtd_call", enclosing[0]["call"]) == enclosing[0]["call"], "Server activation is not bound to the actual RTD callback")
+            callback_object = start["rgvarg"][0]["value"] if start["entry"] == "COM!Invoke" else start["callback"]
+            server_bindings.append({"object": start["object"], "callback_object": callback_object, "creation": creation, "returned": trace[2][creation["call"]], "xlfRtd": enclosing[0]})
         for entry in trace[1].values():
             returned = trace[2][entry["call"]]
             dispatch = entry["entry"] == "COM!Invoke" and entry.get("object_label") == "RTD server"
             early = entry["entry"].startswith("COM!early.rtdserver.")
             if entry["entry"] == "COM!early.rtdsink.UpdateNotify":
+                if signaling:
+                    require(entry["object"] == callback_object, "RTD notification used another callback object")
                 protocol.append({"method": "UpdateNotify", "hresult": returned["hresult"]})
                 notices.append({"thread": entry["thread"], "from": entry["from"], "hresult": returned["hresult"]})
                 continue
             if not dispatch and not early:
                 continue
-            if entry["from"].get("module", "").lower() == "x5native64.xll":
+            if signaling:
+                require(entry["object"] == server_bindings[-1]["object"], "RTD protocol switched server identity")
+            # Excel's IDispatch implementation can forward into the same
+            # object's early-bound method. Retain those bodies separately;
+            # they are not a second external client request.
+            parents = [e for e in trace[1].values() if e["entry"] == "COM!Invoke" and e.get("object_label") == "RTD server" and e["thread"] == entry["thread"] and e.get("object") == entry.get("object") and e["seq"] < entry["seq"] < returned["seq"] < trace[2][e["call"]]["seq"]]
+            if early and parents:
+                parent = min(parents, key=lambda e: e["seq"])
+                method = entry["entry"].rsplit(".", 1)[-1]
+                require(method_names.get(parent["dispid"]) == method, "Unexpected nested RTD method")
+                outer = trace[2][parent["call"]]
+                require(outer["hresult"] == returned["hresult"], "Internal RTD body changed its HRESULT")
+                if method in ("ServerStart", "Heartbeat"):
+                    require(outer["result"]["value"] == returned["started" if method == "ServerStart" else "value"], "Internal RTD scalar payload differs")
+                elif method == "ConnectData":
+                    require(outer["result"] == returned["result"] and outer["arguments_after"][0]["value"]["value"] == returned["new_values"], "Internal RTD ConnectData payload differs")
+                elif method == "RefreshData":
+                    require(outer["result"]["value"] == returned["data"] and outer["arguments_after"][0]["value"]["value"] == returned["count"], "Internal RTD refresh payload differs")
                 inner.append({"entry": entry, "returned": returned})
                 continue
-            require(dispatch if index == 0 else early and entry["from"].get("module") == "dna-calc-desktop.exe", "Unexpected external RTD call transport/caller")
+            require(dispatch and entry["from"].get("module") == "EXCEL.EXE" if index == 0 else early and entry["from"].get("module") == "dna-calc-desktop.exe", "Unexpected external RTD call transport/caller")
             method = method_names[entry["dispid"]] if dispatch else entry["entry"].rsplit(".", 1)[-1]
             row = {"method": method, "hresult": returned["hresult"]}
             arguments = entry.get("rgvarg", [])
@@ -825,11 +862,54 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             elif method == "DisconnectData": row["topic"] = arguments[0]["value"] if dispatch else entry["topic"]
             elif method == "Heartbeat": row["value"] = returned["result"]["value"] if dispatch else returned["value"]
             protocol.append(row)
-        require([r["method"] for r in protocol] == ["ServerStart", "ConnectData", "UpdateNotify", "RefreshData", "DisconnectData", "ServerTerminate"], "Missing or additional RTD client calls")
+        if signaling:
+            methods = [r["method"] for r in protocol]
+            require(methods[:2] == ["ServerStart", "ConnectData"] and methods[-2:] == ["DisconnectData", "ServerTerminate"] and "UpdateNotify" in methods and "RefreshData" in methods, "Incomplete signaling RTD protocol")
+        else:
+            require([r["method"] for r in protocol] == ["ServerStart", "ConnectData", "UpdateNotify", "RefreshData", "DisconnectData", "ServerTerminate"], "Missing or additional RTD client calls")
         require(all(r["hresult"] == 0 for r in protocol), "RTD protocol call failed")
-        require(protocol[3]["count"] == 1 and protocol[3]["data"]["values"] == [{"vt": 3, "value": 1}, {"vt": 5, "value": 42}] and not protocol[3]["data"]["truncated"], "RTD array data differs")
+        if not signaling:
+            require(protocol[3]["count"] == 1 and protocol[3]["data"]["values"] == [{"vt": 3, "value": 1}, {"vt": 5, "value": 42}] and not protocol[3]["data"]["truncated"], "RTD array data differs")
+        raw_protocols.append(protocol)
         protocols.append(protocol); internals.append(inner); notifications.append(notices)
-        records = all_invocations(trace, "X5.RtdValue", False)
+        records = all_invocations(trace, "X5.Rtd" if signaling else "X5.RtdValue", signaling)
+        if signaling:
+            ownership.append(framework_ownership(trace))
+            require(records and all(not r["arguments"] for r in records), "Missing or changed signaling UDF entry")
+            require(records[-1]["result"] == {"type": 0x4800, "value": 42}, "Signaling UDF never returned its final DLL-owned integer value")
+            callbacks = [c for r in records for c in r["callbacks"] if c[0] == 379]
+            require(callbacks and all(c[2] == 0 and len(c[1]) == 3 and c[1][1] == {"type": 2, "value": ""} for c in callbacks), "Signaling RTD callback failed or changed transport")
+            require(all(c[1] == callbacks[0][1] for c in callbacks), "Signaling RTD changed provider/topic strings")
+            expected_callback_results = [{"type": 1, "value": 0} for _ in callbacks]
+            if index:
+                expected_callback_results[0] = {"type": 16, "value": 42}
+            require([c[3] for c in callbacks] == expected_callback_results, "Signaling RTD callback result types/values differ from the measured surface")
+            connect = [r for r in protocol if r["method"] == "ConnectData"]
+            require(len(connect) == 1 and connect[0]["initial"] == {"vt": 0, "value": None}, "Expected one empty signaling subscription")
+            topic = connect[0]["topic"]
+            topic_text = callbacks[0][1][2]["value"]
+            require(connect[0]["strings"]["values"] == [{"vt": 8, "value": topic_text}], "RTD ConnectData differs from the actual callback topic")
+            # Only per-session identities are normalized. All raw values and
+            # every method call remain available above and in boundary.jsonl.
+            normalized = json.loads(json.dumps(protocol))
+            for row in normalized:
+                if "topic" in row:
+                    require(row["topic"] == topic, "RTD protocol used another topic")
+                    row["topic"] = "<subscription>"
+                if row["method"] == "ConnectData":
+                    row["strings"]["values"][0]["value"] = "<async-topic>"
+                if row["method"] == "RefreshData" and row["count"]:
+                    data = row["data"]
+                    require(data and data["dimensions"] == 2 and data["element_bytes"] == 24 and not data["truncated"] and len(data["values"]) == 2 * row["count"], "Incomplete RTD signal array")
+                    for i in range(row["count"]):
+                        require(data["values"][2*i] == {"vt": 3, "value": topic} and data["values"][2*i+1] == {"vt": 0, "value": None}, "RTD refresh was not this topic's empty signal")
+                        data["values"][2*i]["value"] = "<subscription>"
+            protocols[-1] = normalized
+            if index == 1:
+                updates = outputs[0]["rtd_updates"]
+                require(updates[0]["subscription"] == topic and len(updates) == 1 + sum(r["count"] for r in protocol if r["method"] == "RefreshData"), "An observed empty RTD signal is missing from P07 admissions")
+            native.append(records)
+            continue
         for record in records:
             require(record["arguments"] == [] and len(record["callbacks"]) == 1, "Unexpected RTD UDF boundary")
             callback = record["callbacks"][0]
@@ -840,14 +920,29 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
         if index: expected.insert(0, {"type": 16, "value": 42})
         require([r["result"] for r in records] == expected, "RTD native result sequence differs")
         native.append(records)
-    require(protocols[0] == protocols[1], "RTD client protocol payloads differ")
+    protocol_pairs = [{"position": i, "excel": a, "host": b, "matched": a == b} for i, (a, b) in enumerate(zip_longest(*protocols))]
+    # Diagnose scheduling differences without relaxing the ordered verdict. Pair
+    # each occurrence of each method, keeping every extra call as a failure.
+    indexed = []
+    for protocol in protocols:
+        counts = Counter()
+        calls = {}
+        for position, row in enumerate(protocol):
+            counts[row["method"]] += 1
+            calls[(row["method"], counts[row["method"]])] = {"position": position, "payload": row}
+        indexed.append(calls)
+    method_pairs = [{"method": key[0], "occurrence": key[1], "excel": indexed[0].get(key), "host": indexed[1].get(key),
+                     "matched": key in indexed[0] and key in indexed[1] and indexed[0][key]["payload"] == indexed[1][key]["payload"]}
+                    for key in dict.fromkeys([*indexed[0], *indexed[1]])]
     publications = verify_sources(environments, publication_path)
-    return {"status": "verified controlled numeric RTD protocol", "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
-            "client_protocol_each_host": protocols[0], "native_invocations_excel_and_host": native, "internal_server_body_observations": internals, "notification_threads": notifications,
+    source_bindings_checked = sum(len(e["source_files"]) + 2 for e in environments)
+    require(all(r["matched"] for r in protocol_pairs), "Ordered RTD client protocol payloads differ")
+    return {"status": "verified original xlOil signaling RTD protocol" if signaling else "verified controlled numeric RTD protocol", "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
+            "client_protocol_each_host": protocols[0], "raw_client_protocols_excel_and_host": raw_protocols, "client_protocol_comparison": protocol_pairs, "client_calls_by_method": method_pairs, "server_bindings": server_bindings, "native_invocations_excel_and_host": native, "native_ownership_excel_and_host": ownership, "internal_server_body_observations": internals, "notification_threads": notifications,
             "host_results": outputs, "source_publication_revisions": [p["revision"] for p in publications], "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in environments),
             "transport": "Excel IDispatch vs host early-bound. Compare the external client method payloads; retain internal fixture body hits separately. SAFEARRAY bounds retain descriptor order.",
-            "initial_difference": "Host returns #N/A before the initial input is admitted, then1 and42; Excel returns1 then42. All raw invocations remain visible.",
-            "scope": "Controlled finite scalar RTD, exact P07 input certificate and retirement. Empty signaling-cache values, general providers/teardown, arrays and remote RTD remain open."}
+            "initial_difference": "The host's first RTD callback returns temporary #N/A before admission; subsequent empty signals return numeric zero as in Excel. All Python UDF invocations, defined ownership bits and callbacks are retained; invocation counts may differ with asynchronous publication." if signaling else "Host returns #N/A before the initial input is admitted, then1 and42; Excel returns1 then42. All raw invocations remain visible.",
+            "scope": "Original xlOil 0.22.1 async generator and separate Python cache; empty sequenced inputs, exact P07 certificate, formula replacement and finite client protocol. General providers, arrays, remote servers and arbitrary teardown remain open." if signaling else "Controlled finite scalar RTD, exact P07 input certificate and retirement. General providers/teardown, arrays and remote RTD remain open."}
 
 
 def verify_permissions(excel, control, hosts, cases_path, publication_path):
@@ -897,22 +992,30 @@ def verify_permissions(excel, control, hosts, cases_path, publication_path):
         status = json.loads((directory / "host.exit.json").read_text(encoding="utf-8-sig"))
         error = (directory / "host.stderr").read_text(encoding="utf-8-sig")
         calculated = status == {"exit_code": 0, "finished": True}
+        evaluated_payload = None
         if calculated:
             output = json.loads((directory / "host.stdout").read_text(encoding="utf-8-sig"))
             require(output["results"][0]["formula"] == case["formula"], "Host calculated a different permission formula")
             require(not error.strip() and output["results"][0]["value"] == codes[0] and output["live_callback_allocations"] == 0 and output["closed_registration"] == "#NAME?", "Invalid permission calculation/teardown")
             if function == 32890:
                 require(output["status_message"] == ("X5 permission" if "MacroPermission" in case["formula"] else None), "Permission call changed the wrong message state")
+            if function == 257 and excel_code == 0:
+                types = [int(r[2]) for r in log if r[0] == "EvaluateResultType"]
+                bits = [r[2] for r in log if r[0] == "EvaluateResultBits"]
+                require(len(types) == len(bits) == 1 and re.fullmatch(r"[0-9a-f]{16}", bits[0]), "EVALUATE result payload was not retained once")
+                evaluated_payload = {"type": types[0] & 0xfff, "value": struct.unpack(">d", bytes.fromhex(bits[0]))[0]}
+                excel_result = trace[2][callbacks[0]["call"]]["result"]
+                require(evaluated_payload == {"type": excel_result["type"] & 0xfff, "value": excel_result["value"]}, "EVALUATE result type/value differs")
         else:
             require(status == {"exit_code": 1, "finished": False} and "NotModelled" in error and "dc-snz.2" in error, "Unexpected permission process failure")
-        rows.append({"formula": case["formula"], "function": function, "registration_form": forms[name], "excel_owner_thread": excel_owner, "excel_invocation_thread": entry["thread"], "excel_code": excel_code, "host_code": codes[0], "callback_code_match": excel_code == codes[0], "host_calculated": calculated, "matched_formula": calculated and excel_code == codes[0], "host_error": error.strip() or None, "excel_callback": {"entry": callbacks[0], "returned": trace[2][callbacks[0]["call"]]}, "host_owner_thread": owner, "host_invocation_thread": invocation})
+        rows.append({"formula": case["formula"], "function": function, "registration_form": forms[name], "excel_owner_thread": excel_owner, "excel_invocation_thread": entry["thread"], "excel_code": excel_code, "host_code": codes[0], "callback_code_match": excel_code == codes[0], "host_calculated": calculated, "matched_formula": calculated and excel_code == codes[0], "host_error": error.strip() or None, "excel_callback": {"entry": callbacks[0], "returned": trace[2][callbacks[0]["call"]]}, "host_evaluate_payload": evaluated_payload, "host_owner_thread": owner, "host_invocation_thread": invocation})
     require(len({env["executable_sha256"] for env in environments[2:]}) == 1, "Permission host executable changed during the batch")
     require(len({env["shim_sha256"] for env in environments[2:]}) == 1, "Permission companion binary changed during the batch")
     verify_sources(environments, publication_path)
     matched = sum(r["matched_formula"] for r in rows)
     return {"status": "measured permission matrix; refusals remain failures", "requests": len(rows), "pass": matched, "fail": len(rows) - matched, "pass_rate_all_requests": matched / len(rows), "callback_codes_matched": sum(r["callback_code_match"] for r in rows), "rows": rows,
             "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in environments),
-            "scope": "13 callback requests across normal, # and $ registrations. Excel boundaries are traced and controlled; each host request uses an independent real executable and records its actual callback return code. This compares permission codes, not every discarded callback payload. General EVALUATE refusals remain failures; message state is checked, UI painting is unmeasured."}
+            "scope": "13 callback requests across normal, # and $ registrations. Excel boundaries are traced and controlled; each host request uses an independent real executable and records its actual callback return code. The two successful EVALUATE result types and numeric bits are also compared. Broader expressions remain outside these requests; message state is checked, UI painting is unmeasured."}
 
 
 def verify_x2_controls(excel, host, identity=False):
@@ -1002,6 +1105,9 @@ if __name__ == "__main__":
                 changes = data["changes"]
                 differences = [i for i, pair in enumerate(zip_longest(*(changes + [[]] * (2 - len(changes))))) if pair[0] != pair[1]]
                 result.update({"formula_cases_checked": len(data.get("cases", [])), "native_invocations_checked": data.get("call_comparisons", []), "sheet_changes_excel_and_host": changes, "udf_early_com_excel_and_host": data.get("nested", []), "sheet_change_differences": differences, "scope": "Strict X4 comparison remains failed; matching earlier checks do not convert the differing event calls into passes."})
+            elif trace.tb_frame.f_code.co_name == "verify_rtd":
+                pairs = data.get("protocol_pairs", [])
+                result.update({"host_results_checked": data.get("outputs", []), "source_bindings_checked": data.get("source_bindings_checked", 0), "client_protocols_excel_and_host": data.get("protocols", []), "raw_client_protocols_excel_and_host": data.get("raw_protocols", []), "client_protocol_comparison": pairs, "client_calls_matched": sum(r["matched"] for r in pairs), "client_calls_failed": sum(not r["matched"] for r in pairs), "client_calls_by_method": data.get("method_pairs", []), "server_bindings": data.get("server_bindings", []), "native_invocations_excel_and_host": data.get("native", []), "native_ownership_excel_and_host": data.get("ownership", []), "internal_server_bodies": data.get("internals", []), "scope": "Failed RTD comparison; successful value/provenance checks do not turn differing or incomplete traffic into passes."})
     if rewritten_source_bindings:
         result["rewritten_source_bindings"] = sorted(rewritten_source_bindings.values(), key=lambda x: (x["path"], x["recorded_revision"]))
     rendered = json.dumps(result, indent=2) + "\n"

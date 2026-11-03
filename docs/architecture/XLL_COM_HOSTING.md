@@ -621,10 +621,14 @@ controls. Excel's native UDF returns1 then42; the host first returns temporary
 #N/A before admitting its first input, then1 and42. This difference remains in the
 evidence. These are controlled numeric inputs, not general RTD compatibility.
 
-Empty RTD values are currently refused. Original xlOil Python uses empty RTD
-signals and a separate Python result cache; a numeric coincidence of55 without a
-retained RTD read was a failed qualification. Arrays, remote servers, nontext
-topics, general signaling-cache providers and arbitrary RTD teardown are open.
+The original qualification refused empty RTD values. Original xlOil Python uses
+empty RTD signals and a separate Python result cache; a numeric coincidence of55
+without a retained RTD read was a failed qualification. The client now admits an
+empty value with its sequence through the same P07 route. The C API projects that
+admitted value as numeric zero, as observed in Excel, while the certificate keeps
+the empty input. Heartbeat age follows the last UpdateNotify or heartbeat, with
+monotonic notification timestamps across provider threads. Arrays, remote servers,
+nontext topics, general signaling-cache providers and arbitrary teardown are open.
 
 ## 16. X4/X5 measured limits, 2026-11-01
 
@@ -654,3 +658,23 @@ tests exercise one engine activation, dependent publication, overwrite revocatio
 and a rejected late return through the application composition. Broader concurrent
 workbook scheduling, cancellation cases and provider teardown remain open under
 dc-snz.23. Safe xlOil reload remains open under dc-snz.21.
+
+## 17. Corrections to the X4/X5 observations
+
+The X4 tracer now discovers the worksheet and Range arguments of every
+SheetChange. The former global discovery flag missed later event objects; xlOil
+also uses the worksheet pointer without another QueryInterface. The verifier
+requires Worksheet.Name and both local and qualified Range.Address reads in each
+expected event, so equal incomplete traces cannot pass. RTD factory observations
+retain the actual requested IID, returned object and enclosing xlfRtd callback.
+Unrelated COM factories are not presumed to be RTD servers.
+
+EVALUATE can evaluate a constant expression through the current CalcFml compiler
+and block runner, including its ordinary array and LAMBDA operations. It uses the
+owning formula's services. References, defined names, registered calls, volatility
+and escaping callable values remain typed refusals; a native add-in cannot hide
+that refusal by discarding the callback result. The measured normal and `#`
+requests evaluate `1+1`; the measured `$` denial remains128. The native fixture
+retains the result type and exact double bits for comparison with Excel. Nested
+retained kernel calls live on the heap so the existing one-megabyte recursion test
+continues to exercise the full evaluator depth after the shared helper changes.

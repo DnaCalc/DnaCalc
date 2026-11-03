@@ -282,14 +282,14 @@ fn failed_second_load_restores_previous_names_and_use_counts() {
     );
 }
 
-/// Native-only: EVALUATE must not invent #NAME? for an expression the host cannot evaluate.
+/// Native-only: unimplemented EVALUATE reads remain refusals through native swallowing and IFERROR.
 #[test]
-fn unimplemented_evaluate_expression_remains_a_typed_refusal() {
+fn unimplemented_evaluate_reference_remains_a_typed_refusal() {
     let fixture = Fixture::new();
     let output = fixture
         .command()
         .env("DNA_XLL_NEGATIVE_CALLBACK", "257")
-        .env("DNA_XLL_EVALUATE_TEXT", "1+1")
+        .env("DNA_XLL_EVALUATE_TEXT", "A1")
         .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
         .output()
         .unwrap();
@@ -299,6 +299,29 @@ fn unimplemented_evaluate_expression_remains_a_typed_refusal() {
         error.contains("NotModelled") && error.contains("dc-snz.2"),
         "{error}"
     );
+}
+
+/// Native-only: constant EVALUATE expressions execute through a real native callback in both compositions.
+#[test]
+fn constant_evaluate_callbacks_use_the_application_formula_route() {
+    for expression in ["1+1", "=SUM(3,4)*2", "SUM({1,2;3,4})"] {
+        for engine in [false, true] {
+            let fixture = Fixture::new();
+            let mut command = fixture.command();
+            command
+                .env("DNA_XLL_NEGATIVE_CALLBACK", "257")
+                .env("DNA_XLL_EVALUATE_TEXT", expression)
+                .args(["--formula", "=IFERROR(MyUnsupported(),123)"]);
+            if engine {
+                command.arg("--engine");
+            }
+            let result = checked(command.output().unwrap());
+            // This fixture deliberately discards the callback value. The
+            // portable context regression and Excel boundary compare its value.
+            assert_eq!(result["results"][0]["value"], 0.);
+            assert_eq!(result["live_callback_allocations"], 0);
+        }
+    }
 }
 
 /// Native-only: the product worker uses the evaluator's reference reader and function route,

@@ -165,7 +165,9 @@ pub enum EvalStep {
 struct BlockCursor {
     at: usize,
     base: Option<usize>,
-    pending: Option<PendingCall>,
+    // Keep every retained call on the heap: nested LAMBDA/IF frames also create
+    // empty cursors, and an inline kernel call grows every recursive stack frame.
+    pending: Option<Box<PendingCall>>,
     // Heap-owned nested frames allocate only when that instruction is entered.
     pending_user: Option<Box<PendingUserCall>>,
     child: Option<Box<PendingBlock>>,
@@ -1203,7 +1205,7 @@ impl Run<'_, '_> {
         retain: bool,
         synthetic: bool,
         admission: Admission,
-        pending: &mut Option<PendingCall>,
+        pending: &mut Option<Box<PendingCall>>,
         quantum: usize,
     ) -> Result<bool, EvalFault> {
         if let Some(call) = pending.take() {
@@ -1254,7 +1256,7 @@ impl Run<'_, '_> {
             arguments.extend(self.stack.drain(start..));
         }
         if !lifted && target.0.is_resumable() {
-            let call = PendingCall {
+            let call = Box::new(PendingCall {
                 target,
                 arguments,
                 scratch: self.calls.pop().unwrap_or_default(),
@@ -1262,7 +1264,7 @@ impl Run<'_, '_> {
                 synthetic,
                 retain,
                 start,
-            };
+            });
             return self.advance_call(call, pending, quantum);
         }
         let value = if lifted {
@@ -1282,8 +1284,8 @@ impl Run<'_, '_> {
 
     fn advance_call(
         &mut self,
-        mut call: PendingCall,
-        pending: &mut Option<PendingCall>,
+        mut call: Box<PendingCall>,
+        pending: &mut Option<Box<PendingCall>>,
         quantum: usize,
     ) -> Result<bool, EvalFault> {
         let result = self.eager_chunk(
@@ -2399,6 +2401,90 @@ mod tests {
 
     fn text(s: &str) -> CalcValue {
         CalcValue::text(ExcelText::from_interop_assignment(s))
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn constant_expression_callbacks_keep_values_arrays_and_formula_faults() {
+        #[derive(Debug)]
+        struct Expression;
+        impl calc_func::UserFunction for Expression {
+            fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+                Err("expression callback requires its formula context".into())
+            }
+            fn call_with_context(
+                &self,
+                args: &[CalcValue],
+                context: &mut dyn calc_func::UserFunctionContext,
+            ) -> Result<CalcValue, String> {
+                let CoreRef::Text(expression) = args[0].core_ref() else {
+                    panic!("test supplies text")
+                };
+                context.evaluate_constant_expression(&expression.to_string_lossy(), "dc-snz.2")
+            }
+        }
+        let mut functions = crate::CallableTable::new();
+        functions
+            .register("EvalText", std::rc::Rc::new(Expression))
+            .unwrap();
+        let mut ids = IdAllocator::<SheetId>::new();
+        let anchor = FormulaAnchor::new(CellKey::new(ids.issue().unwrap(), 3, 2).unwrap());
+        for (formula, expected) in [
+            ("=EvalText(\"1+1\")", Some(2.)),
+            ("=EvalText(\"=SUM(3,4)*2\")", Some(14.)),
+            ("=SUM(EvalText(\"{1,2;3,4}\"))", Some(10.)),
+            ("=EvalText(\"LET(x,5,x^2)\")", Some(25.)),
+            ("=EvalText(\"IF(FALSE,1/0,42)\")", Some(42.)),
+            ("=EvalText(\"LAMBDA(x,x+1)(8)\")", Some(9.)),
+            ("=IFERROR(EvalText(\"A1\"),123)", None),
+            ("=IFERROR(EvalText(\"RAND()\"),123)", None),
+            (
+                "=IFERROR(EvalText(\"HSTACK(LAMBDA(x,x+1),LAMBDA(x,x+2))\"),123)",
+                None,
+            ),
+        ] {
+            let plan = crate::compile_with_functions(
+                &parse_formula(formula),
+                ReferenceNotation::A1,
+                anchor,
+                &NoSheets,
+                &mut PlanCache::new(),
+                FormulaForm::Dynamic,
+                &functions,
+            )
+            .unwrap();
+            let instance = instantiate(&plan, anchor);
+            let mut reader = Everywhere(CalcValue::number(7.), 0);
+            let mut scratch = EvalScratch::new();
+            let mut effects = super::super::UserFunctionEffects::default();
+            let actual = evaluate(
+                EvalFrame::new(&instance, &mut scratch),
+                &mut FormulaEvaluationContext::new(
+                    &NumericMode::Fast,
+                    &mut reader,
+                    None,
+                    None,
+                    crate::ReadRequest::DEPENDENCY,
+                )
+                .with_catalog(&NoSheets)
+                .with_functions(&functions)
+                .with_user_function_effects(&mut effects),
+            );
+            match expected {
+                Some(value) => assert_eq!(actual, Ok(CalcValue::number(value)), "{formula}"),
+                None => assert!(
+                    matches!(
+                        actual,
+                        Err(EvalFault::NotModelled {
+                            owner: "dc-snz.2",
+                            ..
+                        })
+                    ),
+                    "{formula}: {actual:?}"
+                ),
+            }
+            assert_eq!(reader.1, 0, "constant callbacks cannot issue a cell read");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -3564,6 +3650,133 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         arguments: &[CalcValue],
     ) -> Result<CalcValue, String> {
         self.worksheet_function_for(name, arguments, "dc-snz.5")
+    }
+
+    fn evaluate_constant_expression(
+        &mut self,
+        expression: &str,
+        owner: &'static str,
+    ) -> Result<CalcValue, String> {
+        let Some(catalog) = self.run.catalog else {
+            return Err(self.refuse_by("expression evaluation without a workbook catalogue", owner));
+        };
+        let anchor = self.run.instance.anchor;
+        let expression = expression.trim();
+        let text = if expression.starts_with('=') {
+            expression.to_owned()
+        } else {
+            format!("={expression}")
+        };
+        let tree = crate::parse_formula(&text);
+        let mut cache = super::PlanCache::new();
+        let compiled = match self.run.functions {
+            Some(functions) => super::compile_with_functions(
+                &tree,
+                ReferenceNotation::A1,
+                anchor,
+                catalog,
+                &mut cache,
+                FormulaForm::Dynamic,
+                functions,
+            ),
+            None => super::compile_with(
+                &tree,
+                ReferenceNotation::A1,
+                anchor,
+                catalog,
+                &mut cache,
+                FormulaForm::Dynamic,
+            ),
+        };
+        let plan = compiled
+            .map_err(|_| self.refuse_by("expression rejected by the formula compiler", owner))?;
+        // A dynamically compiled name needs its own binding certificate. Refuse
+        // those forms until the callback contract can retain that evidence.
+        // Constant expressions still use the ordinary parser, instructions,
+        // numeric services, kernel calls and observer of this invocation.
+        if !plan.references.is_empty()
+            || plan.reads_external_links()
+            || !plan.name_bindings.is_empty()
+            || plan.has_user_calls()
+            || plan.volatile()
+            || plan.blocks.iter().flatten().any(|i| match i {
+                Instruction::Name(_) => true,
+                Instruction::Function(target) => super::VOLATILE_FUNCTIONS.iter().any(|name| {
+                    super::strip_future_prefix(target.0.spelling()).eq_ignore_ascii_case(name)
+                }),
+                _ => false,
+            })
+        {
+            return Err(self.refuse_by(
+                "EVALUATE with references, names, user calls or volatile functions",
+                owner,
+            ));
+        }
+        let instance = super::instantiate(&plan, anchor);
+        let mut scratch = super::EvalScratch::new();
+        let mut child = Run {
+            instance: &instance,
+            stack: &mut scratch.stack,
+            calls: &mut scratch.calls,
+            locals: &mut scratch.locals,
+            arguments: &mut scratch.arguments,
+            base: 0,
+            depth: self.run.depth + 1,
+            budget: self.run.budget,
+            numeric: self.run.numeric,
+            reader: self.run.reader,
+            random: self.run.random,
+            catalog: self.run.catalog,
+            functions: self.run.functions,
+            read_policy: self.run.read_policy,
+            invocation: self.frame.clone(),
+            external_inputs: self.run.external_inputs,
+            reference_handles: self.run.reference_handles,
+            observation_reader: self.run.observation_reader,
+            function_diagnostics: self.run.function_diagnostics.as_deref_mut(),
+            user_function_effects: self.run.user_function_effects.as_deref_mut(),
+            observer: match self.run.observer.as_mut() {
+                Some(observer) => Some(&mut **observer),
+                None => None,
+            },
+        };
+        let mut remaining = usize::MAX;
+        let result = child.block_slice(0, &mut BlockCursor::default(), &mut remaining);
+        let result = match result {
+            Ok(Some(value)) => {
+                // A closure, including one inside an array, names this temporary
+                // plan. No such handle may outlive the expression invocation.
+                let mut pending = vec![&value];
+                let mut callable = false;
+                while let Some(cell) = pending.pop() {
+                    if cell.callable_value().is_some() {
+                        callable = true;
+                        break;
+                    }
+                    if let Some(array) = cell.as_array() {
+                        pending.extend(array.iter_row_major());
+                    }
+                }
+                if callable {
+                    Err(not_modelled_by(
+                        "a callable returned by an expression callback",
+                        owner,
+                    ))
+                } else {
+                    Ok(value)
+                }
+            }
+            Ok(None) => Err(not_modelled_by(
+                "an expression callback requiring a continuation",
+                owner,
+            )),
+            Err(fault) => Err(fault),
+        };
+        result.map_err(|fault| {
+            let text = format!("{fault:?}");
+            self.fault.get_or_insert(fault);
+            text
+        })
     }
 
     fn worksheet_function_for(

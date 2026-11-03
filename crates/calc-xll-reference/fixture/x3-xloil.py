@@ -44,8 +44,9 @@ xloil.event.SheetChange += _sheet_change
 def _startup_calculate():
     # The importer pauses Python events through scan_module. A delivered
     # calculation event after that module appears acknowledges event resumption.
-    if "xloil.excelfuncs" in sys.modules:
-        Path(__file__).with_name("x4-startup-ready").write_text("AfterCalculate delivered\n")
+    ready = Path(__file__).with_name("x4-startup-ready")
+    if "xloil.excelfuncs" in sys.modules and not ready.exists():
+        ready.write_text("AfterCalculate delivered\n")
 
 
 xloil.event.AfterCalculate += _startup_calculate
