@@ -1,0 +1,17 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "control-dc_10y_iteration",
+    "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\dc_10y_iteration\\oracle.xlsx",
+    "input_sha256": "dd3d66a85327aaa2cfef12f54607821482babdb4947655ba31aa0fccd9fce87f",
+    "iteration": true,
+    "iterations": 50,
+    "change_bits": "3f1a36e2eb1c432d",
+    "operation": "Rebuild",
+    "commands": 1,
+    "range": "A1:D1"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\dc_10y_iteration\\oracle.xlsx",
+  "input_sha256": "dd3d66a85327aaa2cfef12f54607821482babdb4947655ba31aa0fccd9fce87f"
+}

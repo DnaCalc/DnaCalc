@@ -33,11 +33,12 @@
 //! - Macros: AutomationSecurity is set to 3 (force-disable) and EnableEvents off before the
 //!   workbook opens, and both are read back; one that does not read back as set refuses the
 //!   capture before the workbook is opened.
-//! - Add-ins: after Excel starts, the worker reads every add-in's state (AddIns2: IsOpen and
+//! - Add-ins: before opening the workbook, the worker reads every add-in's state (AddIns2: IsOpen and
 //!   Installed; COMAddIns: Connect; AddIns: Installed) and whether XLL functions are registered,
 //!   and switches none off or on. One that is open in the capture's instance, one of AddIns2 whose
 //!   state cannot be read, and registered XLL functions refuse the capture as isolation failures
-//!   that name each by its file name, and Excel quits without the workbook having been opened. A
+//!   that name each by its file name, without the workbook having been opened. The session host
+//!   verifies the reset before accepting another job. A
 //!   connected COM add-in does not refuse it and is not disconnected: on the owner's machine the
 //!   COM add-in VS15ExcelAdaptor, registered under HKLM with LoadBehavior 3, reads as connected in
 //!   every automation instance measured, and the worker writes no add-in's state. This deviates
@@ -49,7 +50,7 @@
 //!   or names cannot be read is an environment failure. What a connected COM add-in does during
 //!   the capture is not observed. These list settings separate items with `;` and fields with
 //!   `|`, and write `%`, `;` and `|` within a name as `%25`, `%3B` and `%7C`.
-//! - External content, refused before Excel starts (Excel never opens the workbook), by these
+//! - External content, refused before Excel opens the workbook, by these
 //!   checks of the package and no others: a data connection, pivot cache definition or query table
 //!   with refreshOnLoad; an external link part that is not a link to another workbook (an OLE or
 //!   DDE link); a call, in a cell formula of a worksheet, macro sheet or dialog sheet, a

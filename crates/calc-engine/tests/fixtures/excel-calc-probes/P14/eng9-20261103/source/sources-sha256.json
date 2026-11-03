@@ -1,0 +1,9 @@
+{
+  "tools\\excel-session\\iteration-job.ps1": "4fec8d3c9a514bb2f6528f882dbf60e0bb0a5c6fdbefe5ac77d9581840581629",
+  "tools\\excel-session\\events-job.ps1": "0349f7d59f50ac3e8da116bd81008fbf1f5e74c4a2566a471ceb69b7950bd980",
+  "tools\\excel-session\\condition-job.ps1": "70cd132af17e9644a5862397bc4f98e1ec094f1d3936f98149d0e1e4db0c7a61",
+  "tools\\excel-session\\host.ps1": "726199187e84bfc5e103eb0c07405643e3af31e6ab8cb7cc8917c20583208428",
+  "tools\\excel-session\\submit.ps1": "2ed8162688b1884557f43dfad5bc79465e430fa3ea4b705cabe86b660b69fa2a",
+  "crates\\calc-engine\\tests\\fixtures\\make-dc-y2o-oracles.ps1": "e5552757ee09e32611b5e99a2f1ab8dc5a9ae31ee6f72b6e93640db4be4bd8aa",
+  "platform\\calc-oracle-excel\\worker\\capture-worker.ps1": "b8c1c482f73b050effc0a22e2a70b34e13ae71ea8a073e5e209d7e6dc0666439"
+}

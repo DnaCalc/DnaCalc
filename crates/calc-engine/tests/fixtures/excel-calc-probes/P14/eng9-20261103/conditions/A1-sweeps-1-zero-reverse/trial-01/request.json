@@ -1,0 +1,30 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A1-sweeps-1-zero-reverse",
+    "formulas": {
+      "A1": "=B1+1",
+      "B1": "=A1+1",
+      "C1": "=C1+1",
+      "D1": "=SUM(A1:B1)"
+    },
+    "seeds": {
+      "A1": 0,
+      "B1": 0,
+      "C1": 0,
+      "D1": 0
+    },
+    "iterations": 1,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": true,
+    "reverse_chain": true,
+    "input_sha256": "6000b9a15d94a86eaf606a14a37c5cf976cae3710c8536f22c1e1b305b5feec4"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A1-sweeps-1-zero-reverse.xlsx",
+  "input_sha256": "6000b9a15d94a86eaf606a14a37c5cf976cae3710c8536f22c1e1b305b5feec4"
+}

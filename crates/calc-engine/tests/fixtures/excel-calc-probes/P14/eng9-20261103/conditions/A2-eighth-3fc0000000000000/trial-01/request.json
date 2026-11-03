@@ -1,0 +1,24 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A2-eighth-3fc0000000000000",
+    "formulas": {
+      "A1": "=A1+0.125"
+    },
+    "seeds": {
+      "A1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3fc0000000000000",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "6f4488a75adecd046df099e7379e67337737fc70ccb3ba4ff84228b356974887"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A2-eighth-3fc0000000000000.xlsx",
+  "input_sha256": "6f4488a75adecd046df099e7379e67337737fc70ccb3ba4ff84228b356974887"
+}

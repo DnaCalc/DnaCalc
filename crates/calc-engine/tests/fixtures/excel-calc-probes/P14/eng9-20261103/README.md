@@ -1,0 +1,5 @@
+Eng9 P14 partial observations, 2026-11-03
+
+These are Excel observations, not expected engine answers. observations.jsonl preserves every parsed result value and its original raw-result hash. Full raw files remain in C:/Work/DnaCalc/codex-runs/excel-results-eng9. Each included condition has ten completed workbook trials in one fresh owned process, with recorded baseline resets between trials; the trials share process memory. Receipts, condition-wrapper requests and trial-01 request/input/saved artifacts are included. Other trial requests remain in the external raw delivery.
+
+The source packet requested much more than this snapshot. Unrun conditions are not passes. Preparation formula assignment and saving were not separately instrumented; frozen input hashes, declared seeds/formulas, initial live values and post-open settings are checked before the measured command. Observer UDFs, mixed-sweep observations, MTC lanes, live UI/native reads and cancellation, cross-workbook SCCs and some edit/history cases remain unrun. Saving and reopening are separate observations and can advance iteration. See the external delivery status for the final completed/unrun inventory.

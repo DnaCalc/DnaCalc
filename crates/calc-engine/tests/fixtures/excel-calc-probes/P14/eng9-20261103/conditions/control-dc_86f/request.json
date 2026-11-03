@@ -1,0 +1,56 @@
+{
+  "condition": "control-dc_86f",
+  "worker": "C:\\Work\\DnaCalc\\DnaCalc-win\\tools\\excel-session\\iteration-job.ps1",
+  "trials": [
+    {
+      "trial": 1,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\01\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\01\\result.json"
+    },
+    {
+      "trial": 2,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\02\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\02\\result.json"
+    },
+    {
+      "trial": 3,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\03\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\03\\result.json"
+    },
+    {
+      "trial": 4,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\04\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\04\\result.json"
+    },
+    {
+      "trial": 5,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\05\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\05\\result.json"
+    },
+    {
+      "trial": 6,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\06\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\06\\result.json"
+    },
+    {
+      "trial": 7,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\07\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\07\\result.json"
+    },
+    {
+      "trial": 8,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\08\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\08\\result.json"
+    },
+    {
+      "trial": 9,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\09\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\09\\result.json"
+    },
+    {
+      "trial": 10,
+      "request": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\10\\request.json",
+      "result": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\trials\\control-dc_86f\\10\\result.json"
+    }
+  ]
+}

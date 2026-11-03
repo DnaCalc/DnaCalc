@@ -1,0 +1,24 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "B6-untaken-self",
+    "formulas": {
+      "A1": "=IF(TRUE,1,A1+1)"
+    },
+    "seeds": {
+      "A1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "8aaf26ea44248cfb4a585f2b3653db147773c70ed2877dfac031b986b727b3ae"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\B6-untaken-self.xlsx",
+  "input_sha256": "8aaf26ea44248cfb4a585f2b3653db147773c70ed2877dfac031b986b727b3ae"
+}

@@ -1,0 +1,26 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A3-eighth-amplifier",
+    "formulas": {
+      "C1": "=C1+0.125",
+      "D1": "=C1*1048576"
+    },
+    "seeds": {
+      "C1": 0,
+      "D1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3fc999999999999a",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "1a7ca253d8ed97f88e88de075946c3a50df91aa4d283019f6c638187128e6cc1"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A3-eighth-amplifier.xlsx",
+  "input_sha256": "1a7ca253d8ed97f88e88de075946c3a50df91aa4d283019f6c638187128e6cc1"
+}

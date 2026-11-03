@@ -1,0 +1,26 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A3-half-amplifier",
+    "formulas": {
+      "A1": "=A1/2+1",
+      "B1": "=A1*1048576"
+    },
+    "seeds": {
+      "A1": 0,
+      "B1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3fc999999999999a",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "be89275fd68c9576d90e799f47bf1b82ac28637e57f5e32ee7c2b5cd9ae94a31"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A3-half-amplifier.xlsx",
+  "input_sha256": "be89275fd68c9576d90e799f47bf1b82ac28637e57f5e32ee7c2b5cd9ae94a31"
+}

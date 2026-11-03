@@ -1,0 +1,24 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "B6-NA",
+    "formulas": {
+      "A1": "=IF(A1=0,NA(),NA())"
+    },
+    "seeds": {
+      "A1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "71f20a9538c8cd54c4c22c34670aa94a08d304b4cf462877bcc395e7177b2685"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\B6-NA.xlsx",
+  "input_sha256": "71f20a9538c8cd54c4c22c34670aa94a08d304b4cf462877bcc395e7177b2685"
+}

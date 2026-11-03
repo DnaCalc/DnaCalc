@@ -1,0 +1,19 @@
+{
+  "snapshot_utc": "2026-11-03T16:48:17.899441+00:00",
+  "complete": false,
+  "completed_trials": 70,
+  "successful_trials": 70,
+  "excel_launches": 70,
+  "cases": {
+    "automatic-basic": 10,
+    "manual-basic": 10,
+    "manual-cancel-only": 10,
+    "manual-edit-cancel": 10,
+    "automatic-change-nested": 10,
+    "automatic-calculate-nested": 10,
+    "automatic-events-disabled": 10
+  },
+  "requested_trials": 70,
+  "p06_completed_trials": 0,
+  "p06_requested_trials": 180
+}

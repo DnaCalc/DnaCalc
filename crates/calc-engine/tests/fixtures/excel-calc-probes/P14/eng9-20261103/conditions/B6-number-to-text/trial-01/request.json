@@ -1,0 +1,24 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "B6-number-to-text",
+    "formulas": {
+      "A1": "=IF(ISNUMBER(A1),\"text\",1)"
+    },
+    "seeds": {
+      "A1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "80ba431b1f458f591e82cb87adb1578953e6fced0bcdbb07ca47f7f473d49397"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\B6-number-to-text.xlsx",
+  "input_sha256": "80ba431b1f458f591e82cb87adb1578953e6fced0bcdbb07ca47f7f473d49397"
+}

@@ -1,0 +1,116 @@
+manual-edit-cancel	initialize	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+manual-edit-cancel	initialize	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=False;precisionAsDisplayed=False;date1904=False;mtc=False;threads=1;automationSecurity=1
+manual-edit-cancel	initialize	force-full-setting	False
+manual-edit-cancel	initialize	addin	ANALYS32.XLL;installed=False
+manual-edit-cancel	initialize	addin	ATPVBAEN.XLAM;installed=False
+manual-edit-cancel	initialize	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+manual-edit-cancel	initialize	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+manual-edit-cancel	initialize	addin	EUROTOOL.XLAM;installed=False
+manual-edit-cancel	initialize	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+manual-edit-cancel	initialize	addin	ExcelDna.IntelliSense64.xll;installed=False
+manual-edit-cancel	initialize	addin	GENERIC.xll;installed=False
+manual-edit-cancel	initialize	addin	McpExcel-AddIn64.xll;installed=True
+manual-edit-cancel	initialize	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+manual-edit-cancel	initialize	addin	ExcelDna64.xll;installed=False
+manual-edit-cancel	initialize	addin	RibbonTest-AddIn64.xll;installed=False
+manual-edit-cancel	initialize	addin	SOLVER.XLAM;installed=False
+manual-edit-cancel	initialize	addin	Test160rc1Local-AddIn64.xll;installed=False
+manual-edit-cancel	initialize	addin	TestCrashGuard-AddIn64.xll;installed=True
+manual-edit-cancel	initialize	addin	TestCs170rc2-AddIn64.xll;installed=False
+manual-edit-cancel	initialize	addin	TestDoc170-AddIn64.xll;installed=False
+manual-edit-cancel	initialize	addin	TestOpen16-AddIn64-packed.xll;installed=False
+manual-edit-cancel	initialize	com-addin	Carousel.ExcelAddin;connected=False
+manual-edit-cancel	initialize	com-addin	Dna_78b015d8b23f56a68ecce694f11f8794_3;connected=False
+manual-edit-cancel	initialize	com-addin	ExcelPlugInShell.PowerMapConnect;connected=False
+manual-edit-cancel	initialize	com-addin	ExcelVstoAddIn1;connected=False
+manual-edit-cancel	initialize	com-addin	MicrosoftDataStreamerforExcel;connected=False
+manual-edit-cancel	initialize	com-addin	MsoTDAddin.Connect.1;connected=False
+manual-edit-cancel	initialize	com-addin	NativeShim.InquireConnector.1;connected=False
+manual-edit-cancel	initialize	com-addin	OxVbaExcelAddin.ExcelAddin;connected=False
+manual-edit-cancel	initialize	com-addin	PDFMaker.OfficeAddin;connected=False
+manual-edit-cancel	initialize	com-addin	PowerPivotExcelClientAddIn.NativeEntry.1;connected=False
+manual-edit-cancel	initialize	com-addin	TestComAddIn.ComAddIn;connected=False
+manual-edit-cancel	initialize	com-addin	TestRibbonRegistration.MyCustomRibbon;connected=False
+manual-edit-cancel	initialize	com-addin	VS15ExcelAdaptor;connected=True
+manual-edit-cancel	initialize	com-addin	xlPerf;connected=False
+manual-edit-cancel	enable-events	stage	enable-events
+manual-edit-cancel	set-calculation-mode	stage	set-calculation-mode
+manual-edit-cancel	COM write A1=5	stage	COM write A1=5
+manual-edit-cancel	COM write A1=5	Worksheet_Change entry	A1
+manual-edit-cancel	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+manual-edit-cancel	COM write A1=5	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM write A1=5	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM write A1=5	Worksheet_Change exit	A1
+manual-edit-cancel	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+manual-edit-cancel	COM write A1=5	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM write A1=5	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM write A1=5	Application_SheetChange	S!A1
+manual-edit-cancel	COM write A1=5	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+manual-edit-cancel	COM write A1=5	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM write A1=5	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM write A1=5	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM SaveAs	stage	COM SaveAs
+manual-edit-cancel	COM SaveAs	Workbook BeforeSave entry	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=False
+manual-edit-cancel	COM SaveAs	cell	S!A1;vt=5;type=Double;value=5;bits=4014000000000000
+manual-edit-cancel	COM SaveAs	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM SaveAs	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM SaveAs	Worksheet_Change entry	A1
+manual-edit-cancel	COM SaveAs	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM SaveAs	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM SaveAs	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM SaveAs	Worksheet_Change exit	A1
+manual-edit-cancel	COM SaveAs	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM SaveAs	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM SaveAs	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM SaveAs	Application_SheetChange	S!A1
+manual-edit-cancel	COM SaveAs	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM SaveAs	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM SaveAs	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM SaveAs	BeforeSave edit returned	A1
+manual-edit-cancel	COM SaveAs	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM SaveAs	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM SaveAs	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM SaveAs	Workbook BeforeSave exit	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=True
+manual-edit-cancel	COM SaveAs	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM SaveAs	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM SaveAs	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM SaveAs	Application BeforeSave entry	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=True
+manual-edit-cancel	COM SaveAs	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM SaveAs	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM SaveAs	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM SaveAs	Application BeforeSave exit	SaveAsUI=vt=11;type=Boolean;value=False;Cancel=vt=11;type=Boolean;value=True
+manual-edit-cancel	COM SaveAs	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM SaveAs	cell	S!B1;vt=5;type=Double;value=2;bits=4000000000000000
+manual-edit-cancel	COM SaveAs	cell	S!C1;vt=5;type=Double;value=4;bits=4010000000000000
+manual-edit-cancel	COM SaveAs	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM Application.Calculate	stage	COM Application.Calculate
+manual-edit-cancel	COM Application.Calculate	Worksheet_Calculate entry	
+manual-edit-cancel	COM Application.Calculate	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!B1;vt=5;type=Double;value=10;bits=4024000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!C1;vt=5;type=Double;value=20;bits=4034000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM Application.Calculate	Worksheet_Calculate exit	
+manual-edit-cancel	COM Application.Calculate	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!B1;vt=5;type=Double;value=10;bits=4024000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!C1;vt=5;type=Double;value=20;bits=4034000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM Application.Calculate	Workbook_SheetCalculate	S
+manual-edit-cancel	COM Application.Calculate	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!B1;vt=5;type=Double;value=10;bits=4024000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!C1;vt=5;type=Double;value=20;bits=4034000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	COM Application.Calculate	Application_SheetCalculate	S
+manual-edit-cancel	COM Application.Calculate	cell	S!A1;vt=5;type=Double;value=9;bits=4022000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!B1;vt=5;type=Double;value=10;bits=4024000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!C1;vt=5;type=Double;value=20;bits=4034000000000000
+manual-edit-cancel	COM Application.Calculate	cell	S!D1;vt=0;type=Empty;value=<Empty>
+manual-edit-cancel	disable-events diagnostic boundary	stage	disable-events diagnostic boundary

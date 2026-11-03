@@ -33,11 +33,11 @@
 //!    compared. `--import` adds existing capture records to the cache first, keyed by the
 //!    workbook hash their `source` names and the build their environment names, so a capture taken
 //!    before never has to be taken again.
-//! 3. **Excel processes.** A capture runs in the isolation of calc-oracle-excel: its worker starts
-//!    a new Excel through COM and reports that Excel's PID, read from the window handle
-//!    `Application.Hwnd`; the adapter terminates only a PID that was not running before the
-//!    capture started. The owner's Excel, and any Excel this command did not start, is never
-//!    stopped. What became of each capture's Excel is in the summary's capture line.
+//! 3. **Excel processes.** calc-oracle-excel submits capture jobs to the lane's owned Excel
+//!    session queue. The host resets and verifies its recorded baseline between jobs, retains
+//!    launch counts and receipts, and repeats every fiftieth ordinary observation in a fresh
+//!    process. A crash, drift or fresh-required job recycles only its owned PID/start-time tuple.
+//!    Other Excel processes are never stopped. The receipt is retained with each capture.
 //! 4. **Comparison through the product route.** Each workbook is compared by a `cargo xtask
 //!    compare` process (the one verdict path: calc_host open, recalculate and project, calc-verdict
 //!    judge, then the triage), writing `report.json`, `evaluations.json`, `triage.json` and its log

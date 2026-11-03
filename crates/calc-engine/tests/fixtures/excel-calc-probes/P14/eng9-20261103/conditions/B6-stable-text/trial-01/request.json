@@ -1,0 +1,24 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "B6-stable-text",
+    "formulas": {
+      "A1": "=IF(A1=0,\"x\",\"x\")"
+    },
+    "seeds": {
+      "A1": 0
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "e771049414137ec937608ba3f8d6f951d127930f00484b58a4128b3687652d6d"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\B6-stable-text.xlsx",
+  "input_sha256": "e771049414137ec937608ba3f8d6f951d127930f00484b58a4128b3687652d6d"
+}

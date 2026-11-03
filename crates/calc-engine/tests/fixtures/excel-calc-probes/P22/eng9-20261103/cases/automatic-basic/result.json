@@ -1,0 +1,2765 @@
+{
+  "fatal": null,
+  "locale": "en-ZA",
+  "case": "automatic-basic",
+  "operations": [
+    {
+      "utc": "2026-11-03T16:17:58.4696791Z",
+      "after": {
+        "mode": -4135,
+        "events": false,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4135,
+        "events": false,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage enable-events"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4135,
+        "events": false,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4135,
+        "events": true,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "enable-events",
+      "utc": "2026-11-03T16:17:58.4701251Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:58.5344874Z",
+      "after": {
+        "mode": -4135,
+        "events": true,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4135,
+        "events": true,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage set-calculation-mode"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4135,
+        "events": true,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "set-calculation-mode",
+      "utc": "2026-11-03T16:17:58.5612088Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:58.6608132Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM write A1=5"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM write A1=5",
+      "utc": "2026-11-03T16:17:58.6720095Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:58.7310757Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM same-value rewrite"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM same-value rewrite",
+      "utc": "2026-11-03T16:17:58.7411197Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:58.8111648Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM ClearContents A1"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "",
+            "address": "A1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM ClearContents A1",
+      "utc": "2026-11-03T16:17:58.8223701Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:58.8928229Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "",
+            "address": "A1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "",
+            "address": "A1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM write A1=5"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "",
+            "address": "A1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM write A1=5",
+      "utc": "2026-11-03T16:17:58.9024108Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:58.9772718Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM Application.Calculate"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM Application.Calculate",
+      "utc": "2026-11-03T16:17:58.9781958Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:59.0507793Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM Application.CalculateFull"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM Application.CalculateFull",
+      "utc": "2026-11-03T16:17:59.0558873Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:59.1805570Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM Application.CalculateFullRebuild"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM Application.CalculateFullRebuild",
+      "utc": "2026-11-03T16:17:59.2019235Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:59.2741610Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM Worksheet.Calculate"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM Worksheet.Calculate",
+      "utc": "2026-11-03T16:17:59.2909476Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:59.3668377Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM Range.Calculate B1"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "COM Range.Calculate B1",
+      "utc": "2026-11-03T16:17:59.3887660Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:59.4690278Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM SaveAs"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "COM SaveAs",
+      "utc": "2026-11-03T16:17:59.5797588Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:59.6803351Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM Save"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "COM Save",
+      "utc": "2026-11-03T16:17:59.8242554Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:17:59.9332098Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM SaveCopyAs"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "COM SaveCopyAs",
+      "utc": "2026-11-03T16:17:59.9733374Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:18:00.0817043Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "diagnostic Stage COM Application.Undo"
+    },
+    {
+      "error": "System.Runtime.InteropServices.COMException (0x800A03EC): Unable to get the Undo property of the Application class\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject)\r\n   at System.Dynamic.UpdateDelegates.UpdateAndExecute1[T0,TRet](CallSite site, T0 arg0)\r\n   at System.Dynamic.UpdateDelegates.UpdateAndExecute1[T0,TRet](CallSite site, T0 arg0)\r\n   at System.Dynamic.UpdateDelegates.UpdateAndExecute1[T0,TRet](CallSite site, T0 arg0)\r\n   at System.Management.Automation.Interpreter.DynamicInstruction`2.Run(InterpretedFrame frame)\r\n   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)",
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "COM Application.Undo",
+      "utc": "2026-11-03T16:18:00.1204104Z",
+      "returned": null
+    },
+    {
+      "utc": "2026-11-03T16:18:00.1919061Z",
+      "after": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "diagnostic Stage disable-events diagnostic boundary"
+    },
+    {
+      "error": null,
+      "before": {
+        "mode": -4105,
+        "events": true,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "after": {
+        "mode": -4105,
+        "events": false,
+        "cells": [
+          {
+            "formula": "5",
+            "address": "A1",
+            "value": {
+              "number": "4014000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4018000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4028000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": true,
+        "state": 0
+      },
+      "operation": "disable-events diagnostic boundary",
+      "utc": "2026-11-03T16:18:00.1924124Z",
+      "returned": null
+    }
+  ],
+  "common_source_sha256": "f2303721d3b2a32612db92187e2fb158d6734bd4ad107002fcaee2857bbc0bad",
+  "trial": 1,
+  "automation_security_before": 1,
+  "automation_security_after": 1,
+  "excel_version": "16.0",
+  "files_sha256": {
+    "artifact.xlsm": "ae7a568b59d6aa0687efe0770a9e07d69a7d40010baec80c3fd4ea7babf5a9e2",
+    "events.cls": "7d55554529b44defee25abb23a593bf95bedfa7564639e7139177fc1f7e3d25b",
+    "loaded-P22Events.bas": "a151cb9b294d35b47f1f1ea726c68b8a7dba6cc636fb300a2f0d3948505bcf07",
+    "loaded-P22Probe.bas": "b604db6b8a99108592670ff3e088b98c6e2834ecc16df60224e610b919fe9a0d",
+    "loaded-Sheet1.bas": "f9cd22ad29d1f4f82c13af3a9cc6546a4d3ff464e2f55a728b9255bf84696d41",
+    "loaded-ThisWorkbook.bas": "c687de343e34b33016fb0e44d630f02ac836829010a0f4ecb1746ee9c1210ae8",
+    "module.bas": "152879e54057c334f2b54cba48f6671be03eb2c099b6b7e143e427230930891b",
+    "request.json": "6a8b9c50cdd470f1a627217f15c468d12106c6626330061fd276d9e595c0107b",
+    "sheet.bas": "2dcc27d7d6288492a2ca1b79f7ddad3e5cc16525fd2ff7f2aa7068ae04613465",
+    "tested-copy.xlsm": "91e52346a60df320246db366fba1f5913712531259ed28e270afb4cc56ef292b",
+    "tested.xlsm": "e0d47e442f5c2912cd550dc5b68ad6626e38f6c74fc32978ad1f660aafdf2d38",
+    "trace.tsv": "70dc65f57c64637d128cb53785d4067f12fc1df8b47bd3254267613e9f053355",
+    "workbook.bas": "673e41f73b2757143c8aeaaa1272d61667a973fa49e257498bbdcb29844c23f9"
+  },
+  "excel_build": "20527",
+  "limitations": "Ordinary COM commands with in-process VBA event logging. Macro Stage calls and diagnostic cache reads are retained; UI, paste/Redo, two-sheet, async and RTD conditions are not inferred. Artifact save follows the tested operations with events disabled.",
+  "artifact_save": {
+    "error": null,
+    "before": {
+      "mode": -4105,
+      "events": false,
+      "cells": [
+        {
+          "formula": "5",
+          "address": "A1",
+          "value": {
+            "number": "4014000000000000"
+          }
+        },
+        {
+          "formula": "=A1+1",
+          "address": "B1",
+          "value": {
+            "number": "4018000000000000"
+          }
+        },
+        {
+          "formula": "=B1*2",
+          "address": "C1",
+          "value": {
+            "number": "4028000000000000"
+          }
+        },
+        {
+          "formula": "",
+          "address": "D1",
+          "value": {
+            "empty": true
+          }
+        }
+      ],
+      "saved": true,
+      "state": 0
+    },
+    "after": {
+      "mode": -4105,
+      "events": false,
+      "cells": [
+        {
+          "formula": "5",
+          "address": "A1",
+          "value": {
+            "number": "4014000000000000"
+          }
+        },
+        {
+          "formula": "=A1+1",
+          "address": "B1",
+          "value": {
+            "number": "4018000000000000"
+          }
+        },
+        {
+          "formula": "=B1*2",
+          "address": "C1",
+          "value": {
+            "number": "4028000000000000"
+          }
+        },
+        {
+          "formula": "",
+          "address": "D1",
+          "value": {
+            "empty": true
+          }
+        }
+      ],
+      "saved": true,
+      "state": 0
+    }
+  },
+  "setup": [
+    {
+      "operation": "manual blank workbook",
+      "snapshot": {
+        "mode": -4135,
+        "events": false,
+        "cells": [
+          {
+            "formula": "",
+            "address": "A1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "",
+            "address": "B1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "",
+            "address": "C1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      }
+    },
+    {
+      "operation": "assign A1=1",
+      "snapshot": {
+        "mode": -4135,
+        "events": false,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "B1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "",
+            "address": "C1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      }
+    },
+    {
+      "operation": "assign B1 formula",
+      "snapshot": {
+        "mode": -4135,
+        "events": false,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "C1",
+            "value": {
+              "empty": true
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 2
+      }
+    },
+    {
+      "operation": "assign C1 formula",
+      "snapshot": {
+        "mode": -4135,
+        "events": false,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 2
+      }
+    },
+    {
+      "operation": "setup CalculateFull",
+      "snapshot": {
+        "mode": -4135,
+        "events": false,
+        "cells": [
+          {
+            "formula": "1",
+            "address": "A1",
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          },
+          {
+            "formula": "=A1+1",
+            "address": "B1",
+            "value": {
+              "number": "4000000000000000"
+            }
+          },
+          {
+            "formula": "=B1*2",
+            "address": "C1",
+            "value": {
+              "number": "4010000000000000"
+            }
+          },
+          {
+            "formula": "",
+            "address": "D1",
+            "value": {
+              "empty": true
+            }
+          }
+        ],
+        "saved": false,
+        "state": 0
+      }
+    }
+  ]
+}

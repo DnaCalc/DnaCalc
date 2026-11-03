@@ -1,0 +1,1983 @@
+{
+  "controls": [
+    {
+      "id": "control-dc_86f",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\dc_86f\\oracle.xlsx",
+      "input_sha256": "7c8887848b182706ca8aefb53418ce66a234d768fec1bd48acfa39a525935da9",
+      "iteration": true,
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "operation": "Rebuild",
+      "commands": 1,
+      "range": "A1:D1"
+    },
+    {
+      "id": "control-dc_10y_iteration",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\dc_10y_iteration\\oracle.xlsx",
+      "input_sha256": "dd3d66a85327aaa2cfef12f54607821482babdb4947655ba31aa0fccd9fce87f",
+      "iteration": true,
+      "iterations": 50,
+      "change_bits": "3f1a36e2eb1c432d",
+      "operation": "Rebuild",
+      "commands": 1,
+      "range": "A1:D1"
+    }
+  ],
+  "prepared": [
+    {
+      "id": "A1-sweeps-1-zero",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-zero",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-zero",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-zero",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-zero",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-asymmetric",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-asymmetric",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-asymmetric",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-asymmetric",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-asymmetric",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A2-eighth-3fbfffffffffffff",
+      "formulas": {
+        "A1": "=A1+0.125"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fbfffffffffffff",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A2-eighth-3fc0000000000000",
+      "formulas": {
+        "A1": "=A1+0.125"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fc0000000000000",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A2-eighth-3fc0000000000001",
+      "formulas": {
+        "A1": "=A1+0.125"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fc0000000000001",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A2-eighth-0000000000000000",
+      "formulas": {
+        "A1": "=A1+0.125"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "0000000000000000",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A2-half-3fbfffffffffffff",
+      "formulas": {
+        "A1": "=A1/2+1"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3fbfffffffffffff",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A2-half-3fc0000000000000",
+      "formulas": {
+        "A1": "=A1/2+1"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3fc0000000000000",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A2-half-3fc0000000000001",
+      "formulas": {
+        "A1": "=A1/2+1"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3fc0000000000001",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A2-half-0000000000000000",
+      "formulas": {
+        "A1": "=A1/2+1"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 100,
+      "change_bits": "0000000000000000",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A3-both-amplifiers",
+      "formulas": {
+        "A1": "=A1/2+1",
+        "B1": "=A1*1048576",
+        "C1": "=C1+0.125",
+        "D1": "=C1*1048576"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fc999999999999a",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A3-both-alone",
+      "formulas": {
+        "A1": "=A1/2+1",
+        "C1": "=C1+0.125"
+      },
+      "seeds": {
+        "A1": 0,
+        "C1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fc999999999999a",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A3-half-amplifier",
+      "formulas": {
+        "A1": "=A1/2+1",
+        "B1": "=A1*1048576"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fc999999999999a",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A3-eighth-amplifier",
+      "formulas": {
+        "C1": "=C1+0.125",
+        "D1": "=C1*1048576"
+      },
+      "seeds": {
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fc999999999999a",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A3-half-alone",
+      "formulas": {
+        "A1": "=A1/2+1"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fc999999999999a",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A3-eighth-alone",
+      "formulas": {
+        "C1": "=C1+0.125"
+      },
+      "seeds": {
+        "C1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3fc999999999999a",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A4-pure",
+      "formulas": {
+        "A1": "=A1/2+1",
+        "B1": "=A1*1048576",
+        "C1": "=B1+1"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "B6-stable-text",
+      "formulas": {
+        "A1": "=IF(A1=0,\"x\",\"x\")"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "B6-toggle-text",
+      "formulas": {
+        "A1": "=IF(A1=\"a\",\"b\",\"a\")"
+      },
+      "seeds": {
+        "A1": [
+          "str",
+          "a"
+        ]
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "B6-boolean",
+      "formulas": {
+        "A1": "=NOT(A1)"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "B6-NA",
+      "formulas": {
+        "A1": "=IF(A1=0,NA(),NA())"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "B6-changing-error",
+      "formulas": {
+        "A1": "=IF(ISERROR(A1),1/0,NA())"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "B6-number-to-text",
+      "formulas": {
+        "A1": "=IF(ISNUMBER(A1),\"text\",1)"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "B6-untaken-self",
+      "formulas": {
+        "A1": "=IF(TRUE,1,A1+1)"
+      },
+      "seeds": {
+        "A1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "B7-indirect",
+      "formulas": {
+        "A1": "=INDIRECT(IF(A1<2,\"B1\",\"C1\"))+1",
+        "B1": "=A1/2"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false,
+      "values": {
+        "C1": 10
+      }
+    },
+    {
+      "id": "B7-static",
+      "formulas": {
+        "A1": "=IF(A1<2,B1,C1)+1",
+        "B1": "=A1/2"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false,
+      "values": {
+        "C1": 10
+      }
+    },
+    {
+      "id": "A1-sweeps-1-zero-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-zero-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-zero-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-zero-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-zero-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-2-zero-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-zero-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-zero-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-zero-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-zero-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-3-zero-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-zero-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-zero-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-zero-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-zero-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-5-zero-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-zero-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-zero-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-zero-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-zero-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-100-zero-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-zero-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-zero-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-zero-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-zero-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 0,
+        "B1": 0,
+        "C1": 0,
+        "D1": 0
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-1-asymmetric-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-asymmetric-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-asymmetric-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-asymmetric-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-1-asymmetric-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 1,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-2-asymmetric-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-asymmetric-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-asymmetric-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-asymmetric-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-2-asymmetric-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 2,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-3-asymmetric-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-asymmetric-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-asymmetric-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-asymmetric-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-3-asymmetric-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 3,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-5-asymmetric-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-asymmetric-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-asymmetric-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-asymmetric-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-5-asymmetric-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    },
+    {
+      "id": "A1-sweeps-100-asymmetric-Calculate",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Calculate",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-asymmetric-Full",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Full",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-asymmetric-Sheet",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Sheet",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-asymmetric-Range",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": false,
+      "reverse_chain": false
+    },
+    {
+      "id": "A1-sweeps-100-asymmetric-reverse",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=C1+1",
+        "D1": "=SUM(A1:B1)"
+      },
+      "seeds": {
+        "A1": 77,
+        "B1": 55,
+        "C1": 100,
+        "D1": 999
+      },
+      "iterations": 100,
+      "change_bits": "3f50624dd2f1a9fc",
+      "iteration": true,
+      "operation": "Rebuild",
+      "commands": 2,
+      "range": "A1:D1",
+      "reverse_entry": true,
+      "reverse_chain": true
+    }
+  ],
+  "event_controls": [
+    {
+      "id": "P22-P06-manual-false-save-off",
+      "case": "manual-false-save-off",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-false-save-log",
+      "case": "manual-false-save-log",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-false-save-edit",
+      "case": "manual-false-save-edit",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-false-saveas-off",
+      "case": "manual-false-saveas-off",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-false-saveas-log",
+      "case": "manual-false-saveas-log",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-false-saveas-edit",
+      "case": "manual-false-saveas-edit",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-false-copy-off",
+      "case": "manual-false-copy-off",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-false-copy-log",
+      "case": "manual-false-copy-log",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-false-copy-edit",
+      "case": "manual-false-copy-edit",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-save-off",
+      "case": "manual-true-save-off",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-save-log",
+      "case": "manual-true-save-log",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-save-edit",
+      "case": "manual-true-save-edit",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-saveas-off",
+      "case": "manual-true-saveas-off",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-saveas-log",
+      "case": "manual-true-saveas-log",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-saveas-edit",
+      "case": "manual-true-saveas-edit",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-copy-off",
+      "case": "manual-true-copy-off",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-copy-log",
+      "case": "manual-true-copy-log",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    },
+    {
+      "id": "P22-P06-manual-true-copy-edit",
+      "case": "manual-true-copy-edit",
+      "kind": "events",
+      "input": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-engine\\tests\\fixtures\\excel-calc-probes\\P06\\manual-false-save-log-01-tested.xlsm",
+      "input_sha256": "5407073976f58be0212e270d2ab7b8ca6c704c5f2efb64ef124429dee737bead"
+    }
+  ],
+  "trials": 10,
+  "omissions": [
+    "P14 observer/counter UDF lanes, callback order and mixed-sweep reads",
+    "P14 MTC observer lanes and live native/UI cancellation",
+    "P14 reversed tab order and dynamic-reference post-edit dependencies",
+    "P14/P25 cross-workbook cyclic domains",
+    "New P22 Change/Calculate event placement, cancellation and reentrancy; existing P06 save controls are replayed separately",
+    "Existing OxVba-dependent supervisor is not invoked: that checkout is excluded by owner instruction."
+  ],
+  "execution": "Lane owned-PID queue; existing capture typed reads and Set-StoredValues helper; pure COM observations."
+}

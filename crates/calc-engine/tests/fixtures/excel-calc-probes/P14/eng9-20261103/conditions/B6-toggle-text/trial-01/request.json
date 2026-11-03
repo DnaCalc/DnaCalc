@@ -1,0 +1,27 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "B6-toggle-text",
+    "formulas": {
+      "A1": "=IF(A1=\"a\",\"b\",\"a\")"
+    },
+    "seeds": {
+      "A1": [
+        "str",
+        "a"
+      ]
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Rebuild",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "cf0d137f43eff4bd491c754b33edb6f8309675c60efb6ab3b616d34118c9f92d"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\B6-toggle-text.xlsx",
+  "input_sha256": "cf0d137f43eff4bd491c754b33edb6f8309675c60efb6ab3b616d34118c9f92d"
+}

@@ -1,0 +1,44 @@
+automatic-events-disabled	initialize	profile	version=16.0;build=20527;calculationVersion=191029;os=Windows (64-bit) NT 10.00
+automatic-events-disabled	initialize	settings	mode=-4135;iteration=False;maxIterations=100;maxChange=0.001;calculateBeforeSave=False;events=False;precisionAsDisplayed=False;date1904=False;mtc=False;threads=1;automationSecurity=1
+automatic-events-disabled	initialize	force-full-setting	False
+automatic-events-disabled	initialize	addin	ANALYS32.XLL;installed=False
+automatic-events-disabled	initialize	addin	ATPVBAEN.XLAM;installed=False
+automatic-events-disabled	initialize	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+automatic-events-disabled	initialize	addin	CsTest160PR-AddIn64-packed.xll;installed=False
+automatic-events-disabled	initialize	addin	EUROTOOL.XLAM;installed=False
+automatic-events-disabled	initialize	addin	ExcelDna.IntelliSense.Tools-AddIn64.xll;installed=False
+automatic-events-disabled	initialize	addin	ExcelDna.IntelliSense64.xll;installed=False
+automatic-events-disabled	initialize	addin	GENERIC.xll;installed=False
+automatic-events-disabled	initialize	addin	McpExcel-AddIn64.xll;installed=True
+automatic-events-disabled	initialize	addin	TestIntelliEmbed-AddIn64.xll;installed=False
+automatic-events-disabled	initialize	addin	ExcelDna64.xll;installed=False
+automatic-events-disabled	initialize	addin	RibbonTest-AddIn64.xll;installed=False
+automatic-events-disabled	initialize	addin	SOLVER.XLAM;installed=False
+automatic-events-disabled	initialize	addin	Test160rc1Local-AddIn64.xll;installed=False
+automatic-events-disabled	initialize	addin	TestCrashGuard-AddIn64.xll;installed=True
+automatic-events-disabled	initialize	addin	TestCs170rc2-AddIn64.xll;installed=False
+automatic-events-disabled	initialize	addin	TestDoc170-AddIn64.xll;installed=False
+automatic-events-disabled	initialize	addin	TestOpen16-AddIn64-packed.xll;installed=False
+automatic-events-disabled	initialize	com-addin	Carousel.ExcelAddin;connected=False
+automatic-events-disabled	initialize	com-addin	Dna_78b015d8b23f56a68ecce694f11f8794_3;connected=False
+automatic-events-disabled	initialize	com-addin	ExcelPlugInShell.PowerMapConnect;connected=False
+automatic-events-disabled	initialize	com-addin	ExcelVstoAddIn1;connected=False
+automatic-events-disabled	initialize	com-addin	MicrosoftDataStreamerforExcel;connected=False
+automatic-events-disabled	initialize	com-addin	MsoTDAddin.Connect.1;connected=False
+automatic-events-disabled	initialize	com-addin	NativeShim.InquireConnector.1;connected=False
+automatic-events-disabled	initialize	com-addin	OxVbaExcelAddin.ExcelAddin;connected=False
+automatic-events-disabled	initialize	com-addin	PDFMaker.OfficeAddin;connected=False
+automatic-events-disabled	initialize	com-addin	PowerPivotExcelClientAddIn.NativeEntry.1;connected=False
+automatic-events-disabled	initialize	com-addin	TestComAddIn.ComAddIn;connected=False
+automatic-events-disabled	initialize	com-addin	TestRibbonRegistration.MyCustomRibbon;connected=False
+automatic-events-disabled	initialize	com-addin	VS15ExcelAdaptor;connected=True
+automatic-events-disabled	initialize	com-addin	xlPerf;connected=False
+automatic-events-disabled	enable-events	stage	enable-events
+automatic-events-disabled	set-calculation-mode	stage	set-calculation-mode
+automatic-events-disabled	COM write A1=5	stage	COM write A1=5
+automatic-events-disabled	COM same-value rewrite	stage	COM same-value rewrite
+automatic-events-disabled	COM ClearContents A1	stage	COM ClearContents A1
+automatic-events-disabled	COM write A1=5	stage	COM write A1=5
+automatic-events-disabled	COM Application.CalculateFull	stage	COM Application.CalculateFull
+automatic-events-disabled	COM SaveAs	stage	COM SaveAs
+automatic-events-disabled	disable-events diagnostic boundary	stage	disable-events diagnostic boundary
