@@ -84,6 +84,11 @@ const DEFAULT_TIMEOUT_S: u64 = 3600;
 /// The prefix of the line a `bench --one` process prints its run on.
 const LINE: &str = "dnacalc-bench/1 ";
 
+// Share the host thread tests' strict comparison: independent opens have distinct document
+// namespaces, while values, incarnations, ticks, qualifications and certificates must agree.
+#[path = "../../../crates/calc-host/tests/contract_support/mod.rs"]
+mod independent_workbooks;
+
 #[derive(Debug, PartialEq)]
 struct Args {
     dir: PathBuf,
@@ -428,9 +433,8 @@ fn write_inventory(capture: &Path, out: &Path) -> Result<(), String> {
     fs::write(out, text).map_err(|e| format!("cannot write {}: {e}", out.display()))
 }
 
-/// How many cells of `request` project otherwise in `a` than in `b`: the value with its
-/// provenance, its calculation included, written out (a number by the digits that give its
-/// bits back).
+/// How many cells project otherwise, retaining values and qualified provenance while
+/// normalizing only the independent opens' owning document namespaces.
 fn differences(a: &HostState, b: &HostState, request: &ProjectionRequest) -> Result<usize, String> {
     let left = project(a, request).map_err(|e| format!("the projection was refused: {e}"))?;
     let right = project(b, request).map_err(|e| format!("the projection was refused: {e}"))?;
@@ -438,7 +442,10 @@ fn differences(a: &HostState, b: &HostState, request: &ProjectionRequest) -> Res
         .cells()
         .iter()
         .zip(right.cells())
-        .filter(|(x, y)| format!("{:?}", x.value()) != format!("{:?}", y.value()))
+        .filter(|(x, y)| {
+            independent_workbooks::comparable(x.value())
+                != independent_workbooks::comparable(y.value())
+        })
         .count())
 }
 
@@ -1255,6 +1262,73 @@ mod tests {
         ] {
             assert_eq!(status_bytes(invalid, "VmRSS:"), None);
         }
+    }
+
+    /// Native-only: independent host opens read the committed workbook and capture.
+    #[test]
+    fn thread_comparison_keeps_values_and_provenance_without_equating_workbook_ids() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates/calc-func/tests");
+        let bytes = fs::read(root.join("fixtures/cdoc_jpha/oracle.xlsx")).unwrap();
+        let capture = CaptureRecord::decode(
+            &fs::read(root.join("captures/cdoc_jpha/oracle.capture.json")).unwrap(),
+        )
+        .unwrap();
+        let open = || {
+            HostState::open(
+                Arc::new(MemorySource::new(bytes.clone())),
+                &OpenPolicy::default(),
+                HostOptions {
+                    calc_mode: Some(CalcMode::Automatic),
+                    ..HostOptions::default()
+                },
+            )
+            .unwrap()
+        };
+        let (mut left, mut right) = (open(), open());
+        left.set_threads(2);
+        right.set_threads(1);
+        recalculate(&mut left, |_| {}).unwrap();
+        recalculate(&mut right, |_| {}).unwrap();
+        let cell = &capture.formulas[0].cell;
+        let sheet = left
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == cell.sheet())
+            .unwrap()
+            .id();
+        let at = CellKey::new(sheet, cell.row(), cell.column()).unwrap();
+        let request = ProjectionRequest { cells: vec![at] };
+        let page = |host: &HostState| project(host, &request).unwrap();
+        let identity = |host: &HostState| match page(host).cells()[0].value() {
+            ProjectedValue::Calculated { calculation, .. } => {
+                calculation.stamp().unwrap().target.workbook.document
+            }
+            other => panic!("expected a certified calculated value: {other:?}"),
+        };
+        assert_ne!(identity(&left), identity(&right));
+        assert_eq!(differences(&left, &right, &request).unwrap(), 0);
+        recalculate(&mut left, calculate_full).unwrap();
+        let raw_value = |host: &HostState| match page(host).cells()[0].value() {
+            ProjectedValue::Calculated { value, .. } => format!("{value:?}"),
+            other => panic!("expected a calculated value: {other:?}"),
+        };
+        assert_eq!(raw_value(&left), raw_value(&right));
+        assert_eq!(
+            differences(&left, &right, &request).unwrap(),
+            1,
+            "a changed tick/certificate still differs"
+        );
+        let literal = |value| ProjectedValue::Literal(calc_host::value::CalcValue::number(value));
+        assert_ne!(
+            independent_workbooks::comparable(&literal(0.0)),
+            independent_workbooks::comparable(&literal(-0.0)),
+            "signed zero remains bit-sensitive"
+        );
+        assert_ne!(
+            independent_workbooks::comparable(&literal(1.0)),
+            independent_workbooks::comparable(&literal(f64::from_bits(1.0f64.to_bits() + 1))),
+            "adjacent finite values remain different"
+        );
     }
 
     /// Native-only: the command reads committed workbook/capture files and writes its inventory.
