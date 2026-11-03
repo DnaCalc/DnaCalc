@@ -1133,6 +1133,17 @@ impl Run<'_, '_> {
         if target.0.parameter_class(index) != Some(ParameterClass::Value) {
             return Ok(value);
         }
+        // The W111 MROUND/QUOTIENT reference controls distinguish a true multi-cell
+        // reference from an array materialized by unary plus. Formula2 rejects the former
+        // even when the caller aligns with it; a one-cell reference still supplies its value.
+        if self.instance.plan.form == FormulaForm::Dynamic
+            && ordered_binary_arguments(target)
+            && let CoreRef::Reference(reference) = value.core_ref()
+            && let [area] = reference.areas()
+            && area.cell_count() > 1
+        {
+            return Ok(CalcValue::error(WorksheetErrorCode::Value));
+        }
         self.admit_value(value, admission)
     }
 
@@ -1505,6 +1516,11 @@ impl Run<'_, '_> {
                                 Some(Ok(first)) => element[*index] = first,
                                 Some(Err(error)) => held = held.or(Some(error)),
                             }
+                        }
+                        // MROUND/QUOTIENT coerce arguments in order, including a padded
+                        // #N/A. An earlier error must win over a later absent coordinate.
+                        None if ordered_binary_arguments(target) => {
+                            element[*index] = CalcValue::error(WorksheetErrorCode::NA);
                         }
                         None => short = true,
                     }
@@ -1986,9 +2002,18 @@ impl Run<'_, '_> {
 /// Whether argument `index` of `target`, as admitted, is lifted over: an array at a parameter
 /// that takes one value, or an array of references given to a function that lifts over one.
 fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue) -> bool {
-    (target.0.parameter_class(index) == Some(ParameterClass::Value)
+    ((target.0.parameter_class(index) == Some(ParameterClass::Value)
+        // COUNTBLANK consumes a reference whole but a computed array cell by cell (the
+        // W111 count-family readings and w089-axis-reference-vs-array-variant).
+        || target.0.spelling() == "COUNTBLANK")
         && lifted_array(value).is_some())
         || (reference_array(value) && lifts_over_references(target, form))
+}
+
+/// The measured reference-origin and ordered-padding policies of these binary functions
+/// (OxFunc-Evidence, W111 MROUND/QUOTIENT reference controls and asymmetric-shape controls).
+fn ordered_binary_arguments(target: Target) -> bool {
+    matches!(target.0.spelling(), "MROUND" | "QUOTIENT")
 }
 
 /// Whether `target` runs once per reference of an array of references in a formula of `form`.

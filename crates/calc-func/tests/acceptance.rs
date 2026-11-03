@@ -5476,7 +5476,7 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [err(Ref)],
         E(Ref),
         Measured(
-            "dc-ifc: #REF! given to the reference-only parameter is the result (Excel 16.0.20430, 2026-10-27: ERROR.TYPE(COUNTBLANK(#REF!)) is 4)"
+            "dc-ifc: #REF! given to COUNTBLANK is the result (Excel 16.0.20430, 2026-10-27: ERROR.TYPE(COUNTBLANK(#REF!)) is 4)"
         )
     );
 
@@ -5899,7 +5899,10 @@ fn cfunc_m3_4__argument_classes() {
         let arity = target.arity();
         if spelling == "COUNTBLANK" {
             assert_eq!((arity.min, arity.max), (1, 1));
-            assert_eq!(target.parameter_class(0), Some(ParameterClass::Reference));
+            assert_eq!(
+                target.parameter_class(0),
+                Some(ParameterClass::ValueOrReference)
+            );
         } else {
             assert_eq!((arity.min, arity.max), (1, 255), "{spelling}");
             for index in [0, 1, 254] {
@@ -5936,16 +5939,27 @@ fn cfunc_m3_4__argument_classes() {
         "the per-ID manifest of migration/ports/cfunc-m3.4.json against the catalogue"
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: the catalogue's family 4 holds exactly the {} entries {:?}, each eager; COUNTBLANK takes one reference-only argument and the others 1 to 255 values or references; the per-ID manifest of migration/ports/cfunc-m3.4.json lists the same IDs and spellings",
+        "ACCEPT-NOTE: {CASE}: the catalogue's family 4 holds exactly the {} entries {:?}, each eager; COUNTBLANK takes one value or reference and the others 1 to 255; the per-ID manifest of migration/ports/cfunc-m3.4.json lists the same IDs and spellings",
         family.len(),
         AGGREGATES.map(|(spelling, _)| spelling)
     );
 
-    // COUNTBLANK's reference-only parameter refuses any other value at admission, before its
-    // kernel runs.
+    // The W111 count-family and reference-vs-array readings establish #VALUE! for computed
+    // scalars. The kernel still leaves array lifting to calc-fml and refuses explicit omission.
     let countblank = surface(Notation::Call, "COUNTBLANK");
-    for refused in [
+    for value in [
         CalcValue::number(1.0),
+        CalcValue::logical(true),
+        CalcValue::text(ExcelText::from_interop_assignment("")),
+        CalcValue::empty(),
+    ] {
+        assert_eq!(
+            run(countblank, &mut Recorded::new(vec![value.clone()]), &fast),
+            Ok(CalcValue::error(WorksheetErrorCode::Value)),
+            "COUNTBLANK({value:?})"
+        );
+    }
+    for refused in [
         CalcValue::array(CalcArray::from_scalar(CalcValue::empty())),
         CalcValue::missing(),
     ] {
@@ -6083,7 +6097,7 @@ fn cfunc_m3_4__argument_classes() {
         unreadable += 2;
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: through the call interface alone: COUNTBLANK refuses a number, an array and an omitted argument with ReferenceRequired; a direct Empty reads as an omitted argument (unmeasured choice); each aggregate refuses an array held in an array naming it, COUNT and COUNTA refuse NaN and infinity naming them; {unreadable} calls over a reference without a reader or with a refusing one ended in ReferenceUnreadable naming the argument"
+        "ACCEPT-NOTE: {CASE}: through the call interface alone: COUNTBLANK gives #VALUE! for computed scalars and refuses an array and an omitted argument with ReferenceRequired; the other aggregates' direct Empty cases remain unmeasured; each aggregate refuses an array held in an array naming it, COUNT and COUNTA refuse NaN and infinity naming them; {unreadable} calls over a reference without a reader or with a refusing one ended in ReferenceUnreadable naming the argument"
     );
 
     // NumericMode reaches every arithmetic site. Under Exact each call that adds, multiplies,
@@ -13073,7 +13087,7 @@ fn reference_result_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     );
 
     // The reference reaches a reference parameter as a reference: SUM, ROWS, COLUMNS, AREAS,
-    // ROW, COLUMN and COUNTBLANK (reference-only) read or measure the area INDEX selected.
+    // ROW, COLUMN and COUNTBLANK read or measure the area INDEX selected.
     let column_two = nest!(s, "INDEX", [grid(s), num("0"), num("2")]);
     lk!(r, s, "SUM", [column_two.clone()], n(15.0));
     let row_two = nest!(s, "INDEX", [grid(s), num("2"), num("0")]);
