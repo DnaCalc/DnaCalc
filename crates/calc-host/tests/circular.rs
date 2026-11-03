@@ -70,7 +70,13 @@ fn set_iteration(session: &mut HostSession, settings: IterationSettings) {
 fn workbook_part(package: &[u8]) -> String {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(package.to_vec()));
     let document = calc_doc::open(source, &OpenPolicy::default()).expect("the saved package opens");
-    String::from_utf8(document.package().read_part("xl/workbook.xml").expect("the part")).unwrap()
+    String::from_utf8(
+        document
+            .package()
+            .read_part("xl/workbook.xml")
+            .expect("the part"),
+    )
+    .unwrap()
 }
 
 /// Opened with iteration off, Off!A1 `=B1+1` and B1 `=A1+1` keep 77 and 55, G1 `=A1*10` 999, as
@@ -142,7 +148,10 @@ fn dc_y2o__iteration_is_switched_undone_and_saved() {
     assert!(part.contains(r#"iterateDelta="0.5""#), "{part}");
     assert!(!part.contains("iterateCount"), "{part}");
     let reopened = session_without_recalc(&saved);
-    assert_eq!(reopened.host().recalc_context().max_change_bits, 0.5f64.to_bits());
+    assert_eq!(
+        reopened.host().recalc_context().max_change_bits,
+        0.5f64.to_bits()
+    );
     set_iteration(&mut session, IterationSettings::new(false, 100, 0.5));
     let mut saved = Vec::new();
     save(session.host(), &SavePolicy::default(), &mut saved).expect("saved");
@@ -154,4 +163,195 @@ fn dc_y2o__iteration_is_switched_undone_and_saved() {
 fn session_without_recalc(bytes: &[u8]) -> HostSession {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
     HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).expect("it opens")
+}
+
+/// Recorded first-calculation values, including held seeds and sheet/cell order, must survive
+/// a yield at any position of an iterative sweep. Reopen observations are deliberately separate:
+/// reopening and calculating again advances divergent cycles in the recorded Excel sessions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__recorded_iteration_is_independent_of_owner_budget() {
+    use calc_host::{CompletionOutcome, HostProgress, WorkBudget};
+    let fixtures: [(&[u8], &[u8]); 2] = [
+        (
+            include_bytes!("../../calc-engine/tests/fixtures/dc_86f/oracle.xlsx"),
+            include_bytes!("../../calc-engine/tests/captures/dc_86f/oracle.capture.json"),
+        ),
+        (
+            include_bytes!("../../calc-engine/tests/fixtures/dc_10y_iteration/oracle.xlsx"),
+            include_bytes!("../../calc-engine/tests/captures/dc_10y_iteration/oracle.capture.json"),
+        ),
+    ];
+    for (bytes, capture) in fixtures {
+        let record = calc_verdict::CaptureRecord::decode(capture).unwrap();
+        assert_eq!(
+            record.source,
+            format!("sha256:{}", calc_verdict::sha256_hex(bytes))
+        );
+        for budget in [
+            usize::MAX,
+            1,
+            record.formulas.len(),
+            record.formulas.len() + 1,
+        ] {
+            let mut book = session_without_recalc(bytes);
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let cells: Vec<_> = record
+                .formulas
+                .iter()
+                .map(|formula| {
+                    let s = book
+                        .host()
+                        .sheets()
+                        .iter()
+                        .find(|s| s.name().text().to_string_lossy() == formula.cell.sheet())
+                        .unwrap()
+                        .id();
+                    CellKey::new(s, formula.cell.row(), formula.cell.column()).unwrap()
+                })
+                .collect();
+            let before = project(
+                book.host(),
+                &ProjectionRequest {
+                    cells: cells.clone(),
+                },
+            )
+            .unwrap();
+            let receipt = book.dispatch(SkinIntent::Rebuild);
+            assert!(receipt.accepted(), "{:?}", receipt.error);
+            if budget == 1 {
+                assert!(book.has_pending_calculation());
+                book.cancel_calculation();
+                assert!(!book.has_pending_calculation());
+                let cancelled = book.take_calculation_events();
+                assert_eq!(cancelled.iter().filter(|event| matches!(event,
+                    calc_host::CalcEvent::Completed(r) if r.outcome == CompletionOutcome::Cancelled
+                )).count(), 1);
+                assert_eq!(
+                    project(
+                        book.host(),
+                        &ProjectionRequest {
+                            cells: cells.clone()
+                        }
+                    )
+                    .unwrap()
+                    .cells(),
+                    before.cells()
+                );
+                // The cancelled candidate must not become the next command's held seed.
+                assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+            }
+            let mut steps = 0;
+            while book.has_pending_calculation() {
+                // Current DNA publication policy: no unfinished sweep becomes a displayed value.
+                // P14 asks whether Excel exposes a different intermediate cached view.
+                assert_eq!(
+                    project(
+                        book.host(),
+                        &ProjectionRequest {
+                            cells: cells.clone()
+                        }
+                    )
+                    .unwrap()
+                    .cells(),
+                    before.cells()
+                );
+                let progress = book.advance_calculation();
+                assert!(!matches!(progress, HostProgress::Failed(_)), "{progress:?}");
+                steps += 1;
+                assert!(steps < 10000, "bounded iterative work must finish");
+            }
+            let projected = project(book.host(), &ProjectionRequest { cells }).unwrap();
+            for (formula, cell) in record.formulas.iter().zip(projected.cells()) {
+                let expected = record
+                    .observations
+                    .iter()
+                    .find(|o| o.cell == formula.cell)
+                    .unwrap();
+                match cell.value() {
+                    ProjectedValue::Calculated { value, calculation } => {
+                        assert_eq!(
+                            value,
+                            expected.observation.expected(),
+                            "{} {:?}, budget {budget}",
+                            record.case,
+                            formula.cell
+                        );
+                        assert!(!calculation.held_by_circular_rule());
+                        assert!(!calculation.reads_external_links());
+                    }
+                    other => panic!("{} {:?}: {other:?}", record.case, formula.cell),
+                }
+            }
+            let terminal = book
+                .take_calculation_events()
+                .into_iter()
+                .filter_map(|e| match e {
+                    calc_host::CalcEvent::Completed(r) => Some(r),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(terminal.len(), 1);
+            assert_eq!(terminal[0].outcome, CompletionOutcome::Incomplete);
+            assert_eq!(terminal[0].coverage.calculated, record.formulas.len());
+            assert!(
+                terminal[0].coverage.uncertified > 0,
+                "iteration is not a SliceV1 freshness proof"
+            );
+        }
+    }
+}
+
+/// DNA repair-wave policy, not a new Excel observation: a spill can expose an executed
+/// INDIRECT cycle after the first SCC already converged. That new work needs a stopping decision.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__a_spill_repair_reopens_the_iteration_decision() {
+    use calc_host::{HostProgress, WorkBudget};
+    for budget in [usize::MAX, 1, 2, 3, 4, 7] {
+        let mut book = session_without_recalc(&calc_host::blank_package());
+        book.set_calculation_budget(WorkBudget::evaluations(budget));
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                .accepted()
+        );
+        let s = book.host().sheets()[0].id();
+        let at = |r, c| CellKey::new(s, r, c).unwrap();
+        let mut edits = vec![CellEdit::SetIteration(IterationSettings::new(
+            true, 5, 0.001,
+        ))];
+        for (cell, formula) in [
+            (at(1, 1), "=A1*0"),
+            (at(1, 3), "=IF(D2=0,0,INDIRECT(\"C1\")+1)"),
+            (at(1, 4), "=SEQUENCE(2)"),
+        ] {
+            edits.push(CellEdit::Set {
+                at: cell,
+                input: calc_host::interpret_entry(formula).unwrap().unwrap(),
+            });
+        }
+        assert!(book.dispatch(SkinIntent::Edit { edits }).accepted());
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        for _ in 0..1000 {
+            if !book.has_pending_calculation() {
+                break;
+            }
+            let progress = book.advance_calculation();
+            assert!(!matches!(progress, HostProgress::Failed(_)), "{progress:?}");
+        }
+        assert!(!book.has_pending_calculation());
+        let page = project(
+            book.host(),
+            &ProjectionRequest {
+                cells: vec![at(1, 1), at(1, 3), at(2, 4)],
+            },
+        )
+        .unwrap();
+        for (cell, expected) in page.cells().iter().zip([0.0, 4.0, 2.0]) {
+            assert!(
+                matches!(cell.value(), ProjectedValue::Calculated { value, calculation } if value.as_number() == Some(expected) && !calculation.held_by_circular_rule()),
+                "budget {budget}: {cell:?}"
+            );
+        }
+    }
 }
