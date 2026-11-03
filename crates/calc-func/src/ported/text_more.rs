@@ -588,7 +588,7 @@ pub(crate) enum Delimited {
     Text(ExcelText),
     /// The delimiter's instance is not found: #N/A, or the call's if_not_found.
     NotFound,
-    /// The instance number is 0 or beyond the text's length: #VALUE!.
+    /// The instance number is 0 or beyond the text's nonempty length: #VALUE!.
     BadInstance,
 }
 
@@ -602,7 +602,10 @@ pub(crate) fn delimited(
     match_end: bool,
 ) -> Delimited {
     let requested = instance.unsigned_abs();
-    if instance == 0 || requested > text.len_utf16_code_units() {
+    // The first search of empty text is still a valid search, with no delimiter to find.
+    // Excel 16.0.20430: TEXTBEFORE("","-") and TEXTAFTER("","-") are #N/A (the
+    // recorded typed Value2 cases w111typed-00274 and w111typed-00266, dc-zsn.7).
+    if instance == 0 || requested > text.len_utf16_code_units().max(1) {
         return Delimited::BadInstance;
     }
     let units = text.utf16_code_units();

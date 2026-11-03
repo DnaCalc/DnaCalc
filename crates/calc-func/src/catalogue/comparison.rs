@@ -388,7 +388,7 @@ pub(super) fn text_bucket(text: &[u16]) -> Option<Vec<u8>> {
     if text.iter().any(|&code| sort_key::refused(code)) {
         return None;
     }
-    let parts = sort_key::parts(text)?;
+    let parts = sort_key::parts(text).ok()?;
     let mut key = parts.primary;
     key.push(1);
     key.extend_from_slice(&parts.rest);
