@@ -1,7 +1,7 @@
 //! `cargo xtask capture --pending [--list] [--timeout <s>] [--attempts <n>]`: every committed
 //! oracle capture that is missing or no longer of its workbook, taken with Excel; and `cargo xtask
 //! capture --split --fixture <oracle.xlsx> --capture <capture.json> [--saved <package>]
-//! [--keep-saved <sheet>]...`, a capture of a whole sectioned oracle workbook written as its
+//! [--keep-saved <sheet>]... [--pending-only]`, a capture of a whole sectioned oracle workbook written as its
 //! section captures, with no Excel run.
 //!
 //! Slow validation is run on purpose, never as a condition of building, testing or committing: no
@@ -44,6 +44,8 @@
 //! section map one to one, so no Excel run is needed. With `--saved`, the package Excel saved
 //! during that capture, it also writes the saved worksheet part of each section that keeps one
 //! (an existing `sections/<sheet>.saved.xml`, or a sheet named by `--keep-saved`).
+//! With `--pending-only`, current section captures remain untouched; only missing or stale
+//! sections are written. The whole capture and saved package still undergo the same hash checks.
 
 use crate::capture::{accepted, default_work_dir_in, repository_revision, with_workbook_iteration};
 use crate::oracle_cases::{
@@ -57,7 +59,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub const USAGE: &str = "usage: cargo xtask capture --pending [--list] [--timeout <s>] [--attempts <n>]\n       cargo xtask capture --split --fixture <oracle.xlsx> --capture <capture.json> [--saved <package>] [--keep-saved <sheet>]...";
+pub const USAGE: &str = "usage: cargo xtask capture --pending [--list] [--timeout <s>] [--attempts <n>]\n       cargo xtask capture --split --fixture <oracle.xlsx> --capture <capture.json> [--saved <package>] [--keep-saved <sheet>]... [--pending-only]";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -596,13 +598,19 @@ struct SplitArgs {
     capture: PathBuf,
     saved: Option<PathBuf>,
     keep_saved: Vec<String>,
+    pending_only: bool,
 }
 
 fn parse_split(args: &[String]) -> Result<SplitArgs, String> {
     let (mut fixture, mut capture, mut saved) = (None, None, None);
     let mut keep_saved = Vec::new();
+    let mut pending_only = false;
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
+        if flag == "--pending-only" {
+            pending_only = true;
+            continue;
+        }
         let value = rest
             .next()
             .cloned()
@@ -620,6 +628,7 @@ fn parse_split(args: &[String]) -> Result<SplitArgs, String> {
         capture: capture.ok_or("--capture is required")?,
         saved,
         keep_saved,
+        pending_only,
     })
 }
 
@@ -666,8 +675,16 @@ fn run_split(args: &SplitArgs) -> Result<Vec<String>, String> {
         }
     }
     let sections = workbook_sections(&package_parts(&bytes)?)?;
+    let current: BTreeSet<String> = if args.pending_only {
+        section_states(&case, &bytes)?.0.into_iter()
+            .filter(|s| s.capture.is_some())
+            .map(|s| s.section.sheet)
+            .collect()
+    } else {
+        BTreeSet::new()
+    };
     let with_formulas: Vec<&calc_verdict::WorkbookSection> =
-        sections.iter().filter(|s| s.formula_cells > 0).collect();
+        sections.iter().filter(|s| s.formula_cells > 0 && !current.contains(&s.sheet)).collect();
     let written =
         write_sections(&case, &record, &with_formulas, saved.as_deref(), &args.keep_saved)?;
     ensure_ledger_entries(&root, &written)?;
@@ -744,9 +761,11 @@ mod tests {
                 fixture: PathBuf::from("f"),
                 capture: PathBuf::from("c"),
                 saved: None,
-                keep_saved: vec!["s".to_owned()]
+                keep_saved: vec!["s".to_owned()],
+                pending_only: false,
             }
         );
+        assert!(parse_split(&args("--fixture f --capture c --pending-only")).unwrap().pending_only);
     }
 
     /// The copy a capture of some of the catalogue's sections opens keeps every pending section's

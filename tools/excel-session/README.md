@@ -55,3 +55,11 @@ their frozen source/preparation hashes, declared formulas and seeds, live initia
 post-open application settings before a calculation command runs. Preparation failures retain
 their error and setting readback and do not discard other prepared conditions. The result
 distinguishes completion of planned jobs from the broader packet's unrun requirements.
+
+`run-iteration-packet.py --resume` verifies the previous delivery hashes, frozen inputs and
+completed trial receipts before continuing. It uses the existing trial requests and refuses
+to overwrite a raw result. Remaining conditions get trials 1-3 before trials 4-10. Pure trial
+groups share one fresh process, with baseline resets; each P06 trial uses a fresh process.
+Earlier and resumed groups use different processes. Every receipt and raw result is retained,
+and the resume inventory lists remaining trials and launch counts. `--dry-run` audits and
+writes the proposed remaining trial groups without starting Excel.

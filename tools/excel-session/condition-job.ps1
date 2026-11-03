@@ -20,5 +20,5 @@ foreach($trial in $req.trials){
     }
 }
 $value=@{fatal=$fatal;condition=$req.condition;excel_pid=$excelPid;trials=$records;requested_trials=@($req.trials).Count;
-    process_scope='One fresh process per condition; workbook state and recorded baseline reset between trials. Process memory is shared and trial order is retained; these are not separate fresh-process replicates.'}
+    process_scope=$(if($req.PSObject.Properties['process_scope']){$req.process_scope}else{'One fresh process per condition; workbook state and recorded baseline reset between trials. Process memory is shared and trial order is retained; these are not separate fresh-process replicates.'})}
 [IO.File]::WriteAllText($Result,((ConvertTo-Json -InputObject $value -Depth 40)+"`n"),[Text.UTF8Encoding]::new($false))

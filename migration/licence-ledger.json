@@ -4842,6 +4842,11 @@
    "path": "crates/calc-func/tests/captures/catalogue/sections/dcj9k_r16.capture.json",
    "class": "own-work",
    "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+     "path": "crates/calc-func/tests/fixtures/catalogue/fn2-layout.json",
+     "class": "own-work",
+     "reason": "fn2 unanswered question layout and file forms from the existing calc-doc serializer; no expected values"
   }
  ]
 }

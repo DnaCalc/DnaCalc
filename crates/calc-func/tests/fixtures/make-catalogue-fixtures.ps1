@@ -404,4 +404,22 @@ $cellBefore = '<sheetViews><sheetView topLeftCell="C5" workbookViewId="0"/></she
     '<col min="8" max="8" width="9.140625"/><col min="9" max="9" width="12.7109375" customWidth="1"/>' +
     '<col min="10" max="10" width="0.7109375" customWidth="1"/><col min="11" max="11" width="255.7109375" customWidth="1"/></cols>'
 $sheets += , @('dcuar_cell', (New-OracleSheet $cellInputs $cellFormulas @() $cellBefore))
-Write-Workbook (Join-Path $OutDir 'catalogue/oracle.xlsx') $sheets
+# dc-b1l.6: every fn2 caller has a blank source sheet and a separate observer sheet.
+# Stored text comes from calc-doc's existing file_form serializer; the packet's authored
+# spelling, explicit form and caller remain alongside it in this section's layout.
+$fn2Path = Join-Path $PSScriptRoot 'catalogue/fn2-layout.json'
+$fn2 = Get-Content -LiteralPath $fn2Path -Raw -Encoding UTF8 | ConvertFrom-Json
+foreach ($question in $fn2.questions) {
+    if ($question.formula_form -eq 'Dynamic') {
+        $sources = , @($question.source_cell, $question.stored_formula_text)
+        $sourceXml = New-OracleSheet @() @() $sources
+    } elseif ($question.formula_form -eq 'Legacy') {
+        $cellXml = '<c r="' + $question.source_cell + '"><f>' + (Get-Escaped $question.stored_formula_text) + '</f></c>'
+        $inputs = , @($question.source_cell, $cellXml)
+        $sourceXml = New-OracleSheet $inputs @()
+    } else { throw "Unknown fn2 formula form: $($question.formula_form)" }
+    $sheets += , @($question.source_sheet, $sourceXml)
+    $sheets += , @($question.observer_sheet, (New-OracleSheet @() $question.observer_stored_formulas))
+}
+
+Write-Workbook (Join-Path $OutDir 'catalogue/oracle.xlsx') $sheets -DynamicArrays
