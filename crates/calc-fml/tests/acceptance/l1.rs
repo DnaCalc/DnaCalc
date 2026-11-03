@@ -227,6 +227,86 @@ mod arrays {
         assert_eq!(book.dynamic("=MUNIT({3,3})"), numbers(&[&[1.0, 1.0]]));
     }
 
+    /// OxFunc-Evidence's w111-mround-reference-controls-run-typed-20260929 and
+    /// w111-quotient-reference-controls-run-typed-20260929 record these Formula2 calls at
+    /// J1:J4 and J20. A caller aligned with the range still gets #VALUE!; unary plus
+    /// materializes an array, which lifts. INDEX and IF preserve the rejected reference.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn binary_numeric_calls_keep_reference_origin() {
+        let mut book = Book::new();
+        book.number("B1", 5.0)
+            .number("B2", 7.0)
+            .number("B3", 9.0)
+            .number("A100", 2.0);
+        for (function, expected) in [
+            ("MROUND", numbers(&[&[6.0], &[8.0], &[10.0]])),
+            ("QUOTIENT", numbers(&[&[2.0], &[3.0], &[4.0]])),
+        ] {
+            for at in ["J1", "J2", "J3", "J4", "J20"] {
+                assert_eq!(
+                    book.dynamic_at(&format!("={function}(B1:B3,A100)"), at),
+                    e(W::Value),
+                    "{function} at {at}"
+                );
+                assert_eq!(
+                    book.dynamic_at(&format!("={function}(+B1:B3,A100)"), at),
+                    expected,
+                    "materialized {function} at {at}"
+                );
+            }
+            for reference in ["INDEX(B1:B3,0)", "IF(TRUE,B1:B3,B1:B3)"] {
+                assert_eq!(
+                    book.dynamic_at(&format!("={function}({reference},A100)"), "J2"),
+                    e(W::Value)
+                );
+            }
+        }
+    }
+
+    /// Recorded MROUND/QUOTIENT typed controls (OxFunc-Evidence, W111, 2026-09-29): logicals
+    /// are #VALUE!, explicit omissions #N/A. Padding remains an error at its own argument
+    /// position, so an earlier error wins (MROUND's prepared-value impact assessment).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn binary_numeric_argument_errors_keep_their_order() {
+        let mut book = Book::new();
+        for formula in ["=MROUND(7,TRUE)", "=QUOTIENT(TRUE,2)"] {
+            assert_eq!(book.dynamic(formula), e(W::Value), "{formula}");
+        }
+        for formula in ["=MROUND(7,)", "=QUOTIENT(,2)"] {
+            assert_eq!(book.dynamic(formula), e(W::NA), "{formula}");
+        }
+        assert_eq!(
+            book.dynamic("=MROUND({7,7,#REF!},{2,#NUM!})"),
+            rows(&[&[n(8.0), e(W::Num), e(W::Ref)]])
+        );
+        // w111quotientpaddingheldout-00001-quotient-asymmetric-0-0-1.
+        book.number("A100", f64::from_bits(0x409307e000000000));
+        assert_eq!(
+            book.dynamic("=QUOTIENT(CHOOSE({1,2,3,4,5},#N/A,#DIV/0!,#REF!,A100,TRUE),CHOOSE({1,2},#N/A,FALSE))"),
+            rows(&[&[e(W::NA), e(W::Div0), e(W::Ref), e(W::NA), e(W::Value)]])
+        );
+    }
+
+    /// OxFunc-Evidence w089-axis-witness-20260501-002 records this LET result as two #VALUE!
+    /// cells. COUNTBLANK takes a reference whole and lifts over a computed array's cells.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    fn countblank_lifts_over_computed_arrays() {
+        let mut book = Book::new();
+        assert_eq!(
+            book.dynamic("=LET(d,{\"\";1},COUNTBLANK(d))"),
+            rows(&[&[e(W::Value)], &[e(W::Value)]])
+        );
+        // w111countholdout-01525-countblank-array-5.
+        book.number("A100", 0.0);
+        assert_eq!(
+            book.dynamic("=COUNTBLANK(CHOOSE({1,2,3},\" \",A100,#REF!))"),
+            rows(&[&[e(W::Value), e(W::Value), e(W::Ref)]])
+        );
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn operators_lift_over_arrays_as_oxfml_fixture_rows() {

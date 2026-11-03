@@ -387,6 +387,23 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     } else {
         line_height * 0.8
     };
+    let decorate = |x: f64, y: f64, advance: f64| {
+        if c.underline || c.strike || s.underline || s.strike {
+            ctx.set_line_width(scale);
+            for offset in [
+                (c.underline || s.underline).then_some(baseline + scale),
+                (c.strike || s.strike).then_some(line_height / 2.),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                ctx.begin_path();
+                ctx.move_to(x, y + offset);
+                ctx.line_to(x + advance, y + offset);
+                ctx.stroke();
+            }
+        }
+    };
     let block_width = lines
         .iter()
         .map(|line| width(ctx, line.trim_end_matches('\n')))
@@ -411,7 +428,6 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             _ => top + i as f64 * line_height,
         };
         ctx.save();
-        let (mut decoration_x, mut decoration_y) = (x, y);
         if s.rotation != 0 {
             let (rw, rh) = autofit::rotated_size(block_width, height, s.rotation);
             let cx = match horizontal {
@@ -426,9 +442,10 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             };
             let _ = ctx.translate(cx, cy);
             let _ = ctx.rotate(f64::from(s.rotation).to_radians());
-            decoration_x = -block_width / 2.;
-            decoration_y = -height / 2. + i as f64 * line_height;
+            let decoration_x = -block_width / 2.;
+            let decoration_y = -height / 2. + i as f64 * line_height;
             let _ = ctx.fill_text(line, decoration_x, decoration_y + baseline);
+            decorate(decoration_x, decoration_y, w);
         } else if horizontal == "distributed" || (horizontal == "justify" && i + 1 < lines.len()) {
             let parts = if horizontal == "distributed" {
                 alignment::distributed_segments(line)
@@ -449,26 +466,21 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
                 cell.rect.x + left
             };
             for part in parts {
+                let advance = width(ctx, &part);
                 let _ = ctx.fill_text(&part, px, y + baseline);
-                px += width(ctx, &part) + gap;
+                if horizontal == "distributed" {
+                    // DOM distributes separate grapheme spans. Their decorations stay
+                    // beneath each span, including a single centred grapheme.
+                    decorate(px, y, advance);
+                }
+                px += advance + gap;
+            }
+            if horizontal == "justify" {
+                decorate(x, y, w);
             }
         } else {
             let _ = ctx.fill_text(line, x, y + baseline);
-        }
-        if c.underline || c.strike || s.underline || s.strike {
-            ctx.set_line_width(scale);
-            for offset in [
-                (c.underline || s.underline).then_some(baseline + scale),
-                (c.strike || s.strike).then_some(line_height / 2.),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                ctx.begin_path();
-                ctx.move_to(decoration_x, decoration_y + offset);
-                ctx.line_to(decoration_x + w, decoration_y + offset);
-                ctx.stroke();
-            }
+            decorate(x, y, w);
         }
         ctx.restore();
     }

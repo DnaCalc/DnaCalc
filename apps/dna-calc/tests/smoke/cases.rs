@@ -6073,8 +6073,19 @@ pub(crate) const CALC_CASES: &[Case] = &[
     },
     Case {
         name: "alignment: center across matching blank cells, justify and distributed use their cell width",
-        actions: &[],
+        actions: &[
+            Action::Into("name-box", "B6:J6\u{E007}"),
+            Action::Click("format-cells"),
+            Action::Click("format-tab-font"),
+            Action::Choose("format-underline", "true"),
+            Action::Choose("format-strike", "true"),
+            Action::Click("format-apply"),
+            Action::Wait(Check::PlanCell("D6", "style.underline", "true")),
+        ],
         checks: &[
+            Check::PlanCell("D6", "style.strike", "true"),
+            Check::PlanCell("J6", "style.underline", "true"),
+            Check::PlanCell("J6", "style.strike", "true"),
             Check::Spill(cell!("F6"), "F", "H"),
             Check::Aligned(cell!("F6"), "across:H", "bottom"),
             Check::Computed(
@@ -6116,6 +6127,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Text(cell!("D9"), "stop"),
             Check::Spill(cell!("E9"), "E", "E"),
             Check::Text(cell!("H1"), "\""),
+            Check::PlanCell("D6", "style.underline", "true"),
+            Check::PlanCell("D6", "style.strike", "true"),
         ],
     },
     Case {
