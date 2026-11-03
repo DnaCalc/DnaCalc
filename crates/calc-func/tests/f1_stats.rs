@@ -164,6 +164,24 @@ fn regressions() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn regression_discards_a_predictor_below_the_dot_product_roundoff_bound() {
+    // Recorded catalogue dcj9k_regression: this second predictor is nearly
+    // twice the first. Excel drops the first after pivoting to the larger
+    // column, leaving three residual degrees of freedom without a constant.
+    let y = arr(vec![vec![1.0], vec![2.0], vec![4.0], vec![7.0]]);
+    let x = arr(vec![vec![1.0, 2.0], vec![2.0, 4.0], vec![5.0, 10.0], vec![4.0, 8.000001]]);
+    for function in ["LINEST", "LOGEST"] {
+        let result = call(function, vec![y.clone(), x.clone(), b(false), b(true)]).unwrap();
+        let cells = result.as_array().expect("regression statistics array");
+        assert_eq!((cells.shape().rows, cells.shape().cols), (5, 3));
+        exact(Ok(cells.get(3, 1).unwrap().clone()), 3.0);
+        exact(Ok(cells.get(0, 1).unwrap().clone()), if function == "LOGEST" { 1.0 } else { 0.0 });
+        exact(Ok(cells.get(1, 1).unwrap().clone()), 0.0);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn distributions_match_excel_examples() {
     close(call("NORM.S.DIST", vec![n(1.0), b(true)]), 0.8413447460685429, 1e-12);
     close(call("NORMSDIST", vec![n(1.0)]), 0.8413447460685429, 1e-12);

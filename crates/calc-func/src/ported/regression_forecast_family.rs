@@ -414,7 +414,8 @@ fn prediction_input_from_optional(
 ///
 /// 5. Exactly proportional predictors are removed after the larger column has
 ///    been selected. Zero and surplus predictors retain their structural handling.
-///    Numerical rank detection for other near-dependent columns is not identified.
+///    A remaining squared norm at or below the dot-product roundoff bound
+///    `gamma_n * largest_initial_squared_norm` is numerically eliminated.
 fn least_squares(
     columns: &[Vec<f64>],
     y: &[f64],
@@ -467,6 +468,19 @@ fn least_squares(
     let initial: Vec<f64> = matrix.iter().map(|(_, column)| squares_from(column, 0)).collect();
     let mut scale: Vec<(Option<usize>, f64)> =
         matrix.iter().map(|(predictor, _)| *predictor).zip(initial).collect();
+    // Computing a length-n dot product has relative error at most gamma_n.
+    // Judge a residual against the predictor matrix's original scale, before
+    // cancellation in the reflections. The constant column is not a predictor.
+    let largest_initial = scale.iter().filter(|(predictor, _)| predictor.is_some())
+        .map(|(_, squares)| *squares).fold(0.0_f64, f64::max);
+    let ne = n as f64 * f64::EPSILON;
+    let rank_bound = if largest_initial.is_finite() && ne < 1.0 {
+        (ne / (1.0 - ne)) * largest_initial
+    } else {
+        // An overflowed norm supplies no finite relative-error comparison.
+        // Keep the existing arithmetic/error path in that case.
+        0.0
+    };
     let mut diagonal = vec![0.0; p];
     // Pivot by the remaining sum of squares; drop an exactly eliminated column
     // only when it was nonzero before the reflections. Initially zero columns
@@ -508,7 +522,7 @@ fn least_squares(
             scale.remove(j);
             continue;
         }
-        if squares == 0.0 && scale[j].1 > 0.0 {
+        if scale[j].1 > 0.0 && matrix[j].0.is_some() && squares <= rank_bound {
             matrix.remove(j);
             scale.remove(j);
             continue;
