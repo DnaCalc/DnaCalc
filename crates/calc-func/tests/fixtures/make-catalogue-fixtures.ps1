@@ -411,6 +411,9 @@ Write-Workbook (Join-Path $OutDir 'catalogue/oracle.xlsx') $sheets
 $questions = @(, @('dcj9k_r21', (New-OracleSheet @() (Get-SectionLines 'sheet-dcj9k_r21.txt' 'dcj9k_r21'))))
 Write-Workbook (Join-Path $OutDir 'dcj9k_r21/oracle.xlsx') $questions
 
+$r22Questions = @(, @('dcj9k_r22', (New-OracleSheet @() (Get-SectionLines 'sheet-dcj9k_r22.txt' 'dcj9k_r22'))))
+Write-Workbook (Join-Path $OutDir 'dcj9k_r22/oracle.xlsx') $r22Questions
+
 # dc-b1l.6: every fn2 caller has a blank source sheet and a separate observer sheet.
 # Stored text comes from calc-doc's existing file_form serializer; the packet's authored
 # spelling, explicit form and caller remain alongside it in this section's layout.
