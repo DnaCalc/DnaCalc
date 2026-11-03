@@ -7977,6 +7977,36 @@ Case {
         actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-candidate.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Window(390,844),Action::Into("name-box","M1\u{E007}"),Action::Into(BAR,"-3\u{E007}"),Action::Wait(Check::Text("validation-message","Enter a positive result"))],
         checks:&[Check::Fits,Check::Reachable("validation-retry"),Check::Reachable("validation-cancel"),Check::Text(cell!("M1"),"4")],
     },
+    Case {
+        name:"new review: a legacy note retains its author, text and ordinary Undo",
+        actions:&[Action::Into("name-box","A1\u{E007}"),Action::Click("review-tools"),Action::Click("note-new"),Action::Wait(Check::Focused("note-text")),Action::Into("note-author","Local author & Ω"),Action::Into("note-text","New note <text> 🧬"),Action::Click("note-save")],
+        checks:&[Check::Absent("note-editor"),Check::Count("review-note",1),Check::TextContains("review-note","Local author & Ω"),Check::TextContains("note-body","New note <text> 🧬")],
+    },
+    Case {
+        name:"new review: rich note formatting uses the current text selection and keeps the editor",
+        actions:&[Action::Click("note-edit"),Action::Click("note-bold"),Action::Wait(Check::Computed("note-run","font-weight:700")),Action::Click("note-italic"),Action::Wait(Check::Computed("note-run","font-style:italic")),Action::Click("note-save")],
+        checks:&[Check::Absent("note-editor"),Check::Computed("note-run","font-weight:700"),Check::Computed("note-run","font-style:italic")],
+    },
+    Case {
+        name:"new review: Undo Redo and cancelling later text retain the saved rich note",
+        actions:&[Action::Click("review-undo"),Action::Wait(Check::Computed("note-run","font-style:normal")),Action::Click("review-redo"),Action::Wait(Check::Computed("note-run","font-style:italic")),Action::Click("note-edit"),Action::Into("note-text","Cancelled text"),Action::Click("note-cancel")],
+        checks:&[Check::Text("note-body","New note <text> 🧬"),Check::Computed("note-run","font-weight:700"),Check::Computed("note-run","font-style:italic")],
+    },
+    Case {
+        name:"new review: a new threaded comment accepts a reply with a separate author",
+        actions:&[Action::Click("review-close"),Action::Into("name-box","C3\u{E007}"),Action::Click("review-tools"),Action::Click("comment-new"),Action::Into("note-author","Alice"),Action::Into("note-text","Root comment"),Action::Click("note-save"),Action::Wait(Check::Count("review-note",1)),Action::Click("note-reply"),Action::Into("note-author","Bob"),Action::Into("note-text","Reply & Ω"),Action::Click("note-save")],
+        checks:&[Check::Count("review-note",2),Check::TextContains("review-dialog","Root comment"),Check::TextContains("review-dialog","Reply & Ω"),Check::TextContains("review-dialog","Bob")],
+    },
+    Case {
+        name:"new review: resolved threads reopen and actual XLSX preserves notes, runs, people and replies",
+        actions:&[Action::Click("note-resolve"),Action::Wait(Check::Text("note-resolve","Reopen thread")),Action::Click("note-resolve"),Action::Wait(Check::Text("note-resolve","Resolve thread")),Action::Click("review-close"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Into("name-box","C3\u{E007}"),Action::Click("review-tools")],
+        checks:&[Check::Count("review-note",2),Check::TextContains("review-dialog","Alice"),Check::TextContains("review-dialog","Bob"),Check::TextContains("review-dialog","Reply & Ω")],
+    },
+    Case {
+        name:"new review: reopened rich notes and phone controls retain keyboard access",
+        actions:&[Action::Click("review-close"),Action::Into("name-box","A1\u{E007}"),Action::Window(390,844),Action::Click("review-tools"),Action::Click("note-edit"),Action::Wait(Check::Focused("note-text")),Action::Keys("note-text","\u{E004}")],
+        checks:&[Check::Fits,Check::Computed("note-run","font-weight:700"),Check::Computed("note-run","font-style:italic"),Check::TextContains("review-note","Local author & Ω"),Check::Focused("note-save"),Check::Reachable("note-save")],
+    },
 
 ];
 
@@ -8805,4 +8835,5 @@ CaseGroup {
         setup: &[],
     },
     CaseGroup {name:"candidate-validation",start:601,end:606,core:5,setup:&[]},
+    CaseGroup {name:"review-create",start:606,end:612,core:6,setup:&[]},
 ];

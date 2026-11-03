@@ -1120,6 +1120,7 @@ impl Server {
         }
         let validation=host.validation(at).map(|v|format!("{} validation · {:?}. Entry alerts check candidate values through the workbook evaluator. Circle Invalid Data checks current published values.",v.kind,v.style));
         wire::Review {
+            next_index:review.notes.len() as u32,
             at: Some(Key::of(at)),
             revision: host.revision().get(),
             rules,
@@ -1135,7 +1136,8 @@ impl Server {
                         }) => (true, parent.is_some(), *resolved),
                         _ => (false, false, false),
                     };
-                    wire::ReviewItem {
+                    let runs=calc_host::note_segments(&n).into_iter().map(|(text,s)|wire::ReviewRun{text,bold:s.bold,italic:s.italic,underline:s.underline,strike:s.strike,color:s.color.filter(|c|matches!(c.len(),6|8)&&c.bytes().all(|b|b.is_ascii_hexdigit())),size:s.size.filter(|s|s.parse::<f64>().is_ok_and(|n|n.is_finite()&&n>0.&&n<=500.))}).collect();
+                    wire::ReviewItem {runs,
                         index: index as u32,
                         author: n.author,
                         text: n.text,
@@ -1169,6 +1171,9 @@ impl Server {
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
+            Intent::CreateReview{at,revision,parent,threaded,author,text,timestamp}=>SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction{at:cell(at)?,revision,action:calc_host::ReviewAction::Create{parent,threaded,author,text,timestamp}}),
+            Intent::FormatReview{at,revision,index,text,start,end,patch}=>SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction{at:cell(at)?,revision,action:calc_host::ReviewAction::Format{index,text,start,end,patch:calc_host::NoteStylePatch{bold:patch.bold,italic:patch.italic,underline:patch.underline,color:patch.color,clear:patch.clear}}}),
+            Intent::ResolveReview{at,revision,index,resolved}=>SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction{at:cell(at)?,revision,action:calc_host::ReviewAction::Resolve{index,resolved}}),
             Intent::EditReview {
                 at,
                 revision,

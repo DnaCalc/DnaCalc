@@ -388,6 +388,19 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    pub fn review_drawing_shared(&self,sheet:SheetId)->bool {
+        let Some(sheet)=self.sheet(sheet)else{return false;};
+        let target=self.package.relationships_of(Some(sheet.part().name())).and_then(|r|r.items().iter().find(|r|r.kind.ends_with("/vmlDrawing")&&r.mode==crate::opc::TargetMode::Internal)).and_then(|r|r.resolved.as_ref());
+        target.is_some_and(|target|self.sheets().iter().filter(|s|self.package.relationships_of(Some(s.part().name())).is_some_and(|r|r.items().iter().any(|r|r.kind.ends_with("/vmlDrawing")&&r.resolved.as_ref()==Some(target)))).count()>1)
+    }
+    pub fn review_people(&self)->std::collections::BTreeMap<String,String>{review::persons(&self.package)}
+    pub fn has_part(&self,name:&str)->bool{self.package.part(name).is_some()}
+    pub fn available_part_name(&self,stem:&str,extension:&str,reserved:&[String])->String{crate::save::available_part_name(&self.package,&self.workbook_part,stem,extension,reserved)}
+    pub fn review_part(&self,sheet:SheetId,threaded:bool)->Option<String>{
+        let sheet=self.sheet(sheet)?;let suffix=if threaded {"/threadedComment"}else{"/comments"};
+        self.package.relationships_of(Some(sheet.part().name()))?.items().iter().find(|r|r.kind.ends_with(suffix)&&r.mode==crate::opc::TargetMode::Internal)?.resolved.clone()
+    }
+
     /// Whether a rectangular shift can preserve this sheet's position metadata today.
     pub fn cell_shift_metadata_supported(&self, sheet: SheetId) -> bool {
         let Some(sheet) = self.sheet(sheet) else {

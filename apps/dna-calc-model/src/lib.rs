@@ -18,7 +18,7 @@ mod runtime;
 pub mod selection;
 mod state;
 pub use outbox::{CommandDelivery, CommandQueue};
-pub use runtime::{Health, ReviewDraft, RuntimeState, Snapshot, Status, Timings, ToolState};
+pub use runtime::{Health, ReviewDraft, ReviewCreation, RuntimeState, Snapshot, Status, Timings, ToolState};
 mod view;
 pub mod viewport;
 pub use calc_value::{CellKey, GridArea, Selection, SheetId};

@@ -13,35 +13,7 @@ const X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main
 const XM: &str = "http://schemas.microsoft.com/office/excel/2006/main";
 
 pub(crate) fn sources(xml: &XmlPart) -> Result<Vec<std::sync::Arc<[u8]>>, SaveRefusal> {
-    let mut reader = Reader::new(xml);
-    let mut parents: Vec<Vec<u8>> = Vec::new();
-    let mut out = Vec::new();
-    while let Some((event, span)) = reader.next()? {
-        match event {
-            XmlEvent::Start(e) => {
-                let tag = RawTag::parse(&xml.bytes()[span.0..span.1]);
-                let opening = parents.last().map_or_else(
-                    || tag.rebuilt(&[], tag.is_empty()),
-                    |p| tag.with_inherited_namespaces(&RawTag::parse(p)),
-                );
-                if e.name.local == "dataValidation"
-                    && matches!(e.name.namespace.as_deref(), Some(MAIN_NAMESPACE | X14))
-                {
-                    let end = reader.element_end()?;
-                    let mut bytes = opening;
-                    bytes.extend_from_slice(&xml.bytes()[span.1..end]);
-                    out.push(bytes.into());
-                } else {
-                    parents.push(opening);
-                }
-            }
-            XmlEvent::End(_) => {
-                parents.pop();
-            }
-            _ => {}
-        }
-    }
-    Ok(out)
+    super::reader::element_sources(xml,|e|e.name.local=="dataValidation" && matches!(e.name.namespace.as_deref(),Some(MAIN_NAMESPACE|X14))).map(|v|v.into_iter().map(Into::into).collect())
 }
 fn sqref(rule: &Validation) -> String {
     rule.areas
@@ -85,7 +57,7 @@ fn render(rule: &Validation) -> Result<(bool, Vec<u8>), SaveRefusal> {
         ] {
             if let Some(value) = value {
                 bytes.extend_from_slice(format!(" {name}=").as_bytes());
-                attribute_value(value, &mut bytes);
+                if matches!(name,"errorTitle"|"error"|"promptTitle"|"prompt"){super::text::xstring_attribute(&value.encode_utf16().collect::<Vec<_>>(),&mut bytes);}else{attribute_value(value, &mut bytes);}
             }
         }
         bytes.push(b'>');
@@ -101,7 +73,7 @@ fn render(rule: &Validation) -> Result<(bool, Vec<u8>), SaveRefusal> {
     };
     let xml = XmlPart::new(
         "validation-source.xml".into(),
-        source.to_vec(),
+        if rule.authored_copy{super::reader::without_revision_ids(&XmlPart::new("validation-copy.xml".into(),source.to_vec(),XmlLimits::default()))?}else{source.to_vec()},
         XmlLimits::default(),
     );
     let mut reader = Reader::new(&xml);
@@ -313,3 +285,5 @@ pub(super) fn rewrite(xml: &XmlPart, rules: &[Validation]) -> Result<Vec<u8>, Sa
     }
     Ok(splice.finish())
 }
+
+pub fn copied_validation_source(rule:&Validation)->Result<Validation,String>{let mut rule=rule.clone();rule.authored_copy=true;Ok(rule)}

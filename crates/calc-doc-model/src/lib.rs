@@ -57,7 +57,7 @@ mod cells;
 mod validation;
 pub use validation::Validation;
 mod review;
-pub use review::{ReviewNote, ReviewSource, review_thread_text};
+pub use review::{ReviewNote, ReviewSource, review_thread_text, NoteStyle, NoteSpan, NoteStylePatch, note_segments};
 mod conditional;
 mod definitions;
 mod filter;

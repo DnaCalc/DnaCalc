@@ -199,6 +199,8 @@ impl<'a> RawTag<'a> {
         out
     }
 
+    pub(super) fn attribute_names(&self)->impl Iterator<Item=&'a [u8]>+'_ {self.attributes.iter().map(|a|a.name)}
+
     pub(super) fn is_empty(&self) -> bool {
         self.empty
     }
