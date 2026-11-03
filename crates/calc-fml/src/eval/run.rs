@@ -36,9 +36,9 @@ use calc_func::value::{
     WorksheetErrorCode,
 };
 use calc_func::{
-    CallAbandoned, CallableInvoker, EvalServices, FunctionCallScratch, FunctionFault,
-    ParameterClass, PreparedArguments, RandomSource, ReferenceText, TextReference, invoke,
-    invoke_slice,
+    ArgumentDemand, CallAbandoned, CallableInvoker, EvalServices, FunctionCallScratch,
+    FunctionFault, ParameterClass, PreparedArguments, RandomSource, ReferenceText, TextReference,
+    invoke, invoke_slice,
 };
 use std::cell::RefCell;
 
@@ -1267,6 +1267,11 @@ impl Run<'_, '_> {
         } else {
             arguments.extend(self.stack.drain(start..));
         }
+        // A scalar IFS/SWITCH selection returns the chosen result whole. Unused result
+        // arrays must not enlarge it (the recorded w090 successor cases).
+        if lifted && target.0.selects_whole_result(&arguments) {
+            lifted = false;
+        }
         if !lifted && target.0.is_resumable() {
             let call = Box::new(PendingCall {
                 target,
@@ -1629,12 +1634,18 @@ impl Run<'_, '_> {
                 call.wanted = None;
                 call.cursor = BlockCursor::default();
             }
-            if is_lifted(
+            let lifted = is_lifted(
                 target,
                 self.instance.plan.form,
                 0,
                 call.values[0].as_ref().expect("first argument"),
-            ) {
+            ) || (target.0.argument_demand() == ArgumentDemand::FallbackOnError
+                && call
+                    .values
+                    .get(1)
+                    .and_then(Option::as_ref)
+                    .is_some_and(|value| is_lifted(target, self.instance.plan.form, 1, value)));
+            if lifted {
                 if let Some(index) = call.values.iter().position(Option::is_none) {
                     call.wanted = Some(index);
                     continue;
@@ -1727,8 +1738,6 @@ impl Run<'_, '_> {
         let mut element: Vec<CalcValue> = arguments.to_vec();
         for row in 0..shape.rows {
             for col in 0..shape.cols {
-                let mut short = false;
-                let mut held = None;
                 for (index, argument) in arguments.iter().enumerate() {
                     if let Some(array) = lifted_array(argument) {
                         match lift::element(array, row, col) {
@@ -1736,22 +1745,26 @@ impl Run<'_, '_> {
                                 match held_array_element(target, self.instance.plan.form, value) {
                                     None => element[index] = value.clone(),
                                     Some(Ok(first)) => element[index] = first,
-                                    Some(Err(error)) => held = held.or(Some(error)),
+                                    Some(Err(error)) => element[index] = error,
                                 }
                             }
-                            None => short = true,
+                            // Padding belongs to this argument. The lazy kernel may ignore
+                            // it or catch it as #N/A, rather than losing the selection first.
+                            None => element[index] = CalcValue::error(WorksheetErrorCode::NA),
                         }
                     }
                 }
-                if short {
-                    cells.push(CalcValue::error(WorksheetErrorCode::NA));
-                    continue;
-                }
-                if let Some(error) = held {
-                    cells.push(error);
-                    continue;
-                }
                 let value = self.lazy_once(target, &element)?;
+                // W111's lifted IF/IFERROR/IFNA positions turn selected blanks into zero.
+                // Scalar calls retain their kernels' blank policy (dc-ibp2 controls).
+                let value = if (target.0.argument_demand() == ArgumentDemand::FallbackOnError
+                    || target.0.spelling() == "IF")
+                    && value.is_empty()
+                {
+                    CalcValue::number(0.0)
+                } else {
+                    value
+                };
                 cells.push(lifted_element(value));
             }
         }

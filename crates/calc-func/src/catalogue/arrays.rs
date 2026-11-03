@@ -6,8 +6,9 @@
 //!
 //! An array argument is a value-or-reference parameter: a reference reaches the kernel as the
 //! array of its cells' values (a blank cell as an empty value), an array as itself and a single
-//! value as a one-by-one array. The counts, flags and pads are value parameters, so a formula lifts
-//! them over an array. CHOOSEROWS' and CHOOSECOLS' selectors may be arrays, read in row-major
+//! value as a one-by-one array. Counts, flags and pads are value parameters, so a formula lifts
+//! them over an array, except EXPAND's pad: an array pad reaches its scalar-pad validation whole.
+//! CHOOSEROWS' and CHOOSECOLS' selectors may be arrays, read in row-major
 //! order. A result with no cell is #CALC!.
 //!
 //! SORT and SORTBY compare as the catalogue's comparison operators do ([`super::comparison`]):
@@ -31,6 +32,15 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 const CODE: u16 = 310;
+
+/// W111 typed EXPAND/HSTACK/VSTACK controls distinguish a direct scalar source error
+/// from an error held in an actual array or reference.
+fn source_error(arguments: &[CalcValue]) -> Step<()> {
+    match arguments[0].core_ref() {
+        CoreRef::Error(code) if arguments[0].callable_value().is_none() => fail(code),
+        _ => Ok(()),
+    }
+}
 
 /// The arguments as OxFunc's kernels take them: each reference read as the array of its values.
 fn prepared(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Vec<CalcValue>> {
@@ -653,9 +663,11 @@ ported_family! {
         choose(s, a, sv, k::eval_choosecols_prepared)
     }
     10 vstack_fn "VSTACK" (1, 254) [R "array1", R "array2"] |s, a, sv| {
+        source_error(a)?;
         run(s, a, sv, k::eval_vstack_prepared)
     }
     11 hstack_fn "HSTACK" (1, 254) [R "array1", R "array2"] |s, a, sv| {
+        source_error(a)?;
         // dc-h9u: a row of functions, as GROUPBY and PIVOTBY take them
         // (`GROUPBY(A2:A9,B2:B9,HSTACK(SUM,MAX))`, Excel 16.0.20527).
         if a.iter().all(|v| v.callable_value().is_some()) {
@@ -683,7 +695,17 @@ ported_family! {
     15 wrapcols_fn "WRAPCOLS" (2, 3) [R "vector", V "wrap_count", V "pad_with"] |s, a, sv| {
         run(s, a, sv, k::eval_wrapcols_prepared)
     }
-    16 expand_fn "EXPAND" (2, 4) [R "array", V "rows", V "columns", V "pad_with"] |s, a, sv| {
-        run(s, a, sv, k::eval_expand_prepared)
+    16 expand_fn "EXPAND" (2, 4) [R "array", V "rows", V "columns", R "pad_with"] |s, a, sv| {
+        source_error(a)?;
+        let mut args = prepared(s, a, sv)?;
+        // Preserve the previous value admission of a one-cell reference pad. Computed
+        // arrays reach the kernel whole (w090-successor-00071-expand-arg4).
+        if a.get(3).is_some_and(|value| value.as_reference().is_some())
+            && let Some(array) = args[3].as_array()
+            && array.shape() == (ArrayShape { rows: 1, cols: 1 })
+        {
+            args[3] = array.get(0, 0).expect("one cell").clone();
+        }
+        result(s, k::eval_expand_prepared(&args))
     }
 }
