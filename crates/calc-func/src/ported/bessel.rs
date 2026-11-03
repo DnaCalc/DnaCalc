@@ -5,8 +5,9 @@
 //!
 //! - Abramowitz and Stegun, *Handbook of Mathematical Functions* (1964), 9.8.1 to 9.8.8: the
 //!   polynomial approximations of I0, I1, K0 and K1 used here, with their published coefficients.
-//! - J0, J1, Y0 and Y1 use the existing `libm` dependency's fdlibm methods.
-//!   Their agreement with Excel remains open.
+//! - J0, J1, Y0 and Y1 below argument magnitude 8 call the licensed fixed rational
+//!   helpers in `bessel_rational`. Other arguments retain the existing `libm` fdlibm methods.
+//!   Agreement outside the measured low-region seed readings remains open.
 //! - The three-term recurrence `C(n+1) = (2n/x) C(n) - C(n-1)` (A&S 9.1.27, 9.6.26), run forward
 //!   for Y and K and for J above its order. J below its order delegates to libm::jn.
 //! - I of order at least two uses the backward recurrence (DLMF 10.29.1,
@@ -150,10 +151,30 @@ fn k1(x: D) -> D {
 // --- J0, J1, Y0, Y1 ---------------------------------------------------------------------------
 
 // Public-library bodies, with no Excel-derived polynomial or phase cutoff.
-fn j0(x: D) -> R { Ok(D::new(libm::j0(x.0))) }
-fn j1(x: D) -> R { Ok(D::new(libm::j1(x.0))) }
-fn y0(x: D) -> R { Ok(D::new(libm::y0(x.0))) }
-fn y1(x: D) -> R { Ok(D::new(libm::y1(x.0))) }
+fn j0(x: D) -> R {
+    if x.0.abs() < 8.0 {
+        let value = super::bessel_rational::j0(x.0);
+        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+    }
+ Ok(D::new(libm::j0(x.0))) }
+fn j1(x: D) -> R {
+    if x.0.abs() < 8.0 {
+        let value = super::bessel_rational::j1(x.0);
+        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+    }
+ Ok(D::new(libm::j1(x.0))) }
+fn y0(x: D) -> R {
+    if x.0 > 0.0 && x.0 < 8.0 {
+        let value = super::bessel_rational::y0(x.0);
+        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+    }
+ Ok(D::new(libm::y0(x.0))) }
+fn y1(x: D) -> R {
+    if x.0 > 0.0 && x.0 < 8.0 {
+        let value = super::bessel_rational::y1(x.0);
+        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+    }
+ Ok(D::new(libm::y1(x.0))) }
 
 // --- orders two and up --------------------------------------------------------------------------
 
@@ -375,9 +396,9 @@ mod tests {
         assert_eq!(besseli_kernel(1.5, 1.0), Ok(excel(0x3fef69cfb6bc3907)));
         assert_eq!(besselk_kernel(1.5, 1.0), Ok(excel(0x3fd1c0b8c63a3a82)));
         assert_eq!(bessely_kernel(100.0, 1.0).unwrap().to_bits(), 0xbf94dc7ab72edc1f, "recorded Excel -0.020372311933786909");
-        assert_eq!(bessely_kernel(0.5, 0.0).unwrap().to_bits(), 0xbfdc72feb3b7b8a2, "recorded Excel -0.44451873376270784");
-        assert_eq!(besselj_kernel(0.0, 0.0).unwrap().to_bits(), 0x3ff0000000000000, "recorded Excel 1.00000000283141");
-        assert_eq!(besselj_kernel(-2.5, 1.0).unwrap().to_bits(), 0xbfdfd063c84795fd, "recorded Excel -0.49709410250442176");
+        assert_eq!(bessely_kernel(0.5, 0.0).unwrap().to_bits(), 0xbfdc72feb3fe171f, "recorded Excel -0.44451873376270784");
+        assert_eq!(besselj_kernel(0.0, 0.0).unwrap().to_bits(), 0x3ff0000000c292b1, "recorded Excel 1.00000000283141");
+        assert_eq!(besselj_kernel(-2.5, 1.0).unwrap().to_bits(), 0xbfdfd063c8529f24, "recorded Excel -0.49709410250442176");
         assert_eq!(besseli_kernel(-2.5, 1.0), Ok(-2.5167162420253608));
         assert_eq!(besselk_kernel(700.0, 2.0), besselk_kernel(700.0, 0.0));
         assert_eq!(besselk_kernel(706.0, 0.0), Ok(0.0));

@@ -140,3 +140,60 @@ fn delta_gestep_and_convert() {
     close(call("CONVERT", vec![n(68.0), t("F"), t("C")]), 20.0, 1e-12);
     error(call("CONVERT", vec![n(2.0), t("gal"), t("mi")]), NA);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_low_rational_seeds_match_recorded_excel_bits() {
+    // Existing catalogue capture dc96l3_bessel, Excel 16.0.20527.20088.
+    // Original answers and operand bits are preserved; this is the invoke route.
+    for (function, x, order, expected) in [
+        ("BESSELY", 0x4004000000000000, 0x3ff0000000000000, 0x3fc2ad720e3ee754),
+        ("BESSELJ", 0x3fd3333333333333, 0x0000000000000000, 0x3fef48b6d783ca43),
+        ("BESSELJ", 0x3fd3333333333333, 0x3ff0000000000000, 0x3fc2fc1c68ab31f5),
+        ("BESSELJ", 0x3ff199999999999a, 0x0000000000000000, 0x3fe70724bfe3f22a),
+        ("BESSELJ", 0x3ff199999999999a, 0x3ff0000000000000, 0x3fde2343cc4f390e),
+        ("BESSELJ", 0x4000000000000000, 0x0000000000000000, 0x3fcca87401162af6),
+        ("BESSELJ", 0x4000000000000000, 0x3ff0000000000000, 0x3fe2748795969b5b),
+        ("BESSELJ", 0x4004000000000000, 0x0000000000000000, 0xbfa8c5c21daa73f8),
+        ("BESSELJ", 0x4004000000000000, 0x3ff0000000000000, 0x3fdfd063c8529f24),
+        ("BESSELJ", 0x400e000000000000, 0x0000000000000000, 0xbfd9b0a303f8be57),
+        ("BESSELJ", 0x400e000000000000, 0x3ff0000000000000, 0x3fa1036fef5a6608),
+        ("BESSELJ", 0x400f333333333333, 0x0000000000000000, 0xbfd9b7847390a92a),
+        ("BESSELJ", 0x400f333333333333, 0x3ff0000000000000, 0xbf9be5dc8becdfb4),
+        ("BESSELJ", 0x4014cccccccccccd, 0x0000000000000000, 0xbfbc3bfe8f50de92),
+        ("BESSELJ", 0x4014cccccccccccd, 0x3ff0000000000000, 0xbfd5f75da16eefa8),
+        ("BESSELJ", 0x401ecccccccccccd, 0x0000000000000000, 0x3fce0608ac6a480b),
+        ("BESSELJ", 0x401ecccccccccccd, 0x3ff0000000000000, 0x3fc73541424d9cb2),
+        ("BESSELJ", 0xbffb333333333333, 0x0000000000000000, 0x3fd978957e320ded),
+        ("BESSELJ", 0xbffb333333333333, 0x3ff0000000000000, 0xbfe27d0d82ccb28e),
+        ("BESSELY", 0x3fd3333333333333, 0x0000000000000000, 0xbfe9d52f68d1fa7a),
+        ("BESSELY", 0x3fd3333333333333, 0x3ff0000000000000, 0xc0025847819115ec),
+        ("BESSELY", 0x3ff199999999999a, 0x0000000000000000, 0x3fc4c1c3996c05ca),
+        ("BESSELY", 0x3ff199999999999a, 0x3ff0000000000000, 0xbfe656fed4bf15cf),
+        ("BESSELY", 0x4000000000000000, 0x0000000000000000, 0x3fe054ff59a9e8c9),
+        ("BESSELY", 0x4000000000000000, 0x3ff0000000000000, 0xbfbb667a398a2868),
+        ("BESSELY", 0x4004000000000000, 0x0000000000000000, 0x3fdfe0627f28ac71),
+        ("BESSELY", 0x400e000000000000, 0x0000000000000000, 0x3fb5d362f8d268e4),
+        ("BESSELY", 0x400e000000000000, 0x3ff0000000000000, 0x3fda9d981445d3dc),
+        ("BESSELY", 0x400f333333333333, 0x0000000000000000, 0x3f97efda52684810),
+        ("BESSELY", 0x400f333333333333, 0x3ff0000000000000, 0x3fda19b92227a346),
+        ("BESSELY", 0x4014cccccccccccd, 0x0000000000000000, 0xbfd533371efa8668),
+        ("BESSELY", 0x4014cccccccccccd, 0x3ff0000000000000, 0x3fb445d16d3cb0e8),
+        ("BESSELY", 0x401ecccccccccccd, 0x0000000000000000, 0x3fc538fcd0fec429),
+        ("BESSELY", 0x401ecccccccccccd, 0x3ff0000000000000, 0xbfccb677d633cddc),
+        ("BESSELJ", 0x0000000000000000, 0x0000000000000000, 0x3ff0000000c292b1),
+        ("BESSELJ", 0x0000000000000000, 0x3ff0000000000000, 0x0000000000000000),
+        ("BESSELJ", 0x01a56e1fc2f8f359, 0x3ff0000000000000, 0x01956e1fc306f12b),
+        ("BESSELY", 0x01a56e1fc2f8f359, 0x3ff0000000000000, 0xfe2e6b6f21c268b8),
+    ] {
+        let x = f64::from_bits(x);
+        let order = f64::from_bits(order);
+        let actual = call(function, vec![n(x), n(order)]).unwrap();
+        let calc_func::value::CoreValue::Number(actual) = actual.core() else {
+            panic!("{function}({x}, {order}) returned {actual:?}");
+        };
+        assert_eq!(actual.to_bits(), expected, "{function}({x}, {order})");
+    }
+    error(call("BESSELY", vec![n(0.0), n(0.0)]), Num);
+    error(call("BESSELY", vec![n(0.0), n(1.0)]), Num);
+}

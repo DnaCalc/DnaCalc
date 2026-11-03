@@ -363,6 +363,13 @@ mod arrays {
             book.dynamic("=IF(CHOOSE({1,2},#NULL!,\"tRuE\"),F1:F1,K1:N1)"),
             rows(&[&[e(W::Null), n(0.0), e(W::NA), e(W::NA)]])
         );
+        // w111-conditional-heldout-typed-20260929, w111typed-00016: a scalar condition
+        // can select a whole computed array, whose blank position is also zero.
+        book.number("A100", -2.0);
+        assert_eq!(
+            book.dynamic(r#"=IF(FALSE,CHOOSE({1,2,3;4,5,6}," TRUE",TRUE,FALSE,"FALSE",A100,""),CHOOSE({1,2,3;4,5,6},"0","TRUE"," TRUE","FALSE"," TRUE",))"#),
+            rows(&[&[t("0"), t("TRUE"), t(" TRUE")], &[t("FALSE"), t(" TRUE"), n(0.0)]])
+        );
     }
 
     /// dc-ibp2 error_fallback!D38,D44,D45: scalar blanks remain empty text on
@@ -417,8 +424,8 @@ mod arrays {
         );
     }
 
-    /// W111 typed cases 00688/689, 00742/743, 00748/749 and 00754/755: a scalar source error
-    /// remains scalar, instead of becoming one cell of a padded result.
+    /// W111 typed cases 00688/689, 00694/695, 00700/701, 00742/743, 00748/749,
+    /// 00754/755 and 00772/773: a scalar source error precedes shape validation.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn array_functions_preserve_scalar_source_errors() {
@@ -430,6 +437,9 @@ mod arrays {
                 format!("=VSTACK({error},CHOOSE({{1,2}},A100,A101))"),
                 format!("=EXPAND({error},3,3,\"pad\")"),
                 format!("=DROP({error},1)"),
+                format!("=CHOOSEROWS({error},2)"),
+                format!("=CHOOSECOLS({error},2)"),
+                format!("=FILTER({error},CHOOSE({{1;2}},TRUE,FALSE))"),
             ] {
                 assert_eq!(book.dynamic(&formula), e(code), "{formula}");
             }

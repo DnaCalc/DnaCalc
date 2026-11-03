@@ -19,6 +19,17 @@ fn data() -> Book {
     book
 }
 
+/// unswept-structural-sweep-001 records #N/A for each scalar source error even when the last
+/// argument is not a LAMBDA. The valid-source invalid-LAMBDA controls stay in lambda_helpers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn lambda_source_errors_precede_invalid_callables() {
+    let mut book = Book::new();
+    for formula in ["=BYCOL(NA(),2)", "=BYROW(NA(),2)", "=MAP(NA(),2)"] {
+        assert_eq!(book.dynamic(formula), e(W::NA), "{formula}");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sequence_filter_sort_unique() {

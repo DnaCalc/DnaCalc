@@ -2,8 +2,23 @@ param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::Ut
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
     [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
     [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine,
-    [switch]$PrivateComAddIn,[switch]$RibbonUI)
+    [switch]$PrivateComAddIn,[switch]$RibbonUI, $OwnedExcel=$null)
 $ErrorActionPreference = 'Stop'
+if (-not $HostExecutable -and $null -eq $OwnedExcel) {
+    $parameters=@{RunDirectory=$RunDirectory}
+    foreach($key in $PSBoundParameters.Keys) {
+        $value=$PSBoundParameters[$key]
+        if($value -is [Management.Automation.SwitchParameter]) { $value=[bool]$value }
+        $parameters[$key]=$value
+    }
+    $client=Join-Path $PSScriptRoot '../../tools/excel-session/submit.ps1'
+    $group='xll:'+$(if($AddInDirectory){$AddInDirectory}elseif($ExcelDnaDirectory){$ExcelDnaDirectory}elseif($X1Xll){$X1Xll}else{'X0'})
+    $output=& $client -Script $PSCommandPath -Parameters ($parameters|ConvertTo-Json -Depth 10 -Compress) -Environment $group -FreshRequired:($Reload -or $ReloadNewHost -or $AotAliasLoad -or $PrivateComAddIn) -TimeoutSeconds 1200
+    $receipt=@($output | ForEach-Object { if($_ -like 'dnacalc-excel-session/1 receipt *'){ $_.Substring('dnacalc-excel-session/1 receipt '.Length) } })
+    if($receipt.Count -eq 1) { Copy-Item -LiteralPath $receipt[0] -Destination (Join-Path $RunDirectory 'session-receipt.json') }
+    Write-Output $RunDirectory
+    return
+}
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Run with pwsh -Sta -File run.ps1.' }
 if ($ReloadNewHost) { $Reload=$true }
 if ($Engine -and -not $HostExecutable) { throw '-Engine needs -HostExecutable.' }
@@ -212,10 +227,10 @@ function Note([string]$Operation, $Value) {
     $item | ConvertTo-Json -Compress -Depth 8 | Add-Content -LiteralPath (Join-Path $run 'controller.jsonl') -Encoding utf8NoBOM
 }
 try {
-    $excel = New-Object -ComObject Excel.Application
+    $excel = if ($null -ne $OwnedExcel) { $OwnedExcel } else { New-Object -ComObject Excel.Application }
     [uint32]$observedExcelPid = 0
     [void][X0Windows]::GetWindowThreadProcessId([IntPtr]$excel.Hwnd, [ref]$observedExcelPid)
-    if (-not $observedExcelPid -or $observedExcelPid -eq 3144 -or $observedExcelPid -in $baseline) {
+    if (-not $observedExcelPid -or $observedExcelPid -eq 3144 -or ($null -eq $OwnedExcel -and $observedExcelPid -in $baseline)) {
         throw "Excel activation did not produce an isolated PID ($observedExcelPid); no Quit or Stop-Process will be used."
     }
     $ownedExcelPid = [int]$observedExcelPid
@@ -486,14 +501,15 @@ try {
     }
     if ($ownedExcelPid -and (-not $debugger -or $debugger.HasExited)) {
         if ($book -and -not $bookClosed) { try { $book.Close($false) } catch { Note 'Close exception' $_.Exception.Message } }
-        if ($excel) { try { $excel.Quit() } catch { Note 'Quit exception' $_.Exception.Message } }
+        if ($excel -and $null -eq $OwnedExcel) { try { $excel.Quit() } catch { Note 'Quit exception' $_.Exception.Message } }
         if ($sheet) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($sheet) }
         if ($book) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($book) }
-        if ($excel) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($excel) }
+        if ($excel -and $null -eq $OwnedExcel) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($excel) }
         [GC]::Collect(); [GC]::WaitForPendingFinalizers()
         Start-Sleep -Milliseconds 500
         $remaining = Get-Process -Id $ownedExcelPid -ErrorAction SilentlyContinue
-        if ($remaining -and $remaining.StartTime.ToUniversalTime().Ticks -eq $ownedStartTicks) {
+        if ($null -ne $OwnedExcel) { Note 'cleanup' 'Workbook closed; Excel returned to lane session host' }
+        elseif ($remaining -and $remaining.StartTime.ToUniversalTime().Ticks -eq $ownedStartTicks) {
             Stop-Process -Id $ownedExcelPid
             Note 'cleanup' ("Stopped owned Excel PID " + $ownedExcelPid)
         } else { Note 'cleanup' 'Owned Excel exited' }

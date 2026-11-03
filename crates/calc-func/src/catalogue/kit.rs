@@ -245,6 +245,15 @@ pub(super) fn fail<T>(code: WorksheetErrorCode) -> Step<T> {
     Err(Exit::Error(code))
 }
 
+/// A formed scalar error, preserving the distinction from a callable or a held array/reference
+/// error. The caller decides where this error precedes its own argument validation.
+pub(super) fn scalar_error(value: &CalcValue) -> Step<()> {
+    match value.core_ref() {
+        CoreRef::Error(code) if value.callable_value().is_none() => fail(code),
+        _ => Ok(()),
+    }
+}
+
 /// A matrix result as an array value; each element is published by the number rule.
 pub(super) fn out_matrix(site: &Site<'_>, rows: &[Vec<f64>]) -> Step<CalcValue> {
     let mut cells = Vec::with_capacity(rows.len());

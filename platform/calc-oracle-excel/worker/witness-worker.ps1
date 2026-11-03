@@ -32,7 +32,8 @@
 
 param(
     [string]$Request,
-    [string]$Result
+    [string]$Result,
+    $OwnedExcel = $null
 )
 
 Set-StrictMode -Version 2.0
@@ -42,9 +43,11 @@ $ErrorActionPreference = 'Stop'
 # -Result to nothing, so this script's own are kept apart first.
 $WitnessRequest = $Request
 $WitnessResult = $Result
+$WitnessOwnedExcel = $OwnedExcel
 . (Join-Path $PSScriptRoot 'capture-worker.ps1')
 $Request = $WitnessRequest
 $Result = $WitnessResult
+$OwnedExcel = $WitnessOwnedExcel
 
 if ([string]::IsNullOrEmpty($Request) -or [string]::IsNullOrEmpty($Result)) {
     [Console]::Error.WriteLine('witness-worker.ps1 needs -Request <request.json> and -Result <result.json>')
@@ -117,7 +120,8 @@ try {
     $req = [System.IO.File]::ReadAllText($Request, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
     $rows = @($req.rows)
 
-    $excel = New-Object -ComObject Excel.Application
+    if ($null -ne $OwnedExcel) { $excel = $OwnedExcel }
+    else { $excel = New-Object -ComObject Excel.Application }
     $excelPid = Get-ExcelPid $excel
     $Output.excel_pid = $excelPid
     Send-Line "excel-pid $excelPid"
@@ -249,7 +253,7 @@ try {
     $Output.fatal = "$($_.Exception.Message) (witness-worker.ps1 line $($_.InvocationInfo.ScriptLineNumber))"
 } finally {
     if ($null -ne $workbook) { try { $workbook.Close($false) } catch { } }
-    if ($null -ne $excel) {
+    if ($null -ne $excel -and $null -eq $OwnedExcel) {
         try { $excel.Quit() } catch { }
         try { [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($excel) } catch { }
     }
@@ -262,5 +266,9 @@ try {
 $json = ConvertTo-Json -InputObject $Output -Depth 8 -Compress
 [System.IO.File]::WriteAllText($Result, $json, (New-Object System.Text.UTF8Encoding($false)))
 Send-Line 'done'
+if ($null -ne $OwnedExcel) {
+    if ($null -ne $Output.fatal) { throw $Output.fatal }
+    return
+}
 if ($null -ne $Output.fatal) { exit 1 }
 exit 0

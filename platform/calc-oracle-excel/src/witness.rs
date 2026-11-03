@@ -1,8 +1,8 @@
 //! Bulk witness readings (bead dc-ymjf.3): Excel's result of one worksheet function on many
 //! argument rows, read through `Range.Value2` under the isolation every capture runs in
-//! ([`run_isolated`]): one worker process ([`WITNESS_SCRIPT`], which reuses the capture worker's
-//! functions), one new Excel instance it reports by PID, and termination only of that worker and
-//! of an Excel this run started. No workbook is opened; the worker adds an empty one.
+//! (the lane session host): the same worker ([`WITNESS_SCRIPT`], which reuses the capture worker's
+//! functions), an owned application and a verified baseline reset after the job. No workbook is
+//! opened; the worker adds an empty one. The raw result and session receipt stay together.
 //!
 //! Ordinary arguments are written as typed cell values (a number as the double of its bits).
 //! Explicit literal-audit calls also parse round-trip literals and retain their echo cells.
@@ -20,20 +20,15 @@
 //! <work>/result.json         the worker's result
 //! ```
 
-use crate::capture::{excel_available, windows_powershell};
+use crate::capture::excel_available;
 use crate::convert::raw_value;
-use crate::isolation::{EXCEL_IMAGE, Worker, WorkerRun, run_isolated};
+use crate::isolation::WorkerRun;
 use crate::{CaptureError, WITNESS_SCRIPT, WORKER_SCRIPT};
 use calc_verdict::value::{CalcValue, CoreValue};
 use serde_json::{Value, json};
-use std::ffi::OsString;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
-
-/// How long the Excel a witness worker reported may outlive the worker's normal exit before it is
-/// terminated.
-const EXIT_GRACE: Duration = Duration::from_secs(15);
 
 /// One call to read: its arguments (numbers, logicals and text; an array argument is refused
 /// before Excel starts) and, for a function that returns an array, the cell to read (1-based).
@@ -224,32 +219,15 @@ pub fn read_witnesses(request: &WitnessRequest) -> Result<WitnessOutcome, Captur
     });
     fs::write(&request_file, worker_request.to_string())
         .map_err(|e| setup(format!("cannot write {}: {e}", request_file.display())))?;
-    let args: Vec<OsString> = [
-        "-NoLogo",
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-    ]
-    .iter()
-    .map(OsString::from)
-    .chain([
-        script.into_os_string(),
-        OsString::from("-Request"),
-        request_file.into_os_string(),
-        OsString::from("-Result"),
-        result_file.clone().into_os_string(),
-    ])
-    .collect();
-    let run = run_isolated(&Worker {
-        program: windows_powershell(),
-        args,
-        dir: work.clone(),
-        timeout: request.timeout,
-        exit_grace: EXIT_GRACE,
-        excel_image: EXCEL_IMAGE.to_owned(),
-    })?;
+    let run = crate::session::run_worker(
+        &script,
+        &request_file,
+        &result_file,
+        &work,
+        request.timeout,
+        "witness",
+    )?;
+
     let result: Option<Value> = fs::read(&result_file)
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok());

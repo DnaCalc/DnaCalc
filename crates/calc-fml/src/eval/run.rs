@@ -1720,6 +1720,23 @@ impl Run<'_, '_> {
             }
             self.show_call(target, false);
             let value = result.map_err(|fault| self.function_fault(fault))?;
+            // w111typed-00016: a scalar IF selector can return a whole computed array.
+            // Its blank cells become zero, just as the lifted IF positions do below.
+            // Scalar blanks and reference results retain their existing policies.
+            let value = if target.0.spelling() == "IF"
+                && value.callable_value().is_none()
+                && let Some(array) = value.as_array()
+                && !array.is_boxed()
+                && array.iter_row_major().any(CalcValue::is_empty)
+            {
+                let cells = array
+                    .iter_row_major()
+                    .map(|cell| if cell.is_empty() { CalcValue::number(0.0) } else { cell.clone() })
+                    .collect();
+                CalcValue::array(CalcArray::new(array.shape(), cells).expect("unchanged shape"))
+            } else {
+                value
+            };
             self.stack.push(value);
             *pending = None;
             return Ok(true);

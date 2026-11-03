@@ -89,7 +89,8 @@
 
 param(
     [string]$Request,
-    [string]$Result
+    [string]$Result,
+    $OwnedExcel = $null
 )
 
 Set-StrictMode -Version 2.0
@@ -966,7 +967,8 @@ try {
     # PowerShell's is by default; registering fails otherwise, and the worker stops.
     $filterResult = [DnaCalcCapture.BusyRetryFilter]::Register()
     if ($filterResult -ne 0) { throw ('CoRegisterMessageFilter failed with HRESULT 0x' + $filterResult.ToString('X8')) }
-    $excel = New-Object -ComObject Excel.Application
+    if ($null -ne $OwnedExcel) { $excel = $OwnedExcel }
+    else { $excel = New-Object -ComObject Excel.Application }
     $excelPid = Get-ExcelPid $excel
     $Output.excel_pid = $excelPid
     Send-Line "excel-pid $excelPid"
@@ -1386,7 +1388,7 @@ try {
     $Output.fatal = "$($_.Exception.Message) (capture-worker.ps1 line $($_.InvocationInfo.ScriptLineNumber))"
 } finally {
     if ($null -ne $workbook) { try { $workbook.Close($false) } catch { } }
-    if ($null -ne $excel) {
+    if ($null -ne $excel -and $null -eq $OwnedExcel) {
         try { $excel.Quit() } catch { }
         try { [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($excel) } catch { }
     }
@@ -1399,5 +1401,9 @@ try {
 $json = ConvertTo-Json -InputObject $Output -Depth 12 -Compress
 [System.IO.File]::WriteAllText($Result, $json, (New-Object System.Text.UTF8Encoding($false)))
 Send-Line 'done'
+if ($null -ne $OwnedExcel) {
+    if ($null -ne $Output.fatal) { throw $Output.fatal }
+    return
+}
 if ($null -ne $Output.fatal) { exit 1 }
 exit 0

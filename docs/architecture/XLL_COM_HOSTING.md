@@ -904,3 +904,21 @@ termination and notification. A watched thunk that forwards or restarts with exa
 same frame and arguments is an explicit forwarding event for the original call;
 a new frame remains a separate invocation. Older traces lacking that machine
 proof retain their original strict failures.
+
+## 23. Owned Excel session jobs (dc-snz.24)
+
+The Excel side of the existing XLL reference runner now submits to the lane host in
+`tools/excel-session`. Capture and witness workers receive that same owned application.
+The queue groups waiting jobs by environment and puts fresh-required lifecycle jobs last.
+Receipts retain process identity, launch attempts, script/result hashes and the recorded
+baseline before and after each job. Settings and workbooks are reset; add-in inventories
+are checked rather than changed. A failed reset refuses the job and recycles its process.
+Every fiftieth ordinary observation job is repeated in a fresh process to measure leakage.
+Both outputs survive, including differences. A deadline can terminate only the recorded owned
+Excel and its host. Interrupted jobs remain failures after recovery. No Excel COM registration,
+Trust Center or macro policy is changed. Timing workers retain their existing separate route.
+
+The baseline checks cover recorded application settings, workbooks, registered functions and
+add-ins; they cannot prove absence of hidden framework state. Jobs requiring a new process
+must declare that condition explicitly. This changes measurement orchestration, not the RTD
+lifecycle or native async compatibility claims in sections 21 and 22.
