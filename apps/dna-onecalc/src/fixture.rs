@@ -1,5 +1,6 @@
 //! The session's sheets and inputs as calc-fml sees them: a [`ReferenceCatalog`] over the named
-//! sheets and a [`ReferenceReader`] over the typed inputs that records every read.
+//! sheets and a [`ReferenceReader`] over the typed inputs that records every read. Known
+//! input and sheet metadata reaches functions through the existing [`calc_func::HostFacts`].
 
 use crate::session::InputValue;
 use calc_fml::reference::CellRun;
@@ -46,6 +47,59 @@ impl Fixture {
 
     pub(crate) fn inputs_mut(&mut self) -> &mut BTreeMap<CellKey, InputValue> {
         &mut self.inputs
+    }
+}
+
+/// Facts the session's typed input view actually holds. Its current formula is evaluated
+/// separately from the inputs, so self metadata remains unknown. Workbook/file/view facts
+/// are absent; input cells cannot carry formulas, filters or hidden-row state.
+pub(crate) struct SessionFacts<'f> {
+    fixture: &'f Fixture,
+    caller: CellKey,
+}
+
+impl<'f> SessionFacts<'f> {
+    pub(crate) fn new(fixture: &'f Fixture, caller: CellKey) -> Self {
+        Self { fixture, caller }
+    }
+}
+
+impl calc_func::HostFacts for SessionFacts<'_> {
+    fn is_external_sheet(&mut self, _: SheetId) -> bool {
+        false
+    }
+
+    fn caller(&mut self) -> Option<CellKey> {
+        Some(self.caller)
+    }
+
+    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
+        (cell != self.caller && self.fixture.inputs.contains_key(&cell)).then_some(false)
+    }
+
+    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
+        (cell != self.caller && self.fixture.inputs.contains_key(&cell)).then_some(None)
+    }
+
+    fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
+        self.fixture.sheets.iter().position(|(_, id)| *id == sheet)
+            .and_then(|index| u32::try_from(index + 1).ok())
+    }
+
+    fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
+        ReferenceCatalog::sheet_named(self.fixture, name)
+    }
+
+    fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
+        self.fixture.sheet_name(sheet).map(str::to_owned)
+    }
+
+    fn sheet_count(&mut self) -> Option<u32> {
+        u32::try_from(self.fixture.sheets.len()).ok()
+    }
+
+    fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_func::WorkbookFacts>> {
+        None
     }
 }
 
@@ -148,15 +202,17 @@ pub enum RunCells {
 /// and each run it returns.
 pub(crate) struct TracingReader<'f> {
     fixture: &'f Fixture,
+    caller: CellKey,
     reads: Vec<Read>,
 }
 
 impl<'f> TracingReader<'f> {
-    /// A reader over `fixture` whose calculation environment is `environment`: without one, the
-    /// date, time and number-format functions are refused.
-    pub(crate) fn new(fixture: &'f Fixture) -> Self {
+    /// A reader over `fixture`, keeping the separately evaluated caller out of inferred
+    /// input-only subtotal facts.
+    pub(crate) fn new(fixture: &'f Fixture, caller: CellKey) -> Self {
         TracingReader {
             fixture,
+            caller,
             reads: Vec::new(),
         }
     }
@@ -179,15 +235,24 @@ impl ReferenceReader for TracingReader<'_> {
 
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
-    fn spill_extent(&mut self, _: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
-        calc_fml::reference::SpillExtent::NotModelled
+    fn spill_extent(&mut self, anchor: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
+        // An explicitly stored literal cannot be a formula's spill anchor. Missing inputs
+        // and the separately evaluated formula's own anchor still have no spill knowledge.
+        if anchor != self.caller && self.fixture.inputs.contains_key(&anchor) {
+            calc_fml::reference::SpillExtent::None
+        } else {
+            calc_fml::reference::SpillExtent::NotModelled
+        }
     }
 
     fn subtotal_exclusions(
         &mut self,
-        _: calc_func::value::GridArea,
+        area: calc_func::value::GridArea,
     ) -> Option<calc_func::SubtotalExclusions> {
-        None
+        // Only literal inputs are stored, and the session cannot hide or filter rows.
+        // The separately evaluated formula's own cell is deliberately not inferred.
+        (self.fixture.sheet_name(area.sheet()).is_some() && !area.contains(self.caller))
+            .then(calc_func::SubtotalExclusions::default)
     }
 
     fn read_area(
