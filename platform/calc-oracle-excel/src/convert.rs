@@ -151,6 +151,7 @@ pub(crate) fn error_from_code(code: u64) -> Option<WorksheetErrorCode> {
         2047 => WorksheetErrorCode::Blocked,
         2049 => WorksheetErrorCode::Field,
         2050 => WorksheetErrorCode::Calc,
+        2051 => WorksheetErrorCode::Busy,
         _ => return None,
     })
 }
@@ -1924,6 +1925,10 @@ mod tests {
             raw_value(&json!({"logical": false})),
             Ok(CalcValue::logical(false))
         );
+        // dc_nzpw's information_functions!D157 N(B9), with B9 authored #BUSY!,
+        // records CVErr 2051 at both the value and reopen stages.
+        assert_eq!(raw_value(&json!({"error_code": 2051})),
+            Ok(CalcValue::error(WorksheetErrorCode::Busy)));
         assert_eq!(
             raw_value(&json!({"unread": "the object is closed"})),
             Err("Range.Value2 cannot be read: the object is closed".to_owned())
@@ -1945,7 +1950,7 @@ mod tests {
         assert_eq!(
             codes,
             [
-                2000, 2007, 2015, 2023, 2029, 2036, 2042, 2043, 2045, 2046, 2047, 2049, 2050
+                2000, 2007, 2015, 2023, 2029, 2036, 2042, 2043, 2045, 2046, 2047, 2049, 2050, 2051
             ]
         );
     }
