@@ -14,7 +14,7 @@ use super::kit::{fail, flag};
 use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Site, Step};
-use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
+use crate::value::{CalcValue, CallableArityShape, CoreRef, NumericMode, WorksheetErrorCode};
 use std::cmp::Ordering;
 
 const CODE: u16 = 201;
@@ -23,7 +23,11 @@ const SWITCH: FunctionId = FunctionId::new(CODE, 2);
 
 /// Recorded successor cases distinguish valid scalar selectors from invalid IFS conditions:
 /// only valid selectors ignore unused result shapes. Use the kernel's own logical coercion.
-pub(super) fn selects_whole_result(id: FunctionId, arguments: &[CalcValue]) -> bool {
+pub(super) fn selects_whole_result(
+    id: FunctionId,
+    arguments: &[CalcValue],
+    numeric: &NumericMode,
+) -> bool {
     match id {
         IFS => arguments
             .iter()
@@ -31,7 +35,7 @@ pub(super) fn selects_whole_result(id: FunctionId, arguments: &[CalcValue]) -> b
             .all(|value| value.callable_value().is_none() && crate::coerce::logical(value).is_ok()),
         SWITCH => {
             let end = arguments.len() - usize::from(arguments.len().is_multiple_of(2));
-            std::iter::once(&arguments[0])
+            let scalar = std::iter::once(&arguments[0])
                 .chain(arguments[1..end].iter().step_by(2))
                 .all(|value| {
                     value.callable_value().is_none()
@@ -39,7 +43,11 @@ pub(super) fn selects_whole_result(id: FunctionId, arguments: &[CalcValue]) -> b
                             value.core_ref(),
                             CoreRef::Array(_) | CoreRef::Reference(_) | CoreRef::Error(_)
                         )
-                })
+                });
+            // A matching scalar prefix never reads a later array case. Reuse SWITCH's
+            // selector and comparison rules without invoking a kernel or evaluating args.
+            scalar
+                || switch_index(&Site::new(SWITCH, &EvalServices::new(numeric)), arguments).is_ok()
         }
         _ => false,
     }
@@ -132,22 +140,28 @@ fn switch(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     selection(SWITCH, arguments, services, |s, a| {
-        if let CoreRef::Error(code) = a[0].core_ref() {
-            return fail(code);
+        match switch_index(s, a)? {
+            Some(index) => Ok(selected(&a[index])),
+            None => fail(WorksheetErrorCode::NA),
         }
-        let has_default = a.len() % 2 == 0;
-        let cases = if has_default { a.len() - 1 } else { a.len() };
-        let mut at = 1;
-        while at + 1 < cases {
-            let pair = [a[0].clone(), a[at].clone()];
-            if order(s, &pair, Want::Equality)? == Ordering::Equal {
-                return Ok(selected(&a[at + 1]));
-            }
-            at += 2;
-        }
-        if has_default {
-            return Ok(selected(&a[a.len() - 1]));
-        }
-        fail(WorksheetErrorCode::NA)
     })
+}
+
+/// The selected SWITCH argument, or no match without a default. Both shape admission
+/// and the kernel use this one selector; comparisons read no host or random services.
+fn switch_index(site: &Site<'_>, arguments: &[CalcValue]) -> Step<Option<usize>> {
+    if let CoreRef::Error(code) = arguments[0].core_ref() {
+        return fail(code);
+    }
+    let has_default = arguments.len().is_multiple_of(2);
+    let cases = arguments.len() - usize::from(has_default);
+    let mut at = 1;
+    while at + 1 < cases {
+        let pair = [arguments[0].clone(), arguments[at].clone()];
+        if order(site, &pair, Want::Equality)? == Ordering::Equal {
+            return Ok(Some(at + 1));
+        }
+        at += 2;
+    }
+    Ok(has_default.then_some(arguments.len() - 1))
 }
