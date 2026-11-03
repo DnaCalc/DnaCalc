@@ -11,7 +11,7 @@
 //! holds no number, and lists of different sizes are #N/A.
 
 use super::aggregate::Held;
-use super::kit::{fail, given, grid, num, numbers, opt, out, out_matrix, pairs};
+use super::kit::{fail, given, grid, num, numbers, opt, out, out_matrix, pairs, PairScalars};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::paired_stats_common::{self as paired, CovarianceDivisor};
@@ -344,39 +344,39 @@ ported_family! {
         variance(s, a, sv, Held::Values, VarianceDivisor::Population, false)
     }
     35 covar "COVAR" (2, 2) [R "array1", R "array2"] |s, a, sv| {
-        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, sv)?, CovarianceDivisor::Population))
+        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Population))
     }
     36 covariance_p "COVARIANCE.P" (2, 2) [R "array1", R "array2"] |s, a, sv| {
-        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, sv)?, CovarianceDivisor::Population))
+        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Population))
     }
     37 covariance_s "COVARIANCE.S" (2, 2) [R "array1", R "array2"] |s, a, sv| {
-        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, sv)?, CovarianceDivisor::Sample))
+        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Sample))
     }
     38 correl "CORREL" (2, 2) [R "array1", R "array2"] |s, a, sv| {
-        out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, sv)?))
+        out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
     39 pearson "PEARSON" (2, 2) [R "array1", R "array2"] |s, a, sv| {
-        out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, sv)?))
+        out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
     40 rsq "RSQ" (2, 2) [R "known_ys", R "known_xs"] |s, a, sv| {
-        out(s, paired::rsq_from_pairs(&pairs(s, a, 0, 1, sv)?))
+        out(s, paired::rsq_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
     41 slope "SLOPE" (2, 2) [R "known_ys", R "known_xs"] |s, a, sv| {
-        out(s, paired::slope_from_pairs(&pairs(s, a, 1, 0, sv)?))
+        out(s, paired::slope_from_pairs(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
     42 intercept "INTERCEPT" (2, 2) [R "known_ys", R "known_xs"] |s, a, sv| {
-        out(s, paired::intercept_from_pairs(&pairs(s, a, 1, 0, sv)?))
+        out(s, paired::intercept_from_pairs(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
     43 steyx "STEYX" (2, 2) [R "known_ys", R "known_xs"] |s, a, sv| {
-        out(s, k::moment_stats_family::steyx_kernel(&pairs(s, a, 1, 0, sv)?))
+        out(s, k::moment_stats_family::steyx_kernel(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
     44 forecast_legacy "FORECAST" (3, 3) [V "x", R "known_ys", R "known_xs"] |s, a, sv| {
         let x = num(s, a, 0)?;
-        forecast(s, x, &pairs(s, a, 2, 1, sv)?)
+        forecast(s, x, &pairs(s, a, 2, 1, PairScalars::Coerce, sv)?)
     }
     45 forecast_linear "FORECAST.LINEAR" (3, 3) [V "x", R "known_ys", R "known_xs"] |s, a, sv| {
         let x = num(s, a, 0)?;
-        forecast(s, x, &pairs(s, a, 2, 1, sv)?)
+        forecast(s, x, &pairs(s, a, 2, 1, PairScalars::Coerce, sv)?)
     }
     46 kurt "KURT" (1, 255) [R "number1", R "number2"] |s, a, sv| {
         out(s, k::moment_stats_family::kurt_kernel(&all(s, a, sv, Held::Numbers)?))

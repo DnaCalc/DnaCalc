@@ -390,6 +390,36 @@ fn recorded_zero_percentage_exponents_are_validated() {
     }
 }
 
+/// OxFunc-Evidence unswept-structural-sweep-001, cases 00109..00126, 00284..00289,
+/// 00476..00481, 00596..00601 and 00614..00619: paired lists skip scalar text/logicals.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_paired_statistics_skip_nonnumeric_scalar_items() {
+    let mut session = Session::new("Sheet1").unwrap();
+    let mut results = Vec::new();
+    for function in ["CORREL", "COVARIANCE.P", "COVARIANCE.S", "INTERCEPT", "PEARSON", "RSQ", "SLOPE"] {
+        for argument in ["\"\"", "\"2\"", "TRUE"] {
+            let formula = format!("={function}({argument},2)");
+            session.set_formula(&formula);
+            results.push((formula, session.calculate(), CalcValue::error(WorksheetErrorCode::Div0)));
+        }
+        for (argument, expected) in [
+            ("{2;3}", CalcValue::error(WorksheetErrorCode::NA)),
+            ("NA()", CalcValue::error(WorksheetErrorCode::NA)),
+            ("2", if function == "COVARIANCE.P" { CalcValue::number(0.0) }
+                else { CalcValue::error(WorksheetErrorCode::Div0) }),
+        ] {
+            let formula = format!("={function}({argument},2)");
+            session.set_formula(&formula);
+            results.push((formula, session.calculate(), expected));
+        }
+    }
+    for (formula, result, expected) in results {
+        assert_eq!(result.result, Some(expected), "{formula}: {:?}", result.diagnostics);
+        assert!(result.diagnostics.is_empty());
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

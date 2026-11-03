@@ -408,15 +408,23 @@ pub(super) fn grid_number(
     }
 }
 
+/// How a paired collector admits a direct scalar rather than an array/reference cell.
+#[derive(Clone, Copy)]
+pub(super) enum PairScalars {
+    Coerce,
+    SkipNonnumeric,
+}
+
 /// The pairs of numbers two arguments hold at the same positions, for the paired statistics:
 /// arguments of different cell counts are #N/A; a position where either holds no number is
-/// skipped; the first error in reading order (the first argument's before the second's at a
-/// position) is the result.
+/// skipped (direct scalars follow `scalars`); the first error in reading order
+/// (the first argument's before the second's at a position) is the result.
 pub(super) fn pairs(
     site: &Site<'_>,
     arguments: &[CalcValue],
     x: usize,
     y: usize,
+    scalars: PairScalars,
     services: &mut EvalServices<'_>,
 ) -> Step<Vec<(f64, f64)>> {
     let left = grid(site, arguments, x, services)?;
@@ -426,8 +434,9 @@ pub(super) fn pairs(
     }
     let mut found = Vec::new();
     for (a, b) in left.cells.iter().zip(&right.cells) {
-        let a = grid_number(site, x, left.held, a)?;
-        let b = grid_number(site, y, right.held, b)?;
+        let skip_nonnumeric = matches!(scalars, PairScalars::SkipNonnumeric);
+        let a = grid_number(site, x, left.held || skip_nonnumeric, a)?;
+        let b = grid_number(site, y, right.held || skip_nonnumeric, b)?;
         if let (Some(a), Some(b)) = (a, b) {
             found.push((a, b));
         }
