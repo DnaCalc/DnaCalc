@@ -1124,6 +1124,11 @@ pub(super) fn load_sheet(
                 detail: "conditional source could not be retained",
             })?;
     }
+    if !load.validations.is_empty() {
+        let sources = crate::save::validation::sources(&xml).map_err(|_| LoadError::InvalidPart { part: part.to_owned(), detail: "validation source could not be retained" })?;
+        if sources.len() != load.validations.len() { return Err(LoadError::InvalidPart { part: part.to_owned(), detail: "validation source count differs" }); }
+        for (rule,source) in load.validations.iter_mut().zip(sources) { rule.source=Some(source); }
+    }
     Ok(load)
 }
 

@@ -295,6 +295,7 @@ pub enum RowHidden {
 pub struct Definitions {
     styles: std::sync::Arc<crate::StyleTable>,
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
+    validations: BTreeMap<SheetId, Vec<crate::Validation>>,
     review: BTreeMap<SheetId, Vec<crate::ReviewNote>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::PaneLayout>,
@@ -324,6 +325,18 @@ impl Definitions {
     }
     pub fn with_styles(mut self, styles: std::sync::Arc<crate::StyleTable>) -> Self {
         self.styles = styles;
+        self
+    }
+
+    pub fn validations(&self, sheet: SheetId) -> &[crate::Validation] {
+        self.validations.get(&sheet).map(Vec::as_slice).unwrap_or(&[])
+    }
+    pub fn all_validations(&self) -> impl Iterator<Item = (SheetId, &[crate::Validation])> {
+        self.validations.iter().map(|(s, v)| (*s, v.as_slice()))
+    }
+    pub fn with_validations(mut self, sheet: SheetId, rules: Vec<crate::Validation>) -> Self {
+        if rules.is_empty() { self.validations.remove(&sheet); }
+        else { self.validations.insert(sheet, rules); }
         self
     }
 
@@ -465,6 +478,7 @@ impl Definitions {
             styles: Default::default(),
             conditional: BTreeMap::new(),
             review: BTreeMap::new(),
+            validations: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
             filters: BTreeMap::new(),
@@ -667,6 +681,7 @@ impl Definitions {
     /// These definitions without anything of `sheet`: its array formulas, tables, unloaded
     /// cells, hidden rows and the names scoped to it (a removed sheet).
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
+        self.validations.remove(&sheet);
         self.conditional.remove(&sheet);
         self.review.remove(&sheet);
         if self.styles.runs.iter().any(|r| r.area.sheet() == sheet) {
@@ -703,6 +718,7 @@ impl Definitions {
     /// Whether nothing is defined.
     pub fn is_empty(&self) -> bool {
         self.review.is_empty()
+            && self.validations.is_empty()
             && self.conditional.is_empty()
             && self.axis_layouts.sheets().next().is_none()
             && self.panes.is_empty()

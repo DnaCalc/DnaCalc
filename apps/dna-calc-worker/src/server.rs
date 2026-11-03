@@ -1118,7 +1118,7 @@ impl Server {
                     .into(),
             );
         }
-        let validation=host.validation(at).map(|v|format!("{} validation · {:?}. Input alerts do not yet check custom rules or formula entries. Circle Invalid Data checks current published values; loaded rules are preserved.",v.kind,v.style));
+        let validation=host.validation(at).map(|v|format!("{} validation · {:?}. Entry alerts check candidate values through the workbook evaluator. Circle Invalid Data checks current published values.",v.kind,v.style));
         wire::Review {
             at: Some(Key::of(at)),
             revision: host.revision().get(),

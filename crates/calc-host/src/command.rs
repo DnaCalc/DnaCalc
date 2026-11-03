@@ -21,6 +21,7 @@ pub enum CellEdit {
     AutoFilter { sheet: calc_doc_model::value::SheetId, filter: Option<calc_doc_model::AutoFilter> },
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
+    Validations { sheet: calc_value::SheetId, rules: Vec<calc_doc_model::Validation> },
     ReviewNotes {
         sheet: calc_doc_model::value::SheetId,
         notes: Vec<calc_doc_model::ReviewNote>,
@@ -84,6 +85,7 @@ impl CellEdit {
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
+            CellEdit::Validations { sheet, rules } => WorkbookOp::SetValidations { sheet, rules },
             CellEdit::ReviewNotes { sheet, notes } => WorkbookOp::SetReviewNotes { sheet, notes },
             CellEdit::ConditionalRules { sheet, rules } => {
                 WorkbookOp::SetConditionalRules { sheet, rules }
@@ -378,6 +380,29 @@ pub fn dispatch(
         }
     }
     for op in &batch.operations {
+        if let WorkbookOp::SetValidations { sheet, rules } = op {
+            let invalid = host.model.sheet_by_id(*sheet).is_none()
+                || host.loaded.sheet(*sheet).is_some_and(|s| s.protected() || s.is_macro_sheet())
+                || rules.len() > 4096
+                || rules.iter().any(|rule| {
+                    rule.areas.is_empty() || rule.areas.iter().any(|&(t,l,b,r)| {
+                        let (Ok(first),Ok(last)) = (CellKey::new(*sheet,t,l),CellKey::new(*sheet,b,r)) else {return true;};
+                        calc_value::GridArea::new(first,last).is_err() || t>b || l>r
+                    }) || rule.source.as_ref().is_some_and(|source| {
+                        // Range/formula transforms are authored, while source-backed alert
+                        // attributes retain their imported contract until an editor owns them.
+                        !host.loaded.sheets().iter().flat_map(|s|s.validations()).any(|old| {
+                            if old.source.as_ref()!=Some(source) || old.formula1.is_some()!=rule.formula1.is_some() || old.formula2.is_some()!=rule.formula2.is_some() {return false;}
+                            let mut expected=old.clone();expected.areas=rule.areas.clone();
+                            expected.formula1=rule.formula1.clone();expected.formula2=rule.formula2.clone();
+                            &expected==rule
+                        })
+                    })
+                });
+            if invalid {return Err(CommandError::Document(EditError::SheetOperation("Validation edits need valid ranges on an editable sheet and must retain imported alert attributes (dc-971p.40)".into())));}
+        }
+    }
+    for op in &batch.operations {
         if let WorkbookOp::SetReviewNotes { sheet, notes } = op {
             let old = host.model.definitions().review_notes(*sheet);
             let shared = old.iter().zip(notes).any(|(a, b)| {
@@ -498,7 +523,7 @@ pub fn dispatch(
                 || host.model.layout().blocks().iter().any(|b| b.anchor().is_some_and(|a| a.sheet() == *sheet))
                 || !host.model.definitions().tables().is_empty()
                 || host.loaded.sheets().iter().any(|s| !host.loaded.cell_shift_metadata_supported(s.id())
-                    || !s.conditional_formats().is_empty() || !s.validations().is_empty()
+                    || !s.conditional_formats().is_empty()
                     || !s.charts().charts.is_empty() || s.charts().unread != 0 || s.is_macro_sheet())
                 || (matches!(edit, calc_doc_model::SheetEdit::Remove { .. }) && host.model.definitions().macro_enabled())
             {

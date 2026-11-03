@@ -97,7 +97,10 @@ fn difference(a: &LoadedWorkbook, b: &LoadedWorkbook) -> Option<String> {
         if m != n {
             return Some(format!("styled cells of {:?}", s.id()));
         }
-        if s.validations() != t.validations() {
+        // Each encoding has its own retained XML (including revision IDs and namespaces).
+        // Compare every semantic validation field, as before source retention was added.
+        let semantic = |rules: &[calc_doc::Validation]| rules.iter().cloned().map(|mut r| { r.source=None; r }).collect::<Vec<_>>();
+        if semantic(s.validations()) != semantic(t.validations()) {
             return Some(format!(
                 "validations of {:?}: {:?} and {:?}",
                 s.id(),
