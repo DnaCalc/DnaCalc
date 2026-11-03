@@ -7447,7 +7447,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Value("name-box", "M100"),
             Check::Value("zoom-percent", "175"),
             Check::Attr("[data-pane=\"3\"]", "data-grid-active", "true"),
-            Check::Text("[data-pane=\"0\"] [data-cell=A1]", "top-left"),
+            Check::Text("[data-pane=\"0\"] [data-dnacalc=cell][data-cell=A1]", "top-left"),
         ],
     },
     Case {

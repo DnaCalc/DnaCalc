@@ -103,9 +103,10 @@
 // Scratch canvases measure fonts and normalize colours; no product nodes or values are added.
 (() => {
   window.__rendererCoreCheck = spec => {
-    const grid=document.querySelector('[data-dnacalc=grid][data-grid-active=true]');
+    const pane=spec.selector?.match(/data-pane\s*=\s*["']?([0-3])/ )?.[1];
+    const grid=document.querySelector(pane===undefined?'[data-dnacalc=grid][data-grid-active=true]':`[data-dnacalc=grid][data-pane="${pane}"]`);
     if(grid?.dataset.painter!=='canvas')return {handled:false};
-    const plans=Object.values(window.__dnacalcRenderPlans||{}).map(f=>JSON.parse(f())).filter(p=>p.active&&p.plan?.publication&&!p.plan.interrupted);
+    const plans=Object.values(window.__dnacalcRenderPlans||{}).map(f=>JSON.parse(f())).filter(p=>(pane===undefined?p.active:String(p.pane)===pane)&&p.plan?.publication&&!p.plan.interrupted);
     const plan=plans[0]?.plan, canvas=grid.querySelector('canvas');
     if(!plan||!canvas)return {handled:true,seen:null};
     const address=spec.address||spec.selector?.match(/data-cell\s*=\s*["']?([A-Z]+[0-9]+)/)?.[1];

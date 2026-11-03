@@ -458,7 +458,13 @@ pub unsafe extern "system" fn MyDeniedStatus() -> i32 {
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyReference(reference: *mut XlOper12) -> *mut XlOper12 {
     let mut result = XlOper12::default();
-    if unsafe { call(XL_COERCE, &[reference], &mut result) } != SUCCESS {
+    let code = if std::env::var_os("DNA_XLL_REFERENCE_TEXT").is_some() {
+        let mut style = XlOper12::boolean(true);
+        unsafe { call(146, &[reference, &mut style], &mut result) }
+    } else {
+        unsafe { call(XL_COERCE, &[reference], &mut result) }
+    };
+    if code != SUCCESS {
         result = XlOper12::error(15);
     }
     // Any host-owned nested storage is released after the host copies this result.

@@ -390,7 +390,7 @@ def all_invocations(trace, name, defined=True):
     return [invocation_record(trace, x, defined) for x in trace[1].values() if x["entry"].endswith(":" + name)]
 
 
-def framework_callbacks(trace):
+def framework_callbacks(trace, teardown=False):
     """Keep every callback before close; registration IDs and windows are identities.
 
     xlFree has no defined output operand. Its raw buffer stays in the trace.
@@ -398,42 +398,57 @@ def framework_callbacks(trace):
     Calc, so their teardown calls are counted separately, not compared as one action.
     """
     _, enters, leaves = trace
-    close = min((x["seq"] for x in enters.values() if x["entry"].endswith("!xlAutoClose")), default=float("inf"))
+    close = min((x["seq"] for x in enters.values()
+                 if x["entry"].endswith(("!xlAutoRemove", "!xlAutoClose"))), default=float("inf"))
     ids = {}
     window = event_token = None
     records = []
+    identity_operands = {}
+    previous_identity = {}
     for entry in enters.values():
-        if not entry["entry"].endswith("!MdCallBack12") or entry["seq"] >= close:
+        if not entry["entry"].endswith("!MdCallBack12"):
             continue
         end = leaves[entry["call"]]
         fn = entry["function"]
         args = normalize_x2(entry["args"])
         result = normalize_x2(end.get("result"))
+        raw_result = json.loads(json.dumps(result))
+        identity = None
         if fn == 149 and end["return_code"] == 0:
             name = normalize_x2(entry["args"][3]["value"])
             require(result["type"] == 1 and result["value"] != 0, "Invalid registration ID")
             ids[result["value"]] = name
             result["value"] = "<registration:" + name + ">"
+            identity = result["value"]
         elif fn == 16392 and end["return_code"] == 0:
             window = result["value"]
             require(window != 0, "Missing native window")
             result["value"] = "<window>"
+            identity = result["value"]
         elif fn == 16401 and end["return_code"] == 0:
             event_token = result["value"]
+            identity = "<event-registration-result>"
         elif fn == 16384:
-            for arg in args:
-                if isinstance(arg.get("value"), (int, float)) and not isinstance(arg["value"], bool):
-                    value = arg["value"]
-                    if value == window:
-                        arg["value"] = "<window>"
-                    elif value == event_token:
-                        arg["value"] = "<event-registration-result>"
-                    elif value in ids:
-                        arg["value"] = "<registration:" + ids[value] + ">"
+            for index, arg in enumerate(args):
+                pointers = entry.get("argument_addresses")
+                source = (identity_operands.pop((entry["thread"], pointers[index]), None)
+                          if pointers else previous_identity.get(entry["thread"]))
+                if source and arg == source[0]:
+                    arg["value"] = source[1]
             result = None
         elif fn == 201 and args and args[0].get("value") in ids:
             args[0]["value"] = "<registration:" + ids[args[0]["value"]] + ">"
-        records.append({"function": fn, "args": args, "return_code": end["return_code"], "result": result})
+        if fn != 16384:
+            previous_identity[entry["thread"]] = (raw_result, identity) if identity else None
+            pointer = entry.get("result_address")
+            if pointer:
+                identity_operands.pop((entry["thread"], pointer), None)
+                if identity:
+                    identity_operands[entry["thread"], pointer] = (raw_result, identity)
+        else:
+            previous_identity[entry["thread"]] = None
+        if (entry["seq"] >= close) == teardown:
+            records.append({"function": fn, "args": args, "return_code": end["return_code"], "result": result})
     return records
 
 
@@ -757,6 +772,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                       "callbacks_equal_after_identity_normalization": len(callbacks[0]) - len(differences),
                       "raw_callback_differences": differences, "ownership_excel_and_host": ownership,
                       "rewritten_export_registrations_each_host": [len(x) for x in dynamic],
+                      "teardown_callbacks_excel_and_host": [framework_callbacks(trace, teardown=True) for trace in traces],
                       "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted."}
     x4_details = {}
     if x4:
@@ -1255,6 +1271,66 @@ def verify_x2_controls(excel, host, identity=False):
             "scope": "No-debugger controls; every registration resolved an original export; values checked at f0 and f9999, not all 10000 delegates."}
 
 
+def verify_ribbon(excel, excel_control, host, host_control, cases_path, publication_path=None):
+    result = verify_x2(excel, excel_control, host, host_control, cases_path, publication_path, x3=True)
+    traces = [boundary(p) for p in (excel, host)]
+    startup, teardown, property_calls, traffic, bindings = [], [], [], [], []
+    for trace in traces:
+        _, enters, leaves = trace
+        opening = next(e for e in enters.values() if e["entry"].endswith("!xlAutoOpen"))
+        closed = min(e["seq"] for e in enters.values() if e["entry"].endswith(("!xlAutoRemove", "!xlAutoClose")))
+        starts, ends, properties = [], [], []
+        factories = [e for e in enters.values() if e["entry"] == "COM!CreateInstance"
+                     and e.get("iid") == "b65ad801-abaf-11d0-bb8b-00a0c90f2744"
+                     and leaves[e["call"]]["hresult"] == 0]
+        objects = {leaves[e["call"]]["object"] for e in factories}
+        require(len(objects) == 2, "Dummy and real COM add-in activation were not observed")
+        for entry in enters.values():
+            returned = leaves[entry["call"]]
+            name = entry["entry"]
+            if name.startswith(("COM!early.extensibility.", "COM!early.ribbon.")):
+                require(entry["thread"] == opening["thread"], "Ribbon callback left the owning STA")
+                if name.startswith("COM!early.extensibility."):
+                    require(entry["object"] in objects, "Extensibility callback used an unbound object")
+                else:
+                    require(any(q["entry"] == "COM!QueryInterface" and q.get("iid") == "000c0396-0000-0000-c000-000000000046"
+                                and q["object"] in objects and leaves[q["call"]].get("object") == entry["object"]
+                                and leaves[q["call"]]["seq"] < entry["seq"] for q in enters.values()), "Ribbon interface is not bound to an activated add-in")
+                row = {key: entry[key] for key in ("entry", "mode", "custom", "ribbon_id") if key in entry}
+                row.update({key: returned[key] for key in ("hresult", "value") if key in returned})
+                (starts if entry["seq"] < closed else ends).append(row)
+            if name == "COM!Invoke" and opening["seq"] < entry["seq"] < leaves[opening["call"]]["seq"]:
+                member = entry.get("member")
+                if member in ("AutomationSecurity", "COMAddIns", "Update", "Item", "Connect"):
+                    arguments = json.loads(json.dumps(entry["rgvarg"]))
+                    if member == "Item":
+                        require(len(arguments) == 1 and arguments[0]["vt"] == 8 and re.fullmatch(r"Dna_[a-f0-9]{32}_0", arguments[0]["value"]), "Unqualified private ribbon ProgID")
+                        arguments[0]["value"] = "<private-progid>"
+                    value = returned.get("result")
+                    if isinstance(value, dict) and value.get("vt") == 9:
+                        value = {"vt": 9, "value": "<object>"}
+                    properties.append({"member": member, "flags": entry["flags"], "arguments": arguments,
+                                       "hresult": returned["hresult"], "result": value})
+        startup.append(starts); teardown.append(ends); property_calls.append(properties)
+        traffic.append(dict(Counter(e["entry"] for e in enters.values() if e["entry"].startswith("COM!") and e["seq"] < closed)))
+        bindings.append({"activated_objects": sorted(objects), "factory_calls": factories})
+    require(startup[0] == startup[1], "Ribbon lifecycle arguments, HRESULTs or XML differ")
+    require(property_calls[0] == property_calls[1] and len(property_calls[0]) == 7, "Ribbon COM helper property traffic differs")
+    ui = [r for r in startup[0] if r["entry"] == "COM!early.ribbon.GetCustomUI"]
+    require(len(ui) == 1 and ui[0]["ribbon_id"] == "Microsoft.Excel.Workbook" and ui[0]["hresult"] == 0 and ui[0]["value"], "Ribbon XML callback was not exercised once")
+    require({r["entry"].rsplit(".", 1)[1] for r in startup[0]} == {"OnConnection", "OnAddInsUpdate", "OnDisconnection", "GetCustomUI"}, "Ribbon lifecycle coverage is incomplete")
+    for directory in (host, host_control):
+        output = json.loads((directory / "host.stdout").read_text())
+        require(len(output["ribbons"]) == 1 and output["ribbons"][0][1] == ui[0]["value"], "Application did not retain the actual ribbon XML")
+    result["status"] = "verified bounded ribbon startup, helper properties and XML"
+    result["ribbon"] = {"startup_callbacks_each_host": len(startup[0]), "startup": startup[0],
+                        "helper_properties_each_host": len(property_calls[0]), "helper_properties": property_calls[0],
+                        "teardown_callbacks_excel_and_host": teardown, "activation_bindings": bindings,
+                        "all_com_entry_counts_excel_and_host": traffic,
+                        "scope": "Same dummy/real startup callbacks and exact GetCustomUI XML on the owner STA. Raw duplicate CCW body entries remain. Remove+Close and UNREGISTER teardown differ and remain separately retained. Other COM metadata/identity queries, button actions and host UI painting are not qualified by this comparison."}
+    return result
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("traced", type=Path)
@@ -1266,6 +1342,7 @@ if __name__ == "__main__":
     parser.add_argument("--x3-cases", type=Path)
     parser.add_argument("--xloil-reload-cases", type=Path)
     parser.add_argument("--x4-cases", type=Path)
+    parser.add_argument("--ribbon-cases", type=Path)
     parser.add_argument("--rtd-cases", type=Path)
     parser.add_argument("--workbook-pool-cases", type=Path)
     parser.add_argument("--permission-cases", type=Path)
@@ -1283,10 +1360,11 @@ if __name__ == "__main__":
         elif args.host:
             parser.error("--host requires --host-control") if args.host_control is None else None
             result = (verify_xloil_reload(args.traced, args.control, args.host, args.host_control, args.xloil_reload_cases, args.source_publication) if args.xloil_reload_cases else
+                      verify_ribbon(args.traced, args.control, args.host, args.host_control, args.ribbon_cases, args.source_publication) if args.ribbon_cases else
                       verify_workbook_pool(args.traced, args.control, args.host, args.host_control, args.workbook_pool_cases, args.source_publication) if args.workbook_pool_cases else
                       verify_rtd(args.traced, args.control, args.host, args.host_control, args.rtd_cases, args.source_publication) if args.rtd_cases else
                       verify_x2(args.traced, args.control, args.host, args.host_control, args.x4_cases or args.x3_cases or args.x2_cases, args.source_publication, x3=bool(args.x3_cases or args.x4_cases), x4=bool(args.x4_cases))
-                      if args.x2_cases or args.x3_cases or args.x4_cases else verify_x1(args.traced, args.control, args.host, args.host_control))
+                      if any((args.x2_cases, args.x3_cases, args.x4_cases, args.ribbon_cases, args.rtd_cases, args.workbook_pool_cases, args.xloil_reload_cases)) else verify_x1(args.traced, args.control, args.host, args.host_control))
         else:
             result = verify(args.traced, args.control)
     except Exception as error:

@@ -1,0 +1,5 @@
+[
+  {"formula":"=NativeHello(\"world\")","value":"Hello world!"},
+  {"formula":"=NativeSum(19,23)","value":42},
+  {"formula":"=NativeSum(3.5,-1.5)","value":2}
+]

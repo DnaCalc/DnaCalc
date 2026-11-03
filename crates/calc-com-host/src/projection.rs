@@ -19,6 +19,7 @@ type Run = unsafe extern "system" fn(
 ) -> i32;
 type Qualifier =
     unsafe extern "system" fn(*const u16, usize, *const u16, usize, *mut *mut u16) -> i32;
+type OwnsModule = unsafe extern "system" fn(*const c_void, *const u16, usize) -> bool;
 #[link(name = "oleaut32")]
 unsafe extern "system" {
     fn SysAllocStringLen(text: *const u16, length: u32) -> *mut u16;
@@ -26,14 +27,25 @@ unsafe extern "system" {
 unsafe extern "C" {
     #[cfg(test)]
     fn dna_com_test_events() -> i32;
+    #[cfg(test)]
+    fn dna_com_test_office() -> i32;
+    #[cfg(test)]
+    fn dna_com_test_ribbon_reentry() -> i32;
     fn dna_com_create(
         hwnd: usize,
         context: *const c_void,
         run: Run,
         qualifier: Qualifier,
+        owns_module: OwnsModule,
     ) -> *mut c_void;
     fn dna_com_getobject(projection: *mut c_void, wparam: usize, object_id: isize) -> isize;
     fn dna_com_destroy(projection: *mut c_void);
+    fn dna_com_close_office(projection: *mut c_void) -> i32;
+    fn dna_com_ribbons(
+        projection: *mut c_void,
+        visit: unsafe extern "system" fn(*mut c_void, *const u16, usize, *const u16, usize),
+        context: *mut c_void,
+    ) -> i32;
     fn dna_com_verify(projection: *mut c_void) -> i32;
     fn dna_com_sheet(projection: *mut c_void, name: *const u16, length: usize) -> i32;
     fn dna_com_enable_events(projection: *mut c_void, enabled: bool) -> i32;
@@ -53,6 +65,18 @@ fn event_source_owns_cookies_and_disconnects_retained_ranges() {
     let status = unsafe { dna_com_test_events() };
     assert_eq!(status, 0, "COM event lifecycle: {status:#x}");
 }
+/// Native-only: exercises the real COM dispatch tree and retained objects after teardown.
+#[test]
+fn office_controls_track_edits_and_disconnect_retained_objects() {
+    let status = unsafe { dna_com_test_office() };
+    assert_eq!(status, 0, "Office control lifecycle: {status:#x}");
+}
+/// Native-only: actual COM providers mutate the collection and disconnect during UI callbacks.
+#[test]
+fn ribbon_callbacks_retain_objects_and_reject_stale_connections() {
+    let status = unsafe { dna_com_test_ribbon_reentry() };
+    assert_eq!(status, 0, "Ribbon reentry: {status:#x}");
+}
 
 /// Lives on the window's STA; disconnected COM references fail after it is dropped.
 pub struct Projection {
@@ -68,7 +92,8 @@ impl Projection {
         }
     }
     pub fn new(hwnd: usize, host: Rc<XllHost>) -> Result<Self, String> {
-        let pointer = unsafe { dna_com_create(hwnd, Rc::as_ptr(&host).cast(), run, qualifier) };
+        let pointer =
+            unsafe { dna_com_create(hwnd, Rc::as_ptr(&host).cast(), run, qualifier, owns_module) };
         if pointer.is_null() {
             return Err("cannot create local COM projection".into());
         }
@@ -141,7 +166,41 @@ impl Projection {
     }
     /// Close add-ins while the workbook window can still answer Application lookup.
     pub fn close_addins(&self) -> Result<(), String> {
-        self._host.close()
+        self._host.close()?;
+        Self::checked(
+            unsafe { dna_com_close_office(self.pointer) },
+            "COM add-in teardown",
+        )
+    }
+    /// Request the connected add-ins' actual IRibbonExtensibility callbacks.
+    pub fn ribbons(&self) -> Result<Vec<(String, String)>, String> {
+        unsafe extern "system" fn visit(
+            context: *mut c_void,
+            progid: *const u16,
+            progid_length: usize,
+            xml: *const u16,
+            xml_length: usize,
+        ) {
+            let rows = unsafe { &mut *context.cast::<Vec<(String, String)>>() };
+            rows.push((
+                String::from_utf16_lossy(unsafe {
+                    std::slice::from_raw_parts(progid, progid_length)
+                }),
+                String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(xml, xml_length) }),
+            ));
+        }
+        let mut rows = Vec::new();
+        Self::checked(
+            unsafe {
+                dna_com_ribbons(
+                    self.pointer,
+                    visit,
+                    (&mut rows as *mut Vec<(String, String)>).cast(),
+                )
+            },
+            "Ribbon GetCustomUI",
+        )?;
+        Ok(rows)
     }
 }
 impl Drop for Projection {
@@ -154,6 +213,20 @@ impl Drop for Projection {
             dna_com_destroy(self.pointer);
         }
     }
+}
+
+unsafe extern "system" fn owns_module(
+    context: *const c_void,
+    path: *const u16,
+    length: usize,
+) -> bool {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        use std::os::windows::ffi::OsStringExt;
+        let path =
+            std::ffi::OsString::from_wide(unsafe { std::slice::from_raw_parts(path, length) });
+        unsafe { &*context.cast::<XllHost>() }.contains_loaded_module(std::path::Path::new(&path))
+    }))
+    .unwrap_or(false)
 }
 
 unsafe extern "system" fn run(
