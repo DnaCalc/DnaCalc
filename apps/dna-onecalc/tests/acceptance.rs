@@ -474,6 +474,55 @@ fn recorded_floor_zero_identity_precedes_its_multiple_error() {
     }
 }
 
+/// OxFunc-Evidence w111boundary GCD/LCM 00187, 00190, 00194 and 00217,
+/// discovery2 00764, heldout-typed 00030..00032, and lcm-array-order 00084..00090.
+/// The operand boundary is inclusive; coercion, domain errors and reduction order remain visible.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_gcd_lcm_admit_the_exact_operand_boundary() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    let limit = f64::from_bits(0x4340_0000_0000_0000);
+    for (left, right, gcd, lcm) in [
+        (0.0, limit, Some(limit), Some(0.0)),
+        (limit, 1.0, Some(1.0), Some(limit)),
+        (limit, 2.0, Some(2.0), Some(limit)),
+        (limit + 2.0, 0.0, None, None),
+        (limit - 1.0, limit, Some(1.0), None),
+    ] {
+        session.set_input("A1", InputValue::number(left).unwrap()).unwrap();
+        session.set_input("B1", InputValue::number(right).unwrap()).unwrap();
+        for (function, expected) in [("GCD", gcd), ("LCM", lcm)] {
+            let formula = format!("={function}(A1,B1)");
+            session.set_formula(&formula);
+            let result = session.calculate();
+            let expected = expected.map(CalcValue::number).unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::Num));
+            assert_eq!(result.result, Some(expected), "{formula}, {left}, {right}: {:?}", result.diagnostics);
+            assert!(result.diagnostics.is_empty());
+        }
+    }
+    for (cell, bits) in [("A100", 0x416f_4961_e000_0000), ("B200", 0x416f_4961_e000_0000),
+        ("A101", 0x4340_0000_0000_0000), ("C200", 0x4340_0000_0000_0000)] {
+        session.set_input(cell, InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+    }
+    for formula in ["=GCD(A100,A101)", "=GCD(CHOOSE({1,2},A100,A101))", "=GCD(B200:C200)"] {
+        session.set_formula(formula);
+        assert_eq!(session.calculate().result, Some(CalcValue::number(1.0)), "{formula}");
+    }
+    for (cells, bits) in [(["A100", "B200"], 0x4340_0000_0000_0000),
+        (["A101", "C200"], 0x4008_0000_0000_0000), (["A102", "D200"], 0x4325_5555_5555_5556)] {
+        for cell in cells { session.set_input(cell, InputValue::number(f64::from_bits(bits)).unwrap()).unwrap(); }
+    }
+    session.set_input("B201", InputValue::number(3.0).unwrap()).unwrap();
+    session.set_input("B202", InputValue::number(f64::from_bits(0x4325_5555_5555_5556)).unwrap()).unwrap();
+    for formula in ["=LCM(A100,A101,A102)", "=LCM(CHOOSE({1,2,3},A100,A101,A102))",
+        "=LCM(B200:D200)", "=LCM(CHOOSE({1;2;3},A100,A101,A102))", "=LCM(B200:B202)", "=LCM(CHOOSE({1,2},A100,A101),A102)",
+        "=LCM(A100,CHOOSE({1,2},A101,A102))"] {
+        session.set_formula(formula);
+        assert_eq!(session.calculate().result, Some(CalcValue::number(limit)), "{formula}");
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

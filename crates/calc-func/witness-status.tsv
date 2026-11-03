@@ -231,8 +231,8 @@ GAMMALN.PRECISE	full	20131,20228,?	14278	10193	7	numeric	ec9d4a91ff+changes
 GAMMALN.PRECISE	pinned	20131	120	89	3	last_bit	dd2d82c25f+changes
 GAUSS	full	20228,20430	9728	8569	8	numeric	ec9d4a91ff+changes
 GAUSS	pinned	20228,20430	120	102	4	last_bit	dd2d82c25f+changes
-GCD	full	20430	7966	7771	-	structural	ec9d4a91ff+changes
-GCD	pinned	20430	120	117	-	structural	dd2d82c25f+changes
+GCD	full	20430	7966	7966	-	exact	10ccedb6ea+changes
+GCD	pinned	20430	120	120	-	exact	10ccedb6ea+changes
 GEOMEAN	full	20430,20527	1225	1167	1	structural	ec9d4a91ff+changes
 GEOMEAN	pinned	20430	120	111	1	structural	dd2d82c25f+changes
 GESTEP	full	20430	1096	1092	-	structural	ec9d4a91ff+changes
@@ -338,8 +338,8 @@ ISTEXT	pinned	20430	120	120	-	exact	dd2d82c25f+changes
 JIS	full	20527	8	0	-	structural	ec9d4a91ff+changes
 KURT	full	20430	3004	2147	32768	gross	ec9d4a91ff+changes
 KURT	pinned	20430	120	87	128	numeric	dd2d82c25f+changes
-LCM	full	20430	7967	7808	-	structural	ec9d4a91ff+changes
-LCM	pinned	20430	120	118	-	structural	dd2d82c25f+changes
+LCM	full	20430	7967	7967	-	exact	10ccedb6ea+changes
+LCM	pinned	20430	120	120	-	exact	10ccedb6ea+changes
 LN	full	20131,20228,20430,20527,?	1685	1672	1	last_bit	ec9d4a91ff+changes
 LN	pinned	20131,20228,20430	120	120	-	exact	dd2d82c25f+changes
 LOG	full	20430	25233	25233	-	exact	ec9d4a91ff+changes

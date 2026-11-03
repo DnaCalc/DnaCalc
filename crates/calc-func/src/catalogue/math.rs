@@ -245,7 +245,7 @@ ported_family! {
 
 /// GCD's and LCM's integers: each argument's numbers (a held logical is #VALUE!, a blank cell of
 /// a multi-cell argument is 0 and a direct omitted argument after the first is skipped), each at
-/// least 0 and below 2^53, truncated.
+/// least 0 and at most 2^53, truncated.
 fn integer_groups(
     site: &Site<'_>,
     a: &[CalcValue],
@@ -284,7 +284,7 @@ fn integer_groups(
     }
     if numbers
         .iter()
-        .any(|n| !n.is_finite() || *n < 0.0 || *n > 9_007_199_254_740_991.0)
+        .any(|n| !n.is_finite() || *n < 0.0 || *n > k::gcd_lcm_common::GCD_LCM_LIMIT)
     {
         return fail(WorksheetErrorCode::Num);
     }
