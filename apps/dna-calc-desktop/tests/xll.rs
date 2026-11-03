@@ -277,42 +277,61 @@ fn application_run_can_enter_a_hidden_or_worksheet_registration() {
 /// Native-only: the actual executable resumes one native async entry through CalcHost P07.
 #[test]
 fn native_async_resumes_the_existing_engine_activation_and_dependents() {
-    let fixture = Fixture::new();
-    let cases = fixture.directory.join("async-cases.json");
-    std::fs::write(
+    for legacy in [false, true] {
+        let fixture = Fixture::new();
+        let calls = if legacy { 2 } else { 1 };
+        let cases = fixture.directory.join("async-cases.json");
+        std::fs::write(
         &cases,
-        r#"[
-        {"formula":"=10+MyAsync(28)+3","value":42,"dependent":"=B3*2","dependent_value":84},
-        {"formula":"=MyAsyncEntries()","value":1}
-    ]"#,
+        serde_json::to_vec(&serde_json::json!([
+            {"formula":"=10+MyAsync(28)+3","value":42,"dependent":"=B3*2","dependent_value":84,"legacy":legacy},
+            {"formula":"=MyAsyncEntries()","value":calls,"legacy":legacy}
+        ])).unwrap(),
     )
     .unwrap();
-    let result = checked(
-        fixture
-            .command()
-            .env("DNA_XLL_ASYNC_TESTS", "1")
-            .env("DNA_XLL_ASYNC_DELAY_MS", "30")
-            .arg("--engine")
-            .arg("--cases")
-            .arg(&cases)
-            .output()
-            .unwrap(),
-    );
-    assert_eq!(result["async_returns"].as_array().unwrap().len(), 1);
-    assert_eq!(result["async_returns"][0]["disposition"], "Accepted");
-    assert_eq!(result["results"][0]["value"], 42.);
-    assert_eq!(result["results"][0]["dependent"], 84.);
-    assert_eq!(result["results"][0]["provenance"]["invocations"], 1);
-    assert_eq!(
-        result["results"][0]["provenance"]["cooperative_invocations"],
-        1
-    );
-    assert_eq!(
-        result["results"][0]["provenance"]["completed_invocations"],
-        1
-    );
-    assert_eq!(result["results"][1]["value"], 1.);
-    assert_eq!(result["closed_registration"], "#NAME?");
+        let result = checked(
+            fixture
+                .command()
+                .env("DNA_XLL_ASYNC_TESTS", "1")
+                .env("DNA_XLL_ASYNC_DELAY_MS", "30")
+                .arg("--engine")
+                .arg("--cases")
+                .arg(&cases)
+                .output()
+                .unwrap(),
+        );
+        assert_eq!(result["async_returns"].as_array().unwrap().len(), calls);
+        assert_eq!(result["async_returns"][0]["disposition"], "Accepted");
+        assert_eq!(result["results"][0]["value"], 42.);
+        assert_eq!(result["results"][0]["dependent"], 84.);
+        assert_eq!(result["results"][0]["provenance"]["invocations"], 1);
+        assert_eq!(
+            result["results"][0]["provenance"]["cooperative_invocations"],
+            1
+        );
+        assert_eq!(
+            result["results"][0]["provenance"]["completed_invocations"],
+            1
+        );
+        assert_eq!(result["results"][1]["value"].as_f64(), Some(calls as f64));
+        if legacy {
+            let entries = result["formula_entries"].as_array().unwrap();
+            let entry = entries
+                .iter()
+                .find(|row| row["cell"] == "B3" && row["formula"] == "=10+MyAsync(28)+3")
+                .unwrap();
+            assert_eq!(entry["value"], 42.);
+            assert!(
+                entry["provenance"]["stamp"]
+                    .as_str()
+                    .unwrap()
+                    .contains("reason: FormulaEntry")
+            );
+            assert_eq!(entry["provenance"]["cooperative_invocations"], 1);
+            assert_eq!(entry["provenance"]["completed_invocations"], 1);
+        }
+        assert_eq!(result["closed_registration"], "#NAME?");
+    }
 }
 
 /// Native-only: a failed second XLL must restore another load's use counts and hidden names.

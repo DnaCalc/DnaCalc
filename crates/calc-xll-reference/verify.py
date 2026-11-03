@@ -872,7 +872,150 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             "timing": "Debugger timing is not uninstrumented performance evidence."}
 
 
+def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, publication_path):
+    """Retain every call in broader RTD runs; scheduling differences stay failures."""
+    directories = (excel, excel_control, host, host_control)
+    envs = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    require(all(e["fixture_files"] == envs[0]["fixture_files"] and e["cases_sha256"] == digest(cases_path) for e in envs), "Different RTD fixtures/cases")
+    require(envs[0]["excel_file_version"] == envs[1]["excel_file_version"] and envs[0]["tracer_sha256"] == envs[2]["tracer_sha256"], "Different RTD Excel builds/tracers")
+    require(envs[2]["executable_sha256"] == envs[3]["executable_sha256"] and envs[2]["shim_sha256"] == envs[3]["shim_sha256"], "Different RTD host binaries")
+    publications = verify_sources(envs, publication_path)
+    names = {c["formula"] for c in cases}
+    for directory, env in zip(directories[:2], envs[:2]):
+        control = controller(directory)
+        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"] and control["AutomationSecurity unchanged"], "RTD ownership/security failed")
+        require(control["Close RTD workbook before detach"], "RTD workbook stayed open at detach")
+        events = jsonl(directory / "controller.jsonl")
+        actual = [(r["operation"], r["value"]) for r in events if r["operation"] in names]
+        require(actual == [(c["formula"], c["value"]) for c in cases], "Ordered Excel RTD values differ")
+        dependent = [r["value"] for r in events if r["operation"].startswith("dependent =")]
+        require(dependent == [c["dependent_value"] for c in cases if "dependent" in c], "Ordered Excel RTD dependents differ")
+    outputs = []
+    for directory in directories[2:]:
+        require(json.loads((directory / "host.exit.json").read_text()) == {"exit_code": 0, "finished": True}, "RTD host failed")
+        require(not (directory / "host.stderr").read_text().strip(), "RTD host diagnostics")
+        output = json.loads((directory / "host.stdout").read_text())
+        require(output["live_callback_allocations"] == output["rtd_subscriptions_after_close"] == 0 and output["closed_registration"] == "#NAME?", "RTD teardown incomplete")
+        require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c.get("dependent_value")) for c in cases], "Ordered host RTD outcomes differ")
+        latest = {}
+        for update in output["rtd_updates"]:
+            key = (update["provider"], update["subscription"])
+            require(update["disposition"] == "Accepted" and update["sequence"] == latest.get(key, 0) + 1, "RTD input was rejected or its sequence skipped/rewound")
+            latest[key] = update["sequence"]
+        for case, row in zip(cases,output["results"],strict=True):
+            if "expected_rtd_inputs" in case:
+                require(len(row["provenance"]["rtd_inputs"]) == case["expected_rtd_inputs"] and row["provenance"]["completed_invocations"] == case["expected_completed_invocations"], "RTD value lacks its expected producing invocations/inputs")
+                require(len(row["dependent_provenance"]["rtd_inputs"]) == case["expected_dependent_rtd_inputs"] and row["dependent_provenance"]["completed_invocations"] == case["expected_dependent_completed_invocations"], "RTD dependent lacks its expected producing invocations/inputs")
+            through = row["rtd_updates_through"]
+            cut = {(u["provider"], u["subscription"]): u["sequence"] for u in output["rtd_updates"][:through]}
+            for proof in (row["provenance"], row.get("dependent_provenance")):
+                if proof:
+                    for read in proof["rtd_inputs"]:
+                        require(cut.get((read["provider"], read["subscription"])) == read["sequence"], "RTD certificate does not name its latest admitted cut")
+        require(all(r["disposition"] == "Accepted" for r in output["rtd_retired"]), "RTD retirement failed")
+        require(not output["async_returns"] and not output["revoked_tokens"], "RTD used native async completion")
+        if any(c.get("keep_formula") for c in cases):
+            require([(u["subscription"], u["sequence"], u["value"]) for u in output["rtd_updates"]] == [(1, 1, 1), (1, 2, 42), (1, 3, 1), (1, 4, 42)], "Completed-topic reuse did not preserve ID and advance the input sequence")
+            require([len(r["provenance"]["rtd_inputs"]) for r in output["results"]] == [1, 0, 1, 0], "RTD branch/reuse certificates differ")
+        outputs.append(output)
+    protocols, native, internal, identities = [], [], [], []
+    methods = {10: "ServerStart", 11: "ConnectData", 12: "RefreshData", 13: "DisconnectData", 14: "Heartbeat", 15: "ServerTerminate"}
+    for index, directory in enumerate((excel, host)):
+        trace = boundary(directory)
+        _, enters, leaves = trace
+        opening = next(e for e in enters.values() if e["entry"].endswith("!xlAutoOpen"))
+        topics, servers, guid_topics = {}, {}, {}
+        activations = []
+        protocol, bodies = [], []
+        for entry in enters.values():
+            returned = leaves[entry["call"]]
+            dispatch = entry["entry"] == "COM!Invoke" and entry.get("object_label") == "RTD server"
+            early = entry["entry"].startswith("COM!early.rtdserver.")
+            if entry["entry"] == "COM!early.rtdsink.UpdateNotify":
+                protocol.append({"method": "UpdateNotify", "hresult": returned["hresult"]})
+                continue
+            if not dispatch and not early:
+                continue
+            parent = [e for e in enters.values() if early and e["entry"] == "COM!Invoke" and e.get("object") == entry.get("object") and e["thread"] == entry["thread"] and e["seq"] < entry["seq"] < returned["seq"] < leaves[e["call"]]["seq"]]
+            if parent:
+                outer_entry = min(parent, key=lambda e: e["seq"])
+                outer = leaves[outer_entry["call"]]
+                method = entry["entry"].rsplit(".", 1)[-1]
+                require(methods.get(outer_entry["dispid"]) == method and outer["hresult"] == returned["hresult"], "Forwarded RTD body changed method/HRESULT")
+                if method in ("ServerStart", "Heartbeat"):
+                    require(outer["result"]["value"] == returned["started" if method == "ServerStart" else "value"], "Forwarded RTD scalar differs")
+                elif method == "ConnectData":
+                    require(outer["result"] == returned["result"] and outer["arguments_after"][0]["value"]["value"] == returned["new_values"], "Forwarded RTD connection differs")
+                elif method == "RefreshData":
+                    require(outer["result"]["value"] == returned["data"] and outer["arguments_after"][0]["value"]["value"] == returned["count"], "Forwarded RTD refresh differs")
+                bodies.append({"entry": entry, "returned": returned})
+                continue
+            if early and entry["entry"].endswith(".ServerTerminate") and entry.get("from", {}).get("module") in envs[0]["fixture_files"]:
+                releases = [e for e in enters.values() if e["entry"] == "COM!Release" and e.get("object") == entry["object"] and e["thread"] == entry["thread"] and e["seq"] < entry["seq"] < returned["seq"] < leaves[e["call"]]["seq"]]
+                require(len(releases) == 1 and leaves[releases[0]["call"]].get("references") == 0, "RTD destructor lacks its final same-object Release")
+                require(releases[0].get("from", {}).get("module") == ("EXCEL.EXE" if index == 0 else "dna-calc-desktop.exe"), "RTD destructor has another owner")
+                require(protocol and protocol[-1] == {"method":"ServerTerminate", "server":servers[entry["object"]], "hresult":0} and returned["hresult"] == 0, "RTD destructor lacks prior successful termination")
+                bodies.append({"entry":entry,"returned":returned,"reason":"final Release destructor","release":releases[0],"release_returned":leaves[releases[0]["call"]]})
+                continue
+            require(entry["thread"] == opening["thread"], "RTD client call left the owner STA")
+            require(entry.get("from", {}).get("module") == ("EXCEL.EXE" if index == 0 else "dna-calc-desktop.exe"), "RTD external client has an unexpected caller")
+            method = methods[entry["dispid"]] if dispatch else entry["entry"].rsplit(".", 1)[-1]
+            obj = entry["object"]
+            if method == "ServerStart":
+                created = [e for e in enters.values() if (e["entry"] == "COM!CreateInstance" or e["entry"].endswith("!CoCreateInstance")) and e.get("iid") == "ec0e6191-db51-11d3-8f3e-00c04f3651b8" and leaves[e["call"]].get("object") == obj and leaves[e["call"]]["seq"] < entry["seq"]]
+                require(created, "RTD server lacks a recorded interface activation")
+                servers[obj] = len(activations)
+                activations.append({"object":obj,"creation":created[-1],"started_by":entry})
+            require(obj in servers, "RTD call preceded ServerStart")
+            row = {"method": method, "server": servers[obj], "hresult": returned["hresult"]}
+            args, after = entry.get("rgvarg", []), returned.get("arguments_after", [])
+            if method == "ServerStart": row["started"] = returned["result"]["value"] if dispatch else returned["started"]
+            elif method == "ConnectData":
+                topic = args[2]["value"] if dispatch else entry["topic"]
+                topics.setdefault(topic, len(topics))
+                strings = json.loads(json.dumps(args[1]["value"] if dispatch else entry["strings"]))
+                for value in strings["values"]:
+                    if value.get("vt") == 8 and re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}", value.get("value", "")):
+                        text = value["value"]; guid_topics.setdefault(text, len(guid_topics)); value["value"] = "<async-topic-%d>" % guid_topics[text]
+                row.update(topic=topics[topic], strings=strings, new_before=args[0]["value"]["value"] if dispatch else entry["new_values"], new_after=after[0]["value"]["value"] if dispatch else returned["new_values"], initial=returned["result"])
+            elif method == "RefreshData":
+                count = after[0]["value"]["value"] if dispatch else returned["count"]
+                data = json.loads(json.dumps(returned["result"]["value"] if dispatch else returned["data"]))
+                require(data is not None and data["dimensions"] == 2 and not data["truncated"] and len(data["values"]) == 2 * count, "Incomplete RTD refresh array")
+                for i in range(count):
+                    item = data["values"][2*i]; require(item["vt"] == 3 and item["value"] in topics, "RTD refresh has an unknown topic"); item["value"] = topics[item["value"]]
+                row.update(count=count, data=data)
+            elif method == "DisconnectData":
+                topic = args[0]["value"] if dispatch else entry["topic"]
+                require(topic in topics, "RTD disconnected an unknown topic"); row["topic"] = topics[topic]
+            elif method == "Heartbeat": row["value"] = returned["result"]["value"] if dispatch else returned["value"]
+            protocol.append(row)
+        require(all(r["hresult"] == 0 for r in protocol), "RTD protocol call failed")
+        protocols.append(protocol); internal.append(bodies); identities.append({"servers": activations, "topics": topics, "async_topics": guid_topics})
+        native.append([{"name": e["entry"].rsplit(":", 1)[1], **invocation_record(trace, e)} for e in enters.values() if ":" in e["entry"]])
+    pairs = [{"position": i, "excel": a, "host": b, "matched": a == b} for i, (a, b) in enumerate(zip_longest(*protocols))]
+    normalized_native = json.loads(json.dumps(native))
+    for rows, identity, env in zip(normalized_native, identities, (envs[0],envs[2])):
+        for row in rows:
+            for callback in row["callbacks"]:
+                if callback[0] != 379: continue
+                args = callback[1]
+                if re.fullmatch(r"RtdSrv_[a-f0-9]{32}", str(args[0].get("value", ""))) or args[0].get("value")==f"DnaCalc.X5.{env['pid']}":
+                    args[0]["value"] = "<private-rtd-progid>"
+                for value in args[2:]:
+                    if value.get("value") in identity["async_topics"]:
+                        value["value"] = "<async-topic-%d>" % identity["async_topics"][value["value"]]
+    native_pairs = [{"position": i, "excel": a, "host": b, "matched": a == b} for i, (a,b) in enumerate(zip_longest(*normalized_native))]
+    strict = all(p["matched"] for p in pairs + native_pairs)
+    result = {"status": "verified RTD values and ordered client/native calls" if strict else "failed strict RTD client/native comparison", "formula_cases": len(cases), "matched_values_each_capture": len(cases), "controls_match": True, "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in envs), "source_publication_revisions": [p["revision"] for p in publications], "client_protocol_comparison": pairs, "client_calls_matched": sum(p["matched"] for p in pairs), "client_calls_failed": sum(not p["matched"] for p in pairs), "native_invocation_comparison": native_pairs, "native_calls_matched": sum(p["matched"] for p in native_pairs), "native_calls_failed": sum(not p["matched"] for p in native_pairs), "raw_native_invocations_excel_and_host": native, "internal_server_bodies": internal, "identity_bindings_excel_and_host": identities, "host_results": outputs, "scope": "Every value, dependent and P07 certificate checked. Every observed client and native call retained; unequal ordered client traffic stays a failure. RTD input is distinct from native async completion. Topic IDs and GUID topic strings are normalized only by first observed identity; raw bindings remain."}
+    return result
+
+
 def verify_rtd(excel, excel_control, host, host_control, cases_path, publication_path):
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    if any(c.get("keep_formula") for c in cases) or any("MyAsync" in c["formula"] for c in cases):
+        return verify_rtd_extended(excel, excel_control, host, host_control, cases_path, publication_path)
     directories = (excel, excel_control, host, host_control)
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
@@ -1386,6 +1529,7 @@ if __name__ == "__main__":
                 result.update({"host_results_checked": data.get("outputs", []), "source_bindings_checked": data.get("source_bindings_checked", 0), "client_protocols_excel_and_host": data.get("protocols", []), "raw_client_protocols_excel_and_host": data.get("raw_protocols", []), "client_protocol_comparison": pairs, "client_calls_matched": sum(r["matched"] for r in pairs), "client_calls_failed": sum(not r["matched"] for r in pairs), "client_calls_by_method": data.get("method_pairs", []), "server_bindings": data.get("server_bindings", []), "native_invocations_excel_and_host": data.get("native", []), "native_ownership_excel_and_host": data.get("ownership", []), "internal_server_bodies": data.get("internals", []), "scope": "Failed RTD comparison; successful value/provenance checks do not turn differing or incomplete traffic into passes."})
     if rewritten_source_bindings:
         result["rewritten_source_bindings"] = sorted(rewritten_source_bindings.values(), key=lambda x: (x["path"], x["recorded_revision"]))
+    failed = failed or result["status"].startswith("failed")
     rendered = json.dumps(result, indent=2) + "\n"
     if args.out:
         args.out.write_text(rendered, encoding="utf-8")

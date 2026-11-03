@@ -35,12 +35,13 @@ pub trait RtdService {
     ) -> Result<u64, String>;
     fn close(&self) -> Result<(), String>;
     fn subscriptions(&self, provider: RtdProvider, caller: calc_value::CellKey) -> Vec<u64>;
-    /// Reconcile transport declarations after a synchronous native evaluation.
-    /// Its final admitted input can remain leased to the result certificate.
+    /// Record one completed native call. The owner reconciles the union of calls
+    /// in a committed producing certificate, after the whole evaluation finishes.
     fn finish_call(
         &self,
         _provider: RtdProvider,
         _caller: calc_value::CellKey,
+        _invocation: u64,
         _declared: &[u64],
     ) -> Result<(), String> {
         Ok(())
