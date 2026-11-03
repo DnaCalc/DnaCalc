@@ -182,6 +182,26 @@ fn regression_discards_a_predictor_below_the_dot_product_roundoff_bound() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn regression_keeps_scaled_independent_predictors_from_r16() {
+    // Original R16 capture rows649..672. Changing the units of the second
+    // predictor does not make this recorded design rank deficient in Excel.
+    let y = arr(vec![vec![1.0], vec![2.0], vec![4.0], vec![7.0]]);
+    for factor in [2.0_f64.powi(-20), 2.0_f64.powi(20)] {
+        let x = arr([1.0, 2.0, 5.0, 4.0].into_iter().enumerate().map(|(i, v)| {
+            vec![v, (2.0*v + if i == 3 { 2.0_f64.powi(-16) } else { 0.0 })*factor]
+        }).collect());
+        for constant in [false, true] {
+            for function in ["LINEST", "LOGEST"] {
+                let result = call(function, vec![y.clone(), x.clone(), b(constant), b(true)]).unwrap();
+                let cells = result.as_array().expect("regression statistics array");
+                exact(Ok(cells.get(3, 1).unwrap().clone()), if constant { 1.0 } else { 2.0 });
+            }
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn distributions_match_excel_examples() {
     close(call("NORM.S.DIST", vec![n(1.0), b(true)]), 0.8413447460685429, 1e-12);
     close(call("NORMSDIST", vec![n(1.0)]), 0.8413447460685429, 1e-12);

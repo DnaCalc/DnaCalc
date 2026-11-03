@@ -62,6 +62,161 @@ struct RegressionFit {
     y: Vec<f64>,
     observations: usize,
 }
+
+/// Outward intervals used only to decide whether the original Gram entries
+/// resolve an additional predictor. They do not supply regression coefficients.
+#[derive(Clone, Copy)]
+struct GramInterval { low: f64, high: f64 }
+
+impl GramInterval {
+    fn checked(low: f64, high: f64) -> Option<Self> {
+        (low.is_finite() && high.is_finite() && low <= high).then_some(Self { low, high })
+    }
+    fn subtract(self, other: Self) -> Option<Self> {
+        Self::checked((self.low-other.high).next_down(), (self.high-other.low).next_up())
+    }
+    fn multiply(self, other: Self) -> Option<Self> {
+        let products = [self.low*other.low, self.low*other.high, self.high*other.low, self.high*other.high];
+        if products.iter().any(|v| !v.is_finite()) { return None; }
+        Self::checked(products.into_iter().fold(f64::INFINITY, f64::min).next_down(),
+            products.into_iter().fold(f64::NEG_INFINITY, f64::max).next_up())
+    }
+    fn square(self) -> Option<Self> {
+        let a = self.low*self.low;
+        let b = self.high*self.high;
+        let low = if self.low <= 0.0 && self.high >= 0.0 { 0.0 } else { a.min(b).next_down().max(0.0) };
+        Self::checked(low, a.max(b).next_up())
+    }
+    fn divide_positive(self, other: Self) -> Option<Self> {
+        if other.low <= 0.0 { return None; }
+        self.multiply(Self::checked((1.0/other.high).next_down(), (1.0/other.low).next_up())?)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct GramColumn { scale: f64, sum: GramInterval }
+
+/// A column-normalized numerical-rank policy from finite-precision Gram
+/// uncertainty. For n products/additions, gamma_(2n) bounds the dot-product
+/// error. Raw-moment intervals also account for cancellation when centering.
+/// A final LDL pivot containing zero is unresolved at that precision; it is
+/// not a proof of exact dependence or an identification of Excel's algorithm.
+struct GramRank<'a> {
+    columns: &'a [Vec<f64>],
+    centered: bool,
+    count: f64,
+    gamma: f64,
+    disabled: bool,
+    stats: std::collections::BTreeMap<usize, GramColumn>,
+    entries: std::collections::BTreeMap<(usize, usize), GramInterval>,
+    basis: Vec<usize>,
+    lower: Vec<Vec<GramInterval>>,
+    pivots: Vec<GramInterval>,
+}
+
+impl<'a> GramRank<'a> {
+    fn new(columns: &'a [Vec<f64>], centered: bool, n: usize, finite_norms: bool) -> Self {
+        let count = n as f64;
+        // Unit roundoff is EPSILON/2; at most 2n operations give n*EPSILON.
+        let error = count*f64::EPSILON;
+        let denominator = (1.0-error).next_down();
+        let gamma = (error/denominator).next_up();
+        Self { columns, centered, count, gamma,
+            disabled: !finite_norms || n == 0 || denominator <= 0.0 || !gamma.is_finite() || gamma >= 1.0,
+            stats: Default::default(), entries: Default::default(), basis: Vec::new(),
+            lower: Vec::new(), pivots: Vec::new() }
+    }
+
+    fn moment(&self, a: usize, sa: f64, b: Option<(usize, f64)>) -> Option<GramInterval> {
+        let mut sum = 0.0;
+        let mut absolute = 0.0;
+        for (i, &raw) in self.columns[a].iter().enumerate() {
+            let x = raw/sa;
+            let y = b.map_or(1.0, |(index, scale)| self.columns[index][i]/scale);
+            let product = x*y;
+            // The relative-error bound requires normal nonzero products.
+            if x != 0.0 && y != 0.0 && !product.is_normal() { return None; }
+            sum += product;
+            absolute += product.abs();
+        }
+        if absolute == 0.0 { return GramInterval::checked(sum, sum); }
+        let denominator = (1.0-self.gamma).next_down();
+        if denominator <= 0.0 { return None; }
+        let absolute_upper = (absolute/denominator).next_up();
+        let error = (self.gamma*absolute_upper).next_up();
+        GramInterval::checked((sum-error).next_down(), (sum+error).next_up())
+    }
+
+    fn column(&mut self, index: usize) -> Option<GramColumn> {
+        if let Some(stats) = self.stats.get(&index) { return Some(*stats); }
+        let values = &self.columns[index];
+        if values.len() as f64 != self.count || values.iter().any(|v| !v.is_finite()) { return None; }
+        let largest = values.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
+        if largest == 0.0 { return None; }
+        // Power-of-two normalization is exact when the scaled values stay
+        // normal. A representation failure keeps the existing QR path.
+        let exponent = largest.to_bits() & 0x7ff0_0000_0000_0000;
+        let scale = f64::from_bits(exponent.max(f64::MIN_POSITIVE.to_bits()));
+        if values.iter().any(|v| *v != 0.0 && !(v/scale).is_normal()) { return None; }
+        let stats = GramColumn { scale, sum: self.moment(index, scale, None)? };
+        self.stats.insert(index, stats);
+        Some(stats)
+    }
+
+    fn entry(&mut self, a: usize, b: usize) -> Option<GramInterval> {
+        let key = (a.min(b), a.max(b));
+        if let Some(value) = self.entries.get(&key) { return Some(*value); }
+        let x = self.column(a)?;
+        let y = self.column(b)?;
+        let mut value = self.moment(a, x.scale, Some((b, y.scale)))?;
+        if self.centered {
+            let count = GramInterval { low: self.count, high: self.count };
+            value = value.subtract(x.sum.multiply(y.sum)?.divide_positive(count)?)?;
+        }
+        self.entries.insert(key, value);
+        Some(value)
+    }
+
+    fn factor_column(&mut self, index: usize) -> Option<(Vec<GramInterval>, GramInterval)> {
+        let mut row: Vec<GramInterval> = Vec::with_capacity(self.basis.len());
+        for k in 0..self.basis.len() {
+            let mut value = self.entry(index, self.basis[k])?;
+            for r in 0..k {
+                value = value.subtract(row[r].multiply(self.lower[k][r])?.multiply(self.pivots[r])?)?;
+            }
+            row.push(value.divide_positive(self.pivots[k])?);
+        }
+        let mut pivot = self.entry(index, index)?;
+        for (r, coefficient) in row.iter().enumerate() {
+            pivot = pivot.subtract(coefficient.square()?.multiply(self.pivots[r])?)?;
+        }
+        Some((row, pivot))
+    }
+
+    fn unresolved_inner(&mut self, prefix: &[usize], index: usize) -> Option<bool> {
+        if self.basis != prefix {
+            self.basis.clear(); self.lower.clear(); self.pivots.clear();
+            for &earlier in prefix {
+                let (row, pivot) = self.factor_column(earlier)?;
+                if pivot.low <= 0.0 { return None; }
+                self.basis.push(earlier); self.lower.push(row); self.pivots.push(pivot);
+            }
+        }
+        let (row, pivot) = self.factor_column(index)?;
+        if pivot.high < 0.0 { return None; }
+        if pivot.low <= 0.0 { return Some(true); }
+        self.basis.push(index); self.lower.push(row); self.pivots.push(pivot);
+        Some(false)
+    }
+
+    fn unresolved(&mut self, prefix: &[usize], index: usize) -> bool {
+        if self.disabled || prefix.is_empty() { return false; }
+        match self.unresolved_inner(prefix, index) {
+            Some(result) => result,
+            None => { self.disabled = true; false }
+        }
+    }
+}
 /// An argument as the regression functions read it: the caller has read a reference into an
 /// array; an empty or omitted argument is #VALUE!.
 fn resolve_arg_eval(arg: &CalcValue) -> Result<CalcValue, WorksheetErrorCode> {
@@ -414,8 +569,8 @@ fn prediction_input_from_optional(
 ///
 /// 5. Exactly proportional predictors are removed after the larger column has
 ///    been selected. Zero and surplus predictors retain their structural handling.
-///    A remaining squared norm at or below the dot-product roundoff bound
-///    `gamma_n * largest_initial_squared_norm` is numerically eliminated.
+///    A further predictor is numerically eliminated when outward Gram-entry
+///    bounds leave its LDL pivot unresolved. Coefficients still use this QR.
 fn least_squares(
     columns: &[Vec<f64>],
     y: &[f64],
@@ -468,19 +623,8 @@ fn least_squares(
     let initial: Vec<f64> = matrix.iter().map(|(_, column)| squares_from(column, 0)).collect();
     let mut scale: Vec<(Option<usize>, f64)> =
         matrix.iter().map(|(predictor, _)| *predictor).zip(initial).collect();
-    // Computing a length-n dot product has relative error at most gamma_n.
-    // Judge a residual against the predictor matrix's original scale, before
-    // cancellation in the reflections. The constant column is not a predictor.
-    let largest_initial = scale.iter().filter(|(predictor, _)| predictor.is_some())
-        .map(|(_, squares)| *squares).fold(0.0_f64, f64::max);
-    let ne = n as f64 * f64::EPSILON;
-    let rank_bound = if largest_initial.is_finite() && ne < 1.0 {
-        (ne / (1.0 - ne)) * largest_initial
-    } else {
-        // An overflowed norm supplies no finite relative-error comparison.
-        // Keep the existing arithmetic/error path in that case.
-        0.0
-    };
+    let finite_norms = scale.iter().all(|(predictor, norm)| predictor.is_none() || norm.is_finite());
+    let mut gram_rank = GramRank::new(columns, use_const, n, finite_norms);
     let mut diagonal = vec![0.0; p];
     // Pivot by the remaining sum of squares; drop an exactly eliminated column
     // only when it was nonzero before the reflections. Initially zero columns
@@ -522,7 +666,13 @@ fn least_squares(
             scale.remove(j);
             continue;
         }
-        if scale[j].1 > 0.0 && matrix[j].0.is_some() && squares <= rank_bound {
+        let unresolved = scale[j].1 > 0.0 && matrix[j].0.is_some_and(|index| {
+            let prefix: Vec<usize> = matrix[..j].iter().zip(&scale[..j])
+                .filter_map(|((predictor, _), (_, norm))| if *norm > 0.0 { *predictor } else { None })
+                .collect();
+            gram_rank.unresolved(&prefix, index)
+        });
+        if scale[j].1 > 0.0 && matrix[j].0.is_some() && (squares == 0.0 || unresolved) {
             matrix.remove(j);
             scale.remove(j);
             continue;
