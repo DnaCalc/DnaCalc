@@ -348,7 +348,9 @@ impl EvalContinuation {
 /// range gives the cell implicit intersection picks (#VALUE! when there is none), and an array its
 /// first element. A dynamic-array formula's result is a reference to one cell as its value, a
 /// range of one area as the array of its values, and an array as itself (a spill, which the
-/// caller publishes or refuses). A result that is the empty value (a reference to a blank cell, or
+/// caller publishes or refuses). Blank positions read from a final reference display as 0
+/// (W111 conditional heldout cases 00129 and 00177); reference identity and blanks remain
+/// available to consumers within the expression. A result that is the empty value (a reference to a blank cell, or
 /// a blank value a function returned, as IFERROR returns a blank `value`) is the number 0, the
 /// value Excel shows for `=A1` when A1 is blank (not measured by this package). The rule applies
 /// to every formula, not only to IFERROR and IFNA. Microsoft's IFERROR and IFNA pages say an empty
@@ -491,7 +493,11 @@ fn evaluate_slice(
                 }
             }
             (FormulaForm::Legacy, CoreRef::Array(_)) => refops::implicit(&value, at),
-            (FormulaForm::Dynamic, CoreRef::Reference(reference)) => reader.values_of(reference)?,
+            // A reference stays a reference throughout expression evaluation. Only the final
+            // cell result displays its blank positions as zero (dc-b1l.8, W111 cases 129/177).
+            (FormulaForm::Dynamic, CoreRef::Reference(reference)) => {
+                zero_array_blanks(reader.values_of(reference)?)
+            }
             _ => value,
         };
         Ok(if value.is_empty() {
@@ -562,8 +568,17 @@ fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
 // recursive scalar IF frame, including in unoptimised one-megabyte-stack builds.
 #[inline(never)]
 fn zero_if_array_blanks(target: Target, value: CalcValue) -> CalcValue {
-    if target.0.spelling() == "IF"
-        && value.callable_value().is_none()
+    if target.0.spelling() == "IF" {
+        zero_array_blanks(value)
+    } else {
+        value
+    }
+}
+
+/// Blank positions in an array used as a displayed reference result or IF's computed array.
+/// This does not materialize references supplied to expression consumers.
+fn zero_array_blanks(value: CalcValue) -> CalcValue {
+    if value.callable_value().is_none()
         && let Some(array) = value.as_array()
         && !array.is_boxed()
         && array.iter_row_major().any(CalcValue::is_empty)
