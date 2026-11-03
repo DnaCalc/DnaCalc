@@ -72,6 +72,8 @@ pub struct Worker {
 /// What became of the Excel process a worker reported, as the adapter measured it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReportedExcel {
+    /// A queued job returned the owned session to its recorded baseline; receipt path retained.
+    SessionReady(String),
     /// The worker reported no Excel process.
     NotReported,
     /// The reported process is not one the adapter can show this capture started (why): nothing
@@ -103,6 +105,9 @@ impl ReportedExcel {
             |pid| format!("Excel PID {pid}"),
         );
         match self {
+            ReportedExcel::SessionReady(receipt) => {
+                format!("{named} returned to its session baseline; receipt {receipt}")
+            }
             ReportedExcel::NotReported => {
                 "the worker reported no Excel PID, so no Excel was terminated".to_owned()
             }

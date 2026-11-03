@@ -19,10 +19,9 @@
 //! directory, so a macro that ran, or a refreshed link, would leave its traces there.
 
 use crate::convert::{self, Frame};
-use crate::isolation::{EXCEL_IMAGE, ReportedExcel, Worker, WorkerRun, run_isolated};
+use crate::isolation::{ReportedExcel, WorkerRun};
 use crate::{CaptureError, WORKER_SCRIPT};
 use calc_verdict::{CaptureFailure, CaptureRecord, STAGE_ISOLATION, sha256_hex};
-use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -200,7 +199,9 @@ fn file_name(path: &Path) -> Result<String, CaptureError> {
 pub fn isolation_failures(run: &WorkerRun, grace: Duration) -> Vec<CaptureFailure> {
     let described = run.excel.describe(run.excel_pid);
     let message = match &run.excel {
-        ReportedExcel::Exited | ReportedExcel::Gone => return Vec::new(),
+        ReportedExcel::Exited | ReportedExcel::Gone | ReportedExcel::SessionReady(_) => {
+            return Vec::new();
+        }
         ReportedExcel::Terminated | ReportedExcel::StillRunning => format!(
             "{described}: it had not exited {} seconds after the worker quit it",
             grace.as_secs()
@@ -405,34 +406,16 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
     fs::write(&request_file, worker_request.to_string())
         .map_err(|e| setup(format!("cannot write {}: {e}", request_file.display())))?;
 
-    let args: Vec<OsString> = [
-        "-NoLogo",
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-    ]
-    .iter()
-    .map(OsString::from)
-    .chain([
-        script.clone().into_os_string(),
-        OsString::from("-Request"),
-        request_file.clone().into_os_string(),
-        OsString::from("-Result"),
-        result_file.clone().into_os_string(),
-    ])
-    .collect();
-    // The local clock around the worker's run, which Excel's NOW reads during its calculation.
+    // The lane host owns Excel; a job owns only its workbook and result files.
     let clock_before = local_clock();
-    let run = run_isolated(&Worker {
-        program: windows_powershell(),
-        args,
-        dir: work.clone(),
-        timeout: request.timeout,
-        exit_grace: EXIT_GRACE,
-        excel_image: EXCEL_IMAGE.to_owned(),
-    })?;
+    let run = crate::session::run_worker(
+        &script,
+        &request_file,
+        &result_file,
+        &work,
+        request.timeout,
+        "capture",
+    )?;
 
     let result: Option<serde_json::Value> = fs::read(&result_file)
         .ok()
@@ -586,7 +569,10 @@ mod tests {
         let revision = capture_tool_revision(Some("abc123"));
         assert!(revision.starts_with("calc-oracle-excel "), "{revision}");
         assert!(
-            revision.contains(&format!("; worker results {};", crate::WORKER_RESULTS_VERSION)),
+            revision.contains(&format!(
+                "; worker results {};",
+                crate::WORKER_RESULTS_VERSION
+            )),
             "{revision}"
         );
         assert!(
