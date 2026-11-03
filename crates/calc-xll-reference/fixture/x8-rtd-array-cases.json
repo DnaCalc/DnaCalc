@@ -1,0 +1,16 @@
+[
+  {
+    "formula": "=SUM(X5.RtdValue())",
+    "value": {
+      "error": "#N/A"
+    },
+    "dependent": "=IFERROR(B3,7)",
+    "dependent_value": 7,
+    "rtd_idle_ms": 1000,
+    "rtd_variant_array": true,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  }
+]

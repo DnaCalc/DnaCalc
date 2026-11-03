@@ -475,6 +475,8 @@ pub(crate) struct EvalShared<'a> {
     linked_workbooks: &'a Arc<crate::linked::LinkedWorkbooks>,
     linked_input_version: u64,
     selection: EvalSelection,
+    parallel_scheduling: bool,
+    reference_rank: &'a BTreeMap<NodeId, usize>,
     destination: ResultDestination,
     pass: CalcPassId,
     root_reason: ReevaluationReason,
@@ -533,6 +535,8 @@ macro_rules! shared_of {
             linked_workbooks: &$work.linked_workbooks,
             linked_input_version: $work.linked_input_version,
             selection: $work.admission.selection,
+            parallel_scheduling: $work.parallel_scheduling && $work.waves == 0,
+            reference_rank: &$work.reference_rank,
             destination: $work.admission.destination,
             pass: $work.pass,
             root_reason: $work.root_reason,
@@ -1314,7 +1318,7 @@ fn begin_with_scope(
             let fence = match state.bindings.get(node) {
                 Some(Binding::Placed(instance, role)) => {
                     let allowed = segment_scheduling
-                        && matches!(role, ArrayRole::Cell)
+                        && matches!(role, ArrayRole::Cell | ArrayRole::Spill)
                         && instance
                             .plan()
                             .parallel_call_limit(&state.callables)
@@ -1729,7 +1733,8 @@ fn process(
         work.local = local;
     }
     work.local.quantum = quantum;
-    if let Some((limit, held)) = parallel_reservations(state, work)
+    if work.local.placement.is_none()
+        && let Some((limit, held)) = parallel_reservations(state, work)
         && !held.contains(&node)
         && matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls())
         && parallel_limit(state, node).is_none_or(|own| held.len() >= limit.min(own))
@@ -3735,7 +3740,7 @@ fn scheduling_precedents(
 
 fn parallel_limit(state: &EngineState, node: NodeId) -> Option<usize> {
     match state.bindings.get(&node)? {
-        Binding::Placed(instance, ArrayRole::Cell) => {
+        Binding::Placed(instance, ArrayRole::Cell | ArrayRole::Spill) => {
             instance.plan().parallel_call_limit(&state.callables)
         }
         _ => None,
@@ -3762,7 +3767,7 @@ fn parallel_reservations(
             &work.local,
         )))
     {
-        if (local.activation.is_some() || local.placement.is_some())
+        if local.activation.is_some()
             && let Some(node) = node
             && !work.progress.is_evaluated(node)
             && let Some(limit) = parallel_limit(state, node)
@@ -3777,16 +3782,25 @@ fn parallel_reservations(
 /// work gets the eighth contested quantum; pool cells share by service age.
 fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId> {
     let parallel = parallel_reservations(state, work);
+    let completed_placement = work.parallel_scheduling
+        && (work.local.placement.is_some()
+            || work
+                .suspended
+                .values()
+                .any(|local| local.placement.is_some()));
     if !work.segment_scheduling
-        || (!work.has_fences && work.preferred.is_empty() && parallel.is_none())
+        || (!work.has_fences
+            && work.preferred.is_empty()
+            && parallel.is_none()
+            && !completed_placement)
         || work.waves != 0
         || !work.cyclic.is_empty()
     {
         return None;
     }
     let segment = active_segment(work)?;
-    // Spill reservation order is semantic. Interest may pass a suspended producer to run
-    // scalar work, but may not admit a later producer before the first producer completes.
+    // Pure native computation may overlap. Placement still waits for earlier
+    // array reservations in place_value, without repeating the completed call.
     let is_array = |node: NodeId| {
         matches!(
             state.bindings.get(&node),
@@ -3821,7 +3835,13 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
             let Some((limit, held)) = &parallel else {
                 return true;
             };
-            if held.contains(node) {
+            if held.contains(node)
+                || work
+                    .suspended
+                    .get(node)
+                    .is_some_and(|local| local.placement.is_some())
+                || work.local.current_node.get() == Some(*node) && work.local.placement.is_some()
+            {
                 return true;
             }
             match state.bindings.get(node) {
@@ -3831,7 +3851,11 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
                 _ => true,
             }
         })
-        .filter(|node| !is_array(*node) || first_array == Some(*node));
+        .filter(|node| {
+            !is_array(*node)
+                || first_array == Some(*node)
+                || work.parallel_scheduling && parallel_limit(state, *node).is_some()
+        });
     let mut preferred = None;
     let mut other = None;
     for node in candidates {
@@ -3841,11 +3865,16 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
             .copied()
             .unwrap_or(usize::MAX);
         if work.preferred.contains(&node) {
-            if preferred.is_none_or(|held: (usize, NodeId)| (rank, node) < held) {
-                preferred = Some((rank, node));
+            let age = if parallel.is_some() || completed_placement {
+                work.last_service.get(&node).copied().unwrap_or(0)
+            } else {
+                0
+            };
+            if preferred.is_none_or(|held: (u64, usize, NodeId)| (age, rank, node) < held) {
+                preferred = Some((age, rank, node));
             }
         } else {
-            let age = if work.preferred.is_empty() && parallel.is_none() {
+            let age = if work.preferred.is_empty() && parallel.is_none() && !completed_placement {
                 0
             } else {
                 work.last_service.get(&node).copied().unwrap_or(0)
@@ -3860,11 +3889,11 @@ fn interested_node(state: &EngineState, work: &mut RecalcWork) -> Option<NodeId>
             work.preferred_quanta = 0;
             node
         }
-        (Some((_, node)), Some(_)) => {
+        (Some((_, _, node)), Some(_)) => {
             work.preferred_quanta += 1;
             node
         }
-        (Some((_, node)), None) => {
+        (Some((_, _, node)), None) => {
             work.preferred_quanta = 0;
             node
         }
@@ -5387,6 +5416,40 @@ fn place_value(
     mut dynamic: Vec<Prerequisite>,
     calculation: Calculation,
 ) -> Result<Attempt, RecalcFailure> {
+    if shared.parallel_scheduling
+        && matches!(role, ArrayRole::Spill)
+        && parallel_limit(state, node).is_some()
+    {
+        let rank = shared
+            .reference_rank
+            .get(&node)
+            .copied()
+            .unwrap_or(usize::MAX);
+        let earlier = shared
+            .reference_rank
+            .iter()
+            .filter(|(other, own_rank)| {
+                **own_rank < rank
+                    && shared.progress.is_scheduled(**other)
+                    && !shared.progress.is_evaluated(**other)
+                    && !shared.waits_on.contains_key(other)
+                    && matches!(
+                        state.bindings.get(other),
+                        Some(Binding::Placed(
+                            _,
+                            ArrayRole::Spill | ArrayRole::LegacyFill(_)
+                        ))
+                    )
+            })
+            .min_by_key(|(_, own_rank)| **own_rank)
+            .map(|(other, _)| *other);
+        if earlier.is_some() {
+            // This is an output reservation, not a formula read dependency.
+            // It consumes no native pool slot and must not create a wait edge.
+            local.placement = Some((value, dynamic, calculation));
+            return Ok(Attempt::Suspended);
+        }
+    }
     let outcome = match array_outcome(
         shared.view(state, inputs, local),
         node,

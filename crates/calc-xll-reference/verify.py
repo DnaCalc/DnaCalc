@@ -157,6 +157,22 @@ def boundary(directory):
         inspect_values(entry)
         inspect_values(result)
 
+    arity = {"object1":1,"bstr1":1,"int1":1,"bool1":1,"object2":2,"bstr2":2,
+             "rtdstart":2,"rtdconnect":4,"rtdrefresh":2,"rtddisconnect":1,"rtdinterval":1,"rtdterminate":0,"rtdnotify":0}
+    for forwarded in (e for e in events if e["event"] == "com_tail_forward"):
+        require(forwarded["call"] in enters, "COM forwarding has no originating call")
+        origin = enters[forwarded["call"]]
+        require(origin["seq"] < forwarded["seq"] < leaves[origin["call"]]["seq"]
+                and forwarded["thread"] == origin["thread"] and forwarded["entry"] == origin["entry"], "COM forwarding left its physical call")
+        require(forwarded["stack"] == origin["stack"] and forwarded["return"] == origin["return"], "COM forwarding left its caller frame")
+        require(("origin_entry_address" in forwarded) == ("same_entry" in forwarded), "Incomplete COM forwarding address diagnostics")
+        if "origin_entry_address" in forwarded:
+            require(forwarded["origin_entry_address"] == origin["entry_address"]
+                    and forwarded["same_entry"] == (forwarded["entry_address"] == origin["entry_address"]), "COM forwarding entry-address identity differs")
+        require(forwarded["non_this_arguments"] == origin["non_this_arguments"]
+                and len(forwarded["non_this_arguments"]) == arity.get(origin["result_abi"])
+                and int(forwarded["object"],16) != 0 and int(origin["object"],16) != 0, "COM forwarding arguments or interface identity are invalid")
+
     return events, enters, leaves
 
 
@@ -567,7 +583,7 @@ def verify_xloil_reload(excel, excel_control, host, host_control, cases_path, pu
             "scope": "Exact xlOil0.22.1 native Utils/SQL profile only. Python and overrides retain reload refusal, counted as failure. Renamed loaders remain unqualified/unsupported; a renamed first-load crash is retained separately. Arbitrary runtime teardown remains open."}
 
 
-def verify_x2(excel, excel_control, host, host_control, cases_path, publication_path=None, x3=False, x4=False):
+def verify_x2(excel, excel_control, host, host_control, cases_path, publication_path=None, x3=False, x4=False, native_entry_order=None):
     directories = (excel, excel_control, host, host_control)
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
@@ -668,7 +684,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         require(record["arguments"] == [] and record["result"] == {"type": 2048, "value": 1}, "Unexpected startup command native boundary")
         return True
     def measured_records(trace, name, index, defined=True):
-        entries = [entry for entry in trace[1].values() if entry["entry"].endswith(":" + name)]
+        entries = [entry for entry in (native_entry_order[index] if native_entry_order is not None else trace[1].values()) if entry["entry"].endswith(":" + name)]
         rows = [invocation_record(trace, entry, defined) for entry in entries]
         if x4 and name == "xloRunInXLLContext":
             # Retain built-in registration before the first worksheet edit
@@ -684,7 +700,8 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         if x4:
             records = [observed(rows, env) for rows, env in zip(records, (environments[0], environments[2]))]
             raw_records = [observed(rows, env) for rows, env in zip(raw_records, (environments[0], environments[2]))]
-        raw_equal = raw_records[0] == raw_records[1]
+        raw_equal = (all_invocations(traces[0], name, False) == all_invocations(traces[1], name, False)
+                     if native_entry_order is not None else raw_records[0] == raw_records[1])
         if name == "X0.Async":
             # Excel-DNA's ObjectParam reads hData only for XlTypeBigData
             # (XlMarshalContext.cs:597-600). Keep cbData differences explicit;
@@ -756,6 +773,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
     else:
         old_codes = set()
     x3_details = {}
+    async_callback_differences = []
     if x3:
         callbacks = [framework_callbacks(trace) for trace in traces]
         require([(r["function"], r["return_code"]) for r in callbacks[0]] ==
@@ -764,7 +782,15 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
         registrations = [Counter(json.dumps(r, sort_keys=True) for r in rows if r["function"] == 149) for rows in callbacks]
         require(registrations[0] == registrations[1], "A registration differs beyond its order/opaque identity")
         # These differences are reported, not counted as raw boundary matches.
-        require(all(d["excel"]["function"] in (149, 614, 16401, 16384) for d in differences), "Unexplained callback difference")
+        for difference in differences:
+            a, b = difference["excel"], difference["host"]
+            if a["function"] == 16400:
+                require(a["args"] == b["args"] and a["return_code"] == b["return_code"] == 0
+                        and a["result"] == {"type": 0, "value": {"raw32": "00" * 32}}
+                        and b["result"] == {"type": 4, "value": True}, "Unqualified native async callback difference")
+                async_callback_differences.append(difference)
+            else:
+                require(a["function"] in (149, 614, 16401, 16384), "Unexplained callback difference")
         ownership = [framework_ownership(trace) for trace in traces]
         require(ownership[0] == ownership[1], "Native ownership counts/modules differ")
         dynamic = [[x for x in trace[0] if x["event"] == "registered_entry" and "!xloil_stub:" in x["entry"]] for trace in traces]
@@ -774,6 +800,23 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                       "rewritten_export_registrations_each_host": [len(x) for x in dynamic],
                       "teardown_callbacks_excel_and_host": [framework_callbacks(trace, teardown=True) for trace in traces],
                       "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted."}
+    entry_cases = [case for case in cases if "entry_wait_value" in case]
+    if entry_cases:
+        for directory in (excel, excel_control):
+            observed_entry = controller(directory)
+            for case in entry_cases:
+                require(observed_entry["formula-entry " + case["formula"]] == case["entry_wait_value"], "Excel formula-entry completion differs")
+                if "before_calculate" in case:
+                    require(observed_entry["before Calculate " + case["before_calculate"]] == case["before_calculate_value"], "Excel entry-time invocation count differs")
+        for output in host_outputs:
+            for case in entry_cases:
+                entry = [row for row in output["formula_entries"] if row["cell"] == "B3" and row["formula"] == case["formula"]]
+                require(len(entry) == 1 and entry[0]["value"] == case["entry_wait_value"] and "reason: FormulaEntry" in entry[0]["provenance"]["stamp"], "Host has no actual producing formula-entry completion")
+                require(entry[0]["provenance"]["cooperative_invocations"] == entry[0]["provenance"]["completed_invocations"] == 1, "Formula entry did not resume its producing invocation")
+                require(len(output["async_returns"]) == case["expected_async_returns"] and all(r["disposition"] == "Accepted" for r in output["async_returns"]), "Native entry/calculation P07 completions differ")
+                require(not output["rtd_updates"], "Native async formula entry used RTD")
+        x3_details["native_async_formula_entry"] = {"cases": len(entry_cases), "p07_returns_each_host_control": len(host_outputs[0]["async_returns"]), "raw_callback_result_differences": async_callback_differences,
+            "scope": "Actual owner formula-entry completion and later Manual Calculate. Excel leaves the xlAsyncReturn result operand type zero; the host supplies the documented Boolean. This raw difference stays a failed strict comparison."}
     x4_details = {}
     if x4:
         def com_calls(trace, start, end, thread, env):
@@ -852,7 +895,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                       "all_delivered_event_counts_excel_and_host": delivered,
                       "event_scope": "Ordered SheetChange calls and addresses agree; other event counts are retained separately. Retained Python COM objects/futures are explicitly released before teardown.",
                       "raw_workbook_names": [env["workbook_name"] for env in environments]}
-    return {"status": "verified X4 measured cases" if x4 else "verified X3 measured cases" if x3 else "verified X2 measured cases", "fixture": fixture_name,
+    return {"status": "failed strict async callback result comparison" if async_callback_differences else "verified X4 measured cases" if x4 else "verified X3 measured cases" if x3 else "verified X2 measured cases", "fixture": fixture_name,
             "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
             "source_revisions": sorted({e["repository_commit"] for e in environments}),
             "source_publication_revisions": [p["revision"] for p in publications],
@@ -891,6 +934,12 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
         require(actual == [(c["formula"], c["value"]) for c in cases], "Ordered Excel RTD values differ")
         dependent = [r["value"] for r in events if r["operation"].startswith("dependent =")]
         require(dependent == [c["dependent_value"] for c in cases if "dependent" in c], "Ordered Excel RTD dependents differ")
+        for case in cases:
+            if "rtd_idle_ms" in case:
+                require(control["RTD idle begin " + case["formula"]] == case["rtd_idle_ms"]
+                        and control["RTD idle complete " + case["formula"]] >= case["rtd_idle_ms"], "Excel RTD idle observation was shortened")
+            if case.get("rtd_variant_array"):
+                require(control["raw " + case["formula"]] == -2146826246, "Excel array RTD value is not a raw #N/A error")
     outputs = []
     for directory in directories[2:]:
         require(json.loads((directory / "host.exit.json").read_text()) == {"exit_code": 0, "finished": True}, "RTD host failed")
@@ -904,10 +953,13 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
             require(update["disposition"] == "Accepted" and update["sequence"] == latest.get(key, 0) + 1, "RTD input was rejected or its sequence skipped/rewound")
             latest[key] = update["sequence"]
         for case, row in zip(cases,output["results"],strict=True):
+            if "rtd_idle_ms" in case:
+                require(row["idle_observed_ms"] >= case["rtd_idle_ms"], "Host RTD idle observation was shortened")
             if "expected_rtd_inputs" in case:
                 require(len(row["provenance"]["rtd_inputs"]) == case["expected_rtd_inputs"] and row["provenance"]["completed_invocations"] == case["expected_completed_invocations"], "RTD value lacks its expected producing invocations/inputs")
                 require(len(row["dependent_provenance"]["rtd_inputs"]) == case["expected_dependent_rtd_inputs"] and row["dependent_provenance"]["completed_invocations"] == case["expected_dependent_completed_invocations"], "RTD dependent lacks its expected producing invocations/inputs")
             through = row["rtd_updates_through"]
+            require(isinstance(through, int) and 0 <= through <= len(output["rtd_updates"]), "Invalid RTD producing cut index")
             cut = {(u["provider"], u["subscription"]): u["sequence"] for u in output["rtd_updates"][:through]}
             for proof in (row["provenance"], row.get("dependent_provenance")):
                 if proof:
@@ -918,6 +970,17 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
         if any(c.get("keep_formula") for c in cases):
             require([(u["subscription"], u["sequence"], u["value"]) for u in output["rtd_updates"]] == [(1, 1, 1), (1, 2, 42), (1, 3, 1), (1, 4, 42)], "Completed-topic reuse did not preserve ID and advance the input sequence")
             require([len(r["provenance"]["rtd_inputs"]) for r in output["results"]] == [1, 0, 1, 0], "RTD branch/reuse certificates differ")
+        if any(c.get("rtd_variant_array") for c in cases):
+            require(len(cases) == 1, "Unqualified mixed array RTD profile")
+            updates = output["rtd_updates"]
+            require(len(updates) == 2
+                    and len({(u["provider"], u["subscription"]) for u in updates}) == 1
+                    and [(u["sequence"], u["value"], u["disposition"]) for u in updates]
+                        == [(1, {"error":"#N/A"}, "Accepted"), (2, {"error":"#N/A"}, "Accepted")], "Array RTD lacks its initial and refreshed admitted #N/A cuts")
+            last = updates[-1]
+            require(output["results"][0]["rtd_updates_through"] == 2
+                    and output["results"][0]["provenance"]["rtd_inputs"]
+                        == [{"provider":last["provider"], "subscription":last["subscription"], "sequence":2}], "Array RTD certificate does not select the refreshed input")
         outputs.append(output)
     protocols, native, internal, identities = [], [], [], []
     methods = {10: "ServerStart", 11: "ConnectData", 12: "RefreshData", 13: "DisconnectData", 14: "Heartbeat", 15: "ServerTerminate"}
@@ -982,7 +1045,9 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
             elif method == "RefreshData":
                 count = after[0]["value"]["value"] if dispatch else returned["count"]
                 data = json.loads(json.dumps(returned["result"]["value"] if dispatch else returned["data"]))
-                require(data is not None and data["dimensions"] == 2 and not data["truncated"] and len(data["values"]) == 2 * count, "Incomplete RTD refresh array")
+                require(count >= 0 and (data is not None or count == 0), "Missing RTD refresh array")
+                if data is not None:
+                    require(data["dimensions"] == 2 and not data["truncated"] and len(data["values"]) == 2 * count, "Incomplete RTD refresh array")
                 for i in range(count):
                     item = data["values"][2*i]; require(item["vt"] == 3 and item["value"] in topics, "RTD refresh has an unknown topic"); item["value"] = topics[item["value"]]
                 row.update(count=count, data=data)
@@ -994,6 +1059,24 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
         require(all(r["hresult"] == 0 for r in protocol), "RTD protocol call failed")
         protocols.append(protocol); internal.append(bodies); identities.append({"servers": activations, "topics": topics, "async_topics": guid_topics})
         native.append([{"name": e["entry"].rsplit(":", 1)[1], **invocation_record(trace, e)} for e in enters.values() if ":" in e["entry"]])
+    require(all(protocols) and all(native), "RTD comparison has no observed client or native calls")
+    if any(c.get("keep_formula") or c.get("rtd_variant_array") for c in cases):
+        required_methods = {"ServerStart", "ConnectData", "UpdateNotify", "RefreshData", "DisconnectData", "ServerTerminate"}
+        require(all(required_methods <= {r["method"] for r in protocol} for protocol in protocols), "RTD array/reuse lifecycle coverage is incomplete")
+    if any(c.get("rtd_variant_array") for c in cases):
+        def array_value(values):
+            return {"vt":8204, "value":{"dimensions":2, "element_bytes":24,
+                "bounds":[{"count":2,"lower":0},{"count":2,"lower":0}],
+                "values":[{"vt":5,"value":v} for v in values], "truncated":False}}
+        for protocol, rows in zip(protocols, native, strict=True):
+            initial = [r["initial"] for r in protocol if r["method"] == "ConnectData"]
+            refreshed = [r["data"]["values"][2*i+1]
+                         for r in protocol if r["method"] == "RefreshData" and r["data"] is not None
+                         for i in range(r["count"])]
+            require(initial == [array_value([1,3,2,4])], "Array RTD ConnectData did not return the complete VARIANT array")
+            require(refreshed == [array_value([42,44,43,45])], "Array RTD RefreshData did not return the complete updated VARIANT array")
+            callbacks = [c for row in rows for c in row["callbacks"] if c[0] == 379]
+            require(callbacks and all(c[2] == 0 and c[3] == {"type":16,"value":42} for c in callbacks), "Array RTD C API callback did not return #N/A")
     pairs = [{"position": i, "excel": a, "host": b, "matched": a == b} for i, (a, b) in enumerate(zip_longest(*protocols))]
     normalized_native = json.loads(json.dumps(native))
     for rows, identity, env in zip(normalized_native, identities, (envs[0],envs[2])):
@@ -1014,7 +1097,7 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
 
 def verify_rtd(excel, excel_control, host, host_control, cases_path, publication_path):
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
-    if any(c.get("keep_formula") for c in cases) or any("MyAsync" in c["formula"] for c in cases):
+    if any(c.get("keep_formula") or c.get("rtd_variant_array") or "expected_rtd_inputs" in c for c in cases) or any("MyAsync" in c["formula"] for c in cases):
         return verify_rtd_extended(excel, excel_control, host, host_control, cases_path, publication_path)
     directories = (excel, excel_control, host, host_control)
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
@@ -1209,8 +1292,9 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
                     for key in dict.fromkeys([*indexed[0], *indexed[1]])]
     publications = verify_sources(environments, publication_path)
     source_bindings_checked = sum(len(e["source_files"]) + 2 for e in environments)
-    require(all(r["matched"] for r in protocol_pairs), "Ordered RTD client protocol payloads differ")
-    return {"status": "verified original xlOil signaling RTD protocol" if signaling else "verified controlled numeric RTD protocol", "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
+    strict = all(r["matched"] for r in protocol_pairs)
+    return {"status": "failed strict ordered RTD client protocol comparison" if not strict else "verified original xlOil signaling RTD protocol" if signaling else "verified controlled numeric RTD protocol", "formula_cases": len(cases), "matched_each_capture": len(cases), "controls_match": True,
+            "client_calls_matched":sum(r["matched"] for r in protocol_pairs), "client_calls_failed":sum(not r["matched"] for r in protocol_pairs),
             "client_protocol_each_host": protocols[0], "raw_client_protocols_excel_and_host": raw_protocols, "client_protocol_comparison": protocol_pairs, "client_calls_by_method": method_pairs, "server_bindings": server_bindings, "native_invocations_excel_and_host": native, "native_ownership_excel_and_host": ownership, "internal_server_body_observations": internals, "notification_threads": notifications,
             "host_results": outputs, "source_publication_revisions": [p["revision"] for p in publications], "source_bindings_checked": sum(len(e["source_files"]) + 2 for e in environments),
             "transport": "Excel IDispatch vs host early-bound. Compare the external client method payloads; retain internal fixture body hits separately. SAFEARRAY bounds retain descriptor order.",
@@ -1218,7 +1302,92 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             "scope": "Original xlOil 0.22.1 async generator and separate Python cache; empty sequenced inputs, exact P07 certificate, formula replacement and finite client protocol. General providers, arrays, remote servers and arbitrary teardown remain open." if signaling else "Controlled finite scalar RTD, exact P07 input certificate and retirement. General providers/teardown, arrays and remote RTD remain open."}
 
 
+def spill_worker_packets(trace):
+    """Reorder only the two proven independent worker calls; retain their raw order."""
+    _, enters, leaves = trace
+    native = [e for e in enters.values() if ":" in e["entry"]]
+    names = Counter(e["entry"].rsplit(":", 1)[1] for e in native)
+    require(names == Counter({"MyOverlapArray":4, "MyOverlap":4, "MyOverlapReset":1, "MyOverlapMax":2, "MyFreeCount":2}), "Spill native entries missing or additional")
+    owner = next(e["thread"] for e in enters.values() if e["entry"].endswith("!xlAutoOpen"))
+    reset = next(e for e in native if e["entry"].endswith(":MyOverlapReset"))
+    roots = [e for e in native if e["entry"].endswith(":MyOverlapArray") and e["seq"] > leaves[reset["call"]]["seq"]]
+    require(len(roots) == 2 and len({e["thread"] for e in roots}) == 2 and all(e["thread"] != owner for e in roots), "Spill packets lack two distinct workers")
+    require(max(e["seq"] for e in roots) < min(leaves[e["call"]]["seq"] for e in roots), "Spill packet intervals do not overlap")
+    packets, covered, frees = {}, set(), []
+    for root in roots:
+        record = invocation_record(trace, root)
+        require(record["arguments"] in ([{"code":"E", "value":40}], [{"code":"E", "value":80}]), "Unexpected spill worker argument")
+        key = record["arguments"][0]["value"]
+        require(key not in packets and not record["callbacks"], "Repeated worker argument or unqualified worker callbacks")
+        children = [e for e in native if e["thread"] == root["thread"] and root["seq"] < e["seq"] < leaves[e["call"]]["seq"] < leaves[root["call"]]["seq"]]
+        require(len(children) == 1 and children[0]["entry"].endswith(":MyOverlap"), "Spill worker has missing or additional nested calls")
+        child = invocation_record(trace, children[0])
+        require(child == {"arguments":record["arguments"], "result":{"type":1,"value":key+1}, "callbacks":[]}, "Nested spill worker payload differs")
+        returned = leaves[root["call"]]
+        module = root["entry"].split("!", 1)[0]
+        owned = [e for e in enters.values() if e["entry"] == module + "!xlAutoFree12" and e["thread"] == root["thread"] and e["oper_address"] == returned["rax"] and e["seq"] > returned["seq"]]
+        require(len(owned) == 1 and leaves[owned[0]["call"]]["seq"] > owned[0]["seq"], "Spill worker lacks its unique same-pointer/thread/module free")
+        require(not any(e["thread"] == root["thread"] and returned["seq"] < e["seq"] < owned[0]["seq"] for e in native), "Spill result survived another same-thread native entry")
+        packets[key] = [root, children[0]]; covered.update(e["call"] for e in packets[key]); frees.append(owned[0])
+    require(set(packets) == {40,80}, "Spill worker packet missing")
+    outside = [e for e in native if e["call"] not in covered]
+    require(all(e["thread"] == owner for e in outside), "Uncovered spill worker entry")
+    first, last = min(e["seq"] for e in roots), max(leaves[e["call"]]["seq"] for e in frees)
+    require(not any(first < e["seq"] < last for e in outside), "Owner entries interleaved with independent spill packets")
+    canonical = [e for e in outside if e["seq"] < first] + packets[40] + packets[80] + [e for e in outside if e["seq"] > last]
+    require(len(canonical) == len(native) and {e["call"] for e in canonical} == {e["call"] for e in native}, "Spill packet comparison lost or repeated native calls")
+    return canonical, {"raw_native_entry_order":native, "independent_packets_by_argument":packets, "worker_frees":frees}
+
+
+def verify_spill_pool(excel, excel_control, host, host_control, cases_path, publication_path):
+    packet_orders = [spill_worker_packets(boundary(p)) for p in (excel, host)]
+    result = verify_x2(excel, excel_control, host, host_control, cases_path, publication_path, x3=True, native_entry_order=[p[0] for p in packet_orders])
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    for directory in (excel, excel_control):
+        control = controller(directory)
+        for case in cases:
+            if "dependent" in case:
+                require(control["dependent " + case["formula"]] == case["dependent_value"], "Excel independent spill anchor differs")
+            for address, expected in case.get("spill_cells", {}).items():
+                require(control["spill " + case["formula"] + " " + address] == expected, "Excel spill cell differs")
+    for directory in (host, host_control):
+        output = json.loads((directory / "host.stdout").read_text())
+        for row, case in zip(output["results"], cases, strict=True):
+            if "dependent" in case:
+                require(row["dependent"] == case["dependent_value"], "Host independent spill anchor differs")
+            require(set(row["spill_cells"]) == set(case.get("spill_cells", {})), "Host spill probes missing or additional")
+            for address, expected in case.get("spill_cells", {}).items():
+                probe = row["spill_cells"][address]
+                require(probe["value"] == expected and probe["provenance"]["completed_invocations"] == probe["provenance"]["cooperative_invocations"] == 1, "Spill cell lacks its actual producing native computation")
+    witnesses, ordered = [], []
+    for directory in (excel, host):
+        trace = boundary(directory); _, enters, leaves = trace
+        owner = next(e["thread"] for e in enters.values() if e["entry"].endswith("!xlAutoOpen"))
+        reset = next(e for e in enters.values() if e["entry"].endswith(":MyOverlapReset"))
+        array_calls = [e for e in enters.values() if e["entry"].endswith(":MyOverlapArray")]
+        entry_calls = [e for e in array_calls if e["seq"] < reset["seq"]]
+        workers = [e for e in array_calls if e["seq"] > leaves[reset["call"]]["seq"]]
+        require(len(entry_calls) == len(workers) == 2 and all(e["thread"] == owner for e in entry_calls), "Spill entry/calculation phases differ")
+        require(len({e["thread"] for e in workers}) == 2 and all(e["thread"] != owner for e in workers), "Spill producers did not use two workers")
+        require(max(e["seq"] for e in workers) < min(leaves[e["call"]]["seq"] for e in workers), "Native spill producers did not overlap")
+        ownership = framework_ownership(trace)
+        require(ownership["owned_returns"] == ownership["free_calls"] == 3, "Native spill ownership/free count differs")
+        witnesses.append({"owner_thread": owner, "worker_entries": workers, "ownership": ownership})
+        ordered.append([{"name":e["entry"].rsplit(":",1)[1], **invocation_record(trace,e)} for e in enters.values() if ":" in e["entry"]])
+    canonical = [[{"name":e["entry"].rsplit(":",1)[1], **invocation_record(boundary(p),e)} for e in packet[0]] for p, packet in zip((excel,host), packet_orders, strict=True)]
+    require(canonical[0] == canonical[1], "Spill owner order or independent worker payloads differ")
+    result["spill_total_entry_order_matches"] = ordered[0] == ordered[1]
+    result["spill_raw_native_calls_excel_and_host"] = ordered
+    result["spill_worker_packets_excel_and_host"] = [packet[1] for packet in packet_orders]
+    if not result["status"].startswith("failed"):
+        result["status"] = "verified concurrent native spills with independent worker interleavings"
+    result["spill_pool"] = {"witnesses": witnesses, "cells_each_capture": sum(len(c.get("spill_cells", {})) for c in cases), "scope": "Two native computations overlap; owner entry and worker calculation, every selected spill cell, all owner calls in order, each independent worker packet by its argument and same-module/pointer/thread frees agree. Raw cross-worker entry order stays explicit. Portable tests separately check competing placement order and completed-output capacity."}
+    return result
+
+
 def verify_workbook_pool(excel, excel_control, host, host_control, cases_path, publication_path):
+    if any(c.get("spill_cells") for c in json.loads(cases_path.read_text(encoding="utf-8-sig"))):
+        return verify_spill_pool(excel, excel_control, host, host_control, cases_path, publication_path)
     directories = (excel, excel_control, host, host_control)
     envs = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in directories]
     cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
@@ -1465,7 +1634,8 @@ def verify_ribbon(excel, excel_control, host, host_control, cases_path, publicat
     for directory in (host, host_control):
         output = json.loads((directory / "host.stdout").read_text())
         require(len(output["ribbons"]) == 1 and output["ribbons"][0][1] == ui[0]["value"], "Application did not retain the actual ribbon XML")
-    result["status"] = "verified bounded ribbon startup, helper properties and XML"
+    if not result["status"].startswith("failed"):
+        result["status"] = "verified bounded ribbon startup, helper properties and XML"
     result["ribbon"] = {"startup_callbacks_each_host": len(startup[0]), "startup": startup[0],
                         "helper_properties_each_host": len(property_calls[0]), "helper_properties": property_calls[0],
                         "teardown_callbacks_excel_and_host": teardown, "activation_bindings": bindings,

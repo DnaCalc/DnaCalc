@@ -1,0 +1,46 @@
+[
+  {
+    "formula": "=dnaDelayedHello(\"world\",50)",
+    "value": "Hello world!",
+    "rtd_wait_value": "Hello world!",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 12,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  },
+  {
+    "formula": "=dnaDelayedHelloAsync(\"world\",50)",
+    "value": "Hello world!",
+    "rtd_wait_value": "Hello world!",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 12,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  },
+  {
+    "formula": "=dnaDelayedTaskHello(\"world\",50)",
+    "value": "Hello world",
+    "rtd_wait_value": "Hello world",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 11,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  },
+  {
+    "formula": "=dnaDelayedTaskHelloWithCancellation(\"world\",50)",
+    "value": "Helloworld",
+    "rtd_wait_value": "Helloworld",
+    "dependent": "=LEN(B3)",
+    "dependent_value": 10,
+    "expected_rtd_inputs": 1,
+    "expected_completed_invocations": 1,
+    "expected_dependent_rtd_inputs": 0,
+    "expected_dependent_completed_invocations": 0
+  }
+]

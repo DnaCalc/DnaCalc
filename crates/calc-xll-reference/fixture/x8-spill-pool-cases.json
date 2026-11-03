@@ -1,0 +1,5 @@
+[
+ {"manual":true,"legacy":false,"formula_entry":true,"formula":"=MyOverlapArray(40)","value":41,"dependent":"=MyOverlapArray(80)","dependent_cell":"F3","dependent_value":81,"before_calculate":"MyOverlapReset","before_calculate_value":1,"spill_cells":{"B3":41,"C3":42,"B4":43,"C4":44,"F3":81,"G3":82,"F4":83,"G4":84}},
+ {"manual":true,"legacy":false,"formula_entry":true,"formula":"=MyOverlapMax()","value":2,"dependent":"=0","dependent_cell":"F3","dependent_value":0},
+ {"manual":true,"legacy":false,"formula_entry":true,"formula":"=MyFreeCount()","value":3}
+]

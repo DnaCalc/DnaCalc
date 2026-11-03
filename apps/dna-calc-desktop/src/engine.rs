@@ -220,13 +220,32 @@ pub fn run(
     book.set_calculation_budget(WorkBudget::evaluations(1));
     let a = CellKey::new(sheet, 1, 1).unwrap();
     let b = CellKey::new(sheet, 3, 2).unwrap();
-    let c = CellKey::new(sheet, 3, 3).unwrap();
     enter(&mut book, a, "7")?;
     let cases: Vec<serde_json::Value> = match cases {
         Some(path) => serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?,
         None => vec![serde_json::json!({"formula":formula,"value":null})],
     };
+    let dependent_address = cases
+        .iter()
+        .find_map(|case| case["dependent_cell"].as_str())
+        .unwrap_or("C3")
+        .to_owned();
+    if cases.iter().any(|case| {
+        case.get("dependent").is_some()
+            && case["dependent_cell"].as_str().unwrap_or("C3") != dependent_address
+    }) {
+        return Err("one case profile needs one dependent cell".into());
+    }
+    let calc_host::ReferenceTarget::Area(dependent_area) =
+        book.host().resolve_reference_text(b, &dependent_address)
+    else {
+        return Err("dependent needs a local cell".into());
+    };
+    if dependent_area.cell_count() != 1 || dependent_area.sheet() != sheet {
+        return Err("dependent needs one local cell".into());
+    }
+    let c = dependent_area.first();
     let mut results = Vec::new();
     let mut commands = Vec::new();
     let mut returns = Vec::new();
@@ -238,14 +257,15 @@ pub fn run(
     for case in cases {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
         let legacy = case["legacy"].as_bool().unwrap_or(false);
+        let entry_evaluation = case["formula_entry"].as_bool().unwrap_or(legacy);
         if let Some(dependent) = case["dependent"].as_str() {
             enter_as(&mut book, c, dependent, legacy)?;
             retire_rtd(&mut book, &rtd, &providers, c, &mut rtd_retired)?;
-            if legacy {
+            if entry_evaluation {
                 evaluate_entry(&mut book, c)?;
                 settle_entry(shell, native, &mut book, &mut returns)?;
                 let (calculated, proof) = value(&book, c)?;
-                formula_entries.push(serde_json::json!({"formula":dependent,"cell":"C3","value":crate::value_json(&calculated),"provenance":proof}));
+                formula_entries.push(serde_json::json!({"formula":dependent,"cell":dependent_address,"value":crate::value_json(&calculated),"provenance":proof}));
             }
         }
         if let Some(edit) = case.get("edit") {
@@ -278,7 +298,7 @@ pub fn run(
             current_formula = Some(formula.to_owned());
             enter_as(&mut book, b, formula, legacy)?;
             retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
-            if legacy {
+            if entry_evaluation {
                 evaluate_entry(&mut book, b)?;
                 settle_entry(shell, native, &mut book, &mut returns)?;
                 let (calculated, proof) = value(&book, b)?;
@@ -470,7 +490,35 @@ pub fn run(
                 Ok(serde_json::json!({"value":actual,"provenance":proof}))
             })
             .transpose()?;
-        results.push(serde_json::json!({"formula":formula,"calculation":calculation,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms,"rtd_updates_through":rtd_updates.len()}));
+        let mut spill_cells = serde_json::Map::new();
+        if let Some(cells) = case["spill_cells"].as_object() {
+            for (address, expected) in cells {
+                let calc_host::ReferenceTarget::Area(area) =
+                    book.host().resolve_reference_text(b, address)
+                else {
+                    return Err("spill probe needs a cell".into());
+                };
+                if area.cell_count() != 1 || area.sheet() != sheet {
+                    return Err("spill probe needs one local cell".into());
+                }
+                let (actual, proof) = value(&book, area.first())?;
+                let actual = crate::value_json(&actual);
+                if actual != *expected
+                    && !(actual.is_number()
+                        && expected.is_number()
+                        && actual.as_f64() == expected.as_f64())
+                {
+                    return Err(format!(
+                        "spill {address}: calculated {actual}, expected {expected}"
+                    ));
+                }
+                spill_cells.insert(
+                    address.clone(),
+                    serde_json::json!({"value":actual,"provenance":proof}),
+                );
+            }
+        }
+        results.push(serde_json::json!({"formula":formula,"calculation":calculation,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms,"rtd_updates_through":rtd_updates.len(),"spill_cells":spill_cells}));
         shell.projection()?.after_calculate()?;
     }
     if !native.diagnostics().is_empty() {
